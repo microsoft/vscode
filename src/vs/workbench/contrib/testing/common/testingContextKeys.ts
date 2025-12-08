@@ -12,11 +12,15 @@ export namespace TestingContextKeys {
 	export const providerCount = new RawContextKey('testing.providerCount', 0);
 	export const canRefreshTests = new RawContextKey('testing.canRefresh', false, { type: 'boolean', description: localize('testing.canRefresh', 'Indicates whether any test controller has an attached refresh handler.') });
 	export const isRefreshingTests = new RawContextKey('testing.isRefreshing', false, { type: 'boolean', description: localize('testing.isRefreshing', 'Indicates whether any test controller is currently refreshing tests.') });
+	export const isContinuousModeOn = new RawContextKey('testing.isContinuousModeOn', false, { type: 'boolean', description: localize('testing.isContinuousModeOn', 'Indicates whether continuous test mode is on.') });
 	export const hasDebuggableTests = new RawContextKey('testing.hasDebuggableTests', false, { type: 'boolean', description: localize('testing.hasDebuggableTests', 'Indicates whether any test controller has registered a debug configuration') });
 	export const hasRunnableTests = new RawContextKey('testing.hasRunnableTests', false, { type: 'boolean', description: localize('testing.hasRunnableTests', 'Indicates whether any test controller has registered a run configuration') });
 	export const hasCoverableTests = new RawContextKey('testing.hasCoverableTests', false, { type: 'boolean', description: localize('testing.hasCoverableTests', 'Indicates whether any test controller has registered a coverage configuration') });
 	export const hasNonDefaultProfile = new RawContextKey('testing.hasNonDefaultProfile', false, { type: 'boolean', description: localize('testing.hasNonDefaultConfig', 'Indicates whether any test controller has registered a non-default configuration') });
 	export const hasConfigurableProfile = new RawContextKey('testing.hasConfigurableProfile', false, { type: 'boolean', description: localize('testing.hasConfigurableConfig', 'Indicates whether any test configuration can be configured') });
+	export const supportsContinuousRun = new RawContextKey('testing.supportsContinuousRun', false, { type: 'boolean', description: localize('testing.supportsContinuousRun', 'Indicates whether continous test running is supported') });
+	export const isParentRunningContinuously = new RawContextKey('testing.isParentRunningContinuously', false, { type: 'boolean', description: localize('testing.isParentRunningContinuously', 'Indicates whether the parent of a test is continuously running, set in the menu context of test items') });
+	export const activeEditorHasTests = new RawContextKey('testing.activeEditorHasTests', false, { type: 'boolean', description: localize('testing.activeEditorHasTests', 'Indicates whether any tests are present in the current editor') });
 
 	export const capabilityToContextKey: { [K in TestRunProfileBitset]: RawContextKey<boolean> } = {
 		[TestRunProfileBitset.Run]: hasRunnableTests,
@@ -24,15 +28,15 @@ export namespace TestingContextKeys {
 		[TestRunProfileBitset.Debug]: hasDebuggableTests,
 		[TestRunProfileBitset.HasNonDefaultProfile]: hasNonDefaultProfile,
 		[TestRunProfileBitset.HasConfigurable]: hasConfigurableProfile,
+		[TestRunProfileBitset.SupportsContinuousRun]: supportsContinuousRun,
 	};
 
 	export const hasAnyResults = new RawContextKey<boolean>('testing.hasAnyResults', false);
 	export const viewMode = new RawContextKey<TestExplorerViewMode>('testing.explorerViewMode', TestExplorerViewMode.List);
 	export const viewSorting = new RawContextKey<TestExplorerViewSorting>('testing.explorerViewSorting', TestExplorerViewSorting.ByLocation);
 	export const isRunning = new RawContextKey<boolean>('testing.isRunning', false);
-	export const isInPeek = new RawContextKey<boolean>('testing.isInPeek', true);
+	export const isInPeek = new RawContextKey<boolean>('testing.isInPeek', false);
 	export const isPeekVisible = new RawContextKey<boolean>('testing.isPeekVisible', false);
-	export const autoRun = new RawContextKey<boolean>('testing.autoRun', false);
 
 	export const peekItemType = new RawContextKey<string | undefined>('peekItemType', undefined, {
 		type: 'string',

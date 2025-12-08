@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -25,7 +27,7 @@ import * as Platform from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
-import { NotSupportedError } from 'vs/base/common/errors';
+import { ErrorNoTelemetry, NotSupportedError } from 'vs/base/common/errors';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
@@ -44,7 +46,7 @@ export interface IExtHostTask extends ExtHostTaskShape {
 	terminateTask(execution: vscode.TaskExecution): Promise<void>;
 }
 
-export namespace TaskDefinitionDTO {
+namespace TaskDefinitionDTO {
 	export function from(value: vscode.TaskDefinition): tasks.ITaskDefinitionDTO | undefined {
 		if (value === undefined || value === null) {
 			return undefined;
@@ -59,7 +61,7 @@ export namespace TaskDefinitionDTO {
 	}
 }
 
-export namespace TaskPresentationOptionsDTO {
+namespace TaskPresentationOptionsDTO {
 	export function from(value: vscode.TaskPresentationOptions): tasks.ITaskPresentationOptionsDTO | undefined {
 		if (value === undefined || value === null) {
 			return undefined;
@@ -74,7 +76,7 @@ export namespace TaskPresentationOptionsDTO {
 	}
 }
 
-export namespace ProcessExecutionOptionsDTO {
+namespace ProcessExecutionOptionsDTO {
 	export function from(value: vscode.ProcessExecutionOptions): tasks.IProcessExecutionOptionsDTO | undefined {
 		if (value === undefined || value === null) {
 			return undefined;
@@ -89,7 +91,7 @@ export namespace ProcessExecutionOptionsDTO {
 	}
 }
 
-export namespace ProcessExecutionDTO {
+namespace ProcessExecutionDTO {
 	export function is(value: tasks.IShellExecutionDTO | tasks.IProcessExecutionDTO | tasks.ICustomExecutionDTO | undefined): value is tasks.IProcessExecutionDTO {
 		if (value) {
 			const candidate = value as tasks.IProcessExecutionDTO;
@@ -119,7 +121,7 @@ export namespace ProcessExecutionDTO {
 	}
 }
 
-export namespace ShellExecutionOptionsDTO {
+namespace ShellExecutionOptionsDTO {
 	export function from(value: vscode.ShellExecutionOptions): tasks.IShellExecutionOptionsDTO | undefined {
 		if (value === undefined || value === null) {
 			return undefined;
@@ -134,7 +136,7 @@ export namespace ShellExecutionOptionsDTO {
 	}
 }
 
-export namespace ShellExecutionDTO {
+namespace ShellExecutionDTO {
 	export function is(value: tasks.IShellExecutionDTO | tasks.IProcessExecutionDTO | tasks.ICustomExecutionDTO | undefined): value is tasks.IShellExecutionDTO {
 		if (value) {
 			const candidate = value as tasks.IShellExecutionDTO;
@@ -212,7 +214,7 @@ export namespace TaskHandleDTO {
 		};
 	}
 }
-export namespace TaskGroupDTO {
+namespace TaskGroupDTO {
 	export function from(value: vscode.TaskGroup): tasks.ITaskGroupDTO | undefined {
 		if (value === undefined || value === null) {
 			return undefined;
@@ -338,7 +340,7 @@ export namespace TaskDTO {
 	}
 }
 
-export namespace TaskFilterDTO {
+namespace TaskFilterDTO {
 	export function from(value: vscode.TaskFilter | undefined): tasks.ITaskFilterDTO | undefined {
 		return value;
 	}
@@ -371,15 +373,6 @@ class TaskExecutionImpl implements vscode.TaskExecution {
 	}
 
 	public fireDidEndProcess(value: tasks.ITaskProcessEndedDTO): void {
-	}
-}
-
-export namespace TaskExecutionDTO {
-	export function from(value: vscode.TaskExecution): tasks.ITaskExecutionDTO {
-		return {
-			id: (value as TaskExecutionImpl)._id,
-			task: undefined
-		};
 	}
 }
 
@@ -631,7 +624,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		if (typeof execution === 'string') {
 			const taskExecution = this._taskExecutionPromises.get(execution);
 			if (!taskExecution) {
-				throw new Error('Unexpected: The specified task is missing an execution');
+				throw new ErrorNoTelemetry('Unexpected: The specified task is missing an execution');
 			}
 			return taskExecution;
 		}

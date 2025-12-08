@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as Proto from '../protocol';
 import { ServerResponse } from '../typescriptService';
+import type * as Proto from './protocol/protocol';
 
 export interface CallbackItem<R> {
 	readonly onSuccess: (value: R) => void;

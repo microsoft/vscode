@@ -5,9 +5,8 @@
 
 import { isLinuxSnap, platform, Platform, PlatformToString } from 'vs/base/common/platform';
 import { env, platform as nodePlatform } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ICommonProperties } from 'vs/platform/telemetry/common/telemetry';
 
 function getPlatformDetail(hostname: string): string | undefined {
 	if (platform === Platform.Linux && /^penguin(\.|$)/i.test(hostname)) {
@@ -17,19 +16,17 @@ function getPlatformDetail(hostname: string): string | undefined {
 	return undefined;
 }
 
-export async function resolveCommonProperties(
-	fileService: IFileService,
+export function resolveCommonProperties(
 	release: string,
 	hostname: string,
 	arch: string,
 	commit: string | undefined,
 	version: string | undefined,
 	machineId: string | undefined,
-	msftInternalDomains: string[] | undefined,
-	installSourcePath: string,
+	isInternalTelemetry: boolean,
 	product?: string
-): Promise<{ [name: string]: string | boolean | undefined }> {
-	const result: { [name: string]: string | boolean | undefined } = Object.create(null);
+): ICommonProperties {
+	const result: ICommonProperties = Object.create(null);
 
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 	result['common.machineId'] = machineId;
@@ -50,10 +47,9 @@ export async function resolveCommonProperties(
 	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.product'] = product || 'desktop';
 
-	const msftInternal = verifyMicrosoftInternalDomain(msftInternalDomains || []);
-	if (msftInternal) {
+	if (isInternalTelemetry) {
 		// __GDPR__COMMON__ "common.msftInternal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-		result['common.msftInternal'] = msftInternal;
+		result['common.msftInternal'] = isInternalTelemetry;
 	}
 
 	// dynamic properties which value differs on each call
@@ -87,15 +83,6 @@ export async function resolveCommonProperties(
 	if (platformDetail) {
 		// __GDPR__COMMON__ "common.platformDetail" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.platformDetail'] = platformDetail;
-	}
-
-	try {
-		const contents = await fileService.readFile(URI.file(installSourcePath));
-
-		// __GDPR__COMMON__ "common.source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		result['common.source'] = contents.value.toString().slice(0, 30);
-	} catch (error) {
-		// ignore error
 	}
 
 	return result;

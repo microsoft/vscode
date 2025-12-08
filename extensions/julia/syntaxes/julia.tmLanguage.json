@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/7b7801f41ce4ac1303bd17e057dbe677e24f597f",
+	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/ccc0277c9ee9af34a0b50e5fa27a6f5191601b8c",
 	"name": "Julia",
 	"scopeName": "source.julia",
 	"comment": "This grammar is used by Atom (Oniguruma), GitHub (PCRE), and VSCode (Oniguruma),\nso all regexps must be compatible with both engines.\n\nSpecs:\n- https://github.com/kkos/oniguruma/blob/master/doc/RE\n- https://www.pcre.org/current/doc/html/",
@@ -120,6 +120,26 @@
 				}
 			]
 		},
+		"comment_tags": {
+			"patterns": [
+				{
+					"match": "\\bTODO\\b",
+					"name": "keyword.other.comment-annotation.julia"
+				},
+				{
+					"match": "\\bFIXME\\b",
+					"name": "keyword.other.comment-annotation.julia"
+				},
+				{
+					"match": "\\bCHANGED\\b",
+					"name": "keyword.other.comment-annotation.julia"
+				},
+				{
+					"match": "\\bXXX\\b",
+					"name": "keyword.other.comment-annotation.julia"
+				}
+			]
+		},
 		"comment": {
 			"patterns": [
 				{
@@ -133,7 +153,12 @@
 						}
 					},
 					"end": "\\n",
-					"name": "comment.line.number-sign.julia"
+					"name": "comment.line.number-sign.julia",
+					"patterns": [
+						{
+							"include": "#comment_tags"
+						}
+					]
 				}
 			]
 		},
@@ -154,6 +179,9 @@
 					},
 					"name": "comment.block.number-sign-equals.julia",
 					"patterns": [
+						{
+							"include": "#comment_tags"
+						},
 						{
 							"include": "#comment_block"
 						}
@@ -852,6 +880,9 @@
 					"patterns": [
 						{
 							"include": "#string_escaped_char"
+						},
+						{
+							"include": "#string_dollar_sign_interpolate"
 						}
 					]
 				},
@@ -878,6 +909,9 @@
 					"patterns": [
 						{
 							"include": "#string_escaped_char"
+						},
+						{
+							"include": "#string_dollar_sign_interpolate"
 						}
 					]
 				}
@@ -903,6 +937,10 @@
 					"name": "variable.interpolation.julia",
 					"comment": "`punctuation.section.embedded`, `constant.escape`,\n& `meta.embedded.line` were considered but appear to have even spottier\nsupport among popular syntaxes.",
 					"patterns": [
+						{
+							"match": "\\bfor\\b",
+							"name": "keyword.control.julia"
+						},
 						{
 							"include": "#parentheses"
 						},

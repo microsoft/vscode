@@ -8,6 +8,7 @@
 	"json.schemas.schema.desc": "The schema definition for the given URL. The schema only needs to be provided to avoid accesses to the schema URL.",
 	"json.format.enable.desc": "Enable/disable default JSON formatter",
 	"json.format.keepLines.desc" : "Keep all existing new lines when formatting.",
+	"json.sortOnSave.enable.desc": "Enable/disable default sorting on save",
 	"json.validate.enable.desc": "Enable/disable JSON validation.",
 	"json.tracing.desc": "Traces the communication between VS Code and the JSON language server.",
 	"json.colorDecorators.enable.desc": "Enables or disables color decorators",
@@ -17,5 +18,6 @@
 	"json.maxItemsComputed.desc": "The maximum number of outline symbols and folding regions computed (limited for performance reasons).",
 	"json.maxItemsExceededInformation.desc": "Show notification when exceeding the maximum number of outline symbols and folding regions.",
 	"json.enableSchemaDownload.desc": "When enabled, JSON schemas can be fetched from http and https locations.",
-	"json.command.clearCache": "Clear schema cache"
+	"json.command.clearCache": "Clear Schema Cache",
+	"json.command.sort": "Sort Document"
 }

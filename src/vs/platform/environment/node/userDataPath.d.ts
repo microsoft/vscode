@@ -11,4 +11,4 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
  * - respect VSCODE_APPDATA environment variable
  * - respect --user-data-dir CLI argument
  */
-export function getUserDataPath(args: NativeParsedArgs): string;
+export function getUserDataPath(args: NativeParsedArgs, productName: string): string;

@@ -13,13 +13,12 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { fuzzyContains } from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IDebugService, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
@@ -56,7 +55,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			}
 
 			// Match fuzzy on label
-			entry.highlights = { label: withNullAsUndefined(matchesFuzzy(filter, entry.label, true)) };
+			entry.highlights = { label: matchesFuzzy(filter, entry.label, true) ?? undefined };
 
 			// Return if we have a match on label or container
 			return entry.highlights.label || fuzzyContains(entry.containerLabel, filter);
@@ -203,9 +202,8 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Output Channels
 		const channels = this.outputService.getChannelDescriptors();
 		for (const channel of channels) {
-			const label = channel.log ? localize('logChannel', "Log ({0})", channel.label) : channel.label;
 			viewEntries.push({
-				label,
+				label: channel.label,
 				containerLabel: localize('channels', "Output"),
 				accept: () => this.outputService.showChannel(channel.id)
 			});
@@ -235,7 +233,7 @@ export class OpenViewPickerAction extends Action2 {
 		super({
 			id: OpenViewPickerAction.ID,
 			title: { value: localize('openView', "Open View"), original: 'Open View' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true
 		});
 	}
@@ -258,7 +256,7 @@ export class QuickAccessViewPickerAction extends Action2 {
 		super({
 			id: QuickAccessViewPickerAction.ID,
 			title: { value: localize('quickOpenView', "Quick Open View"), original: 'Quick Open View' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: false, // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

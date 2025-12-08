@@ -70,4 +70,14 @@ suite('LinkedText', () => {
 			'...'
 		]);
 	});
+
+	test('Should match non-greedily', () => {
+		assert.deepStrictEqual(parseLinkedText('a [link text 1](http://link.href "title1") b [link text 2](http://link.href "title2") c').nodes, [
+			'a ',
+			{ label: 'link text 1', href: 'http://link.href', title: 'title1' },
+			' b ',
+			{ label: 'link text 2', href: 'http://link.href', title: 'title2' },
+			' c',
+		]);
+	});
 });

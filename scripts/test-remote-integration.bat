@@ -19,7 +19,7 @@ IF "%VSCODEUSERDATADIR%" == "" (
 	set VSCODEUSERDATADIR=%TMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,5%
 )
 
-set REMOTE_VSCODE=%AUTHORITY%%EXT_PATH%
+set REMOTE_EXT_PATH=%AUTHORITY%%EXT_PATH%
 set VSCODECRASHDIR=%~dp0\..\.build\crashes
 set VSCODELOGSDIR=%~dp0\..\.build\logs\integration-tests-remote
 set TESTRESOLVER_DATA_FOLDER=%TMP%\testresolverdatafolder-%RANDOM%-%TIME:~6,5%
@@ -32,44 +32,79 @@ if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
 	echo Using '%VSCODE_REMOTE_SERVER_PATH%' as server path
 )
 
-set API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --disable-keytar --disable-inspect --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
-
 :: Figure out which Electron to use for running tests
 if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
-	echo Storing crash reports into '%VSCODECRASHDIR%'
-	echo Storing log files into '%VSCODELOGSDIR%'
+	chcp 65001
+	set INTEGRATION_TEST_ELECTRON_PATH=.\scripts\code.bat
+	set API_TESTS_EXTRA_ARGS_BUILT=
 
-	:: Tests in the extension host running from sources
-	call .\scripts\code.bat --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS%
-	if %errorlevel% neq 0 exit /b %errorlevel%
-
-	call .\scripts\code.bat --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests %API_TESTS_EXTRA_ARGS%
-	if %errorlevel% neq 0 exit /b %errorlevel%
+	echo Running integration tests out of sources.
 ) else (
-	echo Storing crash reports into '%VSCODECRASHDIR%'
-	echo Storing log files into '%VSCODELOGSDIR%'
- 	echo Using %INTEGRATION_TEST_ELECTRON_PATH% as Electron path
-
-	:: Run from a built: need to compile all test extensions
-	:: because we run extension tests from their source folders
-	:: and the build bundles extensions into .build webpacked
-	:: call yarn gulp 	compile-extension:vscode-api-tests^
-	::				compile-extension:microsoft-authentication^
-	::				compile-extension:github-authentication^
-	::				compile-extension:vscode-test-resolver
-
-	:: Configuration for more verbose output
 	set VSCODE_CLI=1
 	set ELECTRON_ENABLE_LOGGING=1
-	set ELECTRON_ENABLE_STACK_DUMPING=1
 
-	:: Tests in the extension host running from built version (both client and server)
-	call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests
-	if %errorlevel% neq 0 exit /b %errorlevel%
+	:: Extra arguments only when running against a built version
+	set API_TESTS_EXTRA_ARGS_BUILT=--extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests
 
-	call "%INTEGRATION_TEST_ELECTRON_PATH%" --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests %API_TESTS_EXTRA_ARGS% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests
-	if %errorlevel% neq 0 exit /b %errorlevel%
+ 	echo Using %INTEGRATION_TEST_ELECTRON_PATH% as Electron path
 )
+
+echo Storing crash reports into '%VSCODECRASHDIR%'
+echo Storing log files into '%VSCODELOGSDIR%'
+
+
+:: Tests in the extension host
+
+set API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --disable-keytar --disable-inspect --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
+
+echo.
+echo ### API tests (folder)
+call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_EXT_PATH%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_EXT_PATH%/vscode-api-tests --extensionTestsPath=%REMOTE_EXT_PATH%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS% %API_TESTS_EXTRA_ARGS_BUILT%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### API tests (workspace)
+call "%INTEGRATION_TEST_ELECTRON_PATH%" --file-uri=%REMOTE_EXT_PATH%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_EXT_PATH%/vscode-api-tests --extensionTestsPath=%REMOTE_EXT_PATH%/vscode-api-tests/out/workspace-tests %API_TESTS_EXTRA_ARGS% %API_TESTS_EXTRA_ARGS_BUILT%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### TypeScript tests
+call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_EXT_PATH%/typescript-language-features/test-workspace --extensionDevelopmentPath=%REMOTE_EXT_PATH%/typescript-language-features --extensionTestsPath=%REMOTE_EXT_PATH%/typescript-language-features\out\test\unit %API_TESTS_EXTRA_ARGS% %API_TESTS_EXTRA_ARGS_BUILT%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### Markdown tests
+call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_EXT_PATH%/markdown-language-features/test-workspace --extensionDevelopmentPath=%REMOTE_EXT_PATH%/markdown-language-features --extensionTestsPath=%REMOTE_EXT_PATH%/markdown-language-features/out/test %API_TESTS_EXTRA_ARGS% %API_TESTS_EXTRA_ARGS_BUILT%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### Emmet tests
+call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_EXT_PATH%/emmet/test-workspace --extensionDevelopmentPath=%REMOTE_EXT_PATH%/emmet --extensionTestsPath=%REMOTE_EXT_PATH%/emmet/out/test %API_TESTS_EXTRA_ARGS% %API_TESTS_EXTRA_ARGS_BUILT%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### Git tests
+for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set TEMPDIR=%%i
+set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
+mkdir %GITWORKSPACE%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%AUTHORITY%%GITWORKSPACE% --extensionDevelopmentPath=%REMOTE_EXT_PATH%/git --extensionTestsPath=%REMOTE_EXT_PATH%/git/out/test %API_TESTS_EXTRA_ARGS% %API_TESTS_EXTRA_ARGS_BUILT%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### Ipynb tests
+set IPYNBWORKSPACE=%TEMPDIR%\ipynb-%RANDOM%
+mkdir %IPYNBWORKSPACE%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%AUTHORITY%%IPYNBWORKSPACE% --extensionDevelopmentPath=%REMOTE_EXT_PATH%/ipynb --extensionTestsPath=%REMOTE_EXT_PATH%/ipynb/out/test %API_TESTS_EXTRA_ARGS% %API_TESTS_EXTRA_ARGS_BUILT%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### Configuration editing tests
+set CFWORKSPACE=%TEMPDIR%\cf-%RANDOM%
+mkdir %CFWORKSPACE%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%AUTHORITY%/%CFWORKSPACE% --extensionDevelopmentPath=%REMOTE_EXT_PATH%/configuration-editing --extensionTestsPath=%REMOTE_EXT_PATH%/configuration-editing/out/test %API_TESTS_EXTRA_ARGS% %API_TESTS_EXTRA_ARGS_BUILT%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+:: Cleanup
 
 IF "%3" == "" (
 	rmdir /s /q %VSCODEUSERDATADIR%

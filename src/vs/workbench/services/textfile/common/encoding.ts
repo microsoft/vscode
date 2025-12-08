@@ -5,7 +5,7 @@
 
 import { Readable, ReadableStream, newWriteableStream, listenStream } from 'vs/base/common/stream';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { importAMDNodeModule } from 'vs/amdX';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -79,7 +79,7 @@ class DecoderStream implements IDecoderStream {
 	static async create(encoding: string): Promise<DecoderStream> {
 		let decoder: IDecoderStream | undefined = undefined;
 		if (encoding !== UTF8) {
-			const iconv = await import('@vscode/iconv-lite-umd');
+			const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
 			decoder = iconv.getDecoder(toNodeEncoding(encoding));
 		} else {
 			const utf8TextDecoder = new TextDecoder();
@@ -123,7 +123,6 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 		let bytesBuffered = 0;
 
 		let decoder: IDecoderStream | undefined = undefined;
-		let sourceListener: IDisposable | undefined = undefined;
 
 		const createDecoder = async () => {
 			try {
@@ -166,7 +165,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 			}
 		};
 
-		sourceListener = listenStream(source, {
+		const sourceListener = listenStream(source, {
 			onData: async chunk => {
 
 				// if the decoder is ready, we just write directly
@@ -211,7 +210,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 }
 
 export async function toEncodeReadable(readable: Readable<string>, encoding: string, options?: { addBOM?: boolean }): Promise<VSBufferReadable> {
-	const iconv = await import('@vscode/iconv-lite-umd');
+	const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
 	const encoder = iconv.getEncoder(toNodeEncoding(encoding), options);
 
 	let bytesWritten = false;
@@ -260,7 +259,7 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 }
 
 export async function encodingExists(encoding: string): Promise<boolean> {
-	const iconv = await import('@vscode/iconv-lite-umd');
+	const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
 
 	return iconv.encodingExists(toNodeEncoding(encoding));
 }
@@ -316,7 +315,7 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
  * Guesses the encoding from buffer.
  */
 async function guessEncodingByBuffer(buffer: VSBuffer): Promise<string | null> {
-	const jschardet = await import('jschardet');
+	const jschardet = await importAMDNodeModule<typeof import('jschardet')>('jschardet', 'dist/jschardet.min.js');
 
 	// ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
 	const limitedBuffer = buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES);

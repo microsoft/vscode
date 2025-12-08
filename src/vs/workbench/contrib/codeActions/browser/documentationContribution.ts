@@ -10,7 +10,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as languages from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DocumentationExtensionPoint } from 'vs/workbench/contrib/codeActions/common/documentationExtensionPoint';

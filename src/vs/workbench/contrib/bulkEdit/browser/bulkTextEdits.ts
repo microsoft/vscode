@@ -116,7 +116,7 @@ class ModelEditTask implements IDisposable {
 		if (!edit.text) {
 			return edit;
 		}
-		const text = new SnippetParser().text(edit.text);
+		const text = SnippetParser.asInsertText(edit.text);
 		return { ...edit, insertAsSnippet: false, text };
 	}
 }
@@ -156,7 +156,7 @@ class EditorEditTask extends ModelEditTask {
 						});
 					}
 				}
-				snippetCtrl.apply(snippetEdits);
+				snippetCtrl.apply(snippetEdits, { undoStopBefore: false, undoStopAfter: false });
 
 			} else {
 				// normal edit

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DiagnosticLanguage } from '../configuration/languageDescription';
 import * as arrays from '../utils/arrays';
 import { Disposable } from '../utils/dispose';
-import { DiagnosticLanguage } from '../utils/languageDescription';
 import { ResourceMap } from '../utils/resourceMap';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
@@ -34,6 +34,7 @@ export const enum DiagnosticKind {
 }
 
 class FileDiagnostics {
+
 	private readonly _diagnostics = new Map<DiagnosticKind, ReadonlyArray<vscode.Diagnostic>>();
 
 	constructor(
@@ -52,7 +53,7 @@ class FileDiagnostics {
 		}
 
 		const existing = this._diagnostics.get(kind);
-		if (arrays.equals(existing || arrays.empty, diagnostics, diagnosticsEquals)) {
+		if (existing?.length === 0 && diagnostics.length === 0) {
 			// No need to update
 			return false;
 		}
@@ -61,7 +62,7 @@ class FileDiagnostics {
 		return true;
 	}
 
-	public getDiagnostics(settings: DiagnosticSettings): vscode.Diagnostic[] {
+	public getAllDiagnostics(settings: DiagnosticSettings): vscode.Diagnostic[] {
 		if (!settings.getValidate(this.language)) {
 			return [];
 		}
@@ -71,6 +72,12 @@ class FileDiagnostics {
 			...this.get(DiagnosticKind.Semantic),
 			...this.getSuggestionDiagnostics(settings),
 		];
+	}
+
+	public delete(toDelete: vscode.Diagnostic): void {
+		for (const [type, diags] of this._diagnostics) {
+			this._diagnostics.set(type, diags.filter(diag => !diagnosticsEquals(diag, toDelete)));
+		}
 	}
 
 	private getSuggestionDiagnostics(settings: DiagnosticSettings) {
@@ -96,7 +103,7 @@ interface LanguageDiagnosticSettings {
 
 function areLanguageDiagnosticSettingsEqual(currentSettings: LanguageDiagnosticSettings, newSettings: LanguageDiagnosticSettings): boolean {
 	return currentSettings.validate === newSettings.validate
-		&& currentSettings.enableSuggestions && currentSettings.enableSuggestions;
+		&& currentSettings.enableSuggestions === newSettings.enableSuggestions;
 }
 
 class DiagnosticSettings {
@@ -163,7 +170,7 @@ export class DiagnosticsManager extends Disposable {
 	public override dispose() {
 		super.dispose();
 
-		for (const value of this._pendingUpdates.values) {
+		for (const value of this._pendingUpdates.values()) {
 			clearTimeout(value);
 		}
 		this._pendingUpdates.clear();
@@ -177,14 +184,14 @@ export class DiagnosticsManager extends Disposable {
 	public setValidate(language: DiagnosticLanguage, value: boolean) {
 		const didUpdate = this._settings.setValidate(language, value);
 		if (didUpdate) {
-			this.rebuild();
+			this.rebuildAll();
 		}
 	}
 
 	public setEnableSuggestions(language: DiagnosticLanguage, value: boolean) {
 		const didUpdate = this._settings.setEnableSuggestions(language, value);
 		if (didUpdate) {
-			this.rebuild();
+			this.rebuildAll();
 		}
 	}
 
@@ -217,9 +224,17 @@ export class DiagnosticsManager extends Disposable {
 		this._currentDiagnostics.set(file, diagnostics);
 	}
 
-	public delete(resource: vscode.Uri): void {
+	public deleteAllDiagnosticsInFile(resource: vscode.Uri): void {
 		this._currentDiagnostics.delete(resource);
 		this._diagnostics.delete(resource);
+	}
+
+	public deleteDiagnostic(resource: vscode.Uri, diagnostic: vscode.Diagnostic): void {
+		const fileDiagnostics = this._diagnostics.get(resource);
+		if (fileDiagnostics) {
+			fileDiagnostics.delete(diagnostic);
+			this.rebuildFile(fileDiagnostics);
+		}
 	}
 
 	public getDiagnostics(file: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
@@ -239,13 +254,17 @@ export class DiagnosticsManager extends Disposable {
 		}
 
 		const fileDiagnostics = this._diagnostics.get(file);
-		this._currentDiagnostics.set(file, fileDiagnostics ? fileDiagnostics.getDiagnostics(this._settings) : []);
+		this._currentDiagnostics.set(file, fileDiagnostics ? fileDiagnostics.getAllDiagnostics(this._settings) : []);
 	}
 
-	private rebuild(): void {
+	private rebuildAll(): void {
 		this._currentDiagnostics.clear();
-		for (const fileDiagnostic of this._diagnostics.values) {
-			this._currentDiagnostics.set(fileDiagnostic.file, fileDiagnostic.getDiagnostics(this._settings));
+		for (const fileDiagnostic of this._diagnostics.values()) {
+			this.rebuildFile(fileDiagnostic);
 		}
+	}
+
+	private rebuildFile(fileDiagnostic: FileDiagnostics) {
+		this._currentDiagnostics.set(fileDiagnostic.file, fileDiagnostic.getAllDiagnostics(this._settings));
 	}
 }

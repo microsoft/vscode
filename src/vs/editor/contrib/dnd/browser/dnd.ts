@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import 'vs/css!./dnd';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
@@ -239,4 +239,4 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	}
 }
 
-registerEditorContribution(DragAndDropController.ID, DragAndDropController);
+registerEditorContribution(DragAndDropController.ID, DragAndDropController, EditorContributionInstantiation.BeforeFirstInteraction);

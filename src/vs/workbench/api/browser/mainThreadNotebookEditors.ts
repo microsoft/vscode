@@ -4,19 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { ExtHostContext, ExtHostNotebookEditorsShape, ICellEditOperationDto, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { ILogService } from 'vs/platform/log/common/log';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { equals } from 'vs/base/common/objects';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostNotebookEditorsShape, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
 
 class MainThreadNotebook {
 
@@ -42,9 +41,9 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorService private readonly _editorService: IEditorService,
-		@ILogService private readonly _logService: ILogService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookEditors);
 
@@ -97,23 +96,6 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		}
 	}
 
-	async $tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperationDto[]): Promise<boolean> {
-		const wrapper = this._mainThreadEditors.get(editorId);
-		if (!wrapper) {
-			return false;
-		}
-		const { editor } = wrapper;
-		if (!editor.textModel) {
-			this._logService.warn('Notebook editor has NO model', editorId);
-			return false;
-		}
-		if (editor.textModel.versionId !== modelVersionId) {
-			return false;
-		}
-		//todo@jrieken use proper selection logic!
-		return editor.textModel.applyEdits(cellEdits.map(NotebookDto.fromCellEditOperationDto), true, undefined, () => undefined, undefined, true);
-	}
-
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
 		const editorOptions: INotebookEditorOptions = {
 			cellSelections: options.selections,
@@ -126,13 +108,13 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 			override: viewType
 		};
 
-		const editorPane = await this._editorService.openEditor({ resource: URI.revive(resource), options: editorOptions }, columnToEditorGroup(this._editorGroupService, options.position));
+		const editorPane = await this._editorService.openEditor({ resource: URI.revive(resource), options: editorOptions }, columnToEditorGroup(this._editorGroupService, this._configurationService, options.position));
 		const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
 
 		if (notebookEditor) {
 			return notebookEditor.getId();
 		} else {
-			throw new Error(`Notebook Editor creation failure for document ${resource}`);
+			throw new Error(`Notebook Editor creation failure for document ${JSON.stringify(resource)}`);
 		}
 	}
 

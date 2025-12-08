@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "const sourceActions = notebookKernelService.getSourceActions(notebook, editor.scopedContextKeyService);\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "const sourceActions = notebookKernelService.getSourceActions(notebookTextModel, scopedContextKeyService);\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,2)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,62 -> 1,79]",
+					"modifiedRange": "[1,62 -> 1,81]"
+				}
+			]
+		}
+	]
+}

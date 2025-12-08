@@ -15,20 +15,39 @@ export const INotificationService = createDecorator<INotificationService>('notif
 
 export type NotificationMessage = string | Error;
 
+export enum NotificationPriority {
+
+	/**
+	 * Default priority: notification will be visible unless do not disturb mode is enabled.
+	 */
+	DEFAULT,
+
+	/**
+	 * Silent priority: notification will only be visible from the notifications center.
+	 */
+	SILENT,
+
+	/**
+	 * Urgent priority: notification will be visible even when do not disturb mode is enabled.
+	 */
+	URGENT
+}
+
 export interface INotificationProperties {
 
 	/**
-	 * Sticky notifications are not automatically removed after a certain timeout. By
-	 * default, notifications with primary actions and severity error are always sticky.
+	 * Sticky notifications are not automatically removed after a certain timeout.
+	 *
+	 * Currently, only 2 kinds of notifications are sticky:
+	 * - Error notifications with primary actions
+	 * - Notifications that show progress
 	 */
 	readonly sticky?: boolean;
 
 	/**
-	 * Silent notifications are not shown to the user unless the notification center
-	 * is opened. The status bar will still indicate all number of notifications to
-	 * catch some attention.
+	 * Allows to override the priority of the notification based on needs.
 	 */
-	readonly silent?: boolean;
+	readonly priority?: NotificationPriority;
 
 	/**
 	 * Adds an action to never show the notification again. The choice will be persisted

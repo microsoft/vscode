@@ -68,8 +68,8 @@ function fixBadRegex(grammar) {
 	}
 }
 
-vscodeGrammarUpdater.update('atom/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', fixBadRegex);
-vscodeGrammarUpdater.update('atom/language-php', 'grammars/html.cson', './syntaxes/html.tmLanguage.json', grammar => {
+vscodeGrammarUpdater.update('KapitanOczywisty/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', fixBadRegex);
+vscodeGrammarUpdater.update('KapitanOczywisty/language-php', 'grammars/html.cson', './syntaxes/html.tmLanguage.json', grammar => {
 	adaptInjectionScope(grammar);
 	includeDerivativeHtml(grammar);
 });

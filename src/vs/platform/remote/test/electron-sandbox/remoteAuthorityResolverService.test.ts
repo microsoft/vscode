@@ -12,7 +12,7 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sand
 suite('RemoteAuthorityResolverService', () => {
 	test('issue #147318: RemoteAuthorityResolverError keeps the same type', async () => {
 		const productService: IProductService = { _serviceBrand: undefined, ...product };
-		const service = new RemoteAuthorityResolverService(productService);
+		const service = new RemoteAuthorityResolverService(productService, undefined as any);
 		const result = service.resolveAuthority('test+x');
 		service._setResolvedAuthorityError('test+x', new RemoteAuthorityResolverError('something', RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable));
 		try {

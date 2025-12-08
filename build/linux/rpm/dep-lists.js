@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.referenceGeneratedDepsByArch = exports.bundledDeps = exports.additionalDeps = void 0;
+exports.referenceGeneratedDepsByArch = exports.additionalDeps = void 0;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/additional_deps
 // Additional dependencies not in the rpm find-requires output.
 exports.additionalDeps = [
@@ -16,18 +16,6 @@ exports.additionalDeps = [
     'libvulkan.so.1()(64bit)',
     'libcurl.so.4()(64bit)',
     'xdg-utils' // OS integration
-];
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:chrome/installer/linux/BUILD.gn;l=64-80
-// and the Linux Archive build
-// Shared library dependencies that we already bundle.
-exports.bundledDeps = [
-    'libEGL.so',
-    'libGLESv2.so',
-    'libvulkan.so.1',
-    'swiftshader_libEGL.so',
-    'swiftshader_libGLESv2.so',
-    'libvk_swiftshader.so',
-    'libffmpeg.so'
 ];
 exports.referenceGeneratedDepsByArch = {
     'x86_64': [
@@ -77,7 +65,11 @@ exports.referenceGeneratedDepsByArch = {
         'libgio-2.0.so.0()(64bit)',
         'libglib-2.0.so.0()(64bit)',
         'libgobject-2.0.so.0()(64bit)',
+        'libgssapi_krb5.so.2()(64bit)',
+        'libgssapi_krb5.so.2(gssapi_krb5_2_MIT)(64bit)',
         'libgtk-3.so.0()(64bit)',
+        'libkrb5.so.3()(64bit)',
+        'libkrb5.so.3(krb5_3_MIT)(64bit)',
         'libm.so.6()(64bit)',
         'libm.so.6(GLIBC_2.2.5)(64bit)',
         'libnspr4.so()(64bit)',
@@ -85,9 +77,11 @@ exports.referenceGeneratedDepsByArch = {
         'libnss3.so(NSS_3.11)(64bit)',
         'libnss3.so(NSS_3.12)(64bit)',
         'libnss3.so(NSS_3.12.1)(64bit)',
+        'libnss3.so(NSS_3.13)(64bit)',
         'libnss3.so(NSS_3.2)(64bit)',
         'libnss3.so(NSS_3.22)(64bit)',
         'libnss3.so(NSS_3.3)(64bit)',
+        'libnss3.so(NSS_3.30)(64bit)',
         'libnss3.so(NSS_3.4)(64bit)',
         'libnss3.so(NSS_3.5)(64bit)',
         'libnss3.so(NSS_3.9.2)(64bit)',
@@ -135,7 +129,6 @@ exports.referenceGeneratedDepsByArch = {
         'libc.so.6',
         'libc.so.6(GLIBC_2.10)',
         'libc.so.6(GLIBC_2.11)',
-        'libc.so.6(GLIBC_2.14)',
         'libc.so.6(GLIBC_2.15)',
         'libc.so.6(GLIBC_2.16)',
         'libc.so.6(GLIBC_2.17)',
@@ -154,13 +147,16 @@ exports.referenceGeneratedDepsByArch = {
         'libgbm.so.1',
         'libgcc_s.so.1',
         'libgcc_s.so.1(GCC_3.0)',
-        'libgcc_s.so.1(GCC_3.4)',
         'libgcc_s.so.1(GCC_3.5)',
         'libgio-2.0.so.0',
         'libglib-2.0.so.0',
         'libgobject-2.0.so.0',
+        'libgssapi_krb5.so.2',
+        'libgssapi_krb5.so.2(gssapi_krb5_2_MIT)',
         'libgtk-3.so.0',
         'libgtk-3.so.0()(64bit)',
+        'libkrb5.so.3',
+        'libkrb5.so.3(krb5_3_MIT)',
         'libm.so.6',
         'libm.so.6(GLIBC_2.4)',
         'libnspr4.so',
@@ -168,10 +164,12 @@ exports.referenceGeneratedDepsByArch = {
         'libnss3.so(NSS_3.11)',
         'libnss3.so(NSS_3.12)',
         'libnss3.so(NSS_3.12.1)',
+        'libnss3.so(NSS_3.13)',
         'libnss3.so(NSS_3.2)',
         'libnss3.so(NSS_3.22)',
         'libnss3.so(NSS_3.22)(64bit)',
         'libnss3.so(NSS_3.3)',
+        'libnss3.so(NSS_3.30)',
         'libnss3.so(NSS_3.4)',
         'libnss3.so(NSS_3.5)',
         'libnss3.so(NSS_3.9.2)',
@@ -248,7 +246,11 @@ exports.referenceGeneratedDepsByArch = {
         'libgio-2.0.so.0()(64bit)',
         'libglib-2.0.so.0()(64bit)',
         'libgobject-2.0.so.0()(64bit)',
+        'libgssapi_krb5.so.2()(64bit)',
+        'libgssapi_krb5.so.2(gssapi_krb5_2_MIT)(64bit)',
         'libgtk-3.so.0()(64bit)',
+        'libkrb5.so.3()(64bit)',
+        'libkrb5.so.3(krb5_3_MIT)(64bit)',
         'libm.so.6()(64bit)',
         'libm.so.6(GLIBC_2.17)(64bit)',
         'libnspr4.so()(64bit)',
@@ -256,9 +258,11 @@ exports.referenceGeneratedDepsByArch = {
         'libnss3.so(NSS_3.11)(64bit)',
         'libnss3.so(NSS_3.12)(64bit)',
         'libnss3.so(NSS_3.12.1)(64bit)',
+        'libnss3.so(NSS_3.13)(64bit)',
         'libnss3.so(NSS_3.2)(64bit)',
         'libnss3.so(NSS_3.22)(64bit)',
         'libnss3.so(NSS_3.3)(64bit)',
+        'libnss3.so(NSS_3.30)(64bit)',
         'libnss3.so(NSS_3.4)(64bit)',
         'libnss3.so(NSS_3.5)(64bit)',
         'libnss3.so(NSS_3.9.2)(64bit)',
@@ -301,3 +305,4 @@ exports.referenceGeneratedDepsByArch = {
         'xdg-utils'
     ]
 };
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZGVwLWxpc3RzLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsiZGVwLWxpc3RzLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiI7QUFBQTs7O2dHQUdnRzs7O0FBRWhHLCtHQUErRztBQUMvRywrREFBK0Q7QUFDbEQsUUFBQSxjQUFjLEdBQUc7SUFDN0IsaUJBQWlCO0lBQ2pCLHdCQUF3QjtJQUN4Qiw2QkFBNkI7SUFDN0IsNkJBQTZCO0lBQzdCLGdDQUFnQztJQUNoQyx5QkFBeUI7SUFDekIsdUJBQXVCO0lBQ3ZCLFdBQVcsQ0FBQyxpQkFBaUI7Q0FDN0IsQ0FBQztBQUVXLFFBQUEsNEJBQTRCLEdBQUc7SUFDM0MsUUFBUSxFQUFFO1FBQ1QsaUJBQWlCO1FBQ2pCLCtCQUErQjtRQUMvQiwwQ0FBMEM7UUFDMUMsd0NBQXdDO1FBQ3hDLHNCQUFzQjtRQUN0Qiw2QkFBNkI7UUFDN0IsMEJBQTBCO1FBQzFCLHVCQUF1QjtRQUN2Qix5QkFBeUI7UUFDekIseUJBQXlCO1FBQ3pCLHlCQUF5QjtRQUN6QixpQ0FBaUM7UUFDakMsc0NBQXNDO1FBQ3RDLDBCQUEwQjtRQUMxQixpQ0FBaUM7UUFDakMsd0JBQXdCO1FBQ3hCLG9CQUFvQjtRQUNwQiw4QkFBOEI7UUFDOUIsOEJBQThCO1FBQzlCLDhCQUE4QjtRQUM5Qiw4QkFBOEI7UUFDOUIsOEJBQThCO1FBQzlCLDhCQUE4QjtRQUM5QiwrQkFBK0I7UUFDL0IsNkJBQTZCO1FBQzdCLCtCQUErQjtRQUMvQiwrQkFBK0I7UUFDL0IsK0JBQStCO1FBQy9CLDZCQUE2QjtRQUM3Qiw2QkFBNkI7UUFDN0IsNkJBQTZCO1FBQzdCLDZCQUE2QjtRQUM3Qiw2QkFBNkI7UUFDN0Isd0JBQXdCO1FBQ3hCLHVCQUF1QjtRQUN2Qix5QkFBeUI7UUFDekIscUJBQXFCO1FBQ3JCLGdDQUFnQztRQUNoQyxzQkFBc0I7UUFDdEIsd0JBQXdCO1FBQ3hCLHNCQUFzQjtRQUN0Qix3QkFBd0I7UUFDeEIsK0JBQStCO1FBQy9CLDBCQUEwQjtR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

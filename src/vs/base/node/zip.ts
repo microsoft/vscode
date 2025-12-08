@@ -14,6 +14,9 @@ import * as nls from 'vs/nls';
 import { Entry, open as _openZip, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
 
+export const CorruptZipMessage: string = 'end of central directory record signature not found';
+const CORRUPT_ZIP_PATTERN = new RegExp(CorruptZipMessage);
+
 export interface IExtractOptions {
 	overwrite?: boolean;
 
@@ -33,7 +36,6 @@ export type ExtractErrorType = 'CorruptZip' | 'Incomplete';
 export class ExtractError extends Error {
 
 	readonly type?: ExtractErrorType;
-	readonly cause: Error;
 
 	constructor(type: ExtractErrorType | undefined, cause: Error) {
 		let message = cause.message;
@@ -63,7 +65,7 @@ function toExtractError(err: Error): ExtractError {
 
 	let type: ExtractErrorType | undefined = undefined;
 
-	if (/end of central directory record signature not found/.test(err.message)) {
+	if (CORRUPT_ZIP_PATTERN.test(err.message)) {
 		type = 'CorruptZip';
 	}
 
@@ -81,9 +83,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 	let istream: WriteStream;
 
 	token.onCancellationRequested(() => {
-		if (istream) {
-			istream.destroy();
-		}
+		istream?.destroy();
 	});
 
 	return Promise.resolve(Promises.mkdir(targetDirName, { recursive: true })).then(() => new Promise<void>((c, e) => {

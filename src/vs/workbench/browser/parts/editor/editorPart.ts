@@ -10,7 +10,7 @@ import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
+import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
@@ -26,13 +26,13 @@ import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -192,6 +192,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		});
 	}
 
+	private _top = 0;
+	private _left = 0;
 	private _contentDimension!: Dimension;
 	get contentDimension(): Dimension { return this._contentDimension; }
 
@@ -437,7 +439,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doCreateGridControlWithState(gridDescriptor, activeGroup.id, currentGroupViews);
 
 		// Layout
-		this.doLayout(this._contentDimension, 0, 0);
+		this.doLayout(this._contentDimension);
 
 		// Update container
 		this.updateContainer();
@@ -456,6 +458,32 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		if (restoreFocus) {
 			this._activeGroup.focus();
 		}
+	}
+
+	getLayout(): EditorGroupLayout {
+
+		// Example return value:
+		// { orientation: 0, groups: [ { groups: [ { size: 0.4 }, { size: 0.6 } ], size: 0.5 }, { groups: [ {}, {} ], size: 0.5 } ] }
+
+		const serializedGrid = this.gridWidget.serialize();
+		const orientation = serializedGrid.orientation === Orientation.HORIZONTAL ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
+		const root = this.serializedNodeToGroupLayoutArgument(serializedGrid.root);
+
+		return {
+			orientation,
+			groups: root.groups as GroupLayoutArgument[]
+		};
+	}
+
+	private serializedNodeToGroupLayoutArgument(serializedNode: ISerializedNode): GroupLayoutArgument {
+		if (serializedNode.type === 'branch') {
+			return {
+				size: serializedNode.size,
+				groups: serializedNode.data.map(node => this.serializedNodeToGroupLayoutArgument(node))
+			};
+		}
+
+		return { size: serializedNode.size };
 	}
 
 	private shouldRestoreFocus(target: Element | undefined): boolean {
@@ -487,16 +515,26 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView {
 		const locationView = this.assertGroupView(location);
 
+		const restoreFocus = this.shouldRestoreFocus(locationView.element);
+
 		const group = this.doAddGroup(locationView, direction);
 
 		if (options?.activate) {
 			this.doSetGroupActive(group);
 		}
 
+		// Restore focus if we had it previously after completing the grid
+		// operation. That operation might cause reparenting of grid views
+		// which moves focus to the <body> element otherwise.
+		if (restoreFocus) {
+			locationView.focus();
+		}
+
 		return group;
 	}
 
 	private doAddGroup(locationView: IEditorGroupView, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
+		const shouldMaximize = this.groupViews.size > 1 && this.isGroupMaximized(locationView);
 		const newGroupView = this.doCreateGroupView(groupToCopy);
 
 		// Add to grid widget
@@ -516,11 +554,23 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Notify group index change given a new group was added
 		this.notifyGroupIndexChange();
 
+		// Maximize new group, if the reference view was previously maximized
+		if (shouldMaximize) {
+			this.arrangeGroups(GroupsArrangement.MAXIMIZE, newGroupView);
+		}
+
 		return newGroupView;
 	}
 
 	private getSplitSizingStyle(): Sizing {
-		return this._partOptions.splitSizing === 'split' ? Sizing.Split : Sizing.Distribute;
+		switch (this._partOptions.splitSizing) {
+			case 'distribute':
+				return Sizing.Distribute;
+			case 'split':
+				return Sizing.Split;
+			default:
+				return Sizing.Auto;
+		}
 	}
 
 	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null): IEditorGroupView {
@@ -679,8 +729,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.gridWidget.removeView(groupView, this.getSplitSizingStyle());
 		groupView.dispose();
 
-		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
-		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
+		// Restore focus if we had it previously after completing the grid
+		// operation. That operation might cause reparenting of grid views
+		// which moves focus to the <body> element otherwise.
 		if (restoreFocus) {
 			this._activeGroup.focus();
 		}
@@ -713,8 +764,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Move through grid widget API
 		this.gridWidget.moveView(sourceView, this.getSplitSizingStyle(), targetView, this.toGridViewDirection(direction));
 
-		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
-		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
+		// Restore focus if we had it previously after completing the grid
+		// operation. That operation might cause reparenting of grid views
+		// which moves focus to the <body> element otherwise.
 		if (restoreFocus) {
 			sourceView.focus();
 		}
@@ -840,7 +892,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.centeredLayoutWidget.styles(separatorBorderStyle);
 	}
 
-	override createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
+	protected override createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
 
 		// Container
 		this.element = parent;
@@ -853,6 +905,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Centered layout widget
 		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
+		this._register(this.onDidChangeEditorPartOptions(e => this.centeredLayoutWidget.setFixedWidth(e.newPartOptions.centeredLayoutFixedWidth ?? false)));
 
 		// Drag & Drop support
 		this.setupDragAndDropSupport(parent, this.container);
@@ -1113,6 +1166,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
+		this._top = top;
+		this._left = left;
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
@@ -1121,7 +1176,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doLayout(Dimension.lift(contentAreaSize), top, left);
 	}
 
-	private doLayout(dimension: Dimension, top: number, left: number): void {
+	private doLayout(dimension: Dimension, top = this._top, left = this._left): void {
 		this._contentDimension = dimension;
 
 		// Layout Grid
@@ -1193,5 +1248,5 @@ class EditorDropService implements IEditorDropService {
 	}
 }
 
-registerSingleton(IEditorGroupsService, EditorPart);
-registerSingleton(IEditorDropService, EditorDropService);
+registerSingleton(IEditorGroupsService, EditorPart, InstantiationType.Eager);
+registerSingleton(IEditorDropService, EditorDropService, InstantiationType.Delayed);

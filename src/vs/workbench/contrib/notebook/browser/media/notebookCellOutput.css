@@ -1,0 +1,119 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .notebookOverlay .output {
+	position: absolute;
+	height: 0px;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: auto;
+	box-sizing: border-box;
+	z-index: var(--z-index-notebook-output);
+}
+
+.monaco-workbench .notebookOverlay .output .cell-output-toolbar {
+	left: -29px;
+	width: 22px;
+	z-index: var(--z-index-notebook-cell-output-toolbar);
+}
+
+.monaco-workbench .notebookOverlay .output p {
+	white-space: initial;
+	overflow-x: auto;
+	margin: 0px;
+}
+
+.monaco-workbench .notebookOverlay .output > div.foreground {
+	width: 100%;
+	min-height: 24px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container .rendered-output {
+	display: inline;
+	transform: translate3d(0px, 0px, 0px);
+}
+
+.monaco-workbench .notebookOverlay .output .cell-output-toolbar {
+	position: absolute;
+	top: 4px;
+	left: -32px;
+	height: 16px;
+	cursor: pointer;
+	padding: 6px 0px;
+}
+
+.monaco-workbench .notebookOverlay .output .cell-output-toolbar .actions-container {
+	justify-content: center;
+}
+
+.monaco-workbench .notebookOverlay .output pre {
+	margin: 4px 0;
+}
+
+.monaco-workbench .notebookOverlay .output .error_message {
+	color: red; /*TODO@rebornix theme color*/
+}
+
+.monaco-workbench .notebookOverlay .output .error > div {
+	white-space: normal;
+}
+
+.monaco-workbench .notebookOverlay .output .error pre.traceback {
+	margin: 8px 0;
+}
+
+.monaco-workbench .notebookOverlay .output .error .traceback > span {
+	display: block;
+}
+
+.monaco-workbench .notebookOverlay .output .display img {
+	max-width: 100%;
+}
+
+.monaco-workbench .notebookOverlay .output-show-more-container {
+	position: absolute;
+}
+
+.monaco-workbench .notebookOverlay .output-show-more-container p {
+	padding: 8px 8px 0 8px;
+	margin: 0px;
+}
+
+.output-show-more {
+	padding: 8px 0 0 0;
+	font-style: italic;
+}
+
+.output-show-more a {
+	cursor: pointer;
+}
+
+/** Cell output show more*/
+.notebookOverlay .output-show-more-container a,
+.notebookOverlay div.output-show-more a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.notebookOverlay .output-show-more-container a:active,
+.notebookOverlay .output-show-more a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+/** Notebook cell output background */
+.notebookOverlay .output,
+.notebookOverlay .output-element,
+.notebookOverlay .output-show-more-container {
+	background-color: var(--vscode-notebook-outputContainerBackgroundColor);
+}
+
+.notebookOverlay .output-element {
+	border-top: none !important; border: 1px solid transparent; border-color: var(--vscode-notebook-outputContainerBorderColor) !important;
+}

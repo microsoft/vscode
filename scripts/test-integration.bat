@@ -9,40 +9,20 @@ set VSCODELOGSDIR=%~dp0\..\.build\logs\integration-tests
 
 :: Figure out which Electron to use for running tests
 if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
-	:: Run out of sources: no need to compile as code.bat takes care of it
 	chcp 65001
 	set INTEGRATION_TEST_ELECTRON_PATH=.\scripts\code.bat
 	set VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE=1
 
-	echo Storing crash reports into '%VSCODECRASHDIR%'.
-	echo Storing log files into '%VSCODELOGSDIR%'.
 	echo Running integration tests out of sources.
 ) else (
-	:: Run from a built: need to compile all test extensions
-	:: because we run extension tests from their source folders
-	:: and the build bundles extensions into .build webpacked
-	:: call yarn gulp 	compile-extension:vscode-api-tests^
-	::				compile-extension:vscode-colorize-tests^
-	::				compile-extension:markdown-language-features^
-	::				compile-extension:typescript-language-features^
-	::				compile-extension:vscode-notebook-tests^
-	::				compile-extension:emmet^
-	::				compile-extension:css-language-features-server^
-	::				compile-extension:html-language-features-server^
-	::				compile-extension:json-language-features-server^
-	::				compile-extension:git^
-	::				compile-extension:ipynb^
-	::				compile-extension:configuration-editing^
-	::				compile-extension-media
-
-	:: Configuration for more verbose output
 	set VSCODE_CLI=1
 	set ELECTRON_ENABLE_LOGGING=1
 
-	echo Storing crash reports into '%VSCODECRASHDIR%'.
-	echo Storing log files into '%VSCODELOGSDIR%'.
 	echo Running integration tests with '%INTEGRATION_TEST_ELECTRON_PATH%' as build.
 )
+
+echo Storing crash reports into '%VSCODECRASHDIR%'.
+echo Storing log files into '%VSCODELOGSDIR%'.
 
 
 :: Tests standalone (AMD)
@@ -100,6 +80,13 @@ echo ### Ipynb tests
 set IPYNBWORKSPACE=%TEMPDIR%\ipynb-%RANDOM%
 mkdir %IPYNBWORKSPACE%
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %IPYNBWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\ipynb --extensionTestsPath=%~dp0\..\extensions\ipynb\out\test %API_TESTS_EXTRA_ARGS%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### Notebook Output tests
+set NBOUTWORKSPACE=%TEMPDIR%\nbout-%RANDOM%
+mkdir %NBOUTWORKSPACE%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %NBOUTWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\notebook-renderers --extensionTestsPath=%~dp0\..\extensions\notebook-renderers\out\test %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.

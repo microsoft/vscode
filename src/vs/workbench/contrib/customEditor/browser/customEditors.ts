@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/customEditor';
 import { coalesce } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -17,8 +18,6 @@ import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -65,10 +64,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
-		this.registerContributionPoints();
+		// Register the contribution points only emitting one change from the resolver
+		this.editorResolverService.bufferChangeEvents(this.registerContributionPoints.bind(this));
 
 		this._register(this._contributedEditors.onChange(() => {
-			this.registerContributionPoints();
+			// Register the contribution points only emitting one change from the resolver
+			this.editorResolverService.bufferChangeEvents(this.registerContributionPoints.bind(this));
 			this.updateContexts();
 			this._onDidChangeEditorTypes.fire();
 		}));
@@ -116,6 +117,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				if (!globPattern.filenamePattern) {
 					continue;
 				}
+
 				this._editorResolverDisposables.add(this.editorResolverService.registerEditor(
 					globPattern.filenamePattern,
 					{
@@ -127,14 +129,16 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					{
 						singlePerResource: () => !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? true
 					},
-					({ resource }, group) => {
-						return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
-					},
-					({ resource }, group) => {
-						return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
-					},
-					(diffEditorInput, group) => {
-						return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
+					{
+						createEditorInput: ({ resource }, group) => {
+							return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
+						},
+						createUntitledEditorInput: ({ resource }, group) => {
+							return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
+						},
+						createDiffEditorInput: (diffEditorInput, group) => {
+							return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
+						},
 					}
 				));
 			}
@@ -257,10 +261,3 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const shadow = theme.getColor(colorRegistry.scrollbarShadow);
-	if (shadow) {
-		collector.addRule(`.webview.modified { box-shadow: -6px 0 5px -5px ${shadow}; }`);
-	}
-});

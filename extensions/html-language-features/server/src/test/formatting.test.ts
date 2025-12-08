@@ -85,11 +85,12 @@ suite('HTML Embedded Formatting', () => {
 	});
 
 	test('EndWithNewline', async () => {
-		const options : FormattingOptions = FormattingOptions.create(2, true);
+		const options: FormattingOptions = FormattingOptions.create(2, true);
 		options.insertFinalNewline = true;
-		
+
 		await assertFormat('<html><body><p>Hello</p></body></html>', '<html>\n\n<body>\n  <p>Hello</p>\n</body>\n\n</html>\n', {}, options);
 		await assertFormat('<html>|<body><p>Hello</p></body>|</html>', '<html><body>\n  <p>Hello</p>\n</body></html>', {}, options);
+		await assertFormat('<html>|<body><p>Hello</p></body></html>|', '<html><body>\n  <p>Hello</p>\n</body>\n\n</html>\n', {}, options);
 		await assertFormat('<html><head><script>\nvar x=1;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 1;\n  </script>\n</head>\n\n</html>\n', {}, options);
 	});
 

@@ -4,24 +4,63 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
-import type * as Proto from '../protocol';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { TelemetryReporter } from '../logging/telemetry';
+import * as fixNames from '../tsServer/protocol/fixNames';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
-import { applyCodeActionCommands, getEditForCodeAction } from '../utils/codeAction';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as fixNames from '../utils/fixNames';
 import { memoize } from '../utils/memoize';
 import { equals } from '../utils/objects';
-import { TelemetryReporter } from '../utils/telemetry';
-import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
+import { applyCodeActionCommands, getEditForCodeAction } from './util/codeAction';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
-const localize = nls.loadMessageBundle();
+type ApplyCodeActionCommand_args = {
+	readonly document: vscode.TextDocument;
+	readonly diagnostic: vscode.Diagnostic;
+	readonly action: Proto.CodeFixAction;
+	readonly followupAction?: Command;
+};
+
+class EditorChatFollowUp implements Command {
+
+	id: string = '_typescript.quickFix.editorChatFollowUp';
+
+	constructor(private readonly prompt: string, private readonly document: vscode.TextDocument, private readonly range: vscode.Range, private readonly client: ITypeScriptServiceClient) {
+	}
+
+	async execute() {
+		const findScopeEndLineFromNavTree = (startLine: number, navigationTree: Proto.NavigationTree[]): vscode.Range | undefined => {
+			for (const node of navigationTree) {
+				const range = typeConverters.Range.fromTextSpan(node.spans[0]);
+				if (startLine === range.start.line) {
+					return range;
+				} else if (startLine > range.start.line && startLine <= range.end.line && node.childItems) {
+					return findScopeEndLineFromNavTree(startLine, node.childItems);
+				}
+			}
+			return undefined;
+		};
+		const filepath = this.client.toOpenTsFilePath(this.document);
+		if (!filepath) {
+			return;
+		}
+		const response = await this.client.execute('navtree', { file: filepath }, nulToken);
+		if (response.type !== 'response' || !response.body?.childItems) {
+			return;
+		}
+		const startLine = this.range.start.line;
+		const enclosingRange = findScopeEndLineFromNavTree(startLine, response.body.childItems);
+		if (!enclosingRange) {
+			return;
+		}
+		await vscode.commands.executeCommand('vscode.editorChat.start', { initialRange: enclosingRange, message: this.prompt, autoSend: true });
+	}
+}
 
 class ApplyCodeActionCommand implements Command {
 	public static readonly ID = '_typescript.applyCodeActionCommand';
@@ -29,12 +68,11 @@ class ApplyCodeActionCommand implements Command {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
+		private readonly diagnosticManager: DiagnosticsManager,
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
-	public async execute(
-		action: Proto.CodeFixAction
-	): Promise<boolean> {
+	public async execute({ document, action, diagnostic, followupAction }: ApplyCodeActionCommand_args): Promise<boolean> {
 		/* __GDPR__
 			"quickFix.execute" : {
 				"owner": "mjbvz",
@@ -48,7 +86,10 @@ class ApplyCodeActionCommand implements Command {
 			fixName: action.fixName
 		});
 
-		return applyCodeActionCommands(this.client, action.commands, nulToken);
+		this.diagnosticManager.deleteDiagnostic(document.uri, diagnostic);
+		const codeActionResult = await applyCodeActionCommands(this.client, action.commands, nulToken);
+		await followupAction?.execute();
+		return codeActionResult;
 	}
 }
 
@@ -214,7 +255,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		private readonly diagnosticsManager: DiagnosticsManager,
 		telemetryReporter: TelemetryReporter
 	) {
-		commandManager.register(new ApplyCodeActionCommand(client, telemetryReporter));
+		commandManager.register(new ApplyCodeActionCommand(client, diagnosticsManager, telemetryReporter));
 		commandManager.register(new ApplyFixAllCodeAction(client, telemetryReporter));
 
 		this.supportedCodeActionProvider = new SupportedCodeActionProvider(client);
@@ -225,26 +266,32 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		_range: vscode.Range,
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
-	): Promise<VsCodeCodeAction[]> {
-		const file = this.client.toOpenedFilePath(document);
+	): Promise<VsCodeCodeAction[] | undefined> {
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
-			return [];
+			return;
 		}
 
 		const fixableDiagnostics = await this.supportedCodeActionProvider.getFixableDiagnosticsForContext(context);
-		if (!fixableDiagnostics.size) {
-			return [];
+		if (!fixableDiagnostics.size || token.isCancellationRequested) {
+			return;
 		}
 
 		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
-			return [];
+			return;
 		}
 
 		await this.formattingConfigurationManager.ensureConfigurationForDocument(document, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		const results = new CodeActionSet();
 		for (const diagnostic of fixableDiagnostics.values) {
 			await this.getFixesForDiagnostic(document, file, diagnostic, results, token);
+			if (token.isCancellationRequested) {
+				return;
+			}
 		}
 
 		const allActions = Array.from(results.values);
@@ -305,21 +352,27 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
 	): CodeActionSet {
-		results.addAction(this.getSingleFixForTsCodeAction(diagnostic, tsAction));
-		this.addFixAllForTsCodeAction(results, document, file, diagnostic, tsAction as Proto.CodeFixAction);
+		results.addAction(this.getSingleFixForTsCodeAction(document, diagnostic, tsAction));
+		this.addFixAllForTsCodeAction(results, document.uri, file, diagnostic, tsAction as Proto.CodeFixAction);
 		return results;
 	}
 
 	private getSingleFixForTsCodeAction(
+		document: vscode.TextDocument,
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
 	): VsCodeCodeAction {
+		const aiQuickFixEnabled = vscode.workspace.getConfiguration('typescript').get('experimental.aiQuickFix');
+		let followupAction: Command | undefined;
+		if (aiQuickFixEnabled && tsAction.fixName === fixNames.classIncorrectlyImplementsInterface) {
+			followupAction = new EditorChatFollowUp('Implement the class using the interface', document, diagnostic.range, this.client);
+		}
 		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);
 		codeAction.diagnostics = [diagnostic];
 		codeAction.command = {
 			command: ApplyCodeActionCommand.ID,
-			arguments: [tsAction],
+			arguments: [<ApplyCodeActionCommand_args>{ action: tsAction, diagnostic, document, followupAction }],
 			title: ''
 		};
 		return codeAction;
@@ -327,17 +380,17 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 
 	private addFixAllForTsCodeAction(
 		results: CodeActionSet,
-		document: vscode.TextDocument,
+		resource: vscode.Uri,
 		file: string,
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction,
 	): CodeActionSet {
-		if (!tsAction.fixId || this.client.apiVersion.lt(API.v270) || results.hasFixAllAction(tsAction.fixId)) {
+		if (!tsAction.fixId || results.hasFixAllAction(tsAction.fixId)) {
 			return results;
 		}
 
 		// Make sure there are multiple diagnostics of the same type in the file
-		if (!this.diagnosticsManager.getDiagnostics(document.uri).some(x => {
+		if (!this.diagnosticsManager.getDiagnostics(resource).some(x => {
 			if (x === diagnostic) {
 				return false;
 			}
@@ -350,7 +403,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		const action = new VsCodeFixAllCodeAction(
 			tsAction,
 			file,
-			tsAction.fixAllDescription || localize('fixAllInFileLabel', '{0} (Fix all in file)', tsAction.description),
+			tsAction.fixAllDescription || vscode.l10n.t("{0} (Fix all in file)", tsAction.description),
 			vscode.CodeActionKind.QuickFix);
 
 		action.diagnostics = [diagnostic];
@@ -377,6 +430,7 @@ const preferredFixes = new Map<string, { readonly priority: number; readonly the
 	[fixNames.constructorForDerivedNeedSuperCall, { priority: 2 }],
 	[fixNames.extendsInterfaceBecomesImplements, { priority: 2 }],
 	[fixNames.awaitInSyncFunction, { priority: 2 }],
+	[fixNames.removeUnnecessaryAwait, { priority: 2 }],
 	[fixNames.classIncorrectlyImplementsInterface, { priority: 3 }],
 	[fixNames.classDoesntImplementInheritedAbstractMember, { priority: 3 }],
 	[fixNames.unreachableCode, { priority: 2 }],
@@ -385,6 +439,7 @@ const preferredFixes = new Map<string, { readonly priority: number; readonly the
 	[fixNames.spelling, { priority: 0 }],
 	[fixNames.addMissingAwait, { priority: 2 }],
 	[fixNames.addMissingOverride, { priority: 2 }],
+	[fixNames.addMissingNewOperator, { priority: 2 }],
 	[fixNames.fixImport, { priority: 1, thereCanOnlyBeOne: true }],
 ]);
 

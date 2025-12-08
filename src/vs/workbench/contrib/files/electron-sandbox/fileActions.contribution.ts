@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
@@ -70,6 +70,12 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 20,
 	command: revealInOsCommand,
 	when: REVEAL_IN_OS_WHEN_CONTEXT
+});
+MenuRegistry.appendMenuItem(MenuId.OpenEditorsContextShare, {
+	title: nls.localize('miShare', "Share"),
+	submenu: MenuId.MenubarShare,
+	group: 'share',
+	order: 3,
 });
 
 // Menu registration - explorer

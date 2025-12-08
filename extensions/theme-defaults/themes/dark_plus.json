@@ -1,6 +1,6 @@
 {
 	"$schema": "vscode://schemas/color-theme",
-	"name": "Dark+ (default dark)",
+	"name": "Dark+",
 	"include": "./dark_vs.json",
 	"tokenColors": [
 		{
@@ -173,7 +173,10 @@
 			}
 		},
 		{
-			"scope": "constant.character",
+			"scope": [
+				"constant.character",
+				"constant.other.option"
+			],
 			"settings": {
 				"foreground": "#569cd6"
 			}

@@ -17,7 +17,7 @@ function getIPCHandlePath(id: string): string {
 		return `\\\\.\\pipe\\vscode-git-${id}-sock`;
 	}
 
-	if (process.env['XDG_RUNTIME_DIR']) {
+	if (process.platform !== 'darwin' && process.env['XDG_RUNTIME_DIR']) {
 		return path.join(process.env['XDG_RUNTIME_DIR'] as string, `vscode-git-${id}.sock`);
 	}
 

@@ -22,9 +22,9 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 const workspacesCategory: ILocalizedString = { value: localize('workspaces', "Workspaces"), original: 'Workspaces' };
-const fileCategory = { value: localize('filesCategory', "File"), original: 'File' };
 
 export class OpenFileAction extends Action2 {
 
@@ -34,7 +34,7 @@ export class OpenFileAction extends Action2 {
 		super({
 			id: OpenFileAction.ID,
 			title: { value: localize('openFile', "Open File..."), original: 'Open File...' },
-			category: fileCategory,
+			category: Categories.File,
 			f1: true,
 			precondition: IsMacNativeContext.toNegated(),
 			keybinding: {
@@ -59,7 +59,7 @@ export class OpenFolderAction extends Action2 {
 		super({
 			id: OpenFolderAction.ID,
 			title: { value: localize('openFolder', "Open Folder..."), original: 'Open Folder...' },
-			category: fileCategory,
+			category: Categories.File,
 			f1: true,
 			precondition: OpenFolderWorkspaceSupportContext,
 			keybinding: {
@@ -95,7 +95,7 @@ export class OpenFolderViaWorkspaceAction extends Action2 {
 		super({
 			id: OpenFolderViaWorkspaceAction.ID,
 			title: { value: localize('openFolder', "Open Folder..."), original: 'Open Folder...' },
-			category: fileCategory,
+			category: Categories.File,
 			f1: true,
 			precondition: ContextKeyExpr.and(OpenFolderWorkspaceSupportContext.toNegated(), WorkbenchStateContext.isEqualTo('workspace')),
 			keybinding: {
@@ -121,7 +121,7 @@ export class OpenFileFolderAction extends Action2 {
 		super({
 			id: OpenFileFolderAction.ID,
 			title: OpenFileFolderAction.LABEL,
-			category: fileCategory,
+			category: Categories.File,
 			f1: true,
 			precondition: ContextKeyExpr.and(IsMacNativeContext, OpenFolderWorkspaceSupportContext),
 			keybinding: {
@@ -146,7 +146,7 @@ class OpenWorkspaceAction extends Action2 {
 		super({
 			id: OpenWorkspaceAction.ID,
 			title: { value: localize('openWorkspaceAction', "Open Workspace from File..."), original: 'Open Workspace from File...' },
-			category: fileCategory,
+			category: Categories.File,
 			f1: true,
 			precondition: EnterMultiRootWorkspaceSupportContext
 		});
@@ -231,7 +231,7 @@ export class AddRootFolderAction extends Action2 {
 	}
 }
 
-class RemoveRootFolderAction extends Action2 {
+export class RemoveRootFolderAction extends Action2 {
 
 	static readonly ID = 'workbench.action.removeRootFolder';
 

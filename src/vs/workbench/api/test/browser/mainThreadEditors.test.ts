@@ -46,17 +46,15 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { extUri } from 'vs/base/common/resources';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { LanguageService } from 'vs/editor/common/services/languageService';
-import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { MainThreadBulkEdits } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 suite('MainThreadEditors', () => {
 
@@ -86,17 +84,12 @@ suite('MainThreadEditors', () => {
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
-		const logService = new NullLogService();
 		modelService = new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
-			themeService,
-			logService,
 			undoRedoService,
 			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService(),
-			new LanguageFeatureDebounceService(logService),
-			new LanguageFeaturesService()
 		);
 
 		const services = new ServiceCollection();
@@ -113,6 +106,7 @@ suite('MainThreadEditors', () => {
 		services.set(IModelService, modelService);
 		services.set(ICodeEditorService, new TestCodeEditorService(themeService));
 		services.set(IFileService, new TestFileService());
+		services.set(IUriIdentityService, new SyncDescriptor(UriIdentityService));
 		services.set(IEditorService, new TestEditorService());
 		services.set(ILifecycleService, new TestLifecycleService());
 		services.set(IWorkingCopyService, new TestWorkingCopyService());
@@ -180,9 +174,6 @@ suite('MainThreadEditors', () => {
 			override getActivePaneComposite() {
 				return undefined;
 			}
-		});
-		services.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
-			override get extUri() { return extUri; }
 		});
 
 		const instaService = new InstantiationService(services);

@@ -8,7 +8,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { isNumber } from 'vs/base/common/types';
@@ -73,7 +73,7 @@ export class SearchService extends Disposable implements ISearchService {
 		});
 	}
 
-	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void, notebookURIs?: ResourceSet): Promise<ISearchComplete> {
 		// Get local results from dirty/untitled
 		const localResults = this.getLocalResults(query);
 
@@ -84,7 +84,7 @@ export class SearchService extends Disposable implements ISearchService {
 		const onProviderProgress = (progress: ISearchProgressItem) => {
 			if (isFileMatch(progress)) {
 				// Match
-				if (!localResults.results.has(progress.resource) && onProgress) { // don't override local results
+				if (!localResults.results.has(progress.resource) && !(notebookURIs && notebookURIs.has(progress.resource)) && onProgress) { // don't override local results
 					onProgress(progress);
 				}
 			} else if (onProgress) {
@@ -283,23 +283,22 @@ export class SearchService extends Disposable implements ISearchService {
 
 				type CachedSearchCompleteClassifcation = {
 					owner: 'roblourens';
-					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-					endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					sortingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					cacheWasResolved: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-					cacheLookupTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					cacheFilterTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					cacheEntryCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+					comment: 'Fired when a file search is completed from previously cached results';
+					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates which extension or UI feature triggered this search' };
+					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of search results' };
+					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of folders in the workspace' };
+					endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total search time' };
+					sortingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent sorting results' };
+					cacheWasResolved: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the cache was already resolved when the search began' };
+					cacheLookupTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent looking up the cache to use for the search' };
+					cacheFilterTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent searching within the cache' };
+					cacheEntryCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of entries in the searched-in cache' };
+					scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The uri scheme of the folder searched in' };
 				};
 				type CachedSearchCompleteEvent = {
 					reason?: string;
 					resultCount: number;
 					workspaceFolderCount: number;
-					type: 'fileSearchProvider' | 'searchProcess';
 					endToEndTime: number;
 					sortingTime?: number;
 					cacheWasResolved: boolean;
@@ -312,7 +311,6 @@ export class SearchService extends Disposable implements ISearchService {
 					reason: query._reason,
 					resultCount: fileSearchStats.resultCount,
 					workspaceFolderCount: query.folderQueries.length,
-					type: fileSearchStats.type,
 					endToEndTime: endToEndTime,
 					sortingTime: fileSearchStats.sortingTime,
 					cacheWasResolved: cacheStats.cacheWasResolved,
@@ -326,24 +324,23 @@ export class SearchService extends Disposable implements ISearchService {
 
 				type SearchCompleteClassification = {
 					owner: 'roblourens';
-					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-					endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					sortingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					fileWalkTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					directoriesWalked: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					filesWalked: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					cmdTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					cmdResultCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-					scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+					comment: 'Fired when a file search is completed';
+					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates which extension or UI feature triggered this search' };
+					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of search results' };
+					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of folders in the workspace' };
+					endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total search time' };
+					sortingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent sorting results' };
+					fileWalkTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent walking file system' };
+					directoriesWalked: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of directories walked' };
+					filesWalked: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of files walked' };
+					cmdTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The amount of time spent running the search command' };
+					cmdResultCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of results returned from the search command' };
+					scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The uri scheme of the folder searched in' };
 				};
 				type SearchCompleteEvent = {
 					reason?: string;
 					resultCount: number;
 					workspaceFolderCount: number;
-					type: 'fileSearchProvider' | 'searchProcess';
 					endToEndTime: number;
 					sortingTime?: number;
 					fileWalkTime: number;
@@ -359,7 +356,6 @@ export class SearchService extends Disposable implements ISearchService {
 					reason: query._reason,
 					resultCount: fileSearchStats.resultCount,
 					workspaceFolderCount: query.folderQueries.length,
-					type: fileSearchStats.type,
 					endToEndTime: endToEndTime,
 					sortingTime: fileSearchStats.sortingTime,
 					fileWalkTime: searchEngineStats.fileWalkTime,
@@ -384,12 +380,12 @@ export class SearchService extends Disposable implements ISearchService {
 
 			type TextSearchCompleteClassification = {
 				owner: 'roblourens';
-				reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-				endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-				scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				error?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				usePCRE2: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				comment: 'Fired when a text search is completed';
+				reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates which extension or UI feature triggered this search' };
+				workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of folders in the workspace' };
+				endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total search time' };
+				scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The uri scheme of the folder searched in' };
+				error?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of the error, if any' };
 			};
 			type TextSearchCompleteEvent = {
 				reason?: string;
@@ -397,7 +393,6 @@ export class SearchService extends Disposable implements ISearchService {
 				endToEndTime: number;
 				scheme: string;
 				error?: string;
-				usePCRE2: boolean;
 			};
 			this.telemetryService.publicLog2<TextSearchCompleteEvent, TextSearchCompleteClassification>('textSearchComplete', {
 				reason: query._reason,
@@ -405,7 +400,6 @@ export class SearchService extends Disposable implements ISearchService {
 				endToEndTime: endToEndTime,
 				scheme,
 				error: errorType,
-				usePCRE2: !!query.usePCRE2
 			});
 		}
 	}

@@ -29,7 +29,7 @@ const enum HitTestResultType {
 class UnknownHitTestResult {
 	readonly type = HitTestResultType.Unknown;
 	constructor(
-		readonly hitTarget: Element | null = null
+		readonly hitTarget: HTMLElement | null = null
 	) { }
 }
 
@@ -72,35 +72,35 @@ export class MouseTarget {
 		}
 		return range ?? null;
 	}
-	public static createUnknown(element: Element | null, mouseColumn: number, position: Position | null): IMouseTargetUnknown {
+	public static createUnknown(element: HTMLElement | null, mouseColumn: number, position: Position | null): IMouseTargetUnknown {
 		return { type: MouseTargetType.UNKNOWN, element, mouseColumn, position, range: this._deduceRage(position) };
 	}
-	public static createTextarea(element: Element | null, mouseColumn: number): IMouseTargetTextarea {
+	public static createTextarea(element: HTMLElement | null, mouseColumn: number): IMouseTargetTextarea {
 		return { type: MouseTargetType.TEXTAREA, element, mouseColumn, position: null, range: null };
 	}
-	public static createMargin(type: MouseTargetType.GUTTER_GLYPH_MARGIN | MouseTargetType.GUTTER_LINE_NUMBERS | MouseTargetType.GUTTER_LINE_DECORATIONS, element: Element | null, mouseColumn: number, position: Position, range: EditorRange, detail: IMouseTargetMarginData): IMouseTargetMargin {
+	public static createMargin(type: MouseTargetType.GUTTER_GLYPH_MARGIN | MouseTargetType.GUTTER_LINE_NUMBERS | MouseTargetType.GUTTER_LINE_DECORATIONS, element: HTMLElement | null, mouseColumn: number, position: Position, range: EditorRange, detail: IMouseTargetMarginData): IMouseTargetMargin {
 		return { type, element, mouseColumn, position, range, detail };
 	}
-	public static createViewZone(type: MouseTargetType.GUTTER_VIEW_ZONE | MouseTargetType.CONTENT_VIEW_ZONE, element: Element | null, mouseColumn: number, position: Position, detail: IMouseTargetViewZoneData): IMouseTargetViewZone {
+	public static createViewZone(type: MouseTargetType.GUTTER_VIEW_ZONE | MouseTargetType.CONTENT_VIEW_ZONE, element: HTMLElement | null, mouseColumn: number, position: Position, detail: IMouseTargetViewZoneData): IMouseTargetViewZone {
 		return { type, element, mouseColumn, position, range: this._deduceRage(position), detail };
 	}
-	public static createContentText(element: Element | null, mouseColumn: number, position: Position, range: EditorRange | null, detail: IMouseTargetContentTextData): IMouseTargetContentText {
+	public static createContentText(element: HTMLElement | null, mouseColumn: number, position: Position, range: EditorRange | null, detail: IMouseTargetContentTextData): IMouseTargetContentText {
 		return { type: MouseTargetType.CONTENT_TEXT, element, mouseColumn, position, range: this._deduceRage(position, range), detail };
 	}
-	public static createContentEmpty(element: Element | null, mouseColumn: number, position: Position, detail: IMouseTargetContentEmptyData): IMouseTargetContentEmpty {
+	public static createContentEmpty(element: HTMLElement | null, mouseColumn: number, position: Position, detail: IMouseTargetContentEmptyData): IMouseTargetContentEmpty {
 		return { type: MouseTargetType.CONTENT_EMPTY, element, mouseColumn, position, range: this._deduceRage(position), detail };
 	}
-	public static createContentWidget(element: Element | null, mouseColumn: number, detail: string): IMouseTargetContentWidget {
+	public static createContentWidget(element: HTMLElement | null, mouseColumn: number, detail: string): IMouseTargetContentWidget {
 		return { type: MouseTargetType.CONTENT_WIDGET, element, mouseColumn, position: null, range: null, detail };
 	}
-	public static createScrollbar(element: Element | null, mouseColumn: number, position: Position): IMouseTargetScrollbar {
+	public static createScrollbar(element: HTMLElement | null, mouseColumn: number, position: Position): IMouseTargetScrollbar {
 		return { type: MouseTargetType.SCROLLBAR, element, mouseColumn, position, range: this._deduceRage(position) };
 	}
-	public static createOverlayWidget(element: Element | null, mouseColumn: number, detail: string): IMouseTargetOverlayWidget {
+	public static createOverlayWidget(element: HTMLElement | null, mouseColumn: number, detail: string): IMouseTargetOverlayWidget {
 		return { type: MouseTargetType.OVERLAY_WIDGET, element, mouseColumn, position: null, range: null, detail };
 	}
-	public static createOutsideEditor(mouseColumn: number, position: Position): IMouseTargetOutsideEditor {
-		return { type: MouseTargetType.OUTSIDE_EDITOR, element: null, mouseColumn, position, range: this._deduceRage(position) };
+	public static createOutsideEditor(mouseColumn: number, position: Position, outsidePosition: 'above' | 'below' | 'left' | 'right', outsideDistance: number): IMouseTargetOutsideEditor {
+		return { type: MouseTargetType.OUTSIDE_EDITOR, element: null, mouseColumn, position, range: this._deduceRage(position), outsidePosition, outsideDistance };
 	}
 
 	private static _typeToString(type: MouseTargetType): string {
@@ -389,10 +389,10 @@ abstract class BareHitTestRequest {
 
 class HitTestRequest extends BareHitTestRequest {
 	private readonly _ctx: HitTestContext;
-	public readonly target: Element | null;
+	public readonly target: HTMLElement | null;
 	public readonly targetPath: Uint8Array;
 
-	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: Element | null) {
+	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null) {
 		super(ctx, editorPos, pos, relativePos);
 		this._ctx = ctx;
 
@@ -445,13 +445,13 @@ class HitTestRequest extends BareHitTestRequest {
 		return MouseTarget.createOverlayWidget(this.target, this._getMouseColumn(), detail);
 	}
 
-	public withTarget(target: Element | null): HitTestRequest {
+	public withTarget(target: HTMLElement | null): HitTestRequest {
 		return new HitTestRequest(this._ctx, this.editorPos, this.pos, this.relativePos, target);
 	}
 }
 
 interface ResolvedHitTestRequest extends HitTestRequest {
-	readonly target: Element;
+	readonly target: HTMLElement;
 }
 
 const EMPTY_CONTENT_AFTER_LINES: IMouseTargetContentEmptyData = { isAfterLines: true };
@@ -495,6 +495,16 @@ export class MouseTargetFactory {
 		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target);
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request, false);
+
+			if (r.type === MouseTargetType.CONTENT_TEXT) {
+				// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
+				if (ctx.stickyTabStops && r.position !== null) {
+					const position = MouseTargetFactory._snapToSoftTabBoundary(r.position, ctx.viewModel);
+					const range = EditorRange.fromPositions(position, position).plusRange(r.range);
+					return request.fulfillContentText(position, range, r.detail);
+				}
+			}
+
 			// console.log(MouseTarget.toString(r));
 			return r;
 		} catch (err) {
@@ -789,7 +799,7 @@ export class MouseTargetFactory {
 
 		const columnHorizontalOffset = visibleRange.left;
 
-		if (request.mouseContentHorizontalOffset === columnHorizontalOffset) {
+		if (Math.abs(request.mouseContentHorizontalOffset - columnHorizontalOffset) < 1) {
 			return request.fulfillContentText(pos, null, { mightBeForeignElement: !!injectedText, injectedText });
 		}
 
@@ -818,11 +828,13 @@ export class MouseTargetFactory {
 		const spanNodeClientRect = spanNode.getBoundingClientRect();
 		const mouseIsOverSpanNode = (spanNodeClientRect.left <= mouseCoordinates.clientX && mouseCoordinates.clientX <= spanNodeClientRect.right);
 
+		let rng: EditorRange | null = null;
+
 		for (let i = 1; i < points.length; i++) {
 			const prev = points[i - 1];
 			const curr = points[i];
 			if (prev.offset <= request.mouseContentHorizontalOffset && request.mouseContentHorizontalOffset <= curr.offset) {
-				const rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
+				rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
 
 				// See https://github.com/microsoft/vscode/issues/152819
 				// Due to the use of zwj, the browser's hit test result is skewed towards the left
@@ -831,16 +843,17 @@ export class MouseTargetFactory {
 				const prevDelta = Math.abs(prev.offset - request.mouseContentHorizontalOffset);
 				const nextDelta = Math.abs(curr.offset - request.mouseContentHorizontalOffset);
 
-				const resultPos = (
+				pos = (
 					prevDelta < nextDelta
 						? new Position(lineNumber, prev.column)
 						: new Position(lineNumber, curr.column)
 				);
 
-				return request.fulfillContentText(resultPos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
+				break;
 			}
 		}
-		return request.fulfillContentText(pos, null, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
+
+		return request.fulfillContentText(pos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
 	}
 
 	/**
@@ -851,22 +864,31 @@ export class MouseTargetFactory {
 		// In Chrome, especially on Linux it is possible to click between lines,
 		// so try to adjust the `hity` below so that it lands in the center of a line
 		const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-		const lineVerticalOffset = ctx.getVerticalOffsetForLineNumber(lineNumber);
-		const lineCenteredVerticalOffset = lineVerticalOffset + Math.floor(ctx.lineHeight / 2);
-		let adjustedPageY = request.pos.y + (lineCenteredVerticalOffset - request.mouseVerticalOffset);
+		const lineStartVerticalOffset = ctx.getVerticalOffsetForLineNumber(lineNumber);
+		const lineEndVerticalOffset = lineStartVerticalOffset + ctx.lineHeight;
 
-		if (adjustedPageY <= request.editorPos.y) {
-			adjustedPageY = request.editorPos.y + 1;
-		}
-		if (adjustedPageY >= request.editorPos.y + request.editorPos.height) {
-			adjustedPageY = request.editorPos.y + request.editorPos.height - 1;
-		}
+		const isBelowLastLine = (
+			lineNumber === ctx.viewModel.getLineCount()
+			&& request.mouseVerticalOffset > lineEndVerticalOffset
+		);
 
-		const adjustedPage = new PageCoordinates(request.pos.x, adjustedPageY);
+		if (!isBelowLastLine) {
+			const lineCenteredVerticalOffset = Math.floor((lineStartVerticalOffset + lineEndVerticalOffset) / 2);
+			let adjustedPageY = request.pos.y + (lineCenteredVerticalOffset - request.mouseVerticalOffset);
 
-		const r = this._actualDoHitTestWithCaretRangeFromPoint(ctx, adjustedPage.toClientCoordinates());
-		if (r.type === HitTestResultType.Content) {
-			return r;
+			if (adjustedPageY <= request.editorPos.y) {
+				adjustedPageY = request.editorPos.y + 1;
+			}
+			if (adjustedPageY >= request.editorPos.y + request.editorPos.height) {
+				adjustedPageY = request.editorPos.y + request.editorPos.height - 1;
+			}
+
+			const adjustedPage = new PageCoordinates(request.pos.x, adjustedPageY);
+
+			const r = this._actualDoHitTestWithCaretRangeFromPoint(ctx, adjustedPage.toClientCoordinates());
+			if (r.type === HitTestResultType.Content) {
+				return r;
+			}
 		}
 
 		// Also try to hit test without the adjustment (for the edge cases that we are near the top or bottom)
@@ -990,15 +1012,11 @@ export class MouseTargetFactory {
 				result = new ContentHitTestResult(normalizedPosition, result.spanNode, injectedText);
 			}
 		}
-		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
-		if (result.type === HitTestResultType.Content && ctx.stickyTabStops) {
-			result = new ContentHitTestResult(this._snapToSoftTabBoundary(result.position, ctx.viewModel), result.spanNode, result.injectedText);
-		}
 		return result;
 	}
 }
 
-export function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number): Range {
+function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number): Range {
 	const range = document.createRange();
 
 	// Get the element under the point
@@ -1015,8 +1033,14 @@ export function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: 
 		// Grab its rect
 		const rect = el.getBoundingClientRect();
 
-		// And its font
-		const font = window.getComputedStyle(el, null).getPropertyValue('font');
+		// And its font (the computed shorthand font property might be empty, see #3217)
+		const fontStyle = window.getComputedStyle(el, null).getPropertyValue('font-style');
+		const fontVariant = window.getComputedStyle(el, null).getPropertyValue('font-variant');
+		const fontWeight = window.getComputedStyle(el, null).getPropertyValue('font-weight');
+		const fontSize = window.getComputedStyle(el, null).getPropertyValue('font-size');
+		const lineHeight = window.getComputedStyle(el, null).getPropertyValue('line-height');
+		const fontFamily = window.getComputedStyle(el, null).getPropertyValue('font-family');
+		const font = `${fontStyle} ${fontVariant} ${fontWeight} ${fontSize}/${lineHeight} ${fontFamily}`;
 
 		// And also its txt content
 		const text = (el as any).innerText;

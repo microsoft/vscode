@@ -10,8 +10,6 @@ import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/w
 import * as dom from 'vs/base/browser/dom';
 import type { IViewportRange } from 'xterm';
 import { IHoverTarget, IHoverService, IHoverAction } from 'vs/workbench/services/hover/browser/hover';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
@@ -131,13 +129,3 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		super.dispose();
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
-	if (editorHoverHighlightColor) {
-		if (editorHoverHighlightColor.isOpaque()) {
-			editorHoverHighlightColor = editorHoverHighlightColor.transparent(0.5);
-		}
-		collector.addRule(`.integrated-terminal .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
-	}
-});

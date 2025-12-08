@@ -9,15 +9,14 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import * as languages from 'vs/editor/common/languages';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 const testProvider = {
 	provideCodeActions(): languages.CodeActionList {
@@ -123,49 +122,6 @@ suite('CodeActionModel', () => {
 				}));
 				// start here
 				editor.setPosition({ lineNumber: 1, column: 1 });
-			});
-		});
-	});
-
-	test('Lightbulb is in the wrong place, #29933', async () => {
-		const reg = registry.register(languageId, {
-			provideCodeActions(_doc, _range): languages.CodeActionList {
-				return { actions: [], dispose() { /* noop*/ } };
-			}
-		});
-		disposables.add(reg);
-
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			editor.getModel()!.setValue('// @ts-check\n2\ncon\n');
-
-			markerService.changeOne('fake', uri, [{
-				startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4,
-				message: 'error',
-				severity: 1,
-				code: '',
-				source: ''
-			}]);
-
-			// case 1 - drag selection over multiple lines -> range of enclosed marker, position or marker
-			await new Promise(resolve => {
-				const contextKeys = new MockContextKeyService();
-				const model = disposables.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
-				disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
-					assertType(e.type === CodeActionsState.Type.Triggered);
-
-					assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
-					const selection = <Selection>e.rangeOrSelection;
-					assert.strictEqual(selection.selectionStartLineNumber, 1);
-					assert.strictEqual(selection.selectionStartColumn, 1);
-					assert.strictEqual(selection.endLineNumber, 4);
-					assert.strictEqual(selection.endColumn, 1);
-					assert.strictEqual(e.position.lineNumber, 3);
-					assert.strictEqual(e.position.column, 1);
-					model.dispose();
-					resolve(undefined);
-				}, 5));
-
-				editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
 			});
 		});
 	});

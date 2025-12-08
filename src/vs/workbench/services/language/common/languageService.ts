@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -104,6 +104,13 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 				}
 			}
 		}
+	},
+	activationEventsGenerator: (languageContributions, result) => {
+		for (const languageContribution of languageContributions) {
+			if (languageContribution.id && languageContribution.configuration) {
+				result.push(`onLanguage:${languageContribution.id}`);
+			}
+		}
 	}
 });
 
@@ -171,9 +178,11 @@ export class WorkbenchLanguageService extends LanguageService {
 			this.updateMime();
 		});
 
-		this.onDidEncounterLanguage((languageId) => {
+		this._register(this.onDidRequestRichLanguageFeatures((languageId) => {
+			// extension activation
 			this._extensionService.activateByEvent(`onLanguage:${languageId}`);
-		});
+			this._extensionService.activateByEvent(`onLanguage`);
+		}));
 	}
 
 	private updateMime(): void {
@@ -187,7 +196,7 @@ export class WorkbenchLanguageService extends LanguageService {
 			Object.keys(configuration.files.associations).forEach(pattern => {
 				const langId = configuration.files.associations[pattern];
 				if (typeof langId !== 'string') {
-					this.logService.warn(`Ingnoing configured 'files.associations' for '${pattern}' because its type is not a string but '${typeof langId}'`);
+					this.logService.warn(`Ignoring configured 'files.associations' for '${pattern}' because its type is not a string but '${typeof langId}'`);
 
 					return; // https://github.com/microsoft/vscode/issues/147284
 				}
@@ -254,4 +263,4 @@ function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, extens
 	return true;
 }
 
-registerSingleton(ILanguageService, WorkbenchLanguageService);
+registerSingleton(ILanguageService, WorkbenchLanguageService, InstantiationType.Eager);

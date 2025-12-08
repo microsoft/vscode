@@ -38,6 +38,7 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 		// as a result. As such, make sure we await the `Restored`
 		// phase before making a connection attempt, but also add a
 		// timeout to be safe against possible deadlocks.
+
 		await Promise.race([this.restoredBarrier.wait(), timeout(2000)]);
 
 		// Acquire a message port connected to the shared process

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/16612717ccd557383c0c821d7b6ae6662492ffde",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/772323937fedd65c6dc1c8ce6ea41d97415ed7d1",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -57,10 +57,10 @@
 		"script-top-level": {
 			"patterns": [
 				{
-					"include": "#method-declaration"
+					"include": "#statement"
 				},
 				{
-					"include": "#statement"
+					"include": "#method-declaration"
 				},
 				{
 					"include": "#punctuation-semicolon"
@@ -91,10 +91,10 @@
 					"include": "#interface-declaration"
 				},
 				{
-					"include": "#record-declaration"
+					"include": "#struct-declaration"
 				},
 				{
-					"include": "#struct-declaration"
+					"include": "#record-declaration"
 				},
 				{
 					"include": "#attribute-section"
@@ -287,13 +287,22 @@
 					"include": "#nameof-expression"
 				},
 				{
+					"include": "#default-literal-expression"
+				},
+				{
 					"include": "#throw-expression"
+				},
+				{
+					"include": "#raw-interpolated-string"
 				},
 				{
 					"include": "#interpolated-string"
 				},
 				{
 					"include": "#verbatim-interpolated-string"
+				},
+				{
+					"include": "#type-builtin"
 				},
 				{
 					"include": "#this-or-base-expression"
@@ -378,13 +387,19 @@
 		"using-directive": {
 			"patterns": [
 				{
-					"begin": "\\b(using)\\b\\s+(static)\\s+",
+					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\b\\s+(static)\\b\\s+(\\b(unsafe)\\b\\s+)?",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.global.cs"
+						},
+						"3": {
 							"name": "keyword.other.using.cs"
 						},
-						"2": {
+						"4": {
 							"name": "keyword.other.static.cs"
+						},
+						"6": {
+							"name": "storage.modifier.cs"
 						}
 					},
 					"end": "(?=;)",
@@ -395,12 +410,18 @@
 					]
 				},
 				{
-					"begin": "\\b(using)\\s+(?=(@?[_[:alpha:]][_[:alnum:]]*)\\s*=)",
+					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\b\\s+(\\b(unsafe)\\b\\s+)?(?=(@?[_[:alpha:]][_[:alnum:]]*)\\s*=)",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.global.cs"
+						},
+						"3": {
 							"name": "keyword.other.using.cs"
 						},
-						"2": {
+						"5": {
+							"name": "storage.modifier.cs"
+						},
+						"6": {
 							"name": "entity.name.type.alias.cs"
 						}
 					},
@@ -418,9 +439,12 @@
 					]
 				},
 				{
-					"begin": "\\b(using)\\s*",
+					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\s*(?!\\(|\\s|var)",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.global.cs"
+						},
+						"3": {
 							"name": "keyword.other.using.cs"
 						}
 					},
@@ -571,29 +595,35 @@
 		},
 		"storage-modifier": {
 			"name": "storage.modifier.cs",
-			"match": "(?<!\\.)\\b(new|public|protected|internal|private|abstract|virtual|override|sealed|static|partial|readonly|volatile|const|extern|async|unsafe|ref)\\b"
+			"match": "(?<!\\.)\\b(new|public|protected|internal|private|abstract|virtual|override|sealed|static|partial|readonly|volatile|const|extern|async|unsafe|ref|required|file)\\b"
 		},
 		"class-declaration": {
-			"begin": "(?=\\bclass\\b)",
-			"end": "(?<=\\})",
+			"begin": "(?=(\\brecord\\b\\s+)?\\bclass\\b)",
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
-					"begin": "(?x)\n\\b(class)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*",
+					"begin": "(?x)\n(\\b(record)\\b\\s+)?\n\\b(class)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.record.cs"
+						},
+						"3": {
 							"name": "keyword.other.class.cs"
 						},
-						"2": {
+						"4": {
 							"name": "entity.name.type.class.cs"
 						}
 					},
-					"end": "(?=\\{)",
+					"end": "(?=\\{)|(?=;)",
 					"patterns": [
 						{
 							"include": "#comment"
 						},
 						{
 							"include": "#type-parameter-list"
+						},
+						{
+							"include": "#parenthesized-parameter-list"
 						},
 						{
 							"include": "#base-types"
@@ -817,7 +847,7 @@
 		},
 		"record-declaration": {
 			"begin": "(?=\\brecord\\b)",
-			"end": "(?<=\\})",
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
 					"begin": "(?x)\n(record)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
@@ -826,16 +856,19 @@
 							"name": "keyword.other.record.cs"
 						},
 						"2": {
-							"name": "entity.name.type.record.cs"
+							"name": "entity.name.type.class.cs"
 						}
 					},
-					"end": "(?=\\{)",
+					"end": "(?=\\{)|(?=;)",
 					"patterns": [
 						{
 							"include": "#comment"
 						},
 						{
 							"include": "#type-parameter-list"
+						},
+						{
+							"include": "#parenthesized-parameter-list"
 						},
 						{
 							"include": "#base-types"
@@ -873,26 +906,32 @@
 			]
 		},
 		"struct-declaration": {
-			"begin": "(?=\\bstruct\\b)",
-			"end": "(?<=\\})",
+			"begin": "(?=(\\brecord\\b\\s+)?\\bstruct\\b)",
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
-					"begin": "(?x)\n(struct)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
+					"begin": "(?x)\n(\\b(record)\\b\\s+)?\n(struct)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.record.cs"
+						},
+						"3": {
 							"name": "keyword.other.struct.cs"
 						},
-						"2": {
+						"4": {
 							"name": "entity.name.type.struct.cs"
 						}
 					},
-					"end": "(?=\\{)",
+					"end": "(?=\\{)|(?=;)",
 					"patterns": [
 						{
 							"include": "#comment"
 						},
 						{
 							"include": "#type-parameter-list"
+						},
+						{
+							"include": "#parenthesized-parameter-list"
 						},
 						{
 							"include": "#base-types"
@@ -977,7 +1016,7 @@
 					"name": "punctuation.separator.colon.cs"
 				}
 			},
-			"end": "(?=\\{|where)",
+			"end": "(?=\\{|where|;)",
 			"patterns": [
 				{
 					"include": "#type"
@@ -2700,6 +2739,14 @@
 				}
 			]
 		},
+		"default-literal-expression": {
+			"match": "(?<!\\.)\\b(default)\\b",
+			"captures": {
+				"1": {
+					"name": "keyword.other.default.cs"
+				}
+			}
+		},
 		"throw-expression": {
 			"match": "(?<!\\.)\\b(throw)\\b",
 			"captures": {
@@ -2780,6 +2827,184 @@
 				}
 			]
 		},
+		"raw-interpolated-string": {
+			"patterns": [
+				{
+					"include": "#raw-interpolated-string-five-or-more-quote-one-or-more-interpolation"
+				},
+				{
+					"include": "#raw-interpolated-string-three-or-more-quote-three-or-more-interpolation"
+				},
+				{
+					"include": "#raw-interpolated-string-quadruple-quote-double-interpolation"
+				},
+				{
+					"include": "#raw-interpolated-string-quadruple-quote-single-interpolation"
+				},
+				{
+					"include": "#raw-interpolated-string-triple-quote-double-interpolation"
+				},
+				{
+					"include": "#raw-interpolated-string-triple-quote-single-interpolation"
+				}
+			]
+		},
+		"raw-interpolated-string-triple-quote-single-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#raw-interpolation"
+				}
+			]
+		},
+		"raw-interpolated-string-triple-quote-double-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$\\$\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#double-raw-interpolation"
+				}
+			]
+		},
+		"raw-interpolated-string-quadruple-quote-single-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$\"\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#raw-interpolation"
+				}
+			]
+		},
+		"raw-interpolated-string-quadruple-quote-double-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$\\$\"\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#double-raw-interpolation"
+				}
+			]
+		},
+		"raw-interpolated-string-three-or-more-quote-three-or-more-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$\\$\\$+\"\"\"+",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"+",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			}
+		},
+		"raw-interpolated-string-five-or-more-quote-one-or-more-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$+\"\"\"\"\"+",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"\"\"+",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			}
+		},
+		"raw-interpolation": {
+			"name": "meta.interpolation.cs",
+			"begin": "(?<=[^\\{]|^)((?:\\{)*)(\\{)(?=[^\\{])",
+			"beginCaptures": {
+				"1": {
+					"name": "string.quoted.double.cs"
+				},
+				"2": {
+					"name": "punctuation.definition.interpolation.begin.cs"
+				}
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.interpolation.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"double-raw-interpolation": {
+			"name": "meta.interpolation.cs",
+			"begin": "(?<=[^\\{][^\\{]|^)((?:\\{)*)(\\{\\{)(?=[^\\{])",
+			"beginCaptures": {
+				"1": {
+					"name": "string.quoted.double.cs"
+				},
+				"2": {
+					"name": "punctuation.definition.interpolation.begin.cs"
+				}
+			},
+			"end": "\\}\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.interpolation.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
+		},
 		"literal": {
 			"patterns": [
 				{
@@ -2793,6 +3018,9 @@
 				},
 				{
 					"include": "#char-literal"
+				},
+				{
+					"include": "#raw-string-literal"
 				},
 				{
 					"include": "#string-literal"
@@ -2822,7 +3050,7 @@
 			"match": "(?<!\\.)\\bnull\\b"
 		},
 		"numeric-literal": {
-			"match": "(?<!\\w)\\.?\\d(?:(?:[0-9a-zA-Z_\\.]|_)|(?<=[eE])[+-])*",
+			"match": "(?<!\\w)\\.?\\d(?:(?:[0-9a-zA-Z_]|_)|(?<=[eE])[+-]|\\.\\d)*",
 			"captures": {
 				"0": {
 					"patterns": [
@@ -2968,7 +3196,7 @@
 									}
 								},
 								{
-									"match": "(?:(?:[0-9a-zA-Z_\\.]|_)|(?<=[eE])[+-])+",
+									"match": "(?:(?:[0-9a-zA-Z_]|_)|(?<=[eE])[+-]|\\.\\d)+",
 									"name": "invalid.illegal.constant.numeric.cs"
 								}
 							]
@@ -3054,6 +3282,64 @@
 		"verbatim-string-character-escape": {
 			"name": "constant.character.escape.cs",
 			"match": "\"\""
+		},
+		"raw-string-literal": {
+			"patterns": [
+				{
+					"include": "#raw-string-literal-more"
+				},
+				{
+					"include": "#raw-string-literal-quadruple"
+				},
+				{
+					"include": "#raw-string-literal-triple"
+				}
+			]
+		},
+		"raw-string-literal-triple": {
+			"name": "string.quoted.double.cs",
+			"begin": "\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			}
+		},
+		"raw-string-literal-quadruple": {
+			"name": "string.quoted.double.cs",
+			"begin": "\"\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			}
+		},
+		"raw-string-literal-more": {
+			"name": "string.quoted.double.cs",
+			"begin": "\"\"\"\"\"+",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"\"\"+",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			}
 		},
 		"tuple-literal": {
 			"begin": "(\\()(?=.*[:,])",
@@ -3401,7 +3687,7 @@
 			]
 		},
 		"object-creation-expression-with-parameters": {
-			"begin": "(?x)\n(new)\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\()",
+			"begin": "(?x)\n(new)(?:\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n))?\\s*\n(?=\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.new.cs"

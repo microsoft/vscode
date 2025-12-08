@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import { IExperimentationFilterProvider } from 'tas-client-umd';
+import type { IExperimentationFilterProvider } from 'tas-client-umd';
 
 export const ASSIGNMENT_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
 export const ASSIGNMENT_REFETCH_INTERVAL = 0; // no polling
@@ -15,10 +15,9 @@ export interface IAssignmentService {
 }
 
 export enum TargetPopulation {
-	Team = 'team',
-	Internal = 'internal',
 	Insiders = 'insider',
 	Public = 'public',
+	Exploration = 'exploration'
 }
 
 /*

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { HistoryNavigator } from 'vs/base/common/history';
+import { HistoryNavigator, HistoryNavigator2 } from 'vs/base/common/history';
 
 suite('History Navigator', () => {
 
@@ -13,12 +13,18 @@ suite('History Navigator', () => {
 		assert.deepStrictEqual(['3', '4'], toArray(testObject));
 	});
 
-	test('create sets the position to last', () => {
+	test('create sets the position after last', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3', '4'], 100);
 
 		assert.strictEqual(testObject.current(), null);
+		assert.strictEqual(testObject.isNowhere(), true);
+		assert.strictEqual(testObject.isFirst(), false);
+		assert.strictEqual(testObject.isLast(), false);
 		assert.strictEqual(testObject.next(), null);
 		assert.strictEqual(testObject.previous(), '4');
+		assert.strictEqual(testObject.isNowhere(), false);
+		assert.strictEqual(testObject.isFirst(), false);
+		assert.strictEqual(testObject.isLast(), true);
 	});
 
 	test('last returns last element', () => {
@@ -26,12 +32,16 @@ suite('History Navigator', () => {
 
 		assert.strictEqual(testObject.first(), '1');
 		assert.strictEqual(testObject.last(), '4');
+		assert.strictEqual(testObject.isFirst(), false);
+		assert.strictEqual(testObject.isLast(), true);
 	});
 
 	test('first returns first element', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3', '4'], 3);
 
 		assert.strictEqual('2', testObject.first());
+		assert.strictEqual(testObject.isFirst(), true);
+		assert.strictEqual(testObject.isLast(), false);
 	});
 
 	test('next returns next element', () => {
@@ -53,23 +63,27 @@ suite('History Navigator', () => {
 		assert.strictEqual(testObject.previous(), null);
 	});
 
-	test('next on last element returs null and remains on last', () => {
+	test('next on last element returns null and remains on last', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3', '4'], 3);
 
 		testObject.first();
 		testObject.last();
 
+		assert.strictEqual(testObject.isLast(), true);
 		assert.strictEqual(testObject.current(), '4');
 		assert.strictEqual(testObject.next(), null);
+		assert.strictEqual(testObject.isLast(), false); // Stepping past the last element, is no longer "last"
 	});
 
-	test('previous on first element returs null and remains on first', () => {
+	test('previous on first element returns null and remains on first', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3', '4'], 3);
 
 		testObject.first();
 
+		assert.strictEqual(testObject.isFirst(), true);
 		assert.strictEqual(testObject.current(), '2');
 		assert.strictEqual(testObject.previous(), null);
+		assert.strictEqual(testObject.isFirst(), true);
 	});
 
 	test('add reduces the input to limit', () => {
@@ -95,7 +109,9 @@ suite('History Navigator', () => {
 		testObject.add('5');
 
 		assert.strictEqual(testObject.previous(), '5');
+		assert.strictEqual(testObject.isLast(), true);
 		assert.strictEqual(testObject.next(), null);
+		assert.strictEqual(testObject.isLast(), false);
 	});
 
 	test('adding an existing item changes the order', () => {
@@ -112,6 +128,7 @@ suite('History Navigator', () => {
 		testObject.first();
 
 		assert.deepStrictEqual(testObject.previous(), null);
+		assert.strictEqual(testObject.isFirst(), true);
 	});
 
 	test('previous returns object if the current position is not the first one', () => {
@@ -128,7 +145,9 @@ suite('History Navigator', () => {
 
 		testObject.last();
 
+		assert.strictEqual(testObject.isLast(), true);
 		assert.deepStrictEqual(testObject.next(), null);
+		assert.strictEqual(testObject.isLast(), false);
 	});
 
 	test('next returns object if the current position is not the last one', () => {
@@ -145,6 +164,7 @@ suite('History Navigator', () => {
 		assert.strictEqual(testObject.previous(), 'c');
 		testObject.clear();
 		assert.strictEqual(testObject.current(), null);
+		assert.strictEqual(testObject.isNowhere(), true);
 	});
 
 	function toArray(historyNavigator: HistoryNavigator<string>): Array<string | null> {
@@ -157,4 +177,96 @@ suite('History Navigator', () => {
 		}
 		return result;
 	}
+});
+
+suite('History Navigator 2', () => {
+
+	test('constructor', () => {
+		const testObject = new HistoryNavigator2(['1', '2', '3', '4']);
+
+		assert.strictEqual(testObject.current(), '4');
+		assert.strictEqual(testObject.isAtEnd(), true);
+	});
+
+	test('constructor - initial history is not empty', () => {
+		assert.throws(() => new HistoryNavigator2([]));
+	});
+
+	test('constructor - capacity limit', () => {
+		const testObject = new HistoryNavigator2(['1', '2', '3', '4'], 3);
+
+		assert.strictEqual(testObject.current(), '4');
+		assert.strictEqual(testObject.isAtEnd(), true);
+		assert.strictEqual(testObject.has('1'), false);
+	});
+
+	test('constructor - duplicate values', () => {
+		const testObject = new HistoryNavigator2(['1', '2', '3', '4', '3', '2', '1']);
+
+		assert.strictEqual(testObject.current(), '1');
+		assert.strictEqual(testObject.isAtEnd(), true);
+	});
+
+	test('navigation', () => {
+		const testObject = new HistoryNavigator2(['1', '2', '3', '4']);
+
+		assert.strictEqual(testObject.current(), '4');
+		assert.strictEqual(testObject.isAtEnd(), true);
+
+		assert.strictEqual(testObject.next(), '4');
+		assert.strictEqual(testObject.previous(), '3');
+		assert.strictEqual(testObject.previous(), '2');
+		assert.strictEqual(testObject.previous(), '1');
+		assert.strictEqual(testObject.previous(), '1');
+
+		assert.strictEqual(testObject.current(), '1');
+		assert.strictEqual(testObject.next(), '2');
+		assert.strictEqual(testObject.resetCursor(), '4');
+	});
+
+	test('add', () => {
+		const testObject = new HistoryNavigator2(['1', '2', '3', '4']);
+		testObject.add('5');
+
+		assert.strictEqual(testObject.current(), '5');
+		assert.strictEqual(testObject.isAtEnd(), true);
+	});
+
+	test('add - existing value', () => {
+		const testObject = new HistoryNavigator2(['1', '2', '3', '4']);
+		testObject.add('2');
+
+		assert.strictEqual(testObject.current(), '2');
+		assert.strictEqual(testObject.isAtEnd(), true);
+
+		assert.strictEqual(testObject.previous(), '4');
+		assert.strictEqual(testObject.previous(), '3');
+		assert.strictEqual(testObject.previous(), '1');
+	});
+
+	test('replaceLast', () => {
+		const testObject = new HistoryNavigator2(['1', '2', '3', '4']);
+		testObject.replaceLast('5');
+
+		assert.strictEqual(testObject.current(), '5');
+		assert.strictEqual(testObject.isAtEnd(), true);
+		assert.strictEqual(testObject.has('4'), false);
+
+		assert.strictEqual(testObject.previous(), '3');
+		assert.strictEqual(testObject.previous(), '2');
+		assert.strictEqual(testObject.previous(), '1');
+	});
+
+	test('replaceLast - existing value', () => {
+		const testObject = new HistoryNavigator2(['1', '2', '3', '4']);
+		testObject.replaceLast('2');
+
+		assert.strictEqual(testObject.current(), '2');
+		assert.strictEqual(testObject.isAtEnd(), true);
+		assert.strictEqual(testObject.has('4'), false);
+
+		assert.strictEqual(testObject.previous(), '3');
+		assert.strictEqual(testObject.previous(), '1');
+	});
+
 });

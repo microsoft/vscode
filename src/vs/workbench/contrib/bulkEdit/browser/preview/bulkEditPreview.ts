@@ -23,6 +23,8 @@ import { extUri } from 'vs/base/common/resources';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Codicon } from 'vs/base/common/codicons';
 import { generateUuid } from 'vs/base/common/uuid';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 
 export class CheckedStates<T extends object> {
 
@@ -82,7 +84,7 @@ export const enum BulkFileOperationType {
 
 export class BulkFileOperation {
 
-	type: BulkFileOperationType = 0;
+	type = 0;
 	textEdits: BulkTextEdit[] = [];
 	originalEdits = new Map<number, ResourceTextEdit | ResourceFileEdit>();
 	newUri?: URI;
@@ -316,7 +318,7 @@ export class BulkFileOperations {
 				for (const edit of file.originalEdits.values()) {
 					if (edit instanceof ResourceTextEdit) {
 						if (this.checked.isChecked(edit)) {
-							result.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), edit.textEdit.text));
+							result.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), !edit.textEdit.insertAsSnippet ? edit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.text)));
 						}
 
 					} else if (!this.checked.isChecked(edit)) {
@@ -385,7 +387,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 		for (const operation of this._operations.fileOperations) {
 			await this._applyTextEditsToPreviewModel(operation.uri);
 		}
-		this._disposables.add(this._operations.checked.onDidChange(e => {
+		this._disposables.add(Event.debounce(this._operations.checked.onDidChange, (_last, e) => e, MicrotaskDelay)(e => {
 			const uri = this._operations.getUriOfEdit(e);
 			this._applyTextEditsToPreviewModel(uri);
 		}));

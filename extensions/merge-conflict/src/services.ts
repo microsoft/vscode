@@ -9,20 +9,25 @@ import CommandHandler from './commandHandler';
 import ContentProvider from './contentProvider';
 import Decorator from './mergeDecorator';
 import * as interfaces from './interfaces';
+import TelemetryReporter from '@vscode/extension-telemetry';
 
 const ConfigurationSectionName = 'merge-conflict';
 
 export default class ServiceWrapper implements vscode.Disposable {
 
 	private services: vscode.Disposable[] = [];
+	private telemetryReporter: TelemetryReporter;
 
 	constructor(private context: vscode.ExtensionContext) {
+		const { aiKey } = context.extension.packageJSON as { aiKey: string };
+		this.telemetryReporter = new TelemetryReporter(aiKey);
+		context.subscriptions.push(this.telemetryReporter);
 	}
 
 	begin() {
 
 		const configuration = this.createExtensionConfiguration();
-		const documentTracker = new DocumentTracker();
+		const documentTracker = new DocumentTracker(this.telemetryReporter);
 
 		this.services.push(
 			documentTracker,
@@ -48,19 +53,6 @@ export default class ServiceWrapper implements vscode.Disposable {
 	}
 
 	createExtensionConfiguration(): interfaces.IExtensionConfiguration {
-
-		// PRAGMATIC way to avoid conflicting with the new merge editor: when git opts into
-		// using the merge editor we disable this extension - for the merge editor but also
-		// for "other" editors
-		const gitConfig = vscode.workspace.getConfiguration('git');
-		if (gitConfig.get<boolean>('mergeEditor')) {
-			return {
-				enableCodeLens: false,
-				enableDecorations: false,
-				enableEditorOverview: false
-			};
-		}
-
 		const workspaceConfiguration = vscode.workspace.getConfiguration(ConfigurationSectionName);
 		const codeLensEnabled: boolean = workspaceConfiguration.get('codeLens.enabled', true);
 		const decoratorsEnabled: boolean = workspaceConfiguration.get('decorators.enabled', true);

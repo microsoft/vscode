@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { localize } from '../tsServer/versionProvider';
+import type * as Proto from '../tsServer/protocol/protocol';
 import { ClientCapability, ITypeScriptServiceClient, ServerType } from '../typescriptService';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import { markdownDocumentation } from '../utils/previewer';
-import * as typeConverters from '../utils/typeConverters';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { documentationToMarkdown } from './util/textRendering';
+import * as typeConverters from '../typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+
 
 
 class TypeScriptHoverProvider implements vscode.HoverProvider {
@@ -26,7 +26,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.Hover | undefined> {
-		const filepath = this.client.toOpenedFilePath(document);
+		const filepath = this.client.toOpenTsFilePath(document);
 		if (!filepath) {
 			return undefined;
 		}
@@ -59,16 +59,16 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 
 			if (source === ServerType.Syntax && this.client.hasCapabilityForResource(resource, ClientCapability.Semantic)) {
 				displayParts.push(
-					localize({
-						key: 'loadingPrefix',
+					vscode.l10n.t({
+						message: "(loading...)",
 						comment: ['Prefix displayed for hover entries while the server is still loading']
-					}, "(loading...)"));
+					}));
 			}
 
 			displayParts.push(data.displayString);
 			parts.push(new vscode.MarkdownString().appendCodeblock(displayParts.join(' '), 'typescript'));
 		}
-		const md = markdownDocumentation(data.documentation, data.tags, this.client, resource);
+		const md = documentationToMarkdown(data.documentation, data.tags, this.client, resource);
 		parts.push(md);
 		return parts;
 	}

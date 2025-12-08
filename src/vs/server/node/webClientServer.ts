@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises as fsp, createReadStream } from 'fs';
+import { createReadStream } from 'fs';
+import { Promises } from 'vs/base/node/pfs';
 import * as path from 'path';
 import * as http from 'http';
 import * as url from 'url';
@@ -15,7 +16,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
-import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas } from 'vs/base/common/network';
+import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas, builtinExtensionsPath } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
@@ -28,6 +29,7 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { isString } from 'vs/base/common/types';
 import { CharCode } from 'vs/base/common/charCode';
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -54,14 +56,14 @@ export const enum CacheControl {
  */
 export async function serveFile(filePath: string, cacheControl: CacheControl, logService: ILogService, req: http.IncomingMessage, res: http.ServerResponse, responseHeaders: Record<string, string>): Promise<void> {
 	try {
-		const stat = await fsp.stat(filePath); // throws an error if file doesn't exist
+		const stat = await Promises.stat(filePath); // throws an error if file doesn't exist
 		if (cacheControl === CacheControl.ETAG) {
 
 			// Check if file modified since
 			const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
 			if (req.headers['if-none-match'] === etag) {
 				res.writeHead(304);
-				return res.end();
+				return void res.end();
 			}
 
 			responseHeaders['Etag'] = etag;
@@ -86,11 +88,11 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 		}
 
 		res.writeHead(404, { 'Content-Type': 'text/plain' });
-		return res.end('Not found');
+		return void res.end('Not found');
 	}
 }
 
-const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
+const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
 
 export class WebClientServer {
 
@@ -232,7 +234,7 @@ export class WebClientServer {
 		setResponseHeader('Content-Type');
 		res.writeHead(200, responseHeaders);
 		const buffer = await streamToBuffer(context.stream);
-		return res.end(buffer.buffer);
+		return void res.end(buffer.buffer);
 	}
 
 	/**
@@ -264,7 +266,7 @@ export class WebClientServer {
 			responseHeaders['Location'] = newLocation;
 
 			res.writeHead(302, responseHeaders);
-			return res.end();
+			return void res.end();
 		}
 
 		const getFirstHeader = (headerName: string) => {
@@ -272,7 +274,12 @@ export class WebClientServer {
 			return Array.isArray(val) ? val[0] : val;
 		};
 
-		const remoteAuthority = getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host;
+		const useTestResolver = (!this._environmentService.isBuilt && this._environmentService.args['use-test-resolver']);
+		const remoteAuthority = (
+			useTestResolver
+				? 'test+test'
+				: (getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host)
+		);
 		if (!remoteAuthority) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
@@ -290,7 +297,7 @@ export class WebClientServer {
 
 		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(path.resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
-		const filePath = FileAccess.asFileUri(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html', require).fsPath;
+		const filePath = FileAccess.asFileUri(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html').fsPath;
 		const authSessionInfo = !this._environmentService.isBuilt && this._environmentService.args['github-auth'] ? {
 			id: generateUuid(),
 			providerId: 'github',
@@ -298,26 +305,34 @@ export class WebClientServer {
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
 
+		const productConfiguration = <Partial<IProductConfiguration>>{
+			embedderIdentifier: 'server-distro',
+			extensionsGallery: this._webExtensionResourceUrlTemplate ? {
+				...this._productService.extensionsGallery,
+				'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
+					scheme: 'http',
+					authority: remoteAuthority,
+					path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+				}).toString(true)
+			} : undefined
+		};
+
+		if (!this._environmentService.isBuilt) {
+			try {
+				const productOverrides = JSON.parse((await Promises.readFile(join(APP_ROOT, 'product.overrides.json'))).toString());
+				Object.assign(productConfiguration, productOverrides);
+			} catch (err) {/* Ignore Error */ }
+		}
 
 		const workbenchWebConfiguration = {
 			remoteAuthority,
 			_wrapWebWorkerExtHostInIframe,
-			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined },
+			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
-			productConfiguration: <Partial<IProductConfiguration>>{
-				embedderIdentifier: 'server-distro',
-				extensionsGallery: this._webExtensionResourceUrlTemplate ? {
-					...this._productService.extensionsGallery,
-					'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
-						scheme: 'http',
-						authority: remoteAuthority,
-						path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
-					}).toString(true)
-				} : undefined
-			},
+			productConfiguration,
 			callbackRoute: this._callbackRoute
 		};
 
@@ -329,24 +344,32 @@ export class WebClientServer {
 			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${!nlsBaseUrl.endsWith('/') ? '/' : ''}${this._productService.commit}/${this._productService.version}/` : '',
 		};
 
+		if (useTestResolver) {
+			const bundledExtensions: { extensionPath: string; packageJSON: IExtensionManifest }[] = [];
+			for (const extensionPath of ['vscode-test-resolver', 'github-authentication']) {
+				const packageJSON = JSON.parse((await Promises.readFile(FileAccess.asFileUri(`${builtinExtensionsPath}/${extensionPath}/package.json`).fsPath)).toString());
+				bundledExtensions.push({ extensionPath, packageJSON });
+			}
+			values['WORKBENCH_BUILTIN_EXTENSIONS'] = asJSON(bundledExtensions);
+		}
 
 		let data;
 		try {
-			const workbenchTemplate = (await fsp.readFile(filePath)).toString();
+			const workbenchTemplate = (await Promises.readFile(filePath)).toString();
 			data = workbenchTemplate.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key] ?? 'undefined');
 		} catch (e) {
 			res.writeHead(404, { 'Content-Type': 'text/plain' });
-			return res.end('Not found');
+			return void res.end('Not found');
 		}
 
 		const cspDirectives = [
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
 			'media-src \'self\';',
-			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-fh3TwPMflhsEIpR8g1OYTIMVWhXTLcjQ9kh2tIpmv54=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
+			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-fh3TwPMflhsEIpR8g1OYTIMVWhXTLcjQ9kh2tIpmv54=' ${useTestResolver ? '' : `http://${remoteAuthority}`};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-cdn.net data:;`,
-			'worker-src \'self\' data:;',
+			'worker-src \'self\' data: blob:;',
 			'style-src \'self\' \'unsafe-inline\';',
 			'connect-src \'self\' ws: wss: https:;',
 			'font-src \'self\' blob:;',
@@ -372,7 +395,7 @@ export class WebClientServer {
 		}
 
 		res.writeHead(200, headers);
-		return res.end(data);
+		return void res.end(data);
 	}
 
 	private _getScriptCspHashes(content: string): string[] {
@@ -398,8 +421,8 @@ export class WebClientServer {
 	 * Handle HTTP requests for /callback
 	 */
 	private async _handleCallback(res: http.ServerResponse): Promise<void> {
-		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath;
-		const data = (await fsp.readFile(filePath)).toString();
+		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html').fsPath;
+		const data = (await Promises.readFile(filePath)).toString();
 		const cspDirectives = [
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
@@ -413,6 +436,6 @@ export class WebClientServer {
 			'Content-Type': 'text/html',
 			'Content-Security-Policy': cspDirectives
 		});
-		return res.end(data);
+		return void res.end(data);
 	}
 }

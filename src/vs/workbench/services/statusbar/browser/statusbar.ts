@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/languages';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -31,7 +31,7 @@ export interface IStatusbarService {
 	 * @param priority items get arranged from highest priority to lowest priority from left to right
 	 * in their respective alignment slot
 	 */
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number | IStatusbarEntryPriority): IStatusbarEntryAccessor;
 
 	/**
 	 * Adds an entry to the statusbar with the given alignment relative to another entry. Use the returned
@@ -112,6 +112,35 @@ export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEnt
 	return typeof candidate?.id === 'string' && typeof candidate.alignment === 'number';
 }
 
+export interface IStatusbarEntryPriority {
+
+	/**
+	 * The main priority of the entry that
+	 * defines the order of appearance:
+	 * either a number or a reference to
+	 * another status bar entry to position
+	 * relative to.
+	 *
+	 * May not be unique across all entries.
+	 */
+	readonly primary: number | IStatusbarEntryLocation;
+
+	/**
+	 * The secondary priority of the entry
+	 * is used in case the main priority
+	 * matches another one's priority.
+	 *
+	 * Should be unique across all entries.
+	 */
+	readonly secondary: number;
+}
+
+export function isStatusbarEntryPriority(thing: unknown): thing is IStatusbarEntryPriority {
+	const candidate = thing as IStatusbarEntryPriority | undefined;
+
+	return (typeof candidate?.primary === 'number' || isStatusbarEntryLocation(candidate?.primary)) && typeof candidate?.secondary === 'number';
+}
+
 export const ShowTooltipCommand: Command = {
 	id: 'statusBar.entry.showTooltip',
 	title: ''
@@ -182,9 +211,10 @@ export interface IStatusbarEntry {
 	readonly showBeak?: boolean;
 
 	/**
-	 * Will enable a spinning icon in front of the text to indicate progress.
+	 * Will enable a spinning icon in front of the text to indicate progress. When `true` is
+	 * specified, `syncing` will be used.
 	 */
-	readonly showProgress?: boolean;
+	readonly showProgress?: boolean | 'syncing' | 'loading';
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

@@ -45,7 +45,6 @@ import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/browser/sm
 import { mock } from 'vs/base/test/common/mock';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { dispose } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
@@ -53,7 +52,9 @@ import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransfo
 import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -65,6 +66,7 @@ suite('ExtHostLanguageFeatures', function () {
 	let rpcProtocol: TestRPCProtocol;
 	let languageFeaturesService: ILanguageFeaturesService;
 	let originalErrorHandler: (e: any) => any;
+	let instantiationService: TestInstantiationService;
 
 	suiteSetup(() => {
 
@@ -85,9 +87,14 @@ suite('ExtHostLanguageFeatures', function () {
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
 		{
-			const instantiationService = new TestInstantiationService();
+			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMarkerService, MarkerService);
 			instantiationService.set(ILanguageFeaturesService, languageFeaturesService);
+			instantiationService.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+				override asCanonicalUri(uri: URI): URI {
+					return uri;
+				}
+			});
 			inst = instantiationService;
 		}
 
@@ -108,14 +115,22 @@ suite('ExtHostLanguageFeatures', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		const commands = new ExtHostCommands(rpcProtocol, new NullLogService());
+		const commands = new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
+			override onExtensionError(): boolean {
+				return true;
+			}
+		});
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
-		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { }, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService, new class extends mock<IExtHostTelemetry>() {
+			override onExtensionError(): boolean {
+				return true;
+			}
+		});
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -125,6 +140,7 @@ suite('ExtHostLanguageFeatures', function () {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
 		mainThread.dispose();
+		instantiationService.dispose();
 	});
 
 	teardown(() => {
@@ -411,11 +427,10 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
-			assert.strictEqual(value.length, 1);
-			const [entry] = value;
-			assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
-		});
+		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
+		assert.strictEqual(hovers.length, 1);
+		const [entry] = hovers;
+		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
 	});
 
 
@@ -428,11 +443,10 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
-			assert.strictEqual(value.length, 1);
-			const [entry] = value;
-			assert.deepStrictEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
-		});
+		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
+		assert.strictEqual(hovers.length, 1);
+		const [entry] = hovers;
+		assert.deepStrictEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
 	});
 
 
@@ -473,9 +487,8 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
-			assert.strictEqual(value.length, 1);
-		});
+		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
+		assert.strictEqual(hovers.length, 1);
 	});
 
 	// --- occurrences
@@ -832,7 +845,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.strictEqual(value.edits.length, 2);
 	});
 
-	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers, #98352', async function () {
+	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers 1/2, #98352', async function () {
 
 		const called = [false, false, false, false];
 
@@ -866,7 +879,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.deepStrictEqual(called, [true, true, true, false]);
 	});
 
-	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers, #98352', async function () {
+	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers 2/2, #98352', async function () {
 
 		const called = [false, false, false];
 
@@ -978,7 +991,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.strictEqual(items[0].completion.insertText, 'weak-selector');
 	});
 
-	test('Suggest, order 2/3', async () => {
+	test('Suggest, order 3/3', async () => {
 
 		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
 			provideCompletionItems(): any {
@@ -1037,7 +1050,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	const NullWorkerService = new class extends mock<IEditorWorkerService>() {
 		override computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[] | null | undefined): Promise<languages.TextEdit[] | undefined> {
-			return Promise.resolve(withNullAsUndefined(edits));
+			return Promise.resolve(edits ?? undefined);
 		}
 	};
 
@@ -1240,7 +1253,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 
-		provideSelectionRanges(languageFeaturesService.selectionRangeProvider, model, [new Position(1, 17)], { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None).then(ranges => {
+		provideSelectionRanges(languageFeaturesService.selectionRangeProvider, model, [new Position(1, 17)], { selectLeadingAndTrailingWhitespace: true, selectSubwords: true }, CancellationToken.None).then(ranges => {
 			assert.strictEqual(ranges.length, 1);
 			assert.ok(ranges[0].length >= 2);
 		});

@@ -274,7 +274,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			try {
 				await Promises.unlink(path);
 				try {
-					await Promises.rename(this.toBackupPath(path), path);
+					await Promises.rename(this.toBackupPath(path), path, false /* no retry */);
 				} catch (error) {
 					// ignore
 				}

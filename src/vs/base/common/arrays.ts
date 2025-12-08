@@ -178,6 +178,7 @@ export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => numb
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
+	readonly toInsert: T[];
 	deleteCount: number;
 }
 
@@ -397,14 +398,14 @@ export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
 }
 
 export function findLast<T>(arr: readonly T[], predicate: (item: T) => boolean): T | undefined {
-	const idx = lastIndex(arr, predicate);
+	const idx = findLastIndex(arr, predicate);
 	if (idx === -1) {
 		return undefined;
 	}
 	return arr[idx];
 }
 
-export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
+export function findLastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
 	for (let i = array.length - 1; i >= 0; i--) {
 		const element = array[i];
 
@@ -706,6 +707,10 @@ export function tieBreakComparators<TItem>(...comparators: Comparator<TItem>[]):
 */
 export const numberComparator: Comparator<number> = (a, b) => a - b;
 
+export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<TItem> {
+	return (a, b) => -comparator(a, b);
+}
+
 /**
  * Returns the first item that is equal to or greater than every other item.
 */
@@ -826,6 +831,82 @@ export class ArrayQueue<T> {
 	takeCount(count: number): T[] {
 		const result = this.items.slice(this.firstIdx, this.firstIdx + count);
 		this.firstIdx += count;
+		return result;
+	}
+}
+
+/**
+ * This class is faster than an iterator and array for lazy computed data.
+*/
+export class CallbackIterable<T> {
+	public static readonly empty = new CallbackIterable<never>(_callback => { });
+
+	constructor(
+		/**
+		 * Calls the callback for every item.
+		 * Stops when the callback returns false.
+		*/
+		public readonly iterate: (callback: (item: T) => boolean) => void
+	) {
+	}
+
+	forEach(handler: (item: T) => void) {
+		this.iterate(item => { handler(item); return true; });
+	}
+
+	toArray(): T[] {
+		const result: T[] = [];
+		this.iterate(item => { result.push(item); return true; });
+		return result;
+	}
+
+	filter(predicate: (item: T) => boolean): CallbackIterable<T> {
+		return new CallbackIterable(cb => this.iterate(item => predicate(item) ? cb(item) : true));
+	}
+
+	map<TResult>(mapFn: (item: T) => TResult): CallbackIterable<TResult> {
+		return new CallbackIterable<TResult>(cb => this.iterate(item => cb(mapFn(item))));
+	}
+
+	some(predicate: (item: T) => boolean): boolean {
+		let result = false;
+		this.iterate(item => { result = predicate(item); return !result; });
+		return result;
+	}
+
+	findFirst(predicate: (item: T) => boolean): T | undefined {
+		let result: T | undefined;
+		this.iterate(item => {
+			if (predicate(item)) {
+				result = item;
+				return false;
+			}
+			return true;
+		});
+		return result;
+	}
+
+	findLast(predicate: (item: T) => boolean): T | undefined {
+		let result: T | undefined;
+		this.iterate(item => {
+			if (predicate(item)) {
+				result = item;
+			}
+			return true;
+		});
+		return result;
+	}
+
+	findLastMaxBy(comparator: Comparator<T>): T | undefined {
+		let result: T | undefined;
+		let first = true;
+		this.iterate(item => {
+			if (first || CompareResult.isGreaterThan(comparator(item, result!))) {
+				first = false;
+				result = item;
+			}
+			return true;
+		});
 		return result;
 	}
 }

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI as uri, UriComponents } from 'vs/base/common/uri';
 import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
-	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration
+	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration, IThreadFocusDto, IStackFrameFocusDto
 } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import severity from 'vs/base/common/severity';
@@ -22,7 +22,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	private readonly _proxy: ExtHostDebugServiceShape;
 	private readonly _toDispose = new DisposableStore();
-	private _breakpointEventsActive: boolean | undefined;
 	private readonly _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
 	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
@@ -51,11 +50,73 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._toDispose.add(debugService.getViewModel().onDidFocusSession(session => {
 			this._proxy.$acceptDebugSessionActiveChanged(this.getSessionDto(session));
 		}));
+		this._toDispose.add(toDisposable(() => {
+			for (const [handle, da] of this._debugAdapters) {
+				da.fireError(handle, new Error('Extension host shut down'));
+			}
+		}));
 
 		this._debugAdapters = new Map();
 		this._debugConfigurationProviders = new Map();
 		this._debugAdapterDescriptorFactories = new Map();
 		this._sessions = new Set();
+
+		this._toDispose.add(this.debugService.getViewModel().onDidFocusThread(({ thread, explicit, session }) => {
+			if (session) {
+				const dto: IThreadFocusDto = {
+					kind: 'thread',
+					threadId: thread?.threadId,
+					sessionId: session!.getId(),
+				};
+				this._proxy.$acceptStackFrameFocus(dto);
+			}
+		}));
+
+		this._toDispose.add(this.debugService.getViewModel().onDidFocusStackFrame(({ stackFrame, explicit, session }) => {
+			if (session) {
+				const dto: IStackFrameFocusDto = {
+					kind: 'stackFrame',
+					threadId: stackFrame?.thread.threadId,
+					frameId: stackFrame?.frameId,
+					sessionId: session.getId(),
+				};
+				this._proxy.$acceptStackFrameFocus(dto);
+			}
+		}));
+		this.sendBreakpointsAndListen();
+	}
+
+	private sendBreakpointsAndListen(): void {
+		// set up a handler to send more
+		this._toDispose.add(this.debugService.getModel().onDidChangeBreakpoints(e => {
+			// Ignore session only breakpoint events since they should only reflect in the UI
+			if (e && !e.sessionOnly) {
+				const delta: IBreakpointsDeltaDto = {};
+				if (e.added) {
+					delta.added = this.convertToDto(e.added);
+				}
+				if (e.removed) {
+					delta.removed = e.removed.map(x => x.getId());
+				}
+				if (e.changed) {
+					delta.changed = this.convertToDto(e.changed);
+				}
+
+				if (delta.added || delta.removed || delta.changed) {
+					this._proxy.$acceptBreakpointsDelta(delta);
+				}
+			}
+		}));
+
+		// send all breakpoints
+		const bps = this.debugService.getModel().getBreakpoints();
+		const fbps = this.debugService.getModel().getFunctionBreakpoints();
+		const dbps = this.debugService.getModel().getDataBreakpoints();
+		if (bps.length > 0 || fbps.length > 0) {
+			this._proxy.$acceptBreakpointsDelta({
+				added: this.convertToDto(bps).concat(this.convertToDto(fbps)).concat(this.convertToDto(dbps))
+			});
+		}
 	}
 
 	public dispose(): void {
@@ -83,44 +144,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $registerDebugTypes(debugTypes: string[]) {
 		this._toDispose.add(this.debugService.getAdapterManager().registerDebugAdapterFactory(debugTypes, this));
-	}
-
-	public $startBreakpointEvents(): void {
-
-		if (!this._breakpointEventsActive) {
-			this._breakpointEventsActive = true;
-
-			// set up a handler to send more
-			this._toDispose.add(this.debugService.getModel().onDidChangeBreakpoints(e => {
-				// Ignore session only breakpoint events since they should only reflect in the UI
-				if (e && !e.sessionOnly) {
-					const delta: IBreakpointsDeltaDto = {};
-					if (e.added) {
-						delta.added = this.convertToDto(e.added);
-					}
-					if (e.removed) {
-						delta.removed = e.removed.map(x => x.getId());
-					}
-					if (e.changed) {
-						delta.changed = this.convertToDto(e.changed);
-					}
-
-					if (delta.added || delta.removed || delta.changed) {
-						this._proxy.$acceptBreakpointsDelta(delta);
-					}
-				}
-			}));
-
-			// send all breakpoints
-			const bps = this.debugService.getModel().getBreakpoints();
-			const fbps = this.debugService.getModel().getFunctionBreakpoints();
-			const dbps = this.debugService.getModel().getDataBreakpoints();
-			if (bps.length > 0 || fbps.length > 0) {
-				this._proxy.$acceptBreakpointsDelta({
-					added: this.convertToDto(bps).concat(this.convertToDto(fbps)).concat(this.convertToDto(dbps))
-				});
-			}
-		}
 	}
 
 	public $registerBreakpoints(DTOs: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void> {
@@ -230,12 +253,15 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			lifecycleManagedByParent: options.lifecycleManagedByParent,
 			repl: options.repl,
 			compact: options.compact,
-			debugUI: options.debugUI,
 			compoundRoot: parentSession?.compoundRoot,
-			saveBeforeStart: saveBeforeStart
+			saveBeforeRestart: saveBeforeStart,
+
+			suppressDebugStatusbar: options.suppressDebugStatusbar,
+			suppressDebugToolbar: options.suppressDebugToolbar,
+			suppressDebugView: options.suppressDebugView,
 		};
 		try {
-			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions);
+			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions, saveBeforeStart);
 		} catch (err) {
 			throw new ErrorNoTelemetry(err && err.message ? err.message : 'cannot start debugging');
 		}
@@ -283,7 +309,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $appendDebugConsole(value: string): void {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		const session = this.debugService.getViewModel().focusedSession;
-		session?.appendToRepl(value, severity.Warning);
+		session?.appendToRepl({ output: value, sev: severity.Warning });
 	}
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {

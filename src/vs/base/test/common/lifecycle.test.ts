@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable, markAsSingleton, MultiDisposeError, ReferenceCollection, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from 'vs/base/test/common/utils';
 
 class Disposable implements IDisposable {
@@ -88,10 +88,10 @@ suite('Lifecycle', () => {
 
 		assert.ok(disposedValues.has(1));
 		assert.ok(disposedValues.has(4));
-		assert.ok(thrownError instanceof MultiDisposeError);
-		assert.strictEqual((thrownError as MultiDisposeError).errors.length, 2);
-		assert.strictEqual((thrownError as MultiDisposeError).errors[0].message, 'I am error 1');
-		assert.strictEqual((thrownError as MultiDisposeError).errors[1].message, 'I am error 2');
+		assert.ok(thrownError instanceof AggregateError);
+		assert.strictEqual((thrownError as AggregateError).errors.length, 2);
+		assert.strictEqual((thrownError as AggregateError).errors[0].message, 'I am error 1');
+		assert.strictEqual((thrownError as AggregateError).errors[1].message, 'I am error 2');
 	});
 
 	test('Action bar has broken accessibility #100273', function () {
@@ -167,10 +167,10 @@ suite('DisposableStore', () => {
 
 		assert.ok(disposedValues.has(1));
 		assert.ok(disposedValues.has(4));
-		assert.ok(thrownError instanceof MultiDisposeError);
-		assert.strictEqual((thrownError as MultiDisposeError).errors.length, 2);
-		assert.strictEqual((thrownError as MultiDisposeError).errors[0].message, 'I am error 1');
-		assert.strictEqual((thrownError as MultiDisposeError).errors[1].message, 'I am error 2');
+		assert.ok(thrownError instanceof AggregateError);
+		assert.strictEqual((thrownError as AggregateError).errors.length, 2);
+		assert.strictEqual((thrownError as AggregateError).errors[0].message, 'I am error 1');
+		assert.strictEqual((thrownError as AggregateError).errors[1].message, 'I am error 2');
 	});
 });
 

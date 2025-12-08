@@ -35,17 +35,21 @@ export interface IViewModel extends ICursorSimpleModel {
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
-	tokenizeViewport(): void;
+	visibleLinesStabilized(): void;
 	setHasFocus(hasFocus: boolean): void;
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
 
+	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
-	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getViewLineRenderingData(lineNumber: number): ViewLineRenderingData;
 	getViewLineData(lineNumber: number): ViewLineData;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+
+	getHiddenAreas(): Range[];
 
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
@@ -59,6 +63,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[];
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	modifyPosition(position: Position, offset: number): Position;
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
@@ -108,6 +114,7 @@ export interface IViewLayout {
 	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
 
 	setMaxLineWidth(maxLineWidth: number): void;
+	setOverlayWidgetsMinWidth(overlayWidgetsMinWidth: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
@@ -117,7 +124,8 @@ export interface IViewLayout {
 	isInTopPadding(verticalOffset: number): boolean;
 	isInBottomPadding(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
+	getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
+	getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	/**
@@ -203,7 +211,11 @@ export interface ICoordinatesConverter {
 	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
 
 	// Model -> View conversion and related methods
-	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position;
+	/**
+	 * @param allowZeroLineNumber Should it return 0 when there are hidden lines at the top and the position is in the hidden area?
+	 * @param belowHiddenRanges When the model position is in a hidden area, should it return the first view position after or before?
+	 */
+	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZeroLineNumber?: boolean, belowHiddenRanges?: boolean): Position;
 	/**
 	 * @param affinity Only has an effect if the range is empty.
 	*/

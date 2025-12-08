@@ -18,21 +18,22 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { CodeDataTransfers, containsDragType, Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry } from 'vs/platform/dnd/browser/dnd';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, DraggedTreeItemsIdentifier, extractTreeDropData, LocalSelectionTransfer, ResourcesDropHandler } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType, Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, ResourcesDropHandler } from 'vs/workbench/browser/dnd';
 import { fillActiveEditorViewState, IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BORDER, EDITOR_DROP_INTO_PROMPT_FOREGROUND } from 'vs/workbench/common/theme';
 import { GroupDirection, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
+import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
+import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
 }
 
 function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationService) {
-	return configurationService.getValue<boolean>('workbench.editor.dropIntoEditor.enabled');
+	return configurationService.getValue<boolean>('editor.dropIntoEditor.enabled');
 }
 
 function isDragIntoEditorEvent(e: DragEvent): boolean {
@@ -68,7 +69,7 @@ class DropOverlay extends Themable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@ITreeViewsService private readonly treeViewsDragAndDropService: ITreeViewsService,
+		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super(themeService);
@@ -114,7 +115,7 @@ class DropOverlay extends Themable {
 		this.updateStyles();
 	}
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 		const overlay = assertIsDefined(this.overlay);
 
 		// Overlay drop background
@@ -309,25 +310,37 @@ class DropOverlay extends Themable {
 			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 			if (Array.isArray(data)) {
 				const draggedEditor = data[0].identifier;
-				const targetGroup = ensureTargetGroup();
 
 				const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
 				if (sourceGroup) {
-					if (sourceGroup === targetGroup) {
-						return;
+					const copyEditor = this.isCopyOperation(event, draggedEditor);
+					let targetGroup: IEditorGroupView | undefined = undefined;
+
+					// Optimization: if we move the last editor of an editor group
+					// and we are configured to close empty editor groups, we can
+					// rather move the entire editor group according to the direction
+					if (this.editorGroupService.partOptions.closeEmptyGroups && sourceGroup.count === 1 && typeof splitDirection === 'number' && !copyEditor) {
+						targetGroup = this.accessor.moveGroup(sourceGroup, this.groupView, splitDirection);
 					}
 
-					// Open in target group
-					const options = fillActiveEditorViewState(sourceGroup, draggedEditor.editor, {
-						pinned: true,										// always pin dropped editor
-						sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
-					});
+					// In any other case do a normal move/copy operation
+					else {
+						targetGroup = ensureTargetGroup();
+						if (sourceGroup === targetGroup) {
+							return;
+						}
 
-					const copyEditor = this.isCopyOperation(event, draggedEditor);
-					if (!copyEditor) {
-						sourceGroup.moveEditor(draggedEditor.editor, targetGroup, options);
-					} else {
-						sourceGroup.copyEditor(draggedEditor.editor, targetGroup, options);
+						// Open in target group
+						const options = fillActiveEditorViewState(sourceGroup, draggedEditor.editor, {
+							pinned: true,										// always pin dropped editor
+							sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
+						});
+
+						if (!copyEditor) {
+							sourceGroup.moveEditor(draggedEditor.editor, targetGroup, options);
+						} else {
+							sourceGroup.copyEditor(draggedEditor.editor, targetGroup, options);
+						}
 					}
 
 					// Ensure target has focus
@@ -597,11 +610,6 @@ export class EditorDropTarget extends Themable {
 	private registerListeners(): void {
 		this._register(addDisposableListener(this.container, EventType.DRAG_ENTER, e => this.onDragEnter(e)));
 		this._register(addDisposableListener(this.container, EventType.DRAG_LEAVE, () => this.onDragLeave()));
-		this._register(addDisposableListener(this.container, EventType.DRAG_OVER, e => {
-			if (!this.overlay) {
-				this.onDragEnter(e);
-			}
-		}));
 		[this.container, window].forEach(node => this._register(addDisposableListener(node as HTMLElement, EventType.DRAG_END, () => this.onDragEnd())));
 	}
 

@@ -1,6 +1,8 @@
 
 // This file is adding references to various symbols which should not be removed via tree shaking
 
+import { IObservable } from './vs/base/common/observable';
+
 import { ServiceIdentifier } from './vs/platform/instantiation/common/instantiation';
 import { create as create1 } from './vs/base/common/worker/simpleWorker';
 import { create as create2 } from './vs/editor/common/services/editorSimpleWorker';
@@ -32,4 +34,7 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = editorAPI.Token;
 	a = editorAPI.editor;
 	a = editorAPI.languages;
+
+	const o: IObservable<number, number> = null!;
+	o.TChange;
 })();

@@ -48,6 +48,8 @@ else {
  * environments.
  *
  * Note: in web, this property is hardcoded to be `/`.
+ *
+ * @skipMangle
  */
 export const cwd = safeProcess.cwd;
 

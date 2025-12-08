@@ -48,6 +48,10 @@ suite('ExternalUriOpenerService', () => {
 		});
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('Should not open if there are no openers', async () => {
 		const externalUriOpenerService: ExternalUriOpenerService = instantiationService.createInstance(ExternalUriOpenerService);
 

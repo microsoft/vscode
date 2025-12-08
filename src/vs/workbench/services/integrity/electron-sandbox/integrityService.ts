@@ -9,11 +9,11 @@ import { URI } from 'vs/base/common/uri';
 import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { FileAccess } from 'vs/base/common/network';
+import { FileAccess, AppResourcePath } from 'vs/base/common/network';
 import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
 
 interface IStorageData {
@@ -105,7 +105,10 @@ export class IntegrityService implements IIntegrityService {
 						run: () => this._storage.set({ dontShowPrompt: true, commit: this.productService.commit })
 					}
 				],
-				{ sticky: true }
+				{
+					sticky: true,
+					priority: NotificationPriority.URGENT
+				}
 			);
 		} else {
 			this.notificationService.notify({
@@ -125,7 +128,7 @@ export class IntegrityService implements IIntegrityService {
 
 		await this.lifecycleService.when(LifecyclePhase.Eventually);
 
-		const allResults = await Promise.all(Object.keys(expectedChecksums).map(filename => this._resolve(filename, expectedChecksums[filename])));
+		const allResults = await Promise.all(Object.keys(expectedChecksums).map(filename => this._resolve(<AppResourcePath>filename, expectedChecksums[filename])));
 
 		let isPure = true;
 		for (let i = 0, len = allResults.length; i < len; i++) {
@@ -141,8 +144,8 @@ export class IntegrityService implements IIntegrityService {
 		};
 	}
 
-	private async _resolve(filename: string, expected: string): Promise<ChecksumPair> {
-		const fileUri = FileAccess.asFileUri(filename, require);
+	private async _resolve(filename: AppResourcePath, expected: string): Promise<ChecksumPair> {
+		const fileUri = FileAccess.asFileUri(filename);
 
 		try {
 			const checksum = await this.checksumService.checksum(fileUri);
@@ -163,4 +166,4 @@ export class IntegrityService implements IIntegrityService {
 	}
 }
 
-registerSingleton(IIntegrityService, IntegrityService, true);
+registerSingleton(IIntegrityService, IntegrityService, InstantiationType.Delayed);

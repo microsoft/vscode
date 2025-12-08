@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -55,12 +56,14 @@ export class SuggestDetailsWidget {
 
 		this._body = dom.$('.body');
 
-		this._scrollbar = new DomScrollableElement(this._body, {});
+		this._scrollbar = new DomScrollableElement(this._body, {
+			alwaysConsumeMouseWheel: true,
+		});
 		dom.append(this.domNode, this._scrollbar.getDomNode());
 		this._disposables.add(this._scrollbar);
 
 		this._header = dom.append(this._body, dom.$('.header'));
-		this._close = dom.append(this._header, dom.$('span' + Codicon.close.cssSelector));
+		this._close = dom.append(this._header, dom.$('span' + ThemeIcon.asCSSSelector(Codicon.close)));
 		this._close.title = nls.localize('details.close', "Close");
 		this._type = dom.append(this._header, dom.$('p.type'));
 

@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import type { IKeyValueStorage, IExperimentationTelemetry } from 'tas-client-umd';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryData } from 'vs/base/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IAssignmentService } from 'vs/platform/assignment/common/assignment';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { BaseAssignmentService } from 'vs/platform/assignment/common/assignmentService';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('WorkbenchAssignmentService');
 
@@ -83,13 +87,13 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 		@IProductService productService: IProductService
 	) {
 
-		super(() => {
-			return telemetryService.getTelemetryInfo().then(telemetryInfo => {
-				return telemetryInfo.machineId;
-			});
-		}, configurationService, productService,
+		super(
+			telemetryService.machineId,
+			configurationService,
+			productService,
 			new WorkbenchAssignmentServiceTelemetry(telemetryService, productService),
-			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService)));
+			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService))
+		);
 	}
 
 	protected override get experimentsEnabled(): boolean {
@@ -131,4 +135,18 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 	}
 }
 
-registerSingleton(IWorkbenchAssignmentService, WorkbenchAssignmentService, false);
+registerSingleton(IWorkbenchAssignmentService, WorkbenchAssignmentService, InstantiationType.Delayed);
+const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+registry.registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	'properties': {
+		'workbench.enableExperiments': {
+			'type': 'boolean',
+			'description': localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
+			'default': true,
+			'scope': ConfigurationScope.APPLICATION,
+			'restricted': true,
+			'tags': ['usesOnlineServices']
+		}
+	}
+});

@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -221,4 +221,4 @@ class MarkerNavigationService implements IMarkerNavigationService, IMarkerListPr
 	}
 }
 
-registerSingleton(IMarkerNavigationService, MarkerNavigationService, true);
+registerSingleton(IMarkerNavigationService, MarkerNavigationService, InstantiationType.Delayed);

@@ -12,7 +12,7 @@ import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -20,7 +20,7 @@ import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpo
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { PanelFocusContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorContext, PanelFocusContext, ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -32,6 +32,9 @@ import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
+import { showDebugSessionMenu } from 'vs/workbench/contrib/debug/browser/debugSessionPicker';
+import { TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -55,6 +58,7 @@ export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
 export const FOCUS_SESSION_ID = 'workbench.action.debug.focusProcess';
 export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
 export const SELECT_DEBUG_CONSOLE_ID = 'workbench.action.debug.selectDebugConsole';
+export const SELECT_DEBUG_SESSION_ID = 'workbench.action.debug.selectDebugSession';
 export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
@@ -69,7 +73,7 @@ export const CALLSTACK_BOTTOM_ID = 'workbench.action.debug.callStackBottom';
 export const CALLSTACK_UP_ID = 'workbench.action.debug.callStackUp';
 export const CALLSTACK_DOWN_ID = 'workbench.action.debug.callStackDown';
 
-export const DEBUG_COMMAND_CATEGORY = 'Debug';
+export const DEBUG_COMMAND_CATEGORY: ILocalizedString = { original: 'Debug', value: nls.localize('debug', 'Debug') };
 export const RESTART_LABEL = { value: nls.localize('restartDebug', "Restart"), original: 'Restart' };
 export const STEP_OVER_LABEL = { value: nls.localize('stepOverDebug', "Step Over"), original: 'Step Over' };
 export const STEP_INTO_LABEL = { value: nls.localize('stepIntoDebug', "Step Into"), original: 'Step Into' };
@@ -94,6 +98,7 @@ export const CALLSTACK_UP_LABEL = { value: nls.localize('callStackUp', "Navigate
 export const CALLSTACK_DOWN_LABEL = { value: nls.localize('callStackDown', "Navigate Down Call Stack"), original: 'Navigate Down Call Stack' };
 
 export const SELECT_DEBUG_CONSOLE_LABEL = { value: nls.localize('selectDebugConsole', "Select Debug Console"), original: 'Select Debug Console' };
+export const SELECT_DEBUG_SESSION_LABEL = { value: nls.localize('selectDebugSession', "Select Debug Session"), original: 'Select Debug Session' };
 
 export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
 export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
@@ -151,6 +156,8 @@ function getFrame(debugService: IDebugService, context: CallStackContext | unkno
 				return thread.getCallStack().find(sf => sf.getId() === context.frameId);
 			}
 		}
+	} else {
+		return debugService.getViewModel().focusedStackFrame;
 	}
 
 	return undefined;
@@ -294,7 +301,8 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const textResourcePropertiesService = accessor.get(ITextResourcePropertiesService);
 		const clipboardService = accessor.get(IClipboardService);
-		const frame = getFrame(accessor.get(IDebugService), context);
+		const debugService = accessor.get(IDebugService);
+		const frame = getFrame(debugService, context);
 		if (frame) {
 			const eol = textResourcePropertiesService.getEOL(frame.source.uri);
 			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
@@ -403,7 +411,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	command: {
 		id: JUMP_TO_CURSOR_ID,
 		title: nls.localize('jumpToCursor', "Jump to Cursor"),
-		category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
+		category: DEBUG_COMMAND_CATEGORY
 	},
 	when: ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED, EditorContextKeys.editorTextFocus),
 	group: 'debug',
@@ -453,7 +461,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		} else {
 			const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 			// Stop should be sent to the root parent session
-			while (!showSubSessions && session && session.parentSession) {
+			while (!showSubSessions && session.lifecycleManagedByParent && session.parentSession) {
 				session = session.parentSession;
 			}
 			session.removeReplExpressions();
@@ -465,7 +473,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: STEP_OVER_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: isWeb ? (KeyMod.Alt | KeyCode.F10) : KeyCode.F10, // Browsers do not allow F10 to be binded so we have to bind an alternative
+	primary: KeyCode.F10,
+	secondary: isWeb ? [(KeyMod.Alt | KeyCode.F10)] : undefined, // Keep Alt-F10 for web for backwards-compatibility
 	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const contextKeyService = accessor.get(IContextKeyService);
@@ -600,7 +609,7 @@ async function stopHandler(accessor: ServicesAccessor, _: string, context: CallS
 	const configurationService = accessor.get(IConfigurationService);
 	const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 	// Stop should be sent to the root parent session
-	while (!showSubSessions && session && session.parentSession) {
+	while (!showSubSessions && session && session.lifecycleManagedByParent && session.parentSession) {
 		session = session.parentSession;
 	}
 
@@ -710,6 +719,13 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+CommandsRegistry.registerCommand({
+	id: SELECT_DEBUG_SESSION_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		showDebugSessionMenu(accessor, SELECT_AND_START_ID);
+	}
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DEBUG_START_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -721,7 +737,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
 		const config = await getConfig();
 		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions?.config) : name;
-		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug, startedByUser: true, saveBeforeStart: false });
+		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug, startedByUser: true }, false);
 	}
 });
 
@@ -905,12 +921,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: ADD_CONFIGURATION_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: undefined,
-	primary: undefined,
-	handler: async (accessor, launchUri: string) => {
+registerAction2(class AddConfigurationAction extends Action2 {
+	constructor() {
+		super({
+			id: ADD_CONFIGURATION_ID,
+			title: { value: nls.localize('addConfiguration', "Add Configuration..."), original: 'Add Configuration...' },
+			category: DEBUG_COMMAND_CATEGORY,
+			f1: true,
+			menu: {
+				id: MenuId.EditorContent,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]launch\.json$/),
+					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID))
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, launchUri: string): Promise<void> {
 		const manager = accessor.get(IDebugService).getConfigurationManager();
 
 		const launch = manager.getLaunches().find(l => l.uri.toString() === launchUri) || manager.selectedConfiguration.launch;
@@ -956,7 +983,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	command: {
 		id: TOGGLE_INLINE_BREAKPOINT_ID,
 		title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint"),
-		category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
+		category: DEBUG_COMMAND_CATEGORY
 	},
 	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
 	group: 'debug',

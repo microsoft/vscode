@@ -7,4 +7,4 @@ import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHo
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 
-registerMainProcessRemoteService(IExtensionHostDebugService, ExtensionHostDebugBroadcastChannel.ChannelName, { supportsDelayedInstantiation: true, channelClientCtor: ExtensionHostDebugChannelClient });
+registerMainProcessRemoteService(IExtensionHostDebugService, ExtensionHostDebugBroadcastChannel.ChannelName, { channelClientCtor: ExtensionHostDebugChannelClient });

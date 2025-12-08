@@ -3,21 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
+import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { registerLogChannel } from 'vs/workbench/services/output/common/output';
-import { join } from 'vs/base/common/path';
-import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
+import { IEmbedderTerminalService } from 'vs/workbench/services/terminal/common/embedderTerminalService';
 
 /**
  * The main contribution for the terminal contrib. This contains calls to other components necessary
@@ -27,13 +22,12 @@ import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
 export class TerminalMainContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService private readonly _fileService: IFileService,
+		@IEmbedderTerminalService embedderTerminalService: IEmbedderTerminalService,
 		@ILabelService labelService: ILabelService,
-		@ILogService private readonly _logService: ILogService,
 		@ITerminalService terminalService: ITerminalService,
 		@ITerminalEditorService terminalEditorService: ITerminalEditorService,
-		@ITerminalGroupService terminalGroupService: ITerminalGroupService
+		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
+		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService
 	) {
 		super();
 
@@ -46,27 +40,45 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 				priority: RegisteredEditorPriority.exclusive
 			},
 			{
-				canHandleDiff: false,
 				canSupportResource: uri => uri.scheme === Schemas.vscodeTerminal,
 				singlePerResource: true
 			},
-			({ resource, options }) => {
-				const instance = terminalService.getInstanceFromResource(resource);
-				if (instance) {
-					const sourceGroup = terminalGroupService.getGroupForInstance(instance);
-					sourceGroup?.removeInstance(instance);
-				}
-				const resolvedResource = terminalEditorService.resolveResource(instance || resource);
-				const editor = terminalEditorService.getInputFromResource(resolvedResource) || { editor: resolvedResource };
-				return {
-					editor,
-					options: {
-						...options,
-						pinned: true,
-						forceReload: true,
-						override: terminalEditorId
+			{
+				createEditorInput: async ({ resource, options }) => {
+					let instance = terminalService.getInstanceFromResource(resource);
+					if (instance) {
+						const sourceGroup = terminalGroupService.getGroupForInstance(instance);
+						sourceGroup?.removeInstance(instance);
+					} else { // Terminal from a different window
+						const terminalIdentifier = parseTerminalUri(resource);
+						if (!terminalIdentifier.instanceId) {
+							throw new Error('Terminal identifier without instanceId');
+						}
+
+						const primaryBackend = terminalService.getPrimaryBackend();
+						if (!primaryBackend) {
+							throw new Error('No terminal primary backend');
+						}
+
+						const attachPersistentProcess = await primaryBackend.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
+						if (!attachPersistentProcess) {
+							throw new Error('No terminal persistent process to attach');
+						}
+						instance = terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor);
 					}
-				};
+
+					const resolvedResource = terminalEditorService.resolveResource(instance);
+					const editor = terminalEditorService.getInputFromResource(resolvedResource);
+					return {
+						editor,
+						options: {
+							...options,
+							pinned: true,
+							forceReload: true,
+							override: terminalEditorId
+						}
+					};
+				}
 			}
 		);
 
@@ -79,12 +91,13 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 			}
 		});
 
-		// Register log channel
-		this._registerLogChannel('ptyHostLog', localize('ptyHost', "Pty Host"), URI.file(join(environmentService.logsPath, `${TerminalLogConstants.FileName}.log`)));
-	}
-
-	private _registerLogChannel(id: string, label: string, file: URI): void {
-		const promise = registerLogChannel(id, label, file, this._fileService, this._logService);
-		this._register(toDisposable(() => promise.cancel()));
+		embedderTerminalService.onDidCreateTerminal(async embedderTerminal => {
+			const terminal = await terminalService.createTerminal({
+				config: embedderTerminal,
+				location: TerminalLocation.Panel
+			});
+			terminalService.setActiveInstance(terminal);
+			await terminalService.revealActiveTerminal();
+		});
 	}
 }

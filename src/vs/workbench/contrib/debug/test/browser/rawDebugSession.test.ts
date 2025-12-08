@@ -4,49 +4,61 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
-import { timeout } from 'vs/base/common/async';
+import { mock, mockObject } from 'vs/base/test/common/mock';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
+import { IDebugger } from 'vs/workbench/contrib/debug/common/debug';
+import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 
-suite('Debug - AbstractDebugAdapter', () => {
-	suite('event ordering', () => {
-		let adapter: MockDebugAdapter;
-		let output: string[];
-		setup(() => {
-			adapter = new MockDebugAdapter();
-			output = [];
-			adapter.onEvent(ev => {
-				output.push((ev as DebugProtocol.OutputEvent).body.output);
-				Promise.resolve().then(() => output.push('--end microtask--'));
-			});
+suite('RawDebugSession', () => {
+	function createTestObjects() {
+		const debugAdapter = new MockDebugAdapter();
+		const dbgr = mockObject<IDebugger>()({
+			type: 'mock-debug'
 		});
 
-		const evaluate = async (expression: string) => {
-			await new Promise(resolve => adapter.sendRequest('evaluate', { expression }, resolve));
-			output.push(`=${expression}`);
-			Promise.resolve().then(() => output.push('--end microtask--'));
-		};
+		new RawDebugSession(
+			debugAdapter,
+			dbgr as any as IDebugger,
+			'sessionId',
+			'name',
+			new (mock<IExtensionHostDebugService>()),
+			new (mock<IOpenerService>()),
+			new (mock<INotificationService>()),
+			new (mock<IDialogService>()));
+		return { debugAdapter, dbgr };
+	}
 
-		test('inserts task boundary before response', async () => {
-			await evaluate('before.foo');
-			await timeout(0);
+	test('handles startDebugging request success', async () => {
+		const { debugAdapter, dbgr } = createTestObjects();
+		dbgr.startDebugging.returns(Promise.resolve(true));
 
-			assert.deepStrictEqual(output, ['before.foo', '--end microtask--', '=before.foo', '--end microtask--']);
-		});
+		debugAdapter.sendRequestBody('startDebugging', {
+			request: 'launch',
+			configuration: {
+				type: 'some-other-type'
+			}
+		} as DebugProtocol.StartDebuggingRequestArguments);
+		const response = await debugAdapter.waitForResponseFromClient('startDebugging');
+		assert.strictEqual(response.command, 'startDebugging');
+		assert.strictEqual(response.success, true);
+	});
 
-		test('inserts task boundary after response', async () => {
-			await evaluate('after.foo');
-			await timeout(0);
+	test('handles startDebugging request failure', async () => {
+		const { debugAdapter, dbgr } = createTestObjects();
+		dbgr.startDebugging.returns(Promise.resolve(false));
 
-			assert.deepStrictEqual(output, ['=after.foo', '--end microtask--', 'after.foo', '--end microtask--']);
-		});
-
-		test('does not insert boundaries between events', async () => {
-			adapter.sendEventBody('output', { output: 'a' });
-			adapter.sendEventBody('output', { output: 'b' });
-			adapter.sendEventBody('output', { output: 'c' });
-			await timeout(0);
-
-			assert.deepStrictEqual(output, ['a', 'b', 'c', '--end microtask--', '--end microtask--', '--end microtask--']);
-		});
+		debugAdapter.sendRequestBody('startDebugging', {
+			request: 'launch',
+			configuration: {
+				type: 'some-other-type'
+			}
+		} as DebugProtocol.StartDebuggingRequestArguments);
+		const response = await debugAdapter.waitForResponseFromClient('startDebugging');
+		assert.strictEqual(response.command, 'startDebugging');
+		assert.strictEqual(response.success, false);
 	});
 });

@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CONTEXT_SYNC_STATE, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
 

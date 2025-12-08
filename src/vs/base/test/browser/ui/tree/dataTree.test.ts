@@ -63,9 +63,7 @@ suite('DataTree', function () {
 			}
 		};
 
-		tree = new DataTree<E, E>('test', container, delegate, [renderer], dataSource, {
-			identityProvider
-		});
+		tree = new DataTree<E, E>('test', container, delegate, [renderer], dataSource, { identityProvider });
 		tree.layout(200);
 	});
 

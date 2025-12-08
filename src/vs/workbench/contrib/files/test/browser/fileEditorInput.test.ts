@@ -11,7 +11,7 @@ import { workbenchInstantiationService, TestServiceAccessor, getLastResolvedFile
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { FileOperationResult, NotModifiedSinceFileOperationError, TooLargeFileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { timeout } from 'vs/base/common/async';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
@@ -35,6 +35,10 @@ suite('Files - FileEditorInput', () => {
 
 	class TestTextEditorService extends TextEditorService {
 		override createTextEditor(input: IResourceEditorInput) {
+			return createFileInput(input.resource);
+		}
+
+		override async resolveTextEditor(input: IResourceEditorInput) {
 			return createFileInput(input.resource);
 		}
 	}
@@ -66,6 +70,7 @@ suite('Files - FileEditorInput', () => {
 
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input.isReadonly());
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Singleton));
 		assert.ok(!input.hasCapability(EditorInputCapabilities.RequiresTrust));
 
@@ -119,20 +124,21 @@ suite('Files - FileEditorInput', () => {
 
 		assert.ok(input.hasCapability(EditorInputCapabilities.Untitled));
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input.isReadonly());
 	});
 
 	test('reports as readonly with readonly file scheme', async function () {
 
-		class ReadonlyInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
-			override readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
-		}
+		const inMemoryFilesystemProvider = new InMemoryFileSystemProvider();
+		inMemoryFilesystemProvider.setReadOnly(true);
 
-		const disposable = accessor.fileService.registerProvider('someTestingReadonlyScheme', new ReadonlyInMemoryFileSystemProvider());
+		const disposable = accessor.fileService.registerProvider('someTestingReadonlyScheme', inMemoryFilesystemProvider);
 		try {
 			const input = createFileInput(toResource.call(this, '/foo/bar/file.js').with({ scheme: 'someTestingReadonlyScheme' }));
 
 			assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
 			assert.ok(input.hasCapability(EditorInputCapabilities.Readonly));
+			assert.ok(input.isReadonly());
 		} finally {
 			disposable.dispose();
 		}
@@ -253,9 +259,11 @@ suite('Files - FileEditorInput', () => {
 		const resolved = await input.resolve() as TextFileEditorModel;
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
+		assert.ok(input.isModified());
 
 		await input.save(0);
 		assert.ok(!input.isDirty());
+		assert.ok(!input.isModified());
 		resolved.dispose();
 	});
 
@@ -265,9 +273,11 @@ suite('Files - FileEditorInput', () => {
 		const resolved = await input.resolve() as TextFileEditorModel;
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
+		assert.ok(input.isModified());
 
 		await input.revert(0);
 		assert.ok(!input.isDirty());
+		assert.ok(!input.isModified());
 
 		input.dispose();
 		assert.ok(input.isDisposed());
@@ -285,14 +295,18 @@ suite('Files - FileEditorInput', () => {
 		resolved.dispose();
 	});
 
-	test('resolve handles too large files', async function () {
+	test('resolve throws for too large files', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('error', FileOperationResult.FILE_TOO_LARGE));
-
-		const resolved = await input.resolve();
-		assert.ok(resolved);
-		resolved.dispose();
+		let e: Error | undefined = undefined;
+		accessor.textFileService.setReadStreamErrorOnce(new TooLargeFileOperationError('error', FileOperationResult.FILE_TOO_LARGE, 1000));
+		try {
+			await input.resolve();
+		} catch (error) {
+			e = error;
+		}
+		assert.ok(e);
+		input.dispose();
 	});
 
 	test('attaches to model when created and reports dirty', async function () {
@@ -424,6 +438,7 @@ suite('Files - FileEditorInput', () => {
 
 		assert.strictEqual(model.isReadonly(), false);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(input.isReadonly(), false);
 
 		const stat = await accessor.fileService.resolve(input.resource, { resolveMetadata: true });
 
@@ -434,8 +449,9 @@ suite('Files - FileEditorInput', () => {
 			accessor.fileService.readShouldThrowError = undefined;
 		}
 
-		assert.strictEqual(model.isReadonly(), true);
+		assert.strictEqual(!!model.isReadonly(), true);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), true);
+		assert.strictEqual(!!input.isReadonly(), true);
 		assert.strictEqual(listenerCount, 1);
 
 		try {
@@ -447,6 +463,7 @@ suite('Files - FileEditorInput', () => {
 
 		assert.strictEqual(model.isReadonly(), false);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(input.isReadonly(), false);
 		assert.strictEqual(listenerCount, 2);
 
 		input.dispose();

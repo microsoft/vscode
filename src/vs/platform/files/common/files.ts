@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IExpression, IRelativePattern } from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { sep } from 'vs/base/common/path';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
@@ -16,6 +16,9 @@ import { isNumber } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { isWeb } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 //#region file service & providers
 
@@ -31,7 +34,7 @@ export interface IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
-	 * An event that is fired when a registered file system provider changes it's capabilities.
+	 * An event that is fired when a registered file system provider changes its capabilities.
 	 */
 	readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
 
@@ -80,7 +83,7 @@ export interface IFileService {
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
 
 	/**
-	 * List the schemes and capabilies for registered file system providers
+	 * List the schemes and capabilities for registered file system providers
 	 */
 	listCapabilities(): Iterable<{ scheme: string; capabilities: FileSystemProviderCapabilities }>;
 
@@ -281,7 +284,53 @@ export interface IFileAtomicReadOptions {
 	 * to from a different process. If you need such atomic
 	 * operations, you better use a real database as storage.
 	 */
-	readonly atomic: true;
+	readonly atomic: boolean;
+}
+
+export interface IFileAtomicOptions {
+
+	/**
+	 * The postfix is used to create a temporary file based
+	 * on the original resource. The resulting temporary
+	 * file will be in the same folder as the resource and
+	 * have `postfix` appended to the resource name.
+	 *
+	 * Example: given a file resource `file:///some/path/foo.txt`
+	 * and a postfix `.vsctmp`, the temporary file will be
+	 * created as `file:///some/path/foo.txt.vsctmp`.
+	 */
+	readonly postfix: string;
+}
+
+export interface IFileAtomicWriteOptions {
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `writeFile` method updates the target file atomically
+	 * by first writing to a temporary file in the same folder
+	 * and then renaming it over the target.
+	 */
+	readonly atomic: IFileAtomicOptions | false;
+}
+
+export interface IFileAtomicDeleteOptions {
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `delete` method deletes the target atomically by
+	 * first renaming it to a temporary resource in the same
+	 * folder and then deleting it.
+	 */
+	readonly atomic: IFileAtomicOptions | false;
+}
+
+export interface IFileReadLimits {
+
+	/**
+	 * If the file exceeds the given size, an error of kind
+	 * `FILE_TOO_LARGE` will be thrown.
+	 */
+	size?: number;
 }
 
 export interface IFileReadStreamOptions {
@@ -299,15 +348,13 @@ export interface IFileReadStreamOptions {
 	readonly length?: number;
 
 	/**
-	 * If provided, the size of the file will be checked against the limits.
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
 	 */
-	limits?: {
-		readonly size?: number;
-		readonly memory?: number;
-	};
+	readonly limits?: IFileReadLimits;
 }
 
-export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions {
+export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions, IFileAtomicWriteOptions {
 
 	/**
 	 * Set to `true` to create a file when it does not exist. Will
@@ -349,10 +396,21 @@ export interface IFileDeleteOptions {
 
 	/**
 	 * Set to `true` to attempt to move the file to trash
-	 * instead of deleting it permanently from disk. This
-	 * option maybe not be supported on all providers.
+	 * instead of deleting it permanently from disk.
+	 *
+	 * This option maybe not be supported on all providers.
 	 */
 	readonly useTrash: boolean;
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `delete` method deletes the target atomically by
+	 * first renaming it to a temporary resource in the same
+	 * folder and then deleting it.
+	 *
+	 * This option maybe not be supported on all providers.
+	 */
+	readonly atomic: IFileAtomicOptions | false;
 }
 
 export enum FileType {
@@ -385,9 +443,17 @@ export enum FileType {
 export enum FilePermission {
 
 	/**
-	 * File is readonly.
+	 * File is readonly. Components like editors should not
+	 * offer to edit the contents.
 	 */
-	Readonly = 1
+	Readonly = 1,
+
+	/**
+	 * File is locked. Components like editors should offer
+	 * to edit the contents and ask the user upon saving to
+	 * remove the lock.
+	 */
+	Locked = 2
 }
 
 export interface IStat {
@@ -428,6 +494,9 @@ export interface IWatchOptions {
 
 	/**
 	 * A set of glob patterns or paths to exclude from watching.
+	 * Paths can be relative or absolute and when relative are
+	 * resolved against the watched folder. Glob patterns are
+	 * always matched relative to the watched folder.
 	 */
 	excludes: string[];
 
@@ -435,11 +504,19 @@ export interface IWatchOptions {
 	 * An optional set of glob patterns or paths to include for
 	 * watching. If not provided, all paths are considered for
 	 * events.
+	 * Paths can be relative or absolute and when relative are
+	 * resolved against the watched folder. Glob patterns are
+	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
 }
 
 export const enum FileSystemProviderCapabilities {
+
+	/**
+	 * No capabilities.
+	 */
+	None = 0,
 
 	/**
 	 * Provider supports unbuffered read/write.
@@ -488,9 +565,20 @@ export const enum FileSystemProviderCapabilities {
 	FileAtomicRead = 1 << 14,
 
 	/**
+	 * Provider support to write files atomically. This implies the
+	 * provider provides the `FileReadWrite` capability too.
+	 */
+	FileAtomicWrite = 1 << 15,
+
+	/**
+	 * Provider support to delete atomically.
+	 */
+	FileAtomicDelete = 1 << 16,
+
+	/**
 	 * Provider support to clone files atomically.
 	 */
-	FileClone = 1 << 15
+	FileClone = 1 << 17
 }
 
 export interface IFileSystemProvider {
@@ -579,12 +667,46 @@ export function hasFileAtomicReadCapability(provider: IFileSystemProvider): prov
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicRead);
 }
 
+export interface IFileSystemProviderWithFileAtomicWriteCapability extends IFileSystemProvider {
+	writeFile(resource: URI, contents: Uint8Array, opts?: IFileAtomicWriteOptions): Promise<void>;
+}
+
+export function hasFileAtomicWriteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicWriteCapability {
+	if (!hasReadWriteCapability(provider)) {
+		return false; // we require the `FileReadWrite` capability too
+	}
+
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicWrite);
+}
+
+export interface IFileSystemProviderWithFileAtomicDeleteCapability extends IFileSystemProvider {
+	delete(resource: URI, opts: IFileAtomicDeleteOptions): Promise<void>;
+}
+
+export function hasFileAtomicDeleteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicDeleteCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicDelete);
+}
+
+export interface IFileSystemProviderWithReadonlyCapability extends IFileSystemProvider {
+
+	readonly capabilities: FileSystemProviderCapabilities.Readonly & FileSystemProviderCapabilities;
+
+	/**
+	 * An optional message to show in the UI to explain why the file system is readonly.
+	 */
+	readonly readOnlyMessage?: IMarkdownString;
+}
+
+export function hasReadonlyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithReadonlyCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.Readonly);
+}
+
 export enum FileSystemProviderErrorCode {
 	FileExists = 'EntryExists',
 	FileNotFound = 'EntryNotFound',
 	FileNotADirectory = 'EntryNotADirectory',
 	FileIsADirectory = 'EntryIsADirectory',
-	FileExceedsMemoryLimit = 'EntryExceedsMemoryLimit',
+	FileExceedsStorageQuota = 'EntryExceedsStorageQuota',
 	FileTooLarge = 'EntryTooLarge',
 	FileWriteLocked = 'EntryWriteLocked',
 	NoPermissions = 'NoPermissions',
@@ -592,18 +714,27 @@ export enum FileSystemProviderErrorCode {
 	Unknown = 'Unknown'
 }
 
-export class FileSystemProviderError extends Error {
+export interface IFileSystemProviderError extends Error {
+	readonly name: string;
+	readonly code: FileSystemProviderErrorCode;
+}
 
-	constructor(message: string, readonly code: FileSystemProviderErrorCode) {
+export class FileSystemProviderError extends Error implements IFileSystemProviderError {
+
+	static create(error: Error | string, code: FileSystemProviderErrorCode): FileSystemProviderError {
+		const providerError = new FileSystemProviderError(error.toString(), code);
+		markAsFileSystemProviderError(providerError, code);
+
+		return providerError;
+	}
+
+	private constructor(message: string, readonly code: FileSystemProviderErrorCode) {
 		super(message);
 	}
 }
 
 export function createFileSystemProviderError(error: Error | string, code: FileSystemProviderErrorCode): FileSystemProviderError {
-	const providerError = new FileSystemProviderError(error.toString(), code);
-	markAsFileSystemProviderError(providerError, code);
-
-	return providerError;
+	return FileSystemProviderError.create(error, code);
 }
 
 export function ensureFileSystemProviderError(error?: Error): Error {
@@ -644,7 +775,6 @@ export function toFileSystemProviderErrorCode(error: Error | undefined | null): 
 		case FileSystemProviderErrorCode.FileIsADirectory: return FileSystemProviderErrorCode.FileIsADirectory;
 		case FileSystemProviderErrorCode.FileNotADirectory: return FileSystemProviderErrorCode.FileNotADirectory;
 		case FileSystemProviderErrorCode.FileNotFound: return FileSystemProviderErrorCode.FileNotFound;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit: return FileSystemProviderErrorCode.FileExceedsMemoryLimit;
 		case FileSystemProviderErrorCode.FileTooLarge: return FileSystemProviderErrorCode.FileTooLarge;
 		case FileSystemProviderErrorCode.FileWriteLocked: return FileSystemProviderErrorCode.FileWriteLocked;
 		case FileSystemProviderErrorCode.NoPermissions: return FileSystemProviderErrorCode.NoPermissions;
@@ -675,8 +805,6 @@ export function toFileOperationResult(error: Error): FileOperationResult {
 			return FileOperationResult.FILE_PERMISSION_DENIED;
 		case FileSystemProviderErrorCode.FileExists:
 			return FileOperationResult.FILE_MOVE_CONFLICT;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit:
-			return FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT;
 		case FileSystemProviderErrorCode.FileTooLarge:
 			return FileOperationResult.FILE_TOO_LARGE;
 		default:
@@ -766,7 +894,6 @@ export class FileChangesEvent {
 	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 
 	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
-		this.rawChanges = changes;
 
 		const entriesByType = new Map<FileChangeType, [URI, IFileChange][]>();
 
@@ -897,14 +1024,6 @@ export class FileChangesEvent {
 	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
 	 * - correctly handles `FileChangeType.DELETED` events
 	 */
-	readonly rawChanges: readonly IFileChange[] = [];
-
-	/**
-	 * @deprecated use the `contains` or `affects` method to efficiently find
-	 * out if the event relates to a given resource. these methods ensure:
-	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
 	readonly rawAdded: URI[] = [];
 
 	/**
@@ -944,7 +1063,7 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 	return path.indexOf(candidate) === 0;
 }
 
-interface IBaseFileStat {
+export interface IBaseFileStat {
 
 	/**
 	 * The unified resource identifier of this file or folder.
@@ -982,7 +1101,7 @@ interface IBaseFileStat {
 	readonly ctime?: number;
 
 	/**
-	 * A unique identifier thet represents the
+	 * A unique identifier that represents the
 	 * current state of the file or directory.
 	 *
 	 * The value may or may not be resolved as
@@ -991,9 +1110,17 @@ interface IBaseFileStat {
 	readonly etag?: string;
 
 	/**
-	 * The file is read-only.
+	 * File is readonly. Components like editors should not
+	 * offer to edit the contents.
 	 */
 	readonly readonly?: boolean;
+
+	/**
+	 * File is locked. Components like editors should offer
+	 * to edit the contents and ask the user upon saving to
+	 * remove the lock.
+	 */
+	readonly locked?: boolean;
 }
 
 export interface IBaseFileStatWithMetadata extends Required<IBaseFileStat> { }
@@ -1033,6 +1160,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetad
 	readonly etag: string;
 	readonly size: number;
 	readonly readonly: boolean;
+	readonly locked: boolean;
 	readonly children: IFileStatWithMetadata[] | undefined;
 }
 
@@ -1112,6 +1240,14 @@ export interface IWriteFileOptions {
 	 * Whether to attempt to unlock a file before writing.
 	 */
 	readonly unlock?: boolean;
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `writeFile` method updates the target file atomically
+	 * by first writing to a temporary file in the same folder
+	 * and then renaming it over the target.
+	 */
+	readonly atomic?: IFileAtomicOptions | false;
 }
 
 export interface IResolveFileOptions {
@@ -1151,9 +1287,20 @@ export class FileOperationError extends Error {
 	constructor(
 		message: string,
 		readonly fileOperationResult: FileOperationResult,
-		readonly options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions
+		readonly options?: IReadFileOptions | IWriteFileOptions | ICreateFileOptions
 	) {
 		super(message);
+	}
+}
+
+export class TooLargeFileOperationError extends FileOperationError {
+	constructor(
+		message: string,
+		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE,
+		readonly size: number,
+		options?: IReadFileOptions
+	) {
+		super(message, fileOperationResult, options);
 	}
 }
 
@@ -1178,7 +1325,6 @@ export const enum FileOperationResult {
 	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,
-	FILE_EXCEEDS_MEMORY_LIMIT,
 	FILE_NOT_DIRECTORY,
 	FILE_OTHER_ERROR
 }
@@ -1202,12 +1348,19 @@ export const HotExitConfiguration = {
 
 export const FILES_ASSOCIATIONS_CONFIG = 'files.associations';
 export const FILES_EXCLUDE_CONFIG = 'files.exclude';
+export const FILES_READONLY_INCLUDE_CONFIG = 'files.readonlyInclude';
+export const FILES_READONLY_EXCLUDE_CONFIG = 'files.readonlyExclude';
+export const FILES_READONLY_FROM_PERMISSIONS_CONFIG = 'files.readonlyFromPermissions';
+
+export interface IGlobPatterns {
+	[filepattern: string]: boolean;
+}
 
 export interface IFilesConfiguration {
 	files: {
 		associations: { [filepattern: string]: string };
 		exclude: IExpression;
-		watcherExclude: { [filepattern: string]: boolean };
+		watcherExclude: IGlobPatterns;
 		watcherInclude: string[];
 		encoding: string;
 		autoGuessEncoding: boolean;
@@ -1219,6 +1372,9 @@ export interface IFilesConfiguration {
 		enableTrash: boolean;
 		hotExit: string;
 		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
+		readonlyInclude: IGlobPatterns;
+		readonlyExclude: IGlobPatterns;
+		readonlyFromPermissions: boolean;
 	};
 }
 
@@ -1263,12 +1419,6 @@ export async function whenProviderRegistered(file: URI, fileService: IFileServic
 }
 
 /**
- * Native only: limits for memory sizes
- */
-export const MIN_MAX_MEMORY_SIZE_MB = 2048;
-export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
-
-/**
  * Helper to format a raw byte size into a human readable label.
  */
 export class ByteSize {
@@ -1303,23 +1453,34 @@ export class ByteSize {
 	}
 }
 
-// Native only: Arch limits
+// File limits
 
-export interface IArchLimits {
-	readonly maxFileSize: number;
-	readonly maxHeapSize: number;
-}
+export function getLargeFileConfirmationLimit(remoteAuthority?: string): number;
+export function getLargeFileConfirmationLimit(uri?: URI): number;
+export function getLargeFileConfirmationLimit(arg?: string | URI): number {
+	const isRemote = typeof arg === 'string' || arg?.scheme === Schemas.vscodeRemote;
+	const isLocal = typeof arg !== 'string' && arg?.scheme === Schemas.file;
 
-export const enum Arch {
-	IA32,
-	OTHER
-}
+	if (isLocal) {
+		// Local almost has no limit in file size
+		return 1024 * ByteSize.MB;
+	}
 
-export function getPlatformLimits(arch: Arch): IArchLimits {
-	return {
-		maxFileSize: arch === Arch.IA32 ? 300 * ByteSize.MB : 16 * ByteSize.GB,  // https://github.com/microsoft/vscode/issues/30180
-		maxHeapSize: arch === Arch.IA32 ? 700 * ByteSize.MB : 2 * 700 * ByteSize.MB, // https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
-	};
+	if (isRemote) {
+		// With a remote, pick a low limit to avoid
+		// potentially costly file transfers
+		return 10 * ByteSize.MB;
+	}
+
+	if (isWeb) {
+		// Web: we cannot know for sure if a cost
+		// is associated with the file transfer
+		// so we pick a reasonably small limit
+		return 50 * ByteSize.MB;
+	}
+
+	// Local desktop: almost no limit in file size
+	return 1024 * ByteSize.MB;
 }
 
 //#endregion

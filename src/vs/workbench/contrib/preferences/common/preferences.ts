@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { IExtensionRecommendations } from 'vs/base/common/product';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -62,6 +67,8 @@ export const KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE = 'keybindings.editor.
 export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_ADD = 'keybindings.editor.addKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN = 'keybindings.editor.defineWhenExpression';
+export const KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN = 'keybindings.editor.acceptWhenExpression';
+export const KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN = 'keybindings.editor.rejectWhenExpression';
 export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindingEntry';
@@ -85,4 +92,39 @@ export const REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG = 'requireTrustedWorkspace';
 export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';
 
 export const ENABLE_LANGUAGE_FILTER = true;
-export const MODIFIED_INDICATOR_USE_INLINE_ONLY = false;
+
+export const ENABLE_EXTENSION_TOGGLE_SETTINGS = true;
+
+type ExtensionToggleData = {
+	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;
+	commonlyUsed: string[];
+};
+
+let cachedExtensionToggleData: ExtensionToggleData | undefined;
+
+export async function getExperimentalExtensionToggleData(workbenchAssignmentService: IWorkbenchAssignmentService, environmentService: IEnvironmentService, productService: IProductService): Promise<ExtensionToggleData | undefined> {
+	if (!ENABLE_EXTENSION_TOGGLE_SETTINGS) {
+		return undefined;
+	}
+
+	if (cachedExtensionToggleData) {
+		return cachedExtensionToggleData;
+	}
+
+	const isTreatment = await workbenchAssignmentService.getTreatment<boolean>('ExtensionToggleSettings');
+	if ((isTreatment || !environmentService.isBuilt) && productService.extensionRecommendations && productService.commonlyUsedSettings) {
+		const settingsEditorRecommendedExtensions: Record<string, IExtensionRecommendations> = {};
+		Object.keys(productService.extensionRecommendations).forEach(extensionId => {
+			const extensionInfo = productService.extensionRecommendations![extensionId];
+			if (extensionInfo.onSettingsEditorOpen) {
+				settingsEditorRecommendedExtensions[extensionId] = extensionInfo;
+			}
+		});
+		cachedExtensionToggleData = {
+			settingsEditorRecommendedExtensions,
+			commonlyUsed: productService.commonlyUsedSettings
+		};
+		return cachedExtensionToggleData;
+	}
+	return undefined;
+}

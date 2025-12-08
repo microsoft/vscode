@@ -7,7 +7,7 @@ import 'vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker';
 import 'vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -58,23 +58,13 @@ export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'welcome.showNewFileEntries',
 		title: localize('gettingStarted.newFile.title', "New File..."),
-		description: localize('gettingStarted.newFile.description', "Open a new untitled file, notebook, or custom editor."),
+		description: localize('gettingStarted.newFile.description', "Open a new untitled text file, notebook, or custom editor."),
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',
 			command: 'command:welcome.showNewFileEntries',
 		}
 	},
-	// {
-	// 	id: 'welcome.showNewFolderEntries',
-	// 	title: localize('gettingStarted.newFolder.title', "New Folder..."),
-	// 	description: localize('gettingStarted.newFolder.description', "Create a folder from a Git repo or an extension contributed template folder"),
-	// 	icon: Codicon.newFolder,
-	// 	content: {
-	// 		type: 'startEntry',
-	// 		command: 'welcome.showNewFolderEntries',
-	// 	}
-	// },
 	{
 		id: 'topLevelOpenMac',
 		title: localize('gettingStarted.openMac.title', "Open..."),
@@ -153,25 +143,25 @@ export const startEntries: GettingStartedStartEntryContent = [
 		}
 	},
 	{
-		id: 'topLevelVideoTutorials',
-		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
-		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
-		icon: Codicon.playCircle,
-		when: 'config.workbench.welcomePage.experimental.videoTutorials == on',
+		id: 'topLevelRemoteOpen',
+		title: localize('gettingStarted.topLevelRemoteOpen.title', "Connect to..."),
+		description: localize('gettingStarted.topLevelRemoteOpen.description', "Connect to remote development workspaces."),
+		when: '!isWeb',
+		icon: Codicon.remote,
 		content: {
 			type: 'startEntry',
-			command: 'https://aka.ms/vscode-getting-started-video',
+			command: 'command:workbench.action.remote.showMenu',
 		}
 	},
 	{
-		id: 'topLevelVideoTutorialsExperimental',
-		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
-		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
-		when: 'config.workbench.welcomePage.experimental.videoTutorials == experimental',
-		icon: Codicon.playCircle,
+		id: 'topLevelOpenTunnel',
+		title: localize('gettingStarted.topLevelOpenTunnel.title', "Open Tunnel..."),
+		description: localize('gettingStarted.topLevelOpenTunnel.description', "Connect to a remote machine through a Tunnel"),
+		when: 'isWeb && showRemoteStartEntryInWeb',
+		icon: Codicon.remote,
 		content: {
 			type: 'startEntry',
-			command: 'https://aka.ms/vscode-videos',
+			command: 'command:workbench.action.remote.showWebStartEntryActions',
 		}
 	},
 ];
@@ -267,8 +257,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 
 	{
 		id: 'SetupWeb',
-		title: localize('gettingStarted.setupWeb.title', "Get Started with VS Code in the Web"),
-		description: localize('gettingStarted.setupWeb.description', "Discover the best customizations to make VS Code in the Web yours."),
+		title: localize('gettingStarted.setupWeb.title', "Get Started with VS Code for the Web"),
+		description: localize('gettingStarted.setupWeb.description', "Discover the best customizations to make VS Code for the Web yours."),
 		isFeatured: true,
 		icon: setupIcon,
 		when: 'isWeb',
@@ -305,7 +295,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'menuBarWeb',
 					title: localize('gettingStarted.menuBar.title', "Just the right amount of UI"),
-					description: localize('gettingStarted.menuBar.description.interpolated', "The full menu bar is available in the dropdown menu to make room for your code. Toggle its apperance for faster access. \n{0}", Button(localize('toggleMenuBar', "Toggle Menu Bar"), 'command:workbench.action.toggleMenuBar')),
+					description: localize('gettingStarted.menuBar.description.interpolated', "The full menu bar is available in the dropdown menu to make room for your code. Toggle its appearance for faster access. \n{0}", Button(localize('toggleMenuBar', "Toggle Menu Bar"), 'command:workbench.action.toggleMenuBar')),
 					when: 'isWeb',
 					media: {
 						type: 'svg', altText: 'Comparing menu dropdown with the visible menu bar.', path: 'menuBar.svg'
@@ -355,7 +345,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		id: 'Beginner',
 		title: localize('gettingStarted.beginner.title', "Learn the Fundamentals"),
 		icon: beginnerIcon,
-		isFeatured: true,
+		isFeatured: false,
 		next: 'Intermediate',
 		description: localize('gettingStarted.beginner.description', "Jump right into VS Code and get an overview of the must-have features."),
 		content: {
@@ -393,6 +383,14 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.settings.description.interpolated', "Tweak every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started.\n{0}", Button(localize('tweakSettings', "Tweak my Settings"), 'command:toSide:workbench.action.openSettings')),
 					media: {
 						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
+					},
+				},
+				{
+					id: 'profiles',
+					title: localize('gettingStarted.profiles.title', "Customize VS Code with Profiles"),
+					description: localize('gettingStarted.profiles.description.interpolated', "Profiles let you create sets of VS Code customizations that include settings, extensions and UI state. Create your own profile from scratch or use the predefined set of profile templates for your specific workflow.\n{0}", Button(localize('tryProfiles', "Try Profiles"), 'command:workbench.profiles.actions.createProfile')),
+					media: {
+						type: 'svg', altText: 'VS Code Profiles', path: 'profiles.svg'
 					},
 				},
 				{
@@ -470,7 +468,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'installGit',
 					title: localize('gettingStarted.installGit.title', "Install Git"),
-					description: localize('gettingStarted.installGit.description.interpolated', "Install Git to track changes in your projects.\n{0}", Button(localize('installGit', "Install Git"), 'https://aka.ms/vscode-install-git')),
+					description: localize({ key: 'gettingStarted.installGit.description.interpolated', comment: ['The placeholders are command link items should not be translated'] }, "Install Git to track changes in your projects.\n{0}\n{1}Reload window{2} after installation to complete Git setup.", Button(localize('installGit', "Install Git"), 'https://aka.ms/vscode-install-git'), '[', '](command:workbench.action.reloadWindow)'),
 					when: 'git.missing',
 					media: {
 						type: 'svg', altText: 'Install Git.', path: 'git.svg',

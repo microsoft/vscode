@@ -1,7 +1,11 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
-		"outDir": "./out"
+		"outDir": "./out",
+		"lib": [
+			"ES2020",
+			"WebWorker"
+		]
 	},
 	"include": [
 		"src/**/*"

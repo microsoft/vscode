@@ -11,6 +11,10 @@ import { basename, dirname, extname, isEqual } from 'vs/base/common/resources';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
+import { Schemas } from 'vs/base/common/network';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 //#region < --- Workbench --- >
 
@@ -24,11 +28,15 @@ export const EmptyWorkspaceSupportContext = new RawContextKey<boolean>('emptyWor
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false, localize('dirtyWorkingCopies', "Whether there are any working copies with unsaved changes"));
 
 export const RemoteNameContext = new RawContextKey<string>('remoteName', '', localize('remoteName', "The name of the remote the window is connected to or an empty string if not connected to any remote"));
-export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspace', '', localize('virtualWorkspace', "The scheme of the current workspace if is from a virtual file system or an empty string."));
+
+export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspace', '', localize('virtualWorkspace', "The scheme of the current workspace is from a virtual file system or an empty string."));
+export const TemporaryWorkspaceContext = new RawContextKey<boolean>('temporaryWorkspace', false, localize('temporaryWorkspace', "The scheme of the current workspace is from a temporary file system."));
 
 export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false, localize('isFullscreen', "Whether the window is in fullscreen mode"));
 
 export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false, true); // Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
+
+export const EmbedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined, localize('embedderIdentifier', 'The identifier of the embedder according to the product service, if one is defined'));
 
 //#endregion
 
@@ -41,7 +49,8 @@ export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEdito
 export const ActiveEditorFirstInGroupContext = new RawContextKey<boolean>('activeEditorIsFirstInGroup', false, localize('activeEditorIsFirstInGroup', "Whether the active editor is the first one in its group"));
 export const ActiveEditorLastInGroupContext = new RawContextKey<boolean>('activeEditorIsLastInGroup', false, localize('activeEditorIsLastInGroup', "Whether the active editor is the last one in its group"));
 export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false, localize('activeEditorIsPinned', "Whether the active editor is pinned"));
-export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false, localize('activeEditorIsReadonly', "Whether the active editor is readonly"));
+export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false, localize('activeEditorIsReadonly', "Whether the active editor is read-only"));
+export const ActiveEditorCanToggleReadonlyContext = new RawContextKey<boolean>('activeEditorCanToggleReadonly', true, localize('activeEditorCanToggleReadonly', "Whether the active editor can toggle between being read-only or writeable"));
 export const ActiveEditorCanRevertContext = new RawContextKey<boolean>('activeEditorCanRevert', false, localize('activeEditorCanRevert', "Whether the active editor can revert"));
 export const ActiveEditorCanSplitInGroupContext = new RawContextKey<boolean>('activeEditorCanSplitInGroup', true);
 
@@ -169,7 +178,7 @@ export class ResourceContextKey {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILanguageService private readonly _languageService: ILanguageService,
-		@IModelService private readonly _modelService: IModelService,
+		@IModelService private readonly _modelService: IModelService
 	) {
 		this._schemeKey = ResourceContextKey.Scheme.bindTo(this._contextKeyService);
 		this._filenameKey = ResourceContextKey.Filename.bindTo(this._contextKeyService);
@@ -222,13 +231,21 @@ export class ResourceContextKey {
 			this._resourceKey.set(value ? value.toString() : null);
 			this._schemeKey.set(value ? value.scheme : null);
 			this._filenameKey.set(value ? basename(value) : null);
-			this._dirnameKey.set(value ? dirname(value).fsPath : null);
-			this._pathKey.set(value ? value.fsPath : null);
+			this._dirnameKey.set(value ? this.uriToPath(dirname(value)) : null);
+			this._pathKey.set(value ? this.uriToPath(value) : null);
 			this._setLangId();
 			this._extensionKey.set(value ? extname(value) : null);
 			this._hasResource.set(Boolean(value));
 			this._isFileSystemResource.set(value ? this._fileService.hasProvider(value) : false);
 		});
+	}
+
+	private uriToPath(uri: URI): string {
+		if (uri.scheme === Schemas.file) {
+			return uri.fsPath;
+		}
+
+		return uri.path;
 	}
 
 	reset(): void {
@@ -252,3 +269,21 @@ export class ResourceContextKey {
 }
 
 //#endregion
+
+export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor: EditorInput | undefined | null, editorResolverService: IEditorResolverService): void {
+	if (!editor) {
+		contextKey.set('');
+		return;
+	}
+
+	const editorResource = editor.resource;
+	const editors = editorResource ? editorResolverService.getEditors(editorResource).map(editor => editor.id) : [];
+
+	if (editorResource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
+		// Non text editor untitled files cannot be easily serialized between extensions
+		// so instead we disable this context key to prevent common commands that act on the active editor
+		contextKey.set('');
+	} else {
+		contextKey.set(editors.join(','));
+	}
+}

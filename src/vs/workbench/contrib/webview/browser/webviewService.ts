@@ -7,8 +7,8 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewElement, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { OverlayWebview } from './overlayWebview';
 
 export class WebviewService extends Disposable implements IWebviewService {
@@ -27,7 +27,7 @@ export class WebviewService extends Disposable implements IWebviewService {
 
 	public get activeWebview() { return this._activeWebview; }
 
-	private updateActiveWebview(value: IWebview | undefined) {
+	private _updateActiveWebview(value: IWebview | undefined) {
 		if (value !== this._activeWebview) {
 			this._activeWebview = value;
 			this._onDidChangeActiveWebview.fire(value);
@@ -59,12 +59,12 @@ export class WebviewService extends Disposable implements IWebviewService {
 		this._webviews.add(webview);
 
 		webview.onDidFocus(() => {
-			this.updateActiveWebview(webview);
+			this._updateActiveWebview(webview);
 		});
 
 		const onBlur = () => {
 			if (this._activeWebview === webview) {
-				this.updateActiveWebview(undefined);
+				this._updateActiveWebview(undefined);
 			}
 		};
 

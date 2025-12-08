@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EventEmitter } from 'events';
-import { createServer, Socket } from 'net';
+import { AddressInfo, connect, createServer, Server, Socket } from 'net';
 import { tmpdir } from 'os';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -194,9 +194,9 @@ suite('PersistentProtocol reconnection', () => {
 
 	test('acks get piggybacked with messages', async () => {
 		const ether = new Ether();
-		const a = new PersistentProtocol(new NodeSocket(ether.a));
+		const a = new PersistentProtocol({ socket: new NodeSocket(ether.a) });
 		const aMessages = new MessageStream(a);
-		const b = new PersistentProtocol(new NodeSocket(ether.b));
+		const b = new PersistentProtocol({ socket: new NodeSocket(ether.b) });
 		const bMessages = new MessageStream(b);
 
 		a.send(VSBuffer.fromString('a1'));
@@ -257,10 +257,10 @@ suite('PersistentProtocol reconnection', () => {
 			};
 			const ether = new Ether();
 			const aSocket = new NodeSocket(ether.a);
-			const a = new PersistentProtocol(aSocket, null, loadEstimator);
+			const a = new PersistentProtocol({ socket: aSocket, loadEstimator });
 			const aMessages = new MessageStream(a);
 			const bSocket = new NodeSocket(ether.b);
-			const b = new PersistentProtocol(bSocket, null, loadEstimator);
+			const b = new PersistentProtocol({ socket: bSocket, loadEstimator });
 			const bMessages = new MessageStream(b);
 
 			// send one message A -> B
@@ -302,10 +302,10 @@ suite('PersistentProtocol reconnection', () => {
 				};
 				const ether = new Ether();
 				const aSocket = new NodeSocket(ether.a);
-				const a = new PersistentProtocol(aSocket, null, loadEstimator);
+				const a = new PersistentProtocol({ socket: aSocket, loadEstimator, sendKeepAlive: false });
 				const aMessages = new MessageStream(a);
 				const bSocket = new NodeSocket(ether.b);
-				const b = new PersistentProtocol(bSocket, null, loadEstimator);
+				const b = new PersistentProtocol({ socket: bSocket, loadEstimator, sendKeepAlive: false });
 				const bMessages = new MessageStream(b);
 
 				// send message a1 before reconnection to get _recvAckCheck() scheduled
@@ -384,10 +384,10 @@ suite('PersistentProtocol reconnection', () => {
 				const wireLatency = 1000;
 				const ether = new Ether(wireLatency);
 				const aSocket = new NodeSocket(ether.a);
-				const a = new PersistentProtocol(aSocket, null, loadEstimator);
+				const a = new PersistentProtocol({ socket: aSocket, loadEstimator });
 				const aMessages = new MessageStream(a);
 				const bSocket = new NodeSocket(ether.b);
-				const b = new PersistentProtocol(bSocket, null, loadEstimator);
+				const b = new PersistentProtocol({ socket: bSocket, loadEstimator });
 				const bMessages = new MessageStream(b);
 
 				// send message a1 to have something unacknowledged
@@ -445,10 +445,10 @@ suite('PersistentProtocol reconnection', () => {
 				};
 				const ether = new Ether();
 				const aSocket = new NodeSocket(ether.a);
-				const a = new PersistentProtocol(aSocket, null, loadEstimator);
+				const a = new PersistentProtocol({ socket: aSocket, loadEstimator });
 				const aMessages = new MessageStream(a);
 				const bSocket = new NodeSocket(ether.b);
-				const b = new PersistentProtocol(bSocket, null, loadEstimator);
+				const b = new PersistentProtocol({ socket: bSocket, loadEstimator });
 				const bMessages = new MessageStream(b);
 
 				// never receive acks
@@ -490,10 +490,10 @@ suite('PersistentProtocol reconnection', () => {
 			};
 			const ether = new Ether();
 			const aSocket = new NodeSocket(ether.a);
-			const a = new PersistentProtocol(aSocket, null, loadEstimator);
+			const a = new PersistentProtocol({ socket: aSocket, loadEstimator });
 			const aMessages = new MessageStream(a);
 			const bSocket = new NodeSocket(ether.b);
-			const b = new PersistentProtocol(bSocket, null, loadEstimator);
+			const b = new PersistentProtocol({ socket: bSocket, loadEstimator });
 			const bMessages = new MessageStream(b);
 
 			// send one message A -> B
@@ -706,4 +706,63 @@ suite('WebSocketNodeSocket', () => {
 			assert.deepStrictEqual(actual, 'Helloworld');
 		});
 	});
+
+	test('Large buffers are split and sent in chunks', async () => {
+
+		let receivingSideOnDataCallCount = 0;
+		let receivingSideTotalBytes = 0;
+		const receivingSideSocketClosedBarrier = new Barrier();
+
+		const server = await listenOnRandomPort((socket) => {
+			// stop the server when the first connection is received
+			server.close();
+
+			const webSocketNodeSocket = new WebSocketNodeSocket(new NodeSocket(socket), true, null, false);
+			webSocketNodeSocket.onData((data) => {
+				receivingSideOnDataCallCount++;
+				receivingSideTotalBytes += data.byteLength;
+			});
+
+			webSocketNodeSocket.onClose(() => {
+				webSocketNodeSocket.dispose();
+				receivingSideSocketClosedBarrier.open();
+			});
+		});
+
+		const socket = connect({
+			host: '127.0.0.1',
+			port: (<AddressInfo>server.address()).port
+		});
+
+		const buff = generateRandomBuffer(1 * 1024 * 1024);
+
+		const webSocketNodeSocket = new WebSocketNodeSocket(new NodeSocket(socket), true, null, false);
+		webSocketNodeSocket.write(buff);
+		await webSocketNodeSocket.drain();
+		webSocketNodeSocket.dispose();
+		await receivingSideSocketClosedBarrier.wait();
+
+		assert.strictEqual(receivingSideTotalBytes, buff.byteLength);
+		assert.strictEqual(receivingSideOnDataCallCount, 4);
+	});
+
+	function generateRandomBuffer(size: number): VSBuffer {
+		const buff = VSBuffer.alloc(size);
+		for (let i = 0; i < size; i++) {
+			buff.writeUInt8(Math.floor(256 * Math.random()), i);
+		}
+		return buff;
+	}
+
+	function listenOnRandomPort(handler: (socket: Socket) => void): Promise<Server> {
+		return new Promise((resolve, reject) => {
+			const server = createServer(handler).listen(0);
+			server.on('listening', () => {
+				resolve(server);
+			});
+			server.on('error', (err) => {
+				reject(err);
+			});
+		});
+	}
 });

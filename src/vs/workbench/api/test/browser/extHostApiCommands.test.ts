@@ -57,6 +57,11 @@ import 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { assertType } from 'vs/base/common/types';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -95,6 +100,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		// Use IInstantiationService to get typechecking when instantiating
 		rpcProtocol = new TestRPCProtocol();
 		const services = new ServiceCollection();
+		services.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+			override asCanonicalUri(uri: URI): URI {
+				return uri;
+			}
+		});
 		services.set(ILanguageFeaturesService, new SyncDescriptor(LanguageFeaturesService));
 		services.set(IExtensionService, new class extends mock<IExtensionService>() {
 			override async activateByEvent() {
@@ -115,6 +125,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				return Promise.resolve(insta.invokeFunction(handler, ...args));
 			}
 		}));
+		services.set(IEnvironmentService, new class extends mock<IEnvironmentService>() {
+			override isBuilt: boolean = true;
+			override isExtensionDevelopment: boolean = false;
+		});
 		services.set(IMarkerService, new MarkerService());
 		services.set(ILogService, new SyncDescriptor(NullLogService));
 		services.set(ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService));
@@ -136,6 +150,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 		services.set(ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService));
 		services.set(IOutlineModelService, new SyncDescriptor(OutlineModelService));
+		services.set(IConfigurationService, new TestConfigurationService());
 
 		const insta = new InstantiationService(services);
 
@@ -153,15 +168,23 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		commands = new ExtHostCommands(rpcProtocol, new NullLogService());
+		commands = new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
+			override onExtensionError(): boolean {
+				return true;
+			}
+		});
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, insta.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);
 
-		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { }, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService, new class extends mock<IExtHostTelemetry>() {
+			override onExtensionError(): boolean {
+				return true;
+			}
+		});
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, insta.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -710,6 +733,25 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	});
 
 	// --- suggest
+
+	test('triggerCharacter is null when completion provider is called programmatically #159914', async function () {
+
+		let actualContext: vscode.CompletionContext | undefined;
+
+		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(_doc, _pos, _tok, context): any {
+				actualContext = context;
+				return [];
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		await commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4));
+
+		assert.ok(actualContext);
+		assert.deepStrictEqual(actualContext, { triggerKind: types.CompletionTriggerKind.Invoke, triggerCharacter: undefined });
+	});
 
 	test('Suggest, back and forth', function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
@@ -1476,7 +1518,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(value[0].range.end.character, 10);
 	});
 
-	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {
+	test('more element test of selectionRangeProvider on inner array always returns outer array #91852', async function () {
 
 		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
 			provideSelectionRanges(_doc, positions) {

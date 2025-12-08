@@ -12,10 +12,10 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -133,7 +133,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		} else {
 			const result = await this.nativeHostService.showSaveDialog(this.toNativeSaveDialogOptions(options));
 			if (result && !result.canceled && result.filePath) {
-				return URI.file(result.filePath);
+				const uri = URI.file(result.filePath);
+
+				this.addFileToRecentlyOpened(uri);
+
+				return uri;
 			}
 		}
 		return;
@@ -196,4 +200,4 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 }
 
-registerSingleton(IFileDialogService, FileDialogService, true);
+registerSingleton(IFileDialogService, FileDialogService, InstantiationType.Delayed);

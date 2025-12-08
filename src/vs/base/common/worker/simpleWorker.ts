@@ -6,8 +6,8 @@
 import { transformErrorForSerialization } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { globals, isWeb } from 'vs/base/common/platform';
-import * as types from 'vs/base/common/types';
+import { getAllMethodNames } from 'vs/base/common/objects';
+import { isWeb } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 
 const INITIALIZE = '$initialize';
@@ -136,12 +136,12 @@ class SimpleWorkerProtocol {
 	public listen(eventName: string, arg: any): Event<any> {
 		let req: string | null = null;
 		const emitter = new Emitter<any>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				req = String(++this._lastSentReq);
 				this._pendingEmitters.set(req, emitter);
 				this._send(new SubscribeEventMessage(this._workerId, req, eventName, arg));
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				this._pendingEmitters.delete(req!);
 				this._send(new UnsubscribeEventMessage(this._workerId, req!));
 				req = null;
@@ -324,15 +324,17 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 
 		// Gather loader configuration
 		let loaderConfiguration: any = null;
-		if (typeof globals.require !== 'undefined' && typeof globals.require.getConfig === 'function') {
+
+		const globalRequire: { getConfig?(): object } | undefined = (globalThis as any).require;
+		if (typeof globalRequire !== 'undefined' && typeof globalRequire.getConfig === 'function') {
 			// Get the configuration from the Monaco AMD Loader
-			loaderConfiguration = globals.require.getConfig();
-		} else if (typeof globals.requirejs !== 'undefined') {
+			loaderConfiguration = globalRequire.getConfig();
+		} else if (typeof (globalThis as any).requirejs !== 'undefined') {
 			// Get the configuration from requirejs
-			loaderConfiguration = globals.requirejs.s.contexts._.config;
+			loaderConfiguration = (globalThis as any).requirejs.s.contexts._.config;
 		}
 
-		const hostMethods = types.getAllMethodNames(host);
+		const hostMethods = getAllMethodNames(host);
 
 		// Send initialize message
 		this._onModuleLoaded = this._protocol.sendMessage(INITIALIZE, [
@@ -507,7 +509,7 @@ export class SimpleWorkerServer<H extends object> {
 		if (this._requestHandlerFactory) {
 			// static request handler
 			this._requestHandler = this._requestHandlerFactory(hostProxy);
-			return Promise.resolve(types.getAllMethodNames(this._requestHandler));
+			return Promise.resolve(getAllMethodNames(this._requestHandler));
 		}
 
 		if (loaderConfig) {
@@ -527,17 +529,17 @@ export class SimpleWorkerServer<H extends object> {
 
 			// Since this is in a web worker, enable catching errors
 			loaderConfig.catchError = true;
-			globals.require.config(loaderConfig);
+			globalThis.require.config(loaderConfig);
 		}
 
 		return new Promise<string[]>((resolve, reject) => {
 			// Use the global require to be sure to get the global config
 
 			// ESM-comment-begin
-			const req = (globals.require || require);
+			const req = (globalThis.require || require);
 			// ESM-comment-end
 			// ESM-uncomment-begin
-			// const req = globals.require;
+			// const req = globalThis.require;
 			// ESM-uncomment-end
 
 			req([moduleId], (module: { create: IRequestHandlerFactory<H> }) => {
@@ -548,7 +550,7 @@ export class SimpleWorkerServer<H extends object> {
 					return;
 				}
 
-				resolve(types.getAllMethodNames(this._requestHandler));
+				resolve(getAllMethodNames(this._requestHandler));
 			}, reject);
 		});
 	}
@@ -556,6 +558,7 @@ export class SimpleWorkerServer<H extends object> {
 
 /**
  * Called on the worker side
+ * @skipMangle
  */
 export function create(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void): SimpleWorkerServer<any> {
 	return new SimpleWorkerServer(postMessage, null);

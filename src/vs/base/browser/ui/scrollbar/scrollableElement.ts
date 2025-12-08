@@ -86,6 +86,17 @@ export class MouseWheelClassifier {
 		return (score <= 0.5);
 	}
 
+	public acceptStandardWheelEvent(e: StandardWheelEvent): void {
+		const osZoomFactor = window.devicePixelRatio / getZoomFactor();
+		if (platform.isWindows || platform.isLinux) {
+			// On Windows and Linux, the incoming delta events are multiplied with the OS zoom factor.
+			// The OS zoom factor can be reverse engineered by using the device pixel ratio and the configured zoom factor into account.
+			this.accept(Date.now(), e.deltaX / osZoomFactor, e.deltaY / osZoomFactor);
+		} else {
+			this.accept(Date.now(), e.deltaX, e.deltaY);
+		}
+	}
+
 	public accept(timestamp: number, deltaX: number, deltaY: number): void {
 		const item = new MouseWheelClassifierItem(timestamp, deltaX, deltaY);
 		item.score = this._computeScore(item);
@@ -334,7 +345,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._revealOnScroll = value;
 	}
 
-	public triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
 		this._onMouseWheel(new StandardWheelEvent(browserEvent));
 	}
 
@@ -362,17 +373,13 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private _onMouseWheel(e: StandardWheelEvent): void {
+		if (e.browserEvent?.defaultPrevented) {
+			return;
+		}
 
 		const classifier = MouseWheelClassifier.INSTANCE;
 		if (SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED) {
-			const osZoomFactor = window.devicePixelRatio / getZoomFactor();
-			if (platform.isWindows || platform.isLinux) {
-				// On Windows and Linux, the incoming delta events are multiplied with the OS zoom factor.
-				// The OS zoom factor can be reverse engineered by using the device pixel ratio and the configured zoom factor into account.
-				classifier.accept(Date.now(), e.deltaX / osZoomFactor, e.deltaY / osZoomFactor);
-			} else {
-				classifier.accept(Date.now(), e.deltaX, e.deltaY);
-			}
+			classifier.acceptStandardWheelEvent(e);
 		}
 
 		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
@@ -384,7 +391,13 @@ export abstract class AbstractScrollableElement extends Widget {
 			let deltaX = e.deltaX * this._options.mouseWheelScrollSensitivity;
 
 			if (this._options.scrollPredominantAxis) {
-				if (Math.abs(deltaY) >= Math.abs(deltaX)) {
+				if (this._options.scrollYToX && deltaX + deltaY === 0) {
+					// when configured to map Y to X and we both see
+					// no dominant axis and X and Y are competing with
+					// identical values into opposite directions, we
+					// ignore the delta as we cannot make a decision then
+					deltaX = deltaY = 0;
+				} else if (Math.abs(deltaY) >= Math.abs(deltaX)) {
 					deltaX = 0;
 				} else {
 					deltaY = 0;

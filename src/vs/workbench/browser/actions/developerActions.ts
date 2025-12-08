@@ -10,13 +10,13 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { timeout } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -27,8 +27,12 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { ResolutionResult, ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
+import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -36,7 +40,7 @@ class InspectContextKeysAction extends Action2 {
 		super({
 			id: 'workbench.action.inspectContextKeys',
 			title: { value: localize('inspect context keys', "Inspect Context Keys"), original: 'Inspect Context Keys' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -88,6 +92,13 @@ class InspectContextKeysAction extends Action2 {
 	}
 }
 
+interface IScreencastKeyboardOptions {
+	readonly showKeys?: boolean;
+	readonly showCommands?: boolean;
+	readonly showCommandGroups?: boolean;
+	readonly showSingleEditorCursorMoves?: boolean;
+}
+
 class ToggleScreencastModeAction extends Action2 {
 
 	static disposable: IDisposable | undefined;
@@ -96,7 +107,7 @@ class ToggleScreencastModeAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleScreencastMode',
 			title: { value: localize('toggle screencast mode', "Toggle Screencast Mode"), original: 'Toggle Screencast Mode' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -141,10 +152,13 @@ class ToggleScreencastModeAction extends Action2 {
 			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.display = 'block';
+			mouseMarker.style.transform = `scale(${1})`;
+			mouseMarker.style.transition = 'transform 0.1s';
 
 			const mouseMoveListener = onMouseMove.event(e => {
 				mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 				mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
+				mouseMarker.style.transform = `scale(${.8})`;
 			});
 
 			Event.once(onMouseUp.event)(() => {
@@ -164,7 +178,7 @@ class ToggleScreencastModeAction extends Action2 {
 			keyboardMarker.style.bottom = `${clamp(configurationService.getValue<number>('screencastMode.verticalOffset') || 0, 0, 90)}%`;
 		};
 
-		let keyboardMarkerTimeout: number;
+		let keyboardMarkerTimeout!: number;
 		const updateKeyboardMarkerTimeout = () => {
 			keyboardMarkerTimeout = clamp(configurationService.getValue<number>('screencastMode.keyboardOverlayTimeout') || 800, 500, 5000);
 		};
@@ -196,68 +210,130 @@ class ToggleScreencastModeAction extends Action2 {
 		}));
 
 		const onKeyDown = disposables.add(new DomEmitter(window, 'keydown', true));
-		let keyboardTimeout: IDisposable = Disposable.None;
+		const onCompositionStart = disposables.add(new DomEmitter(window, 'compositionstart', true));
+		const onCompositionUpdate = disposables.add(new DomEmitter(window, 'compositionupdate', true));
+		const onCompositionEnd = disposables.add(new DomEmitter(window, 'compositionend', true));
+
 		let length = 0;
+		let composing: Element | undefined = undefined;
+		let imeBackSpace = false;
 
-		disposables.add(onKeyDown.event(e => {
-			keyboardTimeout.dispose();
+		const clearKeyboardScheduler = new RunOnceScheduler(() => {
+			keyboardMarker.textContent = '';
+			composing = undefined;
+			length = 0;
+		}, keyboardMarkerTimeout);
 
-			const event = new StandardKeyboardEvent(e);
-			const shortcut = keybindingService.softDispatch(event, event.target);
+		disposables.add(onCompositionStart.event(e => {
+			imeBackSpace = true;
+		}));
 
-			if (shortcut?.commandId || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
-				if (
-					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
-					|| length > 20
-					|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
-				) {
+		disposables.add(onCompositionUpdate.event(e => {
+			if (e.data && imeBackSpace) {
+				if (length > 20) {
 					keyboardMarker.innerText = '';
 					length = 0;
 				}
+				composing = composing ?? append(keyboardMarker, $('span.key'));
+				composing.textContent = e.data;
+			} else if (imeBackSpace) {
+				keyboardMarker.innerText = '';
+				append(keyboardMarker, $('span.key', {}, `Backspace`));
+			}
+			clearKeyboardScheduler.schedule();
+		}));
 
-				const format = configurationService.getValue<'keys' | 'command' | 'commandWithGroup' | 'commandAndKeys' | 'commandWithGroupAndKeys'>('screencastMode.keyboardShortcutsFormat');
-				const keybinding = keybindingService.resolveKeyboardEvent(event);
-				const command = shortcut?.commandId ? MenuRegistry.getCommand(shortcut.commandId) : null;
+		disposables.add(onCompositionEnd.event(e => {
+			composing = undefined;
+			length++;
+		}));
 
-				let titleLabel = '';
-				let keyLabel = keybinding.getLabel();
-
-				if (command) {
-					titleLabel = typeof command.title === 'string' ? command.title : command.title.value;
-
-					if ((format === 'commandWithGroup' || format === 'commandWithGroupAndKeys') && command.category) {
-						titleLabel = `${typeof command.category === 'string' ? command.category : command.category.value}: ${titleLabel} `;
-					}
-
-					if (shortcut?.commandId) {
-						const fullKeyLabel = keybindingService.lookupKeybinding(shortcut.commandId);
-						if (fullKeyLabel) {
-							keyLabel = fullKeyLabel.getLabel();
-						}
-					}
+		disposables.add(onKeyDown.event(e => {
+			if (e.key === 'Process' || /[\uac00-\ud787\u3131-\u314e\u314f-\u3163\u3041-\u3094\u30a1-\u30f4\u30fc\u3005\u3006\u3024\u4e00-\u9fa5]/u.test(e.key)) {
+				if (e.code === 'Backspace') {
+					imeBackSpace = true;
+				} else if (!e.code.includes('Key')) {
+					composing = undefined;
+					imeBackSpace = false;
+				} else {
+					imeBackSpace = true;
 				}
-
-				if (format !== 'keys' && titleLabel) {
-					append(keyboardMarker, $('span.title', {}, `${titleLabel} `));
-				}
-
-				if (!configurationService.getValue('screencastMode.onlyKeyboardShortcuts') || !titleLabel || shortcut?.commandId && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
-					append(keyboardMarker, $('span.key', {}, keyLabel || ''));
-				}
-
-				length++;
+				clearKeyboardScheduler.schedule();
+				return;
 			}
 
-			const promise = timeout(keyboardMarkerTimeout);
-			keyboardTimeout = toDisposable(() => promise.cancel());
+			if (e.isComposing) {
+				return;
+			}
 
-			promise.then(() => {
-				keyboardMarker.textContent = '';
+			const options = configurationService.getValue<IScreencastKeyboardOptions>('screencastMode.keyboardOptions');
+			const event = new StandardKeyboardEvent(e);
+			const shortcut = keybindingService.softDispatch(event, event.target);
+
+			// Hide the single arrow key pressed
+			if (shortcut.kind === ResultKind.KbFound && shortcut.commandId && !(options.showSingleEditorCursorMoves ?? true) && (
+				['cursorLeft', 'cursorRight', 'cursorUp', 'cursorDown'].includes(shortcut.commandId))
+			) {
+				return;
+			}
+
+			if (
+				event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
+				|| length > 20
+				|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
+				|| event.keyCode === KeyCode.UpArrow || event.keyCode === KeyCode.DownArrow
+				|| event.keyCode === KeyCode.LeftArrow || event.keyCode === KeyCode.RightArrow
+			) {
+				keyboardMarker.innerText = '';
 				length = 0;
-			});
+			}
+
+			const keybinding = keybindingService.resolveKeyboardEvent(event);
+			const command = (this._isKbFound(shortcut) && shortcut.commandId) ? MenuRegistry.getCommand(shortcut.commandId) : null;
+
+			let commandAndGroupLabel = '';
+			let keyLabel: string | undefined | null = keybinding.getLabel();
+
+			if (command) {
+				commandAndGroupLabel = typeof command.title === 'string' ? command.title : command.title.value;
+
+				if ((options.showCommandGroups ?? false) && command.category) {
+					commandAndGroupLabel = `${typeof command.category === 'string' ? command.category : command.category.value}: ${commandAndGroupLabel} `;
+				}
+
+				if (this._isKbFound(shortcut) && shortcut.commandId) {
+					const keybindings = keybindingService.lookupKeybindings(shortcut.commandId)
+						.filter(k => k.getLabel()?.endsWith(keyLabel ?? ''));
+
+					if (keybindings.length > 0) {
+						keyLabel = keybindings[keybindings.length - 1].getLabel();
+					}
+				}
+			}
+
+			if ((options.showCommands ?? true) && commandAndGroupLabel) {
+				append(keyboardMarker, $('span.title', {}, `${commandAndGroupLabel} `));
+			}
+
+			if (options.showKeys ?? true) {
+				// Fix label for arrow keys
+				keyLabel = keyLabel?.replace('UpArrow', '↑')
+					?.replace('DownArrow', '↓')
+					?.replace('LeftArrow', '←')
+					?.replace('RightArrow', '→');
+
+				append(keyboardMarker, $('span.key', {}, keyLabel ?? ''));
+			}
+
+			length++;
+			clearKeyboardScheduler.schedule();
 		}));
 
 		ToggleScreencastModeAction.disposable = disposables;
+	}
+
+	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean } {
+		return resolutionResult.kind === ResultKind.KbFound;
 	}
 }
 
@@ -267,13 +343,18 @@ class LogStorageAction extends Action2 {
 		super({
 			id: 'workbench.action.logStorage',
 			title: { value: localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"), original: 'Log Storage Database Contents' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IStorageService).log();
+		const storageService = accessor.get(IStorageService);
+		const dialogService = accessor.get(IDialogService);
+
+		storageService.log();
+
+		dialogService.info(localize('storageLogDialogMessage', "The storage database contents have been logged to the developer tools."), localize('storageLogDialogDetails', "Open developer tools from the menu and select the Console tab."));
 	}
 }
 
@@ -283,7 +364,7 @@ class LogWorkingCopiesAction extends Action2 {
 		super({
 			id: 'workbench.action.logWorkingCopies',
 			title: { value: localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"), original: 'Log Working Copies' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -292,6 +373,7 @@ class LogWorkingCopiesAction extends Action2 {
 		const workingCopyService = accessor.get(IWorkingCopyService);
 		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
 		const logService = accessor.get(ILogService);
+		const outputService = accessor.get(IOutputService);
 
 		const backups = await workingCopyBackupService.getBackups();
 
@@ -309,6 +391,8 @@ class LogWorkingCopiesAction extends Action2 {
 		];
 
 		logService.info(msg.join('\n'));
+
+		outputService.showChannel(windowLogId, true);
 	}
 }
 
@@ -342,22 +426,38 @@ configurationRegistry.registerConfiguration({
 			maximum: 100,
 			description: localize('screencastMode.fontSize', "Controls the font size (in pixels) of the screencast mode keyboard.")
 		},
-		'screencastMode.keyboardShortcutsFormat': {
-			enum: ['keys', 'command', 'commandWithGroup', 'commandAndKeys', 'commandWithGroupAndKeys'],
-			enumDescriptions: [
-				localize('keyboardShortcutsFormat.keys', "Keys."),
-				localize('keyboardShortcutsFormat.command', "Command title."),
-				localize('keyboardShortcutsFormat.commandWithGroup', "Command title prefixed by its group."),
-				localize('keyboardShortcutsFormat.commandAndKeys', "Command title and keys."),
-				localize('keyboardShortcutsFormat.commandWithGroupAndKeys', "Command title and keys, with the command prefixed by its group.")
-			],
-			description: localize('screencastMode.keyboardShortcutsFormat', "Controls what is displayed in the keyboard overlay when showing shortcuts."),
-			default: 'commandAndKeys'
-		},
-		'screencastMode.onlyKeyboardShortcuts': {
-			type: 'boolean',
-			description: localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in screencast mode."),
-			default: false
+		'screencastMode.keyboardOptions': {
+			type: 'object',
+			description: localize('screencastMode.keyboardOptions.description', "Options for customizing the keyboard overlay in screencast mode."),
+			properties: {
+				'showKeys': {
+					type: 'boolean',
+					default: true,
+					description: localize('screencastMode.keyboardOptions.showKeys', "Show raw keys.")
+				},
+				'showCommands': {
+					type: 'boolean',
+					default: true,
+					description: localize('screencastMode.keyboardOptions.showCommands', "Show command names.")
+				},
+				'showCommandGroups': {
+					type: 'boolean',
+					default: false,
+					description: localize('screencastMode.keyboardOptions.showCommandGroups', "Show command group names, when commands are also shown.")
+				},
+				'showSingleEditorCursorMoves': {
+					type: 'boolean',
+					default: true,
+					description: localize('screencastMode.keyboardOptions.showSingleEditorCursorMoves', "Show single editor cursor move commands.")
+				}
+			},
+			default: {
+				'showKeys': true,
+				'showCommands': true,
+				'showCommandGroups': false,
+				'showSingleEditorCursorMoves': true
+			},
+			additionalProperties: false
 		},
 		'screencastMode.keyboardOverlayTimeout': {
 			type: 'number',

@@ -8,14 +8,14 @@ import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHost
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { timeout } from 'vs/base/common/async';
 import { ExtHostConsoleForwarder } from 'vs/workbench/api/worker/extHostConsoleForwarder';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
-	_installInterceptor() { }
+	protected _installInterceptor() { }
 
 	getModule(request: string, parent: URI): undefined | any {
 		for (const alternativeModuleName of this._alternatives) {
@@ -55,10 +55,11 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		return extensionDescription.browser;
 	}
 
-	protected async _loadCommonJSModule<T extends object | undefined>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	protected async _loadCommonJSModule<T extends object | undefined>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 		module = module.with({ path: ensureSuffix(module.path, '.js') });
+		const extensionId = extension?.identifier.value;
 		if (extensionId) {
-			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId.value}`);
+			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId}`);
 		}
 
 		// First resolve the extension entry point URI to something we can load using `fetch`
@@ -67,7 +68,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const browserUri = URI.revive(await this._mainThreadExtensionsProxy.$asBrowserUri(module));
 		const response = await fetch(browserUri.toString(true));
 		if (extensionId) {
-			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId.value}`);
+			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId}`);
 		}
 
 		if (response.status !== 200) {
@@ -82,16 +83,20 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const fullSource = `${source}\n//# sourceURL=${sourceURL}`;
 		let initFn: Function;
 		try {
-			initFn = new Function('module', 'exports', 'require', fullSource);
+			initFn = new Function('module', 'exports', 'require', fullSource); // CodeQL [SM01632] js/eval-call there is no alternative until we move to ESM
 		} catch (err) {
 			if (extensionId) {
-				console.error(`Loading code for extension ${extensionId.value} failed: ${err.message}`);
+				console.error(`Loading code for extension ${extensionId} failed: ${err.message}`);
 			} else {
 				console.error(`Loading code failed: ${err.message}`);
 			}
 			console.error(`${module.toString(true)}${typeof err.line === 'number' ? ` line ${err.line}` : ''}${typeof err.column === 'number' ? ` column ${err.column}` : ''}`);
 			console.error(err);
 			throw err;
+		}
+
+		if (extension) {
+			await this._extHostLocalizationService.initializeLocalizedMessages(extension);
 		}
 
 		// define commonjs globals: `module`, `exports`, and `require`
@@ -108,13 +113,13 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		try {
 			activationTimesBuilder.codeLoadingStart();
 			if (extensionId) {
-				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
 			initFn(_module, _exports, _require);
 			return <T>(_module.exports !== _exports ? _module.exports : _exports);
 		} finally {
 			if (extensionId) {
-				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
 			}
 			activationTimesBuilder.codeLoadingStop();
 		}

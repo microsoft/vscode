@@ -31,7 +31,7 @@
 	"emmetShowAbbreviationSuggestions": "Shows possible Emmet abbreviations as suggestions. Not applicable in stylesheets or when emmet.showExpandedAbbreviation is set to `\"never\"`.",
 	"emmetIncludeLanguages": "Enable Emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and Emmet supported language.\n For example: `{\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}`",
 	"emmetVariables": "Variables to be used in Emmet snippets.",
-	"emmetTriggerExpansionOnTab": "When enabled, Emmet abbreviations are expanded when pressing TAB.",
+	"emmetTriggerExpansionOnTab": "When enabled, Emmet abbreviations are expanded when pressing TAB, even when completions do not show up. When disabled, completions that show up can still be accepted by pressing TAB.",
 	"emmetPreferences": "Preferences used to modify behavior of some actions and resolvers of Emmet.",
 	"emmetPreferencesIntUnit": "Default unit for integer values.",
 	"emmetPreferencesFloatUnit": "Default unit for float values.",

@@ -12,15 +12,15 @@ const nodeUtil = require('util');
 const es = require('event-stream');
 const filter = require('gulp-filter');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const watcher = require('./lib/watch');
 const createReporter = require('./lib/reporter').createReporter;
 const glob = require('glob');
 const root = path.dirname(__dirname);
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 const plumber = require('gulp-plumber');
 const ext = require('./lib/extensions');
-const product = require('../product.json');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
@@ -47,7 +47,6 @@ const compilations = [
 	'gulp/tsconfig.json',
 	'html-language-features/client/tsconfig.json',
 	'html-language-features/server/tsconfig.json',
-	'image-preview/tsconfig.json',
 	'ipynb/tsconfig.json',
 	'jake/tsconfig.json',
 	'json-language-features/client/tsconfig.json',
@@ -56,18 +55,21 @@ const compilations = [
 	'markdown-language-features/server/tsconfig.json',
 	'markdown-language-features/tsconfig.json',
 	'markdown-math/tsconfig.json',
+	'media-preview/tsconfig.json',
 	'merge-conflict/tsconfig.json',
 	'microsoft-authentication/tsconfig.json',
+	'notebook-renderers/tsconfig.json',
 	'npm/tsconfig.json',
 	'php-language-features/tsconfig.json',
 	'search-result/tsconfig.json',
 	'references-view/tsconfig.json',
 	'simple-browser/tsconfig.json',
+	'tunnel-forwarding/tsconfig.json',
 	'typescript-language-features/test-workspace/tsconfig.json',
+	'typescript-language-features/web/tsconfig.json',
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',
 	'vscode-colorize-tests/tsconfig.json',
-	'vscode-notebook-tests/tsconfig.json',
 	'vscode-test-resolver/tsconfig.json'
 ];
 
@@ -110,7 +112,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
 
-		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly }, err => reporter(err.toString()));
+		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly, transpileWithSwc: true }, err => reporter(err.toString()));
 
 		const pipeline = function () {
 			const input = es.through();
@@ -236,12 +238,22 @@ exports.compileExtensionMediaBuildTask = compileExtensionMediaBuildTask;
 const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
 const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
 	cleanExtensionsBuildTask,
-	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false).pipe(gulp.dest('.build'))),
-	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false, product.extensionsGallery?.serviceUrl).pipe(gulp.dest('.build'))),
+	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
+	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
 ));
 
 gulp.task(compileExtensionsBuildTask);
 gulp.task(task.define('extensions-ci', task.series(compileExtensionsBuildTask, compileExtensionMediaBuildTask)));
+
+const compileExtensionsBuildPullRequestTask = task.define('compile-extensions-build-pr', task.series(
+	cleanExtensionsBuildTask,
+	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
+	task.define('bundle-extensions-build-pr', () => ext.packageLocalExtensionsStream(false, true).pipe(gulp.dest('.build'))),
+));
+
+gulp.task(compileExtensionsBuildPullRequestTask);
+gulp.task(task.define('extensions-ci-pr', task.series(compileExtensionsBuildPullRequestTask, compileExtensionMediaBuildTask)));
+
 
 exports.compileExtensionsBuildTask = compileExtensionsBuildTask;
 

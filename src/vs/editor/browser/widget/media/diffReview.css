@@ -6,13 +6,14 @@
 .monaco-diff-editor .diff-review-line-number {
 	text-align: right;
 	display: inline-block;
+	color: var(--vscode-editorLineNumber-foreground);
 }
 
 .monaco-diff-editor .diff-review {
 	position: absolute;
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
+	z-index: 99;
 }
 
 .monaco-diff-editor .diff-review-summary {
@@ -21,6 +22,7 @@
 
 .monaco-diff-editor .diff-review-shadow {
 	position: absolute;
+	box-shadow: var(--vscode-scrollbar-shadow) 0 -6px 6px -6px inset;
 }
 
 .monaco-diff-editor .diff-review-row {
@@ -52,6 +54,7 @@
 	position: absolute;
 	right: 10px;
 	top: 2px;
+	z-index: 100;
 }
 
 .monaco-diff-editor .diff-review-actions .action-label {

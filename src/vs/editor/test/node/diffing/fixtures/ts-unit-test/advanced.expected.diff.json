@@ -1,0 +1,32 @@
+{
+	"original": {
+		"content": "test(() => {\n    it(() => {\n        console.log(1);\n    })\n\n    it(() => {\n    })\n});\n\ntest(() => {\n    it(() => {\n        console.log(1);\n    })\n\n    it(() => {\n    })\n});",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "test(() => {\n    it(() => {\n        console.log(1);\n    })\n\n    it(() => {\n2        console.log(2);\n    })\n\n    it(() => {\n    \n    })\n});\n\ntest(() => {\n    it(() => {\n        console.log(1);\n    })\n\n    it(() => {\n    })\n\n    it(() => {\n    \n    })\n});",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[7,7)",
+			"modifiedRange": "[7,12)",
+			"innerChanges": [
+				{
+					"originalRange": "[7,1 -> 7,1]",
+					"modifiedRange": "[7,1 -> 12,1]"
+				}
+			]
+		},
+		{
+			"originalRange": "[17,17)",
+			"modifiedRange": "[22,26)",
+			"innerChanges": [
+				{
+					"originalRange": "[17,1 -> 17,1]",
+					"modifiedRange": "[22,1 -> 26,1]"
+				}
+			]
+		}
+	]
+}

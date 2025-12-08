@@ -97,7 +97,7 @@ suite('ViewModelDecorations', () => {
 				'dec14',
 			]);
 
-			const inlineDecorations1 = viewModel.getViewLineRenderingData(
+			const inlineDecorations1 = viewModel.getViewportViewLineRenderingData(
 				new Range(1, viewModel.getLineMinColumn(1), 2, viewModel.getLineMaxColumn(2)),
 				1
 			).inlineDecorations;
@@ -118,7 +118,7 @@ suite('ViewModelDecorations', () => {
 				new InlineDecoration(new Range(1, 2, 1, 2), 'b-dec5', InlineDecorationType.Before),
 			]);
 
-			const inlineDecorations2 = viewModel.getViewLineRenderingData(
+			const inlineDecorations2 = viewModel.getViewportViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				2
 			).inlineDecorations;
@@ -148,7 +148,7 @@ suite('ViewModelDecorations', () => {
 				new InlineDecoration(new Range(2, 3, 2, 3), 'b-dec12', InlineDecorationType.Before),
 			]);
 
-			const inlineDecorations3 = viewModel.getViewLineRenderingData(
+			const inlineDecorations3 = viewModel.getViewportViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				3
 			).inlineDecorations;
@@ -198,13 +198,13 @@ suite('ViewModelDecorations', () => {
 			).filter(x => Boolean(x.options.beforeContentClassName));
 			assert.deepStrictEqual(decorations, []);
 
-			const inlineDecorations1 = viewModel.getViewLineRenderingData(
+			const inlineDecorations1 = viewModel.getViewportViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				2
 			).inlineDecorations;
 			assert.deepStrictEqual(inlineDecorations1, []);
 
-			const inlineDecorations2 = viewModel.getViewLineRenderingData(
+			const inlineDecorations2 = viewModel.getViewportViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				3
 			).inlineDecorations;
@@ -229,7 +229,7 @@ suite('ViewModelDecorations', () => {
 				);
 			});
 
-			const inlineDecorations = viewModel.getViewLineRenderingData(
+			const inlineDecorations = viewModel.getViewportViewLineRenderingData(
 				new Range(1, 1, 1, 1),
 				1
 			).inlineDecorations;

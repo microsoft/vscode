@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
-export class TestFindController extends CommonFindController {
+class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
@@ -63,25 +63,28 @@ function executeAction(instantiationService: IInstantiationService, editor: ICod
 	});
 }
 
-suite('FindController', async () => {
+suite('FindController', () => {
 	const queryState: { [key: string]: any } = {};
 	let clipboardState = '';
 	const serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
 		onDidChangeTarget: Event.None,
-		onDidChangeValue: Event.None,
+		onDidChangeValue: () => Event.None,
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
 		getNumber: (key: string) => undefined!,
+		getObject: (key: string) => undefined!,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
+		storeAll: () => { throw new Error(); },
 		remove: () => undefined,
 		isNew: () => false,
 		flush: () => { return Promise.resolve(); },
 		keys: () => [],
 		log: () => { },
-		switch: () => { throw new Error(); }
+		switch: () => { throw new Error(); },
+		hasScope() { return false; }
 	} as IStorageService);
 
 	if (platform.isMacintosh) {
@@ -492,7 +495,7 @@ suite('FindController', async () => {
 	});
 });
 
-suite('FindController query options persistence', async () => {
+suite('FindController query options persistence', () => {
 	let queryState: { [key: string]: any } = {};
 	queryState['editor.isRegex'] = false;
 	queryState['editor.matchCase'] = false;
@@ -501,18 +504,21 @@ suite('FindController query options persistence', async () => {
 	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
 		onDidChangeTarget: Event.None,
-		onDidChangeValue: Event.None,
+		onDidChangeValue: () => Event.None,
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
 		getNumber: (key: string) => undefined!,
+		getObject: (key: string) => undefined!,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
+		storeAll: () => { throw new Error(); },
 		remove: () => undefined,
 		isNew: () => false,
 		flush: () => { return Promise.resolve(); },
 		keys: () => [],
 		log: () => { },
-		switch: () => { throw new Error(); }
+		switch: () => { throw new Error(); },
+		hasScope() { return false; }
 	} as IStorageService);
 
 	test('matchCase', async () => {

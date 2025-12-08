@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 
 
 suite('URI', () => {
@@ -469,7 +469,31 @@ suite('URI', () => {
 		}), true);
 	});
 
-	test('Unable to open \'%A0.txt\': URI malformed #76506', function () {
+	test('isUriComponents', function () {
+
+		assert.ok(isUriComponents(URI.file('a')));
+		assert.ok(isUriComponents(URI.file('a').toJSON()));
+		assert.ok(isUriComponents(URI.file('')));
+		assert.ok(isUriComponents(URI.file('').toJSON()));
+
+		assert.strictEqual(isUriComponents(1), false);
+		assert.strictEqual(isUriComponents(true), false);
+		assert.strictEqual(isUriComponents("true"), false);
+		assert.strictEqual(isUriComponents({}), false);
+		assert.strictEqual(isUriComponents({ scheme: '' }), true); // valid components but INVALID uri
+		assert.strictEqual(isUriComponents({ scheme: 'fo' }), true);
+		assert.strictEqual(isUriComponents({ scheme: 'fo', path: '/p' }), true);
+		assert.strictEqual(isUriComponents({ path: '/p' }), false);
+	});
+
+	test('from, from(strict), revive', function () {
+
+		assert.throws(() => URI.from({ scheme: '' }, true));
+		assert.strictEqual(URI.from({ scheme: '' }).scheme, 'file');
+		assert.strictEqual(URI.revive({ scheme: '' }).scheme, '');
+	});
+
+	test('Unable to open \'%A0.txt\': URI malformed #76506, part 2', function () {
 		assert.strictEqual(URI.parse('file://some/%.txt').toString(), 'file://some/%25.txt');
 		assert.strictEqual(URI.parse('file://some/%A0.txt').toString(), 'file://some/%25A0.txt');
 	});
@@ -594,5 +618,12 @@ suite('URI', () => {
 
 		//https://github.com/microsoft/vscode/issues/93831
 		assertJoined('file:///c:/foo/bar', './other/foo.img', 'file:///c:/foo/bar/other/foo.img', false);
+	});
+
+	test('vscode-uri: URI.toString() wrongly encode IPv6 literals #154048', function () {
+		assert.strictEqual(URI.parse('http://[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
+
+		assert.strictEqual(URI.parse('http://user@[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://user@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
+		assert.strictEqual(URI.parse('http://us[er@[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://us%5Ber@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
 	});
 });

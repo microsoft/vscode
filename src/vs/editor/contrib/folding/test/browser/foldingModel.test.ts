@@ -383,7 +383,7 @@ suite('Folding Model', () => {
 
 	});
 
-	test('getRegionAtLine', () => {
+	test('getRegionAtLine2', () => {
 		const lines = [
 		/* 1*/	'//#region',
 		/* 2*/	'class A {',

@@ -13,11 +13,12 @@ import type { Event } from 'vs/base/common/event';
 import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import type { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import { IObservableValue } from 'vs/base/common/observableValue';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
+import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -30,12 +31,12 @@ export interface IWorkbench {
 	commands: {
 
 		/**
-		* Allows to execute any command if known with the provided arguments.
-		*
-		* @param command Identifier of the command to execute.
-		* @param rest Parameters passed to the command function.
-		* @return A promise that resolves to the returned value of the given command.
-		*/
+		 * Allows to execute any command if known with the provided arguments.
+		 *
+		 * @param command Identifier of the command to execute.
+		 * @param rest Parameters passed to the command function.
+		 * @return A promise that resolves to the returned value of the given command.
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	};
 
@@ -76,11 +77,6 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
-
-		/**
-		 * Current workbench telemetry level.
-		 */
-		readonly telemetryLevel: IObservableValue<TelemetryLevel>;
 	};
 
 	window: {
@@ -96,6 +92,30 @@ export interface IWorkbench {
 			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
 			task: (progress: IProgress<IProgressStep>) => Promise<R>
 		): Promise<R>;
+
+		/**
+		 * Creates a terminal with limited capabilities that is intended for
+		 * writing output from the embedder before the workbench has finished
+		 * loading. When an embedder terminal is created it will automatically
+		 * show to the user.
+		 *
+		 * @param options The definition of the terminal, this is similar to
+		 * `ExtensionTerminalOptions` in the extension API.
+		 */
+		createTerminal(options: IEmbedderTerminalOptions): void;
+	};
+
+	workspace: {
+
+		/**
+		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
+		 * By default, openTunnel only support localhost; however, a tunnelFactory can be used to support other ips.
+		 *
+		 * @throws When run in an environment without a remote.
+		 *
+		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
+		openTunnel(tunnelOptions: ITunnelOptions): Promise<ITunnel>;
 	};
 
 	/**
@@ -110,16 +130,6 @@ export interface IWorkbench {
 	 * has been persisted.
 	 */
 	shutdown: () => Promise<void>;
-
-	/**
-	 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
-	 * By default, openTunnel only support localhost; however, a tunnelFactory can be used to support other ips.
-	 *
-	 * @throws When run in an environment without a remote.
-	 *
-	 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
-	 */
-	openTunnel(tunnelOptions: ITunnelOptions): Thenable<ITunnel>;
 }
 
 export interface IWorkbenchConstructionOptions {
@@ -135,7 +145,7 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * The connection token to send to the server.
 	 */
-	readonly connectionToken?: string;
+	readonly connectionToken?: string | Promise<string>;
 
 	/**
 	 * An endpoint to serve iframe content ("webview") from. This is required
@@ -150,6 +160,8 @@ export interface IWorkbenchConstructionOptions {
 
 	/**
 	 * A provider for resource URIs.
+	 *
+	 * *Note*: This will only be invoked after the `connectionToken` is resolved.
 	 */
 	readonly resourceUriProvider?: IResourceUriProvider;
 
@@ -175,10 +187,13 @@ export interface IWorkbenchConstructionOptions {
 	readonly editSessionId?: string;
 
 	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Endpoints to be used for proxying repository tarball download calls in the browser.
+	 * Resource delegation handler that allows for loading of resources when
+	 * using remote resolvers.
+	 *
+	 * This is exclusive with {@link resourceUriProvider}. `resourceUriProvider`
+	 * should be used if a {@link webSocketFactory} is used, and will be preferred.
 	 */
-	readonly _tarballProxyEndpoints?: { [providerId: string]: string };
+	readonly remoteResourceProvider?: IRemoteResourceProvider;
 
 	//#endregion
 
@@ -197,8 +212,14 @@ export interface IWorkbenchConstructionOptions {
 
 	/**
 	 * The credentials provider to store and retrieve secrets.
+	 * TODO: Remove this in favor of the secret storage provider.
 	 */
 	readonly credentialsProvider?: ICredentialsProvider;
+
+	/**
+	 * The secret storage provider to store and retrieve secrets.
+	 */
+	readonly secretStorageProvider?: ISecretStorageProvider;
 
 	/**
 	 * Additional builtin extensions those cannot be uninstalled but only be disabled.
@@ -251,7 +272,9 @@ export interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened (unless `force` is specified).
+	 * Optional default layout to apply on first time the workspace is opened
+	 * (unless `force` is specified). This includes visibility of views and
+	 * editors including editor grid layout.
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 
@@ -259,6 +282,20 @@ export interface IWorkbenchConstructionOptions {
 	 * Optional configuration default overrides contributed to the workbench.
 	 */
 	readonly configurationDefaults?: Record<string, any>;
+
+	//#endregion
+
+	//#region Profile options
+
+	/**
+	 * Profile to use for the workbench.
+	 */
+	readonly profile?: { readonly name: string; readonly contents?: string | UriComponents };
+
+	/**
+	 * URI of the profile to preview.
+	 */
+	readonly profileToPreview?: UriComponents;
 
 	//#endregion
 
@@ -309,6 +346,11 @@ export interface IWorkbenchConstructionOptions {
 	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
 	 */
 	readonly initialColorTheme?: IInitialColorTheme;
+
+	/**
+	 *  Welcome dialog. Can be dismissed by the user.
+	 */
+	readonly welcomeDialog?: IWelcomeDialog;
 
 	//#endregion
 
@@ -392,11 +434,6 @@ export interface ITunnelOptions {
 
 	label?: string;
 
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
-
 	privacy?: string;
 
 	protocol?: string;
@@ -418,11 +455,6 @@ export interface ITunnel {
 	 * The complete local address(ex. localhost:1234)
 	 */
 	localAddress: string;
-
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
 
 	privacy?: string;
 
@@ -516,10 +548,10 @@ export interface IWelcomeBanner {
 	/**
 	 * Optional actions to appear as links after the welcome banner message.
 	 */
-	actions?: IWelcomeBannerAction[];
+	actions?: IWelcomeLinkAction[];
 }
 
-export interface IWelcomeBannerAction {
+export interface IWelcomeLinkAction {
 
 	/**
 	 * The link to open when clicking. Supports command invocation when
@@ -584,48 +616,101 @@ export interface IInitialColorTheme {
 	readonly colors?: { [colorId: string]: string };
 }
 
+export interface IWelcomeDialog {
+
+	/**
+	 * Unique identifier of the welcome dialog. The identifier will be used to determine
+	 * if the dialog has been previously displayed.
+	 */
+	id: string;
+
+	/**
+	 * Title of the welcome dialog.
+	 */
+	title: string;
+
+	/**
+	 * Button text of the welcome dialog.
+	 */
+	buttonText: string;
+
+	/**
+	 * Button command to execute from the welcome dialog.
+	 */
+	buttonCommand: string;
+
+	/**
+	 * Message text for the welcome dialog.
+	 */
+	message: string;
+
+	/**
+	 * Media to include in the welcome dialog.
+	 */
+	media: { altText: string; path: string };
+}
+
 export interface IDefaultView {
+
+	/**
+	 * The identifier of the view to show by default.
+	 */
 	readonly id: string;
-}
-
-/**
- * @deprecated use `IDefaultEditor.options` instead
- */
-export interface IPosition {
-	readonly line: number;
-	readonly column: number;
-}
-
-/**
- * @deprecated use `IDefaultEditor.options` instead
- */
-export interface IRange {
-	readonly start: IPosition;
-	readonly end: IPosition;
 }
 
 export interface IDefaultEditor {
 
+	/**
+	 * The location of the editor in the editor grid layout.
+	 * Editors are layed out in editor groups and the view
+	 * column is counted from top left to bottom right in
+	 * the order of appearance beginning with `1`.
+	 *
+	 * If not provided, the editor will open in the active
+	 * group.
+	 */
+	readonly viewColumn?: number;
+
+	/**
+	 * The resource of the editor to open.
+	 */
 	readonly uri: UriComponents;
-	readonly options?: IEditorOptions;
 
+	/**
+	 * Optional extra options like which editor
+	 * to use or which text to select.
+	 */
+	readonly options?: ITextEditorOptions;
+
+	/**
+	 * Will not open an untitled editor in case
+	 * the resource does not exist.
+	 */
 	readonly openOnlyIfExists?: boolean;
-
-	/**
-	 * @deprecated use `options` instead
-	 */
-	readonly selection?: IRange;
-
-	/**
-	 * @deprecated use `options.override` instead
-	 */
-	readonly openWith?: string;
 }
 
 export interface IDefaultLayout {
 
+	/**
+	 * A list of views to show by default.
+	 */
 	readonly views?: IDefaultView[];
+
+	/**
+	 * A list of editors to show by default.
+	 */
 	readonly editors?: IDefaultEditor[];
+
+	/**
+	 * The layout to use for the workbench.
+	 */
+	readonly layout?: {
+
+		/**
+		 * The layout of the editor area.
+		 */
+		readonly editors?: EditorGroupLayout;
+	};
 
 	/**
 	 * Forces this layout to be applied even if this isn't
@@ -662,7 +747,23 @@ export interface ISettingsSyncOptions {
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
 	 */
-	enablementHandler?(enablement: boolean): void;
+	enablementHandler?(enablement: boolean, authenticationProvider: string): void;
+
+	/**
+	 * Authentication provider
+	 */
+	readonly authenticationProvider?: {
+		/**
+		 * Unique identifier of the authentication provider.
+		 */
+		readonly id: string;
+
+		/**
+		 * Called when the user wants to signin to Settings Sync using the given authentication provider.
+		 * The returned promise should resolve to the authentication session id.
+		 */
+		signIn(): Promise<string>;
+	};
 }
 
 export interface IDevelopmentOptions {
@@ -671,6 +772,11 @@ export interface IDevelopmentOptions {
 	 * Current logging level. Default is `LogLevel.Info`.
 	 */
 	readonly logLevel?: LogLevel;
+
+	/**
+	 * Extension log level.
+	 */
+	readonly extensionLogLevel?: [string, LogLevel][];
 
 	/**
 	 * Location of a module containing extension tests to run once the workbench is open.
@@ -686,4 +792,39 @@ export interface IDevelopmentOptions {
 	 * Whether to enable the smoke test driver.
 	 */
 	readonly enableSmokeTestDriver?: boolean;
+}
+
+/**
+ * Utility provided in the {@link WorkbenchOptions} which allows loading resources
+ * when remote resolvers are used in the web.
+ */
+export interface IRemoteResourceProvider {
+	/**
+	 * Path the workbench should delegate requests to. The embedder should
+	 * install a service worker on this path and emit {@link onDidReceiveRequest}
+	 * events when requests come in for that path.
+	 */
+	readonly path: string;
+
+	/**
+	 * Event that should fire when requests are made on the {@link pathPrefix}.
+	 */
+	readonly onDidReceiveRequest: Event<IRemoteResourceRequest>;
+}
+
+/**
+ * todo@connor4312: this may eventually gain more properties like method and
+ * headers, but for now we only deal with GET requests.
+ */
+export interface IRemoteResourceRequest {
+	/**
+	 * Request URI. Generally will begin with the current
+	 * origin and {@link IRemoteResourceProvider.pathPrefix}.
+	 */
+	uri: URI;
+
+	/**
+	 * A method called by the editor to issue a response to the request.
+	 */
+	respondWith(statusCode: number, body: Uint8Array, headers: Record<string, string>): void;
 }

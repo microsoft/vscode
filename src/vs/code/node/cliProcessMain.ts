@@ -5,9 +5,8 @@
 
 import { hostname, release } from 'os';
 import { raceTimeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, join } from 'vs/base/common/path';
@@ -23,9 +22,10 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, IExtensionManagementCLIService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
-import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IExtensionGalleryService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
+import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
@@ -38,8 +38,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
-import { ConsoleLogger, getLogLevel, ILogger, ILogService, LogLevel, MultiplexLogService } from 'vs/platform/log/common/log';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+import { ConsoleLogger, getLogLevel, ILogger, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
@@ -47,18 +46,23 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
-import { IStateService } from 'vs/platform/state/node/state';
-import { StateService } from 'vs/platform/state/node/stateService';
+import { SaveStrategy, StateReadonlyService } from 'vs/platform/state/node/stateService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment } from 'vs/platform/telemetry/common/telemetryUtils';
+import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UserDataProfilesReadonlyService } from 'vs/platform/userDataProfile/node/userDataProfile';
+import { resolveMachineId } from 'vs/platform/telemetry/node/telemetryUtils';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
+import { LogService } from 'vs/platform/log/common/logService';
+import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { localize } from 'vs/nls';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 
 class CliMain extends Disposable {
 
@@ -85,7 +89,7 @@ class CliMain extends Disposable {
 			const logService = accessor.get(ILogService);
 			const fileService = accessor.get(IFileService);
 			const environmentService = accessor.get(INativeEnvironmentService);
-			const extensionManagementCLIService = accessor.get(IExtensionManagementCLIService);
+			const userDataProfilesService = accessor.get(IUserDataProfilesService);
 
 			// Log info
 			logService.info('CLI main', this.argv);
@@ -94,7 +98,7 @@ class CliMain extends Disposable {
 			this.registerErrorHandler(logService);
 
 			// Run based on argv
-			await this.doRun(environmentService, extensionManagementCLIService, fileService);
+			await this.doRun(environmentService, fileService, userDataProfilesService, instantiationService);
 
 			// Flush the remaining data in AI adapter (with 1s timeout)
 			await Promise.all(appenders.map(a => {
@@ -104,7 +108,7 @@ class CliMain extends Disposable {
 		});
 	}
 
-	private async initServices(): Promise<[IInstantiationService, OneDataSystemAppender[]]> {
+	private async initServices(): Promise<[IInstantiationService, ITelemetryAppender[]]> {
 		const services = new ServiceCollection();
 
 		// Product
@@ -116,17 +120,23 @@ class CliMain extends Disposable {
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Init folders
-		await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
+		await Promise.all([
+			environmentService.appSettingsHome.fsPath,
+			environmentService.extensionsPath
+		].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
+
+		// Logger
+		const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
+		services.set(ILoggerService, loggerService);
 
 		// Log
-		const logLevel = getLogLevel(environmentService);
-		const loggers: ILogger[] = [];
-		loggers.push(new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, false, logLevel));
-		if (logLevel === LogLevel.Trace) {
-			loggers.push(new ConsoleLogger(logLevel));
+		const logger = this._register(loggerService.createLogger('cli', { name: localize('cli', "CLI") }));
+		const otherLoggers: ILogger[] = [];
+		if (loggerService.getLogLevel() === LogLevel.Trace) {
+			otherLoggers.push(new ConsoleLogger(loggerService.getLogLevel()));
 		}
 
-		const logService = this._register(new MultiplexLogService(loggers));
+		const logService = this._register(new LogService(logger, otherLoggers));
 		services.set(ILogService, logService);
 
 		// Files
@@ -136,20 +146,21 @@ class CliMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
-		// State
-		const stateService = new StateService(environmentService, logService, fileService);
-		services.set(IStateService, stateService);
+		// Use FileUserDataProvider for user data to
+		// enable atomic read / write operations.
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, logService));
 
 		// Uri Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(stateService, uriIdentityService, environmentService, fileService, logService);
+		const stateService = new StateReadonlyService(SaveStrategy.DELAYED, environmentService, logService, fileService);
+		const userDataProfilesService = new UserDataProfilesReadonlyService(stateService, uriIdentityService, environmentService, fileService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? this._register(new NativePolicyService(productService.win32RegValueName))
+		const policyService = isWindows && productService.win32RegValueName ? this._register(new NativePolicyService(logService, productService.win32RegValueName))
 			: environmentService.policyFile ? this._register(new FilePolicyService(environmentService.policyFile, fileService, logService))
 				: new NullPolicyService();
 		services.set(IPolicyService, policyService);
@@ -164,56 +175,55 @@ class CliMain extends Disposable {
 			configurationService.initialize()
 		]);
 
-		userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		// Get machine ID
+		let machineId: string | undefined = undefined;
+		try {
+			machineId = await resolveMachineId(stateService, logService);
+		} catch (error) {
+			if (error.code !== 'ENOENT') {
+				logService.error(error);
+			}
+		}
+
+		// Initialize user data profiles after initializing the state
+		userDataProfilesService.init();
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestService));
+		const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
+		services.set(IRequestService, requestService);
 
 		// Download Service
-		services.set(IDownloadService, new SyncDescriptor(DownloadService));
+		services.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
 
 		// Extensions
-		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
-		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
-		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
-		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
-		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
+		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
+		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
+		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
+		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
+		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService, undefined, true));
 
 		// Localizations
-		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
+		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService, undefined, false));
 
 		// Telemetry
-		const appenders: OneDataSystemAppender[] = [];
+		const appenders: ITelemetryAppender[] = [];
+		const isInternal = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
 			if (productService.aiConfig && productService.aiConfig.ariaKey) {
-				appenders.push(new OneDataSystemAppender(configurationService, 'monacoworkbench', null, productService.aiConfig.ariaKey));
+				appenders.push(new OneDataSystemAppender(requestService, isInternal, 'monacoworkbench', null, productService.aiConfig.ariaKey));
 			}
-
-			const { installSourcePath } = environmentService;
 
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: (async () => {
-					let machineId: string | undefined = undefined;
-					try {
-						const storageContents = await Promises.readFile(environmentService.stateResource.fsPath);
-						machineId = JSON.parse(storageContents.toString())[machineIdKey];
-					} catch (error) {
-						if (error.code !== 'ENOENT') {
-							logService.error(error);
-						}
-					}
-
-					return resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, machineId, productService.msftInternalDomains, installSourcePath);
-				})(),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, isInternal),
 				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config], false));
 
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
@@ -235,36 +245,43 @@ class CliMain extends Disposable {
 		});
 
 		// Handle unhandled errors that can occur
-		process.on('uncaughtException', err => onUnexpectedError(err));
+		process.on('uncaughtException', err => {
+			if (!isSigPipeError(err)) {
+				onUnexpectedError(err);
+			}
+		});
 		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 	}
 
-	private async doRun(environmentService: INativeEnvironmentService, extensionManagementCLIService: IExtensionManagementCLIService, fileService: IFileService): Promise<void> {
-
-		// Install Source
-		if (this.argv['install-source']) {
-			return this.setInstallSource(environmentService, fileService, this.argv['install-source']);
+	private async doRun(environmentService: INativeEnvironmentService, fileService: IFileService, userDataProfilesService: IUserDataProfilesService, instantiationService: IInstantiationService): Promise<void> {
+		let profile: IUserDataProfile | undefined = undefined;
+		if (environmentService.args.profile) {
+			profile = userDataProfilesService.profiles.find(p => p.name === environmentService.args.profile);
+			if (!profile) {
+				throw new Error(`Profile '${environmentService.args.profile}' not found.`);
+			}
 		}
+		const profileLocation = (profile ?? userDataProfilesService.defaultProfile).extensionsResource;
 
 		// List Extensions
 		if (this.argv['list-extensions']) {
-			return extensionManagementCLIService.listExtensions(!!this.argv['show-versions'], this.argv['category']);
+			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).listExtensions(!!this.argv['show-versions'], this.argv['category'], profileLocation);
 		}
 
 		// Install Extension
 		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
-			const installOptions: InstallOptions = { isMachineScoped: !!this.argv['do-not-sync'], installPreReleaseVersion: !!this.argv['pre-release'] };
-			return extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], installOptions, !!this.argv['force']);
+			const installOptions: InstallOptions = { isMachineScoped: !!this.argv['do-not-sync'], installPreReleaseVersion: !!this.argv['pre-release'], profileLocation };
+			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.asExtensionIdOrVSIX(this.argv['install-builtin-extension'] || []), installOptions, !!this.argv['force']);
 		}
 
 		// Uninstall Extension
 		else if (this.argv['uninstall-extension']) {
-			return extensionManagementCLIService.uninstallExtensions(this.asExtensionIdOrVSIX(this.argv['uninstall-extension']), !!this.argv['force']);
+			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).uninstallExtensions(this.asExtensionIdOrVSIX(this.argv['uninstall-extension']), !!this.argv['force'], profileLocation);
 		}
 
 		// Locate Extension
 		else if (this.argv['locate-extension']) {
-			return extensionManagementCLIService.locateExtension(this.argv['locate-extension']);
+			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).locateExtension(this.argv['locate-extension']);
 		}
 
 		// Telemetry
@@ -275,10 +292,6 @@ class CliMain extends Disposable {
 
 	private asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
 		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
-	}
-
-	private async setInstallSource(environmentService: INativeEnvironmentService, fileService: IFileService, installSource: string): Promise<void> {
-		await fileService.writeFile(URI.file(environmentService.installSourcePath), VSBuffer.fromString(installSource.slice(0, 30)));
 	}
 }
 

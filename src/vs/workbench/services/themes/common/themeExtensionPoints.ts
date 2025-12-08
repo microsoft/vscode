@@ -197,24 +197,20 @@ export class ThemeRegistry<T extends IThemeData> {
 		return resultingThemes;
 	}
 
-	public findThemeById(themeId: string, defaultId?: string): T | undefined {
+	public findThemeById(themeId: string): T | undefined {
 		if (this.builtInTheme && this.builtInTheme.id === themeId) {
 			return this.builtInTheme;
 		}
 		const allThemes = this.getThemes();
-		let defaultTheme: T | undefined = undefined;
 		for (const t of allThemes) {
 			if (t.id === themeId) {
 				return t;
 			}
-			if (t.id === defaultId) {
-				defaultTheme = t;
-			}
 		}
-		return defaultTheme;
+		return undefined;
 	}
 
-	public findThemeBySettingsId(settingsId: string | null, defaultId?: string): T | undefined {
+	public findThemeBySettingsId(settingsId: string | null, defaultSettingsId?: string): T | undefined {
 		if (this.builtInTheme && this.builtInTheme.settingsId === settingsId) {
 			return this.builtInTheme;
 		}
@@ -224,7 +220,7 @@ export class ThemeRegistry<T extends IThemeData> {
 			if (t.settingsId === settingsId) {
 				return t;
 			}
-			if (t.id === defaultId) {
+			if (t.settingsId === defaultSettingsId) {
 				defaultTheme = t;
 			}
 		}

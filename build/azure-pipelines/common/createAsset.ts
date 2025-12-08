@@ -56,6 +56,8 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 					return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
+				case 'cli':
+					return `cli-win32-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -65,6 +67,8 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					return `server-alpine-${arch}`;
 				case 'web':
 					return `server-alpine-${arch}-web`;
+				case 'cli':
+					return `cli-alpine-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -87,6 +91,8 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					return `linux-deb-${arch}`;
 				case 'rpm-package':
 					return `linux-rpm-${arch}`;
+				case 'cli':
+					return `cli-linux-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -107,6 +113,8 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						return 'server-darwin-web';
 					}
 					return `server-darwin-${arch}-web`;
+				case 'cli':
+					return `cli-darwin-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -155,7 +163,7 @@ async function main(): Promise<void> {
 	const platform = getPlatform(product, os, arch, unprocessedType);
 	const type = getRealType(unprocessedType);
 	const quality = getEnv('VSCODE_QUALITY');
-	const commit = process.env['VSCODE_DISTRO_COMMIT'] || getEnv('BUILD_SOURCEVERSION');
+	const commit = getEnv('BUILD_SOURCEVERSION');
 
 	console.log('Creating asset...');
 
@@ -178,12 +186,6 @@ async function main(): Promise<void> {
 	const blobServiceClient = new BlobServiceClient(`https://vscode.blob.core.windows.net`, credential, storagePipelineOptions);
 	const containerClient = blobServiceClient.getContainerClient(quality);
 	const blobClient = containerClient.getBlockBlobClient(blobName);
-	const blobExists = await blobClient.exists();
-
-	if (blobExists) {
-		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
-		return;
-	}
 
 	const blobOptions: BlockBlobParallelUploadOptions = {
 		blobHTTPHeaders: {
@@ -193,12 +195,17 @@ async function main(): Promise<void> {
 		}
 	};
 
-	const uploadPromises: Promise<void>[] = [
-		retry(async () => {
+	const uploadPromises: Promise<void>[] = [];
+
+	if (await blobClient.exists()) {
+		uploadPromises.push(Promise.reject(new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`)));
+	} else {
+		uploadPromises.push(retry(async (attempt) => {
+			console.log(`Uploading blobs to Azure storage (attempt ${attempt})...`);
 			await blobClient.uploadFile(filePath, blobOptions);
 			console.log('Blob successfully uploaded to Azure storage.');
-		})
-	];
+		}));
+	}
 
 	const shouldUploadToMooncake = /true/i.test(process.env['VSCODE_PUBLISH_TO_MOONCAKE'] ?? 'true');
 
@@ -208,18 +215,29 @@ async function main(): Promise<void> {
 		const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
 		const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
 
-		uploadPromises.push(retry(async () => {
-			await mooncakeBlobClient.uploadFile(filePath, blobOptions);
-			console.log('Blob successfully uploaded to Mooncake Azure storage.');
-		}));
-
-		console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
-	} else {
-		console.log('Uploading blobs to Azure storage...');
+		if (await mooncakeBlobClient.exists()) {
+			uploadPromises.push(Promise.reject(new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`)));
+		} else {
+			uploadPromises.push(retry(async (attempt) => {
+				console.log(`Uploading blobs to Mooncake Azure storage (attempt ${attempt})...`);
+				await mooncakeBlobClient.uploadFile(filePath, blobOptions);
+				console.log('Blob successfully uploaded to Mooncake Azure storage.');
+			}));
+		}
 	}
 
-	await Promise.all(uploadPromises);
-	console.log('All blobs successfully uploaded.');
+	const promiseResults = await Promise.allSettled(uploadPromises);
+	const rejectedPromiseResults = promiseResults.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
+
+	if (rejectedPromiseResults.length === 0) {
+		console.log('All blobs successfully uploaded.');
+	} else if (rejectedPromiseResults[0]?.reason?.message?.includes('already exists')) {
+		console.warn(rejectedPromiseResults[0].reason.message);
+		console.log('Some blobs successfully uploaded.');
+	} else {
+		// eslint-disable-next-line no-throw-literal
+		throw rejectedPromiseResults[0]?.reason;
+	}
 
 	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
 	const blobPath = new URL(assetUrl).pathname;

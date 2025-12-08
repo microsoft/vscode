@@ -1,0 +1,84 @@
+{
+	"original": {
+		"content": "export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[]): LineRangeMapping[] {\n\tconst changes: LineRangeMapping[] = [];\n\tfor (const g of group(\n\t\talignments,\n\t\t(a1, a2) =>\n\t\t\t(a2.originalRange.startLineNumber - (a1.originalRange.endLineNumber - (a1.originalRange.endColumn > 1 ? 0 : 1)) <= 1)\n\t\t\t|| (a2.modifiedRange.startLineNumber - (a1.modifiedRange.endLineNumber - (a1.modifiedRange.endColumn > 1 ? 0 : 1)) <= 1)\n\t)) {\n\t\tconst first = g[0];\n\t\tconst last = g[g.length - 1];\n\n\t\tchanges.push(new LineRangeMapping(\n\t\t\tnew LineRange(\n\t\t\t\tfirst.originalRange.startLineNumber,\n\t\t\t\tlast.originalRange.endLineNumber + (last.originalRange.endColumn > 1 || last.modifiedRange.endColumn > 1 ? 1 : 0)\n\t\t\t),\n\t\t\tnew LineRange(\n\t\t\t\tfirst.modifiedRange.startLineNumber,\n\t\t\t\tlast.modifiedRange.endLineNumber + (last.originalRange.endColumn > 1 || last.modifiedRange.endColumn > 1 ? 1 : 0)\n\t\t\t),\n\t\t\tg\n\t\t));\n\t}\n\n\tassertFn(() => {\n\t\treturn checkAdjacentItems(changes,\n\t\t\t(m1, m2) => m2.originalRange.startLineNumber - m1.originalRange.endLineNumberExclusive === m2.modifiedRange.startLineNumber - m1.modifiedRange.endLineNumberExclusive &&\n\t\t\t\t// There has to be an unchanged line in between (otherwise both diffs should have been joined)\n\t\t\t\tm1.originalRange.endLineNumberExclusive < m2.originalRange.startLineNumber &&\n\t\t\t\tm1.modifiedRange.endLineNumberExclusive < m2.modifiedRange.startLineNumber,\n\t\t);\n\t});\n\n\n\treturn changes;\n}",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[]): LineRangeMapping[] {\n\tconst changes: LineRangeMapping[] = [];\n\tfor (const g of group(\n\t\talignments,\n\t\t(a1, a2) =>\n\t\t\t(a2.originalRange.startLineNumber - (a1.originalRange.endLineNumber - (a1.originalRange.endColumn > 1 ? 0 : 1)) <= 1)\n\t\t\t|| (a2.modifiedRange.startLineNumber - (a1.modifiedRange.endLineNumber - (a1.modifiedRange.endColumn > 1 ? 0 : 1)) <= 1)\n\t)) {\n\t\tif (true) {\n\t\t\tconst first = g[0];\n\t\t\tconst last = g[g.length - 1];\n\n\t\t\tchanges.push(new LineRangeMapping(\n\t\t\t\tnew LineRange(\n\t\t\t\t\tfirst.originalRange.startLineNumber,\n\t\t\t\t\tlast.originalRange.endLineNumber + (last.originalRange.endColumn > 1 || last.modifiedRange.endColumn > 1 ? 1 : 0)\n\t\t\t\t),\n\t\t\t\tnew LineRange(\n\t\t\t\t\tfirst.modifiedRange.startLineNumber,\n\t\t\t\t\tlast.modifiedRange.endLineNumber + (last.originalRange.endColumn > 1 || last.modifiedRange.endColumn > 1 ? 1 : 0)\n\t\t\t\t),\n\t\t\t\tg\n\t\t\t));\n\t\t}\n\t}\n\n\tassertFn(() => {\n\t\treturn checkAdjacentItems(changes,\n\t\t\t(m1, m2) => m2.originalRange.startLineNumber - m1.originalRange.endLineNumberExclusive === m2.modifiedRange.startLineNumber - m1.modifiedRange.endLineNumberExclusive &&\n\t\t\t\t// There has to be an unchanged line in between (otherwise both diffs should have been joined)\n\t\t\t\tm1.originalRange.endLineNumberExclusive < m2.originalRange.startLineNumber &&\n\t\t\t\tm1.modifiedRange.endLineNumberExclusive < m2.modifiedRange.startLineNumber,\n\t\t);\n\t});\n\n\n\treturn changes;\n}",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[9,11)",
+			"modifiedRange": "[9,12)",
+			"innerChanges": [
+				{
+					"originalRange": "[9,1 -> 9,1]",
+					"modifiedRange": "[9,1 -> 10,1]"
+				},
+				{
+					"originalRange": "[9,1 -> 9,1]",
+					"modifiedRange": "[10,1 -> 10,2]"
+				},
+				{
+					"originalRange": "[10,1 -> 10,1]",
+					"modifiedRange": "[11,1 -> 11,2]"
+				}
+			]
+		},
+		{
+			"originalRange": "[12,23)",
+			"modifiedRange": "[13,25)",
+			"innerChanges": [
+				{
+					"originalRange": "[12,1 -> 12,1]",
+					"modifiedRange": "[13,1 -> 13,2]"
+				},
+				{
+					"originalRange": "[13,1 -> 13,1]",
+					"modifiedRange": "[14,1 -> 14,2]"
+				},
+				{
+					"originalRange": "[14,1 -> 14,1]",
+					"modifiedRange": "[15,1 -> 15,2]"
+				},
+				{
+					"originalRange": "[15,1 -> 15,1]",
+					"modifiedRange": "[16,1 -> 16,2]"
+				},
+				{
+					"originalRange": "[16,1 -> 16,1]",
+					"modifiedRange": "[17,1 -> 17,2]"
+				},
+				{
+					"originalRange": "[17,1 -> 17,1]",
+					"modifiedRange": "[18,1 -> 18,2]"
+				},
+				{
+					"originalRange": "[18,1 -> 18,1]",
+					"modifiedRange": "[19,1 -> 19,2]"
+				},
+				{
+					"originalRange": "[19,1 -> 19,1]",
+					"modifiedRange": "[20,1 -> 20,2]"
+				},
+				{
+					"originalRange": "[20,1 -> 20,1]",
+					"modifiedRange": "[21,1 -> 21,2]"
+				},
+				{
+					"originalRange": "[21,1 -> 21,1]",
+					"modifiedRange": "[22,1 -> 22,2]"
+				},
+				{
+					"originalRange": "[22,1 -> 22,1]",
+					"modifiedRange": "[23,1 -> 23,2]"
+				},
+				{
+					"originalRange": "[23,1 -> 23,1]",
+					"modifiedRange": "[24,1 -> 25,1]"
+				}
+			]
+		}
+	]
+}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughUtils';
 import 'vs/css!./media/walkThroughPart';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
@@ -26,9 +27,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { isObject } from 'vs/base/common/types';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorOptions as ICodeEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
-import { getExtraColor } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughUtils';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { deepClone } from 'vs/base/common/objects';
@@ -85,7 +84,7 @@ export class WalkThroughPart extends EditorPane {
 		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(editorGroupService, textResourceConfigurationService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
-	createEditor(container: HTMLElement): void {
+	protected createEditor(container: HTMLElement): void {
 		this.content = document.createElement('div');
 		this.content.classList.add('welcomePageFocusElement');
 		this.content.tabIndex = 0;
@@ -220,8 +219,7 @@ export class WalkThroughPart extends EditorPane {
 	private updateSizeClasses() {
 		const innerContent = this.content.firstElementChild;
 		if (this.size && innerContent) {
-			const classList = innerContent.classList;
-			classList[this.size.height <= 685 ? 'add' : 'remove']('max-height-685px');
+			innerContent.classList.toggle('max-height-685px', this.size.height <= 685);
 		}
 	}
 
@@ -356,8 +354,8 @@ export class WalkThroughPart extends EditorPane {
 						}
 					}));
 
-					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(() => {
-						if (snippet.textEditorModel) {
+					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
+						if (e.affectsConfiguration('editor') && snippet.textEditorModel) {
 							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getLanguageId()));
 						}
 					}));
@@ -483,45 +481,3 @@ export class WalkThroughPart extends EditorPane {
 		super.dispose();
 	}
 }
-
-// theming
-
-export const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hcDark: null, hcLight: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
-
-registerThemingParticipant((theme, collector) => {
-	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hcDark: null, hcLight: null });
-	if (color) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor-background,
-			.monaco-workbench .part.editor > .content .walkThroughContent .margin-view-overlays { background: ${color}; }`);
-	}
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a[href] { color: ${link}; }`);
-	}
-	const activeLink = theme.getColor(textLinkActiveForeground);
-	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a:hover,
-			.monaco-workbench .part.editor > .content .walkThroughContent a[href]:active { color: ${activeLink}; }`);
-	}
-	const focusColor = theme.getColor(focusBorder);
-	if (focusColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a[href]:focus { outline-color: ${focusColor}; }`);
-	}
-	const shortcut = theme.getColor(textPreformatForeground);
-	if (shortcut) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent code,
-			.monaco-workbench .part.editor > .content .walkThroughContent .shortcut { color: ${shortcut}; }`);
-	}
-	const border = theme.getColor(contrastBorder);
-	if (border) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor { border-color: ${border}; }`);
-	}
-	const quoteBackground = theme.getColor(textBlockQuoteBackground);
-	if (quoteBackground) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent blockquote { background: ${quoteBackground}; }`);
-	}
-	const quoteBorder = theme.getColor(textBlockQuoteBorder);
-	if (quoteBorder) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent blockquote { border-color: ${quoteBorder}; }`);
-	}
-});

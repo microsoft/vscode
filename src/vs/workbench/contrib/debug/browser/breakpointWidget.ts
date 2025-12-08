@@ -14,7 +14,6 @@ import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser'
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -39,10 +38,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
-export interface IPrivateBreakpointWidgetService {
+interface IPrivateBreakpointWidgetService {
 	readonly _serviceBrand: undefined;
 	close(success: boolean): void;
 }
@@ -96,6 +97,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1, isAccessible: true });
 
@@ -130,13 +132,15 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	}
 
 	private get placeholder(): string {
+		const acceptString = this.keybindingService.lookupKeybinding(AcceptBreakpointWidgetInputAction.ID)?.getLabel() || 'Enter';
+		const closeString = this.keybindingService.lookupKeybinding(CloseBreakpointWidgetCommand.ID)?.getLabel() || 'Escape';
 		switch (this.context) {
 			case Context.LOG_MESSAGE:
-				return nls.localize('breakpointWidgetLogMessagePlaceholder', "Message to log when breakpoint is hit. Expressions within {} are interpolated. 'Enter' to accept, 'esc' to cancel.");
+				return nls.localize('breakpointWidgetLogMessagePlaceholder', "Message to log when breakpoint is hit. Expressions within {} are interpolated. '{0}' to accept, '{1}' to cancel.", acceptString, closeString);
 			case Context.HIT_COUNT:
-				return nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met. 'Enter' to accept, 'esc' to cancel.");
+				return nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met. '{0}' to accept, '{1}' to cancel.", acceptString, closeString);
 			default:
-				return nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. 'Enter' to accept, 'esc' to cancel.");
+				return nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. '{0}' to accept, '{1}' to cancel.", acceptString, closeString);
 		}
 	}
 
@@ -169,7 +173,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		if (this.editor.hasModel()) {
 			// Use plaintext language for log messages, otherwise respect underlying editor language #125619
 			const languageId = this.context === Context.LOG_MESSAGE ? PLAINTEXT_LANGUAGE_ID : this.editor.getModel().getLanguageId();
-			this.input.getModel().setMode(languageId);
+			this.input.getModel().setLanguage(languageId);
 		}
 	}
 
@@ -185,8 +189,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, undefined, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
-		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
+		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
 		selectBox.onDidSelect(e => {
@@ -217,6 +220,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.centerInputVertically();
 	}
 
+	protected override _onWidth(widthInPixel: number): void {
+		if (typeof this.heightInPx === 'number') {
+			this._doLayout(this.heightInPx, widthInPixel);
+		}
+	}
+
 	private createBreakpointInput(container: HTMLElement): void {
 		const scopedContextKeyService = this.contextKeyService.createScoped(container);
 		this.toDispose.push(scopedContextKeyService);
@@ -230,7 +239,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
 		if (this.editor.hasModel()) {
-			model.setMode(this.editor.getModel().getLanguageId());
+			model.setLanguage(this.editor.getModel().getLanguageId());
 		}
 		this.input.setModel(model);
 		this.setInputMode();
@@ -244,6 +253,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.themeService.onDidColorThemeChange(() => setDecorations());
 
 		this.toDispose.push(this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'breakpointWidget',
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				let suggestionsPromise: Promise<CompletionList>;
 				const underlyingModel = this.editor.getModel();
@@ -286,7 +296,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	private createEditorOptions(): IEditorOptions {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
-		const options = getSimpleEditorOptions();
+		const options = getSimpleEditorOptions(this._configurationService);
 		options.fontSize = editorConfig.fontSize;
 		options.fontFamily = editorConfig.fontFamily;
 		options.lineHeight = editorConfig.lineHeight;
@@ -330,7 +340,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					hitCondition,
 					logMessage
 				});
-				this.debugService.updateBreakpoints(this.breakpoint.uri, data, false).then(undefined, onUnexpectedError);
+				this.debugService.updateBreakpoints(this.breakpoint.originalUri, data, false).then(undefined, onUnexpectedError);
 			} else {
 				const model = this.editor.getModel();
 				if (model) {
@@ -358,10 +368,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 }
 
 class AcceptBreakpointWidgetInputAction extends EditorCommand {
-
+	static ID = 'breakpointWidget.action.acceptInput';
 	constructor() {
 		super({
-			id: 'breakpointWidget.action.acceptInput',
+			id: AcceptBreakpointWidgetInputAction.ID,
 			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
 			kbOpts: {
 				kbExpr: CONTEXT_IN_BREAKPOINT_WIDGET,
@@ -377,10 +387,10 @@ class AcceptBreakpointWidgetInputAction extends EditorCommand {
 }
 
 class CloseBreakpointWidgetCommand extends EditorCommand {
-
+	static ID = 'closeBreakpointWidget';
 	constructor() {
 		super({
-			id: 'closeBreakpointWidget',
+			id: CloseBreakpointWidgetCommand.ID,
 			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,

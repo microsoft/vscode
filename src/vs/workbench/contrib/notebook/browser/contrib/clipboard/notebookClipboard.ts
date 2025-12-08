@@ -26,10 +26,10 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
 
 let _logging: boolean = false;
 function toggleLogging() {
@@ -550,7 +550,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.toggleNotebookClipboardLog',
 			title: { value: localize('toggleNotebookClipboardLog', "Toggle Notebook Clipboard Troubleshooting"), original: 'Toggle Notebook Clipboard Troubleshooting' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -558,8 +558,8 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		toggleLogging();
 		if (_logging) {
-			const outputService = accessor.get(IOutputService);
-			outputService.showChannel(rendererLogChannelId);
+			const commandService = accessor.get(ICommandService);
+			commandService.executeCommand(showWindowLogActionId);
 		}
 	}
 });

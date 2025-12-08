@@ -6,9 +6,11 @@
 			"name": "Attach",
 			"type": "node",
 			"request": "attach",
-			"port": 7692,
+			"port": 7997,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/out/**/*.js"]
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			]
 		}
 	]
 }

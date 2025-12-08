@@ -67,7 +67,7 @@ suite('SmartSelect', () => {
 	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[], selectLeadingAndTrailingWhitespace = true): Promise<void> {
 		const uri = URI.file('test.js');
 		const model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(languageId), uri);
-		const [actual] = await provideSelectionRanges(providers, model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace }, CancellationToken.None);
+		const [actual] = await provideSelectionRanges(providers, model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace, selectSubwords: true }, CancellationToken.None);
 		const actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
 		const desiredStr = ranges.reverse().map(r => String(r));
 
@@ -211,7 +211,7 @@ suite('SmartSelect', () => {
 
 	async function assertRanges(provider: SelectionRangeProvider, value: string, ...expected: IRange[]): Promise<void> {
 		const index = value.indexOf('|');
-		value = value.replace('|', '');
+		value = value.replace('|', ''); // CodeQL [SM02383] js/incomplete-sanitization this is purpose only the first | character
 
 		const model = modelService.createModel(value, new StaticLanguageSelector(languageId), URI.parse('fake:lang'));
 		const pos = model.getPositionAt(index);
@@ -289,6 +289,24 @@ suite('SmartSelect', () => {
 
 		await assertRanges(new WordSelectionRangeProvider(), 'f|oo-Ba',
 			new Range(1, 1, 1, 4),
+			new Range(1, 1, 1, 7),
+			new Range(1, 1, 1, 7),
+		);
+	});
+
+	test('in-word ranges with selectSubwords=false', async () => {
+
+		await assertRanges(new WordSelectionRangeProvider(false), 'f|ooBar',
+			new Range(1, 1, 1, 7),
+			new Range(1, 1, 1, 7),
+		);
+
+		await assertRanges(new WordSelectionRangeProvider(false), 'f|oo_Ba',
+			new Range(1, 1, 1, 7),
+			new Range(1, 1, 1, 7),
+		);
+
+		await assertRanges(new WordSelectionRangeProvider(false), 'f|oo-Ba',
 			new Range(1, 1, 1, 7),
 			new Range(1, 1, 1, 7),
 		);

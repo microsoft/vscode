@@ -5,81 +5,60 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSpec: "18.x"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - template: ./distro/download-distro.yml
+
     - task: AzureKeyVault@1
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
         azureSubscription: "vscode-builds-subscription"
-        KeyVaultName: vscode
+        KeyVaultName: vscode-build-secrets
         SecretsFilter: "github-distro-mixin-password"
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        cat << EOF > ~/.netrc
-        machine github.com
-        login vscode
-        password $(github-distro-mixin-password)
-        EOF
+  - script: node build/setup-npm-registry.js $NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
 
-        git config user.email "vscode@microsoft.com"
-        git config user.name "VSCode"
-      displayName: Prepare tooling
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile > .build/yarnlockhash
+    displayName: Prepare node_modules cache key
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-        echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-        git checkout FETCH_HEAD
-      condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-      displayName: Checkout override commit
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-      displayName: Merge distro
-
-  - script: |
-      mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
-    displayName: Prepare yarn cache flags
-
-  # using `genericNodeModules` instead of `nodeModules` here to avoid sharing the cache with builds running inside containers
   - task: Cache@2
     inputs:
-      key: "genericNodeModules | $(Agent.OS) | .build/yarnlockhash"
+      key: '"node_modules" | .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
 
-  - script: |
-      set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
+  - script: tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
   - script: |
       set -e
-      npx https://aka.ms/enablesecurefeed standAlone
-    timeoutInMinutes: 5
-    retryCountOnTaskFailure: 3
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-    displayName: Switch to Terrapin packages
+      npm config set registry "$NPM_REGISTRY" --location=project
+      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+      # following is a workaround for yarn to send authorization header
+      # for GET requests to the registry.
+      echo "always-auth=true" >> .npmrc
+      yarn config set registry "$NPM_REGISTRY"
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM & Yarn
 
-  - script: |
-      set -e
-      sudo apt update -y
-      sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libsecret-1-dev libnotify-bin
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libsecret-1-dev libnotify-bin libkrb5-dev
     displayName: Install build tools
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e
-      for i in {1..3}; do # try 3 times, for Terrapin
+      for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
@@ -94,6 +73,11 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: node build/azure-pipelines/distro/mixin-npm
+      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+      displayName: Mixin distro node modules
+
   - script: |
       set -e
       node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
@@ -102,28 +86,35 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: yarn --cwd build compile && ./.github/workflows/check-clean-git-state.sh
+      displayName: Check /build/ folder
+
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    # Mixin must run before optimize, because the CSS loader will inline small SVGs
+    - script: node build/azure-pipelines/distro/mixin-quality
+      displayName: Mixin distro quality
+
+  - template: common/install-builtin-extensions.yml
+
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: yarn npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Compile & Hygiene
+  - ${{ else }}:
+    - script: yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Compile & Hygiene
+
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
-        node build/azure-pipelines/mixin
-      displayName: Mix in quality
+        yarn --cwd test/smoke compile
+        yarn --cwd test/integration/browser compile
+      displayName: Compile test suites
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-  - script: |
-      set -e
-      yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Compile & Hygiene
-
-  - script: |
-      set -e
-      yarn --cwd test/smoke compile
-      yarn --cwd test/integration/browser compile
-    displayName: Compile test suites
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: AzureCLI@2
       inputs:
         azureSubscription: "vscode-builds-subscription"
@@ -135,7 +126,6 @@ steps:
           Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
           Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
         AZURE_STORAGE_ACCOUNT="ticino" \
@@ -145,33 +135,26 @@ steps:
           node build/azure-pipelines/upload-sourcemaps
       displayName: Upload sourcemaps
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -
-        ./build/azure-pipelines/common/extract-telemetry.sh
+    - script: ./build/azure-pipelines/common/extract-telemetry.sh
       displayName: Extract Telemetry
 
-  - script: |
-      set -e
-      tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
-    displayName: Compress compilation artifact
+    - script: tar -cz --ignore-failed-read --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
+      displayName: Compress compilation artifact
 
-  - task: PublishPipelineArtifact@1
-    inputs:
-      targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-      artifactName: Compilation
-    displayName: Publish compilation artifact
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+        artifactName: Compilation
+      displayName: Publish compilation artifact
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-          yarn download-builtin-extensions-cg
+    - script: yarn download-builtin-extensions-cg
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Built-in extensions component details
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
       displayName: "Component Detection"
       inputs:
         sourceScanPath: $(Build.SourcesDirectory)
+        alertWarningLevel: Medium
       continueOnError: true

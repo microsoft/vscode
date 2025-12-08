@@ -9,10 +9,10 @@ import { Codicon } from 'vs/base/common/codicons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { InvisibleCharacters } from 'vs/base/common/strings';
+import { InvisibleCharacters, isBasicASCII } from 'vs/base/common/strings';
 import 'vs/css!./unicodeHighlighter';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { InUntrustedWorkspace, inUntrustedWorkspace, EditorOption, InternalUnicodeHighlightOptions, unicodeHighlightConfigKeys } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -407,7 +407,7 @@ export class UnicodeHighlighterHover implements IHoverPart {
 
 export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
-	public readonly hoverOrdinal: number = 4;
+	public readonly hoverOrdinal: number = 5;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -429,6 +429,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 		}
 
 		const result: MarkdownHover[] = [];
+		const existedReason = new Set<string>();
 		let index = 300;
 		for (const d of lineDecorations) {
 
@@ -444,14 +445,24 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 
 			let reason: string;
 			switch (highlightInfo.reason.kind) {
-				case UnicodeHighlighterReasonKind.Ambiguous:
-					reason = nls.localize(
-						'unicodeHighlight.characterIsAmbiguous',
-						'The character {0} could be confused with the character {1}, which is more common in source code.',
-						codePointStr,
-						formatCodePointMarkdown(highlightInfo.reason.confusableWith.codePointAt(0)!)
-					);
+				case UnicodeHighlighterReasonKind.Ambiguous: {
+					if (isBasicASCII(highlightInfo.reason.confusableWith)) {
+						reason = nls.localize(
+							'unicodeHighlight.characterIsAmbiguousASCII',
+							'The character {0} could be confused with the ASCII character {1}, which is more common in source code.',
+							codePointStr,
+							formatCodePointMarkdown(highlightInfo.reason.confusableWith.codePointAt(0)!)
+						);
+					} else {
+						reason = nls.localize(
+							'unicodeHighlight.characterIsAmbiguous',
+							'The character {0} could be confused with the character {1}, which is more common in source code.',
+							codePointStr,
+							formatCodePointMarkdown(highlightInfo.reason.confusableWith.codePointAt(0)!)
+						);
+					}
 					break;
+				}
 
 				case UnicodeHighlighterReasonKind.Invisible:
 					reason = nls.localize(
@@ -470,6 +481,11 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 					break;
 			}
 
+			if (existedReason.has(reason)) {
+				continue;
+			}
+			existedReason.add(reason);
+
 			const adjustSettingsArgs: ShowExcludeOptionsArgs = {
 				codePoint: codePoint,
 				reason: highlightInfo.reason,
@@ -483,7 +499,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 				.appendMarkdown(reason)
 				.appendText(' ')
 				.appendLink(uri, adjustSettings);
-			result.push(new MarkdownHover(this, d.range, [markdown], index++));
+			result.push(new MarkdownHover(this, d.range, [markdown], false, index++));
 		}
 		return result;
 	}
@@ -803,5 +819,5 @@ registerEditorAction(DisableHighlightingOfAmbiguousCharactersAction);
 registerEditorAction(DisableHighlightingOfInvisibleCharactersAction);
 registerEditorAction(DisableHighlightingOfNonBasicAsciiCharactersAction);
 registerEditorAction(ShowExcludeOptions);
-registerEditorContribution(UnicodeHighlighter.ID, UnicodeHighlighter);
+registerEditorContribution(UnicodeHighlighter.ID, UnicodeHighlighter, EditorContributionInstantiation.AfterFirstRender);
 HoverParticipantRegistry.register(UnicodeHighlighterHoverParticipant);

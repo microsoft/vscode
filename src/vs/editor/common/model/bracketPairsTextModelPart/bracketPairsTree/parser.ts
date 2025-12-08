@@ -53,14 +53,14 @@ class Parser {
 		}
 
 		this.oldNodeReader = oldNode ? new NodeReader(oldNode) : undefined;
-		this.positionMapper = new BeforeEditPositionMapper(edits, tokenizer.length);
+		this.positionMapper = new BeforeEditPositionMapper(edits);
 	}
 
 	parseDocument(): AstNode {
 		this._itemsConstructed = 0;
 		this._itemsFromCache = 0;
 
-		let result = this.parseList(SmallImmutableSet.getEmpty());
+		let result = this.parseList(SmallImmutableSet.getEmpty(), 0);
 		if (!result) {
 			result = ListAstNode.getEmpty();
 		}
@@ -70,20 +70,26 @@ class Parser {
 
 	private parseList(
 		openedBracketIds: SmallImmutableSet<OpeningBracketId>,
+		level: number,
 	): AstNode | null {
-		const items = new Array<AstNode>();
+		const items: AstNode[] = [];
 
 		while (true) {
-			const token = this.tokenizer.peek();
-			if (
-				!token ||
-				(token.kind === TokenKind.ClosingBracket &&
-					token.bracketIds.intersects(openedBracketIds))
-			) {
-				break;
+			let child = this.tryReadChildFromCache(openedBracketIds);
+
+			if (!child) {
+				const token = this.tokenizer.peek();
+				if (
+					!token ||
+					(token.kind === TokenKind.ClosingBracket &&
+						token.bracketIds.intersects(openedBracketIds))
+				) {
+					break;
+				}
+
+				child = this.parseChild(openedBracketIds, level + 1);
 			}
 
-			const child = this.parseChild(openedBracketIds);
 			if (child.kind === AstNodeKind.List && child.childrenLength === 0) {
 				continue;
 			}
@@ -96,14 +102,14 @@ class Parser {
 		return result;
 	}
 
-	private parseChild(
-		openedBracketIds: SmallImmutableSet<number>,
-	): AstNode {
+	private tryReadChildFromCache(openedBracketIds: SmallImmutableSet<number>): AstNode | undefined {
 		if (this.oldNodeReader) {
 			const maxCacheableLength = this.positionMapper.getDistanceToNextChange(this.tokenizer.offset);
-			if (!lengthIsZero(maxCacheableLength)) {
+			if (maxCacheableLength === null || !lengthIsZero(maxCacheableLength)) {
 				const cachedNode = this.oldNodeReader.readLongestNodeAt(this.positionMapper.getOffsetBeforeChange(this.tokenizer.offset), curNode => {
-					if (!lengthLessThan(curNode.length, maxCacheableLength)) {
+					// The edit could extend the ending token, thus we cannot re-use nodes that touch the edit.
+					// If there is no edit anymore, we can re-use the node in any case.
+					if (maxCacheableLength !== null && !lengthLessThan(curNode.length, maxCacheableLength)) {
 						// Either the node contains edited text or touches edited text.
 						// In the latter case, brackets might have been extended (`end` -> `ending`), so even touching nodes cannot be reused.
 						return false;
@@ -119,7 +125,13 @@ class Parser {
 				}
 			}
 		}
+		return undefined;
+	}
 
+	private parseChild(
+		openedBracketIds: SmallImmutableSet<number>,
+		level: number,
+	): AstNode {
 		this._itemsConstructed++;
 
 		const token = this.tokenizer.read()!;
@@ -132,8 +144,13 @@ class Parser {
 				return token.astNode as TextAstNode;
 
 			case TokenKind.OpeningBracket: {
+				if (level > 300) {
+					// To prevent stack overflows
+					return new TextAstNode(token.length);
+				}
+
 				const set = openedBracketIds.merge(token.bracketIds);
-				const child = this.parseList(set);
+				const child = this.parseList(set, level + 1);
 
 				const nextToken = this.tokenizer.peek();
 				if (

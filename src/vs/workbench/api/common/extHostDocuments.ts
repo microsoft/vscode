@@ -15,13 +15,14 @@ import type * as vscode from 'vscode';
 import { assertIsDefined } from 'vs/base/common/types';
 import { deepFreeze } from 'vs/base/common/objects';
 import { TextDocumentChangeReason } from 'vs/workbench/api/common/extHostTypes';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
-	private readonly _onDidAddDocument = new Emitter<vscode.TextDocument>();
-	private readonly _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
-	private readonly _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>();
-	private readonly _onDidSaveDocument = new Emitter<vscode.TextDocument>();
+	private readonly _onDidAddDocument = new Emitter<vscode.TextDocument>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidRemoveDocument = new Emitter<vscode.TextDocument>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidSaveDocument = new Emitter<vscode.TextDocument>({ onListenerError: onUnexpectedExternalError });
 
 	readonly onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
 	readonly onDidRemoveDocument: Event<vscode.TextDocument> = this._onDidRemoveDocument.event;

@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -77,7 +77,7 @@ export abstract class AbstractTextCodeEditor<T extends IEditorViewState> extends
 			return undefined; // prevent saving view state for a model that is not the expected one
 		}
 
-		return withNullAsUndefined(this.editorControl.saveViewState() as unknown as T);
+		return this.editorControl.saveViewState() as unknown as T ?? undefined;
 	}
 
 	override setOptions(options: ITextEditorOptions | undefined): void {

@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import * as network from 'vs/base/common/network';
 import { Event } from 'vs/base/common/event';
 import { ITableContextMenuEvent, ITableEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -14,7 +13,7 @@ import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from 'vs/platform/
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
@@ -29,6 +28,8 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IProblemsWidget } from 'vs/workbench/contrib/markers/browser/markersView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
+import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
+import Severity from 'vs/base/common/severity';
 
 const $ = DOM.$;
 
@@ -89,7 +90,7 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 		};
 
 		templateData.icon.title = MarkerSeverity.toString(element.marker.severity);
-		templateData.icon.className = `marker-icon codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
+		templateData.icon.className = `marker-icon ${Severity.toString(MarkerSeverity.toSeverity(element.marker.severity))} codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
 
 		templateData.actionBar.clear();
 		const viewModel = this.markersViewModel.getViewModel(element);
@@ -411,7 +412,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		const items: MarkerTableItem[] = [];
 		for (const resourceMarker of this.resourceMarkers) {
 			for (const marker of resourceMarker.markers) {
-				if (marker.resource.scheme === network.Schemas.walkThrough || marker.resource.scheme === network.Schemas.walkThroughSnippet) {
+				if (unsupportedSchemas.has(marker.resource.scheme)) {
 					continue;
 				}
 

@@ -10,7 +10,7 @@ import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/act
 import { LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 import { findLocalHistoryEntry, ITimelineCommandArgument } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';

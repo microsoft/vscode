@@ -5,8 +5,9 @@
 
 import { window, workspace, Disposable, TextDocument, Position, SnippetString, TextDocumentChangeEvent, TextDocumentChangeReason, TextDocumentContentChangeEvent } from 'vscode';
 import { Runtime } from './htmlClient';
+import { LanguageParticipants } from './languageParticipants';
 
-export function activateAutoInsertion(provider: (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position) => Thenable<string>, supportedLanguages: { [id: string]: boolean }, runtime: Runtime): Disposable {
+export function activateAutoInsertion(provider: (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position) => Thenable<string>, languageParticipants: LanguageParticipants, runtime: Runtime): Disposable {
 	const disposables: Disposable[] = [];
 	workspace.onDidChangeTextDocument(onDidChangeTextDocument, null, disposables);
 
@@ -33,7 +34,7 @@ export function activateAutoInsertion(provider: (kind: 'autoQuote' | 'autoClose'
 			return;
 		}
 		const document = editor.document;
-		if (!supportedLanguages[document.languageId]) {
+		if (!languageParticipants.useAutoInsert(document.languageId)) {
 			return;
 		}
 		const configurations = workspace.getConfiguration(undefined, document.uri);

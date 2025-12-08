@@ -7,8 +7,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off';
 
@@ -60,8 +58,8 @@ function getOutputChannel(): vscode.OutputChannel {
 }
 
 function showError() {
-	vscode.window.showWarningMessage(localize('gruntTaskDetectError', 'Problem finding grunt tasks. See the output for more information.'),
-		localize('gruntShowOutput', 'Go to output')).then(() => {
+	vscode.window.showWarningMessage(vscode.l10n.t("Problem finding grunt tasks. See the output for more information."),
+		vscode.l10n.t("Go to output")).then(() => {
 			getOutputChannel().show(true);
 		});
 }
@@ -215,7 +213,7 @@ class FolderDetector {
 			if (err.stdout) {
 				channel.appendLine(err.stdout);
 			}
-			channel.appendLine(localize('execFailed', 'Auto detecting Grunt for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
+			channel.appendLine(vscode.l10n.t("Auto detecting Grunt for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown"));
 			showError();
 			return emptyTasks;
 		}

@@ -30,14 +30,14 @@ export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | ITo
 	}
 }
 
-export type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
+type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
 type IResolvedHoverContent = IMarkdownString | string | HTMLElement | undefined;
 
 /**
  * Copied from src\vs\workbench\services\hover\browser\hover.ts
  * @deprecated Use IHoverService
  */
-export interface IHoverAction {
+interface IHoverAction {
 	label: string;
 	commandId: string;
 	iconClass?: string;
@@ -164,6 +164,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 	let hoverWidget: UpdatableHoverWidget | undefined;
 
 	const hideHover = (disposeWidget: boolean, disposePreparation: boolean) => {
+		const hadHover = hoverWidget !== undefined;
 		if (disposeWidget) {
 			hoverWidget?.dispose();
 			hoverWidget = undefined;
@@ -172,7 +173,9 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			hoverPreparation?.dispose();
 			hoverPreparation = undefined;
 		}
-		hoverDelegate.onDidHideHover?.();
+		if (hadHover) {
+			hoverDelegate.onDidHideHover?.();
+		}
 	};
 
 	const triggerShowHover = (delay: number, focus?: boolean, target?: IHoverDelegateTarget) => {

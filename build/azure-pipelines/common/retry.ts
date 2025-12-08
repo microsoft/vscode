@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export async function retry<T>(fn: () => Promise<T>): Promise<T> {
+export async function retry<T>(fn: (attempt: number) => Promise<T>): Promise<T> {
 	let lastError: Error | undefined;
 
 	for (let run = 1; run <= 10; run++) {
 		try {
-			return await fn();
+			return await fn(run);
 		} catch (err) {
 			if (!/ECONNRESET|CredentialUnavailableError|Audience validation failed/i.test(err.message)) {
 				throw err;

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
+import { OperatingSystem, OS } from 'vs/base/common/platform';
+import { collapseTildePath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 
 suite('terminalEnvironment', () => {
 	suite('collapseTildePath', () => {
@@ -35,6 +36,17 @@ suite('terminalEnvironment', () => {
 			strictEqual(collapseTildePath('/foo/bar', '/foo/', '/'), '~/bar');
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo', '/'), '~/bar/baz');
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo/', '/'), '~/bar/baz');
+		});
+	});
+	suite('sanitizeCwd', () => {
+		if (OS === OperatingSystem.Windows) {
+			test('should make the Windows drive letter uppercase', () => {
+				strictEqual(sanitizeCwd('c:\\foo\\bar'), 'C:\\foo\\bar');
+			});
+		}
+		test('should remove any wrapping quotes', () => {
+			strictEqual(sanitizeCwd('\'/foo/bar\''), '/foo/bar');
+			strictEqual(sanitizeCwd('"/foo/bar"'), '/foo/bar');
 		});
 	});
 });

@@ -25,9 +25,15 @@ export class ClickLinkMouseEvent {
 	public readonly hasTriggerModifier: boolean;
 	public readonly hasSideBySideModifier: boolean;
 	public readonly isNoneOrSingleMouseDown: boolean;
+	public readonly isLeftClick: boolean;
+	public readonly isMiddleClick: boolean;
+	public readonly isRightClick: boolean;
 
 	constructor(source: IEditorMouseEvent, opts: ClickLinkOptions) {
 		this.target = source.target;
+		this.isLeftClick = source.event.leftButton;
+		this.isMiddleClick = source.event.middleButton;
+		this.isRightClick = source.event.rightButton;
 		this.hasTriggerModifier = hasModifier(source.event, opts.triggerModifier);
 		this.hasSideBySideModifier = hasModifier(source.event, opts.triggerSideBySideModifier);
 		this.isNoneOrSingleMouseDown = (source.event.detail <= 1);
@@ -94,6 +100,13 @@ function createOptions(multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey'): C
 	return new ClickLinkOptions(KeyCode.Alt, 'altKey', KeyCode.Ctrl, 'ctrlKey');
 }
 
+export interface IClickLinkGestureOptions {
+	/**
+	 * Return 0 if the mouse event should not be considered.
+	 */
+	extractLineNumberFromMouseEvent?: (e: ClickLinkMouseEvent) => number;
+}
+
 export class ClickLinkGesture extends Disposable {
 
 	private readonly _onMouseMoveOrRelevantKeyDown: Emitter<[ClickLinkMouseEvent, ClickLinkKeyboardEvent | null]> = this._register(new Emitter<[ClickLinkMouseEvent, ClickLinkKeyboardEvent | null]>());
@@ -106,16 +119,18 @@ export class ClickLinkGesture extends Disposable {
 	public readonly onCancel: Event<void> = this._onCancel.event;
 
 	private readonly _editor: ICodeEditor;
+	private readonly _extractLineNumberFromMouseEvent: (e: ClickLinkMouseEvent) => number;
 	private _opts: ClickLinkOptions;
 
 	private _lastMouseMoveEvent: ClickLinkMouseEvent | null;
 	private _hasTriggerKeyOnMouseDown: boolean;
 	private _lineNumberOnMouseDown: number;
 
-	constructor(editor: ICodeEditor) {
+	constructor(editor: ICodeEditor, opts?: IClickLinkGestureOptions) {
 		super();
 
 		this._editor = editor;
+		this._extractLineNumberFromMouseEvent = opts?.extractLineNumberFromMouseEvent ?? ((e) => e.target.position ? e.target.position.lineNumber : 0);
 		this._opts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
 
 		this._lastMouseMoveEvent = null;
@@ -170,11 +185,11 @@ export class ClickLinkGesture extends Disposable {
 		// release the mouse button without wanting to do the navigation.
 		// With this flag we prevent goto definition if the mouse was down before the trigger key was pressed.
 		this._hasTriggerKeyOnMouseDown = mouseEvent.hasTriggerModifier;
-		this._lineNumberOnMouseDown = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
+		this._lineNumberOnMouseDown = this._extractLineNumberFromMouseEvent(mouseEvent);
 	}
 
 	private _onEditorMouseUp(mouseEvent: ClickLinkMouseEvent): void {
-		const currentLineNumber = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
+		const currentLineNumber = this._extractLineNumberFromMouseEvent(mouseEvent);
 		if (this._hasTriggerKeyOnMouseDown && this._lineNumberOnMouseDown && this._lineNumberOnMouseDown === currentLineNumber) {
 			this._onExecute.fire(mouseEvent);
 		}

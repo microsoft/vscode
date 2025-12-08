@@ -5,9 +5,11 @@
 
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { Range } from 'vs/base/common/range';
+import { OmitOptional } from 'vs/base/common/types';
 import 'vs/css!./contextview';
 
 export const enum ContextViewDOMPosition {
@@ -23,6 +25,12 @@ export interface IAnchor {
 	height?: number;
 }
 
+export function isAnchor(obj: unknown): obj is IAnchor | OmitOptional<IAnchor> {
+	const anchor = obj as IAnchor | OmitOptional<IAnchor> | undefined;
+
+	return !!anchor && typeof anchor.x === 'number' && typeof anchor.y === 'number';
+}
+
 export const enum AnchorAlignment {
 	LEFT, RIGHT
 }
@@ -36,7 +44,13 @@ export const enum AnchorAxisAlignment {
 }
 
 export interface IDelegate {
-	getAnchor(): HTMLElement | IAnchor;
+	/**
+	 * The anchor where to position the context view.
+	 * Use a `HTMLElement` to position the view at the element,
+	 * a `StandardMouseEvent` to position it at the mouse position
+	 * or an `IAnchor` to position it at a specific location.
+	 */
+	getAnchor(): HTMLElement | StandardMouseEvent | IAnchor;
 	render(container: HTMLElement): IDisposable | null;
 	focus?(): void;
 	layout?(): void;
@@ -206,7 +220,7 @@ export class ContextView extends Disposable {
 		this.view.className = 'context-view';
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
-		this.view.style.zIndex = '2500';
+		this.view.style.zIndex = '2575';
 		this.view.style.position = this.useFixedPosition ? 'fixed' : 'absolute';
 		DOM.show(this.view);
 
@@ -271,12 +285,23 @@ export class ContextView extends Disposable {
 				width: elementPosition.width * zoom,
 				height: elementPosition.height * zoom
 			};
-		} else {
+		} else if (isAnchor(anchor)) {
 			around = {
 				top: anchor.y,
 				left: anchor.x,
 				width: anchor.width || 1,
 				height: anchor.height || 2
+			};
+		} else {
+			around = {
+				top: anchor.posy,
+				left: anchor.posx,
+				// We are about to position the context view where the mouse
+				// cursor is. To prevent the view being exactly under the mouse
+				// when showing and thus potentially triggering an action within,
+				// we treat the mouse location like a small sized block element.
+				width: 2,
+				height: 2
 			};
 		}
 
@@ -364,12 +389,6 @@ export class ContextView extends Disposable {
 const SHADOW_ROOT_CSS = /* css */ `
 	:host {
 		all: initial; /* 1st rule so subsequent properties are reset. */
-	}
-
-	@font-face {
-		font-family: "codicon";
-		font-display: block;
-		src: url("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
 	}
 
 	.codicon[class*='codicon-'] {

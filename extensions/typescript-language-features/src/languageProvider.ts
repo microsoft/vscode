@@ -6,17 +6,18 @@
 import { basename, extname } from 'path';
 import * as vscode from 'vscode';
 import { CommandManager } from './commands/commandManager';
+import { DocumentSelector } from './configuration/documentSelector';
+import * as fileSchemes from './configuration/fileSchemes';
+import { LanguageDescription } from './configuration/languageDescription';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
 import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
+import { TelemetryReporter } from './logging/telemetry';
 import { CachedResponse } from './tsServer/cachedResponse';
 import { ClientCapability } from './typescriptService';
 import TypeScriptServiceClient from './typescriptServiceClient';
+import TypingsStatus from './ui/typingsStatus';
 import { Disposable } from './utils/dispose';
-import { DocumentSelector } from './utils/documentSelector';
-import * as fileSchemes from './utils/fileSchemes';
-import { LanguageDescription } from './utils/languageDescription';
-import { TelemetryReporter } from './utils/telemetry';
-import TypingsStatus from './utils/typingsStatus';
+import { isWeb } from './utils/platform';
 
 
 const validateSetting = 'validate.enable';
@@ -45,7 +46,7 @@ export default class LanguageProvider extends Disposable {
 		const syntax: vscode.DocumentFilter[] = [];
 		for (const language of this.description.languageIds) {
 			syntax.push({ language });
-			for (const scheme of fileSchemes.semanticSupportedSchemes) {
+			for (const scheme of fileSchemes.getSemanticSupportedSchemes()) {
 				semantic.push({ language, scheme });
 			}
 		}
@@ -75,11 +76,12 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/implementations').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
 			import('./languageFeatures/jsDocCompletions').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/linkedEditing').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/organizeImports').then(provider => this._register(provider.register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter))),
 			import('./languageFeatures/quickFix').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter))),
 			import('./languageFeatures/refactor').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter))),
 			import('./languageFeatures/references').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/rename').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/rename').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
 			import('./languageFeatures/semanticTokens').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/signatureHelp').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/smartSelect').then(provider => this._register(provider.register(selector, this.client))),
@@ -135,6 +137,10 @@ export default class LanguageProvider extends Disposable {
 
 	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any })[]): void {
 		if (diagnosticsKind !== DiagnosticKind.Syntax && !this.client.hasCapabilityForResource(file, ClientCapability.Semantic)) {
+			return;
+		}
+
+		if (diagnosticsKind === DiagnosticKind.Semantic && isWeb() && this.client.configuration.webProjectWideIntellisenseSuppressSemanticErrors) {
 			return;
 		}
 

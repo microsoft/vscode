@@ -14,7 +14,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
+import { isIOS } from 'vs/base/common/platform';
 
 export interface IDiffLinesChange {
 	readonly originalStartLineNumber: number;
@@ -60,7 +62,7 @@ export class InlineDiffMargin extends Disposable {
 		this._marginDomNode.style.zIndex = '10';
 
 		this._diffActions = document.createElement('div');
-		this._diffActions.className = Codicon.lightBulb.classNames + ' lightbulb-glyph';
+		this._diffActions.className = ThemeIcon.asClassName(Codicon.lightBulb) + ' lightbulb-glyph';
 		this._diffActions.style.position = 'absolute';
 		const lineHeight = editor.getOption(EditorOption.lineHeight);
 		const lineFeed = editor.getModel()!.getEOL();
@@ -144,8 +146,11 @@ export class InlineDiffMargin extends Disposable {
 			}));
 		}
 
+		const useShadowDOM = editor.getOption(EditorOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
+
 		const showContextMenu = (x: number, y: number) => {
 			this._contextMenuService.showContextMenu({
+				domForShadowRoot: useShadowDOM ? editor.getDomNode() ?? undefined : undefined,
 				getAnchor: () => {
 					return {
 						x,

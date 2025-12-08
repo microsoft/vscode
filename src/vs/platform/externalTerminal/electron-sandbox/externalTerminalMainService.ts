@@ -13,4 +13,4 @@ export interface IExternalTerminalMainService extends IExternalTerminalService {
 	readonly _serviceBrand: undefined;
 }
 
-registerMainProcessRemoteService(IExternalTerminalMainService, 'externalTerminal', { supportsDelayedInstantiation: true });
+registerMainProcessRemoteService(IExternalTerminalMainService, 'externalTerminal');

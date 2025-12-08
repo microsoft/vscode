@@ -11,13 +11,14 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { INativeWindowConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/window/electron-main/window';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export interface IWindowState {
+	readonly windowId?: number;
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: URI;
 	backupPath?: string;
@@ -54,7 +55,7 @@ export class WindowsStateHandler extends Disposable {
 	private static readonly windowsStateStorageKey = 'windowsState';
 
 	get state() { return this._state; }
-	private readonly _state = restoreWindowsState(this.stateMainService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
+	private readonly _state = restoreWindowsState(this.stateService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
 
 	private lastClosedState: IWindowState | undefined = undefined;
 
@@ -62,7 +63,7 @@ export class WindowsStateHandler extends Disposable {
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -143,6 +144,13 @@ export class WindowsStateHandler extends Disposable {
 	}
 
 	private saveWindowsState(): void {
+
+		// TODO@electron workaround for Electron not being able to restore
+		// multiple (native) fullscreen windows on the same display at once
+		// on macOS.
+		// https://github.com/electron/electron/issues/34367
+		const displaysWithFullScreenWindow = new Set<number | undefined>();
+
 		const currentWindowsState: IWindowsState = {
 			openedWindows: [],
 			lastPluginDevelopmentHostWindow: this._state.lastPluginDevelopmentHostWindow,
@@ -158,6 +166,10 @@ export class WindowsStateHandler extends Disposable {
 
 			if (activeWindow) {
 				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow);
+
+				if (currentWindowsState.lastActiveWindow.uiState.mode === WindowMode.Fullscreen) {
+					displaysWithFullScreenWindow.add(currentWindowsState.lastActiveWindow.uiState.display); // always allow fullscreen for active window
+				}
 			}
 		}
 
@@ -165,6 +177,16 @@ export class WindowsStateHandler extends Disposable {
 		const extensionHostWindow = this.windowsMainService.getWindows().find(window => window.isExtensionDevelopmentHost && !window.isExtensionTestHost);
 		if (extensionHostWindow) {
 			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
+
+			if (currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode === WindowMode.Fullscreen) {
+				if (displaysWithFullScreenWindow.has(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display)) {
+					if (isMacintosh && !extensionHostWindow.win?.isSimpleFullScreen()) {
+						currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode = WindowMode.Normal;
+					}
+				} else {
+					displaysWithFullScreenWindow.add(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display);
+				}
+			}
 		}
 
 		// 3.) All windows (except extension host) for N >= 2 to support `restoreWindows: all` or for auto update
@@ -173,12 +195,26 @@ export class WindowsStateHandler extends Disposable {
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
 		// to come from the stored lastClosedWindowState on Win/Linux at least
 		if (this.windowsMainService.getWindowCount() > 1) {
-			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => this.toWindowState(window));
+			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => {
+				const windowState = this.toWindowState(window);
+
+				if (windowState.uiState.mode === WindowMode.Fullscreen) {
+					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
+						if (isMacintosh && windowState.windowId !== currentWindowsState.lastActiveWindow?.windowId && !window.win?.isSimpleFullScreen()) {
+							windowState.uiState.mode = WindowMode.Normal;
+						}
+					} else {
+						displaysWithFullScreenWindow.add(windowState.uiState.display);
+					}
+				}
+
+				return windowState;
+			});
 		}
 
 		// Persist
 		const state = getWindowsStateStoreData(currentWindowsState);
-		this.stateMainService.setItem(WindowsStateHandler.windowsStateStorageKey, state);
+		this.stateService.setItem(WindowsStateHandler.windowsStateStorageKey, state);
 
 		if (this.shuttingDown) {
 			this.logService.trace('[WindowsStateHandler] onBeforeShutdown', state);
@@ -220,6 +256,7 @@ export class WindowsStateHandler extends Disposable {
 
 	private toWindowState(window: ICodeWindow): IWindowState {
 		return {
+			windowId: window.id,
 			workspace: isWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace : undefined,
 			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
 			backupPath: window.backupPath,
@@ -232,28 +269,23 @@ export class WindowsStateHandler extends Disposable {
 		const state = this.doGetNewWindowState(configuration);
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
-		// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
-		let allowFullscreen: boolean;
-		if (state.hasDefaultState) {
-			allowFullscreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
-		}
+		// Fullscreen state gets special treatment
+		if (state.mode === WindowMode.Fullscreen) {
 
-		// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
-		else {
-			allowFullscreen = !!(this.lifecycleMainService.wasRestarted || windowConfig?.restoreFullscreen);
-
-			if (allowFullscreen && isMacintosh && this.windowsMainService.getWindows().some(window => window.isFullScreen)) {
-				// macOS: Electron does not allow to restore multiple windows in
-				// fullscreen. As such, if we already restored a window in that
-				// state, we cannot allow more fullscreen windows. See
-				// https://github.com/microsoft/vscode/issues/41691 and
-				// https://github.com/electron/electron/issues/13077
-				allowFullscreen = false;
+			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
+			let allowFullscreen: boolean;
+			if (state.hasDefaultState) {
+				allowFullscreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
 			}
-		}
 
-		if (state.mode === WindowMode.Fullscreen && !allowFullscreen) {
-			state.mode = WindowMode.Normal;
+			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
+			else {
+				allowFullscreen = !!(this.lifecycleMainService.wasRestarted || windowConfig?.restoreFullscreen);
+			}
+
+			if (!allowFullscreen) {
+				state.mode = WindowMode.Normal;
+			}
 		}
 
 		return state;

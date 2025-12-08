@@ -1,12 +1,21 @@
 {
-	"instanceUrl": "https://msazure.visualstudio.com/defaultcollection",
-	"projectName": "One",
-	"areaPath": "One\\VSCode\\Client",
-	"iterationPath": "One",
+	"codebaseName": "devdiv_vscode-client",
+	"ppe": false,
 	"notificationAliases": [
-		"sbatten@microsoft.com"
+			"sbatten@microsoft.com"
 	],
-	"ppe": "false",
-	"template": "TFSMSAzure",
-	"codebaseName": "vscode-client"
+	"codebaseAdmins": [
+			"REDMOND\\stbatt",
+			"REDMOND\\monacotools"
+	],
+	"instanceUrl": "https://devdiv.visualstudio.com/defaultcollection",
+	"projectName": "DevDiv",
+	"areaPath": "DevDiv\\VS Code (compliance tracking only)\\Visual Studio Code Client",
+	"notifyAlways": true,
+	"template": "TFSDEVDIV",
+	"tools": [
+			"BinSkim",
+			"CredScan",
+			"CodeQL"
+	]
 }

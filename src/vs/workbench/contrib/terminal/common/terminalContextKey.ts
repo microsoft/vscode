@@ -14,6 +14,8 @@ export const enum TerminalContextKeyStrings {
 	HasFixedWidth = 'terminalHasFixedWidth',
 	ProcessSupported = 'terminalProcessSupported',
 	Focus = 'terminalFocus',
+	FocusInAny = 'terminalFocusInAny',
+	AccessibleBufferFocus = 'terminalAccessibleBufferFocus',
 	EditorFocus = 'terminalEditorFocus',
 	TabsFocus = 'terminalTabsFocus',
 	WebExtensionContributedProfile = 'terminalWebExtensionContributedProfile',
@@ -21,10 +23,11 @@ export const enum TerminalContextKeyStrings {
 	TerminalEditorActive = 'terminalEditorActive',
 	TabsMouse = 'terminalTabsMouse',
 	AltBufferActive = 'terminalAltBufferActive',
+	SuggestWidgetVisible = 'terminalSuggestWidgetVisible',
 	A11yTreeFocus = 'terminalA11yTreeFocus',
-	NavigationModeActive = 'terminalNavigationModeActive',
 	ViewShowing = 'terminalViewShowing',
 	TextSelected = 'terminalTextSelected',
+	TextSelectedInFocused = 'terminalTextSelectedInFocused',
 	FindVisible = 'terminalFindVisible',
 	FindInputFocused = 'terminalFindInputFocused',
 	FindFocused = 'terminalFindFocused',
@@ -32,7 +35,7 @@ export const enum TerminalContextKeyStrings {
 	SplitTerminal = 'terminalSplitTerminal',
 	ShellType = 'terminalShellType',
 	InTerminalRunCommandPicker = 'inTerminalRunCommandPicker',
-	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled'
+	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled',
 }
 
 export namespace TerminalContextKeys {
@@ -41,6 +44,12 @@ export namespace TerminalContextKeys {
 
 	/** Whether the terminal is focused. */
 	export const focus = new RawContextKey<boolean>(TerminalContextKeyStrings.Focus, false, localize('terminalFocusContextKey', "Whether the terminal is focused."));
+
+	/** Whether any terminal is focused, including detached terminals used in other UI. */
+	export const focusInAny = new RawContextKey<boolean>(TerminalContextKeyStrings.FocusInAny, false, localize('terminalFocusInAnyContextKey', "Whether any terminal is focused, including detached terminals used in other UI."));
+
+	/** Whether the accessible buffer is focused. */
+	export const accessibleBufferFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.AccessibleBufferFocus, false, localize('terminalAccessibleBufferFocusContextKey', "Whether the terminal accessible buffer is focused."));
 
 	/** Whether a terminal in the editor area is focused. */
 	export const editorFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.EditorFocus, false, localize('terminalEditorFocusContextKey', "Whether a terminal in the editor area is focused."));
@@ -78,22 +87,20 @@ export namespace TerminalContextKeys {
 	/** Whether the terminal's alt buffer is active. */
 	export const altBufferActive = new RawContextKey<boolean>(TerminalContextKeyStrings.AltBufferActive, false, localize('terminalAltBufferActive', "Whether the terminal's alt buffer is active."));
 
+	/** Whether the terminal's suggest widget is visible. */
+	export const suggestWidgetVisible = new RawContextKey<boolean>(TerminalContextKeyStrings.SuggestWidgetVisible, false, localize('terminalSuggestWidgetVisible', "Whether the terminal's suggest widget is visible."));
+
 	/** Whether the terminal is NOT focused. */
 	export const notFocus = focus.toNegated();
 
 	/** Whether the terminal view is showing. */
 	export const viewShowing = new RawContextKey<boolean>(TerminalContextKeyStrings.ViewShowing, false, localize('terminalViewShowing', "Whether the terminal view is showing"));
 
-	/** Whether the user is navigating a terminal's the accessibility tree. */
-	export const a11yTreeFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.A11yTreeFocus, false, true);
-
-	/**
-	 * Whether the user is currently in navigation mode
-	 */
-	export const navigationModeActive = new RawContextKey<boolean>(TerminalContextKeyStrings.NavigationModeActive, false, true);
-
 	/** Whether text is selected in the active terminal. */
 	export const textSelected = new RawContextKey<boolean>(TerminalContextKeyStrings.TextSelected, false, localize('terminalTextSelectedContextKey', "Whether text is selected in the active terminal."));
+
+	/** Whether text is selected in a focused terminal. `textSelected` counts text selected in an active in a terminal view or an editor, where `textSelectedInFocused` simply counts text in an element with DOM focus. */
+	export const textSelectedInFocused = new RawContextKey<boolean>(TerminalContextKeyStrings.TextSelectedInFocused, false, localize('terminalTextSelectedInFocusedContextKey', "Whether text is selected in a focused terminal."));
 
 	/** Whether text is NOT selected in the active terminal. */
 	export const notTextSelected = textSelected.toNegated();
@@ -107,7 +114,7 @@ export namespace TerminalContextKeys {
 	/** Whether the active terminal's find widget text input is focused. */
 	export const findInputFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.FindInputFocused, false, true);
 
-	/** Whether an element iwhtin the active terminal's find widget is focused. */
+	/** Whether an element within the active terminal's find widget is focused. */
 	export const findFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.FindFocused, false, true);
 
 	/** Whether NO elements within the active terminal's find widget is focused. */

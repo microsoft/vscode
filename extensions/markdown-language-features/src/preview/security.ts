@@ -4,12 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { MarkdownPreviewManager } from './previewManager';
 
-
-
-const localize = nls.loadMessageBundle();
 
 export const enum MarkdownPreviewSecurityLevel {
 	Strict = 0,
@@ -31,31 +27,31 @@ export interface ContentSecurityPolicyArbiter {
 }
 
 export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPolicyArbiter {
-	private readonly old_trusted_workspace_key = 'trusted_preview_workspace:';
-	private readonly security_level_key = 'preview_security_level:';
-	private readonly should_disable_security_warning_key = 'preview_should_show_security_warning:';
+	private readonly _old_trusted_workspace_key = 'trusted_preview_workspace:';
+	private readonly _security_level_key = 'preview_security_level:';
+	private readonly _should_disable_security_warning_key = 'preview_should_show_security_warning:';
 
 	constructor(
-		private readonly globalState: vscode.Memento,
-		private readonly workspaceState: vscode.Memento
+		private readonly _globalState: vscode.Memento,
+		private readonly _workspaceState: vscode.Memento
 	) { }
 
 	public getSecurityLevelForResource(resource: vscode.Uri): MarkdownPreviewSecurityLevel {
 		// Use new security level setting first
-		const level = this.globalState.get<MarkdownPreviewSecurityLevel | undefined>(this.security_level_key + this.getRoot(resource), undefined);
+		const level = this._globalState.get<MarkdownPreviewSecurityLevel | undefined>(this._security_level_key + this._getRoot(resource), undefined);
 		if (typeof level !== 'undefined') {
 			return level;
 		}
 
 		// Fallback to old trusted workspace setting
-		if (this.globalState.get<boolean>(this.old_trusted_workspace_key + this.getRoot(resource), false)) {
+		if (this._globalState.get<boolean>(this._old_trusted_workspace_key + this._getRoot(resource), false)) {
 			return MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent;
 		}
 		return MarkdownPreviewSecurityLevel.Strict;
 	}
 
 	public setSecurityLevelForResource(resource: vscode.Uri, level: MarkdownPreviewSecurityLevel): Thenable<void> {
-		return this.globalState.update(this.security_level_key + this.getRoot(resource), level);
+		return this._globalState.update(this._security_level_key + this._getRoot(resource), level);
 	}
 
 	public shouldAllowSvgsForResource(resource: vscode.Uri) {
@@ -64,14 +60,14 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 	}
 
 	public shouldDisableSecurityWarnings(): boolean {
-		return this.workspaceState.get<boolean>(this.should_disable_security_warning_key, false);
+		return this._workspaceState.get<boolean>(this._should_disable_security_warning_key, false);
 	}
 
 	public setShouldDisableSecurityWarning(disabled: boolean): Thenable<void> {
-		return this.workspaceState.update(this.should_disable_security_warning_key, disabled);
+		return this._workspaceState.update(this._should_disable_security_warning_key, disabled);
 	}
 
-	private getRoot(resource: vscode.Uri): vscode.Uri {
+	private _getRoot(resource: vscode.Uri): vscode.Uri {
 		if (vscode.workspace.workspaceFolders) {
 			const folderForResource = vscode.workspace.getWorkspaceFolder(resource);
 			if (folderForResource) {
@@ -90,8 +86,8 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 export class PreviewSecuritySelector {
 
 	public constructor(
-		private readonly cspArbiter: ContentSecurityPolicyArbiter,
-		private readonly webviewManager: MarkdownPreviewManager
+		private readonly _cspArbiter: ContentSecurityPolicyArbiter,
+		private readonly _webviewManager: MarkdownPreviewManager
 	) { }
 
 	public async showSecuritySelectorForResource(resource: vscode.Uri): Promise<void> {
@@ -103,40 +99,38 @@ export class PreviewSecuritySelector {
 			return when ? '• ' : '';
 		}
 
-		const currentSecurityLevel = this.cspArbiter.getSecurityLevelForResource(resource);
+		const currentSecurityLevel = this._cspArbiter.getSecurityLevelForResource(resource);
 		const selection = await vscode.window.showQuickPick<PreviewSecurityPickItem>(
 			[
 				{
 					type: MarkdownPreviewSecurityLevel.Strict,
-					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.Strict) + localize('strict.title', 'Strict'),
-					description: localize('strict.description', 'Only load secure content'),
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.Strict) + vscode.l10n.t("Strict"),
+					description: vscode.l10n.t("Only load secure content"),
 				}, {
 					type: MarkdownPreviewSecurityLevel.AllowInsecureLocalContent,
-					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureLocalContent) + localize('insecureLocalContent.title', 'Allow insecure local content'),
-					description: localize('insecureLocalContent.description', 'Enable loading content over http served from localhost'),
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureLocalContent) + vscode.l10n.t("Allow insecure local content"),
+					description: vscode.l10n.t("Enable loading content over http served from localhost"),
 				}, {
 					type: MarkdownPreviewSecurityLevel.AllowInsecureContent,
-					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent) + localize('insecureContent.title', 'Allow insecure content'),
-					description: localize('insecureContent.description', 'Enable loading content over http'),
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent) + vscode.l10n.t("Allow insecure content"),
+					description: vscode.l10n.t("Enable loading content over http"),
 				}, {
 					type: MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent,
-					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent) + localize('disable.title', 'Disable'),
-					description: localize('disable.description', 'Allow all content and script execution. Not recommended'),
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent) + vscode.l10n.t("Disable"),
+					description: vscode.l10n.t("Allow all content and script execution. Not recommended"),
 				}, {
 					type: 'moreinfo',
-					label: localize('moreInfo.title', 'More Information'),
+					label: vscode.l10n.t("More Information"),
 					description: ''
 				}, {
 					type: 'toggle',
-					label: this.cspArbiter.shouldDisableSecurityWarnings()
-						? localize('enableSecurityWarning.title', "Enable preview security warnings in this workspace")
-						: localize('disableSecurityWarning.title', "Disable preview security warning in this workspace"),
-					description: localize('toggleSecurityWarning.description', 'Does not affect the content security level')
+					label: this._cspArbiter.shouldDisableSecurityWarnings()
+						? vscode.l10n.t("Enable preview security warnings in this workspace")
+						: vscode.l10n.t("Disable preview security warning in this workspace"),
+					description: vscode.l10n.t("Does not affect the content security level")
 				},
 			], {
-			placeHolder: localize(
-				'preview.showPreviewSecuritySelector.title',
-				'Select security settings for Markdown previews in this workspace'),
+			placeHolder: vscode.l10n.t("Select security settings for Markdown previews in this workspace"),
 		});
 		if (!selection) {
 			return;
@@ -148,12 +142,12 @@ export class PreviewSecuritySelector {
 		}
 
 		if (selection.type === 'toggle') {
-			this.cspArbiter.setShouldDisableSecurityWarning(!this.cspArbiter.shouldDisableSecurityWarnings());
-			this.webviewManager.refresh();
+			this._cspArbiter.setShouldDisableSecurityWarning(!this._cspArbiter.shouldDisableSecurityWarnings());
+			this._webviewManager.refresh();
 			return;
 		} else {
-			await this.cspArbiter.setSecurityLevelForResource(resource, selection.type);
+			await this._cspArbiter.setSecurityLevelForResource(resource, selection.type);
 		}
-		this.webviewManager.refresh();
+		this._webviewManager.refresh();
 	}
 }

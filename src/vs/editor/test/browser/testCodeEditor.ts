@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { mock } from 'vs/base/test/common/mock';
 import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -39,6 +40,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { BrandedService, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -47,7 +49,8 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { NullOpenerService } from 'vs/platform/opener/test/common/nullOpenerService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -86,7 +89,7 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 	}
 	public registerAndInstantiateContribution<T extends IEditorContribution>(id: string, ctor: new (editor: ICodeEditor, ...services: BrandedService[]) => T): T {
 		const r: T = this._instantiationService.createInstance(ctor, this);
-		this._contributions[id] = r;
+		this._contributions.set(id, r);
 		return r;
 	}
 	public registerDisposable(disposable: IDisposable): void {
@@ -190,10 +193,15 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	define(IContextKeyService, MockContextKeyService);
 	define(ICommandService, TestCommandService);
 	define(ITelemetryService, NullTelemetryServiceShape);
+	define(IEnvironmentService, class extends mock<IEnvironmentService>() {
+		declare readonly _serviceBrand: undefined;
+		override isBuilt: boolean = true;
+		override isExtensionDevelopment: boolean = false;
+	});
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 	define(ILanguageFeaturesService, LanguageFeaturesService);
 
-	const instantiationService = new TestInstantiationService(services, true);
+	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
 			const instanceOrDescriptor = services.get(id);

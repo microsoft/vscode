@@ -5,15 +5,15 @@
 
 import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen } from 'vs/platform/window/common/window';
-import { pathsToEditors } from 'vs/workbench/common/editor';
+import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -35,6 +35,8 @@ import { isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/work
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Schemas } from 'vs/base/common/network';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { coalesce } from 'vs/base/common/arrays';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -112,7 +114,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 
@@ -214,7 +217,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
-		const payload = this.preservePayload();
+		const payload = this.preservePayload(false /* not an empty window */);
 		const fileOpenables: IFileToOpen[] = [];
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
@@ -254,10 +257,40 @@ export class BrowserHostService extends Disposable implements IHostService {
 			this.withServices(async accessor => {
 				const editorService = accessor.get(IEditorService);
 
+				// Support mergeMode
+				if (options?.mergeMode && fileOpenables.length === 4) {
+					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService, this.logService));
+					if (editors.length !== 4 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1]) || !isResourceEditorInput(editors[2]) || !isResourceEditorInput(editors[3])) {
+						return; // invalid resources
+					}
+
+					// Same Window: open via editor service in current window
+					if (this.shouldReuse(options, true /* file */)) {
+						editorService.openEditor({
+							input1: { resource: editors[0].resource },
+							input2: { resource: editors[1].resource },
+							base: { resource: editors[2].resource },
+							result: { resource: editors[3].resource },
+							options: { pinned: true }
+						});
+					}
+
+					// New Window: open into empty window
+					else {
+						const environment = new Map<string, string>();
+						environment.set('mergeFile1', editors[0].resource.toString());
+						environment.set('mergeFile2', editors[1].resource.toString());
+						environment.set('mergeFileBase', editors[2].resource.toString());
+						environment.set('mergeFileResult', editors[3].resource.toString());
+
+						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
+					}
+				}
+
 				// Support diffMode
 				if (options?.diffMode && fileOpenables.length === 2) {
-					const editors = await pathsToEditors(fileOpenables, this.fileService);
-					if (editors.length !== 2 || !editors[0].resource || !editors[1].resource) {
+					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService, this.logService));
+					if (editors.length !== 2 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1])) {
 						return; // invalid resources
 					}
 
@@ -301,7 +334,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 								openables = [openable];
 							}
 
-							editorService.openEditors(await pathsToEditors(openables, this.fileService), undefined, { validateTrust: true });
+							editorService.openEditors(coalesce(await pathsToEditors(openables, this.fileService, this.logService)), undefined, { validateTrust: true });
 						}
 
 						// New Window: open into empty window
@@ -341,13 +374,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.instantiationService.invokeFunction(accessor => fn(accessor));
 	}
 
-	private preservePayload(): Array<unknown> | undefined {
+	private preservePayload(isEmptyWindow: boolean): Array<unknown> | undefined {
 
 		// Selectively copy payload: for now only extension debugging properties are considered
-		let newPayload: Array<unknown> | undefined = undefined;
-		if (this.environmentService.extensionDevelopmentLocationURI) {
-			newPayload = new Array();
-
+		const newPayload: Array<unknown> = new Array();
+		if (!isEmptyWindow && this.environmentService.extensionDevelopmentLocationURI) {
 			newPayload.push(['extensionDevelopmentPath', this.environmentService.extensionDevelopmentLocationURI.toString()]);
 
 			if (this.environmentService.debugExtensionHost.debugId) {
@@ -359,16 +390,20 @@ export class BrowserHostService extends Disposable implements IHostService {
 			}
 		}
 
-		return newPayload;
+		if (!this.userDataProfileService.currentProfile.isDefault) {
+			newPayload.push(['lastActiveProfile', this.userDataProfileService.currentProfile.id]);
+		}
+
+		return newPayload.length ? newPayload : undefined;
 	}
 
 	private getRecentLabel(openable: IWindowOpenable): string {
 		if (isFolderToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: true });
+			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: Verbosity.LONG });
 		}
 
 		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: true });
+			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: Verbosity.LONG });
 		}
 
 		return this.labelService.getUriLabel(openable.fileUri);
@@ -391,7 +426,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
+		return this.doOpen(undefined, {
+			reuse: options?.forceReuseWindow,
+			payload: this.preservePayload(true /* empty window */)
+		});
 	}
 
 	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<void> {
@@ -418,8 +456,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		const opened = await this.workspaceProvider.open(workspace, options);
 		if (!opened) {
-			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."), [localize('open', "Open"), localize('cancel', "Cancel")], { cancelId: 1 });
-			if (showResult.choice === 0) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: Severity.Warning,
+				message: localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
+				primaryButton: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")
+			});
+			if (confirmed) {
 				await this.workspaceProvider.open(workspace, options);
 			}
 		}
@@ -479,6 +521,16 @@ export class BrowserHostService extends Disposable implements IHostService {
 		window.close();
 	}
 
+	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
+		const previousShutdownReason = this.shutdownReason;
+		try {
+			this.shutdownReason = HostShutdownReason.Api;
+			return await expectedShutdownTask();
+		} finally {
+			this.shutdownReason = previousShutdownReason;
+		}
+	}
+
 	private async handleExpectedShutdown(reason: ShutdownReason): Promise<void> {
 
 		// Update shutdown reason in a way that we do
@@ -493,4 +545,4 @@ export class BrowserHostService extends Disposable implements IHostService {
 	//#endregion
 }
 
-registerSingleton(IHostService, BrowserHostService, true);
+registerSingleton(IHostService, BrowserHostService, InstantiationType.Delayed);

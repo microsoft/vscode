@@ -8,14 +8,14 @@ import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWindowsConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isMacintosh, isNative, isLinux, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isNative, isLinux } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -25,23 +25,37 @@ interface IConfiguration extends IWindowsConfiguration {
 	update?: { mode?: string };
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
-	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
-	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } } };
+	security?: { workspace?: { trust?: { enabled?: boolean } }; restrictUNCAccess?: boolean };
+	window: IWindowSettings;
+	workbench?: { enableExperiments?: boolean };
+	_extensionsGallery?: { enablePPE?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
-	private titleBarStyle: 'native' | 'custom' | undefined;
-	private windowControlsOverlayEnabled: boolean | undefined;
-	private windowSandboxEnabled: boolean | undefined;
-	private nativeTabs: boolean | undefined;
-	private nativeFullScreen: boolean | undefined;
-	private clickThroughInactive: boolean | undefined;
-	private updateMode: string | undefined;
+	private static SETTINGS = [
+		'window.titleBarStyle',
+		'window.nativeTabs',
+		'window.nativeFullScreen',
+		'window.clickThroughInactive',
+		'update.mode',
+		'editor.accessibilitySupport',
+		'security.workspace.trust.enabled',
+		'workbench.enableExperiments',
+		'_extensionsGallery.enablePPE',
+		'security.restrictUNCAccess'
+	];
+
+	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
+	private readonly nativeTabs = new ChangeObserver('boolean');
+	private readonly nativeFullScreen = new ChangeObserver('boolean');
+	private readonly clickThroughInactive = new ChangeObserver('boolean');
+	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
-	private workspaceTrustEnabled: boolean | undefined;
-	private settingsProfilesEnabled: boolean | undefined;
+	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
+	private readonly experimentsEnabled = new ChangeObserver('boolean');
+	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
+	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -51,62 +65,39 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		this.onConfigurationChange(configurationService.getValue<IConfiguration>(), false);
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IConfiguration>(), true)));
+		this.onConfigurationChange(undefined);
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 	}
 
-	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
+	private onConfigurationChange(e: IConfigurationChangeEvent | undefined): void {
+		if (e && !SettingsChangeRelauncher.SETTINGS.some(key => e.affectsConfiguration(key))) {
+			return;
+		}
+
+
 		let changed = false;
 
+		function processChanged(didChange: boolean) {
+			changed = changed || didChange;
+		}
+
+		const config = this.configurationService.getValue<IConfiguration>();
 		if (isNative) {
 
 			// Titlebar style
-			if (typeof config.window?.titleBarStyle === 'string' && config.window?.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
-				this.titleBarStyle = config.window.titleBarStyle;
-				changed = true;
-			}
-
-			// Windows: Window Controls Overlay
-			if (isWindows && typeof config.window?.experimental?.windowControlsOverlay?.enabled === 'boolean' && config.window.experimental.windowControlsOverlay.enabled !== this.windowControlsOverlayEnabled) {
-				this.windowControlsOverlayEnabled = config.window.experimental.windowControlsOverlay.enabled;
-				changed = true;
-			}
-
-			// Windows: Sandbox
-			if (typeof config.window?.experimental?.useSandbox === 'boolean' && config.window.experimental.useSandbox !== this.windowSandboxEnabled) {
-				this.windowSandboxEnabled = config.window.experimental.useSandbox;
-				changed = true;
-			}
+			processChanged((config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom') && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
 
 			// macOS: Native tabs
-			if (isMacintosh && typeof config.window?.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
-				this.nativeTabs = config.window.nativeTabs;
-				changed = true;
-			}
+			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
 
 			// macOS: Native fullscreen
-			if (isMacintosh && typeof config.window?.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
-				this.nativeFullScreen = config.window.nativeFullScreen;
-				changed = true;
-			}
+			processChanged(isMacintosh && this.nativeFullScreen.handleChange(config.window?.nativeFullScreen));
 
 			// macOS: Click through (accept first mouse)
-			if (isMacintosh && typeof config.window?.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
-				this.clickThroughInactive = config.window.clickThroughInactive;
-				changed = true;
-			}
+			processChanged(isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive));
 
-			// Update channel
-			if (typeof config.update?.mode === 'string' && config.update.mode !== this.updateMode) {
-				this.updateMode = config.update.mode;
-				changed = true;
-			}
-
-			// Profiles
-			if (typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
-				this.settingsProfilesEnabled = config.workbench.experimental.settingsProfiles.enabled;
-				changed = true;
-			}
+			// Update mode
+			processChanged(this.updateMode.handleChange(config.update?.mode));
 
 			// On linux turning on accessibility support will also pass this flag to the chrome renderer, thus a restart is required
 			if (isLinux && typeof config.editor?.accessibilitySupport === 'string' && config.editor.accessibilitySupport !== this.accessibilitySupport) {
@@ -117,14 +108,21 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			}
 
 			// Workspace trust
-			if (typeof config?.security?.workspace?.trust?.enabled === 'boolean' && config.security?.workspace.trust.enabled !== this.workspaceTrustEnabled) {
-				this.workspaceTrustEnabled = config.security.workspace.trust.enabled;
-				changed = true;
-			}
+			processChanged(this.workspaceTrustEnabled.handleChange(config?.security?.workspace?.trust?.enabled));
+
+			// UNC host access restrictions
+			processChanged(this.restrictUNCAccess.handleChange(config?.security?.restrictUNCAccess));
 		}
 
-		// Notify only when changed and we are the focused window (avoids notification spam across windows)
-		if (notify && changed) {
+		// Experiments
+		processChanged(this.experimentsEnabled.handleChange(config.workbench?.enableExperiments));
+
+		// Profiles
+		processChanged(this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE));
+
+		// Notify only when changed from an event and the change
+		// was not triggerd programmatically (e.g. from experiments)
+		if (changed && e && e.source !== ConfigurationTarget.DEFAULT) {
 			this.doConfirm(
 				isNative ?
 					localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect.") :
@@ -133,20 +131,48 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 					localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.productService.nameLong) :
 					localize('relaunchSettingDetailWeb', "Press the reload button to reload {0} and enable the setting.", this.productService.nameLong),
 				isNative ?
-					localize('restart', "&&Restart") :
-					localize('restartWeb', "&&Reload"),
+					localize({ key: 'restart', comment: ['&& denotes a mnemonic'] }, "&&Restart") :
+					localize({ key: 'restartWeb', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
 				() => this.hostService.restart()
 			);
 		}
 	}
 
-	private async doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): Promise<void> {
+	private async doConfirm(message: string, detail: string, primaryButton: string, confirmedFn: () => void): Promise<void> {
 		if (this.hostService.hasFocus) {
-			const res = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton });
-			if (res.confirmed) {
-				confirmed();
+			const { confirmed } = await this.dialogService.confirm({ message, detail, primaryButton });
+			if (confirmed) {
+				confirmedFn();
 			}
 		}
+	}
+}
+
+interface TypeNameToType {
+	readonly boolean: boolean;
+	readonly string: string;
+}
+
+class ChangeObserver<T> {
+
+	static create<TTypeName extends 'boolean' | 'string'>(typeName: TTypeName): ChangeObserver<TypeNameToType[TTypeName]> {
+		return new ChangeObserver(typeName);
+	}
+
+	constructor(private readonly typeName: string) { }
+
+	private lastValue: T | undefined = undefined;
+
+	/**
+	 * Returns if there was a change compared to the last value
+	 */
+	handleChange(value: T | undefined): boolean {
+		if (typeof value === this.typeName && value !== this.lastValue) {
+			this.lastValue = value;
+			return true;
+		}
+
+		return false;
 	}
 }
 
@@ -165,7 +191,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 	) {
 		super();
 
-		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => {
+		this.extensionHostRestarter = this._register(new RunOnceScheduler(async () => {
 			if (!!environmentService.extensionTestsLocationURI) {
 				return; // no restart when in tests: see https://github.com/microsoft/vscode/issues/66936
 			}
@@ -173,7 +199,10 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			if (environmentService.remoteAuthority) {
 				hostService.reload(); // TODO@aeschli, workaround
 			} else if (isNative) {
-				extensionService.restartExtensionHost();
+				const stopped = await extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Restarting extension host due to a workspace folder change."));
+				if (stopped) {
+					extensionService.startExtensionHosts();
+				}
 			}
 		}, 10));
 
@@ -185,9 +214,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			});
 
 		this._register(toDisposable(() => {
-			if (this.onDidChangeWorkspaceFoldersUnbind) {
-				this.onDidChangeWorkspaceFoldersUnbind.dispose();
-			}
+			this.onDidChangeWorkspaceFoldersUnbind?.dispose();
 		}));
 	}
 

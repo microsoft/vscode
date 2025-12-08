@@ -7,17 +7,20 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
 
-	export interface InlineCompletionItemNew {
+	export namespace languages {
 		/**
-		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
-		 * Defaults to `false`.
-		*/
-		completeBracketPairs?: boolean;
-	}
-
-	export interface InlineCompletionItemProviderNew {
-		// eslint-disable-next-line vscode-dts-provider-naming
-		handleDidShowCompletionItem?(completionItem: InlineCompletionItemNew): void;
+		 * Registers an inline completion provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inline completion provider.
+		 * @param metadata Metadata about the provider.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 */
+		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider, metadata: InlineCompletionItemProviderMetadata): Disposable;
 	}
 
 	export interface InlineCompletionItem {
@@ -28,9 +31,28 @@ declare module 'vscode' {
 		completeBracketPairs?: boolean;
 	}
 
+	export interface InlineCompletionItemProviderMetadata {
+		/**
+		 * Specifies a list of extension ids that this provider yields to if they return a result.
+		 * If some inline completion provider registered by such an extension returns a result, this provider is not asked.
+		 */
+		yieldTo: string[];
+	}
+
 	export interface InlineCompletionItemProvider {
-		// eslint-disable-next-line vscode-dts-provider-naming
-		handleDidShowCompletionItem?(completionItem: InlineCompletionItem): void;
+		/**
+		 * @param completionItem The completion item that was shown.
+		 * @param updatedInsertText The actual insert text (after brackets were fixed).
+		 */
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleDidShowCompletionItem?(completionItem: InlineCompletionItem, updatedInsertText: string): void;
+
+		/**
+		 * Is called when an inline completion item was accepted partially.
+		 * @param acceptedLength The length of the substring of the inline completion that was accepted already.
+		 */
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number): void;
 	}
 
 	// When finalizing `commands`, make sure to add a corresponding constructor parameter.
@@ -39,5 +61,16 @@ declare module 'vscode' {
 		 * A list of commands associated with the inline completions of this list.
 		 */
 		commands?: Command[];
+
+		/**
+		 * When set, overrides the user setting of `editor.inlineSuggest.suppressSuggestions`.
+		 */
+		suppressSuggestions?: boolean;
+
+		/**
+		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
+		 * Defaults to false (might change).
+		 */
+		enableForwardStability?: boolean;
 	}
 }

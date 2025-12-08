@@ -6,7 +6,8 @@
 import { $, append, hide, show } from 'vs/base/browser/dom';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -20,7 +21,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { FileKind } from 'vs/platform/files/common/files';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CompletionItem } from './suggest';
 import { canExpandCompletionItem } from './suggestWidgetDetails';
 
@@ -28,7 +29,7 @@ export function getAriaId(index: number): string {
 	return `suggest-aria-id:${index}`;
 }
 
-export const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight, nls.localize('suggestMoreInfoIcon', 'Icon for more information in the suggest widget.'));
+const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight, nls.localize('suggestMoreInfoIcon', 'Icon for more information in the suggest widget.'));
 
 const _completionItemColor = new class ColorExtractor {
 
@@ -57,28 +58,28 @@ const _completionItemColor = new class ColorExtractor {
 
 
 export interface ISuggestionTemplateData {
-	root: HTMLElement;
+	readonly root: HTMLElement;
 
 	/**
 	 * Flexbox
 	 * < ------------- left ------------ >     < --- right -- >
 	 * <icon><label><signature><qualifier>     <type><readmore>
 	 */
-	left: HTMLElement;
-	right: HTMLElement;
+	readonly left: HTMLElement;
+	readonly right: HTMLElement;
 
-	icon: HTMLElement;
-	colorspan: HTMLElement;
-	iconLabel: IconLabel;
-	iconContainer: HTMLElement;
-	parametersLabel: HTMLElement;
-	qualifierLabel: HTMLElement;
+	readonly icon: HTMLElement;
+	readonly colorspan: HTMLElement;
+	readonly iconLabel: IconLabel;
+	readonly iconContainer: HTMLElement;
+	readonly parametersLabel: HTMLElement;
+	readonly qualifierLabel: HTMLElement;
 	/**
 	 * Showing either `CompletionItem#details` or `CompletionItemLabel#type`
 	 */
-	detailsLabel: HTMLElement;
-	readMore: HTMLElement;
-	disposables: DisposableStore;
+	readonly detailsLabel: HTMLElement;
+	readonly readMore: HTMLElement;
+	readonly disposables: DisposableStore;
 }
 
 export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
@@ -100,31 +101,30 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 	}
 
 	renderTemplate(container: HTMLElement): ISuggestionTemplateData {
-		const data = <ISuggestionTemplateData>Object.create(null);
-		data.disposables = new DisposableStore();
+		const disposables = new DisposableStore();
 
-		data.root = container;
-		data.root.classList.add('show-file-icons');
+		const root = container;
+		root.classList.add('show-file-icons');
 
-		data.icon = append(container, $('.icon'));
-		data.colorspan = append(data.icon, $('span.colorspan'));
+		const icon = append(container, $('.icon'));
+		const colorspan = append(icon, $('span.colorspan'));
 
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
-		data.iconContainer = append(main, $('.icon-label.codicon'));
-		data.left = append(main, $('span.left'));
-		data.right = append(main, $('span.right'));
+		const iconContainer = append(main, $('.icon-label.codicon'));
+		const left = append(main, $('span.left'));
+		const right = append(main, $('span.right'));
 
-		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportIcons: true });
-		data.disposables.add(data.iconLabel);
+		const iconLabel = new IconLabel(left, { supportHighlights: true, supportIcons: true });
+		disposables.add(iconLabel);
 
-		data.parametersLabel = append(data.left, $('span.signature-label'));
-		data.qualifierLabel = append(data.left, $('span.qualifier-label'));
-		data.detailsLabel = append(data.right, $('span.details-label'));
+		const parametersLabel = append(left, $('span.signature-label'));
+		const qualifierLabel = append(left, $('span.qualifier-label'));
+		const detailsLabel = append(right, $('span.details-label'));
 
-		data.readMore = append(data.right, $('span.readMore' + ThemeIcon.asCSSSelector(suggestMoreInfoIcon)));
-		data.readMore.title = nls.localize('readMore', "Read More");
+		const readMore = append(right, $('span.readMore' + ThemeIcon.asCSSSelector(suggestMoreInfoIcon)));
+		readMore.title = nls.localize('readMore', "Read More");
 
 		const configureFont = () => {
 			const options = this._editor.getOptions();
@@ -139,27 +139,27 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			const lineHeightPx = `${lineHeight}px`;
 			const letterSpacingPx = `${letterSpacing}px`;
 
-			data.root.style.fontSize = fontSizePx;
-			data.root.style.fontWeight = fontWeight;
-			data.root.style.letterSpacing = letterSpacingPx;
+			root.style.fontSize = fontSizePx;
+			root.style.fontWeight = fontWeight;
+			root.style.letterSpacing = letterSpacingPx;
 			main.style.fontFamily = fontFamily;
 			main.style.fontFeatureSettings = fontFeatureSettings;
 			main.style.lineHeight = lineHeightPx;
-			data.icon.style.height = lineHeightPx;
-			data.icon.style.width = lineHeightPx;
-			data.readMore.style.height = lineHeightPx;
-			data.readMore.style.width = lineHeightPx;
+			icon.style.height = lineHeightPx;
+			icon.style.width = lineHeightPx;
+			readMore.style.height = lineHeightPx;
+			readMore.style.width = lineHeightPx;
 		};
 
 		configureFont();
 
-		data.disposables.add(this._editor.onDidChangeConfiguration(e => {
+		disposables.add(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight)) {
 				configureFont();
 			}
 		}));
 
-		return data;
+		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, readMore, disposables };
 	}
 
 	renderElement(element: CompletionItem, index: number, data: ISuggestionTemplateData): void {
@@ -199,7 +199,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			// normal icon
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = '';
-			data.iconContainer.classList.add('suggest-icon', ...CSSIcon.asClassNameArray(CompletionItemKinds.toIcon(completion.kind)));
+			data.iconContainer.classList.add('suggest-icon', ...ThemeIcon.asClassNameArray(CompletionItemKinds.toIcon(completion.kind)));
 		}
 
 		if (completion.tags && completion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {

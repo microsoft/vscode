@@ -9,10 +9,13 @@
 		"vscode": "^1.57.0"
 	},
 	"enabledApiProposals": [
-    "notebookWorkspaceEdit"
+		"documentPaste",
+		"diffContentOptions",
+		"dropMetadata"
 	],
 	"activationEvents": [
-		"*"
+		"onNotebook:jupyter-notebook",
+		"onNotebookSerializer:interactive"
 	],
 	"extensionKind": [
 		"workspace",
@@ -27,16 +30,32 @@
 		}
 	},
 	"contributes": {
+		"configuration": [
+			{
+				"properties": {
+					"ipynb.pasteImagesAsAttachments.enabled": {
+						"type": "boolean",
+						"scope": "resource",
+						"markdownDescription": "%ipynb.pasteImagesAsAttachments.enabled%",
+						"default": true
+					}
+				}
+			}
+		],
 		"commands": [
 			{
 				"command": "ipynb.newUntitledIpynb",
-				"title": "New Jupyter Notebook",
-				"shortTitle": "Jupyter Notebook",
+				"title": "%newUntitledIpynb.title%",
+				"shortTitle": "%newUntitledIpynb.shortTitle%",
 				"category": "Create"
 			},
 			{
 				"command": "ipynb.openIpynbInNotebookEditor",
-				"title": "Open ipynb file in notebook editor"
+				"title": "%openIpynbInNotebookEditor.title%"
+			},
+			{
+				"command": "ipynb.cleanInvalidImageAttachment",
+				"title": "%cleanInvalidImageAttachment.title%"
 			}
 		],
 		"notebooks": [
@@ -49,6 +68,16 @@
 					}
 				],
 				"priority": "default"
+			}
+		],
+		"notebookRenderer": [
+			{
+				"id": "vscode.markdown-it-cell-attachment-renderer",
+				"displayName": "%markdownAttachmentRenderer.displayName%",
+				"entrypoint": {
+					"extends": "vscode.markdown-it-renderer",
+					"path": "./notebook-out/cellAttachmentRenderer.js"
+				}
 			}
 		],
 		"menus": {
@@ -65,13 +94,18 @@
 				{
 					"command": "ipynb.openIpynbInNotebookEditor",
 					"when": "false"
+				},
+				{
+					"command": "ipynb.cleanInvalidImageAttachment",
+					"when": "false"
 				}
 			]
 		}
 	},
 	"scripts": {
-		"compile": "npx gulp compile-extension:ipynb",
-		"watch": "npx gulp watch-extension:ipynb"
+		"compile": "npx gulp compile-extension:ipynb && npm run build-notebook",
+		"watch": "npx gulp watch-extension:ipynb",
+		"build-notebook": "node ./esbuild"
 	},
 	"dependencies": {
 		"@enonic/fnv-plus": "^1.3.0",
@@ -80,6 +114,7 @@
 	},
 	"devDependencies": {
 		"@jupyterlab/nbformat": "^3.2.9",
+		"@types/markdown-it": "12.2.3",
 		"@types/uuid": "^8.3.1"
 	},
 	"repository": {

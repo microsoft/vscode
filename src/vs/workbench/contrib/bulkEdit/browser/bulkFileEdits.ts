@@ -256,7 +256,7 @@ class DeleteOperation implements IFileOperation {
 				try {
 					fileContent = await this._fileService.readFile(edit.oldUri);
 				} catch (err) {
-					this._logService.critical(err);
+					this._logService.error(err);
 				}
 			}
 			if (fileContent !== undefined) {
@@ -345,7 +345,7 @@ export class BulkFileEdits {
 			} else if (!edit.newResource && edit.oldResource) {
 				edits.push(new DeleteEdit(edit.oldResource, edit.options ?? {}, false));
 			} else if (edit.newResource && !edit.oldResource) {
-				edits.push(new CreateEdit(edit.newResource, edit.options ?? {}, undefined));
+				edits.push(new CreateEdit(edit.newResource, edit.options ?? {}, await edit.options.contents));
 			}
 		}
 

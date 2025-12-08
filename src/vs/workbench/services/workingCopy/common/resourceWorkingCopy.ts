@@ -143,6 +143,13 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 
 	//#endregion
 
+	//#region Modified Tracking
+
+	isModified(): boolean {
+		return this.isDirty();
+	}
+
+	//#endregion
 
 	//#region Abstract
 

@@ -259,6 +259,16 @@ export class Color {
 		return Color.Format.CSS.parseHex(hex) || Color.red;
 	}
 
+	static equals(a: Color | null, b: Color | null): boolean {
+		if (!a && !b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.equals(b);
+	}
+
 	readonly rgba: RGBA;
 	private _hsla?: HSLA;
 	get hsla(): HSLA {

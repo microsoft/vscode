@@ -5,11 +5,11 @@
 
 import { localize } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, Action2, registerAction2, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
@@ -28,14 +28,22 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter } from 'vs/base/common/event';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { isWeb } from 'vs/base/common/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -47,6 +55,7 @@ class MarketplaceThemesPicker {
 	private readonly _marketplaceThemes: ThemeItem[] = [];
 
 	private _searchOngoing: boolean = false;
+	private _searchError: string | undefined = undefined;
 	private readonly _onDidChange = new Emitter<void>();
 
 	private _tokenSource: CancellationTokenSource | undefined;
@@ -61,7 +70,8 @@ class MarketplaceThemesPicker {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		this._installedExtensions = extensionManagementService.getInstalled().then(installed => {
 			const result = new Set<string>();
@@ -74,10 +84,6 @@ class MarketplaceThemesPicker {
 
 	public get themes(): ThemeItem[] {
 		return this._marketplaceThemes;
-	}
-
-	public get isSearching(): boolean {
-		return this._searchOngoing;
 	}
 
 	public get onDidChange() {
@@ -140,6 +146,7 @@ class MarketplaceThemesPicker {
 		} catch (e) {
 			if (!isCancellationError(e)) {
 				this.logService.error(`Error while searching for themes:`, e);
+				this._searchError = 'message' in e ? e.message : String(e);
 			}
 		} finally {
 			this._searchOngoing = false;
@@ -168,6 +175,8 @@ class MarketplaceThemesPicker {
 					const success = await this.installExtension(themeItem.galleryExtension);
 					if (success) {
 						selectTheme(themeItem.theme, true);
+					} else {
+						selectTheme(currentTheme, true);
 					}
 				}
 			});
@@ -182,7 +191,11 @@ class MarketplaceThemesPicker {
 					}
 				}
 			});
-			quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
+			quickpick.onDidChangeActive(themes => {
+				if (result === undefined) {
+					selectTheme(themes[0]?.theme, false);
+				}
+			});
 
 			quickpick.onDidHide(() => {
 				if (result === undefined) {
@@ -203,8 +216,10 @@ class MarketplaceThemesPicker {
 
 			this.onDidChange(() => {
 				let items = this.themes;
-				if (this.isSearching) {
+				if (this._searchOngoing) {
 					items = items.concat({ label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true });
+				} else if (items.length === 0 && this._searchError) {
+					items = [{ label: `$(error) ${localize('search.error', 'Error while searching for themes: {0}', this._searchError)}`, id: undefined, alwaysShow: true }];
 				}
 				const activeItemId = quickpick.activeItems[0]?.id;
 				const newActiveItem = activeItemId ? items.find(i => isItem(i) && i.id === activeItemId) : undefined;
@@ -220,13 +235,23 @@ class MarketplaceThemesPicker {
 	}
 
 	private async installExtension(galleryExtension: IGalleryExtension) {
+		openExtensionViewlet(this.paneCompositeService, `@id:${galleryExtension.identifier.id}`);
+		const result = await this.dialogService.confirm({
+			message: localize('installExtension.confirm', "This will install extension '{0}' published by '{1}'. Do you want to continue?", galleryExtension.displayName, galleryExtension.publisherDisplayName),
+			primaryButton: localize('installExtension.button.ok', "OK")
+		});
+		if (!result.confirmed) {
+			return false;
+		}
 		try {
-			openExtensionViewlet(this.paneCompositeService, `@id:${galleryExtension.identifier.id}`);
 			await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
 				title: localize('installing extensions', "Installing Extension {0}...", galleryExtension.displayName)
 			}, async () => {
-				await this.extensionManagementService.installFromGallery(galleryExtension);
+				await this.extensionManagementService.installFromGallery(galleryExtension, {
+					// Setting this to false is how you get the extension to be synced with Settings Sync (if enabled).
+					isMachineScoped: false,
+				});
 			});
 			return true;
 		} catch (e) {
@@ -358,7 +383,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: SelectColorThemeCommandId,
 			title: { value: localize('selectTheme.label', "Color Theme"), original: 'Color Theme' },
-			category: CATEGORIES.Preferences,
+			category: Categories.Preferences,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -400,7 +425,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: SelectFileIconThemeCommandId,
 			title: { value: localize('selectIconTheme.label', "File Icon Theme"), original: 'File Icon Theme' },
-			category: CATEGORIES.Preferences,
+			category: Categories.Preferences,
 			f1: true
 		});
 	}
@@ -435,7 +460,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: SelectProductIconThemeCommandId,
 			title: { value: localize('selectProductIconTheme.label', "Product Icon Theme"), original: 'Product Icon Theme' },
-			category: CATEGORIES.Preferences,
+			category: Categories.Preferences,
 			f1: true
 		});
 	}
@@ -546,7 +571,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.generateColorTheme',
 			title: { value: localize('generateColorTheme.label', "Generate Color Theme From Current Settings"), original: 'Generate Color Theme From Current Settings' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -600,7 +625,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: toggleLightDarkThemesCommandId,
 			title: { value: localize('toggleLightDarkThemes.label', "Toggle between Light/Dark Themes"), original: 'Toggle between Light/Dark Themes' },
-			category: CATEGORIES.Preferences,
+			category: Categories.Preferences,
 			f1: true,
 		});
 	}
@@ -637,35 +662,21 @@ registerAction2(class extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	group: '4_themes',
-	command: {
-		id: SelectColorThemeCommandId,
-		title: localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme")
-	},
-	order: 1
+const ThemesSubMenu = new MenuId('ThemesSubMenu');
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
+	title: localize('themes', "Themes"),
+	submenu: ThemesSubMenu,
+	group: '2_configuration',
+	order: 6
+});
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
+	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Theme"),
+	submenu: ThemesSubMenu,
+	group: '2_configuration',
+	order: 6
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	group: '4_themes',
-	command: {
-		id: SelectFileIconThemeCommandId,
-		title: localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme")
-	},
-	order: 2
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	group: '4_themes',
-	command: {
-		id: SelectProductIconThemeCommandId,
-		title: localize({ key: 'miSelectProductIconTheme', comment: ['&& denotes a mnemonic'] }, "&&Product Icon Theme")
-	},
-	order: 3
-});
-
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '4_themes',
+MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	command: {
 		id: SelectColorThemeCommandId,
 		title: localize('selectTheme.label', "Color Theme")
@@ -673,8 +684,7 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '4_themes',
+MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	command: {
 		id: SelectFileIconThemeCommandId,
 		title: localize('themes.selectIconTheme.label', "File Icon Theme")
@@ -682,11 +692,134 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '4_themes',
+MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	command: {
 		id: SelectProductIconThemeCommandId,
 		title: localize('themes.selectProductIconTheme.label', "Product Icon Theme")
 	},
 	order: 3
 });
+
+type DefaultThemeUpdatedNotificationReaction = 'keepNew' | 'keepOld' | 'tryNew' | 'cancel' | 'browse';
+
+class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribution {
+
+	static STORAGE_KEY = 'themeUpdatedNotificationShown';
+
+	constructor(
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IWorkbenchThemeService private readonly _workbenchThemeService: IWorkbenchThemeService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IHostService private readonly _hostService: IHostService,
+	) {
+		if (_storageService.getBoolean(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, StorageScope.APPLICATION)) {
+			return;
+		}
+		setTimeout(async () => {
+			if (_storageService.getBoolean(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, StorageScope.APPLICATION)) {
+				return;
+			}
+			if (await this._hostService.hadLastFocus()) {
+				this._storageService.store(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+				if (this._workbenchThemeService.hasUpdatedDefaultThemes()) {
+					this._showYouGotMigratedNotification();
+				} else {
+					const currentTheme = this._workbenchThemeService.getColorTheme().settingsId;
+					if (currentTheme === ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD || currentTheme === ThemeSettingDefaults.COLOR_THEME_DARK_OLD) {
+						this._tryNewThemeNotification();
+					}
+				}
+			}
+		}, 3000);
+	}
+
+	private async _showYouGotMigratedNotification(): Promise<void> {
+		const usingLight = this._workbenchThemeService.getColorTheme().type === ColorScheme.LIGHT;
+		const newThemeSettingsId = usingLight ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
+		const newTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === newThemeSettingsId);
+		if (newTheme) {
+			const choices = [
+				{
+					label: localize('button.keep', "Keep New Theme"),
+					run: () => {
+						this._writeTelemetry('keepNew');
+					}
+				},
+				{
+					label: localize('button.browse', "Browse Themes"),
+					run: () => {
+						this._writeTelemetry('browse');
+						this._commandService.executeCommand(SelectColorThemeCommandId);
+					}
+				},
+				{
+					label: localize('button.revert', "Revert"),
+					run: async () => {
+						this._writeTelemetry('keepOld');
+						const oldSettingsId = usingLight ? ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD : ThemeSettingDefaults.COLOR_THEME_DARK_OLD;
+						const oldTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === oldSettingsId);
+						if (oldTheme) {
+							this._workbenchThemeService.setColorTheme(oldTheme, 'auto');
+						}
+					}
+				}
+			];
+			await this._notificationService.prompt(
+				Severity.Info,
+				localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. If you prefer, you can switch back to the old theme or try one of the many other color themes available.", newTheme.label),
+				choices,
+				{
+					onCancel: () => this._writeTelemetry('cancel')
+				}
+			);
+		}
+	}
+
+	private async _tryNewThemeNotification(): Promise<void> {
+		const newThemeSettingsId = this._workbenchThemeService.getColorTheme().type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
+		const theme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === newThemeSettingsId);
+		if (theme) {
+			const choices: IPromptChoice[] = [{
+				label: localize('button.tryTheme', "Try New Theme"),
+				run: () => {
+					this._writeTelemetry('tryNew');
+					this._workbenchThemeService.setColorTheme(theme, 'auto');
+				}
+			},
+			{
+				label: localize('button.cancel', "Cancel"),
+				run: () => {
+					this._writeTelemetry('cancel');
+				}
+			}];
+			await this._notificationService.prompt(
+				Severity.Info,
+				localize({ key: 'newThemeNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. Do you want to give it a try?", theme.label),
+				choices,
+				{ onCancel: () => this._writeTelemetry('cancel') }
+			);
+		}
+	}
+
+	private _writeTelemetry(outcome: DefaultThemeUpdatedNotificationReaction): void {
+		type ThemeUpdatedNoticationClassification = {
+			owner: 'aeschli';
+			comment: 'Reaction to the notification that theme has updated to a new default theme';
+			web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this is running on web' };
+			reaction: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Outcome of the notification' };
+		};
+		type ThemeUpdatedNoticationEvent = {
+			web: boolean;
+			reaction: DefaultThemeUpdatedNotificationReaction;
+		};
+
+		this._telemetryService.publicLog2<ThemeUpdatedNoticationEvent, ThemeUpdatedNoticationClassification>('themeUpdatedNotication', {
+			web: isWeb,
+			reaction: outcome
+		});
+	}
+}
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(DefaultThemeUpdatedNotificationContribution, LifecyclePhase.Eventually);

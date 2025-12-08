@@ -23,7 +23,7 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, remove } from 'vs/base/common/arrays';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
@@ -111,7 +111,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 			mouseBackForwardSupportListener.clear();
 
 			if (this.configurationService.getValue(HistoryService.MOUSE_NAVIGATION_SETTING)) {
-				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
+				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
 			}
 		};
 
@@ -124,17 +125,26 @@ export class HistoryService extends Disposable implements IHistoryService {
 		handleMouseBackForwardSupport();
 	}
 
-	private onMouseDown(event: MouseEvent): void {
+	private onMouseDownOrUp(event: MouseEvent, isMouseDown: boolean): void {
 
 		// Support to navigate in history when mouse buttons 4/5 are pressed
+		// We want to trigger this on mouse down for a faster experience
+		// but we also need to prevent mouse up from triggering the default
+		// which is to navigate in the browser history.
+
 		switch (event.button) {
 			case 3:
 				EventHelper.stop(event);
-				this.goBack();
+				if (isMouseDown) {
+					this.goBack();
+				}
 				break;
 			case 4:
 				EventHelper.stop(event);
-				this.goForward();
+				if (isMouseDown) {
+					this.goForward();
+				}
+
 				break;
 		}
 	}
@@ -1107,7 +1117,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	//#endregion
 }
 
-registerSingleton(IHistoryService, HistoryService);
+registerSingleton(IHistoryService, HistoryService, InstantiationType.Eager);
 
 class EditorSelectionState {
 

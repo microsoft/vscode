@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts, tryFindRootPorts } from 'vs/workbench/api/node/extHostTunnelService';
+import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts, parseIpAddress, tryFindRootPorts } from 'vs/workbench/api/node/extHostTunnelService';
 
 const tcp =
 	`  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
@@ -277,5 +277,10 @@ suite('ExtHostTunnelService', () => {
 		assert.strictEqual(result[0].host, '0.0.0.0');
 		assert.strictEqual(result[0].port, 3002);
 		assert.strictEqual(result[0].detail, 'http-server');
+	});
+
+	test('parseIpAddress', function () {
+		assert.strictEqual(parseIpAddress('00000000000000000000000001000000'), '0:0:0:0:0:0:0:1');
+		assert.strictEqual(parseIpAddress('0000000000000000FFFF0000040510AC'), '0:0:0:0:0:ffff:ac10:504');
 	});
 });

@@ -45,6 +45,7 @@ New-Item -Path $ARTIFACT_PROCESSED_FILE_PATH -Force | Out-Null
 $stages = @(
 	if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
 	if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
+	if ($env:VSCODE_BUILD_STAGE_ALPINE -eq 'True') { 'Alpine' }
 	if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
 	if ($env:VSCODE_BUILD_STAGE_WEB -eq 'True') { 'Web' }
 )
@@ -59,15 +60,19 @@ do {
 
 	$artifacts | ForEach-Object {
 		$artifactName = $_.name
+
 		if($set.Add($artifactName)) {
 			Write-Host "Processing artifact: '$artifactName. Downloading from: $($_.resource.downloadUrl)"
 
+			$extractPath = "$env:AGENT_TEMPDIRECTORY/$artifactName.zip"
 			try {
-				Invoke-RestMethod $_.resource.downloadUrl -OutFile "$env:AGENT_TEMPDIRECTORY/$artifactName.zip" -Headers @{
+				Invoke-RestMethod $_.resource.downloadUrl -OutFile $extractPath -Headers @{
 					Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-				} -MaximumRetryCount 5 -RetryIntervalSec 1  | Out-Null
+				} -MaximumRetryCount 5 -RetryIntervalSec 1 -TimeoutSec 300 | Out-Null
 
-				Expand-Archive -Path "$env:AGENT_TEMPDIRECTORY/$artifactName.zip" -DestinationPath $env:AGENT_TEMPDIRECTORY | Out-Null
+				Write-Host "Extracting artifact: '$extractPath'"
+
+				Expand-Archive -Path $extractPath -DestinationPath $env:AGENT_TEMPDIRECTORY | Out-Null
 			} catch {
 				Write-Warning $_
 				$set.Remove($artifactName) | Out-Null
@@ -76,6 +81,13 @@ do {
 
 			$null,$product,$os,$arch,$type = $artifactName -split '_'
 			$asset = Get-ChildItem -rec "$env:AGENT_TEMPDIRECTORY/$artifactName"
+
+			if ($asset.Size -ne $_.resource.properties.artifactsize) {
+				Write-Warning "Artifact size mismatch for '$artifactName'. Expected: $($_.resource.properties.artifactsize). Actual: $($asset.Size)"
+				$set.Remove($artifactName) | Out-Null
+				continue
+			}
+
 			Write-Host "Processing artifact with the following values:"
 			# turning in into an object just to log nicely
 			@{
@@ -87,8 +99,11 @@ do {
 			} | Format-Table
 
 			exec { node build/azure-pipelines/common/createAsset.js $product $os $arch $type $asset.Name $asset.FullName }
-			$artifactName >> $ARTIFACT_PROCESSED_FILE_PATH
 		}
+
+		# Mark the artifact as processed. Make sure to keep the previously
+		# processed artifacts in the file as well, not just from this run.
+		$artifactName >> $ARTIFACT_PROCESSED_FILE_PATH
 	}
 
 	# Get the timeline and see if it says the other stage completed

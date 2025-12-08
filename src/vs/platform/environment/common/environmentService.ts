@@ -5,14 +5,16 @@
 
 import { toLocalISOString } from 'vs/base/common/date';
 import { memoize } from 'vs/base/common/decorators';
-import { FileAccess } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { dirname, join, normalize, resolve } from 'vs/base/common/path';
 import { env } from 'vs/base/common/process';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ExtensionKind, IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionKind, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
+
+export const EXTENSION_IDENTIFIER_WITH_LOG_REGEX = /^([^.]+\..+):(.+)$/;
 
 export interface INativeEnvironmentPaths {
 
@@ -42,7 +44,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	declare readonly _serviceBrand: undefined;
 
 	@memoize
-	get appRoot(): string { return dirname(FileAccess.asFileUri('', require).fsPath); }
+	get appRoot(): string { return dirname(FileAccess.asFileUri('').fsPath); }
 
 	@memoize
 	get userHome(): URI { return URI.file(this.paths.homeDir); }
@@ -63,25 +65,19 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get stateResource(): URI { return joinPath(this.appSettingsHome, 'globalStorage', 'storage.json'); }
 
 	@memoize
-	get userRoamingDataHome(): URI { return this.appSettingsHome; }
+	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 
 	@memoize
-	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
+	get userDataSyncHome(): URI { return joinPath(this.appSettingsHome, 'sync'); }
 
-	get logsPath(): string {
+	get logsHome(): URI {
 		if (!this.args.logsPath) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
 			this.args.logsPath = join(this.userDataPath, 'logs', key);
 		}
 
-		return this.args.logsPath;
+		return URI.file(this.args.logsPath);
 	}
-
-	@memoize
-	get userDataSyncLogResource(): URI { return URI.file(join(this.logsPath, 'userDataSync.log')); }
-
-	@memoize
-	get editSessionsLogResource(): URI { return URI.file(join(this.logsPath, 'editSessions.log')); }
 
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
@@ -115,25 +111,22 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get untitledWorkspacesHome(): URI { return URI.file(join(this.userDataPath, 'Workspaces')); }
 
 	@memoize
-	get installSourcePath(): string { return join(this.userDataPath, 'installSource'); }
-
-	@memoize
 	get builtinExtensionsPath(): string {
 		const cliBuiltinExtensionsDir = this.args['builtin-extensions-dir'];
 		if (cliBuiltinExtensionsDir) {
 			return resolve(cliBuiltinExtensionsDir);
 		}
 
-		return normalize(join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
+		return normalize(join(FileAccess.asFileUri('').fsPath, '..', 'extensions'));
 	}
 
-	get extensionsDownloadPath(): string {
+	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {
-			return resolve(cliExtensionsDownloadDir);
+			return URI.file(resolve(cliExtensionsDownloadDir));
 		}
 
-		return join(this.userDataPath, 'CachedExtensionVSIXs');
+		return URI.file(join(this.userDataPath, 'CachedExtensionVSIXs'));
 	}
 
 	@memoize
@@ -211,12 +204,25 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	@memoize
-	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this.args, this.isBuilt); }
+	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostDebugPort(this.args, this.isBuilt); }
 	get debugRenderer(): boolean { return !!this.args.debugRenderer; }
 
 	get isBuilt(): boolean { return !env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this.args.verbose; }
-	get logLevel(): string | undefined { return this.args.log; }
+
+	@memoize
+	get logLevel(): string | undefined { return this.args.log?.find(entry => !EXTENSION_IDENTIFIER_WITH_LOG_REGEX.test(entry)); }
+	@memoize
+	get extensionLogLevel(): [string, string][] | undefined {
+		const result: [string, string][] = [];
+		for (const entry of this.args.log || []) {
+			const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
+			if (matches && matches[1] && matches[2]) {
+				result.push([matches[1], matches[2]]);
+			}
+		}
+		return result.length ? result : undefined;
+	}
 
 	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(URI.file(this.userDataPath), 'machineid'); }
@@ -225,11 +231,13 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get crashReporterDirectory(): string | undefined { return this.args['crash-reporter-directory']; }
 
 	@memoize
-	get telemetryLogResource(): URI { return URI.file(join(this.logsPath, 'telemetry.log')); }
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
 
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
+
+	@memoize
+	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
 
 	@memoize
 	get policyFile(): URI | undefined {
@@ -246,6 +254,14 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	editSessionId: string | undefined = this.args['editSessionId'];
 
+	get continueOn(): string | undefined {
+		return this.args['continueOn'];
+	}
+
+	set continueOn(value: string | undefined) {
+		this.args['continueOn'] = value;
+	}
+
 	get args(): NativeParsedArgs { return this._args; }
 
 	constructor(
@@ -255,21 +271,13 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	) { }
 }
 
-export function parseExtensionHostPort(args: NativeParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
-	return parseDebugParams(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuild, args.debugId, args.extensionEnvironment);
+export function parseExtensionHostDebugPort(args: NativeParsedArgs, isBuilt: boolean): IExtensionHostDebugParams {
+	return parseDebugParams(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuilt, args.debugId, args.extensionEnvironment);
 }
 
-export function parseSearchPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugParams(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild, args.extensionEnvironment);
-}
-
-export function parsePtyHostPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugParams(args['inspect-ptyhost'], args['inspect-brk-ptyhost'], 5877, isBuild, args.extensionEnvironment);
-}
-
-function parseDebugParams(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string, environmentString?: string): IExtensionHostDebugParams {
+export function parseDebugParams(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuilt: boolean, debugId?: string, environmentString?: string): IExtensionHostDebugParams {
 	const portStr = debugBrkArg || debugArg;
-	const port = Number(portStr) || (!isBuild ? defaultBuildPort : null);
+	const port = Number(portStr) || (!isBuilt ? defaultBuildPort : null);
 	const brk = port ? Boolean(!!debugBrkArg) : false;
 	let env: Record<string, string> | undefined;
 	if (environmentString) {

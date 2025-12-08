@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { transaction } from 'vs/base/common/observable';
+import { IReader, transaction } from 'vs/base/common/observable';
+import { isDefined } from 'vs/base/common/types';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
+import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IMergeDiffComputer, IMergeDiffComputerResult, toLineRange, toRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
+import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
 
 suite('merge editor model', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,7 +36,7 @@ suite('merge editor model', () => {
 					base: ['⟦⟧₀line1', 'line2'],
 					input1: ['⟦0', '⟧₀line1', 'line2'],
 					input2: ['⟦0', '⟧₀line1', 'line2'],
-					result: ['⟦⟧{conflicting}₀'],
+					result: ['⟦⟧{unrecognized}₀'],
 				});
 
 				model.toggleConflict(0, 1);
@@ -64,7 +68,7 @@ suite('merge editor model', () => {
 					base: ['⟦⟧₀'],
 					input1: ['⟦input1⟧₀'],
 					input2: ['⟦input2⟧₀'],
-					result: ['⟦⟧{}₀'],
+					result: ['⟦⟧{base}₀'],
 				});
 
 				model.toggleConflict(0, 1);
@@ -96,7 +100,7 @@ suite('merge editor model', () => {
 					base: ['⟦hello⟧₀'],
 					input1: ['⟦hallo⟧₀'],
 					input2: ['⟦helloworld⟧₀'],
-					result: ['⟦⟧{conflicting}₀'],
+					result: ['⟦⟧{unrecognized}₀'],
 				});
 
 				model.toggleConflict(0, 1);
@@ -145,10 +149,10 @@ suite('merge editor model', () => {
 						'Zürich',
 						'Bern',
 						'⟦Basel',
-						'⟧{}₀Chur',
+						'⟧{base}₀Chur',
 						'⟦Davos',
 						'⟧{1✓}₁Genf',
-						'Thun⟦⟧{}₂',
+						'Thun⟦⟧{base}₂',
 					],
 				});
 
@@ -213,10 +217,28 @@ suite('merge editor model', () => {
 						'=======',
 						"import { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';",
 						'>>>>>>> Stashed changes',
-						"⟧{conflicting}₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
+						"⟧{unrecognized}₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
 						'',
 					],
 				});
+			}
+		);
+	});
+
+	test('auto-solve equal edits', async () => {
+		await testMergeModel(
+			{
+				"languageId": "javascript",
+				"base": "const { readFileSync } = require('fs');\n\nlet paths = process.argv.slice(2);\nmain(paths);\n\nfunction main(paths) {\n    // print the welcome message\n    printMessage();\n\n    let data = getLineCountInfo(paths);\n    console.log(\"Lines: \" + data.totalLineCount);\n}\n\n/**\n * Prints the welcome message\n*/\nfunction printMessage() {\n    console.log(\"Welcome To Line Counter\");\n}\n\n/**\n * @param {string[]} paths\n*/\nfunction getLineCountInfo(paths) {\n    let lineCounts = paths.map(path => ({ path, count: getLinesLength(readFileSync(path, 'utf8')) }));\n    return {\n        totalLineCount: lineCounts.reduce((acc, { count }) => acc + count, 0),\n        lineCounts,\n    };\n}\n\n/**\n * @param {string} str\n */\nfunction getLinesLength(str) {\n    return str.split('\\n').length;\n}\n",
+				"input1": "const { readFileSync } = require('fs');\n\nlet paths = process.argv.slice(2);\nmain(paths);\n\nfunction main(paths) {\n    // print the welcome message\n    printMessage();\n\n    const data = getLineCountInfo(paths);\n    console.log(\"Lines: \" + data.totalLineCount);\n}\n\nfunction printMessage() {\n    console.log(\"Welcome To Line Counter\");\n}\n\n/**\n * @param {string[]} paths\n*/\nfunction getLineCountInfo(paths) {\n    let lineCounts = paths.map(path => ({ path, count: getLinesLength(readFileSync(path, 'utf8')) }));\n    return {\n        totalLineCount: lineCounts.reduce((acc, { count }) => acc + count, 0),\n        lineCounts,\n    };\n}\n\n/**\n * @param {string} str\n */\nfunction getLinesLength(str) {\n    return str.split('\\n').length;\n}\n",
+				"input2": "const { readFileSync } = require('fs');\n\nlet paths = process.argv.slice(2);\nrun(paths);\n\nfunction run(paths) {\n    // print the welcome message\n    printMessage();\n\n    const data = getLineCountInfo(paths);\n    console.log(\"Lines: \" + data.totalLineCount);\n}\n\nfunction printMessage() {\n    console.log(\"Welcome To Line Counter\");\n}\n\n/**\n * @param {string[]} paths\n*/\nfunction getLineCountInfo(paths) {\n    let lineCounts = paths.map(path => ({ path, count: getLinesLength(readFileSync(path, 'utf8')) }));\n    return {\n        totalLineCount: lineCounts.reduce((acc, { count }) => acc + count, 0),\n        lineCounts,\n    };\n}\n\n/**\n * @param {string} str\n */\nfunction getLinesLength(str) {\n    return str.split('\\n').length;\n}\n",
+				"result": "<<<<<<< uiae\n>>>>>>> Stashed changes",
+				resetResult: true,
+			},
+			async model => {
+				await model.mergeModel.reset();
+
+				assert.deepStrictEqual(model.getResult(), `const { readFileSync } = require('fs');\n\nlet paths = process.argv.slice(2);\nrun(paths);\n\nfunction run(paths) {\n    // print the welcome message\n    printMessage();\n\n    const data = getLineCountInfo(paths);\n    console.log("Lines: " + data.totalLineCount);\n}\n\nfunction printMessage() {\n    console.log("Welcome To Line Counter");\n}\n\n/**\n * @param {string[]} paths\n*/\nfunction getLineCountInfo(paths) {\n    let lineCounts = paths.map(path => ({ path, count: getLinesLength(readFileSync(path, 'utf8')) }));\n    return {\n        totalLineCount: lineCounts.reduce((acc, { count }) => acc + count, 0),\n        lineCounts,\n    };\n}\n\n/**\n * @param {string} str\n */\nfunction getLinesLength(str) {\n    return str.split('\\n').length;\n}\n`);
 			}
 		);
 	});
@@ -241,6 +263,7 @@ interface MergeModelOptions {
 	input2: string;
 	base: string;
 	result: string;
+	resetResult?: boolean;
 }
 
 function toSmallNumbersDec(value: number): string {
@@ -257,34 +280,49 @@ class MergeModelInterface extends Disposable {
 		const input2TextModel = this._register(createTextModel(options.input2, options.languageId));
 		const baseTextModel = this._register(createTextModel(options.base, options.languageId));
 		const resultTextModel = this._register(createTextModel(options.result, options.languageId));
+
+		const diffComputer: IMergeDiffComputer = {
+			async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
+				const result = await linesDiffComputers.getLegacy().computeDiff(
+					textModel1.getLinesContent(),
+					textModel2.getLinesContent(),
+					{ ignoreTrimWhitespace: false, maxComputationTimeMs: 10000, computeMoves: false }
+				);
+				const changes = result.changes.map(c =>
+					new DetailedLineRangeMapping(
+						toLineRange(c.originalRange),
+						textModel1,
+						toLineRange(c.modifiedRange),
+						textModel2,
+						c.innerChanges?.map(ic => toRangeMapping(ic)).filter(isDefined)
+					)
+				);
+				return {
+					diffs: changes
+				};
+			}
+		};
+
 		this.mergeModel = this._register(instantiationService.createInstance(MergeEditorModel,
 			baseTextModel,
-			input1TextModel,
-			'',
-			'',
-			'',
-			input2TextModel,
-			'',
-			'',
-			'',
-			resultTextModel,
 			{
-				async computeDiff(textModel1, textModel2) {
-					const result = EditorSimpleWorker.computeDiff(textModel1, textModel2, false, 10000);
-					if (!result) {
-						return { diffs: null };
-					}
-					return {
-						diffs: EditorWorkerServiceDiffComputer.fromDiffComputationResult(
-							result,
-							textModel1,
-							textModel2
-						),
-					};
-				},
-			}, {
-			resetUnknownOnInitialization: false
-		}
+				textModel: input1TextModel,
+				description: '',
+				detail: '',
+				title: '',
+			},
+			{
+				textModel: input2TextModel,
+				description: '',
+				detail: '',
+				title: '',
+			},
+			resultTextModel,
+			diffComputer,
+			{
+				resetResult: options.resetResult || false
+			},
+			new MergeEditorTelemetry(NullTelemetryService),
 		));
 	}
 
@@ -310,7 +348,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const input1TextModel = createTextModel(this.mergeModel.input1.getValue());
+		const input1TextModel = createTextModel(this.mergeModel.input1.textModel.getValue());
 		applyRanges(
 			input1TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -319,7 +357,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const input2TextModel = createTextModel(this.mergeModel.input2.getValue());
+		const input2TextModel = createTextModel(this.mergeModel.input2.textModel.getValue());
 		applyRanges(
 			input2TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -328,11 +366,11 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const resultTextModel = createTextModel(this.mergeModel.result.getValue());
+		const resultTextModel = createTextModel(this.mergeModel.resultTextModel.getValue());
 		applyRanges(
 			resultTextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
-				range: this.mergeModel.getRangeInResult(r.baseRange).toRange(),
+				range: this.mergeModel.getLineRangeInResult(r.baseRange).toRange(),
 				label: `{${this.mergeModel.getState(r).get()}}${toSmallNumbersDec(idx)}`,
 			}))
 		);
@@ -362,6 +400,6 @@ class MergeModelInterface extends Disposable {
 	}
 
 	getResult(): string {
-		return this.mergeModel.result.getValue();
+		return this.mergeModel.resultTextModel.getValue();
 	}
 }

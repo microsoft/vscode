@@ -9,7 +9,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -17,12 +17,16 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IEncodingSupport, ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
-import { FileType, IFileService } from 'vs/platform/files/common/files';
+import { FileType, IFileReadLimits, IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/window/common/window';
-import { coalesce } from 'vs/base/common/arrays';
 import { IExtUri } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from 'vs/base/common/errorMessage';
+import { IAction, toAction } from 'vs/base/common/actions';
+import Severity from 'vs/base/common/severity';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -484,6 +488,38 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
+
+/**
+ * A resource merge editor input compares multiple editors
+ * highlighting the differences for merging.
+ *
+ * Note: all sides must be resolvable to the same editor, or
+ * a text based presentation will be used as fallback.
+ */
+export interface IResourceMergeEditorInput extends IBaseUntypedEditorInput {
+
+	/**
+	 * The one changed version of the file.
+	 */
+	readonly input1: IResourceMergeEditorInputSide;
+
+	/**
+	 * The second changed version of the file.
+	 */
+	readonly input2: IResourceMergeEditorInputSide;
+
+	/**
+	 * The base common ancestor of the file to merge.
+	 */
+	readonly base: IResourceEditorInput | ITextResourceEditorInput;
+
+	/**
+	 * The resulting output of the merge.
+	 */
+	readonly result: IResourceEditorInput | ITextResourceEditorInput;
+}
+
 export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
 	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
@@ -529,6 +565,16 @@ export function isUntitledResourceEditorInput(editor: unknown): editor is IUntit
 	}
 
 	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
+}
+
+export function isResourceMergeEditorInput(editor: unknown): editor is IResourceMergeEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IResourceMergeEditorInput | undefined;
+
+	return URI.isUri(candidate?.base?.resource) && URI.isUri(candidate?.input1?.resource) && URI.isUri(candidate?.input2?.resource) && URI.isUri(candidate?.result?.resource);
 }
 
 export const enum Verbosity {
@@ -681,7 +727,7 @@ export const enum EditorInputCapabilities {
 	CanSplitInGroup = 1 << 5,
 
 	/**
-	 * Signals that the editor wants it's description to be
+	 * Signals that the editor wants its description to be
 	 * visible when presented to the user. By default, a UI
 	 * component may decide to hide the description portion
 	 * for brevity.
@@ -693,9 +739,21 @@ export const enum EditorInputCapabilities {
 	 * editor by holding shift.
 	 */
 	CanDropIntoEditor = 1 << 7,
+
+	/**
+	 * Signals that the editor is composed of multiple editors
+	 * within.
+	 */
+	MultipleEditors = 1 << 8,
+
+	/**
+	 * Signals that the editor cannot be in a dirty state
+	 * and may still have unsaved changes
+	 */
+	Scratchpad = 1 << 9
 }
 
-export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput;
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
 
 export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
@@ -840,6 +898,40 @@ export interface IFileEditorInput extends EditorInput, IEncodingSupport, ILangua
 	 * Figure out if the file input has been resolved or not.
 	 */
 	isResolved(): boolean;
+}
+
+export interface IFileEditorInputOptions extends ITextEditorOptions {
+
+	/**
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
+	 */
+	readonly limits?: IFileReadLimits;
+}
+
+export function createTooLargeFileError(group: IEditorGroup, input: EditorInput, options: IEditorOptions | undefined, message: string, preferencesService: IPreferencesService): Error {
+	return createEditorOpenError(message, [
+		toAction({
+			id: 'workbench.action.openLargeFile', label: localize('openLargeFile', "Open Anyway"), run: () => {
+				const fileEditorOptions: IFileEditorInputOptions = {
+					...options,
+					limits: {
+						size: Number.MAX_VALUE
+					}
+				};
+
+				group.openEditor(input, fileEditorOptions);
+			}
+		}),
+		toAction({
+			id: 'workbench.action.configureEditorLargeFileConfirmation', label: localize('configureEditorLargeFileConfirmation', "Configure Limit"), run: () => {
+				return preferencesService.openUserSettings({ query: 'workbench.editorLargeFileConfirmation' });
+			}
+		}),
+	], {
+		forceMessage: true,
+		forceSeverity: Severity.Warning
+	});
 }
 
 export interface EditorInputWithOptions {
@@ -1002,8 +1094,11 @@ interface IEditorPartConfiguration {
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
-	tabSizing?: 'fit' | 'shrink';
+	tabSizing?: 'fit' | 'shrink' | 'fixed';
+	tabSizingFixedMinWidth?: number;
+	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
+	preventPinnedEditorClose?: PreventPinnedEditorClose;
 	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
@@ -1020,8 +1115,10 @@ interface IEditorPartConfiguration {
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
 	splitInGroupLayout?: 'vertical' | 'horizontal';
-	splitSizing?: 'split' | 'distribute';
+	splitSizing?: 'auto' | 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
+	centeredLayoutFixedWidth?: boolean;
+	doubleClickTabToToggleEditorGroupSizes?: boolean;
 	limit?: {
 		enabled?: boolean;
 		excludeDirty?: boolean;
@@ -1114,9 +1211,15 @@ class EditorResourceAccessorImpl {
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI; secondary?: URI } | undefined;
+	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined;
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
+		}
+
+		// Merge editors are handled with `merged` result editor
+		if (isResourceMergeEditorInput(editor)) {
+			return EditorResourceAccessor.getOriginalUri(editor.result, options);
 		}
 
 		// Optionally support side-by-side editors
@@ -1136,8 +1239,8 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
-			return;
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+			return undefined;
 		}
 
 		// Original URI is the `preferredResource` of an editor if any
@@ -1177,9 +1280,15 @@ class EditorResourceAccessorImpl {
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI; secondary?: URI } | undefined;
+	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined;
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
+		}
+
+		// Merge editors are handled with `merged` result editor
+		if (isResourceMergeEditorInput(editor)) {
+			return EditorResourceAccessor.getCanonicalUri(editor.result, options);
 		}
 
 		// Optionally support side-by-side editors
@@ -1199,8 +1308,8 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
-			return;
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+			return undefined;
 		}
 
 		// Canonical URI is the `resource` of an editor
@@ -1230,6 +1339,28 @@ class EditorResourceAccessorImpl {
 
 		return undefined;
 	}
+}
+
+export type PreventPinnedEditorClose = 'keyboardAndMouse' | 'keyboard' | 'mouse' | 'never' | undefined;
+
+export enum EditorCloseMethod {
+	UNKNOWN,
+	KEYBOARD,
+	MOUSE
+}
+
+export function preventEditorClose(group: IEditorGroup, editor: EditorInput, method: EditorCloseMethod, configuration: IEditorPartConfiguration): boolean {
+	if (!group.isSticky(editor)) {
+		return false; // only interested in sticky editors
+	}
+
+	switch (configuration.preventPinnedEditorClose) {
+		case 'keyboardAndMouse': return method === EditorCloseMethod.MOUSE || method === EditorCloseMethod.KEYBOARD;
+		case 'mouse': return method === EditorCloseMethod.MOUSE;
+		case 'keyboard': return method === EditorCloseMethod.KEYBOARD;
+	}
+
+	return false;
 }
 
 export const EditorResourceAccessor = new EditorResourceAccessorImpl();
@@ -1316,20 +1447,22 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 
 Registry.add(EditorExtensions.EditorFactory, new EditorFactoryRegistry());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService, logService: ILogService): Promise<ReadonlyArray<IResourceEditorInput | IUntitledTextResourceEditorInput | undefined>> {
 	if (!paths || !paths.length) {
 		return [];
 	}
 
-	const editors = await Promise.all(paths.map(async path => {
+	return await Promise.all(paths.map(async path => {
 		const resource = URI.revive(path.fileUri);
 		if (!resource) {
-			return;
+			logService.info('Cannot resolve the path because it is not valid.', path);
+			return undefined;
 		}
 
 		const canHandleResource = await fileService.canHandleResource(resource);
 		if (!canHandleResource) {
-			return;
+			logService.info('Cannot resolve the path because it cannot be handled', path);
+			return undefined;
 		}
 
 		let exists = path.exists;
@@ -1338,17 +1471,20 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			try {
 				type = (await fileService.stat(resource)).isDirectory ? FileType.Directory : FileType.Unknown;
 				exists = true;
-			} catch {
+			} catch (error) {
+				logService.error(error);
 				exists = false;
 			}
 		}
 
 		if (!exists && path.openOnlyIfExists) {
-			return;
+			logService.info('Cannot resolve the path because it does not exist', path);
+			return undefined;
 		}
 
 		if (type === FileType.Directory) {
-			return;
+			logService.info('Cannot resolve the path because it is a directory', path);
+			return undefined;
 		}
 
 		const options: IEditorOptions = {
@@ -1356,17 +1492,12 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			pinned: true
 		};
 
-		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
-			input = { resource, options, forceUntitled: true };
-		} else {
-			input = { resource, options };
+			return { resource, options, forceUntitled: true };
 		}
 
-		return input;
+		return { resource, options };
 	}));
-
-	return coalesce(editors);
 }
 
 export const enum EditorsOrder {
@@ -1396,4 +1527,43 @@ export function isTextEditorViewState(candidate: unknown): candidate is IEditorV
 	const codeEditorViewState = viewState as ICodeEditorViewState;
 
 	return !!(codeEditorViewState.contributionsState && codeEditorViewState.viewState && Array.isArray(codeEditorViewState.cursorState));
+}
+
+export interface IEditorOpenErrorOptions {
+
+	/**
+	 * If set to true, the message will be taken
+	 * from the error message entirely and not be
+	 * composed with more text.
+	 */
+	forceMessage?: boolean;
+
+	/**
+	 * If set, will override the severity of the error.
+	 */
+	forceSeverity?: Severity;
+
+	/**
+	 * If set to true, the error may be shown in a dialog
+	 * to the user if the editor opening was triggered by
+	 * user action. Otherwise and by default, the error will
+	 * be shown as place holder in the editor area.
+	 */
+	allowDialog?: boolean;
+}
+
+export interface IEditorOpenError extends IErrorWithActions, IEditorOpenErrorOptions { }
+
+export function isEditorOpenError(obj: unknown): obj is IEditorOpenError {
+	return isErrorWithActions(obj);
+}
+
+export function createEditorOpenError(messageOrError: string | Error, actions: IAction[], options?: IEditorOpenErrorOptions): IEditorOpenError {
+	const error: IEditorOpenError = createErrorWithActions(messageOrError, actions);
+
+	error.forceMessage = options?.forceMessage;
+	error.forceSeverity = options?.forceSeverity;
+	error.allowDialog = options?.allowDialog;
+
+	return error;
 }

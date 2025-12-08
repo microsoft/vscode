@@ -22,7 +22,7 @@ import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippe
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
 import { SnippetCompletionProvider } from './snippetCompletionProvider';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isStringArray } from 'vs/base/common/types';
@@ -318,7 +318,7 @@ export class SnippetsService implements ISnippetsService {
 				// enabled or disabled wanted
 				continue;
 			}
-			if (typeof opts?.topLevelSnippets === 'boolean' && opts.topLevelSnippets !== snippet.isTopLevel) {
+			if (typeof opts?.fileTemplateSnippets === 'boolean' && opts.fileTemplateSnippets !== snippet.isFileTemplate) {
 				// isTopLevel requested but mismatching
 				continue;
 			}
@@ -454,9 +454,6 @@ export class SnippetsService implements ISnippetsService {
 		};
 		this._disposables.add(disposables);
 		this._disposables.add(this._userDataProfileService.onDidChangeCurrentProfile(e => e.join((async () => {
-			if (e.preserveData) {
-				await this._fileService.copy(e.previous.snippetsHome, e.profile.snippetsHome);
-			}
 			this._pendingWork.push(updateUserSnippets());
 		})())));
 		await updateUserSnippets();

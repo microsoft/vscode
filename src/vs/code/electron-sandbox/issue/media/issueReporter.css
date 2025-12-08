@@ -73,6 +73,7 @@ textarea {
 	padding: 4px 10px;
 	align-self: flex-end;
 	margin-bottom: 10px;
+	font-size: 13px;
 }
 
 select {

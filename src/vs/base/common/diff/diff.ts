@@ -69,7 +69,7 @@ export interface IDiffResult {
 // The code below has been ported from a C# implementation in VS
 //
 
-export class Debug {
+class Debug {
 
 	public static Assert(condition: boolean, message: string): void {
 		if (!condition) {
@@ -78,7 +78,7 @@ export class Debug {
 	}
 }
 
-export class MyArray {
+class MyArray {
 	/**
 	 * Copies a range of elements from an Array starting at the specified source index and pastes
 	 * them to another Array starting at the specified destination index. The length and the indexes

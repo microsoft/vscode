@@ -16,7 +16,7 @@ class WindowManager {
 	public getZoomLevel(): number {
 		return this._zoomLevel;
 	}
-	public setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
+	public setZoomLevel(zoomLevel: number): void {
 		if (this._zoomLevel === zoomLevel) {
 			return;
 		}
@@ -73,7 +73,7 @@ class DevicePixelRatioMonitor extends Disposable {
 	private _handleChange(fireEvent: boolean): void {
 		this._mediaQueryList?.removeEventListener('change', this._listener);
 
-		this._mediaQueryList = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+		this._mediaQueryList = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
 		this._mediaQueryList.addEventListener('change', this._listener);
 
 		if (fireEvent) {
@@ -159,8 +159,8 @@ export function addMatchMediaChangeListener(query: string | MediaQueryList, call
 export const PixelRatio = new PixelRatioFacade();
 
 /** A zoom index, e.g. 1, 2, 3 */
-export function setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
-	WindowManager.INSTANCE.setZoomLevel(zoomLevel, isTrusted);
+export function setZoomLevel(zoomLevel: number): void {
+	WindowManager.INSTANCE.setZoomLevel(zoomLevel);
 }
 export function getZoomLevel(): number {
 	return WindowManager.INSTANCE.getZoomLevel();
@@ -194,12 +194,26 @@ export const isAndroid = (userAgent.indexOf('Android') >= 0);
 
 let standalone = false;
 if (window.matchMedia) {
-	const matchMedia = window.matchMedia('(display-mode: standalone)');
-	standalone = matchMedia.matches;
-	addMatchMediaChangeListener(matchMedia, ({ matches }) => {
+	const standaloneMatchMedia = window.matchMedia('(display-mode: standalone) or (display-mode: window-controls-overlay)');
+	const fullScreenMatchMedia = window.matchMedia('(display-mode: fullscreen)');
+	standalone = standaloneMatchMedia.matches;
+	addMatchMediaChangeListener(standaloneMatchMedia, ({ matches }) => {
+		// entering fullscreen would change standaloneMatchMedia.matches to false
+		// if standalone is true (running as PWA) and entering fullscreen, skip this change
+		if (standalone && fullScreenMatchMedia.matches) {
+			return;
+		}
+		// otherwise update standalone (browser to PWA or PWA to browser)
 		standalone = matches;
 	});
 }
 export function isStandalone(): boolean {
 	return standalone;
+}
+
+// Visible means that the feature is enabled, not necessarily being rendered
+// e.g. visible is true even in fullscreen mode where the controls are hidden
+// See docs at https://developer.mozilla.org/en-US/docs/Web/API/WindowControlsOverlay/visible
+export function isWCOEnabled(): boolean {
+	return (navigator as any)?.windowControlsOverlay?.visible;
 }

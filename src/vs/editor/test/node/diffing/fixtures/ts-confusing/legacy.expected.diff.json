@@ -1,0 +1,54 @@
+{
+	"original": {
+		"content": "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\n\nimport { URI } from 'vs/base/common/uri';\nimport { IRange } from 'vs/editor/common/core/range';\nimport { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';\nimport { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/languages';\nimport { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';\n\nexport class TestEditorWorkerService implements IEditorWorkerService {\n\n\tdeclare readonly _serviceBrand: undefined;\n\n\tcanComputeUnicodeHighlights(uri: URI): boolean { return false; }\n\tasync computedUnicodeHighlights(uri: URI): Promise<IUnicodeHighlightsResult> { return { ranges: [], hasMore: false, ambiguousCharacterCount: 0, invisibleCharacterCount: 0, nonBasicAsciiCharacterCount: 0 }; }\n\tasync computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> { return null; }\n\tcanComputeDirtyDiff(original: URI, modified: URI): boolean { return false; }\n\tasync computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> { return null; }\n\tasync computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined> { return undefined; }\n\tcanComputeWordRanges(resource: URI): boolean { return false; }\n\tasync computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> { return null; }\n\tcanNavigateValueSet(resource: URI): boolean { return false; }\n\tasync navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }\n}\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\n\nimport { URI } from 'vs/base/common/uri';\nimport { IRange } from 'vs/editor/common/core/range';\nimport { IDiffComputationResult, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';\nimport { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/languages';\nimport { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';\nimport { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';\n\nexport class TestEditorWorkerService implements IEditorWorkerService {\n\n\tdeclare readonly _serviceBrand: undefined;\n\n\tcanComputeUnicodeHighlights(uri: URI): boolean { return false; }\n\tasync computedUnicodeHighlights(uri: URI): Promise<IUnicodeHighlightsResult> { return { ranges: [], hasMore: false, ambiguousCharacterCount: 0, invisibleCharacterCount: 0, nonBasicAsciiCharacterCount: 0 }; }\n\tasync computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions): Promise<IDiffComputationResult | null> { return null; }\n\tcanComputeDirtyDiff(original: URI, modified: URI): boolean { return false; }\n\tasync computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> { return null; }\n\tasync computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined> { return undefined; }\n\tcanComputeWordRanges(resource: URI): boolean { return false; }\n\tasync computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> { return null; }\n\tcanNavigateValueSet(resource: URI): boolean { return false; }\n\tasync navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }\n}\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[8,9)",
+			"modifiedRange": "[8,9)",
+			"innerChanges": [
+				{
+					"originalRange": "[8,11 -> 8,11]",
+					"modifiedRange": "[8,11 -> 8,35]"
+				}
+			]
+		},
+		{
+			"originalRange": "[10,11)",
+			"modifiedRange": "[10,12)",
+			"innerChanges": [
+				{
+					"originalRange": "[10,11 -> 10,20]",
+					"modifiedRange": "[10,11 -> 10,77]"
+				},
+				{
+					"originalRange": "[10,24 -> 10,41]",
+					"modifiedRange": "[10,81 -> 11,17]"
+				},
+				{
+					"originalRange": "[10,72 -> 10,73]",
+					"modifiedRange": "[11,48 -> 11,59]"
+				}
+			]
+		},
+		{
+			"originalRange": "[18,19)",
+			"modifiedRange": "[19,20)",
+			"innerChanges": [
+				{
+					"originalRange": "[18,50 -> 18,91]",
+					"modifiedRange": "[19,50 -> 19,82]"
+				},
+				{
+					"originalRange": "[18,95 -> 18,107]",
+					"modifiedRange": "[19,86 -> 19,87]"
+				}
+			]
+		}
+	]
+}

@@ -35,9 +35,15 @@ export class NotebookEditorWorkerServiceImpl extends Disposable implements INote
 			return client.computeDiff(original, modified);
 		});
 	}
+
+	canPromptRecommendation(model: URI): Promise<boolean> {
+		return this._workerManager.withWorker().then(client => {
+			return client.canPromptRecommendation(model);
+		});
+	}
 }
 
-export class WorkerManager extends Disposable {
+class WorkerManager extends Disposable {
 	private _editorWorkerClient: NotebookWorkerClient | null;
 	// private _lastWorkerUsedTime: number;
 
@@ -58,12 +64,12 @@ export class WorkerManager extends Disposable {
 	}
 }
 
-export interface IWorkerClient<W> {
+interface IWorkerClient<W> {
 	getProxyObject(): Promise<W>;
 	dispose(): void;
 }
 
-export class NotebookEditorModelManager extends Disposable {
+class NotebookEditorModelManager extends Disposable {
 	private _syncedModels: { [modelUrl: string]: IDisposable } = Object.create(null);
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
 
@@ -124,7 +130,7 @@ export class NotebookEditorModelManager extends Disposable {
 				eol: cell.textBuffer.getEOL(),
 				language: cell.language,
 				cellKind: cell.cellKind,
-				outputs: cell.outputs,
+				outputs: cell.outputs.map(op => ({ outputId: op.outputId, outputs: op.outputs })),
 				metadata: cell.metadata,
 				internalMetadata: cell.internalMetadata,
 			};
@@ -193,7 +199,7 @@ class NotebookWorkerHost implements INotebookWorkerHost {
 	}
 }
 
-export class NotebookWorkerClient extends Disposable {
+class NotebookWorkerClient extends Disposable {
 	private _worker: IWorkerClient<NotebookEditorSimpleWorker> | null;
 	private readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: NotebookEditorModelManager | null;
@@ -215,6 +221,12 @@ export class NotebookWorkerClient extends Disposable {
 	computeDiff(original: URI, modified: URI) {
 		return this._withSyncedResources([original, modified]).then(proxy => {
 			return proxy.computeDiff(original.toString(), modified.toString());
+		});
+	}
+
+	canPromptRecommendation(modelUri: URI) {
+		return this._withSyncedResources([modelUri]).then(proxy => {
+			return proxy.canPromptRecommendation(modelUri.toString());
 		});
 	}
 
