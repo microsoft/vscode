@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { n, trackFocus } from '../../../../../../../base/browser/dom.js';
+import { ModifierKeyEmitter, n, trackFocus } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
@@ -25,7 +25,7 @@ import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulBorder, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
+import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorSuccessfulBackground, inlineEditIndicatorSuccessfulBorder, inlineEditIndicatorSuccessfulForeground } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
 import { assertNever } from '../../../../../../../base/common/assert.js';
@@ -33,21 +33,25 @@ import { Command, InlineCompletionCommand, IInlineCompletionModelInfo } from '..
 import { InlineSuggestionItem } from '../../../model/inlineSuggestionItem.js';
 import { localize } from '../../../../../../../nls.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
+import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
 
 export class InlineEditsGutterIndicatorData {
 	constructor(
 		readonly gutterMenuData: InlineSuggestionGutterMenuData,
 		readonly originalRange: LineRange,
 		readonly model: SimpleInlineSuggestModel,
+		readonly altAction: InlineSuggestAlternativeAction | undefined,
 	) { }
 }
 
 export class InlineSuggestionGutterMenuData {
 	public static fromInlineSuggestion(suggestion: InlineSuggestionItem): InlineSuggestionGutterMenuData {
+		const alternativeAction = suggestion.action?.kind === 'edit' ? suggestion.action.alternativeAction : undefined;
 		return new InlineSuggestionGutterMenuData(
-			suggestion.action,
+			suggestion.gutterMenuLinkAction,
 			suggestion.source.provider.displayName ?? localize('inlineSuggestion', "Inline Suggestion"),
 			suggestion.source.inlineSuggestions.commands ?? [],
+			alternativeAction,
 			suggestion.source.provider.modelInfo,
 			suggestion.source.provider.setModelId?.bind(suggestion.source.provider),
 		);
@@ -57,6 +61,7 @@ export class InlineSuggestionGutterMenuData {
 		readonly action: Command | undefined,
 		readonly displayName: string,
 		readonly extensionCommands: InlineCompletionCommand[],
+		readonly alternativeAction: InlineSuggestAlternativeAction | undefined,
 		readonly modelInfo: IInlineCompletionModelInfo | undefined,
 		readonly setModelId: ((modelId: string) => Promise<void>) | undefined,
 	) { }
@@ -144,8 +149,17 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _isHoveredOverInlineEditDebounced: IObservable<boolean>;
 
+	private readonly _modifierPressed = observableFromEvent(this, ModifierKeyEmitter.getInstance().event, () => ModifierKeyEmitter.getInstance().keyStatus.shiftKey);
 	private readonly _gutterIndicatorStyles = derived(this, reader => {
-		const v = this._tabAction.read(reader);
+		let v = this._tabAction.read(reader);
+
+		// TODO: add source of truth for alt action active and key pressed
+		const altAction = this._data.read(reader)?.altAction;
+		const modifiedPressed = this._modifierPressed.read(reader);
+		if (altAction && modifiedPressed) {
+			v = InlineEditTabAction.Inactive;
+		}
+
 		switch (v) {
 			case InlineEditTabAction.Inactive: return {
 				background: getEditorBlendedColor(inlineEditIndicatorSecondaryBackground, this._themeService).read(reader).toString(),
@@ -158,9 +172,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 				border: getEditorBlendedColor(inlineEditIndicatorPrimaryBorder, this._themeService).read(reader).toString()
 			};
 			case InlineEditTabAction.Accept: return {
-				background: getEditorBlendedColor(inlineEditIndicatorsuccessfulBackground, this._themeService).read(reader).toString(),
-				foreground: getEditorBlendedColor(inlineEditIndicatorsuccessfulForeground, this._themeService).read(reader).toString(),
-				border: getEditorBlendedColor(inlineEditIndicatorsuccessfulBorder, this._themeService).read(reader).toString()
+				background: getEditorBlendedColor(inlineEditIndicatorSuccessfulBackground, this._themeService).read(reader).toString(),
+				foreground: getEditorBlendedColor(inlineEditIndicatorSuccessfulForeground, this._themeService).read(reader).toString(),
+				border: getEditorBlendedColor(inlineEditIndicatorSuccessfulBorder, this._themeService).read(reader).toString()
 			};
 			default:
 				assertNever(v);
@@ -439,7 +453,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			},
 		).toDisposableLiveElement());
 
-		const focusTracker = disposableStore.add(trackFocus(content.element));
+		const focusTracker = disposableStore.add(trackFocus(content.element)); // TODO@benibenj should this be removed?
 		disposableStore.add(focusTracker.onDidBlur(() => this._focusIsInMenu.set(false, undefined)));
 		disposableStore.add(focusTracker.onDidFocus(() => this._focusIsInMenu.set(true, undefined)));
 		disposableStore.add(toDisposable(() => this._focusIsInMenu.set(false, undefined)));
@@ -476,7 +490,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 				data.model.jump();
 			}
 		},
-		tabIndex: 0,
 		style: {
 			position: 'absolute',
 			overflow: 'visible',
@@ -509,7 +522,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				borderRadius: '4px',
 				display: 'flex',
 				justifyContent: 'flex-end',
-				transition: 'background-color 0.2s ease-in-out, width 0.2s ease-in-out',
+				transition: this._modifierPressed.map(m => m ? '' : 'background-color 0.2s ease-in-out, width 0.2s ease-in-out'),
 				...rectToProps(reader => layout.read(reader).pillRect),
 			}
 		}, [

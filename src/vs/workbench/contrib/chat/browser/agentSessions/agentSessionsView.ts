@@ -4,17 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsview.css';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { localize, localize2 } from '../../../../../nls.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
+import { localize } from '../../../../../nls.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
-import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
-import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewDescriptor, IViewDescriptorService } from '../../../../common/views.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -36,10 +30,16 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID, AgentSessionProviders } from './agentSessions.js';
+import { AgentSessionProviders } from './agentSessions.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
 import { AgentSessionsControl } from './agentSessionsControl.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+
+type AgentSessionsViewPaneOpenedClassification = {
+	owner: 'bpasero';
+	comment: 'Event fired when the agent sessions pane is opened';
+};
 
 export class AgentSessionsView extends ViewPane {
 
@@ -59,8 +59,9 @@ export class AgentSessionsView extends ViewPane {
 		@IProgressService private readonly progressService: IProgressService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		super({ ...options, titleMenuId: MenuId.AgentSessionsTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super({ ...options, titleMenuId: MenuId.AgentSessionsViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.registerListeners();
 	}
@@ -86,12 +87,12 @@ export class AgentSessionsView extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		this.telemetryService.publicLog2<{}, AgentSessionsViewPaneOpenedClassification>('agentSessionsViewPaneOpened');
+
 		container.classList.add('agent-sessions-view');
 
 		// New Session
-		if (!this.configurationService.getValue('chat.hideNewButtonInAgentSessionsView')) {
-			this.createNewSessionButton(container);
-		}
+		this.createNewSessionButton(container);
 
 		// Sessions Control
 		this.createSessionsControl(container);
@@ -157,8 +158,8 @@ export class AgentSessionsView extends ViewPane {
 				addedSeparator = true;
 			}
 
-			const menuActions = this.menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, this.scopedContextKeyService.createOverlay([
-				[ChatContextKeys.sessionType.key, provider.type]
+			const menuActions = this.menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, this.scopedContextKeyService.createOverlay([
+				[ChatContextKeys.agentSessionType.key, provider.type]
 			]));
 
 			const primaryActions = getActionBarActions(menuActions, () => true).primary;
@@ -179,12 +180,12 @@ export class AgentSessionsView extends ViewPane {
 		}
 
 		// Install more
-		actions.push(new Separator());
-		actions.push(toAction({
-			id: 'install-extensions',
-			label: localize('chatSessions.installExtensions', "Install Chat Extensions..."),
-			run: () => this.commandService.executeCommand('chat.sessions.gettingStarted')
-		}));
+		const installMenuActions = this.menuService.getMenuActions(MenuId.AgentSessionsInstallMenu, this.scopedContextKeyService, { shouldForwardArgs: true });
+		const installActionBar = getActionBarActions(installMenuActions, () => true);
+		if (installActionBar.primary.length > 0) {
+			actions.push(new Separator());
+			actions.push(...installActionBar.primary);
+		}
 
 		return actions;
 	}
@@ -205,6 +206,7 @@ export class AgentSessionsView extends ViewPane {
 			{
 				filter: sessionsFilter,
 				allowNewSessionFromEmptySpace: true,
+				trackActiveEditor: true,
 			}
 		));
 		this.sessionsControl.setVisible(this.isBodyVisible());
@@ -243,42 +245,3 @@ export class AgentSessionsView extends ViewPane {
 		this.sessionsControl?.focus();
 	}
 }
-
-//#region View Registration
-
-const chatAgentsIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View');
-
-const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Agent Sessions");
-
-const agentSessionsViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
-	id: AGENT_SESSIONS_VIEW_CONTAINER_ID,
-	title: AGENT_SESSIONS_VIEW_TITLE,
-	icon: chatAgentsIcon,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [AGENT_SESSIONS_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
-	storageId: AGENT_SESSIONS_VIEW_CONTAINER_ID,
-	hideIfEmpty: true,
-	order: 6,
-}, ViewContainerLocation.AuxiliaryBar);
-
-const agentSessionsViewDescriptor: IViewDescriptor = {
-	id: AGENT_SESSIONS_VIEW_ID,
-	containerIcon: chatAgentsIcon,
-	containerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
-	singleViewPaneContainerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
-	name: AGENT_SESSIONS_VIEW_TITLE,
-	canToggleVisibility: false,
-	canMoveView: true,
-	openCommandActionDescriptor: {
-		id: AGENT_SESSIONS_VIEW_ID,
-		title: AGENT_SESSIONS_VIEW_TITLE
-	},
-	ctorDescriptor: new SyncDescriptor(AgentSessionsView),
-	when: ContextKeyExpr.and(
-		ChatContextKeys.Setup.hidden.negate(),
-		ChatContextKeys.Setup.disabled.negate(),
-		ContextKeyExpr.equals(`config.${ChatConfiguration.AgentSessionsViewLocation}`, 'single-view'),
-	)
-};
-Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([agentSessionsViewDescriptor], agentSessionsViewContainer);
-
-//#endregion

@@ -1319,7 +1319,7 @@ export class GettingStartedPage extends EditorPane {
 			const commandURI = URI.parse(command);
 
 			// execute as command
-			let args: any = [];
+			let args = [];
 			try {
 				args = parse(decodeURIComponent(commandURI.query));
 			} catch {
@@ -1355,8 +1355,8 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}
 
-			this.commandService.executeCommand<any>(commandURI.path, ...args).then(result => {
-				const toOpen: URI = result?.openFolder;
+			this.commandService.executeCommand(commandURI.path, ...args).then(result => {
+				const toOpen = (result as { openFolder?: URI })?.openFolder;
 				if (toOpen) {
 					if (!URI.isUri(toOpen)) {
 						console.warn('Warn: Running walkthrough command', href, 'yielded non-URI `openFolder` result', toOpen, '. It will be disregarded.');

@@ -191,7 +191,7 @@ suite('Agent Sessions', () => {
 							tooltip: 'Session tooltip',
 							iconPath: ThemeIcon.fromId('check'),
 							timing: { startTime, endTime },
-							statistics: { files: 1, insertions: 10, deletions: 5 }
+							changes: { files: 1, insertions: 10, deletions: 5, details: [] }
 						}
 					]
 				};
@@ -212,7 +212,7 @@ suite('Agent Sessions', () => {
 				assert.strictEqual(session.status, ChatSessionStatus.Completed);
 				assert.strictEqual(session.timing.startTime, startTime);
 				assert.strictEqual(session.timing.endTime, endTime);
-				assert.deepStrictEqual(session.statistics, { files: 1, insertions: 10, deletions: 5 });
+				assert.deepStrictEqual(session.changes, { files: 1, insertions: 10, deletions: 5 });
 			});
 		});
 
@@ -677,7 +677,9 @@ suite('Agent Sessions', () => {
 				timing: makeNewSessionTiming(),
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
-				setArchived: archived => { }
+				setArchived: archived => { },
+				isRead: () => false,
+				setRead: read => { }
 			};
 
 			const remoteSession: IAgentSession = {
@@ -690,7 +692,9 @@ suite('Agent Sessions', () => {
 				timing: makeNewSessionTiming(),
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
-				setArchived: archived => { }
+				setArchived: archived => { },
+				isRead: () => false,
+				setRead: read => { }
 			};
 
 			assert.strictEqual(isLocalAgentSessionItem(localSession), true);
@@ -708,7 +712,9 @@ suite('Agent Sessions', () => {
 				timing: makeNewSessionTiming(),
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
-				setArchived: archived => { }
+				setArchived: archived => { },
+				isRead: () => false,
+				setRead: read => { }
 			};
 
 			// Test with a session object
@@ -730,7 +736,9 @@ suite('Agent Sessions', () => {
 				timing: makeNewSessionTiming(),
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
-				setArchived: archived => { }
+				setArchived: archived => { },
+				isRead: () => false,
+				setRead: read => { }
 			};
 
 			// Test with actual view model
@@ -764,6 +772,8 @@ suite('Agent Sessions', () => {
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: () => { },
+				isRead: () => false,
+				setRead: read => { },
 				...overrides
 			};
 		}
@@ -1375,6 +1385,205 @@ suite('Agent Sessions', () => {
 				await viewModel.resolve(undefined);
 				const sessionAfterResolve = viewModel.sessions[0];
 				assert.strictEqual(sessionAfterResolve.isArchived(), false);
+			});
+		});
+	});
+
+	suite('AgentSessionsViewModel - Session Read Tracking', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+		let viewModel: AgentSessionsModel;
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should mark session as read and unread', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isRead(), false);
+
+				// Mark as read
+				session.setRead(true);
+				assert.strictEqual(session.isRead(), true);
+
+				// Mark as unread
+				session.setRead(false);
+				assert.strictEqual(session.isRead(), false);
+			});
+		});
+
+		test('should fire onDidChangeSessions when marking as read', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				let changeEventFired = false;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventFired = true;
+				}));
+
+				session.setRead(true);
+				assert.strictEqual(changeEventFired, true);
+			});
+		});
+
+		test('should not fire onDidChangeSessions when marking as read with same value', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setRead(true);
+
+				let changeEventFired = false;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventFired = true;
+				}));
+
+				// Try to mark as read again with same value
+				session.setRead(true);
+				assert.strictEqual(changeEventFired, false);
+			});
+		});
+
+		test('should preserve read state after re-resolve', async () => {
+			return runWithFakedTimers({}, async () => {
+				const fixedTiming = { startTime: Date.now() - 10000, endTime: Date.now() - 5000 };
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://session-1'),
+							label: 'Test Session',
+							timing: fixedTiming
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setRead(true);
+				assert.strictEqual(session.isRead(), true);
+
+				// Re-resolve should preserve read state since timing hasn't changed
+				await viewModel.resolve(undefined);
+				const sessionAfterResolve = viewModel.sessions[0];
+				assert.strictEqual(sessionAfterResolve.isRead(), true);
+			});
+		});
+
+		test('should consider session unread when endTime is newer than read time', async () => {
+			return runWithFakedTimers({}, async () => {
+				const startTime = Date.now() - 10000;
+				let endTime = startTime + 1000;
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://session-1'),
+							label: 'Test Session',
+							timing: {
+								startTime,
+								endTime
+							}
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setRead(true);
+				assert.strictEqual(session.isRead(), true);
+
+				// Simulate session getting updated with newer endTime
+				endTime = Date.now() + 5000;
+				await viewModel.resolve(undefined);
+
+				const sessionAfterUpdate = viewModel.sessions[0];
+				assert.strictEqual(sessionAfterUpdate.isRead(), false);
+			});
+		});
+
+		test('should handle read state independently per session', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+						makeSimpleSessionItem('session-2'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session1 = viewModel.sessions[0];
+				const session2 = viewModel.sessions[1];
+
+				// Mark only first session as read
+				session1.setRead(true);
+
+				assert.strictEqual(session1.isRead(), true);
+				assert.strictEqual(session2.isRead(), false);
 			});
 		});
 	});

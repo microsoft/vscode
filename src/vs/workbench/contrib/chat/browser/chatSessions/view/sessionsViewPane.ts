@@ -43,9 +43,7 @@ import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { IMarshalledChatSessionContext } from '../../actions/chatSessionActions.js';
 import { IChatWidgetService } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
-import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ChatSessionItemWithProvider, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
-import { LocalAgentsSessionsProvider } from '../../agentSessions/localAgentSessionsProvider.js';
 import { ArchivedSessionItems, GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
 // Identity provider for session items
@@ -80,7 +78,6 @@ export class SessionsViewPane extends ViewPane {
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
-		private readonly sessionTracker: ChatSessionTracker,
 		private readonly viewId: string,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -103,15 +100,6 @@ export class SessionsViewPane extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.minimumBodySize = 44;
-
-		// Listen for changes in the provider if it's a LocalChatSessionsProvider
-		if (provider instanceof LocalAgentsSessionsProvider) {
-			this._register(provider.onDidChange(() => {
-				if (this.tree && this.isBodyVisible()) {
-					this.refreshTreeWithProgress();
-				}
-			}));
-		}
 
 		// Listen for configuration changes to refresh view when description display changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -151,7 +139,7 @@ export class SessionsViewPane extends ViewPane {
 			icon: Codicon.plus,
 		}, undefined, undefined, undefined, undefined);
 
-		const actions = this.menuService.getMenuActions(MenuId.ChatSessionsMenu, this.scopedContextKeyService, { shouldForwardArgs: true });
+		const actions = this.menuService.getMenuActions(MenuId.AgentSessionsContext, this.scopedContextKeyService, { shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(
 			actions,
 			'submenu',
@@ -293,7 +281,7 @@ export class SessionsViewPane extends ViewPane {
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
 		// Create the tree components
-		const dataSource = new SessionsDataSource(this.provider, this.sessionTracker);
+		const dataSource = new SessionsDataSource(this.provider);
 		const delegate = new SessionsDelegate(this.configurationService);
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
@@ -412,7 +400,7 @@ export class SessionsViewPane extends ViewPane {
 		const items: IGettingStartedItem[] = [
 			{
 				id: 'install-extensions',
-				label: nls.localize('chatSessions.installExtensions', "Install Chat Extensions"),
+				label: nls.localize('chatSessions.installExtensions', "Install Agents..."),
 				icon: Codicon.extensions,
 				commandId: 'chat.sessions.gettingStarted'
 			},
@@ -506,7 +494,7 @@ export class SessionsViewPane extends ViewPane {
 		};
 
 		// Create menu for this session item to get actions
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, contextKeyService);
+		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, contextKeyService);
 
 		// Get actions and filter for context menu (all actions that are NOT inline)
 		const actions = menu.getActions({ arg: marshalledSession, shouldForwardArgs: true });

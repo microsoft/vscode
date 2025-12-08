@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.107.0",
-  "distro": "81eb23fc5875b4661131f4591edd1e617cf3e86e",
+  "version": "1.108.0",
+  "distro": "ac62b183885af851634b215f084a75e84d439948",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -82,7 +82,7 @@
     "@vscode/proxy-agent": "^0.36.0",
     "@vscode/ripgrep": "^1.15.13",
     "@vscode/spdlog": "^0.15.2",
-    "@vscode/sqlite3": "5.1.9-vscode",
+    "@vscode/sqlite3": "5.1.10-vscode",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/tree-sitter-wasm": "^0.3.0",
     "@vscode/vscode-languagedetection": "1.0.21",
@@ -105,7 +105,7 @@
     "katex": "^0.16.22",
     "kerberos": "2.1.1",
     "minimist": "^1.2.8",
-    "native-is-elevated": "0.7.0",
+    "native-is-elevated": "0.8.0",
     "native-keymap": "^3.3.5",
     "native-watchdog": "^1.4.1",
     "node-pty": "1.1.0-beta35",

@@ -1434,7 +1434,10 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			selectedSuggestionInfo: lifetimeSummary.selectedSuggestionInfo,
 			extensionId: this.providerId.extensionId!,
 			extensionVersion: this.providerId.extensionVersion!,
-			groupId: this.groupId,
+			groupId: extractEngineFromCorrelationId(lifetimeSummary.correlationId) ?? this.groupId,
+			skuPlan: lifetimeSummary.skuPlan,
+			skuType: lifetimeSummary.skuType,
+			performanceMarkers: lifetimeSummary.performanceMarkers,
 			availableProviders: lifetimeSummary.availableProviders,
 			partiallyAccepted: lifetimeSummary.partiallyAccepted,
 			partiallyAcceptedCountSinceOriginal: lifetimeSummary.partiallyAcceptedCountSinceOriginal,
@@ -1449,6 +1452,11 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			renameCreated: lifetimeSummary.renameCreated,
 			renameDuration: lifetimeSummary.renameDuration,
 			renameTimedOut: lifetimeSummary.renameTimedOut,
+			renameDroppedOtherEdits: lifetimeSummary.renameDroppedOtherEdits,
+			renameDroppedRenameEdits: lifetimeSummary.renameDroppedRenameEdits,
+			editKind: lifetimeSummary.editKind,
+			longDistanceHintVisible: lifetimeSummary.longDistanceHintVisible,
+			longDistanceHintDistance: lifetimeSummary.longDistanceHintDistance,
 			...forwardToChannelIf(isCopilotLikeExtension(this.providerId.extensionId!)),
 		};
 
@@ -1468,5 +1476,20 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 
 	override toString() {
 		return `InlineCompletionsProvider(${this.providerId.toString()})`;
+	}
+}
+
+function extractEngineFromCorrelationId(correlationId: string | undefined): string | undefined {
+	if (!correlationId) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(correlationId);
+		if (typeof parsed === 'object' && parsed !== null && typeof parsed.engine === 'string') {
+			return parsed.engine;
+		}
+		return undefined;
+	} catch {
+		return undefined;
 	}
 }

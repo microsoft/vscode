@@ -855,6 +855,10 @@ export interface InlineCompletion {
 	 * Used for telemetry.
 	 */
 	readonly correlationId?: string | undefined;
+
+	readonly jumpToPosition?: IPosition;
+
+	readonly doNotLog?: boolean;
 }
 
 export interface InlineCompletionWarning {
@@ -1048,6 +1052,7 @@ export type LifetimeSummary = {
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilActuallyShown: number | undefined;
 	timeUntilProviderRequest: number;
 	timeUntilProviderResponse: number;
 	notShownReason: string | undefined;
@@ -1056,6 +1061,7 @@ export type LifetimeSummary = {
 	preceeded: boolean;
 	languageId: string;
 	requestReason: string;
+	performanceMarkers?: string;
 	cursorColumnDistance?: number;
 	cursorLineDistance?: number;
 	lineCountOriginal?: number;
@@ -1068,9 +1074,16 @@ export type LifetimeSummary = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
+	skuPlan: string | undefined;
+	skuType: string | undefined;
 	renameCreated: boolean;
-	renameDuration?: number;
+	renameDuration: number | undefined;
 	renameTimedOut: boolean;
+	renameDroppedOtherEdits: number | undefined;
+	renameDroppedRenameEdits: number | undefined;
+	editKind: string | undefined;
+	longDistanceHintVisible?: boolean;
+	longDistanceHintDistance?: number;
 };
 
 export interface CodeAction {

@@ -32,14 +32,6 @@ export class TestInstantiationService extends InstantiationService implements ID
 		return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
 	}
 
-	public getIfExists<T>(service: ServiceIdentifier<T>): T | undefined {
-		try {
-			return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
-		} catch (e) {
-			return undefined;
-		}
-	}
-
 	public set<T>(service: ServiceIdentifier<T>, instance: T): T {
 		return <T>this._serviceCollection.set(service, instance);
 	}
