@@ -31,6 +31,20 @@ The core architecture follows these principles:
 - **Contribution model** - Features contribute to registries and extension points
 - **Cross-platform compatibility** - Abstractions separate platform-specific code
 
+### Target Environments
+Inside each layer, the code is organized by the target runtime environment. This ensures that only the runtime specific APIs are used. In the code we distinguish between the following target environments:
+- `common`: Source code that only requires basic JavaScript APIs and run in all the other target environments
+- `browser`: Source code that requires Web APIs, eg. DOM
+  - may use code from: `common`
+- `node`: Source code that requires Node.JS APIs
+  - may use code from: `common`
+- `electron-browser`: Source code that requires the `browser` APIs like access to the DOM and a small subset of APIs to communicate with the Electron main process (anything exposed from `src/vs/base/parts/sandbox/electron-browser/globals.ts`
+  - may use code from: `common`, `browser`, `electron-browser`
+- `electron-utility`: Source code that requires the Electron utility-process APIs
+  - may use code from: `common`, `node`
+- `electron-main`: Source code that requires the Electron main-process APIs
+  - may use code from: `common`, `node`, `electron-utility`
+
 ### Built-in Extensions (`extensions/` folder)
 The `extensions/` directory contains first-party extensions that ship with VS Code:
 - **Language support** - `typescript-language-features/`, `html-language-features/`, `css-language-features/`, etc.
