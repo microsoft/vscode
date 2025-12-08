@@ -25,6 +25,8 @@ import { category, getSearchView, openSearchView } from './searchActionsBase.js'
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
 import { FileMatchOrMatch, RenderableMatch, ISearchResult, isSearchTreeFolderMatch } from './searchTreeModel/searchTreeCommon.js';
+import { FocusedViewContext } from '../../../common/contextkeys.js';
+import { VIEW_ID } from '../../../services/search/common/search.js';
 
 //#region Actions: Changing Search Input Options
 registerAction2(class ToggleQueryDetailsAction extends Action2 {
@@ -360,6 +362,10 @@ registerAction2(class FocusNextSearchResultAction extends Action2 {
 			keybinding: [{
 				primary: KeyCode.F4,
 				weight: KeybindingWeight.WorkbenchContrib,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(Constants.SearchContext.HasSearchResults, SearchEditorConstants.InSearchEditor),
+					ContextKeyExpr.equals(FocusedViewContext.key, VIEW_ID)
+				),
 			}],
 			category,
 			f1: true,
@@ -380,6 +386,10 @@ registerAction2(class FocusPreviousSearchResultAction extends Action2 {
 			keybinding: [{
 				primary: KeyMod.Shift | KeyCode.F4,
 				weight: KeybindingWeight.WorkbenchContrib,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(Constants.SearchContext.HasSearchResults, SearchEditorConstants.InSearchEditor),
+					ContextKeyExpr.equals(FocusedViewContext.key, VIEW_ID)
+				),
 			}],
 			category,
 			f1: true,

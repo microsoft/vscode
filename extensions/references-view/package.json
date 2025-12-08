@@ -379,12 +379,12 @@
       },
       {
         "command": "references-view.next",
-        "when": "reference-list.hasResult",
+        "when": "reference-list.hasResult && focusedView == 'references-view.tree'",
         "key": "f4"
       },
       {
         "command": "references-view.prev",
-        "when": "reference-list.hasResult",
+        "when": "reference-list.hasResult && focusedView == 'references-view.tree'",
         "key": "shift+f4"
       },
       {
