@@ -495,7 +495,7 @@ function addIncomingOutgoingChangesHistoryItems(
 					displayId: viewModels[0].historyItem.displayId
 						? '0'.repeat(viewModels[0].historyItem.displayId.length)
 						: undefined,
-					parentIds: [mergeBase],
+					parentIds: [currentHistoryItemRef.revision],
 					author: currentHistoryItemRef?.name,
 					subject: localize('outgoingChanges', 'Outgoing Changes'),
 					message: ''
