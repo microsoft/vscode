@@ -207,6 +207,11 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 		this.rebuild = () => {
 			this.overlayStore.clear();
 
+			const hasActions = menu.getActions().length > 0;
+			if (!hasActions) {
+				return;
+			}
+
 			const container = DOM.h('div.floating-menu-overlay-widget.multi-diff-root-floating-menu');
 			root.appendChild(container.root);
 			const floatingMenu = instantiationService.createInstance(FloatingClickMenu, {
