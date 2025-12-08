@@ -45,7 +45,7 @@ export class TerminalProfileQuickpick {
 			const configInspect = this._configurationService.inspect(defaultProfileKey);
 			const userDefault = configInspect.userValue;
 			const workspaceDefault = configInspect.workspaceValue;
-			
+
 			// If workspace and user defaults differ, ask where to apply the change
 			let targets: ConfigurationTarget[] = [ConfigurationTarget.USER];
 			if (workspaceDefault !== undefined && workspaceDefault !== userDefault) {
@@ -66,16 +66,17 @@ export class TerminalProfileQuickpick {
 					if (hasKey(result.profile, { profileName: true })) {
 						// Get the appropriate configuration based on target
 						const profilesInspect = this._configurationService.inspect(profilesKey);
-						let profilesConfig: any;
+						let profilesConfig: { [key: string]: ITerminalProfileObject };
 						if (target === ConfigurationTarget.WORKSPACE) {
 							profilesConfig = profilesInspect.workspaceValue || {};
 						} else {
 							profilesConfig = profilesInspect.userValue || {};
 						}
-						
+
 						if (typeof profilesConfig === 'object') {
-							(profilesConfig as { [key: string]: ITerminalProfileObject })[result.profile.profileName] = this._createNewProfileConfig(result.profile);
-							await this._configurationService.updateValue(profilesKey, profilesConfig, target);
+							const newProfilesConfig = { ...profilesConfig };
+							newProfilesConfig[result.profile.profileName] = this._createNewProfileConfig(result.profile);
+							await this._configurationService.updateValue(profilesKey, newProfilesConfig, target);
 						}
 					}
 					// Set the default profile
