@@ -93,7 +93,7 @@
 		flex-direction: row;
 
 		.agent-sessions-container {
-			border-right: 1px solid var(--vscode-sideBarSectionHeader-border);
+			border-right: 1px solid var(--vscode-panel-border);
 		}
 	}
 
@@ -101,7 +101,7 @@
 		flex-direction: row-reverse;
 
 		.agent-sessions-container {
-			border-left: 1px solid var(--vscode-sideBarSectionHeader-border);
+			border-left: 1px solid var(--vscode-panel-border);
 		}
 	}
 
@@ -117,7 +117,7 @@
 	flex-direction: column;
 
 	.agent-sessions-container {
-		border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+		border-bottom: 1px solid var(--vscode-panel-border);
 	}
 }
 
