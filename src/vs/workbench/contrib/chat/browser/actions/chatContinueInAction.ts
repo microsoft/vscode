@@ -37,10 +37,10 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IChatWidgetService } from '../chat.js';
+import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
 
 export const enum ActionLocation {
 	ChatWidget = 'chatWidget',
@@ -74,6 +74,7 @@ export class ContinueChatInSessionAction extends Action2 {
 					ContextKeyExpr.equals(ResourceContextKey.Scheme.key, Schemas.untitled),
 					ContextKeyExpr.equals(ResourceContextKey.LangId.key, PROMPT_LANGUAGE_ID),
 					ContextKeyExpr.notEquals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
+					ctxHasEditorModification.negate(),
 				),
 			}
 			]
@@ -153,7 +154,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 			description: `@${contrib.name}`,
 			label: getAgentSessionProviderName(provider),
 			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
-			category: { label: localize('continueIn', "Continue In"), order: 0 },
+			category: { label: localize('continueIn', "Continue In"), order: 0, showHeader: true },
 			run: () => instantiationService.invokeFunction(accessor => {
 				if (location === ActionLocation.Editor) {
 					return new CreateRemoteAgentJobFromEditorAction().run(accessor, contrib);
@@ -171,7 +172,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 			class: undefined,
 			label: getAgentSessionProviderName(provider),
 			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
-			category: { label: localize('continueIn', "Continue In"), order: 0 },
+			category: { label: localize('continueIn', "Continue In"), order: 0, showHeader: true },
 			run: () => instantiationService.invokeFunction(accessor => {
 				const commandService = accessor.get(ICommandService);
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
@@ -282,60 +283,12 @@ class CreateRemoteAgentJobAction {
 			const requestData = await chatService.sendRequest(sessionResource, userPrompt, {
 				agentIdSilent: continuationTargetType,
 				attachedContext: attachedContext.asArray(),
+				userSelectedModelId: widget.input.currentLanguageModel,
+				...widget.getModeRequestOptions()
 			});
 
 			if (requestData) {
-				await requestData.responseCompletePromise;
-
-				const checkAndClose = () => {
-					const items = widget.viewModel?.getItems() ?? [];
-					const lastItem = items[items.length - 1];
-
-					if (lastItem && isResponseVM(lastItem) && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
-						return true;
-					}
-					return false;
-				};
-
-				if (checkAndClose()) {
-					await widget.clear();
-					return;
-				}
-
-				// Monitor subsequent responses when pending confirmations block us from closing
-				await new Promise<void>((resolve, reject) => {
-					let disposed = false;
-					let disposable: IDisposable | undefined;
-					let timeout: ReturnType<typeof setTimeout> | undefined;
-					const cleanup = () => {
-						if (!disposed) {
-							disposed = true;
-							if (timeout !== undefined) {
-								clearTimeout(timeout);
-							}
-							if (disposable) {
-								disposable.dispose();
-							}
-						}
-					};
-					try {
-						disposable = widget.viewModel!.onDidChange(() => {
-							if (checkAndClose()) {
-								cleanup();
-								resolve();
-							}
-						});
-						timeout = setTimeout(() => {
-							cleanup();
-							resolve();
-						}, 30_000); // 30 second timeout
-					} catch (e) {
-						cleanup();
-						reject(e);
-					}
-				});
-
-				await widget.clear();
+				await widget.handleDelegationExitIfNeeded(defaultAgent, requestData.agent);
 			}
 		} catch (e) {
 			console.error('Error creating remote coding agent job', e);

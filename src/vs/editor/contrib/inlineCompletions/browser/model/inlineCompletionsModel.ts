@@ -7,7 +7,7 @@ import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
 import { itemsEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, constObservable, derived, derivedHandleChanges, derivedOpts, mapObservableArrayCached, observableFromEvent, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -39,7 +39,7 @@ import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionsSource } from './inlineCompletionsSource.js';
 import { InlineCompletionItem, InlineEditItem, InlineSuggestionItem } from './inlineSuggestionItem.js';
-import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType, InlineSuggestRequestInfo } from './provideInlineCompletions.js';
+import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType, InlineSuggestRequestInfo, InlineSuggestSku } from './provideInlineCompletions.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 import { TextModelEditSource, EditSources } from '../../../../common/textModelEditSource.js';
@@ -51,7 +51,7 @@ import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -67,7 +67,7 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
 	public readonly allPositions = derived(this, reader => this._positions.read(reader));
 
-	private readonly sku = observableValue<string | undefined>(this, undefined);
+	private readonly sku = observableValue<InlineSuggestSku | undefined>(this, undefined);
 
 	private _isAcceptingPartially = false;
 	private readonly _appearedInsideViewport = derived<boolean>(this, reader => {
@@ -143,8 +143,8 @@ export class InlineCompletionsModel extends Disposable {
 		const snippetController = SnippetController2.get(this._editor);
 		this._isInSnippetMode = snippetController?.isInSnippetObservable ?? constObservable(false);
 
-		defaultAccountService.getDefaultAccount().then(account => this.sku.set(account?.access_type_sku, undefined));
-		this._register(defaultAccountService.onDidChangeDefaultAccount(account => this.sku.set(account?.access_type_sku, undefined)));
+		defaultAccountService.getDefaultAccount().then(createDisposableCb(account => this.sku.set(skuFromAccount(account), undefined), this._store));
+		this._register(defaultAccountService.onDidChangeDefaultAccount(account => this.sku.set(skuFromAccount(account), undefined)));
 
 		this._typing = this._register(new TypingInterval(this.textModel));
 
@@ -638,7 +638,7 @@ export class InlineCompletionsModel extends Disposable {
 				return undefined;
 			}
 			const cursorAtInlineEdit = this.primaryPosition.map(cursorPos => LineRange.fromRangeInclusive(inlineEditResult.targetRange).addMargin(1, 1).contains(cursorPos.lineNumber));
-			const stringEdit = inlineEditResult.action?.kind === 'edit' || inlineEditResult.action?.kind === 'rename' ? inlineEditResult.action.stringEdit : undefined;
+			const stringEdit = inlineEditResult.action?.kind === 'edit' ? inlineEditResult.action.stringEdit : undefined;
 			const replacements = stringEdit ? TextEdit.fromStringEdit(stringEdit, new TextModelText(this.textModel)).replacements : [];
 
 			const nextEditUri = (item.inlineEdit?.command?.id === 'vscode.open' || item.inlineEdit?.command?.id === '_workbench.open') &&
@@ -882,18 +882,20 @@ export class InlineCompletionsModel extends Disposable {
 				providerId: completion.source.provider.providerId,
 				languageId,
 				type,
+				correlationId: completion.getSourceCompletion().correlationId,
 			});
 		} else {
 			return EditSources.inlineCompletionAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
+				correlationId: completion.getSourceCompletion().correlationId,
 				providerId: completion.source.provider.providerId,
 				languageId
 			});
 		}
 	}
 
-	public async accept(editor: ICodeEditor = this._editor): Promise<void> {
+	public async accept(editor: ICodeEditor = this._editor, alternativeAction: boolean = false): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
@@ -917,16 +919,19 @@ export class InlineCompletionsModel extends Disposable {
 		completion.addRef();
 
 		try {
+			let followUpTrigger = false;
 			editor.pushUndoStop();
 			if (isNextEditUri) {
 				// Do nothing
-			} else if (completion.action?.kind === 'edit' || completion.action?.kind === 'rename') {
+			} else if (completion.action?.kind === 'edit') {
 				const action = completion.action;
-				if (action.kind === 'rename' && !ModifierKeyEmitter.getInstance().keyStatus.altKey) {
+				if (alternativeAction && action.alternativeAction) {
+					followUpTrigger = true;
+					const altCommand = action.alternativeAction.command;
 					await this._commandService
-						.executeCommand(action.command.id, ...(action.command.arguments || []))
+						.executeCommand(altCommand.id, ...(altCommand.arguments || []))
 						.then(undefined, onUnexpectedExternalError);
-				} else if (action.kind === 'edit' && action.snippetInfo) {
+				} else if (action.snippetInfo) {
 					const mainEdit = TextReplacement.delete(action.textReplacement.range);
 					const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
 					const edit = TextEdit.fromParallelReplacementsUnsorted([mainEdit, ...additionalEdits]);
@@ -974,6 +979,11 @@ export class InlineCompletionsModel extends Disposable {
 				await this._commandService
 					.executeCommand(completion.command.id, ...(completion.command.arguments || []))
 					.then(undefined, onUnexpectedExternalError);
+			}
+
+			// TODO: how can we make alternative actions to retrigger?
+			if (followUpTrigger) {
+				this.trigger(undefined);
 			}
 
 			completion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });
@@ -1157,8 +1167,8 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData): Promise<void> {
-		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind, viewData, this.textModel);
+	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, timeWhenShown: number): Promise<void> {
+		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind, viewData, this.textModel, timeWhenShown);
 	}
 }
 
@@ -1262,4 +1272,33 @@ export function isSuggestionInViewport(editor: ICodeEditor, suggestion: InlineSu
 		visibleRanges[visibleRanges.length - 1].endColumn
 	);
 	return viewportRange.containsRange(targetRange);
+}
+
+function skuFromAccount(account: IDefaultAccount | null): InlineSuggestSku | undefined {
+	if (account?.access_type_sku && account?.copilot_plan) {
+		return { type: account.access_type_sku, plan: account.copilot_plan };
+	}
+	return undefined;
+}
+
+class DisposableCallback<T> {
+	private _cb: ((e: T) => void) | undefined;
+
+	constructor(cb: (e: T) => void) {
+		this._cb = cb;
+	}
+
+	dispose(): void {
+		this._cb = undefined;
+	}
+
+	readonly handler = (val: T) => {
+		return this._cb?.(val);
+	};
+}
+
+function createDisposableCb<T>(cb: (e: T) => void, store: DisposableStore): (e: T) => void {
+	const dcb = new DisposableCallback(cb);
+	store.add(dcb);
+	return dcb.handler;
 }

@@ -258,6 +258,7 @@ class AttachSelectionToChatAction extends Action2 {
 		});
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 

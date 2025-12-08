@@ -36,6 +36,7 @@ import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { ICustomAgentQueryOptions, IExternalCustomAgent } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
 export class ChatAgentResponseStream {
 
@@ -416,6 +417,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		private readonly _logService: ILogService,
 		private readonly _commands: ExtHostCommands,
 		private readonly _documents: ExtHostDocuments,
+		private readonly _editorsAndDocuments: ExtHostDocumentsAndEditors,
 		private readonly _languageModels: ExtHostLanguageModels,
 		private readonly _diagnostics: ExtHostDiagnostics,
 		private readonly _tools: ExtHostLanguageModelTools
@@ -553,7 +555,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		if (request.locationData?.type === ChatAgentLocation.EditorInline) {
 			// editor data
 			const document = this._documents.getDocument(request.locationData.document);
-			location = new extHostTypes.ChatRequestEditorData(document, typeConvert.Selection.to(request.locationData.selection), typeConvert.Range.to(request.locationData.wholeRange));
+			const editor = this._editorsAndDocuments.getEditor(request.locationData.id)!;
+			location = new extHostTypes.ChatRequestEditorData(editor.value, document, typeConvert.Selection.to(request.locationData.selection), typeConvert.Range.to(request.locationData.wholeRange));
 
 		} else if (request.locationData?.type === ChatAgentLocation.Notebook) {
 			// notebook data

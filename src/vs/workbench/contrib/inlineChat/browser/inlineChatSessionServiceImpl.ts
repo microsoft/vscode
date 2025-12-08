@@ -122,7 +122,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const store = new DisposableStore();
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${agent.extensionId}`);
 
-		const chatModelRef = options.session ? undefined : this._chatService.startSession(ChatAgentLocation.EditorInline, token);
+		const chatModelRef = options.session ? undefined : this._chatService.startSession(ChatAgentLocation.EditorInline);
 		const chatModel = options.session?.chatModel ?? chatModelRef?.object;
 		if (!chatModel) {
 			this._logService.trace('[IE] NO chatModel found');
@@ -343,7 +343,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		this._onWillStartSession.fire(editor as IActiveCodeEditor);
 
-		const chatModelRef = this._chatService.startSession(ChatAgentLocation.EditorInline, token, { canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */ });
+		const chatModelRef = this._chatService.startSession(ChatAgentLocation.EditorInline, { canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */ });
 		const chatModel = chatModelRef.object;
 		chatModel.startEditingSession(false);
 
@@ -399,6 +399,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const result: IInlineChatSession2 = {
 			uri,
 			initialPosition: editor.getSelection().getStartPosition().delta(-1), /* one line above selection start */
+			initialSelection: editor.getSelection(),
 			chatModel,
 			editingSession: chatModel.editingSession!,
 			dispose: store.dispose.bind(store)
@@ -558,12 +559,14 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				if (!editor || result.confirmed) {
 					logService.trace('InlineChatEscapeToolContribution: moving session to panel chat');
-					await instaService.invokeFunction(askInPanelChat, session.chatModel.getRequests().at(-1)!);
+					await instaService.invokeFunction(askInPanelChat, session.chatModel.getRequests().at(-1)!, session.chatModel.inputModel.state.get());
 					session.dispose();
 
 				} else {
 					logService.trace('InlineChatEscapeToolContribution: rephrase prompt');
-					chatService.removeRequest(session.chatModel.sessionResource, session.chatModel.getRequests().at(-1)!.id);
+					const lastRequest = session.chatModel.getRequests().at(-1)!;
+					chatService.removeRequest(session.chatModel.sessionResource, lastRequest.id);
+					session.chatModel.inputModel.setState({ inputText: lastRequest.message.text });
 				}
 
 				if (result.checkboxChecked) {

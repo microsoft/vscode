@@ -2017,11 +2017,6 @@
         },
         {
           "command": "git.repositories.stashView",
-          "group": "inline@2",
-          "when": "scmProvider == git && scmArtifactGroupId == stashes"
-        },
-        {
-          "command": "git.repositories.stashView",
           "group": "1_view@1",
           "when": "scmProvider == git && scmArtifactGroupId == stashes"
         },
@@ -2671,7 +2666,7 @@
         {
           "command": "git.openMergeEditor",
           "group": "navigation@-10",
-          "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && git.activeResourceHasMergeConflicts"
+          "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges && git.activeResourceHasMergeConflicts"
         }
       ],
       "multiDiffEditor/resource/title": [
@@ -3020,15 +3015,19 @@
       "git.tags": [
         {
           "command": "git.createTag",
-          "group": "tags@1"
+          "group": "1_tags@1"
         },
         {
           "command": "git.deleteTag",
-          "group": "tags@2"
+          "group": "1_tags@2"
         },
         {
           "command": "git.deleteRemoteTag",
-          "group": "tags@3"
+          "group": "1_tags@3"
+        },
+        {
+          "command": "git.pushTags",
+          "group": "2_tags@1"
         }
       ],
       "git.worktrees": [
@@ -3509,7 +3508,7 @@
         "git.detectWorktreesLimit": {
           "type": "number",
           "scope": "resource",
-          "default": 10,
+          "default": 50,
           "description": "%config.detectWorktreesLimit%"
         },
         "git.alwaysShowStagedChangesResourceGroup": {

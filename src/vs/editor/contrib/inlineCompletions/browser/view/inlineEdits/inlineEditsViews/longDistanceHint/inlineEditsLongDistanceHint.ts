@@ -29,7 +29,7 @@ import { Size2D } from '../../../../../../../common/core/2d/size.js';
 import { getMaxTowerHeightInAvailableArea } from '../../utils/towersLayout.js';
 import { IThemeService } from '../../../../../../../../platform/theme/common/themeService.js';
 import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
-import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../../theme.js';
+import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground } from '../../theme.js';
 import { asCssVariable, descriptionForeground, editorBackground, editorWidgetBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
 import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
@@ -63,7 +63,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			switch (v) {
 				case InlineEditTabAction.Inactive: border = inlineEditIndicatorSecondaryBackground; break;
 				case InlineEditTabAction.Jump: border = inlineEditIndicatorPrimaryBackground; break;
-				case InlineEditTabAction.Accept: border = inlineEditIndicatorsuccessfulBackground; break;
+				case InlineEditTabAction.Accept: border = inlineEditIndicatorSuccessfulBackground; break;
 			}
 			return {
 				border: getEditorBlendedColor(border, this._themeService).read(reader).toString(),
@@ -400,7 +400,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 					const keybinding = this._keybindingService.lookupKeybinding(jumpToNextInlineEditId);
 					let label = 'Go to suggestion';
 					if (keybinding && keybinding.getLabel() === 'Tab') {
-						label = 'Tab to suggestion';
+						label = 'Tab to jump';
 					}
 					children.push(n.div({
 						class: 'go-to-label',

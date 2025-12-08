@@ -1052,6 +1052,7 @@ export type LifetimeSummary = {
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilActuallyShown: number | undefined;
 	timeUntilProviderRequest: number;
 	timeUntilProviderResponse: number;
 	notShownReason: string | undefined;
@@ -1073,10 +1074,13 @@ export type LifetimeSummary = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
-	sku: string | undefined;
+	skuPlan: string | undefined;
+	skuType: string | undefined;
 	renameCreated: boolean;
-	renameDuration?: number;
+	renameDuration: number | undefined;
 	renameTimedOut: boolean;
+	renameDroppedOtherEdits: number | undefined;
+	renameDroppedRenameEdits: number | undefined;
 	editKind: string | undefined;
 	longDistanceHintVisible?: boolean;
 	longDistanceHintDistance?: number;

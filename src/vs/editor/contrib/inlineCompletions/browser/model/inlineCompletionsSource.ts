@@ -460,7 +460,8 @@ export class InlineCompletionsSource extends Disposable {
 			extensionVersion: '0.0.0',
 			groupId: 'empty',
 			shown: false,
-			sku: requestResponseInfo.requestInfo.sku,
+			skuPlan: requestResponseInfo.requestInfo.sku?.plan,
+			skuType: requestResponseInfo.requestInfo.sku?.type,
 			editorType: requestResponseInfo.requestInfo.editorType,
 			requestReason: requestResponseInfo.requestInfo.reason,
 			typingInterval: requestResponseInfo.requestInfo.typingInterval,
@@ -497,6 +498,8 @@ export class InlineCompletionsSource extends Disposable {
 			renameCreated: false,
 			renameDuration: undefined,
 			renameTimedOut: false,
+			renameDroppedOtherEdits: undefined,
+			renameDroppedRenameEdits: undefined,
 			performanceMarkers: undefined,
 			editKind: undefined,
 		};

@@ -264,10 +264,12 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		// Chat. Waiting for the registration of the agent is not
 		// enough, we also need a language/tools model to be available.
 
+		let agentActivated = false;
 		let agentReady = false;
 		let languageModelReady = false;
 		let toolsModelReady = false;
 
+		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
 		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService, requestModel.modelId)?.then(() => languageModelReady = true);
 		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel)?.then(() => toolsModelReady = true);
@@ -283,8 +285,12 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			try {
 				const ready = await Promise.race([
 					timeout(this.environmentService.remoteAuthority ? 60000 /* increase for remote scenarios */ : 20000).then(() => 'timedout'),
-					this.whenDefaultAgentActivated(chatService),
-					Promise.allSettled([whenLanguageModelReady, whenAgentReady, whenToolsModelReady])
+					Promise.allSettled([
+						whenAgentActivated,
+						whenAgentReady,
+						whenLanguageModelReady,
+						whenToolsModelReady
+					])
 				]);
 
 				if (ready === 'timedout') {
@@ -296,9 +302,10 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 					}
 
 					this.logService.warn(warningMessage, {
-						agentReady: whenAgentReady ? agentReady : undefined,
-						languageModelReady: whenLanguageModelReady ? languageModelReady : undefined,
-						toolsModelReady: whenToolsModelReady ? toolsModelReady : undefined
+						agentActivated,
+						agentReady,
+						languageModelReady,
+						toolsModelReady
 					});
 
 					progress({
@@ -382,7 +389,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}));
 	}
 
-	private async whenDefaultAgentActivated(chatService: IChatService): Promise<void> {
+	private async whenAgentActivated(chatService: IChatService): Promise<void> {
 		try {
 			await chatService.activateDefaultAgent(this.location);
 		} catch (error) {
@@ -722,8 +729,9 @@ export class AICodeActionsHelper {
 			title: localize('explain', "Explain"),
 			arguments: [
 				{
-					query: `@workspace /explain ${markers.map(marker => marker.message).join(', ')}`
-				} satisfies { query: string }
+					query: `@workspace /explain ${markers.map(marker => marker.message).join(', ')}`,
+					isPartialQuery: true
+				} satisfies { query: string; isPartialQuery: boolean }
 			]
 		};
 	}
@@ -735,11 +743,10 @@ export class AICodeActionsHelper {
 			arguments: [
 				{
 					message: `/fix ${markers.map(marker => marker.message).join(', ')}`,
-					autoSend: true,
 					initialSelection: this.rangeToSelection(range),
 					initialRange: range,
 					position: range.getStartPosition()
-				} satisfies { message: string; autoSend: boolean; initialSelection: ISelection; initialRange: IRange; position: IPosition }
+				} satisfies { message: string; initialSelection: ISelection; initialRange: IRange; position: IPosition }
 			]
 		};
 	}

@@ -346,7 +346,8 @@
 	color: inherit
 }
 
-.quick-input-list .monaco-list-row.focused .monaco-keybinding-key {
+.quick-input-list .monaco-list-row.focused .monaco-keybinding-key,
+.quick-input-list .monaco-list-row:hover .monaco-keybinding-key {
 	background: none;
 	border-color: var(--vscode-widget-shadow);
 }
