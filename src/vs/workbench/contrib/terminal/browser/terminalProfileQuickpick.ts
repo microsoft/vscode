@@ -41,7 +41,7 @@ export class TerminalProfileQuickpick {
 			return;
 		}
 		if (type === 'setDefault') {
-			// Check if the current default profile has a workspace scope
+			// Check if workspace and user default profiles differ
 			const configInspect = this._configurationService.inspect(defaultProfileKey);
 			const userDefault = configInspect.userValue;
 			const workspaceDefault = configInspect.workspaceValue;

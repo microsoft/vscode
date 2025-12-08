@@ -41,13 +41,14 @@ export function detectAvailableProfiles(
 		existsFile: pfs.SymlinkSupport.existsFile,
 		readFile: fs.promises.readFile
 	};
-	
+
 	// Determine profile scope by inspecting configuration
 	const profilesSettingId = isWindows ? TerminalSettingId.ProfilesWindows : (isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs);
 	const profilesInspect = configurationService.inspect<{ [key: string]: IUnresolvedTerminalProfile }>(profilesSettingId);
 	const userProfiles = profilesInspect.userValue && isObject(profilesInspect.userValue) ? Object.keys(profilesInspect.userValue) : [];
 	const workspaceProfiles = profilesInspect.workspaceValue && isObject(profilesInspect.workspaceValue) ? Object.keys(profilesInspect.workspaceValue) : [];
-	
+
+
 	if (isWindows) {
 		return detectAvailableWindowsProfiles(
 			includeDetectedProfiles,
@@ -291,7 +292,7 @@ async function getValidatedProfile(
 		validatedProfile.configScope = ConfigurationTarget.USER;
 	}
 	// If undefined, it's an auto-detected profile
-	
+
 	return validatedProfile;
 }
 
