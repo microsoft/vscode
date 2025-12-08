@@ -119,6 +119,8 @@ export interface IMarkerData {
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
 	origin?: string | undefined;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	data?: any;
 }
 
 export interface IResourceMarker {
@@ -141,6 +143,8 @@ export interface IMarker {
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
 	origin?: string | undefined;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	data?: any;
 }
 
 export interface MarkerStatistics {
