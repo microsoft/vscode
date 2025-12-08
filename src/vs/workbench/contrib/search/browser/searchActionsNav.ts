@@ -28,6 +28,11 @@ import { FileMatchOrMatch, RenderableMatch, ISearchResult, isSearchTreeFolderMat
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { VIEW_ID } from '../../../services/search/common/search.js';
 
+const SearchNavigationKeybindingWhen = ContextKeyExpr.and(
+	ContextKeyExpr.or(Constants.SearchContext.HasSearchResults, SearchEditorConstants.InSearchEditor),
+	ContextKeyExpr.equals(FocusedViewContext.key, VIEW_ID)
+);
+
 //#region Actions: Changing Search Input Options
 registerAction2(class ToggleQueryDetailsAction extends Action2 {
 	constructor() {
@@ -362,10 +367,7 @@ registerAction2(class FocusNextSearchResultAction extends Action2 {
 			keybinding: [{
 				primary: KeyCode.F4,
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(Constants.SearchContext.HasSearchResults, SearchEditorConstants.InSearchEditor),
-					ContextKeyExpr.equals(FocusedViewContext.key, VIEW_ID)
-				),
+				when: SearchNavigationKeybindingWhen,
 			}],
 			category,
 			f1: true,
@@ -386,10 +388,7 @@ registerAction2(class FocusPreviousSearchResultAction extends Action2 {
 			keybinding: [{
 				primary: KeyMod.Shift | KeyCode.F4,
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(Constants.SearchContext.HasSearchResults, SearchEditorConstants.InSearchEditor),
-					ContextKeyExpr.equals(FocusedViewContext.key, VIEW_ID)
-				),
+				when: SearchNavigationKeybindingWhen,
 			}],
 			category,
 			f1: true,
