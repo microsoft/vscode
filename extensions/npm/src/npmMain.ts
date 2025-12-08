@@ -100,6 +100,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			return fixes;
 		},
 	}));
+
+	context.subscriptions.push(vscode.window.registerTerminalQuickFixProvider('ms-vscode.npm-audit', {
+		provideTerminalQuickFixes({ outputMatch }) {
+			if (!outputMatch) {
+				return;
+			}
+
+			const matchedText = outputMatch.regexMatch[1];
+			const fixes: vscode.TerminalQuickFixTerminalCommand[] = [];
+			const seenCommands = new Set<string>();
+
+			// Extract npm audit commands from the output
+			// Matches patterns like "npm audit fix", "npm audit fix --force", "npm audit"
+			const npmCommandRegex = /npm\s+audit(?:\s+fix)?(?:\s+--force)?/g;
+			let match: RegExpExecArray | null;
+
+			while ((match = npmCommandRegex.exec(matchedText)) !== null) {
+				const command = match[0].replace(/`/g, ''); // Remove backticks if present
+				if (!seenCommands.has(command)) {
+					seenCommands.add(command);
+					fixes.push({ terminalCommand: command });
+				}
+			}
+
+			return fixes;
+		},
+	}));
 }
 
 async function getNPMCommandPath(): Promise<string | undefined> {
