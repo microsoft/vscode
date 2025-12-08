@@ -380,7 +380,7 @@
         "outputMatcher": {
           "anchor": "bottom",
           "length": 15,
-          "lineMatcher": "((?:.*\\n)*.*(?:npm audit|vulnerabilities).*(?:\\n.*)*)",
+          "lineMatcher": "vulnerabilities?([\\s\\S]*)",
           "offset": 0
         }
       }
