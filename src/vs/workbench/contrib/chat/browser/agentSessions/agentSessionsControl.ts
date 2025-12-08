@@ -16,7 +16,7 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getSessionItemContextOverlay } from '../chatSessions/common.js';
-import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
+import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -39,7 +39,6 @@ import { IAgentSessionsControl } from './agentSessions.js';
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly filter?: IAgentSessionsFilter;
-	readonly allowNewSessionFromEmptySpace?: boolean;
 	readonly allowOpenSessionsInPanel?: boolean; // TODO@bpasero retire this option eventually
 	readonly trackActiveEditor?: boolean;
 }
@@ -142,7 +141,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter,
 				overrideStyles: this.options?.overrideStyles,
-				paddingBottom: this.options?.allowNewSessionFromEmptySpace ? AgentSessionsListDelegate.ITEM_HEIGHT : undefined,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, IAgentSession, FuzzyScore>;
@@ -163,13 +161,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._register(list.onDidOpen(e => this.openAgentSession(e)));
 		this._register(list.onContextMenu(e => this.showContextMenu(e)));
 
-		if (this.options?.allowNewSessionFromEmptySpace) {
-			this._register(list.onMouseDblClick(({ element }) => {
-				if (element === null) {
-					this.commandService.executeCommand(ACTION_ID_OPEN_CHAT);
-				}
-			}));
-		}
+		this._register(list.onMouseDblClick(({ element }) => {
+			if (element === null) {
+				this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+			}
+		}));
 	}
 
 	private async openAgentSession(e: IOpenEvent<IAgentSession | undefined>): Promise<void> {
