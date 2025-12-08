@@ -1107,8 +1107,9 @@ export class CommentController implements IEditorContribution {
 		}
 
 		const useShadowDOM = this.editor.getOption(EditorOption.useShadowDOM);
+		const domNode = this.editor.getDomNode();
 		this.contextMenuService.showContextMenu({
-			domForShadowRoot: useShadowDOM ? this.editor.getDomNode() : undefined,
+			domForShadowRoot: useShadowDOM && domNode ? domNode : undefined,
 			getAnchor: () => ({ x: e.event.posx, y: e.event.posy }),
 			getActions: () => menuActions,
 			onHide: () => {
