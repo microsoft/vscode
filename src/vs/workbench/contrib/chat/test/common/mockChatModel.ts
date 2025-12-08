@@ -28,7 +28,8 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly inputModel: IInputModel = {
 		state: observableValue('inputModelState', undefined),
 		setState: () => { },
-		clearState: () => { }
+		clearState: () => { },
+		toJSON: () => undefined
 	};
 	readonly contributedChatSession = undefined;
 	isDisposed = false;
