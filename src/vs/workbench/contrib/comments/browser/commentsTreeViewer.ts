@@ -400,15 +400,12 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 		if (this.options.textFilter.text && !this.options.textFilter.negate) {
 			// First try matching against the basename (filename only)
 			let uriMatches = FilterOptions._filter(this.options.textFilter.text, basename(resourceMarkers.resource));
-			if (uriMatches) {
-				return { visibility: true, data: { type: FilterDataType.Resource, uriMatches: uriMatches || [] } };
+			if (!uriMatches) {
+				// Also try matching against the full path to support filtering by repository-relative paths
+				uriMatches = FilterOptions._filter(this.options.textFilter.text, resourceMarkers.resource.path);
 			}
-
-			// Also try matching against the full path to support filtering by repository-relative paths
-			const fullPath = resourceMarkers.resource.path;
-			uriMatches = FilterOptions._filter(this.options.textFilter.text, fullPath);
 			if (uriMatches) {
-				return { visibility: true, data: { type: FilterDataType.Resource, uriMatches: uriMatches || [] } };
+				return { visibility: true, data: { type: FilterDataType.Resource, uriMatches } };
 			}
 		}
 
