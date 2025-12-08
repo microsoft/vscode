@@ -18,10 +18,37 @@ import { GitHubCanonicalUriProvider } from './canonicalUriProvider.js';
 import { VscodeDevShareProvider } from './shareProviders.js';
 import { GitHubSourceControlHistoryItemDetailsProvider } from './historyItemDetailsProvider.js';
 import { OctokitService } from './auth.js';
+import { setSelectedCategory } from './categoryState.js';
+import * as vscode from 'vscode';
+
 
 export function activate(context: ExtensionContext): void {
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('github.cloneFilteredRepos', async () => {
+			const pick = await vscode.window.showQuickPick(
+				[
+					{ label: 'Show my repositories', value: 'user' },
+					{ label: 'Show organization repositories', value: 'orgs' },
+					{ label: 'Show all repositories', value: 'all' }
+				],
+				{
+					title: 'Select which GitHub repositories to display',
+					placeHolder: 'Choose a category'
+				}
+			);
+
+			if (!pick) return;
+
+			// Save mode in memory (your existing mechanism)
+			setSelectedCategory(pick.value as any);
+
+			// Now trigger GitHub repo list
+			await vscode.commands.executeCommand('git.clone');
+		})
+	);
 
 	const logger = window.createOutputChannel('GitHub', { log: true });
 	disposables.push(logger);

@@ -9,6 +9,8 @@ import { getOctokit } from './auth.js';
 import { Octokit } from '@octokit/rest';
 import { getRepositoryFromQuery, getRepositoryFromUrl } from './util.js';
 import { getBranchLink, getVscodeDevHost } from './links.js';
+import { getSelectedCategory } from './categoryState.js';
+
 
 type RemoteSourceResponse = {
 	readonly full_name: string;
@@ -40,47 +42,73 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 	async getRemoteSources(query?: string): Promise<RemoteSource[]> {
 		const octokit = await getOctokit();
 
+		// ---------------------------------------------------------------
+		// 1. Direct URL → clone single repo
+		// ---------------------------------------------------------------
 		if (query) {
 			const repository = getRepositoryFromUrl(query);
-
 			if (repository) {
 				const raw = await octokit.repos.get(repository);
 				return [asRemoteSource(raw.data)];
 			}
+
+			// Search mode (typing into search bar)
+			return this.getQueryRemoteSources(octokit, query);
 		}
 
-		const all = await Promise.all([
-			this.getQueryRemoteSources(octokit, query),
-			this.getUserRemoteSources(octokit, query),
-		]);
-
-		const map = new Map<string, RemoteSource>();
-
-		for (const group of all) {
-			for (const remoteSource of group) {
-				map.set(remoteSource.name, remoteSource);
-			}
-		}
-
-		return [...map.values()];
+		// ---------------------------------------------------------------
+		// 2. No query → use filtered repositories (user/org/all)
+		// ---------------------------------------------------------------
+		return this.getUserRemoteSources(octokit);
 	}
 
-	private async getUserRemoteSources(octokit: Octokit, query?: string): Promise<RemoteSource[]> {
-		if (!query) {
-			const user = await octokit.users.getAuthenticated({});
-			const username = user.data.login;
-			const res = await octokit.repos.listForAuthenticatedUser({ username, sort: 'updated', per_page: 100 });
-			this.userReposCache = res.data.map(asRemoteSource);
+	private async getUserRemoteSources(octokit: Octokit): Promise<RemoteSource[]> {
+		const mode = getSelectedCategory() ?? 'user';
+
+		this.userReposCache = [];
+
+		// ============================
+		// USER REPOS
+		// ============================
+		if (mode === 'user' || mode === 'all') {
+			const res = await octokit.repos.listForAuthenticatedUser({
+				sort: 'updated',
+				per_page: 100
+			});
+
+			this.userReposCache.push(
+				...res.data.map(r => ({
+					...asRemoteSource(r as any),
+					name: `[User] ${r.full_name}`
+				}))
+			);
+		}
+
+		// ============================
+		// ORG REPOS
+		// ============================
+		if (mode === 'orgs' || mode === 'all') {
+			const orgs = await octokit.orgs.listForAuthenticatedUser();
+
+			for (const org of orgs.data) {
+				const repos = await octokit.repos.listForOrg({
+					org: org.login,
+					per_page: 100
+				});
+
+				this.userReposCache.push(
+					...repos.data.map(r => ({
+						...asRemoteSource(r as any),
+						name: `[Org: ${org.login}] ${r.full_name}`
+					}))
+				);
+			}
 		}
 
 		return this.userReposCache;
 	}
 
-	private async getQueryRemoteSources(octokit: Octokit, query?: string): Promise<RemoteSource[]> {
-		if (!query) {
-			return [];
-		}
-
+	private async getQueryRemoteSources(octokit: Octokit, query: string): Promise<RemoteSource[]> {
 		const repository = getRepositoryFromQuery(query);
 
 		if (repository) {
@@ -89,7 +117,11 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 
 		query += ` fork:true`;
 
-		const raw = await octokit.search.repos({ q: query, sort: 'stars' });
+		const raw = await octokit.search.repos({
+			q: query,
+			sort: 'stars'
+		});
+
 		return raw.data.items.map(asRemoteSource);
 	}
 
