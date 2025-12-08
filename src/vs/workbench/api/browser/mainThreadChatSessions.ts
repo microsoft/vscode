@@ -16,6 +16,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ChatViewPaneTarget, IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
@@ -470,12 +471,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				// We can still get stats if there is no model or if fetching from model failed
 				if (!session.changes || !model) {
 					const stats = (await this._chatService.getMetadataForSession(uri))?.stats;
-					if (stats) {
-						session.changes = {
-							files: stats.fileCount,
-							insertions: stats.added,
-							deletions: stats.removed
-						};
+					// TODO: we shouldn't be converting this, the types should match
+					const diffs: IAgentSession['changes'] = {
+						files: stats?.fileCount || 0,
+						insertions: stats?.added || 0,
+						deletions: stats?.removed || 0
+					};
+					if (hasValidDiff(diffs)) {
+						session.changes = diffs;
 					}
 				}
 
