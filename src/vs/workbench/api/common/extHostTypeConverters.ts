@@ -46,7 +46,7 @@ import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCom
 import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
@@ -2841,7 +2841,11 @@ export namespace ChatToolInvocationPart {
 			source: ToolDataSource.External,
 			// isError: part.isError ?? false,
 			toolSpecificData: part.toolSpecificData ? convertToolSpecificData(part.toolSpecificData) : undefined,
-			presentation: undefined,
+			presentation: part.presentation === 'hidden'
+				? ToolInvocationPresentation.Hidden
+				: part.presentation === 'hiddenAfterComplete'
+					? ToolInvocationPresentation.HiddenAfterComplete
+					: undefined,
 			fromSubAgent: part.fromSubAgent
 		};
 	}

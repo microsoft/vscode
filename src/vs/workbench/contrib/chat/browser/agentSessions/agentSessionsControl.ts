@@ -8,7 +8,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
-import { $, append } from '../../../../../base/browser/dom.js';
+import { $, append, EventHelper } from '../../../../../base/browser/dom.js';
 import { IAgentSession, IAgentSessionsModel, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionsSorter, IAgentSessionsFilter } from './agentSessionsViewer.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -23,26 +23,25 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Separator } from '../../../../../base/common/actions.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
-import { distinct } from '../../../../../base/common/arrays.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { IAgentSessionsControl } from './agentSessions.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly filter?: IAgentSessionsFilter;
 	readonly allowNewSessionFromEmptySpace?: boolean;
 	readonly allowOpenSessionsInPanel?: boolean; // TODO@bpasero retire this option eventually
-	readonly allowFiltering?: boolean;
 	readonly trackActiveEditor?: boolean;
 }
 
@@ -58,7 +57,7 @@ type AgentSessionOpenedEvent = {
 	providerType: string;
 };
 
-export class AgentSessionsControl extends Disposable {
+export class AgentSessionsControl extends Disposable implements IAgentSessionsControl {
 
 	private sessionsContainer: HTMLElement | undefined;
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, IAgentSession, FuzzyScore> | undefined;
@@ -109,8 +108,7 @@ export class AgentSessionsControl extends Disposable {
 			return;
 		}
 
-		const sessions = this.agentSessionsService.model.sessions;
-		const matchingSession = sessions.find(session => isEqual(session.resource, sessionResource));
+		const matchingSession = this.agentSessionsService.model.getSession(sessionResource);
 		if (matchingSession && this.sessionsList?.hasNode(matchingSession)) {
 			if (this.sessionsList.getRelativeTop(matchingSession) === null) {
 				this.sessionsList.reveal(matchingSession, 0.5); // only reveal when not already visible
@@ -140,7 +138,7 @@ export class AgentSessionsControl extends Disposable {
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
-				findWidgetEnabled: this.options?.allowFiltering,
+				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter,
@@ -186,6 +184,8 @@ export class AgentSessionsControl extends Disposable {
 			providerType: session.providerType
 		});
 
+		session.setRead(true); // mark as read when opened
+
 		let sessionOptions: IChatEditorOptions;
 		if (isLocalAgentSessionItem(session)) {
 			sessionOptions = {};
@@ -212,22 +212,41 @@ export class AgentSessionsControl extends Disposable {
 			target = ACTIVE_GROUP;
 		}
 
+		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor ||
+			session.resource.scheme === Schemas.vscodeLocalChatSession;
+		if (!isLocalChatSession && !(await this.chatSessionsService.canResolveChatSession(session.resource))) {
+			// Not a chat session, let open editor figure out how to handle
+			const editorTarget = target === ChatViewPaneTarget ? undefined : target;
+			await this.editorService.openEditor({
+				resource: session.resource,
+				options: {
+					...options,
+					revealIfOpened: options?.revealIfOpened ?? true
+				}
+			}, editorTarget);
+			return;
+		}
+
 		await this.chatWidgetService.openSession(session.resource, target, options);
 	}
 
-	private async showContextMenu({ element: session, anchor }: ITreeContextMenuEvent<IAgentSession>): Promise<void> {
+	private async showContextMenu({ element: session, anchor, browserEvent }: ITreeContextMenuEvent<IAgentSession>): Promise<void> {
 		if (!session) {
 			return;
 		}
 
+		EventHelper.stop(browserEvent, true);
+
 		const provider = await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
 		const contextOverlay = getSessionItemContextOverlay(session, provider, this.chatService, this.editorGroupsService);
 		contextOverlay.push([ChatContextKeys.isCombinedAgentSessionsViewer.key, true]);
+		contextOverlay.push([ChatContextKeys.isReadAgentSession.key, session.isRead()]);
+		contextOverlay.push([ChatContextKeys.isArchivedAgentSession.key, session.isArchived()]);
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
 		const marshalledSession: IMarshalledChatSessionContext = { session, $mid: MarshalledId.ChatSessionContext };
 		this.contextMenuService.showContextMenu({
-			getActions: () => distinct(getFlatActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true })), action => action.id),
+			getActions: () => Separator.join(...menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,
 			getActionsContext: () => marshalledSession,
 		});

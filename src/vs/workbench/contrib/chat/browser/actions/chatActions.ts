@@ -513,7 +513,7 @@ export function registerChatActions() {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.and(
 							ContextKeyExpr.equals('view', ChatViewId),
-							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, false)
+							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, false)
 						),
 						group: 'navigation',
 						order: 2
@@ -522,7 +522,7 @@ export function registerChatActions() {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.and(
 							ContextKeyExpr.equals('view', ChatViewId),
-							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, true)
+							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 						),
 						group: '2_history',
 						order: 1
@@ -1765,6 +1765,7 @@ export async function handleModeSwitch(
 export interface IClearEditingSessionConfirmationOptions {
 	titleOverride?: string;
 	messageOverride?: string;
+	isArchiveAction?: boolean;
 }
 
 
@@ -1831,12 +1832,12 @@ registerAction2(class EditToolApproval extends Action2 {
 	}
 });
 
-registerAction2(class ToggleChatViewRecentSessionsAction extends Action2 {
+registerAction2(class ToggleChatViewSessionsAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.toggleChatViewRecentSessions',
-			title: localize2('chat.toggleChatViewRecentSessions.label', "Show Recent Sessions"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, true),
+			id: 'workbench.action.chat.toggleChatViewSessions',
+			title: localize2('chat.toggleChatViewSessions.label', "Show Sessions"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
 				group: '1_modify',
@@ -1849,8 +1850,8 @@ registerAction2(class ToggleChatViewRecentSessionsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const chatViewRecentSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewRecentSessionsEnabled);
-		await configurationService.updateValue(ChatConfiguration.ChatViewRecentSessionsEnabled, !chatViewRecentSessionsEnabled);
+		const chatViewSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, !chatViewSessionsEnabled);
 	}
 });
 
