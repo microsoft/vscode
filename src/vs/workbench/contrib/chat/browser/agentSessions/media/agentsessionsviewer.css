@@ -8,7 +8,6 @@
 	flex: 1 1 auto;
 	height: 100%;
 	min-height: 0;
-	overflow: hidden;
 
 	.monaco-list-row .force-no-twistie {
 		display: none !important;
