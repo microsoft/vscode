@@ -123,26 +123,61 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
-		this.initialize();
+		this.initialize().then(() => {
+			type DefaultAccountStatusTelemetry = {
+				status: string;
+				initial: boolean;
+			};
+			type DefaultAccountStatusTelemetryClassification = {
+				owner: 'sandy081';
+				comment: 'Log default account availability status';
+				status: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether default account is available or not.' };
+				initial: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether this is the initial status report.' };
+			};
+			this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
+
+			this._register(this.authenticationService.onDidChangeSessions(async e => {
+				if (e.providerId !== this.getDefaultAccountProviderId()) {
+					return;
+				}
+				if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
+					this.setDefaultAccount(null);
+				} else {
+					this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(e.providerId, this.productService.defaultAccount!.authenticationProvider.scopes));
+				}
+
+				this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: false });
+			}));
+		});
 	}
 
 	private async initialize(): Promise<void> {
 		this.logService.debug('[DefaultAccount] Starting initialization');
+		let defaultAccount: IDefaultAccount | null = null;
+		try {
+			defaultAccount = await this.fetchDefaultAccount();
+		} catch (error) {
+			this.logService.error('[DefaultAccount] Error during initialization', getErrorMessage(error));
+		}
+		this.setDefaultAccount(defaultAccount);
+		this.logService.debug('[DefaultAccount] Initialization complete');
+	}
 
+	private async fetchDefaultAccount(): Promise<IDefaultAccount | null> {
 		if (!this.productService.defaultAccount) {
 			this.logService.debug('[DefaultAccount] No default account configuration in product service, skipping initialization');
-			return;
+			return null;
 		}
 
 		if (isWeb && !this.environmentService.remoteAuthority) {
 			this.logService.debug('[DefaultAccount] Running in web without remote, skipping initialization');
-			return;
+			return null;
 		}
 
 		const defaultAccountProviderId = this.getDefaultAccountProviderId();
 		this.logService.debug('[DefaultAccount] Default account provider ID:', defaultAccountProviderId);
 		if (!defaultAccountProviderId) {
-			return;
+			return null;
 		}
 
 		await this.extensionService.whenInstalledExtensionsRegistered();
@@ -151,39 +186,11 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === defaultAccountProviderId);
 		if (!declaredProvider) {
 			this.logService.info(`[DefaultAccount] Authentication provider is not declared.`, defaultAccountProviderId);
-			return;
+			return null;
 		}
 
 		this.registerSignInAction(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes[0]);
-		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes));
-
-		type DefaultAccountStatusTelemetry = {
-			status: string;
-			initial: boolean;
-		};
-		type DefaultAccountStatusTelemetryClassification = {
-			owner: 'sandy081';
-			comment: 'Log default account availability status';
-			status: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether default account is available or not.' };
-			initial: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether this is the initial status report.' };
-		};
-		this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
-
-		this._register(this.authenticationService.onDidChangeSessions(async e => {
-			if (e.providerId !== this.getDefaultAccountProviderId()) {
-				return;
-			}
-
-			if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
-				this.setDefaultAccount(null);
-			} else {
-				this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount!.authenticationProvider.scopes));
-			}
-
-			this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: false });
-		}));
-
-		this.logService.debug('[DefaultAccount] Initialization complete');
+		return await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes);
 	}
 
 	private setDefaultAccount(account: IDefaultAccount | null): void {
