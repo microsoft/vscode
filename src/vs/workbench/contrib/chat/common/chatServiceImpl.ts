@@ -693,10 +693,12 @@ export class ChatService extends Disposable implements IChatService {
 					for (const part of message.parts) {
 						model.acceptResponseProgress(lastRequest, part);
 					}
-
-					lastRequest.response?.complete();
 				}
 			}
+		}
+
+		if (providedSession.isCompleteObs?.get()) {
+			lastRequest?.response?.complete();
 		}
 
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
