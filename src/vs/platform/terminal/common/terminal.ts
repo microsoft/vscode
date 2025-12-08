@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { IProcessEnvironment, OperatingSystem } from '../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, type ITerminalCommand } from './capabilities/capabilities.js';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from './terminalProcess.js';
@@ -921,7 +922,7 @@ export interface ITerminalProfile {
 	 * The configuration scope from which this profile originates (e.g., USER, WORKSPACE).
 	 * Used to determine where profile changes should be applied.
 	 */
-	configScope?: import('../../configuration/common/configuration.js').ConfigurationTarget;
+	configScope?: ConfigurationTarget;
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
