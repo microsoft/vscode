@@ -41,7 +41,7 @@ export class TerminalProfileQuickpick {
 			return;
 		}
 		if (type === 'setDefault') {
-			// Check if workspace has a different default profile than user
+			// Check if the current default profile has a workspace scope
 			const configInspect = this._configurationService.inspect(defaultProfileKey);
 			const userDefault = configInspect.userValue;
 			const workspaceDefault = configInspect.workspaceValue;
@@ -195,23 +195,19 @@ export class TerminalProfileQuickpick {
 		const configProfiles = profiles.filter(e => !e.isAutoDetected);
 		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
 
-		if (configProfiles.length > 0) {
+		// Separate user and workspace profiles based on configScope
+		const userConfigProfiles = configProfiles.filter(e => e.configScope !== ConfigurationTarget.WORKSPACE);
+		const workspaceConfigProfiles = configProfiles.filter(e => e.configScope === ConfigurationTarget.WORKSPACE);
+
+		if (userConfigProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
-			quickPickItems.push(...this._sortProfileQuickPickItems(configProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
+			quickPickItems.push(...this._sortProfileQuickPickItems(userConfigProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
 		}
 
-		// Add workspace profiles section if workspace has any profiles defined
-		const workspaceProfilesConfig = this._configurationService.inspect(profilesKey);
-		if (workspaceProfilesConfig.workspaceValue && typeof workspaceProfilesConfig.workspaceValue === 'object') {
-			const workspaceProfiles = Object.keys(workspaceProfilesConfig.workspaceValue as { [key: string]: unknown });
-			if (workspaceProfiles.length > 0) {
-				quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.workspace', "workspace") });
-				// Filter available profiles to only include workspace-defined ones
-				const workspaceProfileItems = profiles
-					.filter(e => workspaceProfiles.includes(e.profileName))
-					.map(e => this._createProfileQuickPickItem(e));
-				quickPickItems.push(...this._sortProfileQuickPickItems(workspaceProfileItems, defaultProfileName!));
-			}
+		// Add workspace profiles section if any exist
+		if (workspaceConfigProfiles.length > 0) {
+			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.workspace', "workspace") });
+			quickPickItems.push(...this._sortProfileQuickPickItems(workspaceConfigProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
 		}
 
 		quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });

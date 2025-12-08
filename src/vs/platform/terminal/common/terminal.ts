@@ -917,6 +917,11 @@ export interface ITerminalProfile {
 	overrideName?: boolean;
 	color?: string;
 	icon?: ThemeIcon | URI | { light: URI; dark: URI };
+	/**
+	 * The configuration scope from which this profile originates (e.g., USER, WORKSPACE).
+	 * Used to determine where profile changes should be applied.
+	 */
+	configScope?: import('../../configuration/common/configuration.js').ConfigurationTarget;
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
