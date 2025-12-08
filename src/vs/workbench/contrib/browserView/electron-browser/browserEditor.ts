@@ -37,7 +37,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
-export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', false, localize('browser.editorFocused', "Whether the browser editor is focused"));
+export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 
@@ -148,7 +148,6 @@ export class BrowserEditor extends EditorPane {
 	private _errorContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
-	private _browserEditorFocusedContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
 
@@ -177,12 +176,11 @@ export class BrowserEditor extends EditorPane {
 		// Bind navigation capability context keys
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
-		this._browserEditorFocusedContext = CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
-		this._browserEditorFocusedContext.set(true);
+		CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
 
 		// Create root container
 		const root = $('.browser-root');
@@ -527,7 +525,6 @@ export class BrowserEditor extends EditorPane {
 
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
-		this._browserEditorFocusedContext.reset();
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
 
