@@ -285,7 +285,13 @@ if (PasteAction) {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const productService = accessor.get(IProductService);
+		let productService: IProductService | undefined;
+		try {
+			// In standalone builds the product service might not be registered.
+			productService = accessor.get(IProductService);
+		} catch {
+			productService = undefined;
+		}
 
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
@@ -306,7 +312,7 @@ if (PasteAction) {
 				logService.trace('registerExecCommandImpl (triggerPaste defined)');
 				return triggerPaste.then(async () => {
 					logService.trace('registerExecCommandImpl (after triggerPaste)');
-					if (productService.quality !== 'stable') {
+					if (productService && productService.quality !== 'stable') {
 						const duration = sw.elapsed();
 						type EditorAsyncPasteClassification = {
 							duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the paste operation.' };
