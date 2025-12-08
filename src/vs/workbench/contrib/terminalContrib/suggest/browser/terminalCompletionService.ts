@@ -320,7 +320,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			case 'tilde': {
 				const home = this._getHomeDir(useWindowsStylePath, capabilities);
 				if (home) {
-					lastWordFolderResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+					// Use the scheme and authority from cwd to handle remote scenarios correctly
+					const homeUri = cwd.with({ path: home });
+					lastWordFolderResource = URI.joinPath(homeUri, lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 				}
 				if (!lastWordFolderResource) {
 					// Use less strong wording here as it's not as strong of a concept on Windows
@@ -332,10 +334,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				break;
 			}
 			case 'absolute': {
+				// Use the scheme and authority from cwd to handle remote scenarios correctly
+				// (e.g., Remote SSH where cwd has vscode-remote:// scheme)
 				if (shellType === WindowsShellType.GitBash) {
-					lastWordFolderResource = URI.file(gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive));
+					const windowsPath = gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive);
+					lastWordFolderResource = cwd.with({ path: windowsPath });
 				} else {
-					lastWordFolderResource = URI.file(lastWordFolder.replaceAll('\\ ', ' '));
+					lastWordFolderResource = cwd.with({ path: lastWordFolder.replaceAll('\\ ', ' ') });
 				}
 				break;
 			}
@@ -492,7 +497,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 						const cdPathEntries = cdPath.split(useWindowsStylePath ? ';' : ':');
 						for (const cdPathEntry of cdPathEntries) {
 							try {
-								const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
+								// Use the scheme and authority from cwd to handle remote scenarios correctly
+								const cdPathUri = cwd.with({ path: cdPathEntry });
+								const fileStat = await this._fileService.resolve(cdPathUri, { resolveSingleChildDescendants: true });
 								if (fileStat?.children) {
 									for (const child of fileStat.children) {
 										if (!child.isDirectory) {
@@ -553,7 +560,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			let homeResource: URI | string | undefined;
 			const home = this._getHomeDir(useWindowsStylePath, capabilities);
 			if (home) {
-				homeResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+				// Use the scheme and authority from cwd to handle remote scenarios correctly
+				const homeUri = cwd.with({ path: home });
+				homeResource = URI.joinPath(homeUri, lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 			}
 			if (!homeResource) {
 				// Use less strong wording here as it's not as strong of a concept on Windows

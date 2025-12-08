@@ -326,6 +326,27 @@ suite('TerminalCompletionService', () => {
 				{ label: '~/vscode/bar.txt', detail: '/home/vscode/bar.txt', kind: TerminalCompletionItemKind.File },
 			], { replacementRange: [0, 9] });
 		});
+
+		test('~/| with remote SSH URI scheme should respect remote scheme', async () => {
+			// Test that tilde paths respect the remote URI scheme from cwd
+			const remoteResourceOptions: TerminalCompletionResourceOptions = {
+				cwd: URI.parse('vscode-remote://ssh-remote+hostname/home/user'),
+				showFiles: true,
+				showDirectories: true,
+				pathSeparator: '/'
+			};
+			validResources = [
+				URI.parse('vscode-remote://ssh-remote+hostname/home'),
+				URI.parse('vscode-remote://ssh-remote+hostname/home/vscode'),
+			];
+			childResources = [
+				{ resource: URI.parse('vscode-remote://ssh-remote+hostname/home/vscode'), isDirectory: true },
+			];
+			assertCompletions(await terminalCompletionService.resolveResources(remoteResourceOptions, '~/', 2, provider, capabilities), [
+				{ label: '~/', detail: '/home/' },
+				{ label: '~/vscode/', detail: '/home/vscode/' },
+			], { replacementRange: [0, 2] });
+		});
 	});
 
 	suite('resolveResources edge cases and advanced scenarios', () => {
@@ -382,6 +403,26 @@ suite('TerminalCompletionService', () => {
 				childResources = [
 					{ resource: URI.parse('file:///foo/Bar'), isDirectory: true, isFile: false },
 					{ resource: URI.parse('file:///foo/Baz.txt'), isDirectory: false, isFile: true }
+				];
+				const result = await terminalCompletionService.resolveResources(resourceOptions, '/foo/', 5, provider, capabilities);
+
+				assertCompletions(result, [
+					{ label: '/foo/', detail: '/foo/' },
+					{ label: '/foo/Bar/', detail: '/foo/Bar/' },
+				], { replacementRange: [0, 5] });
+			});
+
+			test('/foo/| absolute paths with remote SSH URI scheme', async () => {
+				// Test that absolute paths respect the remote URI scheme from cwd
+				const resourceOptions: TerminalCompletionResourceOptions = {
+					cwd: URI.parse('vscode-remote://ssh-remote+hostname/home/user'),
+					showDirectories: true,
+					pathSeparator: '/'
+				};
+				validResources = [URI.parse('vscode-remote://ssh-remote+hostname/foo')];
+				childResources = [
+					{ resource: URI.parse('vscode-remote://ssh-remote+hostname/foo/Bar'), isDirectory: true, isFile: false },
+					{ resource: URI.parse('vscode-remote://ssh-remote+hostname/foo/Baz.txt'), isDirectory: false, isFile: true }
 				];
 				const result = await terminalCompletionService.resolveResources(resourceOptions, '/foo/', 5, provider, capabilities);
 
