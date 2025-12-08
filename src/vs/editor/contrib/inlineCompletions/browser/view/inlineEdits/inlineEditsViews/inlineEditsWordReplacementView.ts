@@ -287,6 +287,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 										background: secondaryActionStyles.map(s => s.backgroundColor),
 										pointerEvents: 'auto',
 										cursor: 'pointer',
+										textWrap: 'nowrap',
 									},
 									class: 'inline-edit-alternative-action-label',
 									onmouseup: (e) => this._onDidClick.fire(InlineEditClickEvent.create(e, true)),

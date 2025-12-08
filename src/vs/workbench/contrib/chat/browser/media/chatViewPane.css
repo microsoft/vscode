@@ -9,6 +9,7 @@
 	.chat-controls-container {
 		height: 100%;
 		min-height: 0;
+		min-width: 0;
 	}
 }
 
@@ -26,7 +27,6 @@
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
-		background-color: var(--vscode-editorWidget-background);
 
 		.agent-sessions-title-container {
 			display: flex;
@@ -43,9 +43,20 @@
 				text-overflow: ellipsis;
 				white-space: nowrap;
 			}
+		}
 
-			.agent-sessions-toolbar {
-				visibility: hidden;
+		.agent-sessions-toolbar {
+
+			.action-item {
+				/* align with the title actions*/
+				margin-right: 4px;
+			}
+
+			&.filtered .action-label.codicon.codicon-filter {
+				/* indicate when sessions filter is enabled */
+				border-color: var(--vscode-inputOption-activeBorder);
+				color: var(--vscode-inputOption-activeForeground);
+				background-color: var(--vscode-inputOption-activeBackground);
 			}
 		}
 
@@ -66,10 +77,6 @@
 		}
 	}
 
-	.agent-sessions-container:hover .agent-sessions-title-container .agent-sessions-toolbar {
-		visibility: visible;
-	}
-
 	.interactive-session {
 
 		/* needed so that the chat welcome and chat input does not overflow and input grows over welcome */
@@ -84,9 +91,23 @@
 
 	&.sessions-control-position-left {
 		flex-direction: row;
+
+		.agent-sessions-container {
+			border-right: 1px solid var(--vscode-panel-border);
+		}
 	}
+
 	&:not(.sessions-control-position-left) {
 		flex-direction: row-reverse;
+
+		.agent-sessions-container {
+			border-left: 1px solid var(--vscode-panel-border);
+		}
+	}
+
+	.agent-sessions-link-container {
+		/* hide link to show more when side by side */
+		display: none;
 	}
 }
 
@@ -94,6 +115,10 @@
 .chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
 
 	flex-direction: column;
+
+	.agent-sessions-container {
+		border-bottom: 1px solid var(--vscode-panel-border);
+	}
 }
 
 /* Welcome disabled */

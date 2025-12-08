@@ -206,7 +206,7 @@ const RENAME_BUTTON: IQuickInputButton = {
  * Button that copies a prompt file.
  */
 const COPY_BUTTON: IQuickInputButton = {
-	tooltip: localize('copy', "Copy"),
+	tooltip: localize('makeACopy', "Make a Copy"),
 	iconClass: ThemeIcon.asClassName(Codicon.copy),
 };
 

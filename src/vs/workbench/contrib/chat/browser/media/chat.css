@@ -1372,7 +1372,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
 }
 
-.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label {
+.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label,
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
 	padding: 3px 0px 3px 6px;
 	display: flex;
@@ -1380,7 +1381,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label .codicon-chevron-down {
+.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label .codicon-chevron-down,
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
 	font-size: 12px;
 	margin-left: 2px;
 }
@@ -2105,6 +2107,41 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session-list.collapsed {
 	display: none;
+}
+
+.interactive-session .chat-list-divider {
+	display: flex;
+	align-items: center;
+	padding: 4px 3px 2px 3px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	gap: 8px;
+	pointer-events: none;
+	user-select: none;
+}
+
+.interactive-session .monaco-list .monaco-list-row:has(.chat-list-divider) {
+	background-color: transparent !important;
+	cursor: default;
+}
+
+.interactive-session .chat-list-divider .chat-list-divider-label {
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	flex-shrink: 0;
+}
+
+.interactive-session .chat-list-divider .chat-list-divider-line {
+	flex: 1;
+	height: 1px;
+	background-color: var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	opacity: 0.5;
+}
+
+.interactive-session .chat-list-divider .chat-list-divider-toolbar {
+	display: flex;
+	align-items: center;
+	pointer-events: auto;
 }
 
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {
