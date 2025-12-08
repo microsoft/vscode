@@ -669,8 +669,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // ignore if editor was replaced or moved
 		}
 
-		if (editor.editorId === 'terminalEditor') {
-			return;
+		if (!editor.canReopen()) {
+			return; // only editors that can be reopened
 		}
 
 		const untypedEditor = editor.toUntyped();

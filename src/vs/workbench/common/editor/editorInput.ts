@@ -357,4 +357,8 @@ export abstract class EditorInput extends AbstractEditorInput {
 
 		super.dispose();
 	}
+
+	canReopen(): boolean {
+		return true;
+	}
 }
