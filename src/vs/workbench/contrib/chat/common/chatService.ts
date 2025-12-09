@@ -1065,8 +1065,8 @@ export interface IChatService {
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 
-	// Saved chat sessions (cross-workspace)
-	saveChatSessionAsCrossWorkspace(sessionResource: string, customTitle?: string, customNotes?: string): Promise<string>;
+	// Saved chat sessions (global/user data)
+	saveChatSessionGlobally(sessionResource: string, customTitle?: string, customNotes?: string): Promise<string>;
 	getSavedChatSessions(): Promise<IChatSessionIndex>;
 	hasSavedChatSessions(): boolean;
 	readSavedChatSession(sessionId: string): Promise<ISerializableChatData | undefined>;

@@ -17,7 +17,7 @@ import { IDialogService, IFileDialogService } from '../../../../../platform/dial
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IChatWidgetService } from '../chat.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -117,7 +117,7 @@ export function registerChatExportActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.saveChatSession',
-				title: localize2('chat.saveChatSession.label', "Save Chat Session as Cross-Workspace Artifact"),
+				title: localize2('chat.saveChatSession.label', "Save Chat Session Globally"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.save,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inChatSession),
@@ -147,7 +147,6 @@ export function registerChatExportActions() {
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const widgetService = accessor.get(IChatWidgetService);
 			const chatService = accessor.get(IChatService);
-			const quickInputService = accessor.get(IQuickInputService);
 			const dialogService = accessor.get(IDialogService);
 
 			const widget = widgetService.lastFocusedWidget;
@@ -160,27 +159,11 @@ export function registerChatExportActions() {
 				return;
 			}
 
-			// Prompt for custom title and notes
-			const title = await quickInputService.input({
-				prompt: localize('chat.saveChatSession.titlePrompt', "Enter a title for this saved chat session"),
-				value: model.title,
-				placeHolder: localize('chat.saveChatSession.titlePlaceholder', "Chat session title")
-			});
-
-			if (!title) {
-				return; // User cancelled
-			}
-
-			const notes = await quickInputService.input({
-				prompt: localize('chat.saveChatSession.notesPrompt', "Add optional notes or description"),
-				placeHolder: localize('chat.saveChatSession.notesPlaceholder', "Optional notes about this session...")
-			});
-
 			try {
-				await chatService.saveChatSessionAsCrossWorkspace(model.sessionId, title, notes);
+				await chatService.saveChatSessionGlobally(model.sessionId);
 				dialogService.info(
 					localize('chat.saveChatSession.success', "Chat session saved successfully"),
-					localize('chat.saveChatSession.successDetail', "Session '{0}' has been saved and can now be used across workspaces.", title)
+					localize('chat.saveChatSession.successDetail', "Session '{0}' has been saved and can now be used across workspaces.", model.title)
 				);
 			} catch (error) {
 				dialogService.error(
@@ -206,6 +189,7 @@ export function registerChatExportActions() {
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const chatService = accessor.get(IChatService);
 			const quickInputService = accessor.get(IQuickInputService);
+			const widgetService = accessor.get(IChatWidgetService);
 
 			const savedSessions = await chatService.getSavedChatSessions();
 			const entries = Object.entries(savedSessions);
@@ -223,8 +207,8 @@ export function registerChatExportActions() {
 
 			const picks: SavedSessionPickItem[] = entries.map(([id, metadata]) => ({
 				label: metadata.title,
-				description: metadata.notes || new Date(metadata.savedDate ?? 0).toLocaleString(),
-				detail: localize('chat.loadSavedChatSession.detail', "Last updated: {0}",
+				description: metadata.workspaceName || 'Unknown',
+				detail: metadata.notes || localize('chat.loadSavedChatSession.detail', "Last updated: {0}",
 					new Date(metadata.lastMessageDate).toLocaleString()
 				),
 				sessionId: id
@@ -239,10 +223,19 @@ export function registerChatExportActions() {
 			if (selected) {
 				const sessionData = await chatService.readSavedChatSession(selected.sessionId);
 				if (sessionData) {
-					// Load the session using the same pattern as import
-					const widgetService = accessor.get(IChatWidgetService);
-					const options: IChatEditorOptions = { target: { data: sessionData }, pinned: true };
-					await widgetService.openSession(ChatEditorInput.getNewEditorUri(), undefined, options);
+					const sessionFromContent = chatService.loadSessionFromContent(sessionData);
+					if (sessionFromContent) {
+						const sessionResource = sessionFromContent.object.sessionResource;
+						await widgetService.openSession(sessionResource, ChatViewPaneTarget, {
+							preserveFocus: true,
+							pinned: false,
+							revealIfOpened: true,
+							revealIfVisible: true,
+							ignoreInView: true
+						});
+
+						sessionFromContent.dispose();
+					}
 				}
 			}
 		}
@@ -283,13 +276,15 @@ export function registerChatExportActions() {
 			const picks: ManageSessionPickItem[] = entries.flatMap(([id, metadata]) => [
 				{
 					label: `$(trash) Delete: ${metadata.title}`,
-					description: metadata.notes,
+					description: metadata.workspaceName || 'Unknown',
+					detail: metadata.notes,
 					sessionId: id,
 					action: 'delete' as const
 				},
 				{
 					label: `$(edit) Rename: ${metadata.title}`,
-					description: metadata.notes,
+					description: metadata.workspaceName || 'Unknown',
+					detail: metadata.notes,
 					sessionId: id,
 					action: 'rename' as const
 				}

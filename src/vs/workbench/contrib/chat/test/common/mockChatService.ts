@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent } from '../../common/chatService.js';
+import { IChatSessionIndex } from '../../common/chatSessionStore.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
@@ -147,6 +148,30 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
+		throw new Error('Method not implemented.');
+	}
+
+	async saveChatSessionGlobally(sessionResource: string, customTitle?: string, customNotes?: string): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+
+	async getSavedChatSessions(): Promise<IChatSessionIndex> {
+		throw new Error('Method not implemented.');
+	}
+
+	hasSavedChatSessions(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	async readSavedChatSession(sessionId: string): Promise<ISerializableChatData | undefined> {
+		throw new Error('Method not implemented.');
+	}
+
+	async deleteSavedChatSession(sessionId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	async updateSavedChatSessionTitle(sessionId: string, newTitle: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 }

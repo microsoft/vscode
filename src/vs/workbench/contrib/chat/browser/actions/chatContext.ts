@@ -378,9 +378,9 @@ class SavedChatSessionsContextPickerPick implements IChatContextPickerItem {
 
 			return entries.map(([sessionId, metadata]) => {
 				const label = metadata.title;
-				const description = metadata.notes || new Date(metadata.savedDate ?? 0).toLocaleString();
-				const detail = localize('savedSession.detail', "Last updated: {0}",
-					new Date(metadata.lastMessageDate).toLocaleString()
+				const description = metadata.workspaceName || 'Unknown';
+				const detail = metadata.notes || localize('savedSession.detail', "Saved {0}",
+					new Date(metadata.savedDate ?? 0).toLocaleString()
 				);
 
 				return {

@@ -11,7 +11,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
@@ -431,48 +430,60 @@ export class ChatSessionStore extends Disposable {
 		return this.storageRoot;
 	}
 
-	// ===== Saved Sessions (Cross-Workspace) =====
-
 	/**
-	 * Save a chat session as a cross-workspace artifact
+	 * Save a chat session globally (available across all workspaces)
 	 */
-	public async saveChatSessionAsCrossWorkspace(session: ChatModel, customTitle?: string, customNotes?: string): Promise<string> {
+	public async saveChatSessionGlobally(session: ChatModel, customTitle?: string, customNotes?: string): Promise<string> {
 		return await this.storeQueue.queue(async () => {
-			const savedSessionId = `saved-${generateUuid()}`;
 			const sessionData = session.toJSON();
 
 			try {
-				const storageLocation = this.getSavedSessionStorageLocation(savedSessionId);
+				const storageLocation = this.getSavedSessionStorageLocation(sessionData.sessionId);
 				const content = JSON.stringify(sessionData, undefined, 2);
 				await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
+
+				// Get workspace name
+				const workspace = this.workspaceContextService.getWorkspace();
+				let workspaceName: string;
+				if (workspace.configuration) {
+					// Multi-root workspace
+					workspaceName = workspace.configuration.path.replace(/\.code-workspace$/, '');
+				} else if (workspace.folders.length === 1) {
+					// Single folder workspace
+					workspaceName = workspace.folders[0].uri.path;
+				} else {
+					// Empty workspace
+					workspaceName = 'No Workspace';
+				}
 
 				// Update saved sessions index
 				const index = this.internalGetSavedSessionsIndex();
 				const metadata = await getSessionMetadata(session);
-				index.entries[savedSessionId] = {
+				index.entries[sessionData.sessionId] = {
 					...metadata,
-					sessionId: savedSessionId,
+					sessionId: sessionData.sessionId,
 					title: customTitle || metadata.title,
 					isSaved: true,
 					savedDate: Date.now(),
 					originalSessionId: session.sessionId,
 					notes: customNotes,
+					workspaceName,
 				};
 
 				await this.flushSavedSessionsIndex();
 				await this.trimSavedSessions();
 
-				this.logService.info(`ChatSessionStore: Saved chat session ${savedSessionId} as cross-workspace artifact`);
-				return savedSessionId;
+				this.logService.info(`ChatSessionStore: Saved chat session ${sessionData.sessionId} as global artifact`);
+				return sessionData.sessionId;
 			} catch (e) {
-				this.reportError('saveChatSession', 'Error saving chat session as cross-workspace artifact', e);
+				this.reportError('saveChatSession', 'Error saving chat session as global artifact', e);
 				throw e;
 			}
 		});
 	}
 
 	/**
-	 * Get all saved cross-workspace sessions
+	 * Get all saved global sessions
 	 */
 	public async getSavedSessions(): Promise<IChatSessionIndex> {
 		return await this.storeQueue.queue(async () => {
@@ -640,7 +651,7 @@ export interface IChatSessionEntryMetadata {
 	isExternal?: boolean;
 
 	/**
-	 * Whether this is a saved cross-workspace session
+	 * Whether this is a saved global session
 	 */
 	isSaved?: boolean;
 
@@ -658,6 +669,11 @@ export interface IChatSessionEntryMetadata {
 	 * User notes/description for saved session
 	 */
 	notes?: string;
+
+	/**
+	 * Workspace name where this session was saved from (for saved sessions only)
+	 */
+	workspaceName?: string;
 }
 
 function isChatSessionEntryMetadata(obj: unknown): obj is IChatSessionEntryMetadata {

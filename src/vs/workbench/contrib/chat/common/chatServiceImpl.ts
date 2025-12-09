@@ -1347,14 +1347,14 @@ export class ChatService extends Disposable implements IChatService {
 		return localSessionId;
 	}
 
-	// Saved chat sessions (cross-workspace)
-	async saveChatSessionAsCrossWorkspace(sessionResourceOrId: string, customTitle?: string, customNotes?: string): Promise<string> {
+	// Saved chat sessions (global/user data)
+	async saveChatSessionGlobally(sessionResourceOrId: string, customTitle?: string, customNotes?: string): Promise<string> {
 		// If it's a session ID, get the model directly
 		const model = this._sessionModels.get(URI.parse(sessionResourceOrId)) || Iterable.find(this._sessionModels.values(), m => m.sessionId === sessionResourceOrId);
 		if (!model) {
 			throw new Error(`Failed to save session. Unknown session ID: ${sessionResourceOrId}`);
 		}
-		return await this._chatSessionStore.saveChatSessionAsCrossWorkspace(model, customTitle, customNotes);
+		return await this._chatSessionStore.saveChatSessionGlobally(model, customTitle, customNotes);
 	}
 
 	async getSavedChatSessions(): Promise<IChatSessionIndex> {
