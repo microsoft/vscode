@@ -1024,10 +1024,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 		// Check each item and its parent to see if we should auto-collapse
 		const parentsToCheck = new Set<ITreeItem>();
-		
+
 		for (const item of items) {
-			// If an item's checkbox state changed, check its parent
-			if (item.parent && item.checkbox) {
+			// Check parent for any item that had its checkbox state changed
+			if (item.parent) {
 				parentsToCheck.add(item.parent);
 			}
 		}
@@ -1035,11 +1035,13 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		// For each parent, check if all children are checked
 		for (const parent of parentsToCheck) {
 			if (this.shouldCollapseParent(parent)) {
-				// Collapse the parent
+				// Collapse the parent (non-recursive)
 				try {
 					this.tree.collapse(parent, false);
 				} catch (e) {
-					// Ignore errors during collapse
+					// The tree structure may have changed during checkbox updates
+					// Log and continue to avoid breaking the checkbox functionality
+					this.logService.debug('Failed to auto-collapse parent folder', e);
 				}
 			}
 		}
