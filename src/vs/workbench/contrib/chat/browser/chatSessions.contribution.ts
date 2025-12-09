@@ -294,6 +294,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		super();
 
 		this._ctxHasContinueInOptions = ChatContextKeys.hasContinueInOptions.bindTo(this._contextKeyService);
+		this._ctxHasContinueInOptions.set(false); // Initialize to false, will be updated when contributions are registered
 
 		this._register(extensionPoint.setHandler(extensions => {
 			for (const ext of extensions) {
