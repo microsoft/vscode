@@ -25,10 +25,19 @@ export async function isExecutableUnix(filePath: string): Promise<boolean> {
 	}
 }
 
+let cachedWindowsExecutableExtensionsKey: string | undefined;
+let cachedResolvedWindowsExecutableExtensions: string[] | undefined;
 
 function resolveWindowsExecutableExtensions(configuredWindowsExecutableExtensions?: { [key: string]: boolean | undefined }): string[] {
-	const resolvedWindowsExecutableExtensions: string[] = windowsDefaultExecutableExtensions;
+	const cacheKey = getWindowsExecutableExtensionsCacheKey(configuredWindowsExecutableExtensions);
+	if (cachedResolvedWindowsExecutableExtensions && cachedWindowsExecutableExtensionsKey === cacheKey) {
+		return cachedResolvedWindowsExecutableExtensions;
+	}
+
+	const resolvedWindowsExecutableExtensions: string[] = [...windowsDefaultExecutableExtensions];
 	const excluded = new Set<string>();
+	const seen = new Set<string>();
+
 	if (configuredWindowsExecutableExtensions) {
 		for (const [key, value] of Object.entries(configuredWindowsExecutableExtensions)) {
 			if (value === true) {
@@ -38,7 +47,32 @@ function resolveWindowsExecutableExtensions(configuredWindowsExecutableExtension
 			}
 		}
 	}
-	return Array.from(new Set(resolvedWindowsExecutableExtensions)).filter(ext => !excluded.has(ext));
+
+	const filtered: string[] = [];
+	for (const ext of resolvedWindowsExecutableExtensions) {
+		if (excluded.has(ext) || seen.has(ext)) {
+			continue;
+		}
+		seen.add(ext);
+		filtered.push(ext);
+	}
+
+	cachedWindowsExecutableExtensionsKey = cacheKey;
+	cachedResolvedWindowsExecutableExtensions = filtered;
+	return filtered;
+}
+
+function getWindowsExecutableExtensionsCacheKey(configuredWindowsExecutableExtensions?: { [key: string]: boolean | undefined }): string | undefined {
+	if (!configuredWindowsExecutableExtensions) {
+		return undefined;
+	}
+
+	let key = '';
+	for (const ext of Object.keys(configuredWindowsExecutableExtensions).sort()) {
+		const value = configuredWindowsExecutableExtensions[ext] === true ? '1' : '0';
+		key += `${ext}:${value}|`;
+	}
+	return key;
 }
 
 export const windowsDefaultExecutableExtensions: string[] = [
