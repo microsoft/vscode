@@ -435,7 +435,7 @@ suite('LocalAgentsSessionsProvider', () => {
 			});
 		});
 
-		test('should return Failed status when last response was canceled', async () => {
+		test('should return Success status when last response was canceled', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider = createProvider();
 
@@ -458,7 +458,7 @@ suite('LocalAgentsSessionsProvider', () => {
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].status, ChatSessionStatus.Failed);
+				assert.strictEqual(sessions[0].status, ChatSessionStatus.Completed);
 			});
 		});
 
