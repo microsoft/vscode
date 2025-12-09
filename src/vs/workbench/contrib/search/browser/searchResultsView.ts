@@ -7,7 +7,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
-import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { ITreeElementRenderDetails, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import * as paths from '../../../../base/common/path.js';
 import * as nls from '../../../../nls.js';
@@ -472,6 +472,10 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 
 		templateData.actions.context = { viewer: this.searchView.getControl(), element: match } satisfies ISearchActionContext;
 
+	}
+
+	disposeElement(element: ITreeNode<ISearchTreeMatch, void>, index: number, templateData: IMatchTemplate, details?: ITreeElementRenderDetails): void {
+		templateData.disposables.clear();
 	}
 
 	disposeTemplate(templateData: IMatchTemplate): void {
