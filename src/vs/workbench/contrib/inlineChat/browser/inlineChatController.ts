@@ -15,7 +15,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -1288,11 +1288,7 @@ export class InlineChatController2 implements IEditorContribution {
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
-<<<<<<< HEAD
-		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
-=======
 		@ILanguageModelsService private readonly _languageModelService: ILanguageModelsService,
->>>>>>> origin/main
 		@IChatService chatService: IChatService,
 	) {
 
