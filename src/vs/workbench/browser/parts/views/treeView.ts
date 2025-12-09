@@ -228,6 +228,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private _manuallyManageCheckboxes: boolean = false;
 	private messageElement: HTMLElement | undefined;
 	private tree: Tree | undefined;
+	private _autoCollapseCheckedFolders: boolean = false;
 	private treeLabels: ResourceLabels | undefined;
 	private treeViewDnd: CustomTreeViewDragAndDrop | undefined;
 	private _container: HTMLElement | undefined;
@@ -302,6 +303,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		// Remember when adding to this method that it isn't called until the view is visible, meaning that
 		// properties could be set and events could be fired before we're initialized and that this needs to be handled.
 
+		this._autoCollapseCheckedFolders = this.configurationService.getValue<boolean>('workbench.tree.autoCollapseCheckedFolders') ?? false;
+
 		this.contextKeyService.bufferChangeEvents(() => {
 			this.initializeShowCollapseAllAction();
 			this.initializeCollapseAllToggle();
@@ -316,6 +319,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer.decorations')) {
 				this.doRefresh([this.root]); /** soft refresh **/
+			}
+			if (e.affectsConfiguration('workbench.tree.autoCollapseCheckedFolders')) {
+				this._autoCollapseCheckedFolders = this.configurationService.getValue<boolean>('workbench.tree.autoCollapseCheckedFolders') ?? false;
 			}
 		}));
 		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
@@ -1014,7 +1020,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	}
 
 	private autoCollapseFoldersIfNeeded(items: readonly ITreeItem[]): void {
-		if (!this.configurationService.getValue<boolean>('workbench.tree.autoCollapseCheckedFolders')) {
+		if (!this._autoCollapseCheckedFolders) {
 			return;
 		}
 
@@ -1041,7 +1047,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				} catch (e) {
 					// The tree structure may have changed during checkbox updates
 					// Log and continue to avoid breaking the checkbox functionality
-					this.logService.debug('Failed to auto-collapse parent folder', e);
+					const parentLabel = parent.label && typeof parent.label === 'object' && 'label' in parent.label
+						? (typeof parent.label.label === 'string' ? parent.label.label : parent.label.label.value)
+						: (typeof parent.label === 'string' ? parent.label : parent.handle);
+					this.logService.debug(`Failed to auto-collapse parent folder '${parentLabel}'`, e);
 				}
 			}
 		}
