@@ -502,7 +502,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	private async handleSessionModelOverrides(model: IChatModel, session: Dto<IChatSessionItem>): Promise<Dto<IChatSessionItem>> {
 		// Override desciription if there's an in-progress count
-		const inProgress = model.getRequests().filter(r => !r.response || !r.response.isComplete);
+		const inProgress = model.getRequests().filter(r => r.response && !r.response.isComplete);
 		if (inProgress.length) {
 			session.description = this._chatSessionsService.getInProgressSessionDescription(model);
 		}
