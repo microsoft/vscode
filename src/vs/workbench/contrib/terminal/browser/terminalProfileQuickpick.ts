@@ -48,7 +48,7 @@ export class TerminalProfileQuickpick {
 
 			// If workspace and user defaults differ, ask where to apply the change
 			let targets: ConfigurationTarget[] = [ConfigurationTarget.USER];
-			if (workspaceDefault !== undefined && workspaceDefault !== userDefault) {
+			if (workspaceDefault !== undefined && (workspaceDefault !== userDefault || workspaceDefault !== result.profileName)) {
 				const targetChoice = await this._showTargetPicker();
 				if (!targetChoice) {
 					return; // User cancelled
@@ -133,7 +133,7 @@ export class TerminalProfileQuickpick {
 			},
 			{
 				label: nls.localize('terminal.setDefaultProfile.workspace', "Workspace"),
-				detail: nls.localize('terminal.setDefaultProfile.workspace.detail', "Apply to workspace settings only"),
+				detail: nls.localize('terminal.setDefaultProfile.workspace.detail', "Apply to workspace settings (overrides user settings)"),
 				targets: [ConfigurationTarget.WORKSPACE]
 			},
 			{
