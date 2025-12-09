@@ -2185,8 +2185,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			lastMessageDate: this._lastMessageDate,
 			customTitle: this._customTitle,
 			hasPendingEdits: !!(this._editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)),
-			// Only include inputState if it has been set
-			...this.inputModel.toJSON(),
+			inputState: this.inputModel.toJSON(),
 		};
 	}
 
