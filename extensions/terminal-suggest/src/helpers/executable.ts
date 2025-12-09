@@ -63,7 +63,7 @@ function resolveWindowsExecutableExtensions(configuredWindowsExecutableExtension
 }
 
 function getWindowsExecutableExtensionsCacheKey(configuredWindowsExecutableExtensions?: { [key: string]: boolean | undefined }): string | undefined {
-	if (!configuredWindowsExecutableExtensions) {
+	if (!configuredWindowsExecutableExtensions || Object.keys(configuredWindowsExecutableExtensions).length === 0) {
 		return undefined;
 	}
 
