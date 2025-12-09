@@ -5,7 +5,7 @@
 
 import './media/agentsessionsactions.css';
 import { localize, localize2 } from '../../../../../nls.js';
-import { getAgentChangesSummary, IAgentSession } from './agentSessionsModel.js';
+import { IAgentSession, getAgentChangesSummary } from './agentSessionsModel.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -29,6 +29,8 @@ import { getPartByLocation } from '../../../../services/views/browser/viewsServi
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 abstract class BaseAgentSessionAction extends Action2 {
 
@@ -43,11 +45,11 @@ abstract class BaseAgentSessionAction extends Action2 {
 		}
 
 		if (session) {
-			this.runWithSession(session);
+			this.runWithSession(session, accessor);
 		}
 	}
 
-	abstract runWithSession(session: IAgentSession): void;
+	abstract runWithSession(session: IAgentSession, accessor: ServicesAccessor): void;
 }
 
 //#region Session Title Actions
@@ -73,7 +75,19 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 		});
 	}
 
-	runWithSession(session: IAgentSession): void {
+	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
+		const chatService = accessor.get(IChatService);
+		const chatModel = chatService.getSession(session.resource);
+		const dialogService = accessor.get(IDialogService);
+
+		if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
+			isArchiveAction: true,
+			titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
+			messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
+		})) {
+			return;
+		}
+
 		session.setArchived(true);
 	}
 }

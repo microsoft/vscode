@@ -35,6 +35,7 @@ import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { IAgentSessionsControl } from './agentSessions.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
@@ -205,6 +206,21 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			target = ChatViewPaneTarget;
 		} else {
 			target = ACTIVE_GROUP;
+		}
+
+		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor ||
+			session.resource.scheme === Schemas.vscodeLocalChatSession;
+		if (!isLocalChatSession && !(await this.chatSessionsService.canResolveChatSession(session.resource))) {
+			// Not a chat session, let open editor figure out how to handle
+			const editorTarget = target === ChatViewPaneTarget ? undefined : target;
+			await this.editorService.openEditor({
+				resource: session.resource,
+				options: {
+					...options,
+					revealIfOpened: options?.revealIfOpened ?? true
+				}
+			}, editorTarget);
+			return;
 		}
 
 		await this.chatWidgetService.openSession(session.resource, target, options);

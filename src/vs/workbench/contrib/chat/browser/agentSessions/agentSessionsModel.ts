@@ -64,6 +64,24 @@ interface IAgentSessionData {
 	};
 }
 
+/**
+ * Checks if the provided changes object represents valid diff information.
+ */
+export function hasValidDiff(changes: IAgentSession['changes']): boolean {
+	if (!changes) {
+		return false;
+	}
+
+	if (changes instanceof Array) {
+		return changes.length > 0;
+	}
+
+	return changes.files > 0 || changes.insertions > 0 || changes.deletions > 0;
+}
+
+/**
+ * Gets a summary of agent session changes, converting from array format to object format if needed.
+ */
 export function getAgentChangesSummary(changes: IAgentSession['changes']) {
 	if (!changes) {
 		return;
