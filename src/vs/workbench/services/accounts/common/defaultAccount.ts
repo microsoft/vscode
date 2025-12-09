@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { Barrier } from '../../../../base/common/async.js';
+import { Barrier, timeout } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
@@ -126,23 +126,21 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		this.initialize();
 	}
 
-	private async initialize(): Promise<void> {
-		this.logService.debug('[DefaultAccount] Starting initialization');
-
+	private async fetchDefaultAccount(): Promise<IDefaultAccount | null> {
 		if (!this.productService.defaultAccount) {
 			this.logService.debug('[DefaultAccount] No default account configuration in product service, skipping initialization');
-			return;
+			return null;
 		}
 
 		if (isWeb && !this.environmentService.remoteAuthority) {
 			this.logService.debug('[DefaultAccount] Running in web without remote, skipping initialization');
-			return;
+			return null;
 		}
 
 		const defaultAccountProviderId = this.getDefaultAccountProviderId();
 		this.logService.debug('[DefaultAccount] Default account provider ID:', defaultAccountProviderId);
 		if (!defaultAccountProviderId) {
-			return;
+			return null;
 		}
 
 		await this.extensionService.whenInstalledExtensionsRegistered();
@@ -151,11 +149,22 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === defaultAccountProviderId);
 		if (!declaredProvider) {
 			this.logService.info(`[DefaultAccount] Authentication provider is not declared.`, defaultAccountProviderId);
-			return;
+			return null;
 		}
 
 		this.registerSignInAction(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes[0]);
-		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes));
+		return await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes);
+	}
+
+	private async initialize(): Promise<void> {
+		this.logService.debug('[DefaultAccount] Starting initialization');
+		let defaultAccount: IDefaultAccount | null = null;
+		try {
+			defaultAccount = await this.fetchDefaultAccount();
+		} catch (error) {
+			this.logService.error('[DefaultAccount] Error during initialization', getErrorMessage(error));
+		}
+		this.setDefaultAccount(defaultAccount);
 
 		type DefaultAccountStatusTelemetry = {
 			status: string;
@@ -177,7 +186,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
 				this.setDefaultAccount(null);
 			} else {
-				this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount!.authenticationProvider.scopes));
+				this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(e.providerId, this.productService.defaultAccount!.authenticationProvider.scopes));
 			}
 
 			this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: false });
@@ -244,7 +253,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	}
 
 	private async findMatchingProviderSession(authProviderId: string, allScopes: string[][]): Promise<AuthenticationSession | undefined> {
-		const sessions = await this.authenticationService.getSessions(authProviderId, undefined, undefined, true);
+		const sessions = await this.getSessions(authProviderId);
 		for (const session of sessions) {
 			this.logService.debug('[DefaultAccount] Checking session with scopes', session.scopes);
 			for (const scopes of allScopes) {
@@ -254,6 +263,21 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			}
 		}
 		return undefined;
+	}
+
+	private async getSessions(authProviderId: string): Promise<readonly AuthenticationSession[]> {
+		for (let attempt = 1; attempt <= 3; attempt++) {
+			try {
+				return await this.authenticationService.getSessions(authProviderId, undefined, undefined, true);
+			} catch (error) {
+				this.logService.warn(`[DefaultAccount] Attempt ${attempt} to get sessions failed:`, getErrorMessage(error));
+				if (attempt === 3) {
+					throw error;
+				}
+				await timeout(500);
+			}
+		}
+		throw new Error('Unable to get sessions after multiple attempts');
 	}
 
 	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
