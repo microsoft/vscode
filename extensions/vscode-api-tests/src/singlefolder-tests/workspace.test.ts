@@ -1138,7 +1138,7 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(e.files[1].toString(), file2.toString());
 	});
 
-	test.skip('issue #107739 - Redo of rename Java Class name has no effect', async () => { // https://github.com/microsoft/vscode/issues/254042
+	test('issue #107739 - Redo of rename Java Class name has no effect', async () => { // https://github.com/microsoft/vscode/issues/254042
 		const file = await createRandomFile('hello');
 		const fileName = basename(file.fsPath);
 
@@ -1149,7 +1149,7 @@ suite('vscode API - workspace', () => {
 			const we = new vscode.WorkspaceEdit();
 			we.insert(file, new vscode.Position(0, 5), '2');
 			we.renameFile(file, newFile);
-			await vscode.workspace.applyEdit(we);
+			assert.ok(await vscode.workspace.applyEdit(we));
 		}
 
 		// show the new document
