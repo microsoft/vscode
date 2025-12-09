@@ -37,10 +37,10 @@ class MockChatService implements IChatService {
 	private liveSessionItems: IChatDetail[] = [];
 	private historySessionItems: IChatDetail[] = [];
 
-	private readonly _onDidDisposeSession = new Emitter<{ sessionResource: URI; reason: 'cleared' }>();
+	private readonly _onDidDisposeSession = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
-	fireDidDisposeSession(sessionResource: URI): void {
+	fireDidDisposeSession(sessionResource: URI[]): void {
 		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
 	}
 
@@ -435,7 +435,7 @@ suite('LocalAgentsSessionsProvider', () => {
 			});
 		});
 
-		test('should return Failed status when last response was canceled', async () => {
+		test('should return Success status when last response was canceled', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider = createProvider();
 
@@ -458,7 +458,7 @@ suite('LocalAgentsSessionsProvider', () => {
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].status, ChatSessionStatus.Failed);
+				assert.strictEqual(sessions[0].status, ChatSessionStatus.Completed);
 			});
 		});
 
