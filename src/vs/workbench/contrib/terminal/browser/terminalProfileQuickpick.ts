@@ -195,28 +195,19 @@ export class TerminalProfileQuickpick {
 		const configProfiles = profiles.filter(e => !e.isAutoDetected);
 		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
 
-		// Get workspace profile names for filtering
-		const workspaceProfilesConfig = this._configurationService.inspect(profilesKey);
-		const workspaceProfileNames = workspaceProfilesConfig.workspaceValue && typeof workspaceProfilesConfig.workspaceValue === 'object' 
-			? Object.keys(workspaceProfilesConfig.workspaceValue as { [key: string]: unknown })
-			: [];
-
-		// Filter out workspace profiles from the main profiles section to avoid duplicates
-		const userConfigProfiles = configProfiles.filter(e => !workspaceProfileNames.includes(e.profileName));
+		// Separate user and workspace profiles based on configScope set by the backend
+		const userConfigProfiles = configProfiles.filter(e => e.configScope !== ConfigurationTarget.WORKSPACE);
+		const workspaceConfigProfiles = configProfiles.filter(e => e.configScope === ConfigurationTarget.WORKSPACE);
 
 		if (userConfigProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
 			quickPickItems.push(...this._sortProfileQuickPickItems(userConfigProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
 		}
 
-		// Add workspace profiles section if workspace has any profiles defined
-		if (workspaceProfileNames.length > 0) {
+		// Add workspace profiles section if any exist
+		if (workspaceConfigProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.workspace', "workspace") });
-			// Filter available profiles to only include workspace-defined ones
-			const workspaceProfileItems = profiles
-				.filter(e => workspaceProfileNames.includes(e.profileName))
-				.map(e => this._createProfileQuickPickItem(e));
-			quickPickItems.push(...this._sortProfileQuickPickItems(workspaceProfileItems, defaultProfileName!));
+			quickPickItems.push(...this._sortProfileQuickPickItems(workspaceConfigProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
 		}
 
 		quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });
