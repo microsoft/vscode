@@ -1030,13 +1030,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 		// Check each item and its parent to see if we should auto-collapse
 		const parentsToCheck = new Set<ITreeItem>();
-
-		for (const item of items) {
-			// Check parent for any item that had its checkbox state changed
-			if (item.parent) {
-				parentsToCheck.add(item.parent);
-			}
-		}
+		items.forEach(item => item.parent && parentsToCheck.add(item.parent));
 
 		// For each parent, check if all children are checked
 		for (const parent of parentsToCheck) {
@@ -1058,13 +1052,15 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			if (typeof item.label === 'string') {
 				return item.label;
 			}
-			// ITreeItemLabel case
-			if (typeof item.label.label === 'string') {
-				return item.label.label;
-			}
-			// IMarkdownString case
-			if (isMarkdownString(item.label.label)) {
-				return item.label.label.value;
+			// ITreeItemLabel case - check that label property exists
+			if (item.label.label) {
+				if (typeof item.label.label === 'string') {
+					return item.label.label;
+				}
+				// IMarkdownString case
+				if (isMarkdownString(item.label.label)) {
+					return item.label.label.value;
+				}
 			}
 		}
 		return item.handle;
@@ -1082,18 +1078,13 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}
 
 		// Check if all children with checkboxes are checked
-		let hasCheckboxChildren = false;
-		for (const child of parent.children) {
-			if (child.checkbox) {
-				hasCheckboxChildren = true;
-				if (!child.checkbox.isChecked) {
-					return false;
-				}
-			}
+		const checkboxChildren = parent.children.filter(child => child.checkbox);
+		if (checkboxChildren.length === 0) {
+			return false;
 		}
 
-		// Only collapse if there are checkbox children and all are checked
-		return hasCheckboxChildren;
+		// All checkbox children must be checked
+		return checkboxChildren.every(child => child.checkbox!.isChecked);
 	}
 
 	async refresh(elements?: readonly ITreeItem[], checkboxes?: readonly ITreeItem[]): Promise<void> {
