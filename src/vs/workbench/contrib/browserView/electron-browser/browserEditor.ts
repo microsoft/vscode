@@ -242,9 +242,9 @@ export class BrowserEditor extends EditorPane {
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
 
 		// Clean up on input disposal
-		input.onWillDispose(() => {
+		this._inputDisposables.add(input.onWillDispose(() => {
 			this._model = undefined;
-		}, null, this._inputDisposables);
+		}));
 
 		// Initialize UI state and context keys from model
 		this.updateNavigationState({
@@ -259,34 +259,34 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		// Listen to model events for UI updates
-		this._model.onDidKeyCommand(keyEvent => {
+		this._inputDisposables.add(this._model.onDidKeyCommand(keyEvent => {
 			// Handle like webview does - convert to webview KeyEvent format
 			this.handleKeyEventFromBrowserView(keyEvent);
-		}, null, this._inputDisposables);
+		}));
 
-		this._model.onDidNavigate((navEvent: IBrowserViewNavigationEvent) => {
+		this._inputDisposables.add(this._model.onDidNavigate((navEvent: IBrowserViewNavigationEvent) => {
 			this.group.pinEditor(this.input); // pin editor on navigation
 
 			// Update navigation bar and context keys from model
 			this.updateNavigationState(navEvent);
-		}, null, this._inputDisposables);
+		}));
 
-		this._model.onDidChangeLoadingState(() => {
+		this._inputDisposables.add(this._model.onDidChangeLoadingState(() => {
 			this.updateErrorDisplay();
-		}, null, this._inputDisposables);
+		}));
 
-		this._model.onDidChangeFocus(({ focused }) => {
+		this._inputDisposables.add(this._model.onDidChangeFocus(({ focused }) => {
 			// When the view gets focused, make sure the container also has focus.
 			if (focused) {
 				this._browserContainer.focus();
 			}
-		}, null, this._inputDisposables);
+		}));
 
-		this._model.onDidChangeDevToolsState(e => {
+		this._inputDisposables.add(this._model.onDidChangeDevToolsState(e => {
 			this._devToolsOpenContext.set(e.isDevToolsOpen);
-		}, null, this._inputDisposables);
+		}));
 
-		this._model.onDidRequestNewPage(({ url, name, background }) => {
+		this._inputDisposables.add(this._model.onDidRequestNewPage(({ url, name, background }) => {
 			type IntegratedBrowserNewPageRequestEvent = {
 				background: boolean;
 			};
@@ -313,19 +313,18 @@ export class BrowserEditor extends EditorPane {
 					inactive: background
 				}
 			});
-		}, null, this._inputDisposables);
+		}));
 
-		this.overlayManager.onDidChangeOverlayState(() => {
+		this._inputDisposables.add(this.overlayManager.onDidChangeOverlayState(() => {
 			this.checkOverlays();
-		}, null, this._inputDisposables);
+		}));
 
 		// Listen for zoom level changes and update browser view zoom factor
-		onDidChangeZoomLevel(targetWindowId => {
+		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
 				this.layout();
 			}
-		}, null, this._inputDisposables);
-
+		}));
 		// Capture screenshot periodically (once per second) to keep background updated
 		this._inputDisposables.add(disposableWindowInterval(
 			this.window,
