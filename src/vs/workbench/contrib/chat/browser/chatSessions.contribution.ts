@@ -279,6 +279,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _editableSessions = new ResourceMap<IEditableData>();
 
+	private readonly _hasCanDelegateProvidersKey = ChatContextKeys.hasCanDelegateProviders.bindTo(this._contextKeyService);
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -435,6 +437,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._sessionTypeWelcomeTips.delete(contribution.type);
 				this._sessionTypeInputPlaceholders.delete(contribution.type);
 				this._contributionDisposables.deleteAndDispose(contribution.type);
+				this._updateHasCanDelegateProvidersContextKey();
 			}
 		};
 	}
@@ -684,6 +687,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._onDidChangeSessionItems.fire(contribution.type);
 			}
 		}
+		this._updateHasCanDelegateProvidersContextKey();
 	}
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
@@ -755,6 +759,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[] {
 		return Array.from(this._contributions.values(), x => x.contribution)
 			.filter(contribution => this._isContributionAvailable(contribution));
+	}
+
+	private _updateHasCanDelegateProvidersContextKey(): void {
+		const hasCanDelegate = this.getAllChatSessionContributions().filter(c => c.canDelegate);
+		const canDelegateEnabled = hasCanDelegate.length > 0;
+		this._logService.trace(`[ChatSessionsService] hasCanDelegateProvidersAvailable=${canDelegateEnabled} (${hasCanDelegate.map(c => c.type).join(', ')})`);
+		this._hasCanDelegateProvidersKey.set(canDelegateEnabled);
 	}
 
 	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined {
