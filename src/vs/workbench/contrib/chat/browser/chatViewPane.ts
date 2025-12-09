@@ -456,7 +456,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Sessions control: sidebar
 			else {
-				newSessionsContainerVisible = true; // always visible in sidebar mode
+				newSessionsContainerVisible = !!this.lastDimensions && this.lastDimensions.width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH; // enough space
 			}
 		}
 
