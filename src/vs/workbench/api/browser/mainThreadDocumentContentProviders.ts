@@ -83,6 +83,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 				// ignore this
 				return;
 			}
+
 			if (model.isDisposed()) {
 				// model was disposed during the async operation
 				return;
