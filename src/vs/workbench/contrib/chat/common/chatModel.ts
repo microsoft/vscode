@@ -1823,7 +1823,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 	}
 
-	private _deserialize(obj: IExportableChatData): ChatRequestModel[] {
+	private _deserialize(obj: IExportableChatData | ISerializableChatData): ChatRequestModel[] {
 		const requests = obj.requests;
 		if (!Array.isArray(requests)) {
 			this.logService.error(`Ignoring malformed session data: ${JSON.stringify(obj)}`);
@@ -1865,7 +1865,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						agent,
 						slashCommand: raw.slashCommand,
 						requestId: request.id,
-						modelState: raw.modelState || { value: raw.isCanceled ? ResponseModelState.Cancelled : ResponseModelState.Complete, completedAt: Date.now() },
+						modelState: raw.modelState || { value: raw.isCanceled ? ResponseModelState.Cancelled : ResponseModelState.Complete, completedAt: 'lastMessageDate' in obj ? obj.lastMessageDate : Date.now() },
 						vote: raw.vote,
 						timestamp: raw.timestamp,
 						voteDownReason: raw.voteDownReason,
