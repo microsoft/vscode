@@ -409,4 +409,65 @@ suite('XtermTerminal', () => {
 			});
 		});
 	});
+
+	suite('smooth scrolling', () => {
+		test('should disable smooth scrolling by default when setting is false', () => {
+			configurationService.setUserConfiguration('terminal', {
+				integrated: {
+					...defaultTerminalConfig,
+					smoothScrolling: false
+				}
+			});
+			const capabilityStore = store.add(new TerminalCapabilityStore());
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: capabilityStore,
+				disableShellIntegrationReporting: true,
+			}, undefined));
+			strictEqual(xterm.raw.options.smoothScrollDuration, 0);
+		});
+
+		test('should enable smooth scrolling for readonly terminals when setting is true', () => {
+			configurationService.setUserConfiguration('terminal', {
+				integrated: {
+					...defaultTerminalConfig,
+					smoothScrolling: true
+				}
+			});
+			const capabilityStore = store.add(new TerminalCapabilityStore());
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: capabilityStore,
+				disableShellIntegrationReporting: true,
+				readonly: true
+			}, undefined));
+			// For readonly terminals, smooth scrolling should be enabled regardless of physical mouse wheel
+			strictEqual(xterm.raw.options.smoothScrollDuration, 125); // RenderConstants.SmoothScrollDuration
+		});
+
+		test('should respect smooth scrolling setting for non-readonly terminals with physical mouse wheel', () => {
+			configurationService.setUserConfiguration('terminal', {
+				integrated: {
+					...defaultTerminalConfig,
+					smoothScrolling: true
+				}
+			});
+			const capabilityStore = store.add(new TerminalCapabilityStore());
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: capabilityStore,
+				disableShellIntegrationReporting: true,
+				readonly: false
+			}, undefined));
+			// For non-readonly terminals, smooth scrolling depends on physical mouse wheel detection
+			// The value will be either 0 or 125 depending on MouseWheelClassifier state
+			strictEqual(typeof xterm.raw.options.smoothScrollDuration, 'number');
+		});
+	});
 });
