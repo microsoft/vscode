@@ -59,4 +59,47 @@ suite('MainThreadDocumentContentProviders', function () {
 			providers.$onVirtualDocumentChange(uri, '1\n2\n3');
 		});
 	});
+
+	test('model disposed during async operation', async function () {
+		const uri = URI.parse('test:disposed');
+		const model = createTextModel('initial', undefined, undefined, uri);
+
+		let disposeModelDuringEdit = false;
+
+		const providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null!, null!,
+			new class extends mock<IModelService>() {
+				override getModel(_uri: URI) {
+					assert.strictEqual(uri.toString(), _uri.toString());
+					return model;
+				}
+			},
+			new class extends mock<IEditorWorkerService>() {
+				override async computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | undefined) {
+					// Simulate async operation
+					await new Promise(resolve => setTimeout(resolve, 10));
+					
+					// Dispose model during the async operation if flag is set
+					if (disposeModelDuringEdit) {
+						model.dispose();
+					}
+					
+					return data;
+				}
+			},
+		);
+
+		store.add(model);
+		store.add(providers);
+
+		// First call should work normally
+		await providers.$onVirtualDocumentChange(uri, 'updated');
+		assert.strictEqual(model.getValue(), 'updated');
+
+		// Second call should not throw even though model gets disposed during async operation
+		disposeModelDuringEdit = true;
+		await providers.$onVirtualDocumentChange(uri, 'should not apply');
+		
+		// Model should be disposed and value unchanged
+		assert.ok(model.isDisposed());
+	});
 });

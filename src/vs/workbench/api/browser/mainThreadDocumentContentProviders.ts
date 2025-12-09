@@ -83,6 +83,10 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 				// ignore this
 				return;
 			}
+			if (model.isDisposed()) {
+				// model was disposed during the async operation
+				return;
+			}
 			if (edits && edits.length > 0) {
 				// use the evil-edit as these models show in readonly-editor only
 				model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
