@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess, ForkOptions } from 'electron';
+import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
@@ -18,7 +18,6 @@ import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
 import { deepClone } from '../../../base/common/objects.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
-import { upcast } from '../../../base/common/types.js';
 
 export interface IUtilityProcessConfiguration {
 
@@ -26,6 +25,11 @@ export interface IUtilityProcessConfiguration {
 	 * A way to group utility processes of same type together.
 	 */
 	readonly type: string;
+
+	/**
+	 * A human-readable name for the utility process.
+	 */
+	readonly name: string;
 
 	/**
 	 * The entry point to load in the utility process.
@@ -71,12 +75,6 @@ export interface IUtilityProcessConfiguration {
 	 * process exits.
 	 */
 	readonly parentLifecycleBound?: number;
-
-	/**
-	 * Allow the utility process to force heap allocations inside
-	 * the V8 sandbox.
-	 */
-	readonly forceAllocationsToV8Sandbox?: boolean;
 
 	/**
 	 * HTTP 401 and 407 requests created via electron:net module
@@ -136,7 +134,7 @@ export interface IUtilityProcessCrashEvent extends IUtilityProcessExitBaseEvent 
 	/**
 	 * The reason of the utility process crash.
 	 */
-	readonly reason: 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure';
+	readonly reason: 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure' | 'memory-eviction';
 }
 
 export interface IUtilityProcessInfo {
@@ -176,7 +174,6 @@ export class UtilityProcess extends Disposable {
 	private process: ElectronUtilityProcess | undefined = undefined;
 	private processPid: number | undefined = undefined;
 	private configuration: IUtilityProcessConfiguration | undefined = undefined;
-	private killed = false;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -242,7 +239,6 @@ export class UtilityProcess extends Disposable {
 		const args = this.configuration.args ?? [];
 		const execArgv = this.configuration.execArgv ?? [];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
-		const forceAllocationsToV8Sandbox = this.configuration.forceAllocationsToV8Sandbox;
 		const respondToAuthRequestsFromMainProcess = this.configuration.respondToAuthRequestsFromMainProcess;
 		const stdio = 'pipe';
 		const env = this.createEnv(configuration);
@@ -250,18 +246,14 @@ export class UtilityProcess extends Disposable {
 		this.log('creating new...', Severity.Info);
 
 		// Fork utility process
-		this.process = utilityProcess.fork(modulePath, args, upcast<ForkOptions, ForkOptions & {
-			forceAllocationsToV8Sandbox?: boolean;
-			respondToAuthRequestsFromMainProcess?: boolean;
-		}>({
+		this.process = utilityProcess.fork(modulePath, args, {
 			serviceName,
 			env,
-			execArgv,
+			execArgv, // !!! Add `--trace-warnings` for node.js tracing !!!
 			allowLoadingUnsignedLibraries,
-			forceAllocationsToV8Sandbox,
 			respondToAuthRequestsFromMainProcess,
 			stdio
-		}));
+		});
 
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);
@@ -269,11 +261,11 @@ export class UtilityProcess extends Disposable {
 		return true;
 	}
 
-	private createEnv(configuration: IUtilityProcessConfiguration): { [key: string]: any } {
-		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
+	private createEnv(configuration: IUtilityProcessConfiguration): NodeJS.ProcessEnv {
+		const env: NodeJS.ProcessEnv = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
 
 		// Apply supported environment variables from config
-		env['VSCODE_AMD_ENTRYPOINT'] = configuration.entryPoint;
+		env['VSCODE_ESM_ENTRYPOINT'] = configuration.entryPoint;
 		if (typeof configuration.parentLifecycleBound === 'number') {
 			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
 		}
@@ -319,7 +311,7 @@ export class UtilityProcess extends Disposable {
 			this.processPid = process.pid;
 
 			if (typeof process.pid === 'number') {
-				UtilityProcess.all.set(process.pid, { pid: process.pid, name: isWindowUtilityProcessConfiguration(configuration) ? `${configuration.type} [${configuration.responseWindowId}]` : configuration.type });
+				UtilityProcess.all.set(process.pid, { pid: process.pid, name: isWindowUtilityProcessConfiguration(configuration) ? `${configuration.name} [${configuration.responseWindowId}]` : configuration.name });
 			}
 
 			this.log('successfully created', Severity.Info);
@@ -328,11 +320,10 @@ export class UtilityProcess extends Disposable {
 
 		// Exit
 		this._register(Event.fromNodeEventEmitter<number>(process, 'exit')(code => {
-			const normalizedCode = this.isNormalExit(code) ? 0 : code;
-			this.log(`received exit event with code ${normalizedCode}`, Severity.Info);
+			this.log(`received exit event with code ${code}`, Severity.Info);
 
 			// Event
-			this._onExit.fire({ pid: this.processPid!, code: normalizedCode, signal: 'unknown' });
+			this._onExit.fire({ pid: this.processPid!, code, signal: 'unknown' });
 
 			// Cleanup
 			this.onDidExitOrCrashOrKill();
@@ -340,7 +331,7 @@ export class UtilityProcess extends Disposable {
 
 		// Child process gone
 		this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
-			if (details.type === 'Utility' && details.name === serviceName && !this.isNormalExit(details.exitCode)) {
+			if (details.type === 'Utility' && details.name === serviceName) {
 				this.log(`crashed with code ${details.exitCode} and reason '${details.reason}'`, Severity.Error);
 
 				// Telemetry
@@ -430,22 +421,10 @@ export class UtilityProcess extends Disposable {
 		const killed = this.process.kill();
 		if (killed) {
 			this.log('successfully killed the process', Severity.Info);
-			this.killed = true;
 			this.onDidExitOrCrashOrKill();
 		} else {
 			this.log('unable to kill the process', Severity.Warning);
 		}
-	}
-
-	private isNormalExit(exitCode: number): boolean {
-		if (exitCode === 0) {
-			return true;
-		}
-
-		// Treat an exit code of 15 (SIGTERM) as a normal exit
-		// if we triggered the termination from process.kill()
-
-		return this.killed && exitCode === 15 /* SIGTERM */;
 	}
 
 	private onDidExitOrCrashOrKill(): void {

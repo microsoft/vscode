@@ -20,6 +20,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { basenameOrAuthority, dirname } from '../../../../../base/common/resources.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibleViewProviderId, IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { hasKey } from '../../../../../base/common/types.js';
 
 export class TerminalLinkQuickpick extends DisposableStore {
 
@@ -32,10 +33,10 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
 
 	constructor(
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 		this._editorViewState = this.add(instantiationService.createInstance(PickerEditorState));
@@ -167,7 +168,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 				accepted = true;
 				const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
 				const activeItem = pick.activeItems?.[0];
-				if (activeItem && 'link' in activeItem) {
+				if (activeItem && hasKey(activeItem, { link: true })) {
 					activeItem.link.activate(event, activeItem.label);
 				}
 				disposables.dispose();
@@ -193,7 +194,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 
 				// Add a consistently formatted resolved URI label to the description if applicable
 				let description: string | undefined;
-				if ('uri' in link && link.uri) {
+				if (hasKey(link, { uri: true }) && link.uri) {
 					// For local files and folders, mimic the presentation of go to file
 					if (
 						link.type === TerminalBuiltinLinkType.LocalFile ||
@@ -234,7 +235,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	}
 
 	private _previewItem(item: ITerminalLinkQuickPickItem | IQuickPickItem) {
-		if (!item || !('link' in item) || !item.link) {
+		if (!item || !hasKey(item, { link: true }) || !item.link) {
 			return;
 		}
 
@@ -242,7 +243,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		const link = item.link;
 		this._previewItemInTerminal(link);
 
-		if (!('uri' in link) || !link.uri) {
+		if (!hasKey(link, { uri: true }) || !link.uri) {
 			return;
 		}
 
@@ -266,7 +267,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		this._editorSequencer.queue(async () => {
 			await this._editorViewState.openTransientEditor({
 				resource: link.uri,
-				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection, }
+				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection }
 			});
 		});
 	}

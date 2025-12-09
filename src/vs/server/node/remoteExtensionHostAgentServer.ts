@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
 import * as fs from 'fs';
-import * as http from 'http';
+import type * as http from 'http';
 import * as net from 'net';
+import { createRequire } from 'node:module';
 import { performance } from 'perf_hooks';
 import * as url from 'url';
-import { LoaderStats, isESM } from '../../base/common/amd.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { isEqualOrParent } from '../../base/common/extpath.js';
 import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
-import { connectionTokenQueryName, FileAccess, getServerRootPath, Schemas } from '../../base/common/network.js';
+import { connectionTokenQueryName, FileAccess, getServerProductSegment, Schemas } from '../../base/common/network.js';
 import { dirname, join } from '../../base/common/path.js';
 import * as perf from '../../base/common/performance.js';
 import * as platform from '../../base/common/platform.js';
@@ -26,7 +25,7 @@ import { getOSReleaseInfo } from '../../base/node/osReleaseInfo.js';
 import { findFreePort } from '../../base/node/ports.js';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { PersistentProtocol } from '../../base/parts/ipc/common/ipc.net.js';
-import { NodeSocket, WebSocketNodeSocket } from '../../base/parts/ipc/node/ipc.net.js';
+import { NodeSocket, upgradeToISocket, WebSocketNodeSocket } from '../../base/parts/ipc/node/ipc.net.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../platform/log/common/log.js';
@@ -40,10 +39,7 @@ import { determineServerConnectionToken, requestHasValidConnectionToken as httpR
 import { IServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { setupServerServices, SocketServer } from './serverServices.js';
 import { CacheControl, serveError, serveFile, WebClientServer } from './webClientServer.js';
-// ESM-uncomment-begin
-import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-// ESM-uncomment-end
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -67,11 +63,13 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection };
 	private readonly _allReconnectionTokens: Set<string>;
 	private readonly _webClientServer: WebClientServer | null;
-	private readonly _webEndpointOriginChecker = WebEndpointOriginChecker.create(this._productService);
+	private readonly _webEndpointOriginChecker: WebEndpointOriginChecker;
+	private readonly _reconnectionGraceTime: number;
 
-	private readonly _serverRootPath: string;
+	private readonly _serverBasePath: string | undefined;
+	private readonly _serverProductPath: string;
 
-	private shutdownTimer: NodeJS.Timeout | undefined;
+	private shutdownTimer: Timeout | undefined;
 
 	constructor(
 		private readonly _socketServer: SocketServer<RemoteAgentConnectionContext>,
@@ -85,17 +83,24 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		this._webEndpointOriginChecker = WebEndpointOriginChecker.create(this._productService);
 
-		this._serverRootPath = getServerRootPath(_productService, serverBasePath);
+		if (serverBasePath !== undefined && serverBasePath.charCodeAt(serverBasePath.length - 1) === CharCode.Slash) {
+			// Remove trailing slash from base path
+			serverBasePath = serverBasePath.substring(0, serverBasePath.length - 1);
+		}
+		this._serverBasePath = serverBasePath; // undefined or starts with a slash
+		this._serverProductPath = `/${getServerProductSegment(_productService)}`; // starts with a slash
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 		this._allReconnectionTokens = new Set<string>();
 		this._webClientServer = (
 			hasWebClient
-				? this._instantiationService.createInstance(WebClientServer, this._connectionToken, serverBasePath ?? '/', this._serverRootPath)
+				? this._instantiationService.createInstance(WebClientServer, this._connectionToken, serverBasePath ?? '/', this._serverProductPath)
 				: null
 		);
 		this._logService.info(`Extension host agent started.`);
+		this._reconnectionGraceTime = this._environmentService.reconnectionGraceTime;
 
 		this._waitThenShutdown(true);
 	}
@@ -117,9 +122,13 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		// for now accept all paths, with or without server root path
-		if (pathname.startsWith(this._serverRootPath) && pathname.charCodeAt(this._serverRootPath.length) === CharCode.Slash) {
-			pathname = pathname.substring(this._serverRootPath.length);
+		// Serve from both '/' and serverBasePath
+		if (this._serverBasePath !== undefined && pathname.startsWith(this._serverBasePath)) {
+			pathname = pathname.substring(this._serverBasePath.length) || '/';
+		}
+		// for now accept all paths, with or without server product path
+		if (pathname.startsWith(this._serverProductPath) && pathname.charCodeAt(this._serverProductPath.length) === CharCode.Slash) {
+			pathname = pathname.substring(this._serverProductPath.length);
 		}
 
 		// Version
@@ -175,7 +184,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 		// workbench web UI
 		if (this._webClientServer) {
-			this._webClientServer.handle(req, res, parsedUrl);
+			this._webClientServer.handle(req, res, parsedUrl, pathname);
 			return;
 		}
 
@@ -201,59 +210,17 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			}
 		}
 
-		if (req.headers['upgrade'] === undefined || req.headers['upgrade'].toLowerCase() !== 'websocket') {
-			socket.end('HTTP/1.1 400 Bad Request');
+		const upgraded = upgradeToISocket(req, socket, {
+			debugLabel: `server-connection-${reconnectionToken}`,
+			skipWebSocketFrames,
+			disableWebSocketCompression: this._environmentService.args['disable-websocket-compression']
+		});
+
+		if (!upgraded) {
 			return;
 		}
 
-		// https://tools.ietf.org/html/rfc6455#section-4
-		const requestNonce = req.headers['sec-websocket-key'];
-		const hash = crypto.createHash('sha1');// CodeQL [SM04514] SHA1 must be used here to respect the WebSocket protocol specification
-		hash.update(requestNonce + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11');
-		const responseNonce = hash.digest('base64');
-
-		const responseHeaders = [
-			`HTTP/1.1 101 Switching Protocols`,
-			`Upgrade: websocket`,
-			`Connection: Upgrade`,
-			`Sec-WebSocket-Accept: ${responseNonce}`
-		];
-
-		// See https://tools.ietf.org/html/rfc7692#page-12
-		let permessageDeflate = false;
-		if (!skipWebSocketFrames && !this._environmentService.args['disable-websocket-compression'] && req.headers['sec-websocket-extensions']) {
-			const websocketExtensionOptions = Array.isArray(req.headers['sec-websocket-extensions']) ? req.headers['sec-websocket-extensions'] : [req.headers['sec-websocket-extensions']];
-			for (const websocketExtensionOption of websocketExtensionOptions) {
-				if (/\b((server_max_window_bits)|(server_no_context_takeover)|(client_no_context_takeover))\b/.test(websocketExtensionOption)) {
-					// sorry, the server does not support zlib parameter tweaks
-					continue;
-				}
-				if (/\b(permessage-deflate)\b/.test(websocketExtensionOption)) {
-					permessageDeflate = true;
-					responseHeaders.push(`Sec-WebSocket-Extensions: permessage-deflate`);
-					break;
-				}
-				if (/\b(x-webkit-deflate-frame)\b/.test(websocketExtensionOption)) {
-					permessageDeflate = true;
-					responseHeaders.push(`Sec-WebSocket-Extensions: x-webkit-deflate-frame`);
-					break;
-				}
-			}
-		}
-
-		socket.write(responseHeaders.join('\r\n') + '\r\n\r\n');
-
-		// Never timeout this socket due to inactivity!
-		socket.setTimeout(0);
-		// Disable Nagle's algorithm
-		socket.setNoDelay(true);
-		// Finally!
-
-		if (skipWebSocketFrames) {
-			this._handleWebSocketConnection(new NodeSocket(socket, `server-connection-${reconnectionToken}`), isReconnection, reconnectionToken);
-		} else {
-			this._handleWebSocketConnection(new WebSocketNodeSocket(new NodeSocket(socket, `server-connection-${reconnectionToken}`), permessageDeflate, null, true), isReconnection, reconnectionToken);
-		}
+		this._handleWebSocketConnection(upgraded, isReconnection, reconnectionToken);
 	}
 
 	public handleServerError(err: Error): void {
@@ -454,7 +421,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				}
 
 				protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'ok' })));
-				const con = new ManagementConnection(this._logService, reconnectionToken, remoteAddress, protocol);
+				const con = new ManagementConnection(this._logService, reconnectionToken, remoteAddress, protocol, this._reconnectionGraceTime);
 				this._socketServer.acceptConnection(con.protocol, con.onClose);
 				this._managementConnections[reconnectionToken] = con;
 				this._allReconnectionTokens.add(reconnectionToken);
@@ -785,7 +752,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		serverBasePath = `/${serverBasePath}`;
 	}
 
-	const hasWebClient = fs.existsSync(FileAccess.asFileUri(`vs/code/browser/workbench/workbench.${isESM ? 'esm.' : ''}html`).fsPath);
+	const hasWebClient = fs.existsSync(FileAccess.asFileUri(`vs/code/browser/workbench/workbench.html`).fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!
@@ -797,8 +764,11 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 
 	perf.mark('code/server/ready');
 	const currentTime = performance.now();
+	// eslint-disable-next-line local/code-no-any-casts
 	const vscodeServerStartTime: number = (<any>global).vscodeServerStartTime;
+	// eslint-disable-next-line local/code-no-any-casts
 	const vscodeServerListenTime: number = (<any>global).vscodeServerListenTime;
+	// eslint-disable-next-line local/code-no-any-casts
 	const vscodeServerCodeLoadedTime: number = (<any>global).vscodeServerCodeLoadedTime;
 
 	instantiationService.invokeFunction(async (accessor) => {
@@ -851,16 +821,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	});
 
 	if (args['print-startup-performance']) {
-		const stats = LoaderStats.get();
 		let output = '';
-		output += '\n\n### Load AMD-module\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.amdLoad);
-		output += '\n\n### Load commonjs-module\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.nodeRequire);
-		output += '\n\n### Invoke AMD-module factory\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.amdInvoke);
-		output += '\n\n### Invoke commonjs-module\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.nodeEval);
 		output += `Start-up time: ${vscodeServerListenTime - vscodeServerStartTime}\n`;
 		output += `Code loading time: ${vscodeServerCodeLoadedTime - vscodeServerStartTime}\n`;
 		output += `Initialized time: ${currentTime - vscodeServerStartTime}\n`;

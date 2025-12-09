@@ -5,6 +5,7 @@
 
 import './media/userDataProfileView.css';
 import { localize } from '../../../../nls.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -580,11 +581,12 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			this.rootsPromise = (async () => {
 				this.roots = await this.fetchRoots();
 				for (const root of this.roots) {
+					const labelText = isMarkdownString(root.label.label) ? root.label.label.value : root.label.label;
 					root.checkbox = {
 						isChecked: !root.isFromDefaultProfile(),
-						tooltip: localize('select', "Select {0}", root.label.label),
+						tooltip: localize('select', "Select {0}", labelText),
 						accessibilityInformation: {
-							label: localize('select', "Select {0}", root.label.label),
+							label: localize('select', "Select {0}", labelText),
 						}
 					};
 					if (root.isFromDefaultProfile()) {
@@ -743,13 +745,14 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			name: profile.name,
 			location: profile.location,
 			isDefault: profile.isDefault,
-			shortName: profile.shortName,
 			icon: profile.icon,
 			globalStorageHome: profile.globalStorageHome,
 			settingsResource: profile.settingsResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			keybindingsResource: profile.keybindingsResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			tasksResource: profile.tasksResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
+			mcpResource: profile.mcpResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			snippetsHome: profile.snippetsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
+			promptsHome: profile.promptsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			extensionsResource: profile.extensionsResource,
 			cacheHome: profile.cacheHome,
 			useDefaultFlags: profile.useDefaultFlags,

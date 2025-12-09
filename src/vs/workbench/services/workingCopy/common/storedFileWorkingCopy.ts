@@ -13,7 +13,7 @@ import { IWorkingCopyService } from './workingCopyService.js';
 import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from './workingCopy.js';
 import { raceCancellation, TaskSequentializer, timeout } from '../../../../base/common/async.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IWorkingCopyFileService } from './workingCopyFileService.js';
 import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
@@ -30,6 +30,7 @@ import { IResourceWorkingCopy, ResourceWorkingCopy } from './resourceWorkingCopy
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from './fileWorkingCopy.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 /**
  * Stored file specific working copy model factory.
@@ -571,7 +572,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		}, true /* dirty (resolved from backup) */);
 
 		// Restore orphaned flag based on state
-		if (backup.meta && backup.meta.orphaned) {
+		if (backup.meta?.orphaned) {
 			this.setOrphaned(true);
 		}
 	}
@@ -982,6 +983,11 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 						this.ignoreSaveFromSaveParticipants = true;
 						try {
 							await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT, savedFrom: options.from }, progress, saveCancellation.token);
+						} catch (err) {
+							if (isCancellationError(err) && !saveCancellation.token.isCancellationRequested) {
+								// participant wants to cancel this operation
+								saveCancellation.cancel();
+							}
 						} finally {
 							this.ignoreSaveFromSaveParticipants = false;
 						}
@@ -1023,7 +1029,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			// participant triggering
 			progress.report({ message: localize('saveTextFile', "Writing into file...") });
 			this.trace(`doSave(${versionId}) - before write()`);
-			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
+			const lastResolvedFileStat = assertReturnsDefined(this.lastResolvedFileStat);
 			const resolvedFileWorkingCopy = this;
 			return this.saveSequentializer.run(versionId, (async () => {
 				try {
@@ -1068,9 +1074,9 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 						// Write them to disk
 						if (options?.writeElevated && this.elevatedFileService.isSupported(lastResolvedFileStat.resource)) {
-							stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+							stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertReturnsDefined(snapshot), writeFileOptions);
 						} else {
-							stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+							stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertReturnsDefined(snapshot), writeFileOptions);
 						}
 					}
 

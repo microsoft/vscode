@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
-import { createAndFillInActionBarActions } from './menuEntryActionViewItem.js';
+import { getActionBarActions } from './menuEntryActionViewItem.js';
 import { IToolBarRenderOptions } from './toolbar.js';
 import { MenuId, IMenuService, MenuItemAction, IMenuActionOptions } from '../common/actions.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
@@ -85,7 +85,13 @@ export class WorkbenchButtonBar extends ButtonBar {
 			const actionOrSubmenu = actions[i];
 			let action: IAction;
 			let btn: IButton;
-
+			let tooltip: string = '';
+			const kb = actionOrSubmenu instanceof SubmenuAction ? '' : this._keybindingService.lookupKeybinding(actionOrSubmenu.id);
+			if (kb) {
+				tooltip = localize('labelWithKeybinding', "{0} ({1})", actionOrSubmenu.tooltip || actionOrSubmenu.label, kb.getLabel());
+			} else {
+				tooltip = actionOrSubmenu.tooltip || actionOrSubmenu.label;
+			}
 			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 0) {
 				const [first, ...rest] = actionOrSubmenu.actions;
 				action = <MenuItemAction>first;
@@ -94,38 +100,41 @@ export class WorkbenchButtonBar extends ButtonBar {
 					actionRunner: this._actionRunner,
 					actions: rest,
 					contextMenuProvider: this._contextMenuService,
-					ariaLabel: action.label
+					ariaLabel: tooltip,
+					supportIcons: true,
 				});
 			} else {
 				action = actionOrSubmenu;
 				btn = this.addButton({
 					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
-					ariaLabel: action.label
+					ariaLabel: tooltip,
+					supportIcons: true,
 				});
 			}
 
 			btn.enabled = action.enabled;
 			btn.checked = action.checked ?? false;
 			btn.element.classList.add('default-colors');
-			if (conifgProvider(action, i)?.showLabel ?? true) {
+			const showLabel = conifgProvider(action, i)?.showLabel ?? true;
+			if (showLabel) {
 				btn.label = action.label;
 			} else {
 				btn.element.classList.add('monaco-text-button');
 			}
 			if (conifgProvider(action, i)?.showIcon) {
 				if (action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon)) {
-					btn.icon = action.item.icon;
+					if (!showLabel) {
+						btn.icon = action.item.icon;
+					} else {
+						// this is REALLY hacky but combining a codicon and normal text is ugly because
+						// the former define a font which doesn't work for text
+						btn.label = `$(${action.item.icon.id}) ${action.label}`;
+					}
 				} else if (action.class) {
 					btn.element.classList.add(...action.class.split(' '));
 				}
 			}
-			const kb = this._keybindingService.lookupKeybinding(action.id);
-			let tooltip: string;
-			if (kb) {
-				tooltip = localize('labelWithKeybinding', "{0} ({1})", action.label, kb.getLabel());
-			} else {
-				tooltip = action.label;
-			}
+
 			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, tooltip));
 			this._updateStore.add(btn.onDidClick(async () => {
 				this._actionRunner.run(action);
@@ -187,16 +196,12 @@ export class MenuWorkbenchButtonBar extends WorkbenchButtonBar {
 
 			this.clear();
 
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(
-				menu,
-				options?.menuOptions,
-				{ primary, secondary },
+			const actions = getActionBarActions(
+				menu.getActions(options?.menuOptions),
 				options?.toolbarOptions?.primaryGroup
 			);
 
-			super.update(primary, secondary);
+			super.update(actions.primary, actions.secondary);
 		};
 		this._store.add(menu.onDidChange(update));
 		update();

@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
@@ -21,11 +21,13 @@ import { ContentHoverResult } from './contentHoverTypes.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { RenderedContentHover } from './contentHoverRendered.js';
 import { isMousePositionWithinElement } from './hoverUtils.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 
 export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidget {
 
 	private _currentResult: ContentHoverResult | null = null;
-	private _renderedContentHover: RenderedContentHover | undefined;
+	private readonly _renderedContentHover = this._register(new MutableDisposable<RenderedContentHover>());
 
 	private readonly _contentHoverWidget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
@@ -38,6 +40,8 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		super();
 		this._contentHoverWidget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
@@ -55,6 +59,12 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);
 		this._register(this._contentHoverWidget.onDidResize(() => {
 			this._participants.forEach(participant => participant.handleResize?.());
+		}));
+		this._register(this._contentHoverWidget.onDidScroll((e) => {
+			this._participants.forEach(participant => participant.handleScroll?.(e));
+		}));
+		this._register(this._contentHoverWidget.onContentsChanged(() => {
+			this._participants.forEach(participant => participant.handleContentsChanged?.());
 		}));
 		return participants;
 	}
@@ -77,6 +87,9 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 			if (this._contentHoverWidget.position && this._currentResult) {
 				this._setCurrentResult(this._currentResult); // render again
 			}
+		}));
+		this._register(this._contentHoverWidget.onContentsChanged(() => {
+			this._onContentsChanged.fire();
 		}));
 	}
 
@@ -205,16 +218,17 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 
 	private _showHover(hoverResult: ContentHoverResult): void {
 		const context = this._getHoverContext();
-		this._renderedContentHover = new RenderedContentHover(this._editor, hoverResult, this._participants, context, this._keybindingService);
-		if (this._renderedContentHover.domNodeHasChildren) {
-			this._contentHoverWidget.show(this._renderedContentHover);
+		this._renderedContentHover.value = new RenderedContentHover(this._editor, hoverResult, this._participants, context, this._keybindingService, this._hoverService, this._clipboardService);
+		if (this._renderedContentHover.value.domNodeHasChildren) {
+			this._contentHoverWidget.show(this._renderedContentHover.value);
 		} else {
-			this._renderedContentHover.dispose();
+			this._renderedContentHover.clear();
 		}
 	}
 
 	private _hideHover(): void {
 		this._contentHoverWidget.hide();
+		this._participants.forEach(participant => participant.handleHide?.());
 	}
 
 	private _getHoverContext(): IEditorHoverContext {
@@ -222,13 +236,13 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 			this.hide();
 		};
 		const onContentsChanged = () => {
-			this._onContentsChanged.fire();
-			this._contentHoverWidget.onContentsChanged();
+			this._contentHoverWidget.handleContentsChanged();
 		};
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._contentHoverWidget.setMinimumDimensions(dimensions);
 		};
-		return { hide, onContentsChanged, setMinimumDimensions };
+		const focus = () => this.focus();
+		return { hide, onContentsChanged, setMinimumDimensions, focus };
 	}
 
 
@@ -302,23 +316,23 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	public async updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): Promise<void> {
-		this._renderedContentHover?.updateHoverVerbosityLevel(action, index, focus);
+		this._renderedContentHover.value?.updateHoverVerbosityLevel(action, index, focus);
 	}
 
 	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
-		return this._renderedContentHover?.doesHoverAtIndexSupportVerbosityAction(index, action) ?? false;
+		return this._renderedContentHover.value?.doesHoverAtIndexSupportVerbosityAction(index, action) ?? false;
 	}
 
 	public getAccessibleWidgetContent(): string | undefined {
-		return this._renderedContentHover?.getAccessibleWidgetContent();
+		return this._renderedContentHover.value?.getAccessibleWidgetContent();
 	}
 
 	public getAccessibleWidgetContentAtIndex(index: number): string | undefined {
-		return this._renderedContentHover?.getAccessibleWidgetContentAtIndex(index);
+		return this._renderedContentHover.value?.getAccessibleWidgetContentAtIndex(index);
 	}
 
 	public focusedHoverPartIndex(): number {
-		return this._renderedContentHover?.focusedHoverPartIndex ?? -1;
+		return this._renderedContentHover.value?.focusedHoverPartIndex ?? -1;
 	}
 
 	public containsNode(node: Node | null | undefined): boolean {
@@ -326,11 +340,16 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	public focus(): void {
+		const hoverPartsCount = this._renderedContentHover.value?.hoverPartsCount;
+		if (hoverPartsCount === 1) {
+			this.focusHoverPartWithIndex(0);
+			return;
+		}
 		this._contentHoverWidget.focus();
 	}
 
 	public focusHoverPartWithIndex(index: number): void {
-		this._renderedContentHover?.focusHoverPartWithIndex(index);
+		this._renderedContentHover.value?.focusHoverPartWithIndex(index);
 	}
 
 	public scrollUp(): void {
@@ -375,7 +394,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	public get isColorPickerVisible(): boolean {
-		return this._renderedContentHover?.isColorPickerVisible() ?? false;
+		return this._renderedContentHover.value?.isColorPickerVisible() ?? false;
 	}
 
 	public get isVisibleFromKeyboard(): boolean {

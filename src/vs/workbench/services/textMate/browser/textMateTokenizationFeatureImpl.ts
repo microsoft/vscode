@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
-import { canASAR, isESM } from '../../../../base/common/amd.js';
-import * as dom from '../../../../base/browser/dom.js';
+import { canASAR, importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { equals as equalArray } from '../../../../base/common/arrays.js';
 import { Color } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -45,22 +44,18 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	public _serviceBrand: undefined;
 
 	private readonly _styleElement: HTMLStyleElement;
-	private readonly _createdModes: string[] = [];
-	private readonly _encounteredLanguages: boolean[] = [];
+	private readonly _createdModes: string[];
+	private readonly _encounteredLanguages: boolean[];
 
-	private _debugMode: boolean = false;
-	private _debugModePrintFunc: (str: string) => void = () => { };
+	private _debugMode: boolean;
+	private _debugModePrintFunc: (str: string) => void;
 
-	private _grammarDefinitions: IValidGrammarDefinition[] | null = null;
-	private _grammarFactory: TMGrammarFactory | null = null;
-	private readonly _tokenizersRegistrations = new DisposableStore();
-	private _currentTheme: IRawTheme | null = null;
-	private _currentTokenColorMap: string[] | null = null;
-	private readonly _threadedBackgroundTokenizerFactory = this._instantiationService.createInstance(
-		ThreadedBackgroundTokenizerFactory,
-		(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample),
-		() => this.getAsyncTokenizationEnabled(),
-	);
+	private _grammarDefinitions: IValidGrammarDefinition[] | null;
+	private _grammarFactory: TMGrammarFactory | null;
+	private readonly _tokenizersRegistrations;
+	private _currentTheme: IRawTheme | null;
+	private _currentTokenColorMap: string[] | null;
+	private readonly _threadedBackgroundTokenizerFactory;
 
 	constructor(
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -75,8 +70,23 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+		this._createdModes = [];
+		this._encounteredLanguages = [];
+		this._debugMode = false;
+		this._debugModePrintFunc = () => { };
+		this._grammarDefinitions = null;
+		this._grammarFactory = null;
+		this._tokenizersRegistrations = this._register(new DisposableStore());
+		this._currentTheme = null;
+		this._currentTokenColorMap = null;
+		this._threadedBackgroundTokenizerFactory = this._instantiationService.createInstance(
+			ThreadedBackgroundTokenizerFactory,
+			(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample),
+			() => this.getAsyncTokenizationEnabled(),
+		);
+		this._vscodeOniguruma = null;
 
-		this._styleElement = dom.createStyleSheet();
+		this._styleElement = domStylesheets.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
 
 		grammarsExtPoint.setHandler((extensions) => this._handleGrammarsExtPoint(extensions));
@@ -259,7 +269,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 		this._grammarFactory = new TMGrammarFactory({
 			logTrace: (msg: string) => this._logService.trace(msg),
-			logError: (msg: string, err: any) => this._logService.error(msg, err),
+			logError: (msg: string, err: unknown) => this._logService.error(msg, err),
 			readFile: (resource: URI) => this._extensionResourceLoaderService.readExtensionResource(resource)
 		}, this._grammarDefinitions || [], vscodeTextmate, onigLib);
 
@@ -292,7 +302,8 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				-1,
 				this._configurationService
 			);
-			const tokenization = new TextMateTokenizationSupport(
+			const store = new DisposableStore();
+			const tokenization = store.add(new TextMateTokenizationSupport(
 				r.grammar,
 				r.initialState,
 				r.containsEmbeddedLanguages,
@@ -302,15 +313,16 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 					this._reportTokenizationTime(timeMs, languageId, r.sourceExtensionId, lineLength, false, isRandomSample);
 				},
 				true,
-			);
-			const disposable = tokenization.onDidEncounterLanguage((encodedLanguageId) => {
+			));
+			store.add(tokenization.onDidEncounterLanguage((encodedLanguageId) => {
 				if (!this._encounteredLanguages[encodedLanguageId]) {
 					const languageId = this._languageService.languageIdCodec.decodeLanguageId(encodedLanguageId);
 					this._encounteredLanguages[encodedLanguageId] = true;
 					this._languageService.requestBasicLanguageFeatures(languageId);
 				}
-			});
-			return new TokenizationSupportWithLineLimit(encodedLanguageId, tokenization, disposable, maxTokenizationLineLength);
+			}));
+
+			return new TokenizationSupportWithLineLimit(encodedLanguageId, tokenization, store, maxTokenizationLineLength);
 		} catch (err) {
 			if (err.message && err.message === missingTMGrammarErrorMessage) {
 				// Don't log this error message
@@ -353,7 +365,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		return grammar;
 	}
 
-	private _vscodeOniguruma: Promise<typeof import('vscode-oniguruma')> | null = null;
+	private _vscodeOniguruma: Promise<typeof import('vscode-oniguruma')> | null;
 	private _getVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
 		if (!this._vscodeOniguruma) {
 			this._vscodeOniguruma = (async () => {
@@ -372,9 +384,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 	private async _loadVSCodeOnigurumaWASM(): Promise<Response | ArrayBuffer> {
 		if (isWeb) {
-			const response = await fetch(isESM
-				? resolveAmdNodeModulePath('vscode-oniguruma', 'release/onig.wasm')
-				: FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm').toString(true));
+			const response = await fetch(resolveAmdNodeModulePath('vscode-oniguruma', 'release/onig.wasm'));
 			// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 			// Otherwise, a TypeError is thrown when using the streaming compiler.
 			// We therefore use the non-streaming compiler :(.

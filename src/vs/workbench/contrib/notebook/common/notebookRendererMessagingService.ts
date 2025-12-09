@@ -15,7 +15,7 @@ export interface INotebookRendererMessagingService {
 	/**
 	 * Event that fires when a message should be posted to extension hosts.
 	 */
-	onShouldPostMessage: Event<{ editorId: string; rendererId: string; message: unknown }>;
+	readonly onShouldPostMessage: Event<{ editorId: string; rendererId: string; message: unknown }>;
 
 	/**
 	 * Prepares messaging for the given renderer ID.

@@ -8,21 +8,23 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { platform } from '../../../../base/common/platform.js';
 import { arch } from '../../../../base/common/process.js';
 import { joinPath } from '../../../../base/common/resources.js';
-import { isBoolean } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { getTargetPlatform, IExtensionGalleryService, IGalleryExtension, IGalleryExtensionAssets, InstallOperation } from '../../common/extensionManagement.js';
+import { ExtensionSignatureVerificationCode, getTargetPlatform, IExtensionGalleryService, IGalleryExtension, IGalleryExtensionAssets, InstallOperation } from '../../common/extensionManagement.js';
 import { getGalleryExtensionId } from '../../common/extensionManagementUtil.js';
 import { ExtensionsDownloader } from '../../node/extensionDownloader.js';
-import { IExtensionSignatureVerificationService } from '../../node/extensionSignatureVerificationService.js';
+import { IExtensionSignatureVerificationResult, IExtensionSignatureVerificationService } from '../../node/extensionSignatureVerificationService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -33,13 +35,18 @@ class TestExtensionSignatureVerificationService extends mock<IExtensionSignature
 		super();
 	}
 
-	override async verify(): Promise<boolean> {
-		if (isBoolean(this.verificationResult)) {
-			return this.verificationResult;
+	override async verify(): Promise<IExtensionSignatureVerificationResult | undefined> {
+		if (this.verificationResult === true) {
+			return {
+				code: ExtensionSignatureVerificationCode.Success
+			};
 		}
-		const error = Error(this.verificationResult);
-		(error as any).code = this.verificationResult;
-		throw error;
+		if (this.verificationResult === false) {
+			return undefined;
+		}
+		return {
+			code: this.verificationResult as ExtensionSignatureVerificationCode,
+		};
 	}
 }
 
@@ -63,6 +70,7 @@ suite('ExtensionDownloader Tests', () => {
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, logService);
+		instantiationService.stub(IUriIdentityService, disposables.add(new UriIdentityService(fileService)));
 		instantiationService.stub(INativeEnvironmentService, { extensionsDownloadLocation: joinPath(ROOT, 'CachedExtensionVSIXs') });
 		instantiationService.stub(IExtensionGalleryService, {
 			async download(extension, location, operation) {
@@ -79,7 +87,7 @@ suite('ExtensionDownloader Tests', () => {
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: true }), InstallOperation.Install, false);
 
-		assert.strictEqual(actual.verificationStatus, false);
+		assert.strictEqual(actual.verificationStatus, undefined);
 	});
 
 	test('download completes successfully if verification is disabled because the module is not loaded', async () => {
@@ -87,7 +95,7 @@ suite('ExtensionDownloader Tests', () => {
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: true }), InstallOperation.Install, true);
 
-		assert.strictEqual(actual.verificationStatus, false);
+		assert.strictEqual(actual.verificationStatus, undefined);
 	});
 
 	test('download completes successfully if verification fails to execute', async () => {
@@ -113,7 +121,7 @@ suite('ExtensionDownloader Tests', () => {
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: true }), InstallOperation.Install, true);
 
-		assert.strictEqual(actual.verificationStatus, true);
+		assert.strictEqual(actual.verificationStatus, ExtensionSignatureVerificationCode.Success);
 	});
 
 	test('download completes successfully for unsigned extension', async () => {
@@ -121,7 +129,7 @@ suite('ExtensionDownloader Tests', () => {
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: false }), InstallOperation.Install, true);
 
-		assert.strictEqual(actual.verificationStatus, 'PackageIsUnsigned');
+		assert.strictEqual(actual.verificationStatus, ExtensionSignatureVerificationCode.NotSigned);
 	});
 
 	test('download completes successfully for an unsigned extension even when signature verification throws error', async () => {
@@ -129,7 +137,7 @@ suite('ExtensionDownloader Tests', () => {
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: false }), InstallOperation.Install, true);
 
-		assert.strictEqual(actual.verificationStatus, 'PackageIsUnsigned');
+		assert.strictEqual(actual.verificationStatus, ExtensionSignatureVerificationCode.NotSigned);
 	});
 
 	function aTestObject(options: { verificationResult: boolean | string }): ExtensionsDownloader {
@@ -137,7 +145,7 @@ suite('ExtensionDownloader Tests', () => {
 		return disposables.add(instantiationService.createInstance(TestExtensionDownloader));
 	}
 
-	function aGalleryExtension(name: string, properties: Partial<IGalleryExtension> = {}, galleryExtensionProperties: any = {}, assets: Partial<IGalleryExtensionAssets> = {}): IGalleryExtension {
+	function aGalleryExtension(name: string, properties: Partial<IGalleryExtension> = {}, galleryExtensionProperties: IStringDictionary<unknown> = {}, assets: Partial<IGalleryExtensionAssets> = {}): IGalleryExtension {
 		const targetPlatform = getTargetPlatform(platform, arch);
 		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, ...properties });
 		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], targetPlatform, ...galleryExtensionProperties };

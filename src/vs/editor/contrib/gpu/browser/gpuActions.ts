@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -17,15 +18,14 @@ import type { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, registerEditorAction, type ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { ensureNonNullable } from '../../../browser/gpu/gpuUtils.js';
 import { GlyphRasterizer } from '../../../browser/gpu/raster/glyphRasterizer.js';
-import { ViewLinesGpu } from '../../../browser/viewParts/linesGpu/viewLinesGpu.js';
+import { ViewGpuContext } from '../../../browser/gpu/viewGpuContext.js';
 
 class DebugEditorGpuRendererAction extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'editor.action.debugEditorGpuRenderer',
-			label: localize('gpuDebug.label', "Developer: Debug Editor GPU Renderer"),
-			alias: 'Developer: Debug Editor GPU Renderer',
+			label: localize2('gpuDebug.label', "Developer: Debug Editor GPU Renderer"),
 			// TODO: Why doesn't `ContextKeyExpr.equals('config:editor.experimentalGpuAcceleration', 'on')` work?
 			precondition: ContextKeyExpr.true(),
 		});
@@ -56,8 +56,8 @@ class DebugEditorGpuRendererAction extends EditorAction {
 				instantiationService.invokeFunction(accessor => {
 					const logService = accessor.get(ILogService);
 
-					const atlas = ViewLinesGpu.atlas;
-					if (!ViewLinesGpu.atlas) {
+					const atlas = ViewGpuContext.atlas;
+					if (!ViewGpuContext.atlas) {
 						logService.error('No texture atlas found');
 						return;
 					}
@@ -72,7 +72,7 @@ class DebugEditorGpuRendererAction extends EditorAction {
 					const fileService = accessor.get(IFileService);
 					const folders = workspaceContextService.getWorkspace().folders;
 					if (folders.length > 0) {
-						const atlas = ViewLinesGpu.atlas;
+						const atlas = ViewGpuContext.atlas;
 						const promises = [];
 						for (const [layerIndex, page] of atlas.pages.entries()) {
 							promises.push(...[
@@ -94,7 +94,6 @@ class DebugEditorGpuRendererAction extends EditorAction {
 				instantiationService.invokeFunction(async accessor => {
 					const configurationService = accessor.get(IConfigurationService);
 					const fileService = accessor.get(IFileService);
-					const logService = accessor.get(ILogService);
 					const quickInputService = accessor.get(IQuickInputService);
 					const workspaceContextService = accessor.get(IWorkspaceContextService);
 
@@ -103,15 +102,10 @@ class DebugEditorGpuRendererAction extends EditorAction {
 						return;
 					}
 
-					const atlas = ViewLinesGpu.atlas;
-					if (!ViewLinesGpu.atlas) {
-						logService.error('No texture atlas found');
-						return;
-					}
-
+					const atlas = ViewGpuContext.atlas;
 					const fontFamily = configurationService.getValue<string>('editor.fontFamily');
 					const fontSize = configurationService.getValue<number>('editor.fontSize');
-					const rasterizer = new GlyphRasterizer(fontSize, fontFamily);
+					const rasterizer = new GlyphRasterizer(fontSize, fontFamily, getActiveWindow().devicePixelRatio, ViewGpuContext.decorationStyleCache);
 					let chars = await quickInputService.input({
 						prompt: 'Enter a character to draw (prefix with 0x for code point))'
 					});
@@ -122,8 +116,9 @@ class DebugEditorGpuRendererAction extends EditorAction {
 					if (codePoint !== undefined) {
 						chars = String.fromCodePoint(parseInt(codePoint, 16));
 					}
-					const metadata = 0;
-					const rasterizedGlyph = atlas.getGlyph(rasterizer, chars, metadata);
+					const tokenMetadata = 0;
+					const charMetadata = 0;
+					const rasterizedGlyph = atlas.getGlyph(rasterizer, chars, tokenMetadata, charMetadata, 0);
 					if (!rasterizedGlyph) {
 						return;
 					}
@@ -140,7 +135,7 @@ class DebugEditorGpuRendererAction extends EditorAction {
 					const ctx = ensureNonNullable(canvas.getContext('2d'));
 					ctx.putImageData(imageData, 0, 0);
 					const blob = await canvas.convertToBlob({ type: 'image/png' });
-					const resource = URI.joinPath(folders[0].uri, `glyph_${chars}_${metadata}_${fontSize}px_${fontFamily.replaceAll(/[,\\\/\.'\s]/g, '_')}.png`);
+					const resource = URI.joinPath(folders[0].uri, `glyph_${chars}_${tokenMetadata}_${fontSize}px_${fontFamily.replaceAll(/[,\\\/\.'\s]/g, '_')}.png`);
 					await fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(await blob.arrayBuffer())));
 				});
 				break;

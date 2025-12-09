@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { multibyteAwareBtoa } from '../../../base/browser/dom.js';
+import { multibyteAwareBtoa } from '../../../base/common/strings.js';
 import { CancelablePromise, createCancelablePromise } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -44,6 +44,7 @@ import { ResourceWorkingCopy } from '../../services/workingCopy/common/resourceW
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, NO_TYPE_ID, WorkingCopyCapabilities } from '../../services/workingCopy/common/workingCopy.js';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 
 const enum CustomEditorModelType {
 	Custom,
@@ -73,6 +74,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -172,7 +174,9 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					return;
 				}
 
-				webviewInput.webview.onDidDispose(() => {
+				const disposeSub = webviewInput.webview.onDidDispose(() => {
+					disposeSub.dispose();
+
 					// If the model is still dirty, make sure we have time to save it
 					if (modelRef.object.isDirty()) {
 						const sub = modelRef.object.onDidChangeDirty(() => {
@@ -197,7 +201,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 
 				try {
-					await this._proxyCustomEditors.$resolveCustomEditor(resource, handle, viewType, {
+					const actualResource = modelType === CustomEditorModelType.Text ? this._uriIdentityService.asCanonicalUri(resource) : resource;
+					await this._proxyCustomEditors.$resolveCustomEditor(actualResource, handle, viewType, {
 						title: webviewInput.getTitle(),
 						contentOptions: webviewInput.webview.contentOptions,
 						options: webviewInput.webview.options,
@@ -389,18 +394,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			this._register(workingCopyService.registerWorkingCopy(this));
 
 			this._register(extensionService.onWillStop(e => {
-				if (!this.isDirty()) {
-					return;
-				}
-
-				e.veto((async () => {
-					const didSave = await this.save();
-					if (!didSave) {
-						// Veto
-						return true;
-					}
-					return false; // Don't veto
-				})(), localize('vetoExtHostRestart', "Custom editor '{0}' could not be saved.", this.name));
+				e.veto(true, localize('vetoExtHostRestart', "An extension provided editor for '{0}' is still open that would close otherwise.", this.name));
 			}));
 		}
 
@@ -676,6 +670,8 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		const backupMeta: CustomDocumentBackupData = {
 			viewType: this.viewType,
 			editorResource: this._editorResource,
+			customTitle: primaryEditor.getWebviewTitle(),
+			iconPath: primaryEditor.iconPath,
 			backupId: '',
 			extension: primaryEditor.extension ? {
 				id: primaryEditor.extension.id.value,

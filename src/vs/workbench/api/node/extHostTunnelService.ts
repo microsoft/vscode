@@ -25,6 +25,7 @@ import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { ExtHostTunnelService } from '../common/extHostTunnelService.js';
 import { CandidatePort, parseAddress } from '../../services/remote/common/tunnelModel.js';
 import * as vscode from 'vscode';
+import { IExtHostConfiguration } from '../common/extHostConfiguration.js';
 
 export function getSockets(stdout: string): Record<string, { pid: number; socket: number }> {
 	const lines = stdout.trim().split('\n');
@@ -105,6 +106,9 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 }
 
 function knownExcludeCmdline(command: string): boolean {
+	if (command.length > 500) {
+		return false;
+	}
 	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
 		|| (command.indexOf('out/server-main.js') !== -1)
 		|| (command.indexOf('_productName=VSCode') !== -1);
@@ -184,6 +188,7 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
 		@ILogService logService: ILogService,
 		@ISignService private readonly signService: ISignService,
+		@IExtHostConfiguration private readonly configurationService: IExtHostConfiguration,
 	) {
 		super(extHostRpc, initData, logService);
 		if (isLinux && initData.remote.isRemote && initData.remote.authority) {
@@ -309,6 +314,11 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 		});
 	}
 
+	private async defaultTunnelHost(): Promise<string> {
+		const settingValue = (await this.configurationService.getConfigProvider()).getConfiguration('remote').get('localPortHost');
+		return (!settingValue || settingValue === 'localhost') ? '127.0.0.1' : '0.0.0.0';
+	}
+
 	protected override makeManagedTunnelFactory(authority: vscode.ManagedResolvedAuthority): vscode.RemoteAuthorityResolver['tunnelFactory'] {
 		return async (tunnelOptions) => {
 			const t = new NodeRemoteTunnel(
@@ -339,7 +349,7 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 					},
 					signService: this.signService,
 				},
-				'localhost',
+				await this.defaultTunnelHost(),
 				tunnelOptions.remoteAddress.host || 'localhost',
 				tunnelOptions.remoteAddress.port,
 				tunnelOptions.localAddressPort,

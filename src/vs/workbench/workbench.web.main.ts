@@ -55,7 +55,9 @@
 
 	//#endregion
 
+	// eslint-disable-next-line local/code-no-any-casts
 	const define: IGlobalDefine = (globalThis as any).define;
+	// eslint-disable-next-line local/code-no-any-casts
 	const require: { getConfig?(): any } | undefined = (globalThis as any).require;
 
 	if (!define || !require || typeof require.getConfig !== 'function') {
@@ -71,26 +73,28 @@
 	}
 	globalThis._VSCODE_FILE_ROOT = baseUrl;
 
-	const trustedTypesPolicy: Pick<TrustedTypePolicy<{ createScriptURL(value: string): string }>, 'name' | 'createScriptURL'> | undefined = require.getConfig().trustedTypesPolicy;
+	const trustedTypesPolicy: Pick<import('trusted-types/lib/index.js').TrustedTypePolicy<{ createScriptURL(value: string): string }>, 'name' | 'createScriptURL'> | undefined = require.getConfig().trustedTypesPolicy;
 	if (trustedTypesPolicy) {
 		globalThis._VSCODE_WEB_PACKAGE_TTP = trustedTypesPolicy;
 	}
 
 	const promise = new Promise(resolve => {
+		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).__VSCODE_WEB_ESM_PROMISE = resolve;
 	});
 
-	define('vs/web-api', [], () => {
+	define('vs/web-api', [], (): ILoaderPlugin => {
 		return {
 			load: (_name, _req, _load, _config) => {
 				const script: any = document.createElement('script');
 				script.type = 'module';
+				// eslint-disable-next-line local/code-no-any-casts
 				script.src = trustedTypesPolicy ? trustedTypesPolicy.createScriptURL(`${baseUrl}vs/workbench/workbench.web.main.internal.js`) as any as string : `${baseUrl}vs/workbench/workbench.web.main.internal.js`;
 				document.head.appendChild(script);
 
 				return promise.then(mod => _load(mod));
 			}
-		} as ILoaderPlugin;
+		};
 	});
 
 	define(

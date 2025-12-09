@@ -7,7 +7,7 @@ import assert from 'assert';
 
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isURLDomainTrusted } from '../../browser/trustedDomainService.js';
+import { isURLDomainTrusted } from '../../common/trustedDomains.js';
 
 function linkAllowedByRules(link: string, rules: string[]) {
 	assert.ok(isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should be allowed by rules\n${JSON.stringify(rules)}`);
@@ -37,6 +37,11 @@ suite('Link protection domain matching', () => {
 		linkAllowedByRules('https://127.0.0.1:3000', []);
 		linkAllowedByRules('https://localhost', []);
 		linkAllowedByRules('https://localhost:3000', []);
+		linkAllowedByRules('https://dev.localhost', []);
+		linkAllowedByRules('https://dev.localhost:3000', []);
+		linkAllowedByRules('https://app.localhost', []);
+		linkAllowedByRules('https://api.localhost:8080', []);
+		linkAllowedByRules('https://myapp.dev.localhost:8080', []);
 	});
 
 	test('* star', () => {
@@ -49,6 +54,8 @@ suite('Link protection domain matching', () => {
 		linkAllowedByRules('https://a.x.org', ['*.x.org']);
 		linkAllowedByRules('https://a.b.x.org', ['*.x.org']);
 		linkAllowedByRules('https://x.org', ['*.x.org']);
+		// https://github.com/microsoft/vscode/issues/249353
+		linkAllowedByRules('https://x.org:3000', ['*.x.org:3000']);
 	});
 
 	test('sub paths', () => {
@@ -112,5 +119,10 @@ suite('Link protection domain matching', () => {
 	test('ignore query & fragment - https://github.com/microsoft/vscode/issues/156839', () => {
 		linkAllowedByRules('https://github.com/login/oauth/authorize?foo=4', ['https://github.com/login/oauth/authorize']);
 		linkAllowedByRules('https://github.com/login/oauth/authorize#foo', ['https://github.com/login/oauth/authorize']);
+	});
+
+	test('ensure individual parts of url are compared and wildcard does not leak out', () => {
+		linkNotAllowedByRules('https://x.org/github.com', ['https://*.github.com']);
+		linkNotAllowedByRules('https://x.org/y.github.com', ['https://*.github.com']);
 	});
 });

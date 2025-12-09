@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './style.js';
-import { localize } from '../../nls.js';
 import { runWhenWindowIdle } from '../../base/browser/dom.js';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
 import { RunOnceScheduler, timeout } from '../../base/common/async.js';
@@ -27,12 +26,11 @@ import { NotificationService } from '../services/notification/common/notificatio
 import { NotificationsCenter } from './parts/notifications/notificationsCenter.js';
 import { NotificationsAlerts } from './parts/notifications/notificationsAlerts.js';
 import { NotificationsStatus } from './parts/notifications/notificationsStatus.js';
-import { NotificationsTelemetry } from './parts/notifications/notificationsTelemetry.js';
 import { registerNotificationCommands } from './parts/notifications/notificationsCommands.js';
 import { NotificationsToasts } from './parts/notifications/notificationsToasts.js';
 import { setARIAContainer } from '../../base/browser/ui/aria/aria.js';
 import { FontMeasurements } from '../../editor/browser/config/fontMeasurements.js';
-import { BareFontInfo } from '../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../editor/common/config/fontInfoFromSettings.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { WorkbenchContextKeysHandler } from './contextkeys.js';
@@ -47,10 +45,11 @@ import { IHoverService, WorkbenchHoverDelegate } from '../../platform/hover/brow
 import { setHoverDelegateFactory } from '../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { setBaseLayerHoverDelegate } from '../../base/browser/ui/hover/hoverDelegate2.js';
 import { AccessibilityProgressSignalScheduler } from '../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
-import { setProgressAcccessibilitySignalScheduler } from '../../base/browser/ui/progressbar/progressAccessibilitySignal.js';
+import { setProgressAccessibilitySignalScheduler } from '../../base/browser/ui/progressbar/progressAccessibilitySignal.js';
 import { AccessibleViewRegistry } from '../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { NotificationAccessibleView } from './parts/notifications/notificationAccessibleView.js';
-import { isESM } from '../../base/common/amd.js';
+import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
+import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 
 export interface IWorkbenchOptions {
 
@@ -58,6 +57,11 @@ export interface IWorkbenchOptions {
 	 * Extra classes to be added to the workbench container.
 	 */
 	extraClasses?: string[];
+
+	/**
+	 * Whether to reset the workbench parts layout on startup.
+	 */
+	resetLayout?: boolean;
 }
 
 export class Workbench extends Layout {
@@ -74,7 +78,7 @@ export class Workbench extends Layout {
 		private readonly serviceCollection: ServiceCollection,
 		logService: ILogService
 	) {
-		super(parent);
+		super(parent, { resetLayout: Boolean(options?.resetLayout) });
 
 		// Perf: measure workbench startup time
 		mark('code/willStartWorkbench');
@@ -98,31 +102,6 @@ export class Workbench extends Layout {
 
 		// Install handler for unexpected errors
 		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
-
-		// Inform user about loading issues from the loader
-		if (!isESM && typeof mainWindow.require?.config === 'function') {
-			interface AnnotatedLoadingError extends Error {
-				phase: 'loading';
-				moduleId: string;
-				neededBy: string[];
-			}
-			interface AnnotatedFactoryError extends Error {
-				phase: 'factory';
-				moduleId: string;
-			}
-			interface AnnotatedValidationError extends Error {
-				phase: 'configuration';
-			}
-			type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
-			mainWindow.require.config({
-				onError: (err: AnnotatedError) => {
-					if (err.phase === 'loading') {
-						onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
-					}
-					console.error(err);
-				}
-			});
-		}
 	}
 
 	private previousUnexpectedError: { message: string | undefined; time: number } = { message: undefined, time: 0 };
@@ -161,10 +140,14 @@ export class Workbench extends Layout {
 				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
+				const markdownRendererService = accessor.get(IMarkdownRendererService);
+
+				// Set code block renderer for markdown rendering
+				markdownRendererService.setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 				// Default Hover Delegate must be registered before creating any workbench/layout components
 				// as these possibly will use the default hover delegate
-				setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, enableInstantHover, {}));
+				setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, { instantHover: enableInstantHover }, {}));
 				setBaseLayerHoverDelegate(hoverService);
 
 				// Layout
@@ -228,9 +211,9 @@ export class Workbench extends Layout {
 			const lifecycleService = accessor.get(ILifecycleService);
 
 			// TODO@Sandeep debt around cyclic dependencies
-			const configurationService = accessor.get(IConfigurationService) as any;
-			if (typeof configurationService.acquireInstantiationService === 'function') {
-				configurationService.acquireInstantiationService(instantiationService);
+			const configurationService = accessor.get(IConfigurationService);
+			if (configurationService && 'acquireInstantiationService' in configurationService) {
+				(configurationService as { acquireInstantiationService: (instantiationService: unknown) => void }).acquireInstantiationService(instantiationService);
 			}
 
 			// Signal to lifecycle that services are set
@@ -319,7 +302,7 @@ export class Workbench extends Layout {
 			}
 		}
 
-		FontMeasurements.readFontInfo(mainWindow, BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), PixelRatio.getInstance(mainWindow).value));
+		FontMeasurements.readFontInfo(mainWindow, createBareFontInfoFromRawSettings(configurationService.getValue('editor'), PixelRatio.getInstance(mainWindow).value));
 	}
 
 	private storeFontInfo(storageService: IStorageService): void {
@@ -333,7 +316,7 @@ export class Workbench extends Layout {
 
 		// ARIA & Signals
 		setARIAContainer(this.mainContainer);
-		setProgressAcccessibilitySignalScheduler((msDelayTime: number, msLoopTime?: number) => instantiationService.createInstance(AccessibilityProgressSignalScheduler, msDelayTime, msLoopTime));
+		setProgressAccessibilitySignalScheduler((msDelayTime: number, msLoopTime?: number) => instantiationService.createInstance(AccessibilityProgressSignalScheduler, msDelayTime, msLoopTime));
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -347,11 +330,6 @@ export class Workbench extends Layout {
 		]);
 
 		this.mainContainer.classList.add(...workbenchClasses);
-		mainWindow.document.body.classList.add(platformClass); // used by our fonts
-
-		if (isWeb) {
-			mainWindow.document.body.classList.add('web');
-		}
 
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
@@ -403,7 +381,6 @@ export class Workbench extends Layout {
 		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.mainContainer, notificationService.model));
 		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
 		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
-		this._register(instantiationService.createInstance(NotificationsTelemetry));
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {

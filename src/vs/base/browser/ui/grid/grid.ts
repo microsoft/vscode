@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IBoundarySashes, Orientation } from '../sash/sash.js';
-import { equals, tail2 as tail } from '../../../common/arrays.js';
+import { equals, tail } from '../../../common/arrays.js';
 import { Event } from '../../../common/event.js';
 import { Disposable } from '../../../common/lifecycle.js';
 import './gridview.css';
@@ -63,6 +63,7 @@ export interface GridBranchNode<T extends IView> {
 export type GridNode<T extends IView> = GridLeafNode<T> | GridBranchNode<T>;
 
 export function isGridBranchNode<T extends IView>(node: GridNode<T>): node is GridBranchNode<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !!(node as any).children;
 }
 
@@ -749,7 +750,7 @@ export interface IViewDeserializer<T extends ISerializableView> {
 
 export interface ISerializedLeafNode {
 	type: 'leaf';
-	data: any;
+	data: unknown;
 	size: number;
 	visible?: boolean;
 	maximized?: boolean;
@@ -869,7 +870,9 @@ function isGridBranchNodeDescriptor<T>(nodeDescriptor: GridNodeDescriptor<T>): n
 }
 
 export function sanitizeGridNodeDescriptor<T>(nodeDescriptor: GridNodeDescriptor<T>, rootNode: boolean): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	if (!rootNode && (nodeDescriptor as any).groups && (nodeDescriptor as any).groups.length <= 1) {
+		// eslint-disable-next-line local/code-no-any-casts
 		(nodeDescriptor as any).groups = undefined;
 	}
 

@@ -20,9 +20,10 @@ export interface IPrefixTreeNode<T> {
  * well-defined prefix segments.
  */
 export class WellDefinedPrefixTree<V> {
-	private readonly root = new Node<V>();
+	public readonly root = new Node<V>();
 	private _size = 0;
 
+	/** Tree size, not including the root. */
 	public get size() {
 		return this._size;
 	}
@@ -108,6 +109,12 @@ export class WellDefinedPrefixTree<V> {
 				this._size--;
 				yield node._value;
 			}
+		}
+
+		// special case for the root note
+		if (subtree === this.root) {
+			this.root._value = unset;
+			this.root.children = undefined;
 		}
 	}
 

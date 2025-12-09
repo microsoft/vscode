@@ -38,13 +38,20 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private static readonly BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
 	private static readonly MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
 
-	private readonly name = basename(this.path);
+	private readonly name: string;
 
-	private readonly logger = new SQLiteStorageDatabaseLogger(this.options.logging);
+	private readonly logger: SQLiteStorageDatabaseLogger;
 
-	private readonly whenConnected = this.connect(this.path);
+	private readonly whenConnected: Promise<IDatabaseConnection>;
 
-	constructor(private readonly path: string, private readonly options: ISQLiteStorageDatabaseOptions = Object.create(null)) { }
+	constructor(
+		private readonly path: string,
+		options: ISQLiteStorageDatabaseOptions = Object.create(null)
+	) {
+		this.name = basename(this.path);
+		this.logger = new SQLiteStorageDatabaseLogger(options.logging);
+		this.whenConnected = this.connect(this.path);
+	}
 
 	async getItems(): Promise<Map<string, string>> {
 		const connection = await this.whenConnected;
@@ -97,7 +104,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				});
 
 				keysValuesChunks.forEach(keysValuesChunk => {
-					this.prepare(connection, `INSERT INTO ItemTable VALUES ${new Array(keysValuesChunk.length / 2).fill('(?,?)').join(',')}`, stmt => stmt.run(keysValuesChunk), () => {
+					this.prepare(connection, `INSERT INTO ItemTable VALUES ${new Array(keysValuesChunk.length / 2).fill('(?,?)').join(',')} ON CONFLICT (key) DO UPDATE SET value = excluded.value WHERE value != excluded.value`, stmt => stmt.run(keysValuesChunk), () => {
 						const keys: string[] = [];
 						let length = 0;
 						toInsert.forEach((value, key) => {
@@ -111,7 +118,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			}
 
 			// DELETE
-			if (toDelete && toDelete.size) {
+			if (toDelete?.size) {
 				const keysChunks: (string[])[] = [];
 				keysChunks.push([]); // seed with initial empty chunk
 
@@ -238,7 +245,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		const connection = await this.whenConnected;
 		const row = await this.get(connection, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check');
 
-		const integrity = full ? (row as any)['integrity_check'] : (row as any)['quick_check'];
+		const integrity = full ? (row as { integrity_check: string }).integrity_check : (row as { quick_check: string }).quick_check;
 
 		if (connection.isErroneous) {
 			return `${integrity} (last error: ${connection.lastError})`;
@@ -251,7 +258,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		return integrity;
 	}
 
-	private async connect(path: string, retryOnBusy: boolean = true): Promise<IDatabaseConnection> {
+	private async connect(path: string, retryOnBusy = true): Promise<IDatabaseConnection> {
 		this.logger.trace(`[storage ${this.name}] open(${path}, retryOnBusy: ${retryOnBusy})`);
 
 		try {
@@ -284,7 +291,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				await fs.promises.unlink(path);
 				try {
 					await Promises.rename(this.toBackupPath(path), path, false /* no retry */);
-				} catch (error) {
+				} catch {
 					// ignore
 				}
 
@@ -309,12 +316,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private doConnect(path: string): Promise<IDatabaseConnection> {
 		return new Promise((resolve, reject) => {
 			import('@vscode/sqlite3').then(sqlite3 => {
-				// ESM-comment-begin
-				// const ctor = (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database);
-				// ESM-comment-end
-				// ESM-uncomment-begin
 				const ctor = (this.logger.isTracing ? sqlite3.default.verbose().Database : sqlite3.default.Database);
-				// ESM-uncomment-end
 				const connection: IDatabaseConnection = {
 					db: new ctor(path, (error: (Error & { code?: string }) | null) => {
 						if (error) {

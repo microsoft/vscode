@@ -16,7 +16,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISerializedTerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { IPtyHostLatencyMeasurement, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIcon, TerminalSettingId, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { IPtyHostLatencyMeasurement, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIcon, TerminalSettingId, TitleEventSource, type IProcessPropertyMap } from '../../../../platform/terminal/common/terminal.js';
 import { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -44,7 +44,7 @@ export class RemoteTerminalBackendContribution implements IWorkbenchContribution
 			const channel = instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
 			const backend = instantiationService.createInstance(RemoteTerminalBackend, connection.remoteAuthority, channel);
 			Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-			terminalInstanceService.didRegisterBackend(backend.remoteAuthority);
+			terminalInstanceService.didRegisterBackend(backend);
 		}
 	}
 }
@@ -93,6 +93,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			const pty = this._ptys.get(e.id);
 			if (pty) {
 				pty.handleExit(e.event);
+				pty.dispose();
 				this._ptys.delete(e.id);
 			}
 		});
@@ -118,30 +119,6 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 				this._remoteTerminalChannel.sendCommandResult(reqId, true, err);
 			}
 		});
-
-		// Listen for config changes
-		const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-		for (const match of Object.keys(initialConfig.autoReplies)) {
-			// Ensure the value is truthy
-			const reply = initialConfig.autoReplies[match];
-			if (reply) {
-				this._remoteTerminalChannel.installAutoReply(match, reply);
-			}
-		}
-		// TODO: Could simplify update to a single call
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
-				this._remoteTerminalChannel.uninstallAllAutoReplies();
-				const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-				for (const match of Object.keys(config.autoReplies)) {
-					// Ensure the value is truthy
-					const reply = config.autoReplies[match];
-					if (reply) {
-						await this._remoteTerminalChannel.installAutoReply(match, reply);
-					}
-				}
-			}
-		}));
 
 		this._onPtyHostConnected.fire();
 	}
@@ -212,7 +189,9 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			useShellEnvironment: shellLaunchConfig.useShellEnvironment,
 			reconnectionProperties: shellLaunchConfig.reconnectionProperties,
 			type: shellLaunchConfig.type,
-			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal
+			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal,
+			tabActions: shellLaunchConfig.tabActions,
+			shellIntegrationEnvironmentReporting: shellLaunchConfig.shellIntegrationEnvironmentReporting,
 		};
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 
@@ -278,7 +257,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		];
 	}
 
-	async updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: any): Promise<void> {
+	async updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void> {
 		await this._remoteTerminalChannel.updateProperty(id, property, value);
 	}
 
@@ -288,6 +267,10 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 	async updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void> {
 		await this._remoteTerminalChannel.updateIcon(id, userInitiated, icon, color);
+	}
+
+	async setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		await this._remoteTerminalChannel.setNextCommandId(id, commandLine, commandId);
 	}
 
 	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
@@ -308,7 +291,15 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			return undefined;
 		}
 		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
-		return resolverResult.options?.extensionHostEnv as any;
+		const envResult: IProcessEnvironment = {};
+		if (resolverResult.options?.extensionHostEnv) {
+			for (const [key, value] of Object.entries(resolverResult.options.extensionHostEnv)) {
+				if (value !== null) {
+					envResult[key] = value;
+				}
+			}
+		}
+		return envResult;
 	}
 
 	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
@@ -362,7 +353,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch (e: unknown) {
-				this._logService.warn('RemoteTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
+				this._logService.warn('RemoteTerminalBackend#getTerminalLayoutInfo Error', (<{ message?: string }>e).message ?? e);
 			}
 		}
 
@@ -371,5 +362,13 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 	async getPerformanceMarks(): Promise<PerformanceMark[]> {
 		return this._remoteTerminalChannel.getPerformanceMarks();
+	}
+
+	installAutoReply(match: string, reply: string): Promise<void> {
+		return this._remoteTerminalChannel.installAutoReply(match, reply);
+	}
+
+	uninstallAllAutoReplies(): Promise<void> {
+		return this._remoteTerminalChannel.uninstallAllAutoReplies();
 	}
 }

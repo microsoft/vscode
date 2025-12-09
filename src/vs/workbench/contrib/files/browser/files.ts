@@ -63,6 +63,7 @@ export interface IExplorerView {
 	getFocus(): ExplorerItem[];
 	focusNext(): void;
 	focusLast(): void;
+	hasPhantomElements(): boolean;
 }
 
 function getFocus(listService: IListService): unknown | undefined {
@@ -158,7 +159,7 @@ export function getMultiSelectedResources(commandArg: unknown, listService: ILis
 	}
 
 	const result = getResourceForCommand(commandArg, editorSerice, listService);
-	return !!result ? [result] : [];
+	return result ? [result] : [];
 }
 
 export function getOpenEditorsViewMultiSelection(accessor: ServicesAccessor): Array<IEditorIdentifier> | undefined {

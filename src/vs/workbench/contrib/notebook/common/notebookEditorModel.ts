@@ -3,23 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBufferReadableStream, bufferToStream, streamToBuffer } from '../../../../base/common/buffer.js';
+import { VSBufferReadableStream, streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { filter } from '../../../../base/common/objects.js';
-import { assertType } from '../../../../base/common/types.js';
+import { assertType, hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWriteFileOptions, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { IWriteFileOptions, IFileStatWithMetadata, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
 import { NotebookTextModel } from './model/notebookTextModel.js';
-import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookSetting } from './notebookCommon.js';
+import { INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookSetting } from './notebookCommon.js';
 import { INotebookLoggingService } from './notebookLoggingService.js';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from './notebookService.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -55,7 +54,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		scratchpad: boolean,
-		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
 	) {
 		super();
 
@@ -112,19 +111,19 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	get hasErrorState(): boolean {
-		if (this._workingCopy && 'hasState' in this._workingCopy) {
+		if (this._workingCopy && hasKey(this._workingCopy, { hasState: true })) {
 			return this._workingCopy.hasState(StoredFileWorkingCopyState.ERROR);
 		}
 
 		return false;
 	}
 
-	revert(options?: IRevertOptions): Promise<void> {
+	async revert(options?: IRevertOptions): Promise<void> {
 		assertType(this.isResolved());
 		return this._workingCopy!.revert(options);
 	}
 
-	save(options?: ISaveOptions): Promise<boolean> {
+	async save(options?: ISaveOptions): Promise<boolean> {
 		assertType(this.isResolved());
 		return this._workingCopy!.save(options);
 	}
@@ -137,7 +136,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				} else {
 					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource, isScratchpad: this.scratchPad });
 				}
-				this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire());
+				this._register(this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire()));
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, {
 					limits: options?.limits,
@@ -234,7 +233,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 		// Override save behavior to avoid transferring the buffer across the wire 3 times
 		if (saveWithReducedCommunication) {
-			this.setSaveDelegate().catch(console.error);
+			this.setSaveDelegate().catch(error => this._notebookLogService.error('WorkingCopyModel', `Failed to set save delegate: ${error}`));
 		}
 	}
 
@@ -248,7 +247,12 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 				if (!serializer) {
 					this._notebookLogService.info('WorkingCopyModel', 'No serializer found for notebook model, checking if provider still needs to be resolved');
-					serializer = await this.getNotebookSerializer();
+					serializer = await this.getNotebookSerializer().catch(error => {
+						this._notebookLogService.error('WorkingCopyModel', `Failed to get notebook serializer: ${error}`);
+						// The serializer was set initially but somehow is no longer available
+						this.save = undefined;
+						throw new NotebookSaveError('Failed to get notebook serializer');
+					});
 				}
 
 				if (token.isCancellationRequested) {
@@ -258,20 +262,25 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
 				return stat;
 			} catch (error) {
-				if (!token.isCancellationRequested) {
+				if (!token.isCancellationRequested && error.name !== 'Canceled') {
 					type notebookSaveErrorData = {
 						isRemote: boolean;
-						error: Error;
+						isIPyNbWorkerSerializer: boolean;
+						error: string;
 					};
 					type notebookSaveErrorClassification = {
 						owner: 'amunger';
 						comment: 'Detect if we are having issues saving a notebook on the Extension Host';
 						isRemote: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the save is happening on a remote file system' };
+						isIPyNbWorkerSerializer: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the IPynb files are serialized in workers' };
 						error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
 					};
+					const isIPynb = this._notebookModel.viewType === 'jupyter-notebook' || this._notebookModel.viewType === 'interactive';
+					const errorMessage = getSaveErrorMessage(error);
 					this._telemetryService.publicLogError2<notebookSaveErrorData, notebookSaveErrorClassification>('notebook/SaveError', {
 						isRemote: this._notebookModel.uri.scheme === Schemas.vscodeRemote,
-						error: error
+						isIPyNbWorkerSerializer: isIPynb && this._configurationService.getValue<boolean>('ipynb.experimental.serialization'),
+						error: errorMessage
 					});
 				}
 
@@ -290,47 +299,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	}
 
 	async snapshot(context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream> {
-		const serializer = await this.getNotebookSerializer();
-
-		const data: NotebookData = {
-			metadata: filter(this._notebookModel.metadata, key => !serializer.options.transientDocumentMetadata[key]),
-			cells: [],
-		};
-
-		let outputSize = 0;
-		for (const cell of this._notebookModel.cells) {
-			const cellData: ICellDto2 = {
-				cellKind: cell.cellKind,
-				language: cell.language,
-				mime: cell.mime,
-				source: cell.getValue(),
-				outputs: [],
-				internalMetadata: cell.internalMetadata
-			};
-
-			const outputSizeLimit = this._configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
-			if (context === SnapshotContext.Backup && outputSizeLimit > 0) {
-				cell.outputs.forEach(output => {
-					output.outputs.forEach(item => {
-						outputSize += item.data.byteLength;
-					});
-				});
-				if (outputSize > outputSizeLimit) {
-					throw new Error('Notebook too large to backup');
-				}
-			}
-
-			cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
-			cellData.metadata = filter(cell.metadata, key => !serializer.options.transientCellMetadata[key]);
-
-			data.cells.push(cellData);
-		}
-
-		const bytes = await serializer.notebookToData(data);
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		return bufferToStream(bytes);
+		return this._notebookService.createNotebookTextDocumentSnapshot(this._notebookModel.uri, context, token);
 	}
 
 	async update(stream: VSBufferReadableStream, token: CancellationToken): Promise<void> {
@@ -350,7 +319,8 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	async getNotebookSerializer(): Promise<INotebookSerializer> {
 		const info = await this._notebookService.withNotebookDataProvider(this.notebookModel.viewType);
 		if (!(info instanceof SimpleNotebookProviderInfo)) {
-			throw new Error('CANNOT open file notebook with this provider');
+			const message = 'CANNOT open notebook with this provider';
+			throw new NotebookSaveError(message);
 		}
 
 		return info.serializer;
@@ -385,3 +355,42 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 }
 
 //#endregion
+
+class NotebookSaveError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'NotebookSaveError';
+	}
+}
+
+function getSaveErrorMessage(error: Error): string {
+	if (error.name === 'NotebookSaveError') {
+		return error.message;
+	} else if (error instanceof FileOperationError) {
+		switch (error.fileOperationResult) {
+			case FileOperationResult.FILE_IS_DIRECTORY:
+				return 'File is a directory';
+			case FileOperationResult.FILE_NOT_FOUND:
+				return 'File not found';
+			case FileOperationResult.FILE_NOT_MODIFIED_SINCE:
+				return 'File not modified since';
+			case FileOperationResult.FILE_MODIFIED_SINCE:
+				return 'File modified since';
+			case FileOperationResult.FILE_MOVE_CONFLICT:
+				return 'File move conflict';
+			case FileOperationResult.FILE_WRITE_LOCKED:
+				return 'File write locked';
+			case FileOperationResult.FILE_PERMISSION_DENIED:
+				return 'File permission denied';
+			case FileOperationResult.FILE_TOO_LARGE:
+				return 'File too large';
+			case FileOperationResult.FILE_INVALID_PATH:
+				return 'File invalid path';
+			case FileOperationResult.FILE_NOT_DIRECTORY:
+				return 'File not directory';
+			case FileOperationResult.FILE_OTHER_ERROR:
+				return 'File other error';
+		}
+	}
+	return 'Unknown error';
+}

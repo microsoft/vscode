@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
+import { FocusMode } from '../../../../platform/native/common/native.js';
+import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle, IOpenedMainWindow, IOpenedAuxiliaryWindow } from '../../../../platform/window/common/window.js';
 
 export const IHostService = createDecorator<IHostService>('hostService');
 
@@ -45,13 +47,9 @@ export interface IHostService {
 	/**
 	 * Attempt to bring the window to the foreground and focus it.
 	 *
-	 * @param options Pass `force: true` if you want to make the window take
-	 * focus even if the application does not have focus currently. This option
-	 * should only be used if it is necessary to steal focus from the current
-	 * focused application which may not be VSCode. It may not be supported
-	 * in all environments.
+	 * @param options How to focus the window, defaults to {@link FocusMode.Transfer}
 	 */
-	focus(targetWindow: Window, options?: { force: boolean }): Promise<void>;
+	focus(targetWindow: Window, options?: { mode?: FocusMode }): Promise<void>;
 
 	//#endregion
 
@@ -95,6 +93,12 @@ export interface IHostService {
 	 */
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle } | undefined>;
 
+	/**
+	 * Get the list of opened windows, optionally including auxiliary windows.
+	 */
+	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
+	getWindows(options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
+
 	//#endregion
 
 	//#region Lifecycle
@@ -122,9 +126,21 @@ export interface IHostService {
 
 	//#endregion
 
-	//#region File
+	//#region Screenshots
 
-	getPathForFile(file: File): string | undefined;
+	/**
+	 * Captures a screenshot.
+	 */
+	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
+
+	//#endregion
+
+	//#region Native Handle
+
+	/**
+	 * Get the native handle of the window.
+	 */
+	getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined>;
 
 	//#endregion
 }

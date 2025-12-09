@@ -104,14 +104,14 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 	}
 
 	private validateEvent(channel: string, event: electron.IpcMainEvent | electron.IpcMainInvokeEvent): boolean {
-		if (!channel || !channel.startsWith('vscode:')) {
+		if (!channel?.startsWith('vscode:')) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because the channel is unknown.`);
 			return false; // unexpected channel
 		}
 
 		const sender = event.senderFrame;
 
-		const url = sender.url;
+		const url = sender?.url;
 		// `url` can be `undefined` when running tests from playwright https://github.com/microsoft/vscode/issues/147301
 		// and `url` can be `about:blank` when reloading the window
 		// from performance tab of devtools https://github.com/electron/electron/issues/39427.
@@ -128,12 +128,18 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 			return false; // unexpected URL
 		}
 
+		if (process.env.VSCODE_DEV) {
+			if (url === process.env.DEV_WINDOW_SRC && (host === 'localhost' || host.startsWith('localhost:'))) {
+				return true; // development support where the window is served from localhost
+			}
+		}
+
 		if (host !== VSCODE_AUTHORITY) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because of a bad origin of '${host}'.`);
 			return false; // unexpected sender
 		}
 
-		if (sender.parent !== null) {
+		if (sender?.parent !== null) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because sender of origin '${host}' is not a main frame.`);
 			return false; // unexpected frame
 		}

@@ -8,7 +8,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { getWindowById, runAtThisOrScheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { format, compare, splitLines } from '../../../../base/common/strings.js';
 import { extname, basename, isEqual } from '../../../../base/common/resources.js';
-import { areFunctions, assertIsDefined } from '../../../../base/common/types.js';
+import { areFunctions, assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Language } from '../../../../base/common/platform.js';
@@ -56,6 +56,8 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
 import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { InputMode } from '../../../../editor/common/inputMode.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -149,6 +151,7 @@ class StateChange {
 	encoding: boolean = false;
 	EOL: boolean = false;
 	tabFocusMode: boolean = false;
+	inputMode: boolean = false;
 	columnSelectionMode: boolean = false;
 	metadata: boolean = false;
 
@@ -160,6 +163,7 @@ class StateChange {
 		this.encoding = this.encoding || other.encoding;
 		this.EOL = this.EOL || other.EOL;
 		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
+		this.inputMode = this.inputMode || other.inputMode;
 		this.columnSelectionMode = this.columnSelectionMode || other.columnSelectionMode;
 		this.metadata = this.metadata || other.metadata;
 	}
@@ -172,6 +176,7 @@ class StateChange {
 			|| this.encoding
 			|| this.EOL
 			|| this.tabFocusMode
+			|| this.inputMode
 			|| this.columnSelectionMode
 			|| this.metadata;
 	}
@@ -186,6 +191,7 @@ type StateDelta = (
 	| { type: 'tabFocusMode'; tabFocusMode: boolean }
 	| { type: 'columnSelectionMode'; columnSelectionMode: boolean }
 	| { type: 'metadata'; metadata: string | undefined }
+	| { type: 'inputMode'; inputMode: 'overtype' | 'insert' }
 );
 
 class State {
@@ -207,6 +213,9 @@ class State {
 
 	private _tabFocusMode: boolean | undefined;
 	get tabFocusMode(): boolean | undefined { return this._tabFocusMode; }
+
+	private _inputMode: 'overtype' | 'insert' | undefined;
+	get inputMode(): 'overtype' | 'insert' | undefined { return this._inputMode; }
 
 	private _columnSelectionMode: boolean | undefined;
 	get columnSelectionMode(): boolean | undefined { return this._columnSelectionMode; }
@@ -260,6 +269,13 @@ class State {
 				}
 				break;
 
+			case 'inputMode':
+				if (this._inputMode !== update.inputMode) {
+					this._inputMode = update.inputMode;
+					change.inputMode = true;
+				}
+				break;
+
 			case 'columnSelectionMode':
 				if (this._columnSelectionMode !== update.columnSelectionMode) {
 					this._columnSelectionMode = update.columnSelectionMode;
@@ -289,7 +305,7 @@ class TabFocusMode extends Disposable {
 
 		this.registerListeners();
 
-		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true;
 		TabFocus.setTabFocusMode(tabFocusModeConfig);
 	}
 
@@ -298,12 +314,24 @@ class TabFocusMode extends Disposable {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.tabFocusMode')) {
-				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true;
 				TabFocus.setTabFocusMode(tabFocusModeConfig);
 
 				this._onDidChange.fire(tabFocusModeConfig);
 			}
 		}));
+	}
+}
+
+class StatusInputMode extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<'overtype' | 'insert'>());
+	public readonly onDidChange = this._onDidChange.event;
+
+	constructor() {
+		super();
+		InputMode.setInputMode('insert');
+		this._register(InputMode.onDidChangeInputMode(inputMode => this._onDidChange.fire(inputMode)));
 	}
 }
 
@@ -317,6 +345,7 @@ const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 class EditorStatus extends Disposable {
 
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly inputModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly columnSelectionModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly indentationElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly selectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -325,8 +354,9 @@ class EditorStatus extends Disposable {
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
-	private readonly currentMarkerStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
-	private readonly tabFocusMode = this._register(this.instantiationService.createInstance(TabFocusMode));
+	private readonly currentMarkerStatus: ShowCurrentMarkerInStatusbarContribution;
+	private readonly tabFocusMode: TabFocusMode;
+	private readonly inputMode: StatusInputMode;
 
 	private readonly state = new State();
 	private toRender: StateChange | undefined = undefined;
@@ -341,10 +371,14 @@ class EditorStatus extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+
+		this.currentMarkerStatus = this._register(instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
+		this.tabFocusMode = this._register(instantiationService.createInstance(TabFocusMode));
+		this.inputMode = this._register(instantiationService.createInstance(StatusInputMode));
 
 		this.registerCommands();
 		this.registerListeners();
@@ -361,6 +395,7 @@ class EditorStatus extends Disposable {
 				this.onTabFocusModeChange(this.configurationService.getValue('editor.tabFocusMode'));
 			}
 		}));
+		this._register(Event.runAndSubscribe(this.inputMode.onDidChange, (inputMode) => this.onInputModeChange(inputMode ?? 'insert')));
 	}
 
 	private registerCommands(): void {
@@ -378,13 +413,13 @@ class EditorStatus extends Disposable {
 		}
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
-			assertIsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(ChangeTabDisplaySize.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID))
+			assertReturnsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(ChangeTabDisplaySize.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID))
 		].map((a: IEditorAction) => {
 			return {
 				id: a.id,
@@ -419,6 +454,25 @@ class EditorStatus extends Disposable {
 			}
 		} else {
 			this.tabFocusModeElement.clear();
+		}
+	}
+
+	private updateInputModeElement(inputMode: 'overtype' | 'insert' | undefined): void {
+		if (inputMode === 'overtype') {
+			if (!this.inputModeElement.value) {
+				const text = localize('inputModeOvertype', 'OVR');
+				const name = localize('status.editor.enableInsertMode', "Enable Insert Mode");
+				this.inputModeElement.value = this.statusbarService.addEntry({
+					name,
+					text,
+					ariaLabel: text,
+					tooltip: name,
+					command: 'editor.action.toggleOvertypeInsertMode',
+					kind: 'prominent'
+				}, 'status.editor.inputMode', StatusbarAlignment.RIGHT, 100.6);
+			}
+		} else {
+			this.inputModeElement.clear();
 		}
 	}
 
@@ -586,6 +640,7 @@ class EditorStatus extends Disposable {
 
 	private doRenderNow(): void {
 		this.updateTabFocusModeElement(!!this.state.tabFocusMode);
+		this.updateInputModeElement(this.state.inputMode);
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateIndentationElement(this.state.indentation);
 		this.updateSelectionElement(this.state.selectionStatus);
@@ -596,7 +651,7 @@ class EditorStatus extends Disposable {
 	}
 
 	private getSelectionLabel(info: IEditorSelectionStatus): string | undefined {
-		if (!info || !info.selections) {
+		if (!info?.selections) {
 			return undefined;
 		}
 
@@ -872,6 +927,11 @@ class EditorStatus extends Disposable {
 		this.updateState(info);
 	}
 
+	private onInputModeChange(inputMode: 'insert' | 'overtype'): void {
+		const info: StateDelta = { type: 'inputMode', inputMode };
+		this.updateState(info);
+	}
+
 	private isActiveEditor(control: IEditorPane): boolean {
 		const activeEditorPane = this.editorService.activeEditorPane;
 
@@ -939,9 +999,10 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 				const line = splitLines(this.currentMarker.message)[0];
 				const text = `${this.getType(this.currentMarker)} ${line}`;
 				if (!this.statusBarEntryAccessor.value) {
-					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ name: localize('currentProblem', "Current Problem"), text: '', ariaLabel: '' }, 'statusbar.currentProblem', StatusbarAlignment.LEFT);
+					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ name: localize('currentProblem', "Current Problem"), text, ariaLabel: text }, 'statusbar.currentProblem', StatusbarAlignment.LEFT);
+				} else {
+					this.statusBarEntryAccessor.value.update({ name: localize('currentProblem', "Current Problem"), text, ariaLabel: text });
 				}
-				this.statusBarEntryAccessor.value.update({ name: localize('currentProblem', "Current Problem"), text, ariaLabel: text });
 			} else {
 				this.statusBarEntryAccessor.clear();
 			}
@@ -1084,7 +1145,7 @@ export class ChangeLanguageAction extends Action2 {
 				args: [
 					{
 						name: localize('changeLanguageMode.arg.name', "The name of the language mode to change to."),
-						constraint: (value: any) => typeof value === 'string',
+						constraint: (value: unknown) => typeof value === 'string',
 					}
 				]
 			}
@@ -1164,11 +1225,11 @@ export class ChangeLanguageAction extends Action2 {
 			picks.unshift(configureLanguageAssociations);
 		}
 
-		// Offer to "Auto Detect"
-		const autoDetectLanguage: IQuickPickItem = {
-			label: localize('autoDetect', "Auto Detect")
-		};
-		picks.unshift(autoDetectLanguage);
+		// Offer to "Auto Detect", but only if the document is not empty.
+		const autoDetectLanguage: IQuickPickItem = { label: localize('autoDetect', "Auto Detect") };
+		if (textModel && textModel.getValueLength() > 0) {
+			picks.unshift(autoDetectLanguage);
+		}
 
 		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
@@ -1313,7 +1374,7 @@ export class ChangeLanguageAction extends Action2 {
 
 				// If the association is already being made in the workspace, make sure to target workspace settings
 				let target = ConfigurationTarget.USER;
-				if (fileAssociationsConfig.workspaceValue && !!(fileAssociationsConfig.workspaceValue as any)[associationKey]) {
+				if (fileAssociationsConfig.workspaceValue?.[associationKey as keyof typeof fileAssociationsConfig.workspaceValue]) {
 					target = ConfigurationTarget.WORKSPACE;
 				}
 
@@ -1396,6 +1457,7 @@ export class ChangeEncodingAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
 		const textResourceConfigurationService = accessor.get(ITextResourceConfigurationService);
+		const dialogService = accessor.get(IDialogService);
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
@@ -1517,7 +1579,24 @@ export class ChangeEncodingAction extends Action2 {
 
 		const activeEncodingSupport = toEditorWithEncodingSupport(editorService.activeEditorPane.input);
 		if (typeof encoding.id !== 'undefined' && activeEncodingSupport) {
-			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
+
+			// Re-open with encoding does not work on dirty editors, ask to revert
+			if (isReopenWithEncoding && editorService.activeEditorPane.input.isDirty()) {
+				const { confirmed } = await dialogService.confirm({
+					message: localize('reopenWithEncodingWarning', "Do you want to revert the active text editor and reopen with a different encoding?"),
+					detail: localize('reopenWithEncodingDetail', "This will discard any unsaved changes."),
+					primaryButton: localize('reopen', "Discard Changes and Reopen")
+				});
+
+				if (!confirmed) {
+					return;
+				}
+
+				await editorService.activeEditorPane.input.revert(editorService.activeEditorPane.group.id);
+			}
+
+			// Set new encoding
+			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode);
 		}
 
 		activeTextEditorControl.focus();

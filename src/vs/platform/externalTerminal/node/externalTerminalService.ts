@@ -75,7 +75,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 	}
 
 	public async runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
-		const exec = 'windowsExec' in settings && settings.windowsExec ? settings.windowsExec : WindowsExternalTerminalService.getDefaultTerminalWindows();
+		const exec = settings.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
 		const wt = await WindowsExternalTerminalService.getWtExePath();
 
 		return new Promise<number | undefined>((resolve, reject) => {
@@ -89,7 +89,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 			// delete environment variables that have a null value
 			Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
 
-			const options: any = {
+			const options = {
 				cwd: dir,
 				env: env,
 				windowsVerbatimArguments: true
@@ -134,8 +134,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 	@memoize
 	private static async getWtExePath() {
 		try {
-			const wtPath = await processes.win32.findExecutable('wt');
-			return await pfs.Promises.exists(wtPath) ? wtPath : undefined;
+			return await processes.findExecutable('wt');
 		} catch {
 			return undefined;
 		}
@@ -268,7 +267,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 				// delete environment variables that have a null value
 				Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
 
-				const options: any = {
+				const options = {
 					cwd: dir,
 					env: env
 				};
@@ -349,8 +348,8 @@ function getSanitizedEnvironment(process: NodeJS.Process) {
  * tries to turn OS errors into more meaningful error messages
  */
 function improveError(err: Error & { errno?: string; path?: string }): Error {
-	if ('errno' in err && err['errno'] === 'ENOENT' && 'path' in err && typeof err['path'] === 'string') {
-		return new Error(nls.localize('ext.term.app.not.found', "can't find terminal application '{0}'", err['path']));
+	if (err.errno === 'ENOENT' && err.path) {
+		return new Error(nls.localize('ext.term.app.not.found', "can't find terminal application '{0}'", err.path));
 	}
 	return err;
 }

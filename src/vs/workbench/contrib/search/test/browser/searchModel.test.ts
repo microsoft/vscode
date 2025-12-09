@@ -17,7 +17,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IAITextQuery, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextQuery, ITextSearchMatch, OneLineRange, QueryType, TextSearchMatch } from '../../../../services/search/common/search.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { CellMatch, MatchInNotebook, SearchModel } from '../../browser/searchModel.js';
+import { SearchModelImpl } from '../../browser/searchTreeModel/searchModel.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
@@ -41,6 +41,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CellMatch, MatchInNotebook } from '../../browser/notebookSearch/notebookSearchModel.js';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -197,6 +198,7 @@ suite('SearchModel', () => {
 				}
 				return new Promise(resolve => {
 					queueMicrotask(() => {
+						// eslint-disable-next-line local/code-no-any-casts
 						resolve(<any>{});
 					});
 				});
@@ -224,6 +226,7 @@ suite('SearchModel', () => {
 					},
 					asyncResults: new Promise(resolve => {
 						queueMicrotask(() => {
+							// eslint-disable-next-line local/code-no-any-casts
 							resolve(<any>{
 								results: [],
 								messages: []
@@ -293,7 +296,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithResults(results, { limitHit: false, messages: [], results }));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
-		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
+		const testObject: SearchModelImpl = instantiationService.createInstance(SearchModelImpl);
 		store.add(testObject);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
@@ -393,8 +396,8 @@ suite('SearchModel', () => {
 		};
 
 		const notebookSearchService = instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([aRawMatchWithCells('/1', cellMatchMd, cellMatchCode)], undefined));
-		const notebookSearch = sinon.spy(notebookSearchService, "notebookSearch");
-		const model: SearchModel = instantiationService.createInstance(SearchModel);
+		const notebookSearch = sinon.spy(notebookSearchService, 'notebookSearch');
+		const model: SearchModelImpl = instantiationService.createInstance(SearchModelImpl);
 		store.add(model);
 		await model.search({ contentPattern: { pattern: 'test' }, type: QueryType.Text, folderQueries }).asyncResults;
 		const actual = model.searchResult.matches();
@@ -446,7 +449,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithResults(results, { limitHit: false, messages: [], results }));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
-		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
+		const testObject: SearchModelImpl = instantiationService.createInstance(SearchModelImpl);
 		store.add(testObject);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
@@ -464,7 +467,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithResults([], { limitHit: false, messages: [], results: [] }));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
-		const testObject = instantiationService.createInstance(SearchModel);
+		const testObject = instantiationService.createInstance(SearchModelImpl);
 		store.add(testObject);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
@@ -487,7 +490,7 @@ suite('SearchModel', () => {
 			{ results: [], stats: testSearchStats, messages: [] }));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
-		const testObject = instantiationService.createInstance(SearchModel);
+		const testObject = instantiationService.createInstance(SearchModelImpl);
 		store.add(testObject);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
@@ -511,7 +514,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithError(new Error('This error should be thrown by this test.')));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
-		const testObject = instantiationService.createInstance(SearchModel);
+		const testObject = instantiationService.createInstance(SearchModelImpl);
 		store.add(testObject);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
@@ -534,7 +537,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithDeferredPromise(deferredPromise.p));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
-		const testObject = instantiationService.createInstance(SearchModel);
+		const testObject = instantiationService.createInstance(SearchModelImpl);
 		store.add(testObject);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
@@ -558,7 +561,7 @@ suite('SearchModel', () => {
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results, { limitHit: false, messages: [], results: [] }));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
-		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
+		const testObject: SearchModelImpl = instantiationService.createInstance(SearchModelImpl);
 		store.add(testObject);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 		assert.ok(!testObject.searchResult.isEmpty());
@@ -574,7 +577,7 @@ suite('SearchModel', () => {
 		store.add(tokenSource);
 		instantiationService.stub(ISearchService, canceleableSearchService(tokenSource));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], tokenSource));
-		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
+		const testObject: SearchModelImpl = instantiationService.createInstance(SearchModelImpl);
 		store.add(testObject);
 		testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
@@ -592,7 +595,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithResults(results, { limitHit: false, messages: [], results }));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
-		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
+		const testObject: SearchModelImpl = instantiationService.createInstance(SearchModelImpl);
 		store.add(testObject);
 		await testObject.search({ contentPattern: { pattern: 're' }, type: QueryType.Text, folderQueries }).asyncResults;
 		testObject.replaceString = 'hello';

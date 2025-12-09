@@ -11,7 +11,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent } from '../../../../platform/files/common/files.js';
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from '../../../../platform/configuration/common/configurationModels.js';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from '../common/configurationModels.js';
-import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING } from '../common/configuration.js';
+import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY } from '../common/configuration.js';
 import { IStoredWorkspaceFolder } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -34,10 +34,8 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	static readonly DEFAULT_OVERRIDES_CACHE_EXISTS_KEY = 'DefaultOverridesCacheExists';
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
+	private cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
 	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
-
-	private updateCache: boolean = false;
 
 	constructor(
 		private readonly configurationCache: IConfigurationCache,
@@ -46,11 +44,11 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	) {
 		super(logService);
 		if (environmentService.options?.configurationDefaults) {
-			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults }]);
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults as IStringDictionary<IStringDictionary<unknown>> }]);
 		}
 	}
 
-	protected override getConfigurationDefaultOverrides(): IStringDictionary<any> {
+	protected override getConfigurationDefaultOverrides(): IStringDictionary<unknown> {
 		return this.cachedConfigurationDefaultsOverrides;
 	}
 
@@ -60,7 +58,6 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	}
 
 	override reload(): ConfigurationModel {
-		this.updateCache = true;
 		this.cachedConfigurationDefaultsOverrides = {};
 		this.updateCachedConfigurationDefaultsOverrides();
 		return super.reload();
@@ -97,10 +94,7 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	}
 
 	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
-		if (!this.updateCache) {
-			return;
-		}
-		const cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
+		const cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
 		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
 		for (const [key, value] of configurationDefaultsOverrides) {
 			if (!OVERRIDE_PROPERTY_REGEX.test(key) && value.value !== undefined) {
@@ -133,7 +127,7 @@ export class ApplicationConfiguration extends UserSettings {
 		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
 	) {
-		super(userDataProfilesService.defaultProfile.settingsResource, { scopes: [ConfigurationScope.APPLICATION] }, uriIdentityService.extUri, fileService, logService);
+		super(userDataProfilesService.defaultProfile.settingsResource, { scopes: APPLICATION_SCOPES, skipUnregistered: true }, uriIdentityService.extUri, fileService, logService);
 		this._register(this.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.loadConfiguration().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 	}
@@ -166,6 +160,7 @@ export class UserConfiguration extends Disposable {
 	constructor(
 		private settingsResource: URI,
 		private tasksResource: URI | undefined,
+		private mcpResource: URI | undefined,
 		private configurationParseOptions: ConfigurationParseOptions,
 		private readonly fileService: IFileService,
 		private readonly uriIdentityService: IUriIdentityService,
@@ -177,16 +172,23 @@ export class UserConfiguration extends Disposable {
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.userConfiguration.value!.loadConfiguration().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 	}
 
-	async reset(settingsResource: URI, tasksResource: URI | undefined, configurationParseOptions: ConfigurationParseOptions): Promise<ConfigurationModel> {
+	async reset(settingsResource: URI, tasksResource: URI | undefined, mcpResource: URI | undefined, configurationParseOptions: ConfigurationParseOptions): Promise<ConfigurationModel> {
 		this.settingsResource = settingsResource;
 		this.tasksResource = tasksResource;
+		this.mcpResource = mcpResource;
 		this.configurationParseOptions = configurationParseOptions;
 		return this.doReset();
 	}
 
 	private async doReset(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
 		const folder = this.uriIdentityService.extUri.dirname(this.settingsResource);
-		const standAloneConfigurationResources: [string, URI][] = this.tasksResource ? [[TASKS_CONFIGURATION_KEY, this.tasksResource]] : [];
+		const standAloneConfigurationResources: [string, URI][] = [];
+		if (this.tasksResource) {
+			standAloneConfigurationResources.push([TASKS_CONFIGURATION_KEY, this.tasksResource]);
+		}
+		if (this.mcpResource) {
+			standAloneConfigurationResources.push([MCP_CONFIGURATION_KEY, this.mcpResource]);
+		}
 		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), this.settingsResource, standAloneConfigurationResources, this.configurationParseOptions, this.fileService, this.uriIdentityService, this.logService);
 		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration(settingsConfiguration);
 		this.userConfiguration.value = fileServiceBasedConfiguration;
@@ -527,13 +529,15 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	private handleFileChangesEvent(event: FileChangesEvent): void {
 
 		// Find changes that affect the resource
-		let affectedByChanges = event.contains(this.configurationResource, FileChangeType.UPDATED);
+		let affectedByChanges = false;
 		if (event.contains(this.configurationResource, FileChangeType.ADDED)) {
 			affectedByChanges = true;
 			this.onResourceExists(true);
 		} else if (event.contains(this.configurationResource, FileChangeType.DELETED)) {
 			affectedByChanges = true;
 			this.onResourceExists(false);
+		} else if (event.contains(this.configurationResource, FileChangeType.UPDATED)) {
+			affectedByChanges = true;
 		}
 
 		if (affectedByChanges) {
@@ -960,7 +964,7 @@ class CachedFolderConfiguration {
 	}
 
 	async updateConfiguration(settingsContent: string | undefined, standAloneConfigurationContents: [string, string | undefined][]): Promise<void> {
-		const content: any = {};
+		const content: IStringDictionary<unknown> = {};
 		if (settingsContent) {
 			content[FOLDER_SETTINGS_NAME] = settingsContent;
 		}
@@ -1066,7 +1070,7 @@ export class FolderConfiguration extends Disposable {
 
 	private createFileServiceBasedConfiguration(fileService: IFileService, uriIdentityService: IUriIdentityService, logService: ILogService) {
 		const settingsResource = uriIdentityService.extUri.joinPath(this.configurationFolder, `${FOLDER_SETTINGS_NAME}.json`);
-		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY].map(name => ([name, uriIdentityService.extUri.joinPath(this.configurationFolder, `${name}.json`)]));
+		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, MCP_CONFIGURATION_KEY].map(name => ([name, uriIdentityService.extUri.joinPath(this.configurationFolder, `${name}.json`)]));
 		return new FileServiceBasedConfiguration(this.configurationFolder.toString(), settingsResource, standAloneConfigurationResources, { scopes: this.scopes, skipRestricted: this.isUntrusted() }, fileService, uriIdentityService, logService);
 	}
 

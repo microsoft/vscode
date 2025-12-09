@@ -7,10 +7,17 @@ import { URI } from '../../../../base/common/uri.js';
 import { IClipboardService } from '../../common/clipboardService.js';
 
 export class TestClipboardService implements IClipboardService {
+	readImage(): Promise<Uint8Array> {
+		throw new Error('Method not implemented.');
+	}
 
 	_serviceBrand: undefined;
 
 	private text: string | undefined = undefined;
+
+	triggerPaste(): Promise<void> | undefined {
+		return Promise.resolve();
+	}
 
 	async writeText(text: string, type?: string): Promise<void> {
 		this.text = text;

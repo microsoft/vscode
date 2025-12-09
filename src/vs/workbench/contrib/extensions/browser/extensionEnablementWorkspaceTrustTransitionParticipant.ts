@@ -39,7 +39,7 @@ export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disp
 							if (environmentService.remoteAuthority) {
 								hostService.reload();
 							} else {
-								const stopped = await extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Restarting extension host due to workspace trust change."));
+								const stopped = await extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Changing workspace trust"));
 								await extensionEnablementService.updateExtensionsEnablementsWhenWorkspaceTrustChanges();
 								if (stopped) {
 									extensionService.startExtensionHosts();

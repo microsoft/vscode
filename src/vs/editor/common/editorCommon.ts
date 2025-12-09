@@ -9,7 +9,7 @@ import { IDisposable } from '../../base/common/lifecycle.js';
 import { ThemeColor } from '../../base/common/themables.js';
 import { URI, UriComponents } from '../../base/common/uri.js';
 import { IEditorOptions } from './config/editorOptions.js';
-import { IDimension } from './core/dimension.js';
+import { IDimension } from './core/2d/dimension.js';
 import { IPosition, Position } from './core/position.js';
 import { IRange, Range } from './core/range.js';
 import { ISelection, Selection } from './core/selection.js';
@@ -147,6 +147,15 @@ export interface IContentSizeChangedEvent {
 	readonly contentHeightChanged: boolean;
 }
 
+/**
+ * @internal
+ */
+export interface ITriggerEditorOperationEvent {
+	source: string | null | undefined;
+	handlerId: string;
+	payload: unknown;
+}
+
 export interface INewScrollPosition {
 	scrollLeft?: number;
 	scrollTop?: number;
@@ -189,7 +198,7 @@ export interface IViewState {
 export interface ICodeEditorViewState {
 	cursorState: ICursorState[];
 	viewState: IViewState;
-	contributionsState: { [id: string]: any };
+	contributionsState: { [id: string]: unknown };
 }
 /**
  * (Serializable) View state for the diff editor.
@@ -455,7 +464,7 @@ export interface IEditor {
 	 * @param handlerId The id of the handler or the id of a contribution.
 	 * @param payload Extra data to be sent to the handler.
 	 */
-	trigger(source: string | null | undefined, handlerId: string, payload: any): void;
+	trigger(source: string | null | undefined, handlerId: string, payload: unknown): void;
 
 	/**
 	 * Gets the current model attached to this editor.
@@ -486,7 +495,7 @@ export interface IEditor {
 	 * @see {@link ITextModel.changeDecorations}
 	 * @internal
 	 */
-	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 }
 
 /**
@@ -537,7 +546,7 @@ export interface IEditorDecorationsCollection {
 	 * An event emitted when decorations change in the editor,
 	 * but the change is not caused by us setting or clearing the collection.
 	 */
-	onDidChange: Event<IModelDecorationsChangedEvent>;
+	readonly onDidChange: Event<IModelDecorationsChangedEvent>;
 	/**
 	 * Get the decorations count.
 	 */
@@ -579,11 +588,11 @@ export interface IEditorContribution {
 	/**
 	 * Store view state.
 	 */
-	saveViewState?(): any;
+	saveViewState?(): unknown;
 	/**
 	 * Restore view state.
 	 */
-	restoreViewState?(state: any): void;
+	restoreViewState?(state: unknown): void;
 }
 
 /**
@@ -600,8 +609,8 @@ export interface IDiffEditorContribution {
 /**
  * @internal
  */
-export function isThemeColor(o: any): o is ThemeColor {
-	return o && typeof o.id === 'string';
+export function isThemeColor(o: unknown): o is ThemeColor {
+	return !!o && typeof (o as ThemeColor).id === 'string';
 }
 
 /**
@@ -624,7 +633,9 @@ export interface IThemeDecorationRenderOptions {
 
 	fontStyle?: string;
 	fontWeight?: string;
+	fontFamily?: string;
 	fontSize?: string;
+	lineHeight?: number;
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
@@ -770,4 +781,3 @@ export interface CompositionTypePayload {
 	replaceNextCharCnt: number;
 	positionDelta: number;
 }
-

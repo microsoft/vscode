@@ -13,6 +13,11 @@ export interface IClipboardService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Trigger the paste. Returns undefined if the paste was not triggered or a promise that resolves on paste end.
+	 */
+	triggerPaste(targetWindowId: number): Promise<void> | undefined;
+
+	/**
 	 * Writes text to the system clipboard.
 	 */
 	writeText(text: string, type?: string): Promise<void>;
@@ -53,4 +58,10 @@ export interface IClipboardService {
 	 * Used for implementations such as web which do not always support using the real clipboard.
 	 */
 	clearInternalState?(): void;
+
+	/**
+	 * Reads resources from the system clipboard as an image. If the clipboard does not contain an
+	 * image, an empty buffer is returned.
+	 */
+	readImage(): Promise<Uint8Array>;
 }

@@ -22,7 +22,7 @@ import { IEditorPane, IEditorPaneWithSelection } from '../../../common/editor.js
 import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from './notebookViewEvents.js';
 import { NotebookCellTextModel } from '../common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../common/model/notebookTextModel.js';
-import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookFindOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from '../common/notebookCommon.js';
+import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookFindOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID, NOTEBOOK_DIFF_EDITOR_ID } from '../common/notebookCommon.js';
 import { isCompositeNotebookEditorInput } from '../common/notebookEditorInput.js';
 import { INotebookKernel } from '../common/notebookKernelService.js';
 import { NotebookOptions } from './notebookOptions.js';
@@ -32,6 +32,7 @@ import { IEditorCommentsOptions, IEditorOptions } from '../../../../editor/commo
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { INotebookTextDiffEditor } from './diff/notebookDiffEditorBrowser.js';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -187,6 +188,9 @@ export interface CellLayoutInfo {
 	readonly commentHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
+	readonly topMargin: number;
+	readonly bottomMargin: number;
+	readonly outlineWidth: number;
 }
 
 export interface CellLayoutChangeEvent {
@@ -330,10 +334,32 @@ export interface INotebookCellDecorationOptions {
 	};
 }
 
-export interface INotebookDeltaDecoration {
+export interface INotebookViewZoneDecorationOptions {
+	overviewRuler?: {
+		color: string;
+		position: NotebookOverviewRulerLane;
+	};
+}
+
+export interface INotebookDeltaCellDecoration {
 	readonly handle: number;
 	readonly options: INotebookCellDecorationOptions;
 }
+
+export interface INotebookDeltaViewZoneDecoration {
+	readonly viewZoneId: string;
+	readonly options: INotebookViewZoneDecorationOptions;
+}
+
+export function isNotebookCellDecoration(obj: unknown): obj is INotebookDeltaCellDecoration {
+	return !!obj && typeof (obj as INotebookDeltaCellDecoration).handle === 'number';
+}
+
+export function isNotebookViewZoneDecoration(obj: unknown): obj is INotebookDeltaViewZoneDecoration {
+	return !!obj && typeof (obj as INotebookDeltaViewZoneDecoration).viewZoneId === 'string';
+}
+
+export type INotebookDeltaDecoration = INotebookDeltaCellDecoration | INotebookDeltaViewZoneDecoration;
 
 export interface INotebookDeltaCellStatusBarItems {
 	readonly handle: number;
@@ -373,7 +399,7 @@ export interface INotebookEditorContributionDescription {
 }
 
 export interface INotebookEditorCreationOptions {
-	readonly isEmbedded?: boolean;
+	readonly isReplHistory?: boolean;
 	readonly isReadOnly?: boolean;
 	readonly contributions?: INotebookEditorContributionDescription[];
 	readonly cellEditorContributions?: IEditorContributionDescription[];
@@ -388,7 +414,6 @@ export interface INotebookEditorCreationOptions {
 	};
 	readonly options?: NotebookOptions;
 	readonly codeWindow?: CodeWindow;
-	readonly forRepl?: boolean;
 }
 
 export interface INotebookWebviewMessage {
@@ -441,6 +466,17 @@ export interface INotebookViewZoneChangeAccessor {
 	layoutZone(id: string): void;
 }
 
+export interface INotebookCellOverlay {
+	cell: ICellViewModel;
+	domNode: HTMLElement;
+}
+
+export interface INotebookCellOverlayChangeAccessor {
+	addOverlay(overlay: INotebookCellOverlay): string;
+	removeOverlay(id: string): void;
+	layoutOverlay(id: string): void;
+}
+
 export type NotebookViewCellsSplice = [
 	number /* start */,
 	number /* delete count */,
@@ -456,16 +492,20 @@ export interface INotebookViewModel {
 	notebookDocument: NotebookTextModel;
 	readonly viewCells: ICellViewModel[];
 	layoutInfo: NotebookLayoutInfo | null;
-	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
-	onDidChangeSelection: Event<string>;
-	onDidFoldingStateChanged: Event<void>;
+	viewType: string;
+	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
+	readonly onDidChangeSelection: Event<string>;
+	readonly onDidFoldingStateChanged: Event<void>;
 	getNearestVisibleCellIndexUpwards(index: number): number;
 	getTrackedRange(id: string): ICellRange | null;
 	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null;
+	getOverviewRulerDecorations(): INotebookDeltaViewZoneDecoration[];
 	getSelections(): ICellRange[];
 	getCellIndex(cell: ICellViewModel): number;
+	getMostRecentlyExecutedCell(): ICellViewModel | undefined;
 	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[];
 	getFoldedLength(index: number): number;
+	getFoldingStartIndex(index: number): number;
 	replaceOne(cell: ICellViewModel, range: Range, text: string): Promise<void>;
 	replaceAll(matches: CellFindMatchWithIndex[], texts: string[]): Promise<void>;
 }
@@ -492,7 +532,6 @@ export interface INotebookEditor {
 	readonly onDidChangeActiveKernel: Event<void>;
 	readonly onMouseUp: Event<INotebookEditorMouseEvent>;
 	readonly onMouseDown: Event<INotebookEditorMouseEvent>;
-
 	//#endregion
 
 	//#region readonly properties
@@ -734,6 +773,10 @@ export interface INotebookEditor {
 
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void;
 
+	changeCellOverlays(callback: (accessor: INotebookCellOverlayChangeAccessor) => void): void;
+
+	getViewZoneLayoutInfo(id: string): { top: number; height: number } | null;
+
 	/**
 	 * Get a contribution of this editor.
 	 * @id Unique identifier of the contribution.
@@ -759,6 +802,7 @@ export interface INotebookEditor {
 	hideProgress(): void;
 
 	getAbsoluteTopOfElement(cell: ICellViewModel): number;
+	getAbsoluteBottomOfElement(cell: ICellViewModel): number;
 	getHeightOfElement(cell: ICellViewModel): number;
 }
 
@@ -804,7 +848,7 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 	 * Hide the inset in the webview layer without removing it
 	 */
 	hideInset(output: IDisplayOutputViewModel): void;
-	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]): void;
+	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[], cellKind: CellKind): void;
 }
 
 export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
@@ -887,6 +931,10 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 
 	if (editorPane.getId() === NOTEBOOK_EDITOR_ID) {
 		return editorPane.getControl() as INotebookEditor | undefined;
+	}
+
+	if (editorPane.getId() === NOTEBOOK_DIFF_EDITOR_ID) {
+		return (editorPane.getControl() as INotebookTextDiffEditor).inlineNotebookEditor;
 	}
 
 	const input = editorPane.input;

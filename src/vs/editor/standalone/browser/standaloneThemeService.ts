@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
 import { addMatchMediaChangeListener } from '../../../base/browser/browser.js';
 import { Color } from '../../../base/common/color.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -262,6 +263,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		}));
 
 		addMatchMediaChangeListener(mainWindow, '(forced-colors: active)', () => {
+			// Update theme selection for auto-detecting high contrast
 			this._onOSSchemeChanged();
 		});
 	}
@@ -275,7 +277,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	private _registerRegularEditorContainer(): IDisposable {
 		if (!this._globalStyleElement) {
-			this._globalStyleElement = dom.createStyleSheet(undefined, style => {
+			this._globalStyleElement = domStylesheetsJs.createStyleSheet(undefined, style => {
 				style.className = 'monaco-colors';
 				style.textContent = this._allCSS;
 			});
@@ -285,7 +287,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	}
 
 	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
-		const styleElement = dom.createStyleSheet(domNode, style => {
+		const styleElement = domStylesheetsJs.createStyleSheet(domNode, style => {
 			style.className = 'monaco-colors';
 			style.textContent = this._allCSS;
 		});
@@ -397,6 +399,11 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
+
+		// If the OS has forced-colors active, disable forced color adjustment for
+		// Monaco editor elements so that VS Code's built-in high contrast themes
+		// (hc-black / hc-light) are used instead of the OS forcing system colors.
+		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor, .monaco-component { forced-color-adjust: none; }`);
 
 		this._themeCSS = cssRules.join('\n');
 		this._updateCSS();

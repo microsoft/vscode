@@ -36,14 +36,15 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	const inMemoryExtraProfile: IUserDataProfile = {
 		id: 'id',
 		name: 'inMemory',
-		shortName: 'inMemory',
 		isDefault: false,
 		location: inMemoryExtraProfileRoot,
 		globalStorageHome: joinPath(inMemoryExtraProfileRoot, 'globalStorageHome'),
 		settingsResource: joinPath(inMemoryExtraProfileRoot, 'settingsResource'),
 		keybindingsResource: joinPath(inMemoryExtraProfileRoot, 'keybindingsResource'),
 		tasksResource: joinPath(inMemoryExtraProfileRoot, 'tasksResource'),
+		mcpResource: joinPath(inMemoryExtraProfileRoot, 'mcp.json'),
 		snippetsHome: joinPath(inMemoryExtraProfileRoot, 'snippetsHome'),
+		promptsHome: joinPath(inMemoryExtraProfileRoot, 'promptsHome'),
 		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource'),
 		cacheHome: joinPath(inMemoryExtraProfileRoot, 'cache')
 	};

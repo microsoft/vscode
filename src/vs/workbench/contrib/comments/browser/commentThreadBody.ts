@@ -15,9 +15,7 @@ import { CommentNode } from './commentNode.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
-import { IMarkdownRendererOptions, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IMarkdownRendererExtraOptions } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ICellRange } from '../../notebook/common/notebookRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { LayoutableEditor } from './simpleCommentEditor.js';
@@ -25,13 +23,12 @@ import { LayoutableEditor } from './simpleCommentEditor.js';
 export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends Disposable {
 	private _commentsElement!: HTMLElement;
 	private _commentElements: CommentNode<T>[] = [];
-	private _resizeObserver: any;
+	private _resizeObserver: MutationObserver | null = null;
 	private _focusedComment: number | undefined = undefined;
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
 
 	private _commentDisposable = new DisposableMap<CommentNode<T>, DisposableStore>();
-	private _markdownRenderer: MarkdownRenderer;
 
 	get length() {
 		return this._commentThread.comments ? this._commentThread.comments.length : 0;
@@ -41,20 +38,17 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return this._commentElements.filter(node => node.isEditing)[0];
 	}
 
-
 	constructor(
 		private readonly _parentEditor: LayoutableEditor,
 		readonly owner: string,
 		readonly parentResourceUri: URI,
 		readonly container: HTMLElement,
-		private _options: IMarkdownRendererOptions,
+		private _markdownRendererOptions: IMarkdownRendererExtraOptions,
 		private _commentThread: languages.CommentThread<T>,
-		private _pendingEdits: { [key: number]: string } | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		private _scopedInstatiationService: IInstantiationService,
 		private _parentCommentThreadWidget: ICommentThreadWidget,
-		@ICommentService private commentService: ICommentService,
-		@IOpenerService private openerService: IOpenerService,
-		@ILanguageService private languageService: ILanguageService,
+		@ICommentService private readonly commentService: ICommentService,
 	) {
 		super();
 
@@ -62,12 +56,21 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			// TODO @rebornix, limit T to IRange | ICellRange
 			this.commentService.setActiveEditingCommentThread(this._commentThread);
 		}));
-
-		this._markdownRenderer = this._register(new MarkdownRenderer(this._options, this.languageService, this.openerService));
 	}
 
-	focus() {
+	focus(commentUniqueId?: number) {
+		if (commentUniqueId !== undefined) {
+			const comment = this._commentElements.find(commentNode => commentNode.comment.uniqueIdInThread === commentUniqueId);
+			if (comment) {
+				comment.focus();
+				return;
+			}
+		}
 		this._commentsElement.focus();
+	}
+
+	hasCommentsInEditMode() {
+		return this._commentElements.some(commentNode => commentNode.isEditing);
 	}
 
 	ensureFocusIntoNewEditingComment() {
@@ -120,8 +123,13 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		});
 	}
 
+	private _containerClientArea: dom.Dimension | undefined = undefined;
 	private _refresh() {
 		const dimensions = dom.getClientArea(this.container);
+		if ((dimensions.height === 0 && dimensions.width === 0) || (dom.Dimension.equals(this._containerClientArea, dimensions))) {
+			return;
+		}
+		this._containerClientArea = dimensions;
 		this._onDidResize.fire(dimensions);
 	}
 
@@ -135,8 +143,8 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		});
 	}
 
-	getPendingEdits(): { [key: number]: string } {
-		const pendingEdits: { [key: number]: string } = {};
+	getPendingEdits(): { [key: number]: languages.PendingComment } {
+		const pendingEdits: { [key: number]: languages.PendingComment } = {};
 		this._commentElements.forEach(element => {
 			if (element.isEditing) {
 				const pendingEdit = element.getPendingEdit();
@@ -194,6 +202,8 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		let lastCommentElement: HTMLElement | null = null;
 		const newCommentNodeList: CommentNode<T>[] = [];
 		const newCommentsInEditMode: CommentNode<T>[] = [];
+		const startEditing: Promise<void>[] = [];
+
 		for (let i = newCommentsLen - 1; i >= 0; i--) {
 			const currentComment = commentThread.comments![i];
 			const oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === currentComment.uniqueIdInThread);
@@ -213,7 +223,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 				}
 
 				if (currentComment.mode === languages.CommentMode.Editing) {
-					await newElement.switchToEditMode();
+					startEditing.push(newElement.switchToEditMode());
 					newCommentsInEditMode.push(newElement);
 				}
 			}
@@ -221,6 +231,8 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
+		// Start editing *after* updating the thread and elements to avoid a sequencing issue https://github.com/microsoft/vscode/issues/239191
+		await Promise.all(startEditing);
 
 		if (newCommentsInEditMode.length) {
 			const lastIndex = this._commentElements.indexOf(newCommentsInEditMode[newCommentsInEditMode.length - 1]);
@@ -271,7 +283,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this.owner,
 			this.parentResourceUri,
 			this._parentCommentThreadWidget,
-			this._markdownRenderer) as unknown as CommentNode<T>;
+			this._markdownRendererOptions) as unknown as CommentNode<T>;
 
 		const disposables: DisposableStore = new DisposableStore();
 		disposables.add(newCommentNode.onDidClick(clickedNode =>

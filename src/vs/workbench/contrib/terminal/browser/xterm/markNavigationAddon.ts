@@ -12,12 +12,9 @@ import { timeout } from '../../../../../base/common/async.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from '../../common/terminalColorRegistry.js';
 import { getWindow } from '../../../../../base/browser/dom.js';
-import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-
-// HACK: Mark navigation currently depends on terminalContrib/stickyScroll
-// eslint-disable-next-line local/code-import-patterns
-import { TerminalStickyScrollSettingId } from '../../../terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration.js';
+import { TerminalContribSettingId } from '../../terminalContribExports.js';
 
 enum Boundary {
 	Top,
@@ -263,7 +260,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	revealCommand(command: ITerminalCommand | ICurrentPartialCommand, position: ScrollPosition = ScrollPosition.Middle): void {
-		const marker = 'getOutput' in command ? command.marker : command.commandStartMarker;
+		const marker = isFullTerminalCommand(command) ? command.marker : command.commandStartMarker;
 		if (!this._terminal || !marker) {
 			return;
 		}
@@ -285,7 +282,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			{
 				bufferRange: range,
 				// Ensure scroll shows the line when sticky scroll is enabled
-				forceScroll: !!this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled)
+				forceScroll: !!this._configurationService.getValue(TerminalContribSettingId.StickyScrollEnabled)
 			}
 		);
 	}

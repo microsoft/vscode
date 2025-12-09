@@ -128,7 +128,7 @@ export class CursorColumns {
 	 * @see {@link CursorColumns}
 	 */
 	public static nextIndentTabStop(visibleColumn: number, indentSize: number): number {
-		return visibleColumn + indentSize - visibleColumn % indentSize;
+		return CursorColumns.nextRenderTabStop(visibleColumn, indentSize);
 	}
 
 	/**
@@ -144,6 +144,6 @@ export class CursorColumns {
 	 * @see {@link CursorColumns}
 	 */
 	public static prevIndentTabStop(column: number, indentSize: number): number {
-		return Math.max(0, column - 1 - (column - 1) % indentSize);
+		return CursorColumns.prevRenderTabStop(column, indentSize);
 	}
 }

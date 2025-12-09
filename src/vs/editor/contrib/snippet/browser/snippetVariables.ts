@@ -41,6 +41,7 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'TM_FILENAME': true,
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
+	'TM_DIRECTORY_BASE': true,
 	'TM_FILEPATH': true,
 	'CURSOR_INDEX': true, // 0-offset
 	'CURSOR_NUMBER': true, // 1-offset
@@ -184,6 +185,12 @@ export class ModelBasedVariableResolver implements VariableResolver {
 				return '';
 			}
 			return this._labelService.getUriLabel(dirname(this._model.uri));
+
+		} else if (name === 'TM_DIRECTORY_BASE') {
+			if (path.dirname(this._model.uri.fsPath) === '.') {
+				return '';
+			}
+			return path.basename(path.dirname(this._model.uri.fsPath));
 
 		} else if (name === 'TM_FILEPATH') {
 			return this._labelService.getUriLabel(this._model.uri);

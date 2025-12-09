@@ -101,7 +101,7 @@ export class MarkdownItEngine implements IMdParser {
 	private _md?: Promise<MarkdownIt>;
 
 	private _slugCount = new Map<string, number>();
-	private _tokenCache = new TokenCache();
+	private readonly _tokenCache = new TokenCache();
 
 	public readonly slugifier: Slugifier;
 
@@ -129,7 +129,7 @@ export class MarkdownItEngine implements IMdParser {
 		if (!this._md) {
 			this._md = (async () => {
 				const markdownIt = await import('markdown-it');
-				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
+				let md: MarkdownIt = markdownIt.default(await getMarkdownOptions(() => md));
 				md.linkify.set({ fuzzyLink: false });
 
 				for (const plugin of this._contributionProvider.contributions.markdownItPlugins.values()) {
@@ -143,7 +143,8 @@ export class MarkdownItEngine implements IMdParser {
 				const frontMatterPlugin = await import('markdown-it-front-matter');
 				// Extract rules from front matter plugin and apply at a lower precedence
 				let fontMatterRule: any;
-				frontMatterPlugin({
+				// eslint-disable-next-line local/code-no-any-casts
+				frontMatterPlugin.default(<any>{
 					block: {
 						ruler: {
 							before: (_id: any, _id2: any, rule: any) => { fontMatterRule = rule; }
@@ -186,7 +187,7 @@ export class MarkdownItEngine implements IMdParser {
 			return cached;
 		}
 
-		this._logger.verbose('MarkdownItEngine', `tokenizeDocument - ${document.uri}`);
+		this._logger.trace('MarkdownItEngine', `tokenizeDocument - ${document.uri}`);
 		const tokens = this._tokenizeString(document.getText(), engine);
 		this._tokenCache.update(document, config, tokens);
 		return tokens;
@@ -433,7 +434,7 @@ async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Opti
 }
 
 function normalizeHighlightLang(lang: string | undefined) {
-	switch (lang && lang.toLowerCase()) {
+	switch (lang?.toLowerCase()) {
 		case 'shell':
 			return 'sh';
 

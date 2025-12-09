@@ -1,0 +1,39 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
+import * as eslint from 'eslint';
+
+export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
+
+	readonly meta: eslint.Rule.RuleMetaData = {
+		messages: {
+			noToken: 'Function lacks a cancellation token, preferable as last argument',
+		},
+		schema: false,
+	};
+
+	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+
+		return {
+			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature[key.name=/^(provide|resolve).+/]']: (node: TSESTree.Node) => {
+
+				let found = false;
+				for (const param of (node as TSESTree.TSMethodSignature).params) {
+					if (param.type === AST_NODE_TYPES.Identifier) {
+						found = found || param.name === 'token';
+					}
+				}
+
+				if (!found) {
+					context.report({
+						node,
+						messageId: 'noToken'
+					});
+				}
+			}
+		};
+	}
+};

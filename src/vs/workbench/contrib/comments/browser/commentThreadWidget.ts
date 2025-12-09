@@ -9,7 +9,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as languages from '../../../../editor/common/languages.js';
-import { IMarkdownRendererOptions } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererExtraOptions } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CommentMenus } from './commentMenus.js';
@@ -20,14 +20,9 @@ import { CommentThreadHeader } from './commentThreadHeader.js';
 import { CommentThreadAdditionalActions } from './commentThreadAdditionalActions.js';
 import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
-import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
-import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { PANEL_BORDER } from '../../../common/theme.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
-import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from './commentColors.js';
 import { ICellRange } from '../../notebook/common/notebookRange.js';
 import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
@@ -36,7 +31,6 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { LayoutableEditor } from './simpleCommentEditor.js';
-import { DomEmitter } from '../../../../base/browser/event.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
@@ -49,7 +43,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _commentMenus: CommentMenus;
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _threadIsEmpty: IContextKey<boolean>;
-	private _styleElement: HTMLStyleElement;
 	private _commentThreadContextValue: IContextKey<string | undefined>;
 	private _focusedContextKey: IContextKey<boolean>;
 	private _onDidResize = new Emitter<dom.Dimension>();
@@ -68,18 +61,17 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _contextKeyService: IContextKeyService,
 		private _scopedInstantiationService: IInstantiationService,
 		private _commentThread: languages.CommentThread<T>,
-		private _pendingComment: string | undefined,
-		private _pendingEdits: { [key: number]: string } | undefined,
-		private _markdownOptions: IMarkdownRendererOptions,
+		private _pendingComment: languages.PendingComment | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
+		private _markdownOptions: IMarkdownRendererExtraOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
 			actionRunner: (() => void) | null;
-			collapse: () => void;
+			collapse: () => Promise<boolean>;
 		},
-		@ICommentService private commentService: ICommentService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@ICommentService private readonly commentService: ICommentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -89,21 +81,19 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
-		this._register(this._header = new CommentThreadHeader<T>(
+		this._register(this._header = this._scopedInstantiationService.createInstance(
+			CommentThreadHeader,
 			container,
 			{
-				collapse: this.collapse.bind(this)
+				collapse: this._containerDelegate.collapse.bind(this)
 			},
 			this._commentMenus,
-			this._commentThread,
-			this._contextKeyService,
-			this._scopedInstantiationService,
-			contextMenuService
+			this._commentThread
 		));
 
 		this._header.updateCommentThread(this._commentThread);
 
-		const bodyElement = <HTMLDivElement>dom.$('.body');
+		const bodyElement = dom.$('.body');
 		container.appendChild(bodyElement);
 		this._register(toDisposable(() => bodyElement.remove()));
 
@@ -143,8 +133,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		) as unknown as CommentThreadBody<T>;
 		this._register(this._body);
 		this._setAriaLabel();
-		this._styleElement = dom.createStyleSheet(this.container);
-
 
 		this._commentThreadContextValue = CommentContextKeys.commentThreadContext.bindTo(this._contextKeyService);
 		this._commentThreadContextValue.set(_commentThread.contextValue);
@@ -157,14 +145,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		this.currentThreadListeners();
-		this._register(new DomEmitter(this.container, 'keydown').event(e => {
-			if (dom.isKeyboardEvent(e) && e.key === 'Escape') {
-				if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
-					this._parentEditor.setSelection(this.commentThread.range);
-				}
-				this.collapse();
-			}
-		}));
+	}
+
+	get hasUnsubmittedComments(): boolean {
+		return !!this._commentReply?.commentEditor.getValue() || this._body.hasCommentsInEditMode();
 	}
 
 	private _setAriaLabel(): void {
@@ -194,13 +178,13 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		let hasMouse = false;
 		let hasFocus = false;
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_ENTER, (e) => {
-			if ((<any>e).toElement === this.container) {
+			if (e.relatedTarget === this.container) {
 				hasMouse = true;
 				this.updateCurrentThread(hasMouse, hasFocus);
 			}
 		}, true));
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_LEAVE, (e) => {
-			if ((<any>e).fromElement === this.container) {
+			if (e.relatedTarget === this.container) {
 				hasMouse = false;
 				this.updateCurrentThread(hasMouse, hasFocus);
 			}
@@ -333,11 +317,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return this._body.getCommentCoords(commentUniqueId);
 	}
 
-	getPendingEdits(): { [key: number]: string } {
+	getPendingEdits(): { [key: number]: languages.PendingComment } {
 		return this._body.getPendingEdits();
 	}
 
-	getPendingComment(): string | undefined {
+	getPendingComment(): languages.PendingComment | undefined {
 		if (this._commentReply) {
 			return this._commentReply.getPendingComment();
 		}
@@ -345,9 +329,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return undefined;
 	}
 
-	setPendingComment(comment: string) {
-		this._pendingComment = comment;
-		this._commentReply?.setPendingComment(comment);
+	setPendingComment(pending: languages.PendingComment) {
+		this._pendingComment = pending;
+		this._commentReply?.setPendingComment(pending);
 	}
 
 	getDimensions() {
@@ -370,94 +354,32 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentReply?.expandReplyAreaAndFocusCommentEditor();
 	}
 
-	focus() {
-		this._body.focus();
+	focus(commentUniqueId: number | undefined) {
+		this._body.focus(commentUniqueId);
 	}
 
 	async submitComment() {
 		const activeComment = this._body.activeComment;
 		if (activeComment) {
 			return activeComment.submitComment();
-		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
+		} else if ((this._commentReply?.getPendingComment()?.body.length ?? 0) > 0) {
 			return this._commentReply?.submitComment();
 		}
 	}
 
-	collapse() {
-		this._containerDelegate.collapse();
+	async collapse() {
+		if ((await this._containerDelegate.collapse()) && Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
+			this._parentEditor.setSelection(this.commentThread.range);
+		}
+
 	}
 
-	applyTheme(theme: IColorTheme, fontInfo: FontInfo) {
-		const content: string[] = [];
-
-		content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid var(${commentThreadStateColorVar}) }`);
-		content.push(`.monaco-editor .review-widget > .head { background-color: var(${commentThreadStateBackgroundColorVar}) }`);
-
-		const linkColor = theme.getColor(textLinkForeground);
-		if (linkColor) {
-			content.push(`.review-widget .body .comment-body a { color: ${linkColor} }`);
-		}
-
-		const linkActiveColor = theme.getColor(textLinkActiveForeground);
-		if (linkActiveColor) {
-			content.push(`.review-widget .body .comment-body a:hover, a:active { color: ${linkActiveColor} }`);
-		}
-
-		const focusColor = theme.getColor(focusBorder);
-		if (focusColor) {
-			content.push(`.review-widget .body .comment-body a:focus { outline: 1px solid ${focusColor}; }`);
-			content.push(`.review-widget .body .monaco-editor.focused { outline: 1px solid ${focusColor}; }`);
-		}
-
-		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
-		if (blockQuoteBackground) {
-			content.push(`.review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
-		}
-
-		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
-		if (blockQuoteBOrder) {
-			content.push(`.review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
-		}
-
-		const border = theme.getColor(PANEL_BORDER);
-		if (border) {
-			content.push(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label { border-color: ${border}; }`);
-		}
-
-		const hcBorder = theme.getColor(contrastBorder);
-		if (hcBorder) {
-			content.push(`.review-widget .body .comment-form .review-thread-reply-button { outline-color: ${hcBorder}; }`);
-			content.push(`.review-widget .body .monaco-editor { outline: 1px solid ${hcBorder}; }`);
-		}
-
-		const errorBorder = theme.getColor(inputValidationErrorBorder);
-		if (errorBorder) {
-			content.push(`.review-widget .validation-error { border: 1px solid ${errorBorder}; }`);
-		}
-
-		const errorBackground = theme.getColor(inputValidationErrorBackground);
-		if (errorBackground) {
-			content.push(`.review-widget .validation-error { background: ${errorBackground}; }`);
-		}
-
-		const errorForeground = theme.getColor(inputValidationErrorForeground);
-		if (errorForeground) {
-			content.push(`.review-widget .body .comment-form .validation-error { color: ${errorForeground}; }`);
-		}
-
+	applyTheme(fontInfo: FontInfo) {
 		const fontFamilyVar = '--comment-thread-editor-font-family';
-		const fontSizeVar = '--comment-thread-editor-font-size';
 		const fontWeightVar = '--comment-thread-editor-font-weight';
 		this.container?.style.setProperty(fontFamilyVar, fontInfo.fontFamily);
-		this.container?.style.setProperty(fontSizeVar, `${fontInfo.fontSize}px`);
 		this.container?.style.setProperty(fontWeightVar, fontInfo.fontWeight);
 
-		content.push(`.review-widget .body code {
-			font-family: var(${fontFamilyVar});
-			font-weight: var(${fontWeightVar});
-		}`);
-
-		this._styleElement.textContent = content.join('\n');
 		this._commentReply?.setCommentEditorDecorations();
 	}
 }

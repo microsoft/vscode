@@ -7,9 +7,10 @@ import { Dimension } from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
+import { derived, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Range } from '../../../common/core/range.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { ICodeEditor } from '../../editorBrowser.js';
@@ -25,9 +26,9 @@ export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
 	private readonly _viewModel = observableValue<MultiDiffEditorViewModel | undefined>(this, undefined);
 
-	private readonly _widgetImpl = derivedWithStore(this, (reader, store) => {
+	private readonly _widgetImpl = derived(this, (reader) => {
 		readHotReloadableExport(DiffEditorItemTemplate, reader);
-		return store.add(this._instantiationService.createInstance((
+		return reader.store.add(this._instantiationService.createInstance((
 			readHotReloadableExport(MultiDiffEditorWidgetImpl, reader)),
 			this._element,
 			this._dimension,
@@ -82,8 +83,28 @@ export class MultiDiffEditorWidget extends Disposable {
 		return this._widgetImpl.get().tryGetCodeEditor(resource);
 	}
 
+	public getRootElement(): HTMLElement {
+		return this._widgetImpl.get().getRootElement();
+	}
+
+	public getContextKeyService(): IContextKeyService {
+		return this._widgetImpl.get().getContextKeyService();
+	}
+
+	public getScopedInstantiationService(): IInstantiationService {
+		return this._widgetImpl.get().getScopedInstantiationService();
+	}
+
 	public findDocumentDiffItem(resource: URI): IDocumentDiffItem | undefined {
 		return this._widgetImpl.get().findDocumentDiffItem(resource);
+	}
+
+	public goToNextChange(): void {
+		this._widgetImpl.get().goToNextChange();
+	}
+
+	public goToPreviousChange(): void {
+		this._widgetImpl.get().goToPreviousChange();
 	}
 }
 

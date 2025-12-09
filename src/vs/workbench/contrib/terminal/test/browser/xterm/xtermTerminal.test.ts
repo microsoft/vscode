@@ -7,7 +7,6 @@ import type { WebglAddon } from '@xterm/addon-webgl';
 import type { IEvent, Terminal } from '@xterm/xterm';
 import { deepStrictEqual, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
-import { isSafari } from '../../../../../../base/browser/browser.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -23,6 +22,7 @@ import { XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
 import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/terminal.js';
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IXtermAddonNameToCtor, XtermAddonImporter } from '../../../browser/xterm/xtermAddonImporter.js';
 
 registerColors();
 
@@ -33,6 +33,8 @@ class TestWebglAddon implements WebglAddon {
 	readonly onAddTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement>;
 	readonly onRemoveTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement, void>;
 	readonly onContextLoss = new Emitter().event as IEvent<void>;
+	constructor(preserveDrawingBuffer?: boolean) {
+	}
 	activate() {
 		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;
 		if (TestWebglAddon.shouldThrow) {
@@ -45,11 +47,12 @@ class TestWebglAddon implements WebglAddon {
 	clearTextureAtlas() { }
 }
 
-class TestXtermTerminal extends XtermTerminal {
-	webglAddonPromise: Promise<typeof WebglAddon> = Promise.resolve(TestWebglAddon);
-	// Force synchronous to avoid async when activating the addon
-	protected override _getWebglAddonConstructor() {
-		return this.webglAddonPromise;
+class TestXtermAddonImporter extends XtermAddonImporter {
+	override async importAddon<T extends keyof IXtermAddonNameToCtor>(name: T): Promise<IXtermAddonNameToCtor[T]> {
+		if (name === 'webgl') {
+			return TestWebglAddon as unknown as IXtermAddonNameToCtor[T];
+		}
+		return super.importAddon(name);
 	}
 }
 
@@ -65,7 +68,7 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 		this._location = to;
 		this._onDidChangeLocation.fire({
 			views: [
-				{ id: TERMINAL_VIEW_ID } as any
+				{ id: TERMINAL_VIEW_ID } as unknown as IViewDescriptor
 			],
 			from: oldLocation,
 			to
@@ -78,7 +81,7 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontWeight: 'normal',
 	fontWeightBold: 'normal',
 	gpuAcceleration: 'off',
-	scrollback: 1000,
+	scrollback: 10,
 	fastScrollSensitivity: 2,
 	mouseWheelScrollSensitivity: 1,
 	unicodeVersion: '6'
@@ -90,8 +93,14 @@ suite('XtermTerminal', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
-	let xterm: TestXtermTerminal;
+	let xterm: XtermTerminal;
 	let XTermBaseCtor: typeof Terminal;
+
+	function write(data: string): Promise<void> {
+		return new Promise<void>((resolve) => {
+			xterm.write(data, resolve);
+		});
+	}
 
 	setup(async () => {
 		configurationService = new TestConfigurationService({
@@ -113,7 +122,14 @@ suite('XtermTerminal', () => {
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		const capabilityStore = store.add(new TerminalCapabilityStore());
-		xterm = store.add(instantiationService.createInstance(TestXtermTerminal, XTermBaseCtor, 80, 30, { getBackgroundColor: () => undefined }, capabilityStore, '', true));
+		xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+			cols: 80,
+			rows: 30,
+			xtermColorProvider: { getBackgroundColor: () => undefined },
+			capabilities: capabilityStore,
+			disableShellIntegrationReporting: true,
+			xtermAddonImporter: new TestXtermAddonImporter(),
+		}, undefined));
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
@@ -124,13 +140,154 @@ suite('XtermTerminal', () => {
 		strictEqual(xterm.raw.rows, 30);
 	});
 
+	suite('getContentsAsText', () => {
+		test('should return all buffer contents when no markers provided', async () => {
+			await write('line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5');
+
+			const result = xterm.getContentsAsText();
+			strictEqual(result.startsWith('line 1\nline 2\nline 3\nline 4\nline 5'), true, 'Should include the content plus empty lines up to buffer length');
+			const lines = result.split('\n');
+			strictEqual(lines.length, xterm.raw.buffer.active.length, 'Should end with empty lines (total buffer size is 30 rows)');
+		});
+
+		test('should return contents from start marker to end', async () => {
+			await write('line 1\r\n');
+			const startMarker = xterm.raw.registerMarker(0)!;
+			await write('line 2\r\nline 3\r\nline 4\r\nline 5');
+
+			const result = xterm.getContentsAsText(startMarker);
+			strictEqual(result.startsWith('line 2\nline 3\nline 4\nline 5'), true, 'Should start with line 2 and include empty lines');
+		});
+
+		test('should return contents from start to end marker', async () => {
+			await write('line 1\r\n');
+			const startMarker = xterm.raw.registerMarker(0)!;
+			await write('line 2\r\nline 3\r\n');
+			const endMarker = xterm.raw.registerMarker(0)!;
+			await write('line 4\r\nline 5');
+
+			const result = xterm.getContentsAsText(startMarker, endMarker);
+			strictEqual(result, 'line 2\nline 3\nline 4');
+		});
+
+		test('should return single line when start and end markers are the same', async () => {
+			await write('line 1\r\nline 2\r\n');
+			const marker = xterm.raw.registerMarker(0)!;
+			await write('line 3\r\nline 4\r\nline 5');
+
+			const result = xterm.getContentsAsText(marker, marker);
+			strictEqual(result, 'line 3');
+		});
+
+		test('should return empty string when start marker is beyond end marker', async () => {
+			await write('line 1\r\n');
+			const endMarker = xterm.raw.registerMarker(0)!;
+			await write('line 2\r\nline 3\r\n');
+			const startMarker = xterm.raw.registerMarker(0)!;
+			await write('line 4\r\nline 5');
+
+			const result = xterm.getContentsAsText(startMarker, endMarker);
+			strictEqual(result, '');
+		});
+
+		test('should handle empty buffer', async () => {
+			const result = xterm.getContentsAsText();
+			const lines = result.split('\n');
+			strictEqual(lines.length, xterm.raw.buffer.active.length, 'Empty terminal should have empty lines equal to buffer length');
+			strictEqual(lines.every(line => line === ''), true, 'All lines should be empty');
+		});
+
+		test('should handle mixed content with spaces and special characters', async () => {
+			await write('hello world\r\n  indented line\r\nline with $pecial chars!@#\r\n\r\nempty line above');
+
+			const result = xterm.getContentsAsText();
+			strictEqual(result.startsWith('hello world\n  indented line\nline with $pecial chars!@#\n\nempty line above'), true, 'Should handle spaces and special characters correctly');
+		});
+
+		test('should throw error when startMarker is disposed (line === -1)', async () => {
+			await write('line 1\r\n');
+			const disposedMarker = xterm.raw.registerMarker(0)!;
+			await write('line 2\r\nline 3\r\nline 4\r\nline 5');
+
+			disposedMarker.dispose();
+
+			try {
+				xterm.getContentsAsText(disposedMarker);
+				throw new Error('Expected error was not thrown');
+			} catch (error: any) {
+				strictEqual(error.message, 'Cannot get contents of a disposed startMarker');
+			}
+		});
+
+		test('should throw error when endMarker is disposed (line === -1)', async () => {
+			await write('line 1\r\n');
+			const startMarker = xterm.raw.registerMarker(0)!;
+			await write('line 2\r\n');
+			const disposedEndMarker = xterm.raw.registerMarker(0)!;
+			await write('line 3\r\nline 4\r\nline 5');
+
+			disposedEndMarker.dispose();
+
+			try {
+				xterm.getContentsAsText(startMarker, disposedEndMarker);
+				throw new Error('Expected error was not thrown');
+			} catch (error: any) {
+				strictEqual(error.message, 'Cannot get contents of a disposed endMarker');
+			}
+		});
+
+		test('should handle markers at buffer boundaries', async () => {
+			const startMarker = xterm.raw.registerMarker(0)!;
+			await write('line 1\r\nline 2\r\nline 3\r\nline 4\r\n');
+			const endMarker = xterm.raw.registerMarker(0)!;
+			await write('line 5');
+
+			const result = xterm.getContentsAsText(startMarker, endMarker);
+			strictEqual(result, 'line 1\nline 2\nline 3\nline 4\nline 5', 'Should handle markers at buffer boundaries correctly');
+		});
+
+		test('should handle terminal escape sequences properly', async () => {
+			await write('\x1b[31mred text\x1b[0m\r\n\x1b[32mgreen text\x1b[0m');
+
+			const result = xterm.getContentsAsText();
+			strictEqual(result.startsWith('red text\ngreen text'), true, 'ANSI escape sequences should be filtered out, but there will be trailing empty lines');
+		});
+	});
+
+	suite('getBufferReverseIterator', () => {
+		test('should get text properly within scrollback limit', async () => {
+			const text = 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5';
+			await write(text);
+
+			const result = [...xterm.getBufferReverseIterator()].reverse().join('\r\n');
+			strictEqual(text, result, 'Should equal original text');
+		});
+		test('should get text properly when exceed scrollback limit', async () => {
+			// max buffer lines(40) = rows(30) + scrollback(10)
+			const text = 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n'.repeat(8).trim();
+			await write(text);
+			await write('\r\nline more');
+
+			const result = [...xterm.getBufferReverseIterator()].reverse().join('\r\n');
+			const expect = text.slice(8) + '\r\nline more';
+			strictEqual(expect, result, 'Should equal original text without line 1');
+		});
+	});
+
 	suite('theme', () => {
 		test('should apply correct background color based on getBackgroundColor', () => {
 			themeService.setTheme(new TestColorTheme({
 				[PANEL_BACKGROUND]: '#ff0000',
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, 80, 30, { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) }, store.add(new TerminalCapabilityStore()), '', true));
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				xtermColorProvider: { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) },
+				capabilities: store.add(new TerminalCapabilityStore()),
+				disableShellIntegrationReporting: true,
+			}, undefined));
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 		});
 		test('should react to and apply theme changes', () => {
@@ -159,7 +316,14 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#150000',
 				'terminal.ansiBrightWhite': '#160000',
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, 80, 30, { getBackgroundColor: () => undefined }, store.add(new TerminalCapabilityStore()), '', true));
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: store.add(new TerminalCapabilityStore()),
+				disableShellIntegrationReporting: true
+			}, undefined));
 			deepStrictEqual(xterm.raw.options.theme, {
 				background: undefined,
 				foreground: '#000200',
@@ -243,42 +407,6 @@ suite('XtermTerminal', () => {
 				brightCyan: '#15000f',
 				brightWhite: '#16000f',
 			});
-		});
-	});
-
-	suite('renderers', () => {
-		// This is skipped until the webgl renderer bug is fixed in Chromium
-		// https://bugs.chromium.org/p/chromium/issues/detail?id=1476475
-		test.skip('should re-evaluate gpu acceleration auto when the setting is changed', async () => {
-			// Check initial state
-			strictEqual(TestWebglAddon.isEnabled, false);
-
-			// Open xterm as otherwise the webgl addon won't activate
-			const container = document.createElement('div');
-			xterm.attachToElement(container);
-
-			// Auto should activate the webgl addon
-			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
-			await xterm.webglAddonPromise; // await addon activate
-			if (isSafari) {
-				strictEqual(TestWebglAddon.isEnabled, false, 'The webgl renderer is always disabled on Safari');
-			} else {
-				strictEqual(TestWebglAddon.isEnabled, true);
-			}
-
-			// Turn off to reset state
-			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'off' } });
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
-			await xterm.webglAddonPromise; // await addon activate
-			strictEqual(TestWebglAddon.isEnabled, false);
-
-			// Set to auto again but throw when activating the webgl addon
-			TestWebglAddon.shouldThrow = true;
-			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
-			await xterm.webglAddonPromise; // await addon activate
-			strictEqual(TestWebglAddon.isEnabled, false);
 		});
 	});
 });

@@ -3,8 +3,10 @@
 **/*.txt
 **/*.json
 **/*.md
+**/*.ts
 **/*.d.ts
 **/*.js.map
+**/*.mjs.map
 **/LICENSE
 **/CONTRIBUTORS
 
@@ -14,7 +16,7 @@
 
 jschardet/index.js
 jschardet/src/**
-# TODO@esm uncomment when we can use jschardet.min.js again jschardet/dist/jschardet.js
+jschardet/dist/jschardet.js
 
 vscode-textmate/webpack.config.js
 
@@ -25,6 +27,12 @@ vscode-textmate/webpack.config.js
 
 @xterm/addon-image/src/**
 @xterm/addon-image/out/**
+
+@xterm/addon-ligatures/src/**
+@xterm/addon-ligatures/out/**
+
+@xterm/addon-progress/src/**
+@xterm/addon-progress/out/**
 
 @xterm/addon-search/src/**
 @xterm/addon-search/out/**

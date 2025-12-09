@@ -12,11 +12,13 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { OS } from '../../../../base/common/platform.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../editor/common/core/position.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { InteractiveWindowSetting } from './interactiveCommon.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
+import { ReplEditorSettings } from './interactiveCommon.js';
 
 
 export class ReplInputHintContentWidget extends Disposable implements IContentWidget {
@@ -25,6 +27,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 	private domNode: HTMLElement | undefined;
 	private ariaLabel: string = '';
+	private label: KeybindingLabel | undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -40,12 +43,12 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 		}));
 		const onDidFocusEditorText = Event.debounce(this.editor.onDidFocusEditorText, () => undefined, 500);
 		this._register(onDidFocusEditorText(() => {
-			if (this.editor.hasTextFocus() && this.ariaLabel && configurationService.getValue(AccessibilityVerbositySettingId.ReplInputHint)) {
+			if (this.editor.hasTextFocus() && this.ariaLabel && configurationService.getValue(AccessibilityVerbositySettingId.ReplEditor)) {
 				status(this.ariaLabel);
 			}
 		}));
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(InteractiveWindowSetting.executeWithShiftEnter)) {
+			if (e.affectsConfiguration(ReplEditorSettings.executeWithShiftEnter)) {
 				this.setHint();
 			}
 		}));
@@ -76,6 +79,8 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			}));
 
 			this.editor.applyFontInfo(this.domNode);
+			const lineHeight = this.editor.getLineHeightForPosition(new Position(1, 1));
+			this.domNode.style.lineHeight = lineHeight + 'px';
 		}
 
 		return this.domNode;
@@ -107,21 +112,29 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 			hintElement.appendChild(before);
 
-			const label = new KeybindingLabel(hintElement, OS);
-			label.set(keybinding);
-			label.element.style.width = 'min-content';
-			label.element.style.display = 'inline';
+			if (this.label) {
+				this.label.dispose();
+			}
+			this.label = this._register(new KeybindingLabel(hintElement, OS));
+			this.label.set(keybinding);
+			this.label.element.style.width = 'min-content';
+			this.label.element.style.display = 'inline';
 
 			hintElement.appendChild(after);
 			this.domNode.append(hintElement);
 
-			this.ariaLabel = actionPart.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.ReplInputHint));
+			const helpKeybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+			const helpInfo = helpKeybinding
+				? localize('ReplInputAriaLabelHelp', "Use {0} for accessibility help. ", helpKeybinding)
+				: localize('ReplInputAriaLabelHelpNoKb', "Run the Open Accessibility Help command for more information. ");
+
+			this.ariaLabel = actionPart.concat(helpInfo, localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.ReplEditor));
 		}
 	}
 
 	private getKeybinding() {
 		const keybindings = this.keybindingService.lookupKeybindings('interactive.execute');
-		const shiftEnterConfig = this.configurationService.getValue(InteractiveWindowSetting.executeWithShiftEnter);
+		const shiftEnterConfig = this.configurationService.getValue(ReplEditorSettings.executeWithShiftEnter);
 		const hasEnterChord = (kb: ResolvedKeybinding, modifier: string = '') => {
 			const chords = kb.getDispatchChords();
 			const chord = modifier + 'Enter';
@@ -152,5 +165,6 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 	override dispose(): void {
 		super.dispose();
 		this.editor.removeContentWidget(this);
+		this.label?.dispose();
 	}
 }

@@ -149,7 +149,7 @@ export class DefineKeybindingWidget extends Widget {
 	private _onHide = this._register(new Emitter<void>());
 
 	private _onDidChange = this._register(new Emitter<string>());
-	onDidChange: Event<string> = this._onDidChange.event;
+	readonly onDidChange: Event<string> = this._onDidChange.event;
 
 	private _onShowExistingKeybindings = this._register(new Emitter<string | null>());
 	readonly onShowExistingKeybidings: Event<string | null> = this._onShowExistingKeybindings.event;
@@ -173,7 +173,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._domNode.domNode.style.color = asCssVariable(editorWidgetForeground);
 		this._domNode.domNode.style.boxShadow = `0 2px 8px ${asCssVariable(widgetShadow)}`;
 
-		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message, history: [], inputBoxStyles: defaultInputBoxStyles }));
+		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message, history: new Set([]), inputBoxStyles: defaultInputBoxStyles }));
 		this._keybindingInputWidget.startRecordingKeys();
 		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));

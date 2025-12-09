@@ -28,8 +28,8 @@ type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder };
 
 export class OutlineElement2 {
 	constructor(
-		readonly element: IOutline<any> | any,
-		readonly outline: IOutline<any>
+		readonly element: IOutline<unknown> | unknown,
+		readonly outline: IOutline<unknown>
 	) { }
 }
 
@@ -41,7 +41,7 @@ export class BreadcrumbsModel {
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 
-	private readonly _currentOutline = new MutableDisposable<IOutline<any>>();
+	private readonly _currentOutline = new MutableDisposable<IOutline<unknown>>();
 	private readonly _outlineDisposables = new DisposableStore();
 
 	private readonly _onDidUpdate = new Emitter<this>();
@@ -49,7 +49,7 @@ export class BreadcrumbsModel {
 
 	constructor(
 		readonly resource: URI,
-		editor: IEditorPane | undefined,
+		readonly editor: IEditorPane | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IOutlineService private readonly _outlineService: IOutlineService,

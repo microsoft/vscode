@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { matchesFuzzy } from '../../../../base/common/filters.js';
+import { FuzzyScore, matchesFuzzy } from '../../../../base/common/filters.js';
 import { splitGlobAware } from '../../../../base/common/glob.js';
 import { ITreeFilter, TreeVisibility, TreeFilterResult } from '../../../../base/browser/ui/tree/tree.js';
 import { IReplElement } from '../common/debug.js';
@@ -16,7 +16,7 @@ type ParsedQuery = {
 	query: string;
 };
 
-export class ReplFilter implements ITreeFilter<IReplElement> {
+export class ReplFilter implements ITreeFilter<IReplElement, FuzzyScore> {
 
 	static matchQuery = matchesFuzzy;
 
@@ -39,7 +39,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 		}
 	}
 
-	filter(element: IReplElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
+	filter(element: IReplElement, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
 		if (element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult || element instanceof Variable) {
 			// Only filter the output events, everything else is visible https://github.com/microsoft/vscode/issues/105863
 			return TreeVisibility.Visible;

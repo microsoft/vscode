@@ -6,7 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { isESM } from '../../../../base/common/amd.js';
 import { Barrier } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { canceled, onUnexpectedError } from '../../../../base/common/errors.js';
@@ -27,6 +26,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { WebWorkerDescriptor } from '../../../../platform/webWorker/browser/webWorkerDescriptor.js';
+import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ExtensionHostExitCode, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from '../common/extensionHostProtocol.js';
@@ -70,6 +71,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@IProductService private readonly _productService: IProductService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IWebWorkerService private readonly _webWorkerService: IWebWorkerService,
 	) {
 		super();
 		this._isTerminating = false;
@@ -87,7 +89,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 		const suffix = `?${suffixSearchParams.toString()}`;
 
-		const iframeModulePath: AppResourcePath = `vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.${isESM ? 'esm.' : ''}html`;
+		const iframeModulePath: AppResourcePath = `vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html`;
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
 			const commit = this._productService.commit;
@@ -117,8 +119,13 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			console.warn(`The web worker extension host is started in a same-origin iframe!`);
 		}
 
-		const relativeExtensionHostIframeSrc = FileAccess.asBrowserUri(iframeModulePath);
-		return `${relativeExtensionHostIframeSrc.toString(true)}${suffix}`;
+		const relativeExtensionHostIframeSrc = this._webWorkerService.getWorkerUrl(new WebWorkerDescriptor({
+			esmModuleLocation: FileAccess.asBrowserUri(iframeModulePath),
+			esmModuleLocationBundler: new URL(`../worker/webWorkerExtensionHostIframe.html`, import.meta.url),
+			label: 'webWorkerExtensionHostIframe'
+		}));
+
+		return `${relativeExtensionHostIframeSrc}${suffix}`;
 	}
 
 	public async start(): Promise<IMessagePassingProtocol> {
@@ -136,7 +143,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const iframe = document.createElement('iframe');
 		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
 		iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-		iframe.setAttribute('allow', 'usb; serial; hid; cross-origin-isolated;');
+		iframe.setAttribute('allow', 'usb; serial; hid; cross-origin-isolated; local-network-access;');
 		iframe.setAttribute('aria-hidden', 'true');
 		iframe.style.display = 'none';
 
@@ -147,7 +154,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		let port!: MessagePort;
 		let barrierError: Error | null = null;
 		let barrierHasError = false;
-		let startTimeout: any = null;
+		let startTimeout: Timeout | undefined = undefined;
 
 		const rejectBarrier = (exitCode: number, error: Error) => {
 			barrierError = error;
@@ -184,13 +191,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
 			}
 			if (event.data.type === 'vscode.bootstrap.nls') {
-				const factoryModuleId = 'vs/base/worker/workerMain.js';
-				const baseUrl = isESM ? undefined : require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length);
 				iframe.contentWindow!.postMessage({
 					type: event.data.type,
 					data: {
-						baseUrl,
-						workerUrl: isESM ? FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorker.esm.js').toString(true) : require.toUrl(factoryModuleId),
+						workerUrl: this._webWorkerService.getWorkerUrl(extensionHostWorkerMainDescriptor),
 						fileRoot: globalThis._VSCODE_FILE_ROOT,
 						nls: {
 							messages: getNLSMessages(),
@@ -298,6 +302,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			commit: this._productService.commit,
 			version: this._productService.version,
 			quality: this._productService.quality,
+			date: this._productService.date,
 			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
@@ -305,7 +310,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appHost: this._productService.embedderIdentifier ?? (platform.isWeb ? 'web' : 'desktop'),
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
-				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
@@ -329,14 +333,14 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
 				sqmId: this._telemetryService.sqmId,
-				devDeviceId: this._telemetryService.devDeviceId,
+				devDeviceId: this._telemetryService.devDeviceId ?? this._telemetryService.machineId,
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._extensionHostLogsLocation,
-			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
+			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart || this.startup === ExtensionHostStartup.LazyAutoStart),
 			remote: {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,
@@ -346,3 +350,9 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		};
 	}
 }
+
+const extensionHostWorkerMainDescriptor = new WebWorkerDescriptor({
+	label: 'extensionHostWorkerMain',
+	esmModuleLocation: () => FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorkerMain.js'),
+	esmModuleLocationBundler: () => new URL('../../../api/worker/extensionHostWorkerMain.ts?workerModule', import.meta.url),
+});

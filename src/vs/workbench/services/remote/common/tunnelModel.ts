@@ -29,7 +29,8 @@ const TUNNELS_TO_RESTORE = 'remote.tunnels.toRestore';
 const TUNNELS_TO_RESTORE_EXPIRATION = 'remote.tunnels.toRestoreExpiration';
 const RESTORE_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 14; // 2 weeks
 export const ACTIVATION_EVENT = 'onTunnel';
-export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
+export const forwardedPortsFeaturesEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
+export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewOnlyEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 
 export interface RestorableTunnel {
 	remoteHost: string;
@@ -251,12 +252,12 @@ export class PortsAttributes extends Disposable {
 	}
 
 	private hasStartEnd(value: number | PortRange | RegExp | HostAndPort): value is PortRange {
-		return ((<any>value).start !== undefined) && ((<any>value).end !== undefined);
+		return (value as Partial<PortRange>).start !== undefined && (value as Partial<PortRange>).end !== undefined;
 	}
 
 	private hasHostAndPort(value: number | PortRange | RegExp | HostAndPort): value is HostAndPort {
-		return ((<any>value).host !== undefined) && ((<any>value).port !== undefined)
-			&& isString((<any>value).host) && isNumber((<any>value).port);
+		return ((value as Partial<HostAndPort>).host !== undefined) && ((value as Partial<HostAndPort>).port !== undefined)
+			&& isString((value as Partial<HostAndPort>).host) && isNumber((value as Partial<HostAndPort>).port);
 	}
 
 	private findNextIndex(port: number, host: string, commandLine: string | undefined, attributes: PortAttributes[], fromIndex: number): number {
@@ -291,7 +292,7 @@ export class PortsAttributes extends Disposable {
 			if (attributesKey === undefined) {
 				continue;
 			}
-			const setting = (<any>settingValue)[attributesKey];
+			const setting = (settingValue as Record<string, PortAttributes>)[attributesKey];
 			let key: number | PortRange | RegExp | HostAndPort | undefined = undefined;
 			if (Number(attributesKey)) {
 				key = Number(attributesKey);
@@ -327,7 +328,7 @@ export class PortsAttributes extends Disposable {
 			});
 		}
 
-		const defaults = <any>this.configurationService.getValue(PortsAttributes.DEFAULTS);
+		const defaults = this.configurationService.getValue(PortsAttributes.DEFAULTS) as Partial<Attributes> | undefined;
 		if (defaults) {
 			this.defaultPortAttributes = {
 				elevateIfNeeded: defaults.elevateIfNeeded,
@@ -389,7 +390,7 @@ export class PortsAttributes extends Disposable {
 			newRemoteValue[`${port}`] = {};
 		}
 		for (const attribute in attributes) {
-			newRemoteValue[`${port}`][attribute] = (<any>attributes)[attribute];
+			newRemoteValue[`${port}`][attribute] = (attributes as Record<string, unknown>)[attribute];
 		}
 
 		return this.configurationService.updateValue(PortsAttributes.SETTING, newRemoteValue, target);
@@ -497,13 +498,14 @@ export class TunnelModel extends Disposable {
 				});
 			}
 			await this.storeForwarded();
-			this.checkExtensionActivationEvents();
+			this.checkExtensionActivationEvents(true);
 			this.remoteTunnels.set(key, tunnel);
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
 		this._register(this.tunnelService.onTunnelClosed(address => {
 			return this.onTunnelClosed(address, TunnelCloseReason.Other);
 		}));
+		this.checkExtensionActivationEvents(false);
 	}
 
 	private extensionHasActivationEvent() {
@@ -514,7 +516,19 @@ export class TunnelModel extends Disposable {
 		return false;
 	}
 
-	private checkExtensionActivationEvents() {
+	private hasCheckedExtensionsOnTunnelOpened = false;
+	private checkExtensionActivationEvents(tunnelOpened: boolean) {
+		if (this.hasCheckedExtensionsOnTunnelOpened) {
+			return;
+		}
+		if (tunnelOpened) {
+			this.hasCheckedExtensionsOnTunnelOpened = true;
+		}
+		const hasRemote = this.environmentService.remoteAuthority !== undefined;
+		if (hasRemote && !tunnelOpened) {
+			// We don't activate extensions on startup if there is a remote
+			return;
+		}
 		if (this.extensionHasActivationEvent()) {
 			return;
 		}
@@ -528,8 +542,7 @@ export class TunnelModel extends Disposable {
 
 	private async onTunnelClosed(address: { host: string; port: number }, reason: TunnelCloseReason) {
 		const key = makeAddress(address.host, address.port);
-		if (this.forwarded.has(key)) {
-			this.forwarded.delete(key);
+		if (this.forwarded.delete(key)) {
 			await this.storeForwarded();
 			this._onClosePort.fire(address);
 		}
@@ -893,9 +906,7 @@ export class TunnelModel extends Disposable {
 				detail: value.detail,
 				pid: value.pid
 			});
-			if (removedCandidates.has(addressKey)) {
-				removedCandidates.delete(addressKey);
-			}
+			removedCandidates.delete(addressKey);
 			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, value.host, value.port);
 			if (forwardedValue) {
 				forwardedValue.runningProcess = value.detail;

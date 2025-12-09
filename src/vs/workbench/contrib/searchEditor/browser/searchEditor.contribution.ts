@@ -28,7 +28,7 @@ import * as SearchConstants from '../../search/common/constants.js';
 import * as SearchEditorConstants from './constants.js';
 import { SearchEditor } from './searchEditor.js';
 import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from './searchEditorActions.js';
-import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from './searchEditorInput.js';
+import { getOrMakeSearchEditorInput, SearchEditorInput, SEARCH_EDITOR_EXT } from './searchEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { VIEW_ID } from '../../../services/search/common/search.js';
 import { RegisteredEditorPriority, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
@@ -104,7 +104,7 @@ registerWorkbenchContribution2(SearchEditorContribution.ID, SearchEditorContribu
 //#endregion
 
 //#region Input Serializer
-type SerializedSearchEditor = { modelUri: string | undefined; dirty: boolean; config?: SearchConfiguration; name: string; matchRanges: Range[]; backingUri?: string };
+type SerializedSearchEditor = { modelUri: string | undefined; dirty: boolean; config?: SearchEditorConstants.SearchConfiguration; name: string; matchRanges: Range[]; backingUri?: string };
 
 class SearchEditorInputSerializer implements IEditorSerializer {
 
@@ -202,12 +202,13 @@ const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearch
 		useIgnores: 'useExcludeSettingsAndIgnoreFiles',
 	};
 	Object.entries(legacyConfig).forEach(([key, value]) => {
+		// eslint-disable-next-line local/code-no-any-casts
 		(config as any)[(overrides as any)[key] ?? key] = value;
 	});
 	return config;
 };
 
-export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean; focusResults: boolean; location: 'reuse' | 'new' }>;
+export type OpenSearchEditorArgs = Partial<SearchEditorConstants.SearchConfiguration & { triggerSearch: boolean; focusResults: boolean; location: 'reuse' | 'new' }>;
 const openArgMetadata = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{
@@ -338,11 +339,11 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib
 			},
 			icon: searchRefreshIcon,
-			menu: [{
-				id: MenuId.EditorTitle,
+			menu: [...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
 				group: 'navigation',
 				when: ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
-			},
+			})),
 			{
 				id: MenuId.CommandPalette,
 				when: ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
@@ -564,7 +565,7 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		return openSearchEditor(accessor);
 	}
 });

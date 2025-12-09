@@ -12,10 +12,9 @@ import { randomPath } from '../../../common/extpath.js';
 import { FileAccess } from '../../../common/network.js';
 import { basename, dirname, join, sep } from '../../../common/path.js';
 import { isWindows } from '../../../common/platform.js';
-import { configureFlushOnWrite, Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from '../../../node/pfs.js';
+import { configureFlushOnWrite, Promises, realcase, realpathSync, RimRafMode, SymlinkSupport, writeFileSync } from '../../../node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils.js';
 import { flakySuite, getRandomTestPath } from '../testUtils.js';
-import { isESM } from '../../../common/amd.js';
 
 configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
@@ -147,35 +146,7 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(testDir));
 	});
 
-	test('rimrafSync - swallows file not found error', function () {
-		const nonExistingDir = join(testDir, 'not-existing');
-		rimrafSync(nonExistingDir);
-
-		assert.ok(!fs.existsSync(nonExistingDir));
-	});
-
-	test('rimrafSync - simple', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
-
-		rimrafSync(testDir);
-
-		assert.ok(!fs.existsSync(testDir));
-	});
-
-	test('rimrafSync - recursive folder structure', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
-
-		fs.mkdirSync(join(testDir, 'somefolder'));
-		fs.writeFileSync(join(testDir, 'somefolder', 'somefile.txt'), 'Contents');
-
-		rimrafSync(testDir);
-
-		assert.ok(!fs.existsSync(testDir));
-	});
-
-	(!isESM ? test.skip : test /* somehow fails in AMD with ENOENT for fixtures dir */)('copy, rename and delete', async () => {
+	test('copy, rename and delete', async () => {
 		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
 		const targetDir = randomPath(parentDir);
@@ -210,7 +181,7 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(parentDir));
 	});
 
-	(!isESM ? test.skip : test /* somehow fails in AMD with ENOENT for fixtures dir */)('rename without retry', async () => {
+	test('rename without retry', async () => {
 		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
 		const targetDir = randomPath(parentDir);
@@ -382,36 +353,32 @@ flakySuite('PFS', function () {
 	});
 
 	test('readdir', async () => {
-		if (typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
-			const parent = randomPath(join(testDir, 'pfs'));
-			const newDir = join(parent, 'öäü');
+		const parent = randomPath(join(testDir, 'pfs'));
+		const newDir = join(parent, 'öäü');
 
-			await fs.promises.mkdir(newDir, { recursive: true });
+		await fs.promises.mkdir(newDir, { recursive: true });
 
-			assert.ok(fs.existsSync(newDir));
+		assert.ok(fs.existsSync(newDir));
 
-			const children = await Promises.readdir(parent);
-			assert.strictEqual(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
-		}
+		const children = await Promises.readdir(parent);
+		assert.strictEqual(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
 	});
 
 	test('readdir (with file types)', async () => {
-		if (typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
-			const newDir = join(testDir, 'öäü');
-			await fs.promises.mkdir(newDir, { recursive: true });
+		const newDir = join(testDir, 'öäü');
+		await fs.promises.mkdir(newDir, { recursive: true });
 
-			await Promises.writeFile(join(testDir, 'somefile.txt'), 'contents');
+		await Promises.writeFile(join(testDir, 'somefile.txt'), 'contents');
 
-			assert.ok(fs.existsSync(newDir));
+		assert.ok(fs.existsSync(newDir));
 
-			const children = await Promises.readdir(testDir, { withFileTypes: true });
+		const children = await Promises.readdir(testDir, { withFileTypes: true });
 
-			assert.strictEqual(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
-			assert.strictEqual(children.some(n => n.isDirectory()), true);
+		assert.strictEqual(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
+		assert.strictEqual(children.some(n => n.isDirectory()), true);
 
-			assert.strictEqual(children.some(n => n.name === 'somefile.txt'), true);
-			assert.strictEqual(children.some(n => n.isFile()), true);
-		}
+		assert.strictEqual(children.some(n => n.name === 'somefile.txt'), true);
+		assert.strictEqual(children.some(n => n.isFile()), true);
 	});
 
 	test('writeFile (string)', async () => {
@@ -489,6 +456,40 @@ flakySuite('PFS', function () {
 
 		writeFileSync(testFile, largeString);
 		assert.strictEqual(fs.readFileSync(testFile).toString(), largeString);
+	});
+
+	test('realcase', async () => {
+
+		// assume case insensitive file system
+		if (process.platform === 'win32' || process.platform === 'darwin') {
+			const upper = testDir.toUpperCase();
+			const real = await realcase(upper);
+
+			if (real) { // can be null in case of permission errors
+				assert.notStrictEqual(real, upper);
+				assert.strictEqual(real.toUpperCase(), upper);
+				assert.strictEqual(real, testDir);
+			}
+		}
+
+		// linux, unix, etc. -> assume case sensitive file system
+		else {
+			let real = await realcase(testDir);
+			assert.strictEqual(real, testDir);
+
+			real = await realcase(testDir.toUpperCase());
+			assert.strictEqual(real, testDir.toUpperCase());
+		}
+	});
+
+	test('realpath', async () => {
+		const realpathVal = await Promises.realpath(testDir);
+		assert.ok(realpathVal);
+	});
+
+	test('realpathSync', () => {
+		const realpath = realpathSync(testDir);
+		assert.ok(realpath);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

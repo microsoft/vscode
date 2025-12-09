@@ -5,11 +5,17 @@
 
 import { localize } from '../../../../nls.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { buttonForeground, editorInfoForeground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
-import { asCssVariable, ColorIdentifier, registerColor, transparent } from '../../../../platform/theme/common/colorUtils.js';
-import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel } from '../common/history.js';
+import { badgeBackground, chartsBlue, chartsPurple, foreground } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, ColorIdentifier, registerColor } from '../../../../platform/theme/common/colorUtils.js';
+import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
-import { svgElem } from '../../../../base/browser/dom.js';
+import { $, svgElem } from '../../../../base/browser/dom.js';
+import { PANEL_BACKGROUND } from '../../../common/theme.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IMarkdownString, isEmptyMarkdownString, isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { findLastIdx } from '../../../../base/common/arraysFind.js';
 
 export const SWIMLANE_HEIGHT = 22;
 export const SWIMLANE_WIDTH = 11;
@@ -20,18 +26,18 @@ const CIRCLE_STROKE_WIDTH = 2;
 /**
  * History item reference colors (local, remote, base)
  */
-export const historyItemRefColor = registerColor('scmGraph.historyItemRefColor', editorInfoForeground, localize('scmGraphHistoryItemRefColor', "History item reference color."));
-export const historyItemRemoteRefColor = registerColor('scmGraph.historyItemRemoteRefColor', '#B66DFF', localize('scmGraphHistoryItemRemoteRefColor', "History item remote reference color."));
+export const historyItemRefColor = registerColor('scmGraph.historyItemRefColor', chartsBlue, localize('scmGraphHistoryItemRefColor', "History item reference color."));
+export const historyItemRemoteRefColor = registerColor('scmGraph.historyItemRemoteRefColor', chartsPurple, localize('scmGraphHistoryItemRemoteRefColor', "History item remote reference color."));
 export const historyItemBaseRefColor = registerColor('scmGraph.historyItemBaseRefColor', '#EA5C00', localize('scmGraphHistoryItemBaseRefColor', "History item base reference color."));
 
 /**
  * History item hover color
  */
 export const historyItemHoverDefaultLabelForeground = registerColor('scmGraph.historyItemHoverDefaultLabelForeground', foreground, localize('scmGraphHistoryItemHoverDefaultLabelForeground', "History item hover default label foreground color."));
-export const historyItemHoverDefaultLabelBackground = registerColor('scmGraph.historyItemHoverDefaultLabelBackground', transparent(foreground, 0.2), localize('scmGraphHistoryItemHoverDefaultLabelBackground', "History item hover default label background color."));
-export const historyItemHoverLabelForeground = registerColor('scmGraph.historyItemHoverLabelForeground', buttonForeground, localize('scmGraphHistoryItemHoverLabelForeground', "History item hover label foreground color."));
-export const historyItemHoverAdditionsForeground = registerColor('scmGraph.historyItemHoverAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scmGraph.HistoryItemHoverAdditionsForeground', "History item hover additions foreground color."));
-export const historyItemHoverDeletionsForeground = registerColor('scmGraph.historyItemHoverDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scmGraph.HistoryItemHoverDeletionsForeground', "History item hover deletions foreground color."));
+export const historyItemHoverDefaultLabelBackground = registerColor('scmGraph.historyItemHoverDefaultLabelBackground', badgeBackground, localize('scmGraphHistoryItemHoverDefaultLabelBackground', "History item hover default label background color."));
+export const historyItemHoverLabelForeground = registerColor('scmGraph.historyItemHoverLabelForeground', PANEL_BACKGROUND, localize('scmGraphHistoryItemHoverLabelForeground', "History item hover label foreground color."));
+export const historyItemHoverAdditionsForeground = registerColor('scmGraph.historyItemHoverAdditionsForeground', { light: '#587C0C', dark: '#81B88B', hcDark: '#A1E3AD', hcLight: '#374E06' }, localize('scmGraph.HistoryItemHoverAdditionsForeground', "History item hover additions foreground color."));
+export const historyItemHoverDeletionsForeground = registerColor('scmGraph.historyItemHoverDeletionsForeground', { light: '#AD0707', dark: '#C74E39', hcDark: '#C74E39', hcLight: '#AD0707' }, localize('scmGraph.HistoryItemHoverDeletionsForeground', "History item hover deletions foreground color."));
 
 /**
  * History graph color registry
@@ -41,23 +47,30 @@ export const colorRegistry: ColorIdentifier[] = [
 	registerColor('scmGraph.foreground2', '#DC267F', localize('scmGraphForeground2', "Source control graph foreground color (2).")),
 	registerColor('scmGraph.foreground3', '#994F00', localize('scmGraphForeground3', "Source control graph foreground color (3).")),
 	registerColor('scmGraph.foreground4', '#40B0A6', localize('scmGraphForeground4', "Source control graph foreground color (4).")),
+	registerColor('scmGraph.foreground5', '#B66DFF', localize('scmGraphForeground5', "Source control graph foreground color (5).")),
 ];
 
 function getLabelColorIdentifier(historyItem: ISCMHistoryItem, colorMap: Map<string, ColorIdentifier | undefined>): ColorIdentifier | undefined {
-	for (const ref of historyItem.references ?? []) {
-		const colorIdentifier = colorMap.get(ref.id);
-		if (colorIdentifier !== undefined) {
-			return colorIdentifier;
+	if (historyItem.id === SCMIncomingHistoryItemId) {
+		return historyItemRemoteRefColor;
+	} else if (historyItem.id === SCMOutgoingHistoryItemId) {
+		return historyItemRefColor;
+	} else {
+		for (const ref of historyItem.references ?? []) {
+			const colorIdentifier = colorMap.get(ref.id);
+			if (colorIdentifier !== undefined) {
+				return colorIdentifier;
+			}
 		}
 	}
 
 	return undefined;
 }
 
-function createPath(colorIdentifier: string): SVGPathElement {
+function createPath(colorIdentifier: string, strokeWidth = 1): SVGPathElement {
 	const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 	path.setAttribute('fill', 'none');
-	path.setAttribute('stroke-width', '1px');
+	path.setAttribute('stroke-width', `${strokeWidth}px`);
 	path.setAttribute('stroke-linecap', 'round');
 	path.style.stroke = asCssVariable(colorIdentifier);
 
@@ -78,8 +91,21 @@ function drawCircle(index: number, radius: number, strokeWidth: number, colorIde
 	return circle;
 }
 
-function drawVerticalLine(x1: number, y1: number, y2: number, color: string): SVGPathElement {
-	const path = createPath(color);
+function drawDashedCircle(index: number, radius: number, strokeWidth: number, colorIdentifier: string): SVGCircleElement {
+	const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+	circle.setAttribute('cx', `${SWIMLANE_WIDTH * (index + 1)}`);
+	circle.setAttribute('cy', `${SWIMLANE_WIDTH}`);
+	circle.setAttribute('r', `${CIRCLE_RADIUS + 1}`);
+
+	circle.style.stroke = asCssVariable(colorIdentifier);
+	circle.style.strokeWidth = `${strokeWidth}px`;
+	circle.style.strokeDasharray = '4,2';
+
+	return circle;
+}
+
+function drawVerticalLine(x1: number, y1: number, y2: number, color: string, strokeWidth = 1): SVGPathElement {
+	const path = createPath(color, strokeWidth);
 	path.setAttribute('d', `M ${x1} ${y1} V ${y2}`);
 
 	return path;
@@ -209,13 +235,23 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	}
 
 	// Draw *
-	if (historyItemViewModel.isCurrent) {
+	if (historyItemViewModel.kind === 'HEAD') {
 		// HEAD
 		const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
 		svg.append(outerCircle);
 
 		const innerCircle = drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS);
 		svg.append(innerCircle);
+	} else if (historyItemViewModel.kind === 'incoming-changes' || historyItemViewModel.kind === 'outgoing-changes') {
+		// Incoming/Outgoing changes
+		const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
+		svg.append(outerCircle);
+
+		const innerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 1, CIRCLE_STROKE_WIDTH + 1);
+		svg.append(innerCircle);
+
+		const dashedCircle = drawDashedCircle(circleIndex, CIRCLE_RADIUS + 1, CIRCLE_STROKE_WIDTH - 1, circleColor);
+		svg.append(dashedCircle);
 	} else {
 		if (historyItem.parentIds.length > 1) {
 			// Multi-parent node
@@ -238,14 +274,15 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	return svg;
 }
 
-export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNode[]): HTMLElement {
+export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNode[], highlightIndex?: number): HTMLElement {
 	const elements = svgElem('svg', {
 		style: { height: `${SWIMLANE_HEIGHT}px`, width: `${SWIMLANE_WIDTH * (columns.length + 1)}px`, }
 	});
 
 	// Draw |
 	for (let index = 0; index < columns.length; index++) {
-		const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, columns[index].color);
+		const strokeWidth = index === highlightIndex ? 3 : 1;
+		const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, columns[index].color, strokeWidth);
 		elements.root.append(path);
 	}
 
@@ -255,7 +292,12 @@ export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNo
 export function toISCMHistoryItemViewModelArray(
 	historyItems: ISCMHistoryItem[],
 	colorMap = new Map<string, ColorIdentifier | undefined>(),
-	currentHistoryItemRef?: ISCMHistoryItemRef
+	currentHistoryItemRef?: ISCMHistoryItemRef,
+	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
+	currentHistoryItemBaseRef?: ISCMHistoryItemRef,
+	addIncomingChanges?: boolean,
+	addOutgoingChanges?: boolean,
+	mergeBase?: string
 ): ISCMHistoryItemViewModel[] {
 	let colorIndex = -1;
 	const viewModels: ISCMHistoryItemViewModel[] = [];
@@ -263,7 +305,7 @@ export function toISCMHistoryItemViewModelArray(
 	for (let index = 0; index < historyItems.length; index++) {
 		const historyItem = historyItems[index];
 
-		const isCurrent = historyItem.id === currentHistoryItemRef?.revision;
+		const kind = historyItem.id === currentHistoryItemRef?.revision ? 'HEAD' : 'node';
 		const outputSwimlanesFromPreviousItem = viewModels.at(-1)?.outputSwimlanes ?? [];
 		const inputSwimlanes = outputSwimlanesFromPreviousItem.map(i => deepClone(i));
 		const outputSwimlanes: ISCMHistoryItemGraphNode[] = [];
@@ -294,7 +336,7 @@ export function toISCMHistoryItemViewModelArray(
 			// Color index (label -> next color)
 			let colorIdentifier: string | undefined;
 
-			if (!firstParentAdded) {
+			if (i === 0) {
 				colorIdentifier = getLabelColorIdentifier(historyItem, colorMap);
 			} else {
 				const historyItemParent = historyItems
@@ -332,16 +374,234 @@ export function toISCMHistoryItemViewModelArray(
 				return { ...ref, color };
 			});
 
+		// Sort references
+		references.sort((ref1, ref2) =>
+			compareHistoryItemRefs(ref1, ref2, currentHistoryItemRef, currentHistoryItemRemoteRef, currentHistoryItemBaseRef));
+
 		viewModels.push({
 			historyItem: {
 				...historyItem,
 				references
 			},
-			isCurrent,
+			kind,
 			inputSwimlanes,
-			outputSwimlanes,
-		});
+			outputSwimlanes
+		} satisfies ISCMHistoryItemViewModel);
 	}
 
+	// Add incoming/outgoing changes history item view models. While working
+	// with the view models is a little bit more complex, we are doing this
+	// after creating the view models so that we can use the swimlane colors
+	// to add the incoming/outgoing changes history items view models to the
+	// correct swimlanes.
+	addIncomingOutgoingChangesHistoryItems(
+		viewModels,
+		currentHistoryItemRef,
+		currentHistoryItemRemoteRef,
+		addIncomingChanges,
+		addOutgoingChanges,
+		mergeBase
+	);
+
 	return viewModels;
+}
+
+export function getHistoryItemIndex(historyItemViewModel: ISCMHistoryItemViewModel): number {
+	const historyItem = historyItemViewModel.historyItem;
+	const inputSwimlanes = historyItemViewModel.inputSwimlanes;
+
+	// Find the history item in the input swimlanes
+	const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id);
+
+	// Circle index - use the input swimlane index if present, otherwise add it to the end
+	return inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
+}
+
+function addIncomingOutgoingChangesHistoryItems(
+	viewModels: ISCMHistoryItemViewModel[],
+	currentHistoryItemRef?: ISCMHistoryItemRef,
+	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
+	addIncomingChanges?: boolean,
+	addOutgoingChanges?: boolean,
+	mergeBase?: string
+): void {
+	if (currentHistoryItemRef?.revision !== currentHistoryItemRemoteRef?.revision && mergeBase) {
+		// Incoming changes node
+		if (addIncomingChanges && currentHistoryItemRemoteRef && currentHistoryItemRemoteRef.revision !== mergeBase) {
+			// Find the before/after indices using the merge base (might not be present if the merge base history item is not loaded yet)
+			const beforeHistoryItemIndex = findLastIdx(viewModels, vm => vm.outputSwimlanes.some(node => node.id === mergeBase));
+			const afterHistoryItemIndex = viewModels.findIndex(vm => vm.historyItem.id === mergeBase);
+
+			if (beforeHistoryItemIndex !== -1 && afterHistoryItemIndex !== -1) {
+				// There is a known edge case in which the incoming changes have already
+				// been merged. For this scenario, we will not be showing the incoming
+				// changes history item. https://github.com/microsoft/vscode/issues/276064
+				const incomingChangeMerged = viewModels[beforeHistoryItemIndex].historyItem.parentIds.length === 2 &&
+					viewModels[beforeHistoryItemIndex].historyItem.parentIds.includes(mergeBase);
+
+				if (!incomingChangeMerged) {
+					// Update the before node so that the incoming and outgoing swimlanes
+					// point to the `incoming-changes` node instead of the merge base
+					viewModels[beforeHistoryItemIndex] = {
+						...viewModels[beforeHistoryItemIndex],
+						inputSwimlanes: viewModels[beforeHistoryItemIndex].inputSwimlanes
+							.map(node => {
+								return node.id === mergeBase && node.color === historyItemRemoteRefColor
+									? { ...node, id: SCMIncomingHistoryItemId }
+									: node;
+							}),
+						outputSwimlanes: viewModels[beforeHistoryItemIndex].outputSwimlanes
+							.map(node => {
+								return node.id === mergeBase && node.color === historyItemRemoteRefColor
+									? { ...node, id: SCMIncomingHistoryItemId }
+									: node;
+							})
+					};
+
+					// Create incoming changes node
+					const inputSwimlanes = viewModels[beforeHistoryItemIndex].outputSwimlanes.map(i => deepClone(i));
+					const outputSwimlanes = viewModels[afterHistoryItemIndex].inputSwimlanes.map(i => deepClone(i));
+					const displayIdLength = viewModels[0].historyItem.displayId?.length ?? 0;
+
+					const incomingChangesHistoryItem = {
+						id: SCMIncomingHistoryItemId,
+						displayId: '0'.repeat(displayIdLength),
+						parentIds: [mergeBase],
+						author: currentHistoryItemRemoteRef?.name,
+						subject: localize('incomingChanges', 'Incoming Changes'),
+						message: ''
+					} satisfies ISCMHistoryItem;
+
+					// Insert incoming changes node
+					viewModels.splice(afterHistoryItemIndex, 0, {
+						historyItem: incomingChangesHistoryItem,
+						kind: 'incoming-changes',
+						inputSwimlanes,
+						outputSwimlanes
+					});
+				}
+			}
+		}
+
+		// Outgoing changes node
+		if (addOutgoingChanges && currentHistoryItemRef?.revision && currentHistoryItemRef.revision !== mergeBase) {
+			// Find the index of the current history item view model (might not be present if the current history item is not loaded yet)
+			const currentHistoryItemRefIndex = viewModels.findIndex(vm => vm.kind === 'HEAD' && vm.historyItem.id === currentHistoryItemRef.revision);
+
+			if (currentHistoryItemRefIndex !== -1) {
+				// Create outgoing changes node
+				const outgoingChangesHistoryItem = {
+					id: SCMOutgoingHistoryItemId,
+					displayId: viewModels[0].historyItem.displayId
+						? '0'.repeat(viewModels[0].historyItem.displayId.length)
+						: undefined,
+					parentIds: [currentHistoryItemRef.revision],
+					author: currentHistoryItemRef?.name,
+					subject: localize('outgoingChanges', 'Outgoing Changes'),
+					message: ''
+				} satisfies ISCMHistoryItem;
+
+				// Copy the input swimlanes from the current history item ref
+				const inputSwimlanes = viewModels[currentHistoryItemRefIndex].inputSwimlanes.slice(0);
+
+				// Copy the input swimlanes and add the current history item ref
+				const outputSwimlanes = inputSwimlanes.slice(0).concat({
+					id: currentHistoryItemRef.revision,
+					color: historyItemRefColor
+				} satisfies ISCMHistoryItemGraphNode);
+
+				// Insert outgoing changes node
+				viewModels.splice(currentHistoryItemRefIndex, 0, {
+					historyItem: outgoingChangesHistoryItem,
+					kind: 'outgoing-changes',
+					inputSwimlanes,
+					outputSwimlanes
+				});
+
+				// Update the input swimlane for the current history item
+				// ref so that it connects with the outgoing changes node
+				viewModels[currentHistoryItemRefIndex + 1].inputSwimlanes.push({
+					id: currentHistoryItemRef.revision,
+					color: historyItemRefColor
+				} satisfies ISCMHistoryItemGraphNode);
+			}
+		}
+	}
+}
+
+export function compareHistoryItemRefs(
+	ref1: ISCMHistoryItemRef,
+	ref2: ISCMHistoryItemRef,
+	currentHistoryItemRef?: ISCMHistoryItemRef,
+	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
+	currentHistoryItemBaseRef?: ISCMHistoryItemRef
+): number {
+	const getHistoryItemRefOrder = (ref: ISCMHistoryItemRef) => {
+		if (ref.id === currentHistoryItemRef?.id) {
+			return 1;
+		} else if (ref.id === currentHistoryItemRemoteRef?.id) {
+			return 2;
+		} else if (ref.id === currentHistoryItemBaseRef?.id) {
+			return 3;
+		} else if (ref.color !== undefined) {
+			return 4;
+		}
+
+		return 99;
+	};
+
+	// Assign order (current > remote > base > color)
+	const ref1Order = getHistoryItemRefOrder(ref1);
+	const ref2Order = getHistoryItemRefOrder(ref2);
+
+	return ref1Order - ref2Order;
+}
+
+export function toHistoryItemHoverContent(markdownRendererService: IMarkdownRendererService, historyItem: ISCMHistoryItem, includeReferences: boolean): { content: string | IMarkdownString | HTMLElement; disposables: IDisposable } {
+	const disposables = new DisposableStore();
+
+	if (historyItem.tooltip === undefined) {
+		return { content: historyItem.message, disposables };
+	}
+
+	if (isMarkdownString(historyItem.tooltip)) {
+		return { content: historyItem.tooltip, disposables };
+	}
+
+	// References as "injected" into the hover here since the extension does
+	// not know that color used in the graph to render the history item at which
+	// the reference is pointing to. They are being added before the last element
+	// of the array which is assumed to contain the hover commands.
+	const tooltipSections = historyItem.tooltip.slice();
+
+	if (includeReferences && historyItem.references?.length) {
+		const markdownString = new MarkdownString('', { supportHtml: true, supportThemeIcons: true });
+
+		for (const reference of historyItem.references) {
+			const labelIconId = ThemeIcon.isThemeIcon(reference.icon) ? reference.icon.id : '';
+
+			const labelBackgroundColor = reference.color ? asCssVariable(reference.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
+			const labelForegroundColor = reference.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(historyItemHoverDefaultLabelForeground);
+			markdownString.appendMarkdown(`<span style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;`);
+			markdownString.appendText(reference.name);
+			markdownString.appendMarkdown('&nbsp;&nbsp;</span>');
+		}
+
+		markdownString.appendMarkdown(`\n\n---\n\n`);
+		tooltipSections.splice(tooltipSections.length - 1, 0, markdownString);
+	}
+
+	// Render tooltip content
+	const hoverContainer = $('.history-item-hover-container');
+	for (const markdownString of tooltipSections) {
+		if (isEmptyMarkdownString(markdownString)) {
+			continue;
+		}
+
+		const renderedContent = markdownRendererService.render(markdownString);
+		hoverContainer.appendChild(renderedContent.element);
+		disposables.add(renderedContent);
+	}
+
+	return { content: hoverContainer, disposables };
 }

@@ -51,8 +51,8 @@ suite('Debug - ANSI Handling', () => {
 
 		assert.strictEqual(0, root.children.length);
 
-		appendStylizedStringToContainer(root, 'content1', ['class1', 'class2'], linkDetector, session.root);
-		appendStylizedStringToContainer(root, 'content2', ['class2', 'class3'], linkDetector, session.root);
+		appendStylizedStringToContainer(root, 'content1', ['class1', 'class2'], linkDetector, session.root, undefined, undefined, undefined, undefined, 0);
+		appendStylizedStringToContainer(root, 'content2', ['class2', 'class3'], linkDetector, session.root, undefined, undefined, undefined, undefined, 0);
 
 		assert.strictEqual(2, root.children.length);
 
@@ -82,7 +82,7 @@ suite('Debug - ANSI Handling', () => {
 	 * @returns An {@link HTMLSpanElement} that contains the stylized text.
 	 */
 	function getSequenceOutput(sequence: string): HTMLSpanElement {
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root, []);
 		assert.strictEqual(1, root.children.length);
 		const child: Node = root.lastChild!;
 		if (isHTMLSpanElement(child)) {
@@ -395,7 +395,7 @@ suite('Debug - ANSI Handling', () => {
 		if (elementsExpected === undefined) {
 			elementsExpected = assertions.length;
 		}
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root, []);
 		assert.strictEqual(elementsExpected, root.children.length);
 		for (let i = 0; i < elementsExpected; i++) {
 			const child: Node = root.children[i];

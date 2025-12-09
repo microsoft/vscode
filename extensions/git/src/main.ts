@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel, languages } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -22,20 +22,22 @@ import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager, TerminalShellExecutionManager } from './terminal';
 import { createIPCServer, IPCServer } from './ipc/ipcServer';
-import { GitEditor } from './gitEditor';
+import { GitEditor, GitEditorDocumentLinkProvider } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
+import { GitBlameController } from './blame';
+import { CloneManager } from './cloneManager';
 
-const deactivateTasks: { (): Promise<any> }[] = [];
+const deactivateTasks: { (): Promise<void> }[] = [];
 
-export async function deactivate(): Promise<any> {
+export async function deactivate(): Promise<void> {
 	for (const task of deactivateTasks) {
 		await task();
 	}
 }
 
-async function createModel(context: ExtensionContext, logger: LogOutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
+async function createModel(context: ExtensionContext, logger: LogOutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<{ model: Model; cloneManager: CloneManager }> {
 	const pathValue = workspace.getConfiguration('git').get<string | string[]>('path');
 	let pathHints = Array.isArray(pathValue) ? pathValue : pathValue ? [pathValue] : [];
 
@@ -69,7 +71,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		logger.error(`[main] Failed to create git IPC: ${err}`);
 	}
 
-	const askpass = new Askpass(ipcServer);
+	const askpass = new Askpass(ipcServer, logger);
 	disposables.push(askpass);
 
 	const gitEditor = new GitEditor(ipcServer);
@@ -83,12 +85,13 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 
 	const git = new Git({
 		gitPath: info.path,
-		userAgent: `git/${info.version} (${(os as any).version?.() ?? os.type()} ${os.release()}; ${os.platform()} ${os.arch()}) vscode/${vscodeVersion} (${env.appName})`,
+		userAgent: `git/${info.version} (${os.version() ?? os.type()} ${os.release()}; ${os.platform()} ${os.arch()}) vscode/${vscodeVersion} (${env.appName})`,
 		version: info.version,
 		env: environment,
 	});
 	const model = new Model(git, askpass, context.globalState, context.workspaceState, logger, telemetryReporter);
 	disposables.push(model);
+	const cloneManager = new CloneManager(model, telemetryReporter, model.repositoryCache);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
 	model.onDidOpenRepository(onRepository, null, disposables);
@@ -107,17 +110,18 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
-	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter);
+	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter, cloneManager);
 	disposables.push(
 		cc,
-		new GitFileSystemProvider(model),
+		new GitFileSystemProvider(model, logger),
 		new GitDecorations(model),
+		new GitBlameController(model),
 		new GitTimelineProvider(model, cc),
 		new GitEditSessionIdentityProvider(model),
 		new TerminalShellExecutionManager(model, logger)
 	);
 
-	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
+	const postCommitCommandsProvider = new GitPostCommitCommandsProvider(model);
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
 
 	const diagnosticsManager = new GitCommitInputBoxDiagnosticsManager(model);
@@ -126,10 +130,13 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const codeActionsProvider = new GitCommitInputBoxCodeActionsProvider(diagnosticsManager);
 	disposables.push(codeActionsProvider);
 
+	const gitEditorDocumentLinkProvider = languages.registerDocumentLinkProvider('git-commit', new GitEditorDocumentLinkProvider(model));
+	disposables.push(gitEditorDocumentLinkProvider);
+
 	checkGitVersion(info);
 	commands.executeCommand('setContext', 'gitVersion2.35', git.compareGitVersionTo('2.35') >= 0);
 
-	return model;
+	return { model, cloneManager };
 }
 
 async function isGitRepository(folder: WorkspaceFolder): Promise<boolean> {
@@ -205,13 +212,18 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
 		const result = new GitExtensionImpl();
 
-		eventToPromise(onEnabled).then(async () => result.model = await createModel(context, logger, telemetryReporter, disposables));
+		eventToPromise(onEnabled).then(async () => {
+			const { model, cloneManager } = await createModel(context, logger, telemetryReporter, disposables);
+			result.model = model;
+			result.cloneManager = cloneManager;
+		});
 		return result;
 	}
 
 	try {
-		const model = await createModel(context, logger, telemetryReporter, disposables);
-		return new GitExtensionImpl(model);
+		const { model, cloneManager } = await createModel(context, logger, telemetryReporter, disposables);
+
+		return new GitExtensionImpl({ model, cloneManager });
 	} catch (err) {
 		console.warn(err.message);
 		logger.warn(`[main] Failed to create model: ${err}`);

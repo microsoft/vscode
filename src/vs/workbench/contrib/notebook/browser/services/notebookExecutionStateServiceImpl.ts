@@ -27,6 +27,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	private readonly _notebookListeners = new ResourceMap<NotebookExecutionListeners>();
 	private readonly _cellListeners = new ResourceMap<IDisposable>();
 	private readonly _lastFailedCells = new ResourceMap<IFailedCellInfo>();
+	private readonly _lastCompletedCellHandles = new ResourceMap<number>();
 
 	private readonly _onDidChangeExecution = this._register(new Emitter<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>());
 	onDidChangeExecution = this._onDidChangeExecution.event;
@@ -46,6 +47,10 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
 		const failedCell = this._lastFailedCells.get(notebook);
 		return failedCell?.visible ? failedCell.cellHandle : undefined;
+	}
+
+	getLastCompletedCellForNotebook(notebook: URI): number | undefined {
+		return this._lastCompletedCellHandles.get(notebook);
 	}
 
 	forceCancelNotebookExecutions(notebookUri: URI): void {
@@ -119,6 +124,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 				this._accessibilitySignalService.playSignal(AccessibilitySignal.notebookCellFailed);
 				this._setLastFailedCell(notebookUri, cellHandle);
 			}
+			this._lastCompletedCellHandles.set(notebookUri, cellHandle);
 		}
 
 		this._onDidChangeExecution.fire(new NotebookCellExecutionEvent(notebookUri, cellHandle));

@@ -14,7 +14,7 @@ import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { IListContextMenuEvent, IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { Orientation } from '../../../../base/browser/ui/splitview/splitview.js';
-import { Action, IAction } from '../../../../base/common/actions.js';
+import { Action } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -28,7 +28,7 @@ import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -42,7 +42,6 @@ import { WorkbenchList } from '../../../../platform/list/browser/listService.js'
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
@@ -80,6 +79,11 @@ interface InputBoxData {
 	type: 'condition' | 'hitCount' | 'name';
 }
 
+function getModeKindForBreakpoint(breakpoint: IBreakpoint) {
+	const kind = breakpoint instanceof Breakpoint ? 'source' : breakpoint instanceof InstructionBreakpoint ? 'instruction' : 'exception';
+	return kind;
+}
+
 export class BreakpointsView extends ViewPane {
 
 	private list!: WorkbenchList<BreakpointItem>;
@@ -111,13 +115,12 @@ export class BreakpointsView extends ViewPane {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IMenuService menuService: IMenuService,
 		@IHoverService hoverService: IHoverService,
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.menu = menuService.createMenu(MenuId.DebugBreakpointsContext, contextKeyService);
 		this._register(this.menu);
@@ -160,7 +163,7 @@ export class BreakpointsView extends ViewPane {
 
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
-		this.list.onMouseMiddleClick(async ({ element }) => {
+		this._register(this.list.onMouseMiddleClick(async ({ element }) => {
 			if (element instanceof Breakpoint) {
 				await this.debugService.removeBreakpoints(element.getId());
 			} else if (element instanceof FunctionBreakpoint) {
@@ -170,7 +173,7 @@ export class BreakpointsView extends ViewPane {
 			} else if (element instanceof InstructionBreakpoint) {
 				await this.debugService.removeInstructionBreakpoints(element.instructionReference, element.offset);
 			}
-		});
+		}));
 
 		this._register(this.list.onDidOpen(async e => {
 			if (!e.element) {
@@ -209,7 +212,7 @@ export class BreakpointsView extends ViewPane {
 			}
 		}));
 
-		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
 			this.updateSize();
 		}));
@@ -221,8 +224,8 @@ export class BreakpointsView extends ViewPane {
 		const iconLabelContainer = dom.append(container, $('span.breakpoint-warning'));
 		this.hintContainer = this._register(new IconLabel(iconLabelContainer, {
 			supportIcons: true, hoverDelegate: {
-				showHover: (options, focus?) => this.hoverService.showHover({ content: options.content, target: this.hintContainer!.element }, focus),
-				delay: <number>this.configurationService.getValue('workbench.hover.delay')
+				showHover: (options, focus?) => this.hoverService.showInstantHover({ content: options.content, target: this.hintContainer!.element }, focus),
+				delay: this.configurationService.getValue<number>('workbench.hover.delay')
 			}
 		}));
 		dom.hide(this.hintContainer.element);
@@ -268,9 +271,9 @@ export class BreakpointsView extends ViewPane {
 		const conditionSupported = element instanceof ExceptionBreakpoint ? element.supportsCondition : (!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointSupportsCondition.set(conditionSupported);
 		this.breakpointIsDataBytes.set(element instanceof DataBreakpoint && element.src.type === DataBreakpointSetType.Address);
+		this.breakpointHasMultipleModes.set(this.debugService.getModel().getBreakpointModes(getModeKindForBreakpoint(element as IBreakpoint)).length > 1);
 
-		const secondary: IAction[] = [];
-		createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
+		const { secondary } = getContextMenuActions(this.menu.getActions({ arg: e.element, shouldForwardArgs: false }), 'inline');
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -280,7 +283,7 @@ export class BreakpointsView extends ViewPane {
 	}
 
 	private updateSize(): void {
-		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 
 		// Adjust expanded body size
 		const sessionId = this.debugService.getViewModel().focusedSession?.getId();
@@ -487,7 +490,7 @@ interface IDataBreakpointInputTemplateData {
 interface IExceptionBreakpointInputTemplateData {
 	inputBox: InputBox;
 	checkbox: HTMLInputElement;
-	breakpoint: IExceptionBreakpoint;
+	currentBreakpoint?: IExceptionBreakpoint;
 	templateDisposables: DisposableStore;
 	elementDisposables: DisposableStore;
 }
@@ -567,20 +570,17 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 			data.breakpoint.classList.add('disabled');
 		}
 
-		const primary: IAction[] = [];
 		const session = this.debugService.getViewModel().focusedSession;
 		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointItemType.set('breakpoint');
 		this.breakpointHasMultipleModes.set(this.debugService.getModel().getBreakpointModes('source').length > 1);
-		createAndFillInActionBarActions(this.menu, { arg: breakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
+		const { primary } = getActionBarActions(this.menu.getActions({ arg: breakpoint, shouldForwardArgs: true }), 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(breakpoint.getId(), data.actionBar.domNode);
 	}
 
-
-
-	disposeElement(a: any, index: number, template: IBreakpointTemplateData): void {
+	disposeElement(a: IBreakpoint, index: number, template: IBreakpointTemplateData): void {
 		template.elementDisposables.clear();
 	}
 
@@ -651,17 +651,16 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 			data.badge.style.display = 'none';
 		}
 
-		const primary: IAction[] = [];
 		this.breakpointSupportsCondition.set((exceptionBreakpoint as ExceptionBreakpoint).supportsCondition);
 		this.breakpointItemType.set('exceptionBreakpoint');
 		this.breakpointHasMultipleModes.set(this.debugService.getModel().getBreakpointModes('exception').length > 1);
-		createAndFillInActionBarActions(this.menu, { arg: exceptionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
+		const { primary } = getActionBarActions(this.menu.getActions({ arg: exceptionBreakpoint, shouldForwardArgs: true }), 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(exceptionBreakpoint.getId(), data.actionBar.domNode);
 	}
 
-	disposeElement(element: IExceptionBreakpoint, index: number, templateData: IExceptionBreakpointTemplateData, height: number | undefined): void {
+	disposeElement(element: IExceptionBreakpoint, index: number, templateData: IExceptionBreakpointTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -744,16 +743,15 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 			data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.breakpoint, localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type")));
 		}
 
-		const primary: IAction[] = [];
 		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointItemType.set('functionBreakpoint');
-		createAndFillInActionBarActions(this.menu, { arg: functionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
+		const { primary } = getActionBarActions(this.menu.getActions({ arg: functionBreakpoint, shouldForwardArgs: true }), 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(functionBreakpoint.getId(), data.actionBar.domNode);
 	}
 
-	disposeElement(element: FunctionBreakpoint, index: number, templateData: IFunctionBreakpointTemplateData, height: number | undefined): void {
+	disposeElement(element: FunctionBreakpoint, index: number, templateData: IFunctionBreakpointTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -845,19 +843,18 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 			data.condition.textContent = dataBreakpoint.condition || dataBreakpoint.hitCondition || '';
 		}
 
-		const primary: IAction[] = [];
 		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointHasMultipleModes.set(this.debugService.getModel().getBreakpointModes('data').length > 1);
 		this.breakpointItemType.set('dataBreakpoint');
 		this.breakpointIsDataBytes.set(dataBreakpoint.src.type === DataBreakpointSetType.Address);
-		createAndFillInActionBarActions(this.menu, { arg: dataBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
+		const { primary } = getActionBarActions(this.menu.getActions({ arg: dataBreakpoint, shouldForwardArgs: true }), 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(dataBreakpoint.getId(), data.actionBar.domNode);
 		this.breakpointIsDataBytes.reset();
 	}
 
-	disposeElement(element: DataBreakpoint, index: number, templateData: IDataBreakpointTemplateData, height: number | undefined): void {
+	disposeElement(element: DataBreakpoint, index: number, templateData: IDataBreakpointTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -914,7 +911,7 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		data.breakpoint.classList.toggle('disabled', !this.debugService.getModel().areBreakpointsActivated());
 
 		data.name.textContent = '0x' + breakpoint.address.toString(16);
-		data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.name, `Decimal address: breakpoint.address.toString()`));
+		data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.name, localize('debug.decimal.address', "Decimal Address: {0}", breakpoint.address.toString())));
 		data.checkbox.checked = breakpoint.enabled;
 
 		const { message, icon } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), breakpoint, this.labelService, this.debugService.getModel());
@@ -935,7 +932,7 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 	}
 
 
-	disposeElement(element: IInstructionBreakpoint, index: number, templateData: IInstructionBreakpointTemplateData, height: number | undefined): void {
+	disposeElement(element: IInstructionBreakpoint, index: number, templateData: IInstructionBreakpointTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -1059,7 +1056,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		}, 0);
 	}
 
-	disposeElement(element: IFunctionBreakpoint, index: number, templateData: IFunctionBreakpointInputTemplateData, height: number | undefined): void {
+	disposeElement(element: IFunctionBreakpoint, index: number, templateData: IFunctionBreakpointInputTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -1174,7 +1171,7 @@ class DataBreakpointInputRenderer implements IListRenderer<IDataBreakpoint, IDat
 		}, 0);
 	}
 
-	disposeElement(element: IDataBreakpoint, index: number, templateData: IDataBreakpointInputTemplateData, height: number | undefined): void {
+	disposeElement(element: IDataBreakpoint, index: number, templateData: IDataBreakpointInputTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -1200,14 +1197,13 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 	}
 
 	renderTemplate(container: HTMLElement): IExceptionBreakpointInputTemplateData {
-		const template: IExceptionBreakpointInputTemplateData = Object.create(null);
 		const toDispose = new DisposableStore();
 
 		const breakpoint = dom.append(container, $('.breakpoint'));
 		breakpoint.classList.add('exception');
-		template.checkbox = createCheckbox(toDispose);
+		const checkbox = createCheckbox(toDispose);
 
-		dom.append(breakpoint, template.checkbox);
+		dom.append(breakpoint, checkbox);
 		this.view.breakpointInputFocused.set(true);
 		const inputBoxContainer = dom.append(breakpoint, $('.inputBoxContainer'));
 		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
@@ -1216,14 +1212,18 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 		});
 
 
-		template.templateDisposables.add(inputBox);
+		toDispose.add(inputBox);
 		const wrapUp = (success: boolean) => {
+			if (!templateData.currentBreakpoint) {
+				return;
+			}
+
 			this.view.breakpointInputFocused.set(false);
-			let newCondition = template.breakpoint.condition;
+			let newCondition = templateData.currentBreakpoint.condition;
 			if (success) {
 				newCondition = inputBox.value !== '' ? inputBox.value : undefined;
 			}
-			this.debugService.setExceptionBreakpointCondition(template.breakpoint, newCondition);
+			this.debugService.setExceptionBreakpointCondition(templateData.currentBreakpoint, newCondition);
 		};
 
 		toDispose.add(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
@@ -1242,17 +1242,23 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 			});
 		}));
 
-		template.inputBox = inputBox;
-		template.elementDisposables = new DisposableStore();
-		template.templateDisposables = toDispose;
-		template.templateDisposables.add(template.elementDisposables);
-		return template;
+		const elementDisposables = new DisposableStore();
+		toDispose.add(elementDisposables);
+
+		const templateData: IExceptionBreakpointInputTemplateData = {
+			inputBox,
+			checkbox,
+			templateDisposables: toDispose,
+			elementDisposables: new DisposableStore(),
+		};
+
+		return templateData;
 	}
 
 	renderElement(exceptionBreakpoint: ExceptionBreakpoint, _index: number, data: IExceptionBreakpointInputTemplateData): void {
 		const placeHolder = exceptionBreakpoint.conditionDescription || localize('exceptionBreakpointPlaceholder', "Break when expression evaluates to true");
 		data.inputBox.setPlaceHolder(placeHolder);
-		data.breakpoint = exceptionBreakpoint;
+		data.currentBreakpoint = exceptionBreakpoint;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 		data.checkbox.disabled = true;
 		data.inputBox.value = exceptionBreakpoint.condition || '';
@@ -1262,7 +1268,7 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 		}, 0);
 	}
 
-	disposeElement(element: IExceptionBreakpoint, index: number, templateData: IExceptionBreakpointInputTemplateData, height: number | undefined): void {
+	disposeElement(element: IExceptionBreakpoint, index: number, templateData: IExceptionBreakpointInputTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -1609,7 +1615,10 @@ abstract class MemoryBreakpointAction extends Action2 {
 		const end = BigInt(endStr);
 		const address = `0x${start.toString(16)}`;
 		if (sign === '-') {
-			return { address, bytes: Number(start - end) };
+			if (start > end) {
+				return { error: localize('dataBreakpointAddrOrder', 'End ({1}) should be greater than Start ({0})', startStr, endStr) };
+			}
+			return { address, bytes: Number(end - start) };
 		}
 
 		return { address, bytes: Number(end) };
@@ -1944,8 +1953,8 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 	}
 
 	async runInView(accessor: ServicesAccessor, view: BreakpointsView, breakpoint: IBreakpoint) {
-		const kind = breakpoint instanceof Breakpoint ? 'source' : breakpoint instanceof InstructionBreakpoint ? 'instruction' : 'exception';
 		const debugService = accessor.get(IDebugService);
+		const kind = getModeKindForBreakpoint(breakpoint);
 		const modes = debugService.getModel().getBreakpointModes(kind);
 		const picked = await accessor.get(IQuickInputService).pick(
 			modes.map(mode => ({ label: mode.label, description: mode.description, mode: mode.mode })),

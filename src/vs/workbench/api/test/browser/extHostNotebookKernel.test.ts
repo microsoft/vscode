@@ -136,7 +136,8 @@ suite('NotebookKernel', function () {
 				documentUri: notebookUri,
 				id: '_notebook_editor_0',
 				selections: [{ start: 0, end: 1 }],
-				visibleRanges: []
+				visibleRanges: [],
+				viewType: 'test',
 			}]
 		}));
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: '_notebook_editor_0' }));
@@ -160,7 +161,9 @@ suite('NotebookKernel', function () {
 
 		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (<any>kernel).id = 'dd');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (<any>kernel).notebookType = 'dd');
 
 		assert.ok(kernel);

@@ -64,8 +64,7 @@ impl SleepInhibitor {
 				return Err(wrap(
 					e2,
 					format!(
-						"error requesting sleep inhibition, pminhibitor gave {}, screensaver gave",
-						e1
+						"error requesting sleep inhibition, pminhibitor gave {e1}, screensaver gave"
 					),
 				)
 				.into());

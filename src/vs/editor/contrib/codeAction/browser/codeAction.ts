@@ -6,8 +6,16 @@
 import { coalesce, equals, isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { illegalArgument, isCancellationError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgress, Progress } from '../../../../platform/progress/common/progress.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
 import { Range } from '../../../common/core/range.js';
@@ -17,17 +25,9 @@ import * as languages from '../../../common/languages.js';
 import { ITextModel } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { IModelService } from '../../../common/services/model.js';
+import { EditSources } from '../../../common/textModelEditSource.js';
 import { TextModelCancellationTokenSource } from '../../editorState/browser/editorState.js';
-import * as nls from '../../../../nls.js';
-import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IProgress, Progress } from '../../../../platform/progress/common/progress.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types.js';
-import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-
-
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const quickFixCommandId = 'editor.action.quickFix';
@@ -37,6 +37,7 @@ export const refactorPreviewCommandId = 'editor.action.refactor.preview';
 export const sourceActionCommandId = 'editor.action.sourceAction';
 export const organizeImportsCommandId = 'editor.action.organizeImports';
 export const fixAllCommandId = 'editor.action.fixAll';
+const CODE_ACTION_SOUND_APPLIED_DURATION = 1000;
 
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
@@ -122,15 +123,16 @@ export async function getCodeActions(
 
 	const disposables = new DisposableStore();
 	const promises = providers.map(async provider => {
+		const handle = setTimeout(() => progress.report(provider), 1250);
 		try {
-			progress.report(provider);
 			const providedCodeActions = await provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token);
-			if (providedCodeActions) {
-				disposables.add(providedCodeActions);
+			if (cts.token.isCancellationRequested) {
+				providedCodeActions?.dispose();
+				return emptyCodeActionsResponse;
 			}
 
-			if (cts.token.isCancellationRequested) {
-				return emptyCodeActionsResponse;
+			if (providedCodeActions) {
+				disposables.add(providedCodeActions);
 			}
 
 			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action));
@@ -145,6 +147,8 @@ export async function getCodeActions(
 			}
 			onUnexpectedExternalError(err);
 			return emptyCodeActionsResponse;
+		} finally {
+			clearTimeout(handle);
 		}
 	});
 
@@ -162,7 +166,12 @@ export async function getCodeActions(
 			...coalesce(actions.map(x => x.documentation)),
 			...getAdditionalDocumentationForShowingActions(registry, model, trigger, allActions)
 		];
-		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
+		const managedCodeActionSet = new ManagedCodeActionSet(allActions, allDocumentation, disposables);
+		disposables.add(managedCodeActionSet);
+		return managedCodeActionSet;
+	} catch (err) {
+		disposables.dispose();
+		throw err;
 	} finally {
 		listener.dispose();
 		cts.dispose();
@@ -249,7 +258,8 @@ export enum ApplyCodeActionReason {
 	OnSave = 'onSave',
 	FromProblemsView = 'fromProblemsView',
 	FromCodeActions = 'fromCodeActions',
-	FromAILightbulb = 'fromAILightbulb' // direct invocation when clicking on the AI lightbulb
+	FromAILightbulb = 'fromAILightbulb', // direct invocation when clicking on the AI lightbulb
+	FromProblemsHover = 'fromProblemsHover'
 }
 
 export async function applyCodeAction(
@@ -263,6 +273,7 @@ export async function applyCodeAction(
 	const commandService = accessor.get(ICommandService);
 	const telemetryService = accessor.get(ITelemetryService);
 	const notificationService = accessor.get(INotificationService);
+	const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 
 	type ApplyCodeActionEvent = {
 		codeActionTitle: string;
@@ -285,7 +296,7 @@ export async function applyCodeAction(
 		codeActionIsPreferred: !!item.action.isPreferred,
 		reason: codeActionReason,
 	});
-
+	accessibilitySignalService.playSignal(AccessibilitySignal.codeActionTriggered);
 	await item.resolve(token);
 	if (token.isCancellationRequested) {
 		return;
@@ -299,6 +310,7 @@ export async function applyCodeAction(
 			code: 'undoredo.codeAction',
 			respectAutoSaveConfig: codeActionReason !== ApplyCodeActionReason.OnSave,
 			showPreview: options?.preview,
+			reason: EditSources.codeAction({ kind: item.action.kind, providerId: languages.ProviderId.fromExtensionId(item.provider?.extensionId) }),
 		});
 
 		if (!result.isApplied) {
@@ -317,6 +329,8 @@ export async function applyCodeAction(
 					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
 		}
 	}
+	// ensure the start sound and end sound do not overlap
+	setTimeout(() => accessibilitySignalService.playSignal(AccessibilitySignal.codeActionApplied), CODE_ACTION_SOUND_APPLIED_DURATION);
 }
 
 function asMessage(err: any): string | undefined {

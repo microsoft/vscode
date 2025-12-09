@@ -12,11 +12,12 @@ import { IEditorOpenContext } from '../../../../common/editor.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEditorOptions as ICodeEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
-import { BareFontInfo, FontInfo } from '../../../../../editor/common/config/fontInfo.js';
+import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../../editor/common/config/fontInfoFromSettings.js';
 import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
@@ -39,14 +40,14 @@ import type { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../
 import type { URI } from '../../../../../base/common/uri.js';
 import { type IDiffElementViewModelBase } from './diffElementViewModel.js';
 import { autorun, transaction } from '../../../../../base/common/observable.js';
-import { UnchangedEditorRegionsService } from './unchangedEditorRegions.js';
+import { DiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
 
 export class NotebookMultiTextDiffEditor extends EditorPane {
 	private _multiDiffEditorWidget?: MultiDiffEditorWidget;
 	static readonly ID: string = NOTEBOOK_MULTI_DIFF_EDITOR_ID;
 	private _fontInfo: FontInfo | undefined;
 	protected _scopeContextKeyService!: IContextKeyService;
-	private readonly modelSpecificResources = this._register(new DisposableStore());
+	private readonly modelSpecificResources: DisposableStore;
 	private _model?: INotebookDiffEditorModel;
 	private viewModel?: NotebookDiffViewModel;
 	private widgetViewModel?: MultiDiffEditorViewModel;
@@ -57,9 +58,9 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 	get notebookOptions() {
 		return this._notebookOptions;
 	}
-	private readonly ctxAllCollapsed = this._parentContextKeyService.createKey<boolean>(NOTEBOOK_DIFF_CELLS_COLLAPSED.key, false);
-	private readonly ctxHasUnchangedCells = this._parentContextKeyService.createKey<boolean>(NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS.key, false);
-	private readonly ctxHiddenUnchangedCells = this._parentContextKeyService.createKey<boolean>(NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN.key, true);
+	private readonly ctxAllCollapsed: IContextKey<boolean>;
+	private readonly ctxHasUnchangedCells: IContextKey<boolean>;
+	private readonly ctxHiddenUnchangedCells: IContextKey<boolean>;
 
 	constructor(
 		group: IEditorGroup,
@@ -73,6 +74,10 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 		@INotebookService private readonly notebookService: INotebookService,
 	) {
 		super(NotebookMultiTextDiffEditor.ID, group, telemetryService, themeService, storageService);
+		this.modelSpecificResources = this._register(new DisposableStore());
+		this.ctxAllCollapsed = this._parentContextKeyService.createKey<boolean>(NOTEBOOK_DIFF_CELLS_COLLAPSED.key, false);
+		this.ctxHasUnchangedCells = this._parentContextKeyService.createKey<boolean>(NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS.key, false);
+		this.ctxHiddenUnchangedCells = this._parentContextKeyService.createKey<boolean>(NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN.key, true);
 		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, false, undefined);
 		this._register(this._notebookOptions);
 	}
@@ -90,7 +95,7 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 
 	private createFontInfo() {
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
-		return FontMeasurements.readFontInfo(this.window, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(this.window).value));
+		return FontMeasurements.readFontInfo(this.window, createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(this.window).value));
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -112,7 +117,8 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 			this._model = model;
 		}
 		const eventDispatcher = this.modelSpecificResources.add(new NotebookDiffEditorEventDispatcher());
-		this.viewModel = this.modelSpecificResources.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.configurationService, eventDispatcher, this.notebookService, UnchangedEditorRegionsService.Empty, undefined, true));
+		const diffEditorHeightCalculator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, this.fontInfo.lineHeight);
+		this.viewModel = this.modelSpecificResources.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.configurationService, eventDispatcher, this.notebookService, diffEditorHeightCalculator, undefined, true));
 		await this.viewModel.computeDiff(this.modelSpecificResources.add(new CancellationTokenSource()).token);
 		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);
 		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);
@@ -221,6 +227,12 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 			if (data) {
 				uri = CellUri.generate(data.notebook, data.handle);
 			}
+		}
+		if (uri.scheme === Schemas.vscodeNotebookMetadata) {
+			return this.viewModel?.items.find(item =>
+				item.type === 'modifiedMetadata' ||
+				item.type === 'unchangedMetadata'
+			);
 		}
 		return this.viewModel?.items.find(c => {
 			switch (c.type) {

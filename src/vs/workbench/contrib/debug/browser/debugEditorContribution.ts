@@ -30,7 +30,7 @@ import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { DEFAULT_WORD_REGEXP } from '../../../../editor/common/core/wordHelper.js';
-import { ScrollType } from '../../../../editor/common/editorCommon.js';
+import { IEditorDecorationsCollection, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
 import { InlineValue, InlineValueContext } from '../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from '../../../../editor/common/model.js';
@@ -52,6 +52,9 @@ import { ExceptionWidget } from './exceptionWidget.js';
 import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from '../common/debug.js';
 import { Expression } from '../common/debugModel.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { InsertLineAfterAction } from '../../../../editor/contrib/linesOperations/browser/linesOperations.js';
 
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
@@ -73,10 +76,60 @@ class InlineSegment {
 	}
 }
 
-function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IModelDeltaDecoration[] {
-	// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
-	if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
-		contentText = contentText.substring(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
+export function formatHoverContent(contentText: string): MarkdownString {
+	if (contentText.includes(',') && contentText.includes('=')) {
+		// Custom split: for each equals sign after the first, backtrack to the nearest comma
+		const customSplit = (text: string): string[] => {
+			const splits: number[] = [];
+			let equalsFound = 0;
+			let start = 0;
+			for (let i = 0; i < text.length; i++) {
+				if (text[i] === '=') {
+					if (equalsFound === 0) {
+						equalsFound++;
+						continue;
+					}
+					const commaIndex = text.lastIndexOf(',', i);
+					if (commaIndex !== -1 && commaIndex >= start) {
+						splits.push(commaIndex);
+						start = commaIndex + 1;
+					}
+					equalsFound++;
+				}
+			}
+			const result: string[] = [];
+			let s = 0;
+			for (const index of splits) {
+				result.push(text.substring(s, index).trim());
+				s = index + 1;
+			}
+			if (s < text.length) {
+				result.push(text.substring(s).trim());
+			}
+			return result;
+		};
+
+		const pairs = customSplit(contentText);
+		const formattedPairs = pairs.map(pair => {
+			const equalsIndex = pair.indexOf('=');
+			if (equalsIndex !== -1) {
+				const indent = ' '.repeat(equalsIndex + 2);
+				const [firstLine, ...restLines] = pair.split(/\r?\n/);
+				return [firstLine, ...restLines.map(line => indent + line)].join('\n');
+			}
+			return pair;
+		});
+		return new MarkdownString().appendCodeblock('', formattedPairs.join(',\n'));
+	}
+	return new MarkdownString().appendCodeblock('', contentText);
+}
+
+export function createInlineValueDecoration(lineNumber: number, contentText: string, classNamePrefix: string, column = Constants.MAX_SAFE_SMALL_INTEGER, viewportMaxCol: number = MAX_INLINE_DECORATOR_LENGTH): IModelDeltaDecoration[] {
+	const rawText = contentText; // store raw text for hover message
+
+	// Truncate contentText if it exceeds the viewport max column
+	if (contentText.length > viewportMaxCol) {
+		contentText = contentText.substring(0, viewportMaxCol) + '...';
 	}
 
 	return [
@@ -88,7 +141,7 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 				endColumn: column
 			},
 			options: {
-				description: 'debug-inline-value-decoration-spacer',
+				description: `${classNamePrefix}-inline-value-decoration-spacer`,
 				after: {
 					content: strings.noBreakWhitespace,
 					cursorStops: InjectedTextCursorStops.None
@@ -104,21 +157,22 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 				endColumn: column
 			},
 			options: {
-				description: 'debug-inline-value-decoration',
+				description: `${classNamePrefix}-inline-value-decoration`,
 				after: {
 					content: replaceWsWithNoBreakWs(contentText),
-					inlineClassName: 'debug-inline-value',
+					inlineClassName: `${classNamePrefix}-inline-value`,
 					inlineClassNameAffectsLetterSpacing: true,
 					cursorStops: InjectedTextCursorStops.None
 				},
 				showIfCollapsed: true,
+				hoverMessage: formatHoverContent(rawText)
 			}
 		},
 	];
 }
 
 function replaceWsWithNoBreakWs(str: string): string {
-	return str.replace(/[ \t]/g, strings.noBreakWhitespace);
+	return str.replace(/[ \t\n]/g, strings.noBreakWhitespace);
 }
 
 function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, ranges: Range[], model: ITextModel, wordToLineNumbersMap: Map<string, number[]>) {
@@ -209,10 +263,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private configurationWidget: FloatingEditorClickWidget | undefined;
 	private readonly altListener = new MutableDisposable();
 	private altPressed = false;
-	private oldDecorations = this.editor.createDecorationsCollection();
+	private oldDecorations: IEditorDecorationsCollection;
 	private readonly displayedStore = new DisposableStore();
 	private editorHoverOptions: IEditorHoverOptions | undefined;
 	private readonly debounceInfo: IFeatureDebounceInformation;
+	private allowScrollToExceptionWidget = true;
+	private shouldScrollToExceptionWidget = () => this.allowScrollToExceptionWidget;
 
 	// Holds a Disposable that prevents the default editor hover behavior while it exists.
 	private readonly defaultHoverLockout = new MutableDisposable();
@@ -227,8 +283,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
+		this.oldDecorations = this.editor.createDecorationsCollection();
 		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
 		this.toDispose = [this.defaultHoverLockout, this.altListener, this.displayedStore];
@@ -371,18 +429,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private preventDefaultEditorHover() {
-		if (this.defaultHoverLockout.value || this.editorHoverOptions?.enabled === false) {
+		if (this.defaultHoverLockout.value || this.editorHoverOptions?.enabled === 'off') {
 			return;
 		}
 
 		const hoverController = this.editor.getContribution<ContentHoverController>(ContentHoverController.ID);
 		hoverController?.hideContentHover();
 
-		this.editor.updateOptions({ hover: { enabled: false } });
+		this.editor.updateOptions({ hover: { enabled: 'off' } });
 		this.defaultHoverLockout.value = {
 			dispose: () => {
 				this.editor.updateOptions({
-					hover: { enabled: this.editorHoverOptions?.enabled ?? true }
+					hover: { enabled: this.editorHoverOptions?.enabled ?? 'on' }
 				});
 			}
 		};
@@ -475,11 +533,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		}
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
+		if (
+			(target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID)
+			|| this.hoverWidget.isInSafeTriangle(mouseEvent.event.posx, mouseEvent.event.posy)
+		) {
 			// mouse moved on top of debug hover widget
 
 			const sticky = this.editorHoverOptions?.sticky ?? true;
-			if (sticky || this.hoverWidget.isShowingComplexValue) {
+			if (sticky || this.hoverWidget.isShowingComplexValue || mouseEvent.event[stopKey]) {
 				return;
 			}
 		}
@@ -528,9 +589,19 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
+			// Show exception widget in all editors with the same file, but only scroll in the active editor
+			const activeControl = this.editorService.activeTextEditorControl;
+			const isActiveEditor = activeControl === this.editor;
 			const exceptionInfo = await focusedSf.thread.exceptionInfo;
+
 			if (exceptionInfo) {
-				this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				if (isActiveEditor) {
+					// Active editor: show widget and scroll to it
+					this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				} else {
+					// Inactive editor: show widget without scrolling
+					this.showExceptionWidgetWithoutScroll(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				}
 			}
 		}
 	}
@@ -540,7 +611,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.exceptionWidget.dispose();
 		}
 
-		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
 		this.exceptionWidget.focus();
 		this.editor.revealRangeInCenter({
@@ -550,6 +621,46 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			endColumn: column,
 		});
 		this.exceptionWidgetVisible.set(true);
+	}
+
+	private showExceptionWidgetWithoutScroll(exceptionInfo: IExceptionInfo, debugSession: IDebugSession | undefined, lineNumber: number, column: number): void {
+		if (this.exceptionWidget) {
+			this.exceptionWidget.dispose();
+		}
+
+		// Disable scrolling to exception widget
+		this.allowScrollToExceptionWidget = false;
+
+		const currentScrollTop = this.editor.getScrollTop();
+		const visibleRanges = this.editor.getVisibleRanges();
+		if (visibleRanges.length === 0) {
+			// Editor not fully initialized or not visible; skip scroll adjustment
+			this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
+			this.exceptionWidget.show({ lineNumber, column }, 0);
+			this.exceptionWidgetVisible.set(true);
+			this.allowScrollToExceptionWidget = true;
+			return;
+		}
+
+		const firstVisibleLine = visibleRanges[0].startLineNumber;
+
+		// Create widget - this may add a zone that pushes content down
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
+		this.exceptionWidget.show({ lineNumber, column }, 0);
+		this.exceptionWidgetVisible.set(true);
+
+		// only adjust scroll if the exception widget is above the first visible line
+		if (lineNumber < firstVisibleLine) {
+			// Get the actual height of the widget that was just added from the whitespace
+			// The whitespace height is more accurate than the container height
+			const scrollAdjustment = this.exceptionWidget.getWhitespaceHeight();
+
+			// Scroll down by the actual widget height to keep the first visible line the same
+			this.editor.setScrollTop(currentScrollTop + scrollAdjustment, ScrollType.Immediate);
+		}
+
+		// Re-enable scrolling to exception widget
+		this.allowScrollToExceptionWidget = true;
 	}
 
 	closeExceptionWidget(): void {
@@ -564,7 +675,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
-	async addLaunchConfiguration(): Promise<any> {
+	async addLaunchConfiguration(): Promise<void> {
 		const model = this.editor.getModel();
 		if (!model) {
 			return;
@@ -617,10 +728,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			// Check if there are more characters on a line after a "configurations": [, if yes enter a newline
 			if (model.getLineLastNonWhitespaceColumn(position.lineNumber) > position.column) {
 				this.editor.setPosition(position);
-				CoreEditingCommands.LineBreakInsert.runEditorCommand(null, this.editor, null);
+				this.instantiationService.invokeFunction((accessor) => {
+					CoreEditingCommands.LineBreakInsert.runEditorCommand(accessor, this.editor, null);
+				});
 			}
 			this.editor.setPosition(position);
-			return this.commandService.executeCommand('editor.action.insertLineAfter');
+			return this.commandService.executeCommand(InsertLineAfterAction.ID);
 		};
 
 		await insertLine(configurationsArrayPosition);
@@ -766,7 +879,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				if (segments.length > 0) {
 					segments = segments.sort((a, b) => a.column - b.column);
 					const text = segments.map(s => s.text).join(separator);
-					allDecorations.push(...createInlineValueDecoration(line, text));
+					const editorWidth = this.editor.getLayoutInfo().width;
+					const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+					const viewportMaxCol = Math.floor((editorWidth - 50) / fontInfo.typicalHalfwidthCharacterWidth);
+					allDecorations.push(...createInlineValueDecoration(line, text, 'debug', undefined, viewportMaxCol));
 				}
 			});
 
@@ -810,9 +926,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}
 			}
 
-			allDecorations = [...valuesPerLine.entries()].flatMap(([line, values]) =>
-				createInlineValueDecoration(line, [...values].map(([n, v]) => `${n} = ${v}`).join(', '))
-			);
+			allDecorations = [...valuesPerLine.entries()].flatMap(([line, values]) => {
+				const text = [...values].map(([n, v]) => `${n} = ${v}`).join(', ');
+				const editorWidth = this.editor.getLayoutInfo().width;
+				const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+				const viewportMaxCol = Math.floor((editorWidth - 50) / fontInfo.typicalHalfwidthCharacterWidth);
+				return createInlineValueDecoration(line, text, 'debug', undefined, viewportMaxCol);
+			});
 		}
 
 		if (cts.token.isCancellationRequested) {

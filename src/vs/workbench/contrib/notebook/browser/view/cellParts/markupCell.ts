@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../../base/browser/dom.js';
+import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -27,7 +28,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { CellEditState, CellFocusMode, CellFoldingState, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate, ICellViewModel } from '../../notebookBrowser.js';
 import { collapsedIcon, expandedIcon } from '../../notebookIcons.js';
 import { CellEditorOptions } from './cellEditorOptions.js';
-import { MarkdownCellRenderTemplate } from '../notebookRenderingCommon.js';
+import { collapsedCellTTPolicy, MarkdownCellRenderTemplate } from '../notebookRenderingCommon.js';
 import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
 import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
 
@@ -91,7 +92,6 @@ export class MarkupCell extends Disposable {
 			this.relayoutCell();
 		}
 
-		this.applyDecorations();
 		this.viewUpdate();
 
 		this.layoutCellParts();
@@ -178,7 +178,7 @@ export class MarkupCell extends Disposable {
 		this._register(this.cellEditorOptions.onDidChange(() => this.updateMarkupCellOptions()));
 	}
 
-	private updateMarkupCellOptions(): any {
+	private updateMarkupCellOptions(): void {
 		this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
 
 		if (this.editor) {
@@ -222,32 +222,6 @@ export class MarkupCell extends Disposable {
 		this.templateData.container.classList.toggle('cell-editor-focus', this.viewCell.focusMode === CellFocusMode.Editor);
 	}
 
-	private applyDecorations() {
-		// apply decorations
-		this._register(this.viewCell.onCellDecorationsChanged((e) => {
-			e.added.forEach(options => {
-				if (options.className) {
-					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
-					this.templateData.rootContainer.classList.add(options.className);
-				}
-			});
-
-			e.removed.forEach(options => {
-				if (options.className) {
-					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [], [options.className]);
-					this.templateData.rootContainer.classList.remove(options.className);
-				}
-			});
-		}));
-
-		this.viewCell.getCellDecorations().forEach(options => {
-			if (options.className) {
-				this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
-				this.templateData.rootContainer.classList.add(options.className);
-			}
-		});
-	}
-
 	override dispose() {
 		this._isDisposed = true;
 
@@ -288,7 +262,8 @@ export class MarkupCell extends Disposable {
 		const element = DOM.$('div');
 		element.classList.add('cell-collapse-preview');
 		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
-		DOM.safeInnerHtml(element, richEditorText);
+		element.innerText = richEditorText;
+		element.innerHTML = (collapsedCellTTPolicy?.createHTML(richEditorText) ?? richEditorText) as string;
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 
 		const expandIcon = DOM.append(element, DOM.$('span.expandInputIcon'));
@@ -305,6 +280,7 @@ export class MarkupCell extends Disposable {
 		this.viewCell.renderedMarkdownHeight = 0;
 		this.viewCell.layoutChange({});
 	}
+
 
 	private getRichText(buffer: IReadonlyTextBuffer, language: string) {
 		return tokenizeToStringSync(this.languageService, buffer.getLineContent(1), language);
@@ -358,6 +334,7 @@ export class MarkupCell extends Disposable {
 					width: width,
 					height: editorHeight
 				},
+				allowVariableLineHeights: false,
 				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 			}, {
 				contributions: this.notebookEditor.creationOptions.cellEditorContributions
@@ -429,7 +406,7 @@ export class MarkupCell extends Disposable {
 		this.markdownAccessibilityContainer.innerText = '';
 		if (this.viewCell.renderedHtml) {
 			if (this.accessibilityService.isScreenReaderOptimized()) {
-				DOM.safeInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
+				domSanitize.safeSetInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
 			} else {
 				DOM.clearNode(this.markdownAccessibilityContainer);
 			}

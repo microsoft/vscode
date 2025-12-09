@@ -234,6 +234,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		} catch (e) {
 			this.value = e.message || '';
 			this.reference = 0;
+			this.memoryReference = undefined;
 			return false;
 		}
 	}
@@ -331,6 +332,24 @@ export class Expression extends ExpressionContainer implements IExpression {
 		return `${this.name}\n${this.value}`;
 	}
 
+	toJSON() {
+		return {
+			sessionId: this.getSession()?.getId(),
+			variable: this.toDebugProtocolObject(),
+		};
+	}
+
+	toDebugProtocolObject(): DebugProtocol.Variable {
+		return {
+			name: this.name,
+			variablesReference: this.reference || 0,
+			memoryReference: this.memoryReference,
+			value: this.value,
+			type: this.type,
+			evaluateName: this.name
+		};
+	}
+
 	async setExpression(value: string, stackFrame: IStackFrame): Promise<void> {
 		if (!this.session) {
 			return;
@@ -375,7 +394,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		return this.threadId;
 	}
 
-	async setVariable(value: string, stackFrame: IStackFrame): Promise<any> {
+	async setVariable(value: string, stackFrame: IStackFrame): Promise<void> {
 		if (!this.session) {
 			return;
 		}
@@ -406,6 +425,16 @@ export class Variable extends ExpressionContainer implements IExpression {
 		return this.name ? `${this.name}: ${this.value}` : this.value;
 	}
 
+	toJSON() {
+		return {
+			sessionId: this.getSession()?.getId(),
+			container: this.parent instanceof Expression
+				? { expression: this.parent.name }
+				: (this.parent as (Variable | Scope)).toDebugProtocolObject(),
+			variable: this.toDebugProtocolObject()
+		};
+	}
+
 	protected override adoptLazyResponse(response: DebugProtocol.Variable): void {
 		this.evaluateName = response.evaluateName;
 	}
@@ -416,6 +445,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 			variablesReference: this.reference || 0,
 			memoryReference: this.memoryReference,
 			value: this.value,
+			type: this.type,
 			evaluateName: this.evaluateName
 		};
 	}
@@ -434,6 +464,10 @@ export class Scope extends ExpressionContainer implements IScope {
 		public readonly range?: IRange
 	) {
 		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${id}`, namedVariables, indexedVariables);
+	}
+
+	get childrenHaveBeenLoaded(): boolean {
+		return !!this.children;
 	}
 
 	override toString(): string {
@@ -542,10 +576,10 @@ export class StackFrame implements IStackFrame {
 	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined> {
 		const threadStopReason = this.thread.stoppedDetails?.reason;
 		if (this.instructionPointerReference &&
-			(threadStopReason === 'instruction breakpoint' ||
-				(threadStopReason === 'step' && this.thread.lastSteppingGranularity === 'instruction') ||
+			((threadStopReason === 'instruction breakpoint' && !preserveFocus) ||
+				(threadStopReason === 'step' && this.thread.lastSteppingGranularity === 'instruction' && !preserveFocus) ||
 				editorService.activeEditor instanceof DisassemblyViewInput)) {
-			return editorService.openEditor(DisassemblyViewInput.instance, { pinned: true, revealIfOpened: true });
+			return editorService.openEditor(DisassemblyViewInput.instance, { pinned: true, revealIfOpened: true, preserveFocus });
 		}
 
 		if (this.source.available) {
@@ -687,35 +721,35 @@ export class Thread implements IThread {
 		return Promise.resolve(undefined);
 	}
 
-	next(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	next(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.next(this.threadId, granularity);
 	}
 
-	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.stepIn(this.threadId, undefined, granularity);
 	}
 
-	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.stepOut(this.threadId, granularity);
 	}
 
-	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.stepBack(this.threadId, granularity);
 	}
 
-	continue(): Promise<any> {
+	continue(): Promise<void> {
 		return this.session.continue(this.threadId);
 	}
 
-	pause(): Promise<any> {
+	pause(): Promise<void> {
 		return this.session.pause(this.threadId);
 	}
 
-	terminate(): Promise<any> {
+	terminate(): Promise<void> {
 		return this.session.terminateThreads([this.threadId]);
 	}
 
-	reverseContinue(): Promise<any> {
+	reverseContinue(): Promise<void> {
 		return this.session.reverseContinue(this.threadId);
 	}
 }
@@ -744,10 +778,11 @@ export class MemoryRegion extends Disposable implements IMemoryRegion {
 	public readonly onDidInvalidate = this.invalidateEmitter.event;
 
 	/** @inheritdoc */
-	public readonly writable = !!this.session.capabilities.supportsWriteMemoryRequest;
+	public readonly writable: boolean;
 
 	constructor(private readonly memoryReference: string, private readonly session: IDebugSession) {
 		super();
+		this.writable = !!this.session.capabilities.supportsWriteMemoryRequest;
 		this._register(session.onDidInvalidateMemory(e => {
 			if (e.body.memoryReference === memoryReference) {
 				this.invalidate(e.body.offset, e.body.count - e.body.offset);
@@ -956,14 +991,14 @@ export interface IBreakpointOptions extends IBaseBreakpointOptions {
 	uri: uri;
 	lineNumber: number;
 	column: number | undefined;
-	adapterData: any;
+	adapterData: unknown;
 	triggeredBy: string | undefined;
 }
 
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	private sessionsDidTrigger?: Set<string>;
 	private readonly _uri: uri;
-	private _adapterData: any;
+	private _adapterData: unknown;
 	private _lineNumber: number;
 	private _column: number | undefined;
 	public triggeredBy: string | undefined;
@@ -1033,7 +1068,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return super.message;
 	}
 
-	get adapterData(): any {
+	get adapterData(): unknown {
 		return this.data && this.data.source && this.data.source.adapterData ? this.data.source.adapterData : this._adapterData;
 	}
 
@@ -1091,9 +1126,13 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return `${resources.basenameOrAuthority(this.uri)} ${this.lineNumber}`;
 	}
 
-	public setSessionDidTrigger(sessionId: string): void {
-		this.sessionsDidTrigger ??= new Set();
-		this.sessionsDidTrigger.add(sessionId);
+	public setSessionDidTrigger(sessionId: string, didTrigger = true): void {
+		if (didTrigger) {
+			this.sessionsDidTrigger ??= new Set();
+			this.sessionsDidTrigger.add(sessionId);
+		} else {
+			this.sessionsDidTrigger?.delete(sessionId);
+		}
 	}
 
 	public getSessionDidTrigger(sessionId: string): boolean {
@@ -1485,6 +1524,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 			}
 			if (s.state === State.Inactive && s.configuration.name === session.configuration.name) {
 				// Make sure to remove all inactive sessions that are using the same configuration as the new session
+				s.dispose();
 				return false;
 			}
 

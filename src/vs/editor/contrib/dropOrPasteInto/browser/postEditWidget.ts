@@ -5,25 +5,30 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { toAction } from '../../../../base/common/actions.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import './postEditWidget.css';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { localize } from '../../../../nls.js';
+import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
 import { IBulkEditResult, IBulkEditService } from '../../../browser/services/bulkEditService.js';
 import { Range } from '../../../common/core/range.js';
 import { DocumentDropEdit, DocumentPasteEdit } from '../../../common/languages.js';
 import { TrackedRangeStickiness } from '../../../common/model.js';
+import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { createCombinedWorkspaceEdit } from './edit.js';
-import { localize } from '../../../../nls.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import './postEditWidget.css';
 
 
 interface EditSet<Edit extends DocumentPasteEdit | DocumentDropEdit> {
@@ -55,9 +60,10 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 		private readonly range: Range,
 		private readonly edits: EditSet<T>,
 		private readonly onSelectNewEdit: (editIndex: number) => void,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		private readonly additionalActions: readonly IAction[],
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 	) {
 		super();
 
@@ -73,9 +79,7 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 		this._register(toDisposable((() => this.editor.removeContentWidget(this))));
 
 		this._register(this.editor.onDidChangeCursorPosition(e => {
-			if (!range.containsPosition(e.position)) {
-				this.dispose();
-			}
+			this.dispose();
 		}));
 
 		this._register(Event.runAndSubscribe(_keybindingService.onDidUpdateKeybindings, () => {
@@ -115,24 +119,32 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 	}
 
 	showSelector() {
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => {
-				const pos = dom.getDomNodePagePosition(this.button.element);
-				return { x: pos.left + pos.width, y: pos.top + pos.height };
-			},
-			getActions: () => {
-				return this.edits.allEdits.map((edit, i) => toAction({
-					id: '',
+		const pos = dom.getDomNodePagePosition(this.button.element);
+		const anchor = { x: pos.left + pos.width, y: pos.top + pos.height };
+
+		this._actionWidgetService.show('postEditWidget', false,
+			this.edits.allEdits.map((edit, i): IActionListItem<T> => {
+				return {
+					kind: ActionListItemKind.Action,
+					item: edit,
 					label: edit.title,
-					checked: i === this.edits.activeEditIndex,
-					run: () => {
-						if (i !== this.edits.activeEditIndex) {
-							return this.onSelectNewEdit(i);
-						}
-					},
-				}));
-			}
-		});
+					disabled: false,
+					canPreview: false,
+					group: { title: '', icon: ThemeIcon.fromId(i === this.edits.activeEditIndex ? Codicon.check.id : Codicon.blank.id) },
+				};
+			}), {
+			onHide: () => {
+				this.editor.focus();
+			},
+			onSelect: (item) => {
+				this._actionWidgetService.hide(false);
+
+				const i = this.edits.allEdits.findIndex(edit => edit === item);
+				if (i !== this.edits.activeEditIndex) {
+					return this.onSelectNewEdit(i);
+				}
+			},
+		}, anchor, this.editor.getDomNode() ?? undefined, this.additionalActions);
 	}
 }
 
@@ -145,6 +157,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		private readonly _editor: ICodeEditor,
 		private readonly _visibleContext: RawContextKey<boolean>,
 		private readonly _showCommand: ShowCommand,
+		private readonly _getAdditionalActions: () => readonly IAction[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -158,11 +171,11 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 	}
 
 	public async applyEditAndShowIfNeeded(ranges: readonly Range[], edits: EditSet<T>, canShowWidget: boolean, resolve: (edit: T, token: CancellationToken) => Promise<T>, token: CancellationToken) {
-		const model = this._editor.getModel();
-		if (!model || !ranges.length) {
+		if (!ranges.length || !this._editor.hasModel()) {
 			return;
 		}
 
+		const model = this._editor.getModel();
 		const edit = edits.allEdits.at(edits.activeEditIndex);
 		if (!edit) {
 			return;
@@ -189,11 +202,14 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 			}
 		};
 
+		const editorStateCts = new EditorStateCancellationTokenSource(this._editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection, undefined, token);
 		let resolvedEdit: T;
 		try {
-			resolvedEdit = await resolve(edit, token);
+			resolvedEdit = await raceCancellationError(resolve(edit, editorStateCts.token), editorStateCts.token);
 		} catch (e) {
 			return handleError(e, localize('resolveError', "Error resolving edit '{0}':\n{1}", edit.title, toErrorMessage(e)));
+		} finally {
+			editorStateCts.dispose();
 		}
 
 		if (token.isCancellationRequested) {
@@ -234,7 +250,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		this.clear();
 
 		if (this._editor.hasModel()) {
-			this._currentWidget.value = this._instantiationService.createInstance(PostEditWidget<T>, this._id, this._editor, this._visibleContext, this._showCommand, range, edits, onDidSelectEdit);
+			this._currentWidget.value = this._instantiationService.createInstance(PostEditWidget<T>, this._id, this._editor, this._visibleContext, this._showCommand, range, edits, onDidSelectEdit, this._getAdditionalActions());
 		}
 	}
 

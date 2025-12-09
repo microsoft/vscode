@@ -13,6 +13,7 @@ import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js'
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { LinkDetector } from '../../browser/linkDetector.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IHighlight } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 
 suite('Debug - Link Detector', () => {
 
@@ -167,5 +168,68 @@ suite('Debug - Link Detector', () => {
 		assert(expectedOutput.test(output.outerHTML));
 		assertElementIsLink(output.children[1].children[0]);
 		assert.strictEqual(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[1].children[0].textContent);
+	});
+
+	test('highlightNoLinks', () => {
+		const input = 'I am a string';
+		const highlights: IHighlight[] = [{ start: 2, end: 5 }];
+		const expectedOutput = '<span>I <span class="highlight">am </span>a string</span>';
+		const output = linkDetector.linkify(input, false, undefined, false, undefined, highlights);
+
+		assert.strictEqual(1, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
+	});
+
+	test('highlightWithLink', () => {
+		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
+		const highlights: IHighlight[] = [{ start: 0, end: 5 }];
+		const expectedOutput = isWindows ? '<span><a tabindex="0"><span class="highlight">C:\\fo</span>o\\bar.js:12:34</a></span>' : '<span><a tabindex="0"><span class="highlight">/User</span>s/foo/bar.js:12:34</a></span>';
+		const output = linkDetector.linkify(input, false, undefined, false, undefined, highlights);
+
+		assert.strictEqual(1, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('A', output.firstElementChild!.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
+		assertElementIsLink(output.firstElementChild!);
+	});
+
+	test('highlightOverlappingLinkStart', () => {
+		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
+		const highlights: IHighlight[] = [{ start: 0, end: 10 }];
+		const expectedOutput = isWindows ? '<span><a tabindex="0"><span class="highlight">C:\\foo\\bar</span>.js:12:34</a></span>' : '<span><a tabindex="0"><span class="highlight">/Users/foo</span>/bar.js:12:34</a></span>';
+		const output = linkDetector.linkify(input, false, undefined, false, undefined, highlights);
+
+		assert.strictEqual(1, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('A', output.firstElementChild!.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
+		assertElementIsLink(output.firstElementChild!);
+	});
+
+	test('highlightOverlappingLinkEnd', () => {
+		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
+		const highlights: IHighlight[] = [{ start: 10, end: 20 }];
+		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\bar<span class="highlight">.js:12:34</span></a></span>' : '<span><a tabindex="0">/Users/foo<span class="highlight">/bar.js:12</span>:34</a></span>';
+		const output = linkDetector.linkify(input, false, undefined, false, undefined, highlights);
+
+		assert.strictEqual(1, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('A', output.firstElementChild!.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
+		assertElementIsLink(output.firstElementChild!);
+	});
+
+	test('highlightOverlappingLinkStartAndEnd', () => {
+		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
+		const highlights: IHighlight[] = [{ start: 5, end: 15 }];
+		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\fo<span class="highlight">o\\bar.js:1</span>2:34</a></span>' : '<span><a tabindex="0">/User<span class="highlight">s/foo/bar.</span>js:12:34</a></span>';
+		const output = linkDetector.linkify(input, false, undefined, false, undefined, highlights);
+
+		assert.strictEqual(1, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('A', output.firstElementChild!.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
+		assertElementIsLink(output.firstElementChild!);
 	});
 });

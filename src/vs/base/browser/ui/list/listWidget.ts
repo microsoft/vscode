@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isEditableElement, isHTMLElement, isMouseEvent } from '../../dom.js';
+import { Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isEditableElement, isHTMLElement, isMouseEvent } from '../../dom.js';
+import { createStyleSheet } from '../../domStylesheets.js';
+import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { IKeyboardEvent, StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { Gesture } from '../../touch.js';
@@ -25,9 +27,9 @@ import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js'
 import { ISpliceable } from '../../../common/sequence.js';
 import { isNumber } from '../../../common/types.js';
 import './list.css';
-import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list.js';
+import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListElementRenderDetails, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list.js';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView.js';
-import { StandardMouseEvent } from '../../mouseEvent.js';
+import { IMouseWheelEvent, StandardMouseEvent } from '../../mouseEvent.js';
 import { autorun, constObservable, IObservable } from '../../../common/observable.js';
 
 interface ITraitChangeEvent {
@@ -118,7 +120,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	protected sortedIndexes: number[] = [];
 
 	private readonly _onChange = new Emitter<ITraitChangeEvent>();
-	readonly onChange: Event<ITraitChangeEvent> = this._onChange.event;
+	get onChange(): Event<ITraitChangeEvent> { return this._onChange.event; }
 
 	get name(): string { return this._trait; }
 
@@ -629,6 +631,7 @@ class DOMFocusController<T> implements IDisposable {
 			return;
 		}
 
+		// eslint-disable-next-line no-restricted-syntax
 		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
 
 		if (!tabIndexElement || !(isHTMLElement(tabIndexElement)) || tabIndexElement.tabIndex === -1) {
@@ -670,11 +673,11 @@ const DefaultMultipleSelectionController = {
 export class MouseController<T> implements IDisposable {
 
 	private multipleSelectionController: IMultipleSelectionController<T> | undefined;
-	private mouseSupport: boolean;
+	private readonly mouseSupport: boolean;
 	private readonly disposables = new DisposableStore();
 
-	private _onPointer = new Emitter<IListMouseEvent<T>>();
-	readonly onPointer: Event<IListMouseEvent<T>> = this._onPointer.event;
+	private readonly _onPointer = this.disposables.add(new Emitter<IListMouseEvent<T>>());
+	get onPointer() { return this._onPointer.event; }
 
 	constructor(protected list: List<T>) {
 		if (list.options.multipleSelectionSupport !== false) {
@@ -854,10 +857,10 @@ export interface IStyleController {
 
 export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
 	getAriaLabel(element: T): string | IObservable<string> | null;
-	getWidgetAriaLabel(): string;
+	getWidgetAriaLabel(): string | IObservable<string>;
 	getWidgetRole?(): AriaRole;
 	getAriaLevel?(element: T): number | undefined;
-	onDidChangeActiveDescendant?: Event<void>;
+	readonly onDidChangeActiveDescendant?: Event<void>;
 	getActiveDescendantId?(element: T): string | undefined;
 }
 
@@ -892,19 +895,19 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listActiveSelectionIconForeground) {
-			content.push(`@layer monaco-list { .monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground}; } }`);
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground}; }`);
 		}
 
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
 			`);
 		}
 
 		if (styles.listFocusAndSelectionForeground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
 			`);
 		}
@@ -915,7 +918,7 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listInactiveSelectionIconForeground) {
-			content.push(`@layer monaco-list { .monaco-list${suffix} .monaco-list-row.focused .codicon { color:  ${styles.listInactiveSelectionIconForeground}; } }`);
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused .codicon { color:  ${styles.listInactiveSelectionIconForeground}; }`);
 		}
 
 		if (styles.listInactiveFocusBackground) {
@@ -950,9 +953,9 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listFocusOutline) { // default: set
 			content.push(`
-				.monaco-drag-image,
-				.monaco-list${suffix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
-				.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
+				.monaco-drag-image${suffix},
+				.monaco-list${suffix}:focus .monaco-list-row.focused,
+				.context-menu-visible .monaco-list${suffix}.last-focused .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}
 
@@ -1000,13 +1003,13 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`
 				.monaco-table > .monaco-split-view2,
 				.monaco-table > .monaco-split-view2 .monaco-sash.vertical::before,
-				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2,
-				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
+				.monaco-enable-motion .monaco-table:hover > .monaco-split-view2,
+				.monaco-enable-motion .monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
 					border-color: ${styles.tableColumnsBorder};
 				}
 
-				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2,
-				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
+				.monaco-enable-motion .monaco-table > .monaco-split-view2,
+				.monaco-enable-motion .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
 					border-color: transparent;
 				}
 			`);
@@ -1054,6 +1057,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly setRowHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
+	readonly userSelection?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly scrollByPage?: boolean;
 	readonly transformOptimization?: boolean;
@@ -1238,25 +1242,25 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		return this.renderers.map(r => r.renderTemplate(container));
 	}
 
-	renderElement(element: T, index: number, templateData: any[], height: number | undefined): void {
+	renderElement(element: T, index: number, templateData: any[], renderDetails?: IListElementRenderDetails): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.renderElement(element, index, templateData[i++], height);
+			renderer.renderElement(element, index, templateData[i++], renderDetails);
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: any[], height: number | undefined): void {
+	disposeElement(element: T, index: number, templateData: any[], renderDetails?: IListElementRenderDetails): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.disposeElement?.(element, index, templateData[i], height);
+			renderer.disposeElement?.(element, index, templateData[i], renderDetails);
 
 			i += 1;
 		}
 	}
 
-	disposeTemplate(templateData: any[]): void {
+	disposeTemplate(templateData: unknown[]): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
@@ -1300,11 +1304,11 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, IAccessibilityTemplate
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: IAccessibilityTemplateData, height: number | undefined): void {
+	disposeElement(element: T, index: number, templateData: IAccessibilityTemplateData): void {
 		templateData.disposables.clear();
 	}
 
-	disposeTemplate(templateData: any): void {
+	disposeTemplate(templateData: IAccessibilityTemplateData): void {
 		templateData.disposables.dispose();
 	}
 }
@@ -1527,7 +1531,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.onDidChangeSelection(this._onSelectionChange, this, this.disposables);
 
 		if (this.accessibilityProvider) {
-			this.ariaLabel = this.accessibilityProvider.getWidgetAriaLabel();
+			const ariaLabel = this.accessibilityProvider.getWidgetAriaLabel();
+			const observable = (ariaLabel && typeof ariaLabel !== 'string') ? ariaLabel : constObservable(ariaLabel);
+
+			this.disposables.add(autorun(reader => {
+				this.ariaLabel = reader.readObservable(observable);
+			}));
 		}
 
 		if (this._options.multipleSelectionSupport !== false) {
@@ -1961,6 +1970,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	style(styles: IListStyles): void {
 		this.styleController.style(styles);
+	}
+
+	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 
 	private toListEvent({ indexes, browserEvent }: ITraitChangeEvent) {

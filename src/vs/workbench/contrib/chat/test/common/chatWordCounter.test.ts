@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getNWords } from '../../common/chatWordCounter.js';
+import { getNWords, IWordCountResult } from '../../common/chatWordCounter.js';
 
 suite('ChatWordCounter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,13 +23,40 @@ suite('ChatWordCounter', () => {
 				['hello', 1, 'hello'],
 				['hello world', 0, ''],
 				['here\'s, some.   punctuation?', 3, 'here\'s, some.   punctuation?'],
-				['| markdown | _table_ | header |', 3, '| markdown | _table_ | header'],
+				['| markdown | _table_ | header |', 3, '| markdown | _table_ | header |'],
 				['| --- | --- | --- |', 1, '| ---'],
-				['| --- | --- | --- |', 3, '| --- | --- | ---'],
-				[' \t some \n whitespace     \n\n\nhere   ', 3, ' \t some \n whitespace     \n\n\nhere'],
+				['| --- | --- | --- |', 3, '| --- | --- | --- |'],
+				[' \t some \n whitespace     \n\n\nhere   ', 3, ' \t some \n whitespace     \n\n\nhere   '],
 			];
 
 			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
+		});
+
+		test('whitespace', () => {
+			assert.deepStrictEqual(
+				getNWords('hello ', 1),
+				{
+					value: 'hello ',
+					returnedWordCount: 1,
+					isFullString: true,
+					totalWordCount: 1,
+				} satisfies IWordCountResult);
+			assert.deepStrictEqual(
+				getNWords('hello\n\n', 1),
+				{
+					value: 'hello\n\n',
+					returnedWordCount: 1,
+					isFullString: true,
+					totalWordCount: 1,
+				} satisfies IWordCountResult);
+			assert.deepStrictEqual(
+				getNWords('\nhello', 1),
+				{
+					value: '\nhello',
+					returnedWordCount: 1,
+					isFullString: true,
+					totalWordCount: 1,
+				} satisfies IWordCountResult);
 		});
 
 		test('matching links', () => {
@@ -60,6 +87,14 @@ suite('ChatWordCounter', () => {
 			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
 		});
 
+		test('codeblocks', () => {
+			const cases: [string, number, string][] = [
+				['hello\n\n```\n```\n\nworld foo', 2, 'hello\n\n```\n```\n\nworld'],
+			];
+
+			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
+		});
+
 		test('chinese characters', () => {
 			const cases: [string, number, string][] = [
 				['我喜欢中国菜', 3, '我喜欢'],
@@ -67,6 +102,14 @@ suite('ChatWordCounter', () => {
 
 			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
 		});
-	});
 
+		test(`Inline math shouldn't be broken up`, () => {
+			const cases: [string, number, string][] = [
+				['a $x + y$ b', 3, 'a $x + y$ b'],
+				['a $\\frac{1}{2} + \\sqrt{x^2 + y^2}$ b', 3, 'a $\\frac{1}{2} + \\sqrt{x^2 + y^2}$ b'],
+			];
+
+			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
+		});
+	});
 });

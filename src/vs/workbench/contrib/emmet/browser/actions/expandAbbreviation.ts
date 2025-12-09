@@ -16,8 +16,7 @@ class ExpandAbbreviationAction extends EmmetEditorAction {
 	constructor() {
 		super({
 			id: 'editor.emmet.action.expandAbbreviation',
-			label: nls.localize('expandAbbreviationAction', "Emmet: Expand Abbreviation"),
-			alias: 'Emmet: Expand Abbreviation',
+			label: nls.localize2('expandAbbreviationAction', "Emmet: Expand Abbreviation"),
 			precondition: EditorContextKeys.writable,
 			actionName: 'expand_abbreviation',
 			kbOpts: {

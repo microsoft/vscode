@@ -60,7 +60,7 @@ function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPick
 		const itemToPin = quickPick.items.find(item => itemsMatch(item, itemToFind));
 		if (itemToPin) {
 			const pinnedItemId = getItemIdentifier(itemToPin);
-			const pinnedItem: IQuickPickItem = Object.assign({} as IQuickPickItem, itemToPin);
+			const pinnedItem: IQuickPickItem = { ...(itemToPin as IQuickPickItem) };
 			if (!filterDuplicates || !pinnedIds.has(pinnedItemId)) {
 				pinnedIds.add(pinnedItemId);
 				updateButtons(pinnedItem, false);
@@ -77,7 +77,7 @@ function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPick
 }
 
 function getItemIdentifier(item: QuickPickItem): string {
-	return item.type === 'separator' ? '' : item.id || `${item.label}${item.description}${item.detail}}`;
+	return item.type === 'separator' ? '' : item.id || `${item.label}${item.description}${item.detail}`;
 }
 
 function updateButtons(item: QuickPickItem, removePin: boolean): void {
@@ -107,11 +107,19 @@ function updatePinnedItems(storageKey: string, changedItem: IQuickPickItem, stor
 	} else {
 		items.push(changedItem);
 	}
-	storageService.store(storageKey, JSON.stringify(items), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	storageService.store(storageKey, JSON.stringify(items.map(formatPinnedItemForStorage)), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	return items;
 }
 
 function getPinnedItems(storageKey: string, storageService: IStorageService): IQuickPickItem[] {
 	const items = storageService.get(storageKey, StorageScope.WORKSPACE);
 	return items ? JSON.parse(items) : [];
+}
+
+function formatPinnedItemForStorage(item: IQuickPickItem): IQuickPickItem {
+	return {
+		label: item.label,
+		description: item.description,
+		detail: item.detail,
+	};
 }

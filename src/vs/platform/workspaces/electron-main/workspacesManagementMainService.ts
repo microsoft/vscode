@@ -64,7 +64,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	private readonly _onDidEnterWorkspace = this._register(new Emitter<IWorkspaceEnteredEvent>());
 	readonly onDidEnterWorkspace: Event<IWorkspaceEnteredEvent> = this._onDidEnterWorkspace.event;
 
-	private readonly untitledWorkspacesHome = this.environmentMainService.untitledWorkspacesHome; // local URI that contains all untitled workspaces
+	private readonly untitledWorkspacesHome: URI; // local URI that contains all untitled workspaces
 
 	private untitledWorkspaces: IUntitledWorkspaceInfo[] = [];
 
@@ -76,6 +76,8 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		super();
+
+		this.untitledWorkspacesHome = this.environmentMainService.untitledWorkspacesHome;
 	}
 
 	async initialize(): Promise<void> {
@@ -212,9 +214,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		await this.doDeleteUntitledWorkspace(workspace);
 
 		// unset workspace from profiles
-		if (this.userDataProfilesMainService.isEnabled()) {
-			this.userDataProfilesMainService.unsetWorkspace(workspace);
-		}
+		this.userDataProfilesMainService.unsetWorkspace(workspace);
 
 		// Event
 		this._onDidDeleteUntitledWorkspace.fire(workspace);
@@ -245,7 +245,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	}
 
 	async enterWorkspace(window: ICodeWindow, windows: ICodeWindow[], path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		if (!window || !window.win || !window.isReady) {
+		if (!window?.win || !window.isReady) {
 			return undefined; // return early if the window is not ready or disposed
 		}
 

@@ -34,7 +34,7 @@ class TestNotebookEditorWidgetService extends NotebookEditorWidgetService {
 	protected override createWidget(): NotebookEditorWidget {
 		return new class extends mock<NotebookEditorWidget>() {
 			override onWillHide = () => { };
-			override getDomNode = () => { return { remove: () => { } } as any; };
+			override getDomNode = () => { return { remove: () => { } } as HTMLElement; };
 			override dispose = () => { };
 		};
 	}
@@ -86,8 +86,8 @@ suite('NotebookEditorWidgetService', () => {
 			override groups = [editorGroup1, editorGroup2];
 			override getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
 			override getPart(container: unknown): IEditorPart;
-			override getPart(container: unknown): import("../../../../services/editor/common/editorGroupsService.js").IEditorPart {
-				return { windowId: 0 } as any;
+			override getPart(container: unknown): IEditorPart {
+				return { windowId: 0 } as IEditorPart;
 			}
 		});
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
@@ -135,6 +135,8 @@ suite('NotebookEditorWidgetService', () => {
 		assert.strictEqual(widget.value, undefined, 'widgets in group should get disposed');
 		assert.strictEqual(widgetDiffType.value, undefined, 'widgets in group should get disposed');
 		assert.notStrictEqual(widgetDiffGroup.value, undefined, 'other group should not be disposed');
+
+		notebookEditorService.dispose();
 	});
 
 	test('Widget should move between groups when editor is moved', async function () {

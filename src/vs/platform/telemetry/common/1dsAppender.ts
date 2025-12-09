@@ -23,17 +23,10 @@ const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
 const endpointHealthUrl = 'https://mobile.events.data.microsoft.com/ping';
 
 async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsCore> {
-	// ESM-comment-begin
-	// if (isWeb) { /* fix the import warning */ }
-	// const oneDs = await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'dist/ms.core.js');
-	// const postPlugin = await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'dist/ms.post.js');
-	// ESM-comment-end
-	// ESM-uncomment-begin
 	// eslint-disable-next-line local/code-amd-node-module
 	const oneDs = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'bundle/ms.core.min.js') : await import('@microsoft/1ds-core-js');
 	// eslint-disable-next-line local/code-amd-node-module
 	const postPlugin = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'bundle/ms.post.min.js') : await import('@microsoft/1ds-post-js');
-	// ESM-uncomment-end
 
 	const appInsightsCore = new oneDs.AppInsightsCore();
 	const collectorChannelPlugin: PostChannel = new postPlugin.PostChannel();
@@ -91,7 +84,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	constructor(
 		private readonly _isInternalTelemetry: boolean,
 		private _eventPrefix: string,
-		private _defaultData: { [key: string]: any } | null,
+		private _defaultData: { [key: string]: unknown } | null,
 		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
 		private _xhrOverride?: IXHROverride
 	) {
@@ -132,26 +125,26 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		);
 	}
 
-	log(eventName: string, data?: any): void {
+	log(eventName: string, data?: unknown): void {
 		if (!this._aiCoreOrKey) {
 			return;
 		}
 		data = mixin(data, this._defaultData);
-		data = validateTelemetryData(data);
+		const validatedData = validateTelemetryData(data);
 		const name = this._eventPrefix + '/' + eventName;
 
 		try {
 			this._withAIClient((aiClient) => {
-				aiClient.pluginVersionString = data?.properties.version ?? 'Unknown';
+				aiClient.pluginVersionString = validatedData?.properties.version ?? 'Unknown';
 				aiClient.track({
 					name,
-					baseData: { name, properties: data?.properties, measurements: data?.measurements }
+					baseData: { name, properties: validatedData?.properties, measurements: validatedData?.measurements }
 				});
 			});
 		} catch { }
 	}
 
-	flush(): Promise<any> {
+	flush(): Promise<void> {
 		if (this._aiCoreOrKey) {
 			return new Promise(resolve => {
 				this._withAIClient((aiClient) => {

@@ -306,9 +306,7 @@ export class DarwinTestRunner extends PosixTestRunner {
 	protected override getDefaultArgs() {
 		return [
 			TEST_ELECTRON_SCRIPT_PATH,
-			'--no-sandbox',
-			'--disable-dev-shm-usage',
-			'--use-gl=swiftshader',
+			'--no-sandbox'
 		];
 	}
 

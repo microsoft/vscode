@@ -29,8 +29,7 @@ class JumpToBracketAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.jumpToBracket',
-			label: nls.localize('smartSelect.jumpBracket', "Go to Bracket"),
-			alias: 'Go to Bracket',
+			label: nls.localize2('smartSelect.jumpBracket', "Go to Bracket"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -49,8 +48,7 @@ class SelectToBracketAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.selectToBracket',
-			label: nls.localize('smartSelect.selectToBracket', "Select to Bracket"),
-			alias: 'Select to Bracket',
+			label: nls.localize2('smartSelect.selectToBracket', "Select to Bracket"),
 			precondition: undefined,
 			metadata: {
 				description: nls.localize2('smartSelect.selectToBracketDescription', "Select the text inside and including the brackets or curly braces"),
@@ -78,18 +76,19 @@ class SelectToBracketAction extends EditorAction {
 		BracketMatchingController.get(editor)?.selectToBracket(selectBrackets);
 	}
 }
+
 class RemoveBracketsAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.removeBrackets',
-			label: nls.localize('smartSelect.removeBrackets', "Remove Brackets"),
-			alias: 'Remove Brackets',
+			label: nls.localize2('smartSelect.removeBrackets', "Remove Brackets"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 

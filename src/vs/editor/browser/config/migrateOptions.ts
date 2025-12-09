@@ -6,11 +6,11 @@
 import { IEditorOptions } from '../../common/config/editorOptions.js';
 
 export interface ISettingsReader {
-	(key: string): any;
+	(key: string): unknown;
 }
 
 export interface ISettingsWriter {
-	(key: string, value: any): void;
+	(key: string, value: unknown): void;
 }
 
 export class EditorSettingMigration {
@@ -19,46 +19,46 @@ export class EditorSettingMigration {
 
 	constructor(
 		public readonly key: string,
-		public readonly migrate: (value: any, read: ISettingsReader, write: ISettingsWriter) => void
+		public readonly migrate: (value: unknown, read: ISettingsReader, write: ISettingsWriter) => void
 	) { }
 
-	apply(options: any): void {
+	apply(options: unknown): void {
 		const value = EditorSettingMigration._read(options, this.key);
 		const read = (key: string) => EditorSettingMigration._read(options, key);
-		const write = (key: string, value: any) => EditorSettingMigration._write(options, key, value);
+		const write = (key: string, value: unknown) => EditorSettingMigration._write(options, key, value);
 		this.migrate(value, read, write);
 	}
 
-	private static _read(source: any, key: string): any {
-		if (typeof source === 'undefined') {
+	private static _read(source: unknown, key: string): unknown {
+		if (typeof source === 'undefined' || source === null) {
 			return undefined;
 		}
 
 		const firstDotIndex = key.indexOf('.');
 		if (firstDotIndex >= 0) {
 			const firstSegment = key.substring(0, firstDotIndex);
-			return this._read(source[firstSegment], key.substring(firstDotIndex + 1));
+			return this._read((source as Record<string, unknown>)[firstSegment], key.substring(firstDotIndex + 1));
 		}
-		return source[key];
+		return (source as Record<string, unknown>)[key];
 	}
 
-	private static _write(target: any, key: string, value: any): void {
+	private static _write(target: unknown, key: string, value: unknown): void {
 		const firstDotIndex = key.indexOf('.');
 		if (firstDotIndex >= 0) {
 			const firstSegment = key.substring(0, firstDotIndex);
-			target[firstSegment] = target[firstSegment] || {};
-			this._write(target[firstSegment], key.substring(firstDotIndex + 1), value);
+			(target as Record<string, unknown>)[firstSegment] = (target as Record<string, unknown>)[firstSegment] || {};
+			this._write((target as Record<string, unknown>)[firstSegment], key.substring(firstDotIndex + 1), value);
 			return;
 		}
-		target[key] = value;
+		(target as Record<string, unknown>)[key] = value;
 	}
 }
 
-function registerEditorSettingMigration(key: string, migrate: (value: any, read: ISettingsReader, write: ISettingsWriter) => void): void {
+function registerEditorSettingMigration(key: string, migrate: (value: unknown, read: ISettingsReader, write: ISettingsWriter) => void): void {
 	EditorSettingMigration.items.push(new EditorSettingMigration(key, migrate));
 }
 
-function registerSimpleEditorSettingMigration(key: string, values: [any, any][]): void {
+function registerSimpleEditorSettingMigration(key: string, values: [unknown, unknown][]): void {
 	registerEditorSettingMigration(key, (value, read, write) => {
 		if (typeof value !== 'undefined') {
 			for (const [oldValue, newValue] of values) {
@@ -93,6 +93,8 @@ registerSimpleEditorSettingMigration('renderFinalNewline', [[true, 'on'], [false
 registerSimpleEditorSettingMigration('cursorSmoothCaretAnimation', [[true, 'on'], [false, 'off']]);
 registerSimpleEditorSettingMigration('occurrencesHighlight', [[true, 'singleFile'], [false, 'off']]);
 registerSimpleEditorSettingMigration('wordBasedSuggestions', [[true, 'matchingDocuments'], [false, 'off']]);
+registerSimpleEditorSettingMigration('defaultColorDecorators', [[true, 'auto'], [false, 'never']]);
+registerSimpleEditorSettingMigration('minimap.autohide', [[true, 'mouseover'], [false, 'none']]);
 
 registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
 	if (value === false) {
@@ -156,7 +158,7 @@ const suggestFilteredTypesMapping: Record<string, string> = {
 registerEditorSettingMigration('suggest.filteredTypes', (value, read, write) => {
 	if (value && typeof value === 'object') {
 		for (const entry of Object.entries(suggestFilteredTypesMapping)) {
-			const v = value[entry[0]];
+			const v = (value as Record<string, unknown>)[entry[0]];
 			if (v === false) {
 				if (typeof read(`suggest.${entry[1]}`) === 'undefined') {
 					write(`suggest.${entry[1]}`, false);
@@ -195,11 +197,22 @@ registerEditorSettingMigration('experimental.stickyScroll.maxLineCount', (value,
 	}
 });
 
+// Edit Context
+
+registerEditorSettingMigration('editor.experimentalEditContextEnabled', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('editor.experimentalEditContextEnabled', undefined);
+		if (typeof read('editor.editContext') === 'undefined') {
+			write('editor.editContext', value);
+		}
+	}
+});
+
 // Code Actions on Save
 registerEditorSettingMigration('codeActionsOnSave', (value, read, write) => {
 	if (value && typeof value === 'object') {
 		let toBeModified = false;
-		const newValue = {} as any;
+		const newValue: Record<string, unknown> = {};
 		for (const entry of Object.entries(value)) {
 			if (typeof entry[1] === 'boolean') {
 				toBeModified = true;
@@ -231,3 +244,17 @@ registerEditorSettingMigration('lightbulb.enabled', (value, read, write) => {
 	}
 });
 
+// NES Code Shifting
+registerEditorSettingMigration('inlineSuggest.edits.codeShifting', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('inlineSuggest.edits.codeShifting', undefined);
+		write('inlineSuggest.edits.allowCodeShifting', value ? 'always' : 'never');
+	}
+});
+
+// Migrate Hover
+registerEditorSettingMigration('hover.enabled', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('hover.enabled', value ? 'on' : 'off');
+	}
+});

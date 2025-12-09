@@ -27,7 +27,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
 import { ITextModelService } from '../../../common/services/resolverService.js';
-import { assertType } from '../../../../base/common/types.js';
+import { assertType, isArrayOf } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 
 class SelectionRanges {
@@ -151,8 +151,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(true, {
 			id: 'editor.action.smartSelect.expand',
-			label: nls.localize('smartSelect.expand', "Expand Selection"),
-			alias: 'Expand Selection',
+			label: nls.localize2('smartSelect.expand', "Expand Selection"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -180,8 +179,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(false, {
 			id: 'editor.action.smartSelect.shrink',
-			label: nls.localize('smartSelect.shrink', "Shrink Selection"),
-			alias: 'Shrink Selection',
+			label: nls.localize2('smartSelect.shrink', "Shrink Selection"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -309,12 +307,13 @@ CommandsRegistry.registerCommand('_executeSelectionRangeProvider', async functio
 
 	const [resource, positions] = args;
 	assertType(URI.isUri(resource));
+	assertType(isArrayOf(positions, p => Position.isIPosition(p)));
 
 	const registry = accessor.get(ILanguageFeaturesService).selectionRangeProvider;
 	const reference = await accessor.get(ITextModelService).createModelReference(resource);
 
 	try {
-		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, { selectLeadingAndTrailingWhitespace: true, selectSubwords: true }, CancellationToken.None);
+		return provideSelectionRanges(registry, reference.object.textEditorModel, positions.map(Position.lift), { selectLeadingAndTrailingWhitespace: true, selectSubwords: true }, CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}

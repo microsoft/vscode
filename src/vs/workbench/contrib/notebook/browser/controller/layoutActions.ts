@@ -105,7 +105,6 @@ registerAction2(class NotebookConfigureLayoutFromEditorTitle extends Action2 {
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: MenuId.NotebookEditorLayoutConfigure,
-	rememberDefaultAction: false,
 	title: localize2('customizeNotebook', "Customize Notebook..."),
 	icon: Codicon.gear,
 	group: 'navigation',
@@ -155,7 +154,7 @@ registerAction2(class ToggleCellToolbarPositionFromEditorTitle extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		return accessor.get(ICommandService).executeCommand('notebook.toggleCellToolbarPosition', ...args);
 	}
 });
@@ -262,11 +261,8 @@ registerAction2(class ToggleNotebookStickyScroll extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
-				{
-					id: MenuId.NotebookStickyScrollContext,
-					group: 'notebookView',
-					order: 2
-				}
+				{ id: MenuId.NotebookStickyScrollContext, group: 'notebookView', order: 2 },
+				{ id: MenuId.NotebookToolbarContext, group: 'notebookView', order: 2 }
 			]
 		});
 	}

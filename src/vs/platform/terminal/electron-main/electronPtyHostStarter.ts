@@ -17,6 +17,7 @@ import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter } from '../../../base/common/event.js';
 import { deepClone } from '../../../base/common/objects.js';
+import { isNumber } from '../../../base/common/types.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Schemas } from '../../../base/common/network.js';
 
@@ -57,6 +58,7 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 
 		this.utilityProcess.start({
 			type: 'ptyHost',
+			name: 'pty-host',
 			entryPoint: 'vs/platform/terminal/node/ptyHostMain',
 			execArgv,
 			args: ['--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath],
@@ -85,7 +87,7 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 		this._environmentMainService.unsetSnapExportedVariables();
 		const config: { [key: string]: string } = {
 			...deepClone(process.env),
-			VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
+			VSCODE_ESM_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
 			VSCODE_RECONNECT_GRACE_TIME: String(this._reconnectConstants.graceTime),
@@ -93,11 +95,11 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 			VSCODE_RECONNECT_SCROLLBACK: String(this._reconnectConstants.scrollback),
 		};
 		const simulatedLatency = this._configurationService.getValue(TerminalSettingId.DeveloperPtyHostLatency);
-		if (simulatedLatency && typeof simulatedLatency === 'number') {
+		if (simulatedLatency && isNumber(simulatedLatency)) {
 			config.VSCODE_LATENCY = String(simulatedLatency);
 		}
 		const startupDelay = this._configurationService.getValue(TerminalSettingId.DeveloperPtyHostStartupDelay);
-		if (startupDelay && typeof startupDelay === 'number') {
+		if (startupDelay && isNumber(startupDelay)) {
 			config.VSCODE_STARTUP_DELAY = String(startupDelay);
 		}
 		this._environmentMainService.restoreSnapExportedVariables();

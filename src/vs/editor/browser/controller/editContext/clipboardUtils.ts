@@ -5,8 +5,58 @@
 import { IViewModel } from '../../../common/viewModel.js';
 import { Range } from '../../../common/core/range.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { Mimes } from '../../../../base/common/mime.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
+import { EditorOption, IComputedEditorOptions } from '../../../common/config/editorOptions.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 
-export function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
+export function ensureClipboardGetsEditorSelection(e: ClipboardEvent, context: ViewContext, logService: ILogService, isFirefox: boolean): void {
+	const viewModel = context.viewModel;
+	const options = context.configuration.options;
+	let id: string | undefined = undefined;
+	if (logService.getLevel() === LogLevel.Trace) {
+		id = generateUuid();
+	}
+
+	const { dataToCopy, storedMetadata } = generateDataToCopyAndStoreInMemory(viewModel, options, id, isFirefox);
+
+	// !!!!!
+	// This is a workaround for what we think is an Electron bug where
+	// execCommand('copy') does not always work (it does not fire a clipboard event)
+	// !!!!!
+	// We signal that we have executed a copy command
+	CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
+
+	e.preventDefault();
+	if (e.clipboardData) {
+		ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
+	}
+	logService.trace('ensureClipboardGetsEditorSelection with id : ', id, ' with text.length: ', dataToCopy.text.length);
+}
+
+export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, options: IComputedEditorOptions, id: string | undefined, isFirefox: boolean) {
+	const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+	const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+	const selections = viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
+	const dataToCopy = getDataToCopy(viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting);
+	const storedMetadata: ClipboardStoredMetadata = {
+		version: 1,
+		id,
+		isFromEmptySelection: dataToCopy.isFromEmptySelection,
+		multicursorText: dataToCopy.multicursorText,
+		mode: dataToCopy.mode
+	};
+	InMemoryClipboardMetadataManager.INSTANCE.set(
+		// When writing "LINE\r\n" to the clipboard and then pasting,
+		// Firefox pastes "LINE\n", so let's work around this quirk
+		(isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
+		storedMetadata
+	);
+	return { dataToCopy, storedMetadata };
+}
+
+function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
 	const rawTextToCopy = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, isWindows);
 	const newLineCharacter = viewModel.model.getEOL();
 
@@ -71,16 +121,51 @@ export interface ClipboardDataToCopy {
 
 export interface ClipboardStoredMetadata {
 	version: 1;
+	id: string | undefined;
 	isFromEmptySelection: boolean | undefined;
 	multicursorText: string[] | null | undefined;
 	mode: string | null;
 }
 
 export const CopyOptions = {
-	forceCopyWithSyntaxHighlighting: false
+	forceCopyWithSyntaxHighlighting: false,
+	electronBugWorkaroundCopyEventHasFired: false
 };
 
 interface InMemoryClipboardMetadata {
 	lastCopiedValue: string;
 	data: ClipboardStoredMetadata;
 }
+
+export const ClipboardEventUtils = {
+
+	getTextData(clipboardData: DataTransfer): [string, ClipboardStoredMetadata | null] {
+		const text = clipboardData.getData(Mimes.text);
+		let metadata: ClipboardStoredMetadata | null = null;
+		const rawmetadata = clipboardData.getData('vscode-editor-data');
+		if (typeof rawmetadata === 'string') {
+			try {
+				metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
+				if (metadata.version !== 1) {
+					metadata = null;
+				}
+			} catch (err) {
+				// no problem!
+			}
+		}
+		if (text.length === 0 && metadata === null && clipboardData.files.length > 0) {
+			// no textual data pasted, generate text from file names
+			const files: File[] = Array.prototype.slice.call(clipboardData.files, 0);
+			return [files.map(file => file.name).join('\n'), null];
+		}
+		return [text, metadata];
+	},
+
+	setTextData(clipboardData: DataTransfer, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
+		clipboardData.setData(Mimes.text, text);
+		if (typeof html === 'string') {
+			clipboardData.setData('text/html', html);
+		}
+		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
+	}
+};

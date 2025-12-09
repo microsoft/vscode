@@ -18,7 +18,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { GroupIdentifier, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
 import { Memento } from '../../../common/memento.js';
-import { SearchEditorFindMatchClass, SearchEditorInputTypeId, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from './constants.js';
+import { SearchEditorFindMatchClass, SearchEditorInputTypeId, SearchEditorScheme, SearchEditorWorkingCopyTypeId, SearchConfiguration } from './constants.js';
 import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from './searchEditorModel.js';
 import { defaultSearchConfig, parseSavedSearchEditor, serializeSearchConfiguration } from './searchEditorSerialization.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
@@ -35,25 +35,6 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-
-export type SearchConfiguration = {
-	query: string;
-	filesToInclude: string;
-	filesToExclude: string;
-	contextLines: number;
-	matchWholeWord: boolean;
-	isCaseSensitive: boolean;
-	isRegexp: boolean;
-	useExcludeSettingsAndIgnoreFiles: boolean;
-	showIncludesExcludes: boolean;
-	onlyOpenEditors: boolean;
-	notebookSearchConfig: {
-		includeMarkupInput: boolean;
-		includeMarkupPreview: boolean;
-		includeCodeInput: boolean;
-		includeOutput: boolean;
-	};
-};
 
 export const SEARCH_EDITOR_EXT = '.code-search';
 
@@ -75,7 +56,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		let capabilities = EditorInputCapabilities.Singleton;
+		let capabilities = EditorInputCapabilities.None;
 		if (!this.backingUri) {
 			capabilities |= EditorInputCapabilities.Untitled;
 		}
@@ -83,7 +64,7 @@ export class SearchEditorInput extends EditorInput {
 		return capabilities;
 	}
 
-	private memento: Memento;
+	private memento: Memento<{ searchConfig: SearchConfiguration }>;
 
 	private dirty: boolean = false;
 
@@ -335,13 +316,26 @@ export class SearchEditorInput extends EditorInput {
 			}
 		};
 	}
+
+	override copy(): EditorInput {
+		// Generate a new modelUri for the split editor
+		const newModelUri = URI.from({ scheme: SearchEditorScheme, fragment: `${Math.random()}` });
+		const config = this._cachedConfigurationModel?.config ?? {};
+		const results = this._cachedResultsModel?.getValue() ?? '';
+		// Use the 'rawData' variant and pass modelUri
+		return this.instantiationService.invokeFunction(
+			getOrMakeSearchEditorInput,
+			// eslint-disable-next-line local/code-no-any-casts
+			{ from: 'rawData', config, resultsContents: results, modelUri: newModelUri } as any // modelUri is not in the type, but we handle it below
+		);
+	}
 }
 
 export const getOrMakeSearchEditorInput = (
 	accessor: ServicesAccessor,
 	existingData: (
 		| { from: 'model'; config?: Partial<SearchConfiguration>; modelUri: URI; backupOf?: URI }
-		| { from: 'rawData'; resultsContents: string | undefined; config: Partial<SearchConfiguration> }
+		| { from: 'rawData'; resultsContents: string | undefined; config: Partial<SearchConfiguration>; modelUri?: URI }
 		| { from: 'existingFile'; fileUri: URI })
 ): SearchEditorInput => {
 
@@ -349,7 +343,14 @@ export const getOrMakeSearchEditorInput = (
 	const configurationService = accessor.get(IConfigurationService);
 
 	const instantiationService = accessor.get(IInstantiationService);
-	const modelUri = existingData.from === 'model' ? existingData.modelUri : URI.from({ scheme: SearchEditorScheme, fragment: `${Math.random()}` });
+	let modelUri: URI;
+	if (existingData.from === 'model') {
+		modelUri = existingData.modelUri;
+	} else if (existingData.from === 'rawData' && existingData.modelUri) {
+		modelUri = existingData.modelUri;
+	} else {
+		modelUri = URI.from({ scheme: SearchEditorScheme, fragment: `${Math.random()}` });
+	}
 
 	if (!searchEditorModelFactory.models.has(modelUri)) {
 		if (existingData.from === 'existingFile') {
@@ -361,7 +362,7 @@ export const getOrMakeSearchEditorInput = (
 			const reuseOldSettings = searchEditorSettings.reusePriorSearchConfiguration;
 			const defaultNumberOfContextLines = searchEditorSettings.defaultNumberOfContextLines;
 
-			const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig : {};
+			const priorConfig = reuseOldSettings ? new Memento<{ searchConfig?: SearchConfiguration }>(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig ?? {} : {};
 			const defaultConfig = defaultSearchConfig();
 
 			const config = { ...defaultConfig, ...priorConfig, ...existingData.config };

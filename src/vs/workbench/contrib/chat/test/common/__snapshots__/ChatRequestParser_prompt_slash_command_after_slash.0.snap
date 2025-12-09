@@ -1,0 +1,19 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 41
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 42
+      },
+      text: "/ route and the request of /search-option",
+      kind: "text"
+    }
+  ],
+  text: "/ route and the request of /search-option"
+}

@@ -101,7 +101,7 @@ export class InstantiationService implements IInstantiationService {
 
 					const result = this._getOrCreateServiceInstance(id, _trace);
 					if (!result) {
-						throw new Error(`[invokeFunction] unknown service '${id}'`);
+						this._throwIfStrict(`[invokeFunction] unknown service '${id}'`, false);
 					}
 					return result;
 				}
@@ -114,12 +114,12 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	createInstance<T>(descriptor: SyncDescriptor0<T>): T;
-	createInstance<Ctor extends new (...args: any[]) => any, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
-	createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: any[]): any {
+	createInstance<Ctor extends new (...args: any[]) => unknown, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
+	createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: unknown[]): unknown {
 		this._throwIfDisposed();
 
 		let _trace: Trace;
-		let result: any;
+		let result: unknown;
 		if (ctorOrDescriptor instanceof SyncDescriptor) {
 			_trace = Trace.traceCreation(this._enableTracing, ctorOrDescriptor.ctor);
 			result = this._createInstance(ctorOrDescriptor.ctor, ctorOrDescriptor.staticArguments.concat(rest), _trace);
@@ -131,11 +131,11 @@ export class InstantiationService implements IInstantiationService {
 		return result;
 	}
 
-	private _createInstance<T>(ctor: any, args: any[] = [], _trace: Trace): T {
+	private _createInstance<T>(ctor: any, args: unknown[] = [], _trace: Trace): T {
 
 		// arguments defined by service decorators
 		const serviceDependencies = _util.getServiceDependencies(ctor).sort((a, b) => a.index - b.index);
-		const serviceArgs: any[] = [];
+		const serviceArgs: unknown[] = [];
 		for (const dependency of serviceDependencies) {
 			const service = this._getOrCreateServiceInstance(dependency.id, _trace);
 			if (!service) {
@@ -279,7 +279,7 @@ export class InstantiationService implements IInstantiationService {
 		return <T>this._getServiceInstanceOrDescriptor(id);
 	}
 
-	private _createServiceInstanceWithOwner<T>(id: ServiceIdentifier<T>, ctor: any, args: any[] = [], supportsDelayedInstantiation: boolean, _trace: Trace): T {
+	private _createServiceInstanceWithOwner<T>(id: ServiceIdentifier<T>, ctor: any, args: unknown[] = [], supportsDelayedInstantiation: boolean, _trace: Trace): T {
 		if (this._services.get(id) instanceof SyncDescriptor) {
 			return this._createServiceInstance(id, ctor, args, supportsDelayedInstantiation, _trace, this._servicesToMaybeDispose);
 		} else if (this._parent) {
@@ -289,7 +289,7 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
-	private _createServiceInstance<T>(id: ServiceIdentifier<T>, ctor: any, args: any[] = [], supportsDelayedInstantiation: boolean, _trace: Trace, disposeBucket: Set<any>): T {
+	private _createServiceInstance<T>(id: ServiceIdentifier<T>, ctor: any, args: unknown[] = [], supportsDelayedInstantiation: boolean, _trace: Trace, disposeBucket: Set<any>): T {
 		if (!supportsDelayedInstantiation) {
 			// eager instantiation
 			const result = this._createInstance<T>(ctor, args, _trace);
@@ -318,6 +318,7 @@ export class InstantiationService implements IInstantiationService {
 				// early listeners that we kept are now being subscribed to
 				// the real service
 				for (const [key, values] of earlyListeners) {
+					// eslint-disable-next-line local/code-no-any-casts
 					const candidate = <Event<any>>(<any>result)[key];
 					if (typeof candidate === 'function') {
 						for (const value of values) {
@@ -330,7 +331,7 @@ export class InstantiationService implements IInstantiationService {
 				return result;
 			});
 			return <T>new Proxy(Object.create(null), {
-				get(target: any, key: PropertyKey): any {
+				get(target: any, key: PropertyKey): unknown {
 
 					if (!idle.isInitialized) {
 						// looks like an event

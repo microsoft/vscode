@@ -39,6 +39,10 @@ export class FastDomNode<T extends HTMLElement> {
 		public readonly domNode: T
 	) { }
 
+	public focus(): void {
+		this.domNode.focus();
+	}
+
 	public setMaxWidth(_maxWidth: number | string): void {
 		const maxWidth = numberAsPixels(_maxWidth);
 		if (this._maxWidth === maxWidth) {
@@ -287,7 +291,7 @@ export class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._contain = contain;
-		(<any>this.domNode.style).contain = this._contain;
+		this.domNode.style.contain = this._contain;
 	}
 
 	public setAttribute(name: string, value: string): void {

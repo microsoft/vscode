@@ -14,7 +14,7 @@ import type { IGrammar, StateStack } from 'vscode-textmate';
 export class TextMateTokenizationSupport extends Disposable implements ITokenizationSupport {
 	private readonly _seenLanguages: boolean[] = [];
 	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = this._register(new Emitter<LanguageId>());
-	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
+	public get onDidEncounterLanguage(): Event<LanguageId> { return this._onDidEncounterLanguage.event; }
 
 	constructor(
 		private readonly _grammar: IGrammar,

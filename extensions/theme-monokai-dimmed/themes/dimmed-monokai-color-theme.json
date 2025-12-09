@@ -19,8 +19,8 @@
 		"editor.wordHighlightStrongBackground": "#6767ce80",
 		"editorCursor.foreground": "#c07020",
 		"editorWhitespace.foreground": "#505037",
-		"editorIndentGuide.background": "#505037",
-		"editorIndentGuide.activeBackground": "#707057",
+		"editorIndentGuide.background1": "#505037",
+		"editorIndentGuide.activeBackground1": "#707057",
 		"editorGroupHeader.tabsBackground": "#282828",
 		"tab.inactiveBackground": "#404040",
 		"tab.border": "#303030",
@@ -127,14 +127,6 @@
 			}
 		},
 		{
-			"name": "Keyword",
-			"scope": "keyword",
-			"settings": {
-				"fontStyle": "",
-				"foreground": "#6089B4"
-			}
-		},
-		{
 			"name": "Support",
 			"scope": "support",
 			"settings": {
@@ -160,7 +152,10 @@
 		},
 		{
 			"name": "Inherited class",
-			"scope": "entity.other.inherited-class",
+			"scope": [
+				"entity.other.inherited-class",
+				"punctuation.separator.namespace.ruby"
+			],
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#C7444A"
@@ -180,22 +175,6 @@
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#6089B4"
-			}
-		},
-		{
-			"name": "Tag name",
-			"scope": "entity.name.tag",
-			"settings": {
-				"fontStyle": "",
-				"foreground": "#9872A2"
-			}
-		},
-		{
-			"name": "Tag attribute",
-			"scope": "entity.other.attribute-name",
-			"settings": {
-				"fontStyle": "",
-				"foreground": "#9872A2"
 			}
 		},
 		{
@@ -220,14 +199,6 @@
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#6089B4"
-			}
-		},
-		{
-			"name": "Meta Brace",
-			"scope": "punctuation.section.embedded -(source string source punctuation.section.embedded), meta.brace.erb.html",
-			"settings": {
-				"fontStyle": "",
-				"foreground": "#008200"
 			}
 		},
 		{

@@ -6,7 +6,7 @@
 import { coalesce } from '../../../base/common/arrays.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickItem } from './quickInput.js';
+import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickItem, IQuickPickSeparator } from './quickInput.js';
 import { Registry } from '../../registry/common/platform.js';
 
 /**
@@ -21,7 +21,7 @@ export interface IQuickAccessProviderRunOptions {
 	 * this particular showing of the quick access.
 	 * @param item The item that was accepted.
 	 */
-	readonly handleAccept?: (item: IQuickPickItem) => void;
+	readonly handleAccept?: (item: IQuickPickItem, isBackgroundAccept: boolean) => void;
 }
 
 /**
@@ -29,7 +29,7 @@ export interface IQuickAccessProviderRunOptions {
  */
 export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProviderRunOptions {
 	readonly includeHelp?: boolean;
-	readonly filter?: (item: unknown) => boolean;
+	readonly filter?: (item: IQuickPickItem | IQuickPickSeparator) => boolean;
 	/**
 	 * @deprecated - temporary for Dynamic Chat Variables (see usage) until it has built-in UX for file picking
 	 * Useful for adding items to the top of the list that might contain actions.
@@ -169,6 +169,7 @@ export interface IQuickAccessProviderDescriptor {
 	/**
 	 * The actual provider that will be instantiated as needed.
 	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	readonly ctor: { new(...services: any /* TS BrandedService but no clue how to type this properly */[]): IQuickAccessProvider };
 
 	/**

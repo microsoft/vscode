@@ -20,10 +20,11 @@ import { PickerEditorState } from '../../browser/quickaccess.js';
 import { EditorsOrder } from '../../common/editor.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
 suite('QuickAccess', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let accessor: TestServiceAccessor;
 
@@ -50,12 +51,14 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			providerDefaultCalled = true;
-			token.onCancellationRequested(() => providerDefaultCanceled = true);
+			const store = new DisposableStore();
+			store.add(toDisposable(() => providerDefaultDisposed = true));
+			store.add(token.onCancellationRequested(() => providerDefaultCanceled = true));
 
 			// bring up provider #3
 			setTimeout(() => this.quickInputService.quickAccess.show(providerDescriptor3.prefix));
 
-			return toDisposable(() => providerDefaultDisposed = true);
+			return store;
 		}
 	}
 
@@ -63,9 +66,11 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider1Called = true;
-			token.onCancellationRequested(() => provider1Canceled = true);
+			const store = new DisposableStore();
+			store.add(token.onCancellationRequested(() => provider1Canceled = true));
 
-			return toDisposable(() => provider1Disposed = true);
+			store.add(toDisposable(() => provider1Disposed = true));
+			return store;
 		}
 	}
 
@@ -73,9 +78,11 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider2Called = true;
-			token.onCancellationRequested(() => provider2Canceled = true);
+			const store = new DisposableStore();
+			store.add(token.onCancellationRequested(() => provider2Canceled = true));
 
-			return toDisposable(() => provider2Disposed = true);
+			store.add(toDisposable(() => provider2Disposed = true));
+			return store;
 		}
 	}
 
@@ -83,12 +90,14 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider3Called = true;
-			token.onCancellationRequested(() => provider3Canceled = true);
+			const store = new DisposableStore();
+			store.add(token.onCancellationRequested(() => provider3Canceled = true));
 
 			// hide without picking
 			setTimeout(() => picker.hide());
 
-			return toDisposable(() => provider3Disposed = true);
+			store.add(toDisposable(() => provider3Disposed = true));
+			return store;
 		}
 	}
 
@@ -98,13 +107,8 @@ suite('QuickAccess', () => {
 	const providerDescriptor3 = { ctor: TestProvider3, prefix: 'changed', helpEntries: [] };
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('registry', () => {
@@ -344,7 +348,7 @@ suite('QuickAccess', () => {
 
 	test('PickerEditorState can properly restore editors', async () => {
 
-		const part = await createEditorPart(instantiationService, disposables);
+		const part = await createEditorPart(instantiationService, disposables.add(new DisposableStore()));
 		instantiationService.stub(IEditorGroupsService, part);
 
 		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));

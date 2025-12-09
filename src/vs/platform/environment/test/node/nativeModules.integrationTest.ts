@@ -18,11 +18,6 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof kerberos.initializeClient === 'function', testErrorMessage('kerberos'));
 	});
 
-	test('minimist', async () => {
-		const { default: minimist } = await import('minimist');
-		assert.ok(typeof minimist === 'function', testErrorMessage('minimist'));
-	});
-
 	test('yauzl', async () => {
 		const { default: yauzl } = await import('yauzl');
 		assert.ok(typeof yauzl.ZipFile === 'function', testErrorMessage('yauzl'));
@@ -75,11 +70,6 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof nodePty.spawn === 'function', testErrorMessage('node-pty'));
 	});
 
-	test('open', async () => {
-		const { default: open } = await import('open');
-		assert.ok(typeof open === 'function', testErrorMessage('open'));
-	});
-
 	test('@vscode/spdlog', async () => {
 		const spdlog = await import('@vscode/spdlog');
 		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('@vscode/spdlog'));
@@ -89,11 +79,6 @@ flakySuite('Native Modules (all platforms)', () => {
 	test('@parcel/watcher', async () => {
 		const parcelWatcher = await import('@parcel/watcher');
 		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('@parcel/watcher'));
-	});
-
-	test('@bpasero/watcher', async () => {
-		const parcelWatcher2 = await import('@bpasero/watcher');
-		assert.ok(typeof parcelWatcher2.subscribe === 'function', testErrorMessage('@bpasero/watcher'));
 	});
 
 	test('@vscode/deviceid', async () => {
@@ -112,32 +97,17 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('@vscode/sqlite3', async () => {
-		// ESM-comment-begin
-		// const sqlite3 = await import('@vscode/sqlite3');
-		// ESM-comment-end
-		// ESM-uncomment-begin
 		const { default: sqlite3 } = await import('@vscode/sqlite3');
-		// ESM-uncomment-end
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
 	});
 
 	test('http-proxy-agent', async () => {
-		// ESM-comment-begin
-		// const mod = await import('http-proxy-agent');
-		// ESM-comment-end
-		// ESM-uncomment-begin
 		const { default: mod } = await import('http-proxy-agent');
-		// ESM-uncomment-end
 		assert.ok(typeof mod.HttpProxyAgent === 'function', testErrorMessage('http-proxy-agent'));
 	});
 
 	test('https-proxy-agent', async () => {
-		// ESM-comment-begin
-		// const mod = await import('https-proxy-agent');
-		// ESM-comment-end
-		// ESM-uncomment-begin
 		const { default: mod } = await import('https-proxy-agent');
-		// ESM-uncomment-end
 		assert.ok(typeof mod.HttpsProxyAgent === 'function', testErrorMessage('https-proxy-agent'));
 	});
 
@@ -145,6 +115,7 @@ flakySuite('Native Modules (all platforms)', () => {
 		const proxyAgent = await import('@vscode/proxy-agent');
 		// This call will load `@vscode/proxy-agent` which is a native module that we want to test on Windows
 		const windowsCerts = await proxyAgent.loadSystemCertificates({
+			loadSystemCertificatesFromNode: () => undefined,
 			log: {
 				trace: () => { },
 				debug: () => { },

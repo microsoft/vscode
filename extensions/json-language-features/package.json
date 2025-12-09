@@ -16,14 +16,16 @@
   "activationEvents": [
     "onLanguage:json",
     "onLanguage:jsonc",
-    "onLanguage:snippets"
+    "onLanguage:snippets",
+    "onCommand:json.validate"
   ],
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
-      "supported": true
+      "supported": "limited",
+      "description": "%json.workspaceTrust%"
     }
   },
   "scripts": {
@@ -139,6 +141,12 @@
           "strings": true
         },
         "editor.suggest.insertMode": "replace"
+      },
+      "[snippets]": {
+        "editor.quickSuggestions": {
+          "strings": true
+        },
+        "editor.suggest.insertMode": "replace"
       }
     },
     "jsonValidation": [
@@ -161,12 +169,12 @@
     ]
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.0",
+    "@vscode/extension-telemetry": "^0.9.8",
     "request-light": "^0.8.0",
-    "vscode-languageclient": "10.0.0-next.8"
+    "vscode-languageclient": "^10.0.0-next.18"
   },
   "devDependencies": {
-    "@types/node": "20.x"
+    "@types/node": "22.x"
   },
   "repository": {
     "type": "git",

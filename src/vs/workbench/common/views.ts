@@ -366,6 +366,11 @@ export enum ViewContentGroups {
 
 export interface IViewContentDescriptor {
 	readonly content: string;
+	/**
+	 * Whether to render all but the first button as secondary
+	 * if there are buttons in the `content` property.
+	 */
+	readonly renderSecondaryButtons?: boolean;
 	readonly when?: ContextKeyExpression | 'default';
 	readonly group?: string;
 	readonly order?: number;
@@ -655,9 +660,10 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]>;
 
-	readonly container: any | undefined;
+	readonly container: unknown /* HTMLElement */ | undefined;
 
-	refresh(treeItems?: readonly ITreeItem[]): Promise<void>;
+	// checkboxesChanged is a subset of treeItems
+	refresh(treeItems?: readonly ITreeItem[], checkboxesChanged?: readonly ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 
@@ -679,7 +685,7 @@ export interface ITreeView extends IDisposable {
 
 	setFocus(item?: ITreeItem): void;
 
-	show(container: any): void;
+	show(container: unknown /* HTMLElement */): void;
 }
 
 export interface IRevealOptions {
@@ -715,11 +721,9 @@ export enum TreeItemCollapsibleState {
 
 export interface ITreeItemLabel {
 
-	label: string;
+	label: string | IMarkdownString;
 
 	highlights?: [number, number][];
-
-	strikethrough?: boolean;
 
 }
 
@@ -839,8 +843,9 @@ export class NoTreeViewError extends Error {
 
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
-	onDidChangeEmpty?: Event<void>;
+	readonly onDidChangeEmpty?: Event<void>;
 	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
+	getChildrenBatch?(element?: ITreeItem[]): Promise<ITreeItem[][] | undefined>;
 }
 
 export interface ITreeViewDragAndDropController {
@@ -858,9 +863,9 @@ export interface IEditableData {
 }
 
 export interface IViewPaneContainer {
-	onDidAddViews: Event<IView[]>;
-	onDidRemoveViews: Event<IView[]>;
-	onDidChangeViewVisibility: Event<IView>;
+	readonly onDidAddViews: Event<IView[]>;
+	readonly onDidRemoveViews: Event<IView[]>;
+	readonly onDidChangeViewVisibility: Event<IView>;
 
 	readonly views: IView[];
 

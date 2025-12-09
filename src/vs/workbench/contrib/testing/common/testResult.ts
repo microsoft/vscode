@@ -340,6 +340,7 @@ export class LiveTestResult extends Disposable implements ITestResult {
 		public readonly id: string,
 		public readonly persist: boolean,
 		public readonly request: ResolvedTestRunRequest,
+		public readonly insertOrder: number,
 		@ITelemetryService private readonly telemetry: ITelemetryService,
 	) {
 		super();
@@ -464,7 +465,7 @@ export class LiveTestResult extends Disposable implements ITestResult {
 		task.output.end();
 
 		this.setAllToState(
-			TestResultState.Unset,
+			TestResultState.Skipped,
 			taskId,
 			t => t.state === TestResultState.Queued || t.state === TestResultState.Running,
 		);

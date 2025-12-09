@@ -30,27 +30,27 @@ import { IQuickInputService, IQuickPickSeparator } from '../../../../platform/qu
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchQuickAccessConfiguration } from '../../../browser/quickaccess.js';
-import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
-import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
-import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
 import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from '../../../services/aiRelatedInformation/common/aiRelatedInformation.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { createKeybindingCommandQuery } from '../../../services/preferences/browser/keybindingsEditorModel.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
 	private static AI_RELATED_INFORMATION_MAX_PICKS = 5;
-	private static AI_RELATED_INFORMATION_THRESHOLD = 0.8;
 	private static AI_RELATED_INFORMATION_DEBOUNCE = 200;
 
 	// If extensions are not yet registered, we wait for a little moment to give them
 	// a chance to register so that the complete set of commands shows up as result
 	// We do not want to delay functionality beyond that time though to keep the commands
 	// functional.
-	private readonly extensionRegistrationRace = raceTimeout(this.extensionService.whenInstalledExtensionsRegistered(), 800);
+	private readonly extensionRegistrationRace: Promise<boolean | undefined>;
 
 	private useAiRelatedInfo = false;
 
@@ -67,7 +67,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionService extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
@@ -88,6 +88,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			}),
 		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
 
+		this.extensionRegistrationRace = raceTimeout(extensionService.whenInstalledExtensionsRegistered(), 800);
 		this._register(configurationService.onDidChangeConfiguration((e) => this.updateOptions(e)));
 		this.updateOptions();
 	}
@@ -97,6 +98,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 		return {
 			preserveInput: commandPaletteConfig.preserveInput,
+			showAskInChat: commandPaletteConfig.showAskInChat,
 			experimental: commandPaletteConfig.experimental
 		};
 	}
@@ -157,29 +159,39 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			return [];
 		}
 
-		let additionalPicks;
-
+		let additionalPicks: (ICommandQuickPick | IQuickPickSeparator)[] = [];
 		try {
 			// Wait a bit to see if the user is still typing
 			await timeout(CommandsQuickAccessProvider.AI_RELATED_INFORMATION_DEBOUNCE, token);
 			additionalPicks = await this.getRelatedInformationPicks(allPicks, picksSoFar, filter, token);
 		} catch (e) {
-			return [];
+			// Ignore and continue to add "Ask in Chat" option
 		}
 
-		if (picksSoFar.length || additionalPicks.length) {
-			additionalPicks.push({
-				type: 'separator'
-			});
-		}
+		// If enabled in settings, add "Ask in Chat" option after a separator (if needed).
+		if (this.configuration.showAskInChat) {
+			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
+			if (defaultAgent) {
+				if (picksSoFar.length || additionalPicks.length) {
+					additionalPicks.push({
+						type: 'separator'
+					});
+				}
 
-		const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
-		if (defaultAgent) {
-			additionalPicks.push({
-				label: localize('askXInChat', "Ask {0}: {1}", defaultAgent.fullName, filter),
-				commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
-				args: [filter]
-			});
+				additionalPicks.push({
+					label: localize('commandsQuickAccess.askInChat', "Ask in Chat: {0}", filter),
+					commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
+					args: [filter],
+					buttons: [{
+						iconClass: ThemeIcon.asClassName(Codicon.gear),
+						tooltip: localize('commandsQuickAccess.configureAskInChatSetting', "Configure visibility"),
+					}],
+					trigger: () => {
+						void this.preferencesService.openSettings({ jsonEditor: false, query: 'workbench.commandPalette.showAskInChat' });
+						return TriggerAction.CLOSE_PICKER;
+					},
+				});
+			}
 		}
 
 		return additionalPicks;
@@ -199,7 +211,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		const additionalPicks = new Array<ICommandQuickPick | IQuickPickSeparator>();
 
 		for (const info of relatedInformation) {
-			if (info.weight < CommandsQuickAccessProvider.AI_RELATED_INFORMATION_THRESHOLD || additionalPicks.length === CommandsQuickAccessProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
+			if (additionalPicks.length === CommandsQuickAccessProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
 				break;
 			}
 			const pick = allPicks.find(p => p.commandId === info.command && !setOfPicksSoFar.has(p.commandId));
@@ -248,6 +260,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				commandAlias,
 				label: stripIcons(label),
 				commandDescription,
+				commandCategory: category,
 			});
 		}
 

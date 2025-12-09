@@ -8,30 +8,31 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { Toggle, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
+import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { Toggle, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isIOS } from '../../../../base/common/platform.js';
-import { isDefined, isUndefinedOrNull } from '../../../../base/common/types.js';
-import './media/settingsWidgets.css';
-import { localize } from '../../../../nls.js';
-import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from './preferencesIcons.js';
-import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
-import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { isDefined, isUndefinedOrNull } from '../../../../base/common/types.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { SettingValueType } from '../../../services/preferences/common/preferences.js';
+import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
+import './media/settingsWidgets.css';
+import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from './preferencesIcons.js';
 
 const $ = DOM.$;
 
@@ -165,14 +166,15 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		return this.model.items;
 	}
 
-	get inReadMode(): boolean {
-		return this.model.items.every(item => !item.editing);
+	protected get isReadOnly(): boolean {
+		return false;
 	}
 
 	constructor(
 		private container: HTMLElement,
 		@IThemeService protected readonly themeService: IThemeService,
-		@IContextViewService protected readonly contextViewService: IContextViewService
+		@IContextViewService protected readonly contextViewService: IContextViewService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -264,7 +266,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 
 
 		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, styles, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+			useCustomDrawn: !hasNativeContextMenu(this.configurationService) || !(isIOS && BrowserFeatures.pointerEvents)
 		});
 		return selectBox;
 	}
@@ -373,6 +375,10 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 			return;
 		}
 
+		if (this.isReadOnly) {
+			return;
+		}
+
 		const item = this.model.items[targetIdx];
 		if (item) {
 			this.editSetting(targetIdx);
@@ -428,8 +434,9 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 }
 
 interface IListSetValueOptions {
-	showAddButton: boolean;
+	showAddButton?: boolean;
 	keySuggester?: IObjectKeySuggester;
+	isReadOnly?: boolean;
 }
 
 export interface IListDataItem {
@@ -446,10 +453,12 @@ interface ListSettingWidgetDragDetails<TListDataItem extends IListDataItem> {
 export class ListSettingWidget<TListDataItem extends IListDataItem> extends AbstractListSettingWidget<TListDataItem> {
 	private keyValueSuggester: IObjectKeySuggester | undefined;
 	private showAddButton: boolean = true;
+	private isEditable: boolean = true;
 
 	override setValue(listData: TListDataItem[], options?: IListSetValueOptions) {
 		this.keyValueSuggester = options?.keySuggester;
-		this.showAddButton = options?.showAddButton ?? true;
+		this.isEditable = options?.isReadOnly === undefined ? true : !options.isReadOnly;
+		this.showAddButton = this.isEditable ? (options?.showAddButton ?? true) : false;
 		super.setValue(listData);
 	}
 
@@ -457,12 +466,14 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 		container: HTMLElement,
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IHoverService protected readonly hoverService: IHoverService
+		@IHoverService protected readonly hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(container, themeService, contextViewService);
+		super(container, themeService, contextViewService, configurationService);
 	}
 
 	protected getEmptyItem(): TListDataItem {
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {
 			value: {
 				type: 'string',
@@ -480,6 +491,9 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 	}
 
 	protected getActionsForItem(item: TListDataItem, idx: number): IAction[] {
+		if (this.isReadOnly) {
+			return [];
+		}
 		return [
 			{
 				class: ThemeIcon.asClassName(settingsEditIcon),
@@ -500,26 +514,25 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 
 	private dragDetails: ListSettingWidgetDragDetails<TListDataItem> | undefined;
 
-	private getDragImage(item: TListDataItem): HTMLElement {
-		const dragImage = $('.monaco-drag-image');
-		dragImage.textContent = item.value.data;
-		return dragImage;
-	}
-
 	protected renderItem(item: TListDataItem, idx: number): RowElementGroup {
 		const rowElement = $('.setting-list-row');
 		const valueElement = DOM.append(rowElement, $('.setting-list-value'));
 		const siblingElement = DOM.append(rowElement, $('.setting-list-sibling'));
 
 		valueElement.textContent = item.value.data.toString();
-		siblingElement.textContent = item.sibling ? `when: ${item.sibling}` : null;
+		if (item.sibling) {
+			siblingElement.textContent = `when: ${item.sibling}`;
+		} else {
+			siblingElement.textContent = null;
+			valueElement.classList.add('no-sibling');
+		}
 
 		this.addDragAndDrop(rowElement, item, idx);
 		return { rowElement, keyElement: valueElement, valueElement: siblingElement };
 	}
 
 	protected addDragAndDrop(rowElement: HTMLElement, item: TListDataItem, idx: number) {
-		if (this.inReadMode) {
+		if (this.model.items.every(item => !item.editing)) {
 			rowElement.draggable = true;
 			rowElement.classList.add('draggable');
 		} else {
@@ -533,13 +546,8 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 				item,
 				itemIndex: idx
 			};
-			if (ev.dataTransfer) {
-				ev.dataTransfer.dropEffect = 'move';
-				const dragImage = this.getDragImage(item);
-				rowElement.ownerDocument.body.appendChild(dragImage);
-				ev.dataTransfer.setDragImage(dragImage, -10, -10);
-				setTimeout(() => dragImage.remove(), 0);
-			}
+
+			applyDragImage(ev, rowElement, item.value.data);
 		}));
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_OVER, (ev) => {
 			if (!this.dragDetails) {
@@ -624,6 +632,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 
 		const updatedInputBoxItem = (): TListDataItem => {
 			const inputBox = valueInput as InputBox;
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			return {
 				value: {
 					type: 'string',
@@ -633,6 +642,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 			} as TListDataItem;
 		};
 		const updatedSelectBoxItem = (selectedValue: string): TListDataItem => {
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			return {
 				value: {
 					type: 'enum',
@@ -726,7 +736,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 			: localize('listSiblingHintLabel', "List item `{0}` with sibling `${1}`", value.data, sibling);
 
 		const { rowElement } = rowElementGroup;
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rowElement, title));
+		this.listDisposables.add(this.hoverService.setupDelayedHover(rowElement, { content: title }));
 		rowElement.setAttribute('aria-label', title);
 	}
 
@@ -792,7 +802,7 @@ export class ExcludeSettingWidget extends ListSettingWidget<IIncludeExcludeDataI
 		const markdownTitle = new MarkdownString().appendMarkdown(title);
 
 		const { rowElement } = rowElementGroup;
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rowElement, { markdown: markdownTitle, markdownNotSupportedFallback: title }));
+		this.listDisposables.add(this.hoverService.setupDelayedHover(rowElement, { content: markdownTitle }));
 		rowElement.setAttribute('aria-label', title);
 	}
 
@@ -828,7 +838,7 @@ export class IncludeSettingWidget extends ListSettingWidget<IIncludeExcludeDataI
 		const markdownTitle = new MarkdownString().appendMarkdown(title);
 
 		const { rowElement } = rowElementGroup;
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rowElement, { markdown: markdownTitle, markdownNotSupportedFallback: title }));
+		this.listDisposables.add(this.hoverService.setupDelayedHover(rowElement, { content: markdownTitle }));
 		rowElement.setAttribute('aria-label', title);
 	}
 
@@ -895,8 +905,9 @@ export interface IObjectKeySuggester {
 interface IObjectSetValueOptions {
 	settingKey: string;
 	showAddButton: boolean;
-	keySuggester: IObjectKeySuggester;
-	valueSuggester: IObjectValueSuggester;
+	isReadOnly?: boolean;
+	keySuggester?: IObjectKeySuggester;
+	valueSuggester?: IObjectValueSuggester;
 }
 
 interface IObjectRenderEditWidgetOptions {
@@ -908,6 +919,7 @@ interface IObjectRenderEditWidgetOptions {
 }
 
 export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObjectDataItem> {
+	private editable: boolean = true;
 	private currentSettingKey: string = '';
 	private showAddButton: boolean = true;
 	private keySuggester: IObjectKeySuggester = () => undefined;
@@ -918,11 +930,13 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(container, themeService, contextViewService);
+		super(container, themeService, contextViewService, configurationService);
 	}
 
 	override setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
+		this.editable = !options?.isReadOnly;
 		this.showAddButton = options?.showAddButton ?? this.showAddButton;
 		this.keySuggester = options?.keySuggester ?? this.keySuggester;
 		this.valueSuggester = options?.valueSuggester ?? this.valueSuggester;
@@ -944,6 +958,10 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		return this.showAddButton;
 	}
 
+	protected override get isReadOnly(): boolean {
+		return !this.editable;
+	}
+
 	protected getEmptyItem(): IObjectDataItem {
 		return {
 			key: { type: 'string', data: '' },
@@ -958,6 +976,10 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 	}
 
 	protected getActionsForItem(item: IObjectDataItem, idx: number): IAction[] {
+		if (this.isReadOnly) {
+			return [];
+		}
+
 		const actions: IAction[] = [
 			{
 				class: ThemeIcon.asClassName(settingsEditIcon),
@@ -1255,13 +1277,13 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 			accessibleDescription = localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
 		}
 
-		const markdownString = { markdown: new MarkdownString().appendMarkdown(accessibleDescription), markdownNotSupportedFallback: accessibleDescription };
+		const markdownString = new MarkdownString().appendMarkdown(accessibleDescription);
 
-		const keyDescription: string | IManagedHoverTooltipMarkdownString = this.getEnumDescription(item.key) ?? item.keyDescription ?? markdownString;
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), keyElement, keyDescription));
+		const keyDescription: string | MarkdownString = this.getEnumDescription(item.key) ?? item.keyDescription ?? markdownString;
+		this.listDisposables.add(this.hoverService.setupDelayedHover(keyElement, { content: keyDescription }));
 
-		const valueDescription: string | IManagedHoverTooltipMarkdownString = this.getEnumDescription(item.value) ?? markdownString;
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), valueElement!, valueDescription));
+		const valueDescription: string | MarkdownString = this.getEnumDescription(item.value) ?? markdownString;
+		this.listDisposables.add(this.hoverService.setupDelayedHover(valueElement!, { content: valueDescription }));
 
 		rowElement.setAttribute('aria-label', accessibleDescription);
 	}
@@ -1306,8 +1328,9 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(container, themeService, contextViewService);
+		super(container, themeService, contextViewService, configurationService);
 	}
 
 	override setValue(listData: IBoolObjectDataItem[], options?: IBoolObjectSetValueOptions): void {
@@ -1431,7 +1454,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		const title = item.keyDescription ?? accessibleDescription;
 		const { rowElement, keyElement, valueElement } = rowElementGroup;
 
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), keyElement, title));
+		this.listDisposables.add(this.hoverService.setupDelayedHover(keyElement, { content: title }));
 		valueElement!.setAttribute('aria-label', accessibleDescription);
 		rowElement.setAttribute('aria-label', accessibleDescription);
 	}

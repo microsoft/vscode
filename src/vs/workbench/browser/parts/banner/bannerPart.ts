@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/bannerpart.css';
-import { localize2 } from '../../../../nls.js';
-import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { $, addDisposableListener, append, clearNode, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
+import { asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -19,7 +20,7 @@ import { Link } from '../../../../platform/opener/browser/link.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IBannerItem, IBannerService } from '../../../services/banner/browser/bannerService.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -55,7 +56,6 @@ export class BannerPart extends Part implements IBannerService {
 	//#endregion
 
 	private item: IBannerItem | undefined;
-	private readonly markdownRenderer: MarkdownRenderer;
 	private visible = false;
 
 	private actionBar: ActionBar | undefined;
@@ -68,10 +68,9 @@ export class BannerPart extends Part implements IBannerService {
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super(Parts.BANNER_PART, { hasTitle: false }, themeService, storageService, layoutService);
-
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
@@ -135,11 +134,11 @@ export class BannerPart extends Part implements IBannerService {
 	private getBannerMessage(message: MarkdownString | string): HTMLElement {
 		if (typeof message === 'string') {
 			const element = $('span');
-			element.innerText = message;
+			element.textContent = message;
 			return element;
 		}
 
-		return this.markdownRenderer.render(message).element;
+		return this.markdownRendererService.render(message).element;
 	}
 
 	private setVisibility(visible: boolean): void {
@@ -224,7 +223,7 @@ export class BannerPart extends Part implements IBannerService {
 		// Action
 		const actionBarContainer = append(this.element, $('div.action-container'));
 		this.actionBar = this._register(new ActionBar(actionBarContainer));
-		const label = item.closeLabel ?? 'Close Banner';
+		const label = item.closeLabel ?? localize('closeBanner', "Close Banner");
 		const closeAction = this._register(new Action('banner.close', label, ThemeIcon.asClassName(widgetClose), true, () => this.close(item)));
 		this.actionBar.push(closeAction, { icon: true, label: false });
 		this.actionBar.setFocusable(false);

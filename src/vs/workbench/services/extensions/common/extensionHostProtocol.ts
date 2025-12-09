@@ -29,6 +29,7 @@ export interface IExtensionHostInitData {
 	version: string;
 	quality: string | undefined;
 	commit?: string;
+	date?: string;
 	/**
 	 * When set to `0`, no polling for the parent process still running will happen.
 	 */
@@ -53,6 +54,7 @@ export interface IExtensionHostInitData {
 	consoleForward: { includeStack: boolean; logNative: boolean };
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
+	handle?: string;
 }
 
 export interface IEnvironment {
@@ -61,7 +63,6 @@ export interface IEnvironment {
 	appHost: string;
 	appRoot?: URI;
 	appLanguage: string;
-	extensionTelemetryLogResource: URI;
 	isExtensionTelemetryLoggingOnly: boolean;
 	appUriScheme: string;
 	extensionDevelopmentLocationURI?: URI[];
@@ -82,9 +83,9 @@ export interface IStaticWorkspaceData {
 }
 
 export interface MessagePortLike {
-	postMessage(message: any, transfer?: any[]): void;
-	addEventListener(type: 'message', listener: (e: any) => any): void;
-	removeEventListener(type: 'message', listener: (e: any) => any): void;
+	postMessage(message: unknown, transfer?: Transferable[]): void;
+	addEventListener(type: 'message', listener: (e: MessageEvent<unknown>) => unknown): void;
+	removeEventListener(type: 'message', listener: (e: MessageEvent<unknown>) => unknown): void;
 	start(): void;
 }
 

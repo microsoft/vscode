@@ -14,7 +14,8 @@ import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { IEditorContribution } from '../../../../common/editorCommon.js';
 import { Location } from '../../../../common/languages.js';
-import { getOuterEditor, PeekContext } from '../../../peekView/browser/peekView.js';
+import { PeekContext } from '../../../peekView/browser/peekView.js';
+import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import * as nls from '../../../../../nls.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -244,7 +245,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
-	private _gotoReference(ref: Location, pinned: boolean): Promise<any> {
+	private _gotoReference(ref: Location, pinned: boolean): Promise<unknown> {
 		this._widget?.hide();
 
 		this._ignoreModelChangeEvent = true;
@@ -396,9 +397,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey, WorkbenchTreeElementCanCollapse.negate(), WorkbenchTreeElementCanExpand.negate()),
 	handler(accessor: ServicesAccessor) {
 		const listService = accessor.get(IListService);
-		const focus = <any[]>listService.lastFocusedList?.getFocus();
+		const focus = <unknown[]>listService.lastFocusedList?.getFocus();
 		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
-			withController(accessor, controller => controller.revealReference(focus[0]));
+			withController(accessor, controller => controller.revealReference(focus[0] as OneReference));
 		}
 	}
 });
@@ -413,17 +414,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey, WorkbenchTreeElementCanCollapse.negate(), WorkbenchTreeElementCanExpand.negate()),
 	handler(accessor: ServicesAccessor) {
 		const listService = accessor.get(IListService);
-		const focus = <any[]>listService.lastFocusedList?.getFocus();
+		const focus = <unknown[]>listService.lastFocusedList?.getFocus();
 		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
-			withController(accessor, controller => controller.openReference(focus[0], true, true));
+			withController(accessor, controller => controller.openReference(focus[0] as OneReference, true, true));
 		}
 	}
 });
 
 CommandsRegistry.registerCommand('openReference', (accessor) => {
 	const listService = accessor.get(IListService);
-	const focus = <any[]>listService.lastFocusedList?.getFocus();
+	const focus = <unknown[]>listService.lastFocusedList?.getFocus();
 	if (Array.isArray(focus) && focus[0] instanceof OneReference) {
-		withController(accessor, controller => controller.openReference(focus[0], false, true));
+		withController(accessor, controller => controller.openReference(focus[0] as OneReference, false, true));
 	}
 });

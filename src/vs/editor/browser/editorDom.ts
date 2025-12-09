@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../base/browser/domStylesheets.js';
 import { GlobalPointerMoveMonitor } from '../../base/browser/globalPointerMoveMonitor.js';
 import { StandardMouseEvent } from '../../base/browser/mouseEvent.js';
 import { RunOnceScheduler } from '../../base/common/async.js';
-import { Disposable, DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
 import { ICodeEditor } from './editorBrowser.js';
 import { asCssVariable } from '../../platform/theme/common/colorRegistry.js';
 import { ThemeColor } from '../../base/common/themables.js';
@@ -63,7 +64,7 @@ export class EditorPagePosition {
 }
 
 /**
- * Coordinates relative to the the (top;left) of the editor that can be used safely with other internal editor metrics.
+ * Coordinates relative to the (top;left) of the editor that can be used safely with other internal editor metrics.
  * **NOTE**: This position is obtained by taking page coordinates and transforming them relative to the
  * editor's (top;left) position in a way in which scale transformations are taken into account.
  * **NOTE**: These coordinates could be negative if the mouse position is outside the editor.
@@ -149,13 +150,13 @@ export class EditorMouseEventFactory {
 	}
 
 	public onContextMenu(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'contextmenu', (e: MouseEvent) => {
+		return dom.addDisposableListener(target, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
 
 	public onMouseUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'mouseup', (e: MouseEvent) => {
+		return dom.addDisposableListener(target, dom.EventType.MOUSE_UP, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
@@ -179,7 +180,7 @@ export class EditorMouseEventFactory {
 	}
 
 	public onMouseMove(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'mousemove', (e) => callback(this._create(e)));
+		return dom.addDisposableListener(target, dom.EventType.MOUSE_MOVE, (e) => callback(this._create(e)));
 	}
 }
 
@@ -241,7 +242,7 @@ export class GlobalEditorPointerMoveMonitor extends Disposable {
 
 		// Add a <<capture>> keydown event listener that will cancel the monitoring
 		// if something other than a modifier key is pressed
-		this._keydownListener = dom.addStandardDisposableListener(<any>initialElement.ownerDocument, 'keydown', (e) => {
+		this._keydownListener = dom.addStandardDisposableListener(initialElement.ownerDocument, 'keydown', (e) => {
 			const chord = e.toKeyCodeChord();
 			if (chord.isModifierKey()) {
 				// Allow modifier keys
@@ -279,12 +280,18 @@ export class DynamicCssRules {
 	private static _idPool = 0;
 	private readonly _instanceId = ++DynamicCssRules._idPool;
 	private _counter = 0;
-	private readonly _rules = new Map<string, RefCountedCssRule>();
+	private readonly _rules = new DisposableMap<string, RefCountedCssRule>();
 
 	// We delay garbage collection so that hanging rules can be reused.
 	private readonly _garbageCollectionScheduler = new RunOnceScheduler(() => this.garbageCollect(), 1000);
 
-	constructor(private readonly _editor: ICodeEditor) {
+	constructor(
+		private readonly _editor: ICodeEditor
+	) { }
+
+	dispose(): void {
+		this._rules.dispose();
+		this._garbageCollectionScheduler.dispose();
 	}
 
 	public createClassNameRef(options: CssProperties): ClassNameReference {
@@ -323,8 +330,7 @@ export class DynamicCssRules {
 	private garbageCollect() {
 		for (const rule of this._rules.values()) {
 			if (!rule.hasReferences()) {
-				this._rules.delete(rule.key);
-				rule.dispose();
+				this._rules.deleteAndDispose(rule.key);
 			}
 		}
 	}
@@ -368,15 +374,15 @@ class RefCountedCssRule {
 		public readonly properties: CssProperties,
 	) {
 		this._styleElementDisposables = new DisposableStore();
-		this._styleElement = dom.createStyleSheet(_containerElement, undefined, this._styleElementDisposables);
+		this._styleElement = domStylesheetsJs.createStyleSheet(_containerElement, undefined, this._styleElementDisposables);
 		this._styleElement.textContent = this.getCssText(this.className, this.properties);
 	}
 
 	private getCssText(className: string, properties: CssProperties): string {
 		let str = `.${className} {`;
 		for (const prop in properties) {
-			const value = (properties as any)[prop] as string | ThemeColor;
-			let cssValue;
+			const value = (properties as Record<string, unknown>)[prop] as string | ThemeColor;
+			let cssValue: unknown;
 			if (typeof value === 'object') {
 				cssValue = asCssVariable(value.id);
 			} else {

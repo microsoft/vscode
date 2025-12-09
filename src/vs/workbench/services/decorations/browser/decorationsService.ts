@@ -10,7 +10,8 @@ import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js'
 import { IDisposable, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isThenable } from '../../../../base/common/async.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
-import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCSSPropertyValue } from '../../../../base/browser/dom.js';
+import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from '../../../../base/browser/domStylesheets.js';
+import * as cssValue from '../../../../base/browser/cssValue.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
@@ -138,11 +139,11 @@ class DecorationRule {
 			`.${this.iconBadgeClassName}::after`,
 			`content: '${definition.fontCharacter}';
 			color: ${icon.color ? getColor(icon.color.id) : getColor(color)};
-			font-family: ${asCSSPropertyValue(definition.font?.id ?? 'codicon')};
+			font-family: ${cssValue.stringValue(definition.font?.id ?? 'codicon')};
 			font-size: 16px;
 			margin-right: 14px;
 			font-weight: normal;
-			${modifier === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite' : ''};
+			${modifier === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite; font-style: normal !important;' : ''};
 			`,
 			element
 		);
@@ -249,7 +250,7 @@ export class DecorationsService implements IDecorationsService {
 	private readonly _onDidChangeDecorationsDelayed = this._store.add(new DebounceEmitter<URI | URI[]>({ merge: all => all.flat() }));
 	private readonly _onDidChangeDecorations = this._store.add(new Emitter<IResourceDecorationChangeEvent>());
 
-	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = this._onDidChangeDecorations.event;
+	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = this._onDidChangeDecorations.event;
 
 	private readonly _provider = new LinkedList<IDecorationsProvider>();
 	private readonly _decorationStyles: DecorationStyles;

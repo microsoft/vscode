@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mark } from '../../../../base/common/performance.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, TextFileResolveReason, ITextFileEditorModelSaveEvent, ITextFileSaveAsOptions } from './textfiles.js';
 import { IRevertOptions, SaveReason, SaveSourceRegistry } from '../../../common/editor.js';
 import { BaseTextEditorModel } from '../../../common/editor/textEditorModel.js';
@@ -34,6 +34,8 @@ import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modes
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { TextModelEditSource, EditSources } from '../../../../editor/common/textModelEditSource.js';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -85,8 +87,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	readonly capabilities = WorkingCopyCapabilities.None;
 
-	readonly name = basename(this.labelService.getUriLabel(this.resource));
-	private resourceHasExtension: boolean = !!extUri.extname(this.resource);
+	readonly name: string;
+	private resourceHasExtension: boolean;
 
 	private contentEncoding: string | undefined; // encoding as reported from disk
 
@@ -129,6 +131,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	) {
 		super(modelService, languageService, languageDetectionService, accessibilityService);
 
+		this.name = basename(this.labelService.getUriLabel(this.resource));
+		this.resourceHasExtension = !!extUri.extname(this.resource);
+
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
 
@@ -164,7 +169,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		if (fileEventImpactsModel && this.inOrphanMode !== newInOrphanModeGuess) {
-			let newInOrphanModeValidated: boolean = false;
+			let newInOrphanModeValidated = false;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
@@ -531,7 +536,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Update Existing Model
 		if (this.textEditorModel) {
-			this.doUpdateTextModel(content.value);
+			this.doUpdateTextModel(content.value, EditSources.reloadFromDisk());
 		}
 
 		// Create New Model
@@ -563,13 +568,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoDetectLanguage();
 	}
 
-	private doUpdateTextModel(value: ITextBufferFactory): void {
+	private doUpdateTextModel(value: ITextBufferFactory, reason: TextModelEditSource): void {
 		this.trace('doUpdateTextModel()');
 
 		// Update model value in a block that ignores content change events for dirty tracking
 		this.ignoreDirtyOnModelContentChange = true;
 		try {
-			this.updateTextEditorModel(value, this.preferredLanguageId);
+			this.updateTextEditorModel(value, this.preferredLanguageId, reason);
 		} finally {
 			this.ignoreDirtyOnModelContentChange = false;
 		}
@@ -870,6 +875,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						this.ignoreSaveFromSaveParticipants = true;
 						try {
 							await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT, savedFrom: options.from }, progress, saveCancellation.token);
+						} catch (err) {
+							if (isCancellationError(err) && !saveCancellation.token.isCancellationRequested) {
+								// participant wants to cancel this operation
+								saveCancellation.cancel();
+							}
 						} finally {
 							this.ignoreSaveFromSaveParticipants = false;
 						}
@@ -917,7 +927,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// participant triggering
 			progress.report({ message: localize('saveTextFile', "Writing into file...") });
 			this.trace(`doSave(${versionId}) - before write()`);
-			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
+			const lastResolvedFileStat = assertReturnsDefined(this.lastResolvedFileStat);
 			const resolvedTextFileEditorModel = this;
 			return this.saveSequentializer.run(versionId, (async () => {
 				try {
@@ -1108,7 +1118,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.forceResolveFromFile();
 	}
 
-	private hasEncodingSetExplicitly: boolean = false;
+	private hasEncodingSetExplicitly = false;
 
 	setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
 
@@ -1141,8 +1151,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return; // return early if the encoding is already the same
 			}
 
-			if (this.isDirty() && !this.inConflictMode) {
-				await this.save();
+			if (this.isDirty()) {
+				throw new Error('Cannot re-open a dirty text document with different encoding. Save it first.');
 			}
 
 			this.updatePreferredEncoding(encoding);

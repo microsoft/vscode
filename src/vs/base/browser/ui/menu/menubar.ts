@@ -118,7 +118,7 @@ export class MenuBar extends Disposable {
 		this._register(DOM.ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, (e) => {
-			const event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 			const key = !!e.key ? e.key.toLocaleLowerCase() : '';
 
@@ -157,7 +157,7 @@ export class MenuBar extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_IN, (e) => {
-			const event = e as FocusEvent;
+			const event = e;
 
 			if (event.relatedTarget) {
 				if (!this.container.contains(event.relatedTarget as HTMLElement)) {
@@ -167,7 +167,7 @@ export class MenuBar extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, (e) => {
-			const event = e as FocusEvent;
+			const event = e;
 
 			// We are losing focus and there is no related target, e.g. webview case
 			if (!event.relatedTarget) {
@@ -228,7 +228,7 @@ export class MenuBar extends Disposable {
 				this.updateLabels(titleElement, buttonElement, menuBarMenu.label);
 
 				this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.KEY_UP, (e) => {
-					const event = new StandardKeyboardEvent(e as KeyboardEvent);
+					const event = new StandardKeyboardEvent(e);
 					let eventHandled = true;
 
 					if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
@@ -324,7 +324,7 @@ export class MenuBar extends Disposable {
 		buttonElement.style.visibility = 'hidden';
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.KEY_UP, (e) => {
-			const event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
 			const triggerKeys = [KeyCode.Enter];
@@ -583,17 +583,17 @@ export class MenuBar extends Disposable {
 			const replaceDoubleEscapes = (str: string) => str.replace(/&amp;&amp;/g, '&amp;');
 
 			if (escMatch) {
-				titleElement.innerText = '';
+				titleElement.textContent = '';
 				titleElement.append(
 					strings.ltrim(replaceDoubleEscapes(cleanLabel.substr(0, escMatch.index)), ' '),
 					$('mnemonic', { 'aria-hidden': 'true' }, escMatch[3]),
 					strings.rtrim(replaceDoubleEscapes(cleanLabel.substr(escMatch.index + escMatch[0].length)), ' ')
 				);
 			} else {
-				titleElement.innerText = replaceDoubleEscapes(cleanLabel).trim();
+				titleElement.textContent = replaceDoubleEscapes(cleanLabel).trim();
 			}
 		} else {
-			titleElement.innerText = cleanMenuLabel.replace(/&&/g, '&');
+			titleElement.textContent = cleanMenuLabel.replace(/&&/g, '&');
 		}
 
 		const mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
@@ -741,6 +741,12 @@ export class MenuBar extends Disposable {
 				}
 
 				if (this.focusedMenu) {
+					// When the menu is toggled on, it may be in compact state and trying to
+					// focus the first menu. In this case we should focus the overflow instead.
+					if (this.focusedMenu.index === 0 && this.numMenusShown === 0) {
+						this.focusedMenu.index = MenuBar.OVERFLOW_INDEX;
+					}
+
 					if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
 						this.overflowMenu.buttonElement.focus();
 					} else {

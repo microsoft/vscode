@@ -5,16 +5,20 @@
 
 import { mainWindow } from '../../../../base/browser/window.js';
 import { isRemoteDiagnosticError, SystemInfo } from '../../../../platform/diagnostics/common/diagnostics.js';
-import { OldIssueType } from '../../../../platform/issue/common/issue.js';
 import { ISettingSearchResult, IssueReporterExtensionData, IssueType } from '../common/issue.js';
 
+interface VersionInfo {
+	vscodeVersion: string;
+	os: string;
+}
+
 export interface IssueReporterData {
-	issueType: IssueType | OldIssueType;
+	issueType: IssueType;
 	issueDescription?: string;
 	issueTitle?: string;
 	extensionData?: string;
 
-	versionInfo?: any;
+	versionInfo?: VersionInfo;
 	systemInfo?: SystemInfo;
 	systemInfoWeb?: string;
 	processInfo?: string;

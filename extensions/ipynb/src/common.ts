@@ -62,5 +62,39 @@ export interface CellMetadata {
 	/**
 	 * The code cell's prompt number. Will be null if the cell has not been run.
 	 */
-	execution_count?: number;
+	execution_count?: number | null;
+}
+
+
+
+type KeysOfUnionType<T> = T extends T ? keyof T : never;
+type FilterType<T, TTest> = T extends TTest ? T : never;
+type MakeOptionalAndBool<T extends object> = { [K in keyof T]?: boolean };
+
+/**
+ * Type guard that checks if an object has specific keys and narrows the type accordingly.
+ *
+ * @param x - The object to check
+ * @param key - An object with boolean values indicating which keys to check for
+ * @returns true if all specified keys exist in the object, false otherwise
+ *
+ * @example
+ * ```typescript
+ * type A = { a: string };
+ * type B = { b: number };
+ * const obj: A | B = getObject();
+ *
+ * if (hasKey(obj, { a: true })) {
+ *   // obj is now narrowed to type A
+ *   console.log(obj.a);
+ * }
+ * ```
+ */
+export function hasKey<T extends object, TKeys>(x: T, key: TKeys & MakeOptionalAndBool<T>): x is FilterType<T, { [K in KeysOfUnionType<T> & keyof TKeys]: unknown }> {
+	for (const k in key) {
+		if (!(k in x)) {
+			return false;
+		}
+	}
+	return true;
 }

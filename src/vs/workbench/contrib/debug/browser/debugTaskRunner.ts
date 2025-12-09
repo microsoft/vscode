@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
@@ -204,7 +204,7 @@ export class DebugTaskRunner implements IDisposable {
 			const errorMessage = typeof taskId === 'string'
 				? nls.localize('DebugTaskNotFoundWithTaskId', "Could not find the task '{0}'.", taskId)
 				: nls.localize('DebugTaskNotFound', "Could not find the specified task.");
-			return Promise.reject(createErrorWithActions(errorMessage, [new Action(DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, undefined, true, () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID))]));
+			return Promise.reject(createErrorWithActions(errorMessage, [toAction({ id: DEBUG_CONFIGURE_COMMAND_ID, label: DEBUG_CONFIGURE_LABEL, enabled: true, run: () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID) })]));
 		}
 
 		// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
@@ -286,33 +286,36 @@ export class DebugTaskRunner implements IDisposable {
 					}
 				}, waitTime));
 
-				// Notification shown on any task taking a while to resolve
-				store.add(disposableTimeout(() => {
-					const message = nls.localize('runningTask', "Waiting for preLaunchTask '{0}'...", task.configurationProperties.name);
-					const buttons = [DEBUG_ANYWAY_LABEL_NO_MEMO, ABORT_LABEL];
-					const canConfigure = task instanceof CustomTask || task instanceof ConfiguringTask;
-					if (canConfigure) {
-						buttons.splice(1, 0, nls.localize('configureTask', "Configure Task"));
-					}
+				const hideSlowPreLaunchWarning = this.configurationService.getValue<IDebugConfiguration>('debug').hideSlowPreLaunchWarning;
+				if (!hideSlowPreLaunchWarning) {
+					// Notification shown on any task taking a while to resolve
+					store.add(disposableTimeout(() => {
+						const message = nls.localize('runningTask', "Waiting for preLaunchTask '{0}'...", task.configurationProperties.name);
+						const buttons = [DEBUG_ANYWAY_LABEL_NO_MEMO, ABORT_LABEL];
+						const canConfigure = task instanceof CustomTask || task instanceof ConfiguringTask;
+						if (canConfigure) {
+							buttons.splice(1, 0, nls.localize('configureTask', "Configure Task"));
+						}
 
-					this.progressService.withProgress(
-						{ location: ProgressLocation.Notification, title: message, buttons },
-						() => result.catch(() => { }),
-						(choice) => {
-							if (choice === undefined) {
-								// no-op, keep waiting
-							} else if (choice === 0) { // debug anyway
-								resolve({ exitCode: 0 });
-							} else { // abort or configure
-								resolve({ exitCode: undefined, cancelled: true });
-								this.taskService.terminate(task).catch(() => { });
-								if (canConfigure && choice === 1) { // configure
-									this.taskService.openConfig(task as CustomTask);
+						this.progressService.withProgress(
+							{ location: ProgressLocation.Notification, title: message, buttons },
+							() => result.catch(() => { }),
+							(choice) => {
+								if (choice === undefined) {
+									// no-op, keep waiting
+								} else if (choice === 0) { // debug anyway
+									resolve({ exitCode: 0 });
+								} else { // abort or configure
+									resolve({ exitCode: undefined, cancelled: true });
+									this.taskService.terminate(task).catch(() => { });
+									if (canConfigure && choice === 1) { // configure
+										this.taskService.openConfig(task as CustomTask);
+									}
 								}
 							}
-						}
-					);
-				}, 10_000));
+						);
+					}, 10_000));
+				}
 			}));
 		});
 

@@ -70,6 +70,7 @@ export interface IExtensionPoint<T> {
 	readonly name: string;
 	setHandler(handler: IExtensionPointHandler<T>): IDisposable;
 	readonly defaultExtensionKind: ExtensionKind[] | undefined;
+	readonly canHandleResolver?: boolean;
 }
 
 export class ExtensionPointUserDelta<T> {
@@ -109,14 +110,16 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
 	public readonly defaultExtensionKind: ExtensionKind[] | undefined;
+	public readonly canHandleResolver?: boolean;
 
 	private _handler: IExtensionPointHandler<T> | null;
 	private _users: IExtensionPointUser<T>[] | null;
 	private _delta: ExtensionPointUserDelta<T> | null;
 
-	constructor(name: string, defaultExtensionKind: ExtensionKind[] | undefined) {
+	constructor(name: string, defaultExtensionKind: ExtensionKind[] | undefined, canHandleResolver?: boolean) {
 		this.name = name;
 		this.defaultExtensionKind = defaultExtensionKind;
+		this.canHandleResolver = canHandleResolver;
 		this._handler = null;
 		this._users = null;
 		this._delta = null;
@@ -223,9 +226,10 @@ export const schema: IJSONSchema = {
 		contributes: {
 			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
 			type: 'object',
+			// eslint-disable-next-line local/code-no-any-casts
 			properties: {
 				// extensions will fill in
-			} as { [key: string]: any },
+			} as any as { [key: string]: any },
 			default: {}
 		},
 		preview: {
@@ -391,9 +395,29 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
 					},
 					{
+						label: 'onLanguageModelChatProvider',
+						body: 'onLanguageModelChatProvider:${1:vendor}',
+						description: nls.localize('vscode.extension.activationEvents.onLanguageModelChatProvider', 'An activation event emitted when a chat model provider for the given vendor is requested.'),
+					},
+					{
 						label: 'onLanguageModelTool',
 						body: 'onLanguageModelTool:${1:toolId}',
 						description: nls.localize('vscode.extension.activationEvents.onLanguageModelTool', 'An activation event emitted when the specified language model tool is invoked.'),
+					},
+					{
+						label: 'onTerminal',
+						body: 'onTerminal:{1:shellType}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminal', 'An activation event emitted when a terminal of the given shell type is opened.'),
+					},
+					{
+						label: 'onTerminalShellIntegration',
+						body: 'onTerminalShellIntegration:${1:shellType}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalShellIntegration', 'An activation event emitted when terminal shell integration is activated for the given shell type.'),
+					},
+					{
+						label: 'onMcpCollection',
+						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenver a tool from the MCP server is requested.'),
+						body: 'onMcpCollection:${2:collectionId}',
 					},
 					{
 						label: '*',
@@ -608,6 +632,7 @@ export interface IExtensionPointDescriptor<T> {
 	deps?: IExtensionPoint<any>[];
 	jsonSchema: IJSONSchema;
 	defaultExtensionKind?: ExtensionKind[];
+	canHandleResolver?: boolean;
 	/**
 	 * A function which runs before the extension point has been validated and which
 	 * should collect automatic activation events from the contribution.
@@ -623,7 +648,7 @@ export class ExtensionsRegistryImpl {
 		if (this._extensionPoints.has(desc.extensionPoint)) {
 			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
 		}
-		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind);
+		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind, desc.canHandleResolver);
 		this._extensionPoints.set(desc.extensionPoint, result);
 		if (desc.activationEventsGenerator) {
 			ImplicitActivationEvents.register(desc.extensionPoint, desc.activationEventsGenerator);

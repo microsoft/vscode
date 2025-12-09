@@ -12,7 +12,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
 import { isEqual, basename, relativePath, isAbsolutePath } from '../../../../base/common/resources.js';
 import * as strings from '../../../../base/common/strings.js';
-import { assertIsDefined, isDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined, isDefined } from '../../../../base/common/types.js';
 import { URI, URI as uri, UriComponents } from '../../../../base/common/uri.js';
 import { isMultilineRegexSource } from '../../../../editor/common/model/textModelSearch.js';
 import * as nls from '../../../../nls.js';
@@ -22,7 +22,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
 import { IPathService } from '../../path/common/pathService.js';
-import { ExcludeGlobPattern, getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from './search.js';
+import { ExcludeGlobPattern, getExcludes, IAITextQuery, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from './search.js';
 import { GlobPattern } from './searchExtTypes.js';
 
 /**
@@ -126,6 +126,15 @@ export class QueryBuilder {
 		@IPathService private readonly pathService: IPathService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
+	}
+
+	aiText(contentPattern: string, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): IAITextQuery {
+		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
+		return {
+			...commonQuery,
+			type: QueryType.aiText,
+			contentPattern,
+		};
 	}
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
@@ -304,11 +313,11 @@ export class QueryBuilder {
 				}
 
 				const relPath = path.relative(searchRoot.fsPath, file.fsPath);
-				assertIsDefined(folderQuery.includePattern)[relPath.replace(/\\/g, '/')] = true;
+				assertReturnsDefined(folderQuery.includePattern)[escapeGlobPattern(relPath.replace(/\\/g, '/'))] = true;
 			} else {
 				if (file.fsPath) {
 					hasIncludedFile = true;
-					includePattern[file.fsPath] = true;
+					includePattern[escapeGlobPattern(file.fsPath)] = true;
 				}
 			}
 		});
@@ -637,7 +646,7 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string; globPorti
 	};
 }
 
-function patternListToIExpression(...patterns: string[]): glob.IExpression {
+function patternListToIExpression(...patterns: string[]): glob.IExpression | undefined {
 	return patterns.length ?
 		patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null)) :
 		undefined;
@@ -682,7 +691,7 @@ function normalizeGlobPattern(pattern: string): string {
  * given the input "//?/C:/A?.txt", this would produce output '//[?]/C:/A[?].txt',
  * which may not be desirable in some cases. Use with caution if UNC paths could be expected.
  */
-function escapeGlobPattern(path: string): string {
+export function escapeGlobPattern(path: string): string {
 	return path.replace(/([?*[\]])/g, '[$1]');
 }
 

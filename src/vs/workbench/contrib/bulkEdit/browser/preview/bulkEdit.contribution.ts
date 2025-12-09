@@ -183,7 +183,7 @@ registerAction2(class ApplyAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<any> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
 		view?.accept();

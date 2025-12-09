@@ -13,8 +13,26 @@ import * as marked from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { createTextBufferFactory } from '../../../../editor/common/model/textModel.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+
+interface IWalkThroughContentProvider {
+	(accessor: ServicesAccessor): string;
+}
+
+class WalkThroughContentProviderRegistry {
+
+	private readonly providers = new Map<string, IWalkThroughContentProvider>();
+
+	registerProvider(moduleId: string, provider: IWalkThroughContentProvider): void {
+		this.providers.set(moduleId, provider);
+	}
+
+	getProvider(moduleId: string): IWalkThroughContentProvider | undefined {
+		return this.providers.get(moduleId);
+	}
+}
+export const walkThroughContentRegistry = new WalkThroughContentProviderRegistry();
 
 export async function moduleToContent(instantiationService: IInstantiationService, resource: URI): Promise<string> {
 	if (!resource.query) {
@@ -26,13 +44,12 @@ export async function moduleToContent(instantiationService: IInstantiationServic
 		throw new Error('Walkthrough: invalid resource');
 	}
 
-	let contents = '';
-	try {
-		const module = await import(query.moduleId);
-		contents = module.default();
+	const provider = walkThroughContentRegistry.getProvider(query.moduleId);
+	if (!provider) {
+		throw new Error(`Walkthrough: no provider registered for ${query.moduleId}`);
+	}
 
-	} catch { }
-	return contents;
+	return instantiationService.invokeFunction(provider);
 }
 
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
@@ -83,6 +100,6 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 			const markdown = textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 			marked.marked(markdown, { renderer });
 		}
-		return assertIsDefined(codeEditorModel);
+		return assertReturnsDefined(codeEditorModel);
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { bufferToStream, VSBuffer, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../base/common/mime.js';
@@ -246,7 +246,8 @@ suite('NotebookFileWorkingCopyModel', function () {
 						assert.strictEqual(notebook.cells[0].metadata!.bar, undefined);
 						return VSBuffer.fromString('');
 					}
-				}
+				},
+				configurationService
 			),
 			configurationService,
 			telemetryService,
@@ -280,7 +281,6 @@ suite('NotebookFileWorkingCopyModel', function () {
 				return Promise.resolve({ name: 'savedFile' } as IFileStatWithMetadata);
 			}
 		};
-		(serializer as any).test = 'yes';
 
 		let resolveSerializer: (serializer: INotebookSerializer) => void = () => { };
 		const serializerPromise = new Promise<INotebookSerializer>(resolve => {
@@ -303,13 +303,13 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		resolveSerializer(serializer);
 		await model.getNotebookSerializer();
-		const result = await model.save?.({} as any, {} as any);
+		const result = await model.save?.({} as IFileStatWithMetadata, {} as CancellationToken);
 
 		assert.strictEqual(result!.name, 'savedFile');
 	});
 });
 
-function mockNotebookService(notebook: NotebookTextModel, notebookSerializer: Promise<INotebookSerializer> | INotebookSerializer) {
+function mockNotebookService(notebook: NotebookTextModel, notebookSerializer: Promise<INotebookSerializer> | INotebookSerializer, configurationService: TestConfigurationService = new TestConfigurationService()): INotebookService {
 	return new class extends mock<INotebookService>() {
 		private serializer: INotebookSerializer | undefined = undefined;
 		override async withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo> {
@@ -335,6 +335,15 @@ function mockNotebookService(notebook: NotebookTextModel, notebookSerializer: Pr
 					location: undefined
 				}
 			);
+		}
+		override async createNotebookTextDocumentSnapshot(uri: URI, context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream> {
+			const info = await this.withNotebookDataProvider(notebook.viewType);
+			const serializer = info.serializer;
+			const outputSizeLimit = configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) ?? 1024;
+			const data: NotebookData = notebook.createSnapshot({ context: context, outputSizeLimit: outputSizeLimit, transientOptions: serializer.options });
+			const bytes = await serializer.notebookToData(data);
+
+			return bufferToStream(bytes);
 		}
 	};
 }
