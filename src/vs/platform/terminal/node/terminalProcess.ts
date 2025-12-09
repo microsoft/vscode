@@ -201,6 +201,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._titleInterval = undefined;
 			}
 		}));
+		this._register(toDisposable(() => {
+			this._ptyProcess = undefined;
+			this._processStartupComplete = undefined;
+		}));
 	}
 
 	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
@@ -661,12 +665,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			backend: hasConptyOption(this._ptyOptions) && this._ptyOptions.useConpty ? 'conpty' : 'winpty',
 			buildNumber: getWindowsBuildNumber()
 		} : undefined;
-	}
-
-	override dispose() {
-		super.dispose();
-		this._ptyProcess = undefined;
-		this._processStartupComplete = undefined;
 	}
 }
 
