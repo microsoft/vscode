@@ -24,7 +24,7 @@ import { Selection } from '../../../../../editor/common/core/selection.js';
 import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
-import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../editor/common/viewModel/inlineDecorations.js';
 import { localize } from '../../../../../nls.js';
@@ -83,6 +83,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 	private readonly _diffLineDecorations: IEditorDecorationsCollection;
 	private readonly _diffVisualDecorations: IEditorDecorationsCollection;
+	private readonly _diffIndentDecorations: IEditorDecorationsCollection;
 	private readonly _diffHunksRenderStore = this._store.add(new DisposableStore());
 	private readonly _diffHunkWidgetPool = this._store.add(new ObjectPool<DiffHunkWidget>());
 	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
@@ -105,6 +106,14 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 		this._diffLineDecorations = this._editor.createDecorationsCollection(); // tracks the line range w/o visuals (used for navigate)
 		this._diffVisualDecorations = this._editor.createDecorationsCollection(); // tracks the real diff with character level inserts
+
+		this._diffIndentDecorations = this._editor.createDecorationsCollection();
+
+		this._store.add(autorun(r => {
+			const info = codeEditorObs.layoutInfo.read(r);
+			const width = info.contentWidth - info.minimap.minimapWidth;
+			_editor.getDomNode()?.style.setProperty('--chat-editing-diff-indent-decoration-padding', `${width / 2}px`);
+		}));
 
 		const enabledObs = derived(r => {
 			if (!isEqual(codeEditorObs.model.read(r)?.uri, documentDiffInfo.read(r).modifiedModel.uri)) {
@@ -305,6 +314,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			widget.remove();
 		}
 		this._diffVisualDecorations.clear();
+		this._diffIndentDecorations.clear();
 	}
 
 	private _updateDiffRendering(diff: IDocumentDiff2, reviewMode: boolean, diffMode: boolean): void {
@@ -338,6 +348,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			}
 			this._viewZones = [];
 			const modifiedVisualDecorations: IModelDeltaDecoration[] = [];
+			const indentDecorations: IModelDeltaDecoration[] = [];
 			const mightContainNonBasicASCII = diff.originalModel.mightContainNonBasicASCII();
 			const mightContainRTL = diff.originalModel.mightContainRTL();
 			const renderOptions = RenderOptions.fromEditor(this._editor);
@@ -404,12 +415,13 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 				}
 
 				let extraLines = 0;
+				const domNode = document.createElement('div');
+				domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 				if (reviewMode && !diffMode) {
-					const domNode = document.createElement('div');
-					domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 					const result = renderLines(source, renderOptions, decorations, domNode);
 					extraLines = result.heightInLines;
-					if (!isCreatedContent) {
+
+					if (!isCreatedContent && false) {
 
 						const viewZoneData: IViewZone = {
 							afterLineNumber: diffEntry.modified.startLineNumber - 1,
@@ -420,6 +432,8 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 						this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));
 					}
+
+					// extraLines = 0; // TODO@jrieken
 				}
 
 				if (reviewMode || diffMode) {
@@ -430,10 +444,10 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 						// make a new one
 						widget = this._editor.invokeWithinContext(accessor => {
 							const instaService = accessor.get(IInstantiationService);
-							return instaService.createInstance(DiffHunkWidget, this._editor, diff, diffEntry, this._editor.getModel()!.getVersionId(), isCreatedContent ? 0 : extraLines);
+							return instaService.createInstance(DiffHunkWidget, this._editor, diff, diffEntry, this._editor.getModel()!.getVersionId(), isCreatedContent || true ? 0 : extraLines);
 						});
 					} else {
-						widget.update(diff, diffEntry, this._editor.getModel()!.getVersionId(), isCreatedContent ? 0 : extraLines);
+						widget.update(diff, diffEntry, this._editor.getModel()!.getVersionId(), isCreatedContent || true ? 0 : extraLines);
 					}
 					this._diffHunksRenderStore.add(toDisposable(() => {
 						this._diffHunkWidgetPool.putBack(widget);
@@ -449,10 +463,54 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 							stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 						}
 					});
+
+					for (let i = diffEntry.modified.startLineNumber; i < diffEntry.modified.endLineNumberExclusive; i++) {
+						indentDecorations.push({
+							range: new Range(i, 1, i, 1),
+							options: {
+								description: 'diff-indent-decoration',
+								stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+								showIfCollapsed: true,
+								before: {
+									content: '\u200a',
+									inlineClassNameAffectsLetterSpacing: true,
+									inlineClassName: 'chat-editing-diff-indent-decoration',
+									cursorStops: InjectedTextCursorStops.Right,
+								}
+							}
+						});
+					}
+
+					domNode.style.width = `${-this._editor.getLayoutInfo().contentLeft + (this._editor.getLayoutInfo().contentWidth / 2)}px`;
+					domNode.style.overflow = 'hidden';
+					domNode.style.height = `${this._editor.getOption(EditorOption.lineHeight) * (extraLines)}px`;
+
+					const id = Math.random();
+					const widget2: IOverlayWidget = {
+						getId: () => `widget:${id}`,
+						getDomNode: () => domNode,
+						getPosition: () => {
+							const top = this._editor.getTopForLineNumber(diffEntry.modified.startLineNumber) - this._editor.getScrollTop();
+							return {
+								preference: {
+									top,
+									left: this._editor.getLayoutInfo().contentLeft
+								}
+							};
+						}
+					};
+					this._editor.addOverlayWidget(widget2);
+					this._diffHunksRenderStore.add(toDisposable(() => {
+						this._editor.removeOverlayWidget(widget2);
+					}));
+					this._diffHunksRenderStore.add(this._editor.onDidScrollChange(e => {
+						this._editor.layoutOverlayWidget(widget2);
+					}));
 				}
 			}
 
 			this._diffVisualDecorations.set(!diffMode ? modifiedVisualDecorations : []);
+			this._diffIndentDecorations.set(!diffMode ? indentDecorations : []);
 		});
 
 		const diffHunkDecoCollection = this._editor.createDecorationsCollection(diffHunkDecorations);

@@ -39,3 +39,7 @@
 .chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon[class*='codicon-'] {
 	font-size: 16px;
 }
+
+.chat-editing-diff-indent-decoration {
+	padding-left: var(--chat-editing-diff-indent-decoration-padding, 200px);
+}
