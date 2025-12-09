@@ -172,17 +172,6 @@ export class TerminalTabbedView extends Disposable {
 			return false;
 		}
 		if (hiddenChatTerminals.length > 0) {
-<<<<<<< HEAD
-			return true;
-		}
-
-		if (hide === 'never') {
-			return true;
-		}
-
-		if (this._terminalGroupService.instances.length) {
-			return true;
-=======
 			return true;
 		}
 
@@ -199,7 +188,6 @@ export class TerminalTabbedView extends Disposable {
 					return true;
 				}
 				break;
->>>>>>> origin/main
 		}
 		return false;
 	}
