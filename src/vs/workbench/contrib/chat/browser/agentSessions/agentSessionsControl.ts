@@ -20,7 +20,7 @@ import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Separator } from '../../../../../base/common/actions.js';
@@ -36,6 +36,9 @@ import { IStyleOverride } from '../../../../../platform/theme/browser/defaultSty
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { IAgentSessionsControl } from './agentSessions.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { autorun, autorunIterableDelta } from '../../../../../base/common/observable.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
@@ -79,6 +82,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 	) {
 		super();
 
@@ -91,6 +95,42 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		if (this.options?.trackActiveEditor) {
 			this._register(this.editorService.onDidActiveEditorChange(() => this.revealAndFocusActiveEditorSession()));
 		}
+		// Register to editing session changes to refresh the list when undo/redo state changes
+		const listeners = new ResourceMap<IDisposable>();
+		const previousEntryStates = new ResourceMap<Map<string, ModifiedFileEntryState>>();
+		const autoRunDisposable = autorunIterableDelta(
+			reader => this.chatEditingService.editingSessionsObs.read(reader),
+			({ addedValues, removedValues }) => {
+				removedValues.forEach((removed) => {
+					const listener = listeners.get(removed.chatSessionResource);
+					if (listener) {
+						listeners.delete(removed.chatSessionResource);
+						listener.dispose();
+					}
+					previousEntryStates.delete(removed.chatSessionResource);
+				});
+				addedValues.forEach((added) => {
+					previousEntryStates.set(added.chatSessionResource, new Map());
+					listeners.set(added.chatSessionResource, autorun(reader => {
+						const entries = added.entries.read(reader);
+						const previous = previousEntryStates.get(added.chatSessionResource);
+
+						entries.forEach(entry => {
+							const currentState = entry.state.read(reader);
+							const previousState = previous?.get(entry.entryId);
+							if (previous && currentState !== previousState) {
+								this.refresh();
+								previous.set(entry.entryId, currentState);
+							}
+						});
+					}));
+				});
+			}
+		);
+		this._register(toDisposable(() => {
+			for (const listener of listeners.values()) { listener.dispose(); }
+		}));
+		this._register(autoRunDisposable);
 	}
 
 	private revealAndFocusActiveEditorSession(): void {
