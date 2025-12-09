@@ -138,11 +138,13 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 			if (sessionContent.hasActiveResponseCallback && !this.interruptActiveResponseCallback) {
 				this.interruptActiveResponseCallback = async () => {
 					const confirmInterrupt = () => {
+						// Interrupt the active response first, before disposing the session content
+						this._proxy.$interruptChatSessionActiveResponse(this._providerHandle, this.sessionResource, 'ongoing');
+
 						if (this._disposalPending) {
 							this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionResource);
 							this._disposalPending = false;
 						}
-						this._proxy.$interruptChatSessionActiveResponse(this._providerHandle, this.sessionResource, 'ongoing');
 						return true;
 					};
 

@@ -1001,7 +1001,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return {
 				title: providerTitle ?? localize('codingAgentTitle', "Delegate to {0}", this._lockedAgent?.prefix),
 				message,
-				icon: providerIcon ?? Codicon.sendToRemoteAgent,
+				icon: providerIcon ?? Codicon.squirrel,
 				additionalMessage,
 				useLargeIcon: !!providerIcon,
 			};

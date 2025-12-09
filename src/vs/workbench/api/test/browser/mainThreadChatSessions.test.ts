@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -331,6 +332,32 @@ suite('ObservableChatSession', function () {
 
 		// Session should be complete since it has no capabilities
 		assert.strictEqual(session.isCompleteObs.get(), true);
+	});
+
+	test('initialization cancellation is propagated to provider', async function () {
+		const sessionId = 'test-id';
+		const resource = LocalChatSessionUri.forSession(sessionId);
+		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
+
+		const cts = new CancellationTokenSource();
+		const sessionContent = createSessionContent();
+
+		// Set up proxy to delay response so we can cancel before it completes
+		(proxy.$provideChatSessionContent as sinon.SinonStub).callsFake(async (handle: number, resource: UriComponents, token: CancellationToken) => {
+			// Wait a bit then check if cancelled
+			await new Promise(resolve => setTimeout(resolve, 50));
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			return sessionContent;
+		});
+
+		const initPromise = session.initialize(cts.token);
+
+		// Cancel immediately
+		cts.cancel();
+
+		await assert.rejects(initPromise, (err: any) => err instanceof CancellationError);
 	});
 });
 

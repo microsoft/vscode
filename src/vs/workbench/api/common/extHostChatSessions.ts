@@ -286,6 +286,16 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const disposeCts = sessionDisposables.add(new CancellationTokenSource());
 		this._extHostChatSessions.set(sessionResource, { sessionObj: chatSession, disposeCts });
 
+		// Link the incoming cancellation token to the disposeCts so that when the main thread cancels,
+		// the extension's activeResponseCallback receives the cancellation signal
+		if (token.isCancellationRequested) {
+			disposeCts.cancel();
+		} else {
+			sessionDisposables.add(token.onCancellationRequested(() => {
+				disposeCts.cancel();
+			}));
+		}
+
 		// Call activeResponseCallback immediately for best user experience
 		if (session.activeResponseCallback) {
 			Promise.resolve(session.activeResponseCallback(chatSession.activeResponseStream.apiObject, disposeCts.token)).finally(() => {
