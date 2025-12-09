@@ -1047,13 +1047,27 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				} catch (e) {
 					// The tree structure may have changed during checkbox updates
 					// Log and continue to avoid breaking the checkbox functionality
-					const parentLabel = parent.label && typeof parent.label === 'object' && 'label' in parent.label
-						? (typeof parent.label.label === 'string' ? parent.label.label : parent.label.label.value)
-						: (typeof parent.label === 'string' ? parent.label : parent.handle);
-					this.logService.debug(`Failed to auto-collapse parent folder '${parentLabel}'`, e);
+					this.logService.debug(`Failed to auto-collapse parent folder '${this.getItemDisplayName(parent)}'`, e);
 				}
 			}
 		}
+	}
+
+	private getItemDisplayName(item: ITreeItem): string {
+		if (item.label) {
+			if (typeof item.label === 'string') {
+				return item.label;
+			}
+			// ITreeItemLabel case
+			if (typeof item.label.label === 'string') {
+				return item.label.label;
+			}
+			// IMarkdownString case
+			if (isMarkdownString(item.label.label)) {
+				return item.label.label.value;
+			}
+		}
+		return item.handle;
 	}
 
 	private shouldCollapseParent(parent: ITreeItem): boolean {
