@@ -298,7 +298,7 @@ export class GitHubServer implements IGitHubServer {
 
 			return isMember;
 		} catch (ex) {
-			this._logger.error(`Error checking organization membership: ${ex.message}`);
+			this._logger.error(`Error checking organization membership: ${ex.message ?? ex}`);
 			return false;
 		}
 	}
