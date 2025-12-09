@@ -9,7 +9,7 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, IAgentSessionsControl } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService.js';
 import { AgentSessionsView } from './agentSessionsView.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -24,6 +24,8 @@ import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 abstract class BaseAgentSessionAction extends Action2 {
 
@@ -354,9 +356,26 @@ export class FindAgentSessionInViewerAction extends Action2 {
 
 abstract class UpdateChatViewWidthAction extends Action2 {
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const viewDescriptorService = accessor.get(IViewDescriptorService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const orientation = this.getOrientation();
+		let newWidth: number;
+		if (orientation === AgentSessionsViewerOrientation.SideBySide) {
+			newWidth = Math.max(600 + 1 /* account for possible theme border */, Math.round(layoutService.mainContainerDimension.width / 2));
+		} else {
+			newWidth = 300 + 1 /* account for possible theme border */;
+		}
+
+		// Update configuration if needed
+		const configuredSessionsViewerOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		if (configuredSessionsViewerOrientation === 'sideBySide' && orientation === AgentSessionsViewerOrientation.Stacked) {
+			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked');
+		} else if (configuredSessionsViewerOrientation === 'stacked' && orientation === AgentSessionsViewerOrientation.SideBySide) {
+			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
+		}
 
 		const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 		if (typeof chatLocation !== 'number' || chatLocation === ViewContainerLocation.Panel) {
@@ -370,12 +389,12 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const part = getPartByLocation(chatLocation);
 		const currentSize = layoutService.getSize(part);
 		layoutService.setSize(part, {
-			width: this.getNewWidth(accessor),
+			width: newWidth,
 			height: currentSize.height
 		});
 	}
 
-	abstract getNewWidth(accessor: ServicesAccessor): number;
+	abstract getOrientation(): AgentSessionsViewerOrientation;
 }
 
 // TODO@bpasero these need to be revisited to work in all layouts
@@ -392,10 +411,8 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 		});
 	}
 
-	override getNewWidth(accessor: ServicesAccessor): number {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-
-		return Math.max(600 + 1 /* account for possible theme border */, Math.round(layoutService.mainContainerDimension.width / 2));
+	override getOrientation(): AgentSessionsViewerOrientation {
+		return AgentSessionsViewerOrientation.SideBySide;
 	}
 }
 
@@ -412,8 +429,8 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 		});
 	}
 
-	override getNewWidth(accessor: ServicesAccessor): number {
-		return 300 + 1 /* account for possible theme border */;
+	override getOrientation(): AgentSessionsViewerOrientation {
+		return AgentSessionsViewerOrientation.Stacked;
 	}
 }
 
