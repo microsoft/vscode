@@ -17,7 +17,7 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -46,6 +46,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatViewId } from './chat.js';
 import { ChatViewPane } from './chatViewPane.js';
+import { AgentSessionProviders } from './agentSessions/agentSessions.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -279,6 +280,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _editableSessions = new ResourceMap<IEditableData>();
 
+	private readonly _ctxHasContinueInOptions: IContextKey<boolean>;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -289,6 +292,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super();
+
+		this._ctxHasContinueInOptions = ChatContextKeys.hasContinueInOptions.bindTo(this._contextKeyService);
+		this._ctxHasContinueInOptions.set(false); // Initialize to false, will be updated when contributions are registered
 
 		this._register(extensionPoint.setHandler(extensions => {
 			for (const ext of extensions) {
@@ -684,6 +690,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._onDidChangeSessionItems.fire(contribution.type);
 			}
 		}
+		this._updateContinueInOptionsContextKey();
+	}
+
+	private _updateContinueInOptionsContextKey(): void {
+		// Check if there are any available continue-in options (Background or Cloud)
+		const contributions = this.getAllChatSessionContributions();
+		const hasBackgroundOrCloud = contributions.some(contrib =>
+			(contrib.type === AgentSessionProviders.Background || contrib.type === AgentSessionProviders.Cloud) &&
+			contrib.canDelegate !== false
+		);
+		this._ctxHasContinueInOptions.set(hasBackgroundOrCloud);
 	}
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
