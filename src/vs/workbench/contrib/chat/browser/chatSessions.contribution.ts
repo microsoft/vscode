@@ -17,7 +17,7 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -279,6 +279,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _editableSessions = new ResourceMap<IEditableData>();
 
+	private readonly _hasCanDelegateProvidersKey: IContextKey<boolean>;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -289,6 +291,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super();
+
+		this._hasCanDelegateProvidersKey = ChatContextKeys.hasCanDelegateProviders.bindTo(this._contextKeyService);
 
 		this._register(extensionPoint.setHandler(extensions => {
 			for (const ext of extensions) {
@@ -435,6 +439,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._sessionTypeWelcomeTips.delete(contribution.type);
 				this._sessionTypeInputPlaceholders.delete(contribution.type);
 				this._contributionDisposables.deleteAndDispose(contribution.type);
+				this._updateHasCanDelegateProvidersContextKey();
 			}
 		};
 	}
@@ -684,6 +689,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._onDidChangeSessionItems.fire(contribution.type);
 			}
 		}
+		this._updateHasCanDelegateProvidersContextKey();
 	}
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
@@ -755,6 +761,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[] {
 		return Array.from(this._contributions.values(), x => x.contribution)
 			.filter(contribution => this._isContributionAvailable(contribution));
+	}
+
+	private _updateHasCanDelegateProvidersContextKey(): void {
+		const hasCanDelegate = this.getAllChatSessionContributions().filter(c => c.canDelegate);
+		const canDelegateEnabled = hasCanDelegate.length > 0;
+		this._logService.trace(`[ChatSessionsService] hasCanDelegateProvidersAvailable=${canDelegateEnabled} (${hasCanDelegate.map(c => c.type).join(', ')})`);
+		this._hasCanDelegateProvidersKey.set(canDelegateEnabled);
 	}
 
 	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined {
@@ -929,7 +942,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 
-	public getSessionDescription(chatModel: IChatModel): string | undefined {
+	public getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
 		const requests = chatModel.getRequests();
 		if (requests.length === 0) {
 			return undefined;
@@ -962,23 +975,21 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			} else if (part.kind === 'toolInvocation') {
 				const toolInvocation = part as IChatToolInvocation;
 				const state = toolInvocation.state.get();
-
-				if (state.type !== IChatToolInvocation.StateKind.Completed) {
-					description = toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
-
-					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-						const confirmationTitle = toolInvocation.confirmationMessages?.title;
-						const titleMessage = confirmationTitle && (typeof confirmationTitle === 'string'
-							? confirmationTitle
-							: confirmationTitle.value);
-						const descriptionValue = typeof description === 'string' ? description : description.value;
-						description = titleMessage ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", descriptionValue);
-					}
+				description = toolInvocation.generatedTitle || toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					const confirmationTitle = toolInvocation.confirmationMessages?.title;
+					const titleMessage = confirmationTitle && (typeof confirmationTitle === 'string'
+						? confirmationTitle
+						: confirmationTitle.value);
+					const descriptionValue = typeof description === 'string' ? description : description.value;
+					description = titleMessage ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", descriptionValue);
 				}
 			} else if (part.kind === 'toolInvocationSerialized') {
 				description = part.invocationMessage;
 			} else if (part.kind === 'progressMessage') {
 				description = part.content;
+			} else if (part.kind === 'thinking') {
+				description = localize('chat.sessions.description.thinking', 'Thinking...');
 			}
 		}
 

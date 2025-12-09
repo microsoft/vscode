@@ -464,8 +464,8 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, sessionResource, sessionId, canUseTools, transferEditingSession, disableBackgroundKeepAlive } = props;
-		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, sessionId, disableBackgroundKeepAlive });
+		const { initialData, location, sessionResource, sessionId, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState } = props;
+		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, sessionId, disableBackgroundKeepAlive, inputState });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(true, transferEditingSession);
 		}
@@ -635,7 +635,8 @@ export class ChatService extends Disposable implements IChatService {
 			location,
 			sessionResource: chatSessionResource,
 			canUseTools: false,
-			transferEditingSession: providedSession.initialEditingSession,
+			transferEditingSession: providedSession.transferredState?.editingSession,
+			inputState: providedSession.transferredState?.inputState,
 		});
 
 		modelRef.object.setContributedChatSession({
@@ -692,8 +693,14 @@ export class ChatService extends Disposable implements IChatService {
 					for (const part of message.parts) {
 						model.acceptResponseProgress(lastRequest, part);
 					}
+
+					lastRequest.response?.complete();
 				}
 			}
+		}
+
+		if (providedSession.isCompleteObs?.get()) {
+			lastRequest?.response?.complete();
 		}
 
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {

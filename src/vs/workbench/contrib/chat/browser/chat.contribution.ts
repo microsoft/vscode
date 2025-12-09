@@ -369,23 +369,15 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.welcome.enabled', "Show welcome banner when chat is empty."),
 		},
-		[ChatConfiguration.ChatViewRecentSessionsEnabled]: { // TODO@bpasero move off preview
+		[ChatConfiguration.ChatViewSessionsEnabled]: {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('chat.sessions.enabled', "Show recent chat agent sessions when chat is empty or to the side when chat view is wide enough."),
-			tags: ['preview', 'experimental'],
-			experiment: {
-				mode: 'auto'
-			}
+			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
 		},
-		[ChatConfiguration.ChatViewTitleEnabled]: { // TODO@bpasero move off preview
+		[ChatConfiguration.ChatViewTitleEnabled]: {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.viewTitle.enabled', "Show the title of the chat above the chat in the chat view."),
-			tags: ['preview', 'experimental'],
-			experiment: {
-				mode: 'auto'
-			}
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
@@ -698,8 +690,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[PromptsConfig.USE_AGENT_MD]: {
 			type: 'boolean',
-			title: nls.localize('chat.useAgentMd.title', "Use AGENTS.MD file",),
-			markdownDescription: nls.localize('chat.useAgentMd.description', "Controls whether instructions from `AGENTS.MD` file found in a workspace roots are attached to all chat requests.",),
+			title: nls.localize('chat.useAgentMd.title', "Use AGENTS.md file",),
+			markdownDescription: nls.localize('chat.useAgentMd.description', "Controls whether instructions from `AGENTS.md` file found in a workspace roots are attached to all chat requests.",),
 			default: true,
 			restricted: true,
 			disallowConfigurationDefault: true,
@@ -707,8 +699,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[PromptsConfig.USE_NESTED_AGENT_MD]: {
 			type: 'boolean',
-			title: nls.localize('chat.useNestedAgentMd.title', "Use nested AGENTS.MD files",),
-			markdownDescription: nls.localize('chat.useNestedAgentMd.description', "Controls whether instructions from nested `AGENTS.MD` files found in the workspace are listed in all chat requests. The language model can load these skills on-demand if the `read` tool is available.",),
+			title: nls.localize('chat.useNestedAgentMd.title', "Use nested AGENTS.md files",),
+			markdownDescription: nls.localize('chat.useNestedAgentMd.description', "Controls whether instructions from nested `AGENTS.md` files found in the workspace are listed in all chat requests. The language model can load these skills on-demand if the `read` tool is available.",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,
@@ -961,7 +953,10 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			const treatmentId = this.entitlementService.entitlement === ChatEntitlement.Free ?
 				'chatAgentMaxRequestsFree' :
 				'chatAgentMaxRequestsPro';
-			this.experimentService.getTreatment<number>(treatmentId).then(value => {
+			Promise.all([
+				this.experimentService.getTreatment<number>(treatmentId),
+				this.experimentService.getTreatment<number>('chatAgentMaxRequestsLimit')
+			]).then(([value, maxLimit]) => {
 				const defaultValue = value ?? (this.entitlementService.entitlement === ChatEntitlement.Free ? 25 : 25);
 				const node: IConfigurationNode = {
 					id: 'chatSidebar',
@@ -972,6 +967,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 							type: 'number',
 							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn when using an agent. When the limit is reached, will ask to confirm to continue."),
 							default: defaultValue,
+							maximum: maxLimit,
 						},
 					}
 				};

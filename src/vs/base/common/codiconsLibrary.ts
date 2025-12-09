@@ -617,7 +617,6 @@ export const codiconsLibrary = {
 	cursor: register('cursor', 0xec5c),
 	eraser: register('eraser', 0xec5d),
 	fileText: register('file-text', 0xec5e),
-	gitLens: register('git-lens', 0xec5f),
 	quotes: register('quotes', 0xec60),
 	rename: register('rename', 0xec61),
 	runWithDeps: register('run-with-deps', 0xec62),
@@ -644,4 +643,7 @@ export const codiconsLibrary = {
 	clockface: register('clockface', 0xec75),
 	unarchive: register('unarchive', 0xec76),
 	sessionInProgress: register('session-in-progress', 0xec77),
+	collectionSmall: register('collection-small', 0xec78),
+	vmSmall: register('vm-small', 0xec79),
+	cloudSmall: register('cloud-small', 0xec7a),
 } as const;
