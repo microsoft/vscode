@@ -110,6 +110,7 @@ async function fetchWithFallbacks(availableFetchers: readonly Fetcher[], url: st
 
 async function tryFetch(fetcher: Fetcher, url: string, options: FetchOptions, logService: Log): Promise<{ ok: boolean; response: FetchResponse } | { ok: false; err: any }> {
 	try {
+		logService.debug(`FetcherService: trying fetcher ${fetcher.name} for ${url}`);
 		const response = await fetcher.fetch(url, options);
 		if (!response.ok) {
 			logService.info(`FetcherService: ${fetcher.name} failed with status: ${response.status} ${response.statusText}`);

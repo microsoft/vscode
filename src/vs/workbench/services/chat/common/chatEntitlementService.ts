@@ -282,13 +282,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		);
 		this.sentimentObs = observableFromEvent(this.onDidChangeSentiment, () => this.sentiment);
 
-		if ((
-			// TODO@bpasero remove this condition and 'serverlessWebEnabled' once Chat web support lands
-			isWeb &&
-			!environmentService.remoteAuthority &&
-			!configurationService.getValue('chat.experimental.serverlessWebEnabled')
-		)) {
-			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI
+		if ((isWeb && !environmentService.remoteAuthority)) {
+			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI on web if unsupported
 			return;
 		}
 
@@ -1056,14 +1051,7 @@ export class ChatEntitlementRequests extends Disposable {
 	async signIn(options?: { useSocialProvider?: string; additionalScopes?: readonly string[] }) {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
 
-		let defaultProviderScopes: string[];
-		if (this.configurationService.getValue<unknown>('chat.signInWithAlternateScopes') === true) {
-			defaultProviderScopes = defaultChat.providerScopes.at(-1) ?? [];
-		} else {
-			defaultProviderScopes = defaultChat.providerScopes.at(0) ?? [];
-		}
-
-		const scopes = options?.additionalScopes ? distinct([...defaultProviderScopes, ...options.additionalScopes]) : defaultProviderScopes;
+		const scopes = options?.additionalScopes ? distinct([...defaultChat.providerScopes[0], ...options.additionalScopes]) : defaultChat.providerScopes[0];
 		const session = await this.authenticationService.createSession(
 			providerId,
 			scopes,

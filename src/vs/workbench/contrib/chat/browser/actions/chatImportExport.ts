@@ -18,6 +18,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { isExportableSessionData } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { revive } from '../../../../../base/common/marshalling.js';
 
 const defaultFileName = 'chat.json';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
@@ -94,7 +95,7 @@ export function registerChatExportActions() {
 
 			const content = await fileService.readFile(result[0]);
 			try {
-				const data = JSON.parse(content.value.toString());
+				const data = revive(JSON.parse(content.value.toString()));
 				if (!isExportableSessionData(data)) {
 					throw new Error('Invalid chat session data');
 				}

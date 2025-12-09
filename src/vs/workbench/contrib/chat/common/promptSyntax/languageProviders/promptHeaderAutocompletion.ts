@@ -55,6 +55,24 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			return undefined;
 		}
 
+		if (/^\s*$/.test(model.getValue())) {
+			return {
+				suggestions: [{
+					label: localize('promptHeaderAutocompletion.addHeader', "Add Prompt Header"),
+					kind: CompletionItemKind.Snippet,
+					insertText: [
+						`---`,
+						`description: $1`,
+						`---`,
+						`$0`
+					].join('\n'),
+					insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
+					range: model.getFullModelRange(),
+				}]
+			};
+		}
+
+
 		const parsedAST = this.promptsService.getParsedPromptFile(model);
 		const header = parsedAST.header;
 		if (!header) {
@@ -244,7 +262,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		}
 		const getSuggestions = (toolRange: Range) => {
 			const suggestions: CompletionItem[] = [];
-			const toolNames = isGitHubTarget ? Object.keys(knownGithubCopilotTools) : this.languageModelToolsService.getFullReferenceNames();
+			const toolNames = isGitHubTarget ? knownGithubCopilotTools : this.languageModelToolsService.getFullReferenceNames();
 			for (const toolName of toolNames) {
 				let insertText: string;
 				if (!toolRange.isEmpty()) {

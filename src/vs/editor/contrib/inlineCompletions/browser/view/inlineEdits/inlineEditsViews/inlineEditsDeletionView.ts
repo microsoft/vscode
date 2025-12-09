@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../../../../base/common/observable.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
@@ -31,8 +30,7 @@ const BORDER_RADIUS = 4;
 
 export class InlineEditsDeletionView extends Disposable implements IInlineEditsView {
 
-	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
-	readonly onDidClick = this._onDidClick.event;
+	readonly onDidClick = Event.None;
 
 	private readonly _editorObs: ObservableCodeEditor;
 

@@ -52,7 +52,7 @@
     "gulp-merge-json": "^2.1.1",
     "gulp-sort": "^2.0.0",
     "jsonc-parser": "^2.3.0",
-    "jws": "^4.0.0",
+    "jws": "^4.0.1",
     "mime": "^1.4.1",
     "source-map": "0.6.1",
     "ternary-stream": "^3.0.0",
@@ -65,9 +65,8 @@
   "type": "module",
   "scripts": {
     "copy-policy-dto": "node lib/policies/copyPolicyDto.ts",
-    "prebuild-ts": "npm run copy-policy-dto",
+    "pretypecheck": "npm run copy-policy-dto",
     "typecheck": "cd .. && npx tsgo --project build/tsconfig.json",
-    "compile": "npm run copy-policy-dto && npm run typecheck",
     "watch": "npm run typecheck -- --watch",
     "test": "mocha --ui tdd 'lib/**/*.test.ts'"
   },

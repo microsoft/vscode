@@ -66,17 +66,12 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session 1',
-							description: 'Description 1',
-							timing: { startTime: Date.now() }
-						},
-						{
-							resource: URI.parse('test://session-2'),
-							label: 'Test Session 2',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1', {
+							label: 'Test Session 1'
+						}),
+						makeSimpleSessionItem('session-2', {
+							label: 'Test Session 2'
+						})
 					]
 				};
 
@@ -99,11 +94,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'type-1',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Session 1',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -111,11 +102,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'type-2',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-2'),
-							label: 'Session 2',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-2'),
 					]
 				};
 
@@ -169,11 +156,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -208,7 +191,7 @@ suite('Agent Sessions', () => {
 							tooltip: 'Session tooltip',
 							iconPath: ThemeIcon.fromId('check'),
 							timing: { startTime, endTime },
-							statistics: { files: 1, insertions: 10, deletions: 5 }
+							changes: { files: 1, insertions: 10, deletions: 5, details: [] }
 						}
 					]
 				};
@@ -229,7 +212,7 @@ suite('Agent Sessions', () => {
 				assert.strictEqual(session.status, ChatSessionStatus.Completed);
 				assert.strictEqual(session.timing.startTime, startTime);
 				assert.strictEqual(session.timing.endTime, endTime);
-				assert.deepStrictEqual(session.statistics, { files: 1, insertions: 10, deletions: 5 });
+				assert.deepStrictEqual(session.changes, { files: 1, insertions: 10, deletions: 5 });
 			});
 		});
 
@@ -239,11 +222,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'type-1',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Session 1',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -255,7 +234,7 @@ suite('Agent Sessions', () => {
 							id: 'session-2',
 							resource: URI.parse('test://session-2'),
 							label: 'Session 2',
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						}
 					]
 				};
@@ -282,11 +261,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'type-1',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Session 1',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -294,12 +269,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'type-2',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							id: 'session-2',
-							resource: URI.parse('test://session-2'),
-							label: 'Session 2',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-2'),
 					]
 				};
 
@@ -320,11 +290,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -349,11 +315,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -378,11 +340,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -407,11 +365,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -453,21 +407,21 @@ suite('Agent Sessions', () => {
 							resource: URI.parse('test://session-failed'),
 							label: 'Failed Session',
 							status: ChatSessionStatus.Failed,
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						},
 						{
 							id: 'session-completed',
 							resource: URI.parse('test://session-completed'),
 							label: 'Completed Session',
 							status: ChatSessionStatus.Completed,
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						},
 						{
 							id: 'session-inprogress',
 							resource: URI.parse('test://session-inprogress'),
 							label: 'In Progress Session',
 							status: ChatSessionStatus.InProgress,
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						}
 					]
 				};
@@ -494,11 +448,7 @@ suite('Agent Sessions', () => {
 					provideChatSessionItems: async () => {
 						const sessions: IChatSessionItem[] = [];
 						for (let i = 0; i < sessionCount; i++) {
-							sessions.push({
-								resource: URI.parse(`test://session-${i}`),
-								label: `Session ${i}`,
-								timing: { startTime: Date.now() }
-							});
+							sessions.push(makeSimpleSessionItem(`session-${i + 1}`));
 						}
 						return sessions;
 					}
@@ -526,7 +476,7 @@ suite('Agent Sessions', () => {
 							id: 'local-session',
 							resource: LocalChatSessionUri.forSession('local-session'),
 							label: 'Local Session',
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						}
 					]
 				};
@@ -552,7 +502,7 @@ suite('Agent Sessions', () => {
 						{
 							resource: resource,
 							label: 'Test Session',
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						}
 					]
 				};
@@ -577,11 +527,7 @@ suite('Agent Sessions', () => {
 					provideChatSessionItems: async () => {
 						providerCallCount++;
 						return [
-							{
-								resource: URI.parse('test://session-1'),
-								label: 'Test Session',
-								timing: { startTime: Date.now() }
-							}
+							makeSimpleSessionItem('session-1'),
 						];
 					}
 				};
@@ -618,7 +564,7 @@ suite('Agent Sessions', () => {
 							{
 								resource: URI.parse('test://session-1'),
 								label: `Session 1 (call ${provider1CallCount})`,
-								timing: { startTime: Date.now() }
+								timing: makeNewSessionTiming()
 							}
 						];
 					}
@@ -633,7 +579,7 @@ suite('Agent Sessions', () => {
 							{
 								resource: URI.parse('test://session-2'),
 								label: `Session 2 (call ${provider2CallCount})`,
-								timing: { startTime: Date.now() }
+								timing: makeNewSessionTiming()
 							}
 						];
 					}
@@ -676,11 +622,7 @@ suite('Agent Sessions', () => {
 					provideChatSessionItems: async () => {
 						resolveCount++;
 						resolvedProviders.push('type-1');
-						return [{
-							resource: URI.parse('test://session-1'),
-							label: 'Session 1',
-							timing: { startTime: Date.now() }
-						}];
+						return [makeSimpleSessionItem('session-1'),];
 					}
 				};
 
@@ -693,7 +635,7 @@ suite('Agent Sessions', () => {
 						return [{
 							resource: URI.parse('test://session-2'),
 							label: 'Session 2',
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						}];
 					}
 				};
@@ -732,10 +674,12 @@ suite('Agent Sessions', () => {
 				resource: URI.parse('test://local-1'),
 				label: 'Local',
 				description: 'test',
-				timing: { startTime: Date.now() },
+				timing: makeNewSessionTiming(),
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
-				setArchived: archived => { }
+				setArchived: archived => { },
+				isRead: () => false,
+				setRead: read => { }
 			};
 
 			const remoteSession: IAgentSession = {
@@ -745,10 +689,12 @@ suite('Agent Sessions', () => {
 				resource: URI.parse('test://remote-1'),
 				label: 'Remote',
 				description: 'test',
-				timing: { startTime: Date.now() },
+				timing: makeNewSessionTiming(),
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
-				setArchived: archived => { }
+				setArchived: archived => { },
+				isRead: () => false,
+				setRead: read => { }
 			};
 
 			assert.strictEqual(isLocalAgentSessionItem(localSession), true);
@@ -763,10 +709,12 @@ suite('Agent Sessions', () => {
 				resource: URI.parse('test://test-1'),
 				label: 'Test',
 				description: 'test',
-				timing: { startTime: Date.now() },
+				timing: makeNewSessionTiming(),
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
-				setArchived: archived => { }
+				setArchived: archived => { },
+				isRead: () => false,
+				setRead: read => { }
 			};
 
 			// Test with a session object
@@ -785,10 +733,12 @@ suite('Agent Sessions', () => {
 				resource: URI.parse('test://test-1'),
 				label: 'Test',
 				description: 'test',
-				timing: { startTime: Date.now() },
+				timing: makeNewSessionTiming(),
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
-				setArchived: archived => { }
+				setArchived: archived => { },
+				isRead: () => false,
+				setRead: read => { }
 			};
 
 			// Test with actual view model
@@ -818,10 +768,12 @@ suite('Agent Sessions', () => {
 				icon: Codicon.chatSparkle,
 				resource: URI.parse('test://session'),
 				label: 'Test Session',
-				timing: { startTime: Date.now() },
+				timing: makeNewSessionTiming(),
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: () => { },
+				isRead: () => false,
+				setRead: read => { },
 				...overrides
 			};
 		}
@@ -1300,11 +1252,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -1332,11 +1280,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -1362,11 +1306,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -1399,7 +1339,7 @@ suite('Agent Sessions', () => {
 							resource: URI.parse('test://session-1'),
 							label: 'Test Session',
 							archived: true,
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						}
 					]
 				};
@@ -1424,7 +1364,7 @@ suite('Agent Sessions', () => {
 							resource: URI.parse('test://session-1'),
 							label: 'Test Session',
 							archived: true,
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						}
 					]
 				};
@@ -1445,6 +1385,259 @@ suite('Agent Sessions', () => {
 				await viewModel.resolve(undefined);
 				const sessionAfterResolve = viewModel.sessions[0];
 				assert.strictEqual(sessionAfterResolve.isArchived(), false);
+			});
+		});
+	});
+
+	suite('AgentSessionsViewModel - Session Read State', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+		let viewModel: AgentSessionsModel;
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should mark session as read and unread', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+
+				// Mark as read
+				session.setRead(true);
+				assert.strictEqual(session.isRead(), true);
+
+				// Mark as unread
+				session.setRead(false);
+				assert.strictEqual(session.isRead(), false);
+			});
+		});
+
+		test('should fire onDidChangeSessions when marking as read', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setRead(false); // ensure it's unread first
+
+				let changeEventFired = false;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventFired = true;
+				}));
+
+				session.setRead(true);
+				assert.strictEqual(changeEventFired, true);
+			});
+		});
+
+		test('should not fire onDidChangeSessions when marking as read with same value', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setRead(true);
+
+				let changeEventFired = false;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventFired = true;
+				}));
+
+				// Try to mark as read again with same value
+				session.setRead(true);
+				assert.strictEqual(changeEventFired, false);
+			});
+		});
+
+		test('should preserve read state after re-resolve', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setRead(true);
+				assert.strictEqual(session.isRead(), true);
+
+				// Re-resolve should preserve read state
+				await viewModel.resolve(undefined);
+				const sessionAfterResolve = viewModel.sessions[0];
+				assert.strictEqual(sessionAfterResolve.isRead(), true);
+			});
+		});
+
+		test('should consider sessions before initial date as read by default', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with timing before the READ_STATE_INITIAL_DATE (December 8, 2025)
+				const oldSessionTiming = {
+					startTime: Date.UTC(2025, 10 /* November */, 1),
+					endTime: Date.UTC(2025, 10 /* November */, 2),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://old-session'),
+							label: 'Old Session',
+							timing: oldSessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Sessions before the initial date should be considered read
+				assert.strictEqual(session.isRead(), true);
+			});
+		});
+
+		test('should consider sessions after initial date as unread by default', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with timing after the READ_STATE_INITIAL_DATE (December 8, 2025)
+				const newSessionTiming = {
+					startTime: Date.UTC(2025, 11 /* December */, 10),
+					endTime: Date.UTC(2025, 11 /* December */, 11),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://new-session'),
+							label: 'New Session',
+							timing: newSessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Sessions after the initial date should be considered unread
+				assert.strictEqual(session.isRead(), false);
+			});
+		});
+
+		test('should use endTime for read state comparison when available', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with startTime before initial date but endTime after
+				const sessionTiming = {
+					startTime: Date.UTC(2025, 10 /* November */, 1),
+					endTime: Date.UTC(2025, 11 /* December */, 10),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://session-with-endtime'),
+							label: 'Session With EndTime',
+							timing: sessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Should use endTime (December 10) which is after the initial date
+				assert.strictEqual(session.isRead(), false);
+			});
+		});
+
+		test('should use startTime for read state comparison when endTime is not available', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with only startTime before initial date
+				const sessionTiming = {
+					startTime: Date.UTC(2025, 10 /* November */, 1),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://session-no-endtime'),
+							label: 'Session Without EndTime',
+							timing: sessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Should use startTime (November 1) which is before the initial date
+				assert.strictEqual(session.isRead(), true);
 			});
 		});
 	});
@@ -1480,7 +1673,7 @@ suite('Agent Sessions', () => {
 							resource: URI.parse('test://session-1'),
 							label: 'Test Session',
 							status: sessionStatus,
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						}
 					]
 				};
@@ -1510,7 +1703,7 @@ suite('Agent Sessions', () => {
 							resource: URI.parse('test://session-1'),
 							label: 'Test Session',
 							status: sessionStatus,
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						}
 					]
 				};
@@ -1542,7 +1735,7 @@ suite('Agent Sessions', () => {
 							resource: URI.parse('test://session-1'),
 							label: 'Test Session',
 							status: sessionStatus,
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						}
 					]
 				};
@@ -1572,11 +1765,7 @@ suite('Agent Sessions', () => {
 					provideChatSessionItems: async () => {
 						if (includeSessions) {
 							return [
-								{
-									resource: URI.parse('test://session-1'),
-									label: 'Test Session',
-									timing: { startTime: Date.now() }
-								}
+								makeSimpleSessionItem('session-1'),
 							];
 						}
 						return [];
@@ -1647,11 +1836,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: AgentSessionProviders.Local,
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -1678,11 +1863,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: AgentSessionProviders.Background,
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -1709,11 +1890,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: AgentSessionProviders.Cloud,
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -1745,7 +1922,7 @@ suite('Agent Sessions', () => {
 							resource: URI.parse('test://session-1'),
 							label: 'Test Session',
 							iconPath: customIcon,
-							timing: { startTime: Date.now() }
+							timing: makeNewSessionTiming()
 						}
 					]
 				};
@@ -1771,11 +1948,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'custom-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -1817,11 +1990,7 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -1875,3 +2044,18 @@ suite('Agent Sessions', () => {
 	});
 
 }); // End of Agent Sessions suite
+
+function makeSimpleSessionItem(id: string, overrides?: Partial<IChatSessionItem>): IChatSessionItem {
+	return {
+		resource: URI.parse(`test://${id}`),
+		label: `Session ${id}`,
+		timing: makeNewSessionTiming(),
+		...overrides
+	};
+}
+
+function makeNewSessionTiming(): IChatSessionItem['timing'] {
+	return {
+		startTime: Date.now(),
+	};
+}

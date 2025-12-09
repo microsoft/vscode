@@ -58,8 +58,8 @@ import { SCMHistoryItemChangeRangeContentProvider, ScmHistoryItemChangeRangeUriF
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
+import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatModel, IChatResponseModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -73,7 +73,7 @@ import { ILanguageModelToolsConfirmationService } from '../../common/languageMod
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { ChatEditorInput, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -373,9 +373,8 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const currentMode = chatWidget.input.currentModeKind;
 
 		if (switchToMode) {
-			const editingSession = chatWidget.viewModel?.model.editingSession;
-			const requestCount = chatWidget.viewModel?.model.getRequests().length ?? 0;
-			const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode.kind, requestCount, editingSession);
+			const model = chatWidget.viewModel?.model;
+			const chatModeCheck = model ? await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode.kind, model.getRequests().length, model) : { needToClearSession: false };
 			if (!chatModeCheck) {
 				return;
 			}
@@ -512,7 +511,19 @@ export function registerChatActions() {
 				menu: [
 					{
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.equals('view', ChatViewId),
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.equals('view', ChatViewId),
+							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, false)
+						),
+						group: 'navigation',
+						order: 2
+					},
+					{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.equals('view', ChatViewId),
+							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
+						),
 						group: '2_history',
 						order: 1
 					},
@@ -735,7 +746,7 @@ export function registerChatActions() {
 							for (const { chatSessionType, items } of providerNSessions) {
 								for (const session of items) {
 									const ckey = contextKeyService.createKey('chatSessionType', chatSessionType);
-									const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
+									const actions = menuService.getMenuActions(MenuId.AgentSessionsContext, contextKeyService);
 									const { primary } = getContextMenuActions(actions, 'inline');
 									ckey.reset();
 
@@ -990,12 +1001,9 @@ export function registerChatActions() {
 				return;
 			}
 
-			const editingSession = view.widget.viewModel.model.editingSession;
-			if (editingSession) {
-				const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
-				if (!await handleCurrentEditingSession(editingSession, phrase, dialogService)) {
-					return;
-				}
+			const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
+			if (!await handleCurrentEditingSession(view.widget.viewModel.model, phrase, dialogService)) {
+				return;
 			}
 
 			// Check if there are any non-local chat session item providers registered
@@ -1703,12 +1711,8 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 /**
  * Returns whether we can continue clearing/switching chat sessions, false to cancel.
  */
-export async function handleCurrentEditingSession(currentEditingSession: IChatEditingSession, phrase: string | undefined, dialogService: IDialogService): Promise<boolean> {
-	if (shouldShowClearEditingSessionConfirmation(currentEditingSession)) {
-		return showClearEditingSessionConfirmation(currentEditingSession, dialogService, { messageOverride: phrase });
-	}
-
-	return true;
+export async function handleCurrentEditingSession(model: IChatModel, phrase: string | undefined, dialogService: IDialogService): Promise<boolean> {
+	return showClearEditingSessionConfirmation(model, dialogService, { messageOverride: phrase });
 }
 
 /**
@@ -1719,9 +1723,9 @@ export async function handleModeSwitch(
 	fromMode: ChatModeKind,
 	toMode: ChatModeKind,
 	requestCount: number,
-	editingSession: IChatEditingSession | undefined,
+	model: IChatModel | undefined,
 ): Promise<false | { needToClearSession: boolean }> {
-	if (!editingSession || fromMode === toMode) {
+	if (!model?.editingSession || fromMode === toMode) {
 		return { needToClearSession: false };
 	}
 
@@ -1732,10 +1736,10 @@ export async function handleModeSwitch(
 		// If not using edits2 and switching into or out of edit mode, ask to discard the session
 		const phrase = localize('switchMode.confirmPhrase', "Switching agents will end your current edit session.");
 
-		const currentEdits = editingSession.entries.get();
+		const currentEdits = model.editingSession.entries.get();
 		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
 		if (undecidedEdits.length > 0) {
-			if (!await handleCurrentEditingSession(editingSession, phrase, dialogService)) {
+			if (!await handleCurrentEditingSession(model, phrase, dialogService)) {
 				return false;
 			}
 
@@ -1761,6 +1765,7 @@ export async function handleModeSwitch(
 export interface IClearEditingSessionConfirmationOptions {
 	titleOverride?: string;
 	messageOverride?: string;
+	isArchiveAction?: boolean;
 }
 
 
@@ -1824,5 +1829,77 @@ registerAction2(class EditToolApproval extends Action2 {
 		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		confirmationService.manageConfirmationPreferences([...toolsService.getTools()], scope ? { defaultScope: scope } : undefined);
+	}
+});
+
+registerAction2(class ToggleChatViewSessionsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleChatViewSessions',
+			title: localize2('chat.toggleChatViewSessions.label', "Show Sessions"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			menu: {
+				id: MenuId.ChatWelcomeContext,
+				group: '1_modify',
+				order: 1,
+				when: ChatContextKeys.inChatEditor.negate()
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const chatViewSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, !chatViewSessionsEnabled);
+	}
+});
+
+registerAction2(class ToggleChatViewTitleAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleChatViewTitle',
+			title: localize2('chat.toggleChatViewTitle.label', "Show Chat Title"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewTitleEnabled}`, true),
+			menu: {
+				id: MenuId.ChatWelcomeContext,
+				group: '1_modify',
+				order: 2,
+				when: ChatContextKeys.inChatEditor.negate()
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const chatViewTitleEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewTitleEnabled, !chatViewTitleEnabled);
+	}
+});
+
+
+registerAction2(class ToggleChatViewWelcomeAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleChatViewWelcome',
+			title: localize2('chat.toggleChatViewWelcome.label', "Show Welcome"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeEnabled}`, true),
+			menu: {
+				id: MenuId.ChatWelcomeContext,
+				group: '1_modify',
+				order: 3,
+				when: ChatContextKeys.inChatEditor.negate()
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const chatViewWelcomeEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeEnabled, !chatViewWelcomeEnabled);
 	}
 });

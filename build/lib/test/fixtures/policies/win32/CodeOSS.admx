@@ -45,9 +45,9 @@
 			<supportedOn ref="Supported_1_99" />
 			<elements>
 		<enum id="ChatMCP" valueName="ChatMCP">
-			<item displayName="$(string.ChatMCP_chat.mcp.access.none)"><value><string>none</string></value></item>
-			<item displayName="$(string.ChatMCP_chat.mcp.access.registry)"><value><string>registry</string></value></item>
-			<item displayName="$(string.ChatMCP_chat.mcp.access.any)"><value><string>all</string></value></item>
+			<item displayName="$(string.ChatMCP_chat_mcp_access_none)"><value><string>none</string></value></item>
+			<item displayName="$(string.ChatMCP_chat_mcp_access_registry)"><value><string>registry</string></value></item>
+			<item displayName="$(string.ChatMCP_chat_mcp_access_any)"><value><string>all</string></value></item>
 		</enum>
 			</elements>
 		</policy>
@@ -113,10 +113,10 @@
 			<supportedOn ref="Supported_1_99" />
 			<elements>
 		<enum id="TelemetryLevel" valueName="TelemetryLevel">
-			<item displayName="$(string.TelemetryLevel_telemetry.telemetryLevel.default)"><value><string>all</string></value></item>
-			<item displayName="$(string.TelemetryLevel_telemetry.telemetryLevel.error)"><value><string>error</string></value></item>
-			<item displayName="$(string.TelemetryLevel_telemetry.telemetryLevel.crash)"><value><string>crash</string></value></item>
-			<item displayName="$(string.TelemetryLevel_telemetry.telemetryLevel.off)"><value><string>off</string></value></item>
+			<item displayName="$(string.TelemetryLevel_telemetry_telemetryLevel_default)"><value><string>all</string></value></item>
+			<item displayName="$(string.TelemetryLevel_telemetry_telemetryLevel_error)"><value><string>error</string></value></item>
+			<item displayName="$(string.TelemetryLevel_telemetry_telemetryLevel_crash)"><value><string>crash</string></value></item>
+			<item displayName="$(string.TelemetryLevel_telemetry_telemetryLevel_off)"><value><string>off</string></value></item>
 		</enum>
 			</elements>
 		</policy>

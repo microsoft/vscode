@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { asArray } from '../../../../../base/common/arrays.js';
 import { DeferredPromise, isThenable } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -257,6 +258,7 @@ class AttachSelectionToChatAction extends Action2 {
 		});
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
@@ -648,11 +650,11 @@ export class AttachContextAction extends Action2 {
 				if (isThenable(attachment)) {
 					addPromises.push(attachment.then(v => {
 						if (v !== noop) {
-							widget.attachmentModel.addContext(v);
+							widget.attachmentModel.addContext(...asArray(v));
 						}
 					}));
 				} else {
-					widget.attachmentModel.addContext(attachment);
+					widget.attachmentModel.addContext(...asArray(attachment));
 				}
 			}
 			if (selected === goBackItem) {
