@@ -210,7 +210,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || session.resource.scheme === Schemas.vscodeLocalChatSession;
 		if (!isLocalChatSession && !(await this.chatSessionsService.canResolveChatSession(session.resource))) {
-			target = ACTIVE_GROUP; // force to open in editor if session cannot be resolved in panel
+			target = e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP; // force to open in editor if session cannot be resolved in panel
 			options = { ...options, revealIfOpened: true };
 		}
 
