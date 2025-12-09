@@ -12,18 +12,28 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { resizeImage } from '../../contrib/chat/browser/imageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
+import { ChatConfiguration } from '../../contrib/chat/common/constants.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
 import { LanguageModelError } from '../common/extHostTypes.js';
+
+type ChatBlockedEvent = { extensionId: string; modelId: string };
+type ChatBlockedClassification = {
+	owner: 'joshspicer';
+	comment: 'Logged when a chat request is blocked due to missing default account';
+};
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModels)
 export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
@@ -43,6 +53,9 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILanguageModelIgnoredFilesService private readonly _ignoredFilesService: ILanguageModelIgnoredFilesService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
 	}
@@ -142,6 +155,18 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 	async $tryStartChatRequest(extension: ExtensionIdentifier, modelIdentifier: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<void> {
 		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
+
+		// TODO: This shouldn't be a setting (just here for testing/experiment). Could keep if it was a policy.
+		const enforceDefaultAccount = this._configurationService.getValue<boolean>(ChatConfiguration.EnforceDefaultAccount) ?? true;
+		if (enforceDefaultAccount) {
+			const defaultAccount = await this._defaultAccountService.getDefaultAccount();
+			if (!defaultAccount) {
+				this._telemetryService.publicLog2<ChatBlockedEvent, ChatBlockedClassification>('chat.blockedNoDefaultAccount');
+				const error = new Error(localize('chatUnavailable', "Language model features are unavailable. Please confirm you are signed into GitHub."));
+				this._logService.error('[CHAT] request BLOCKED - no default account');
+				throw error;
+			}
+		}
 
 		let response: ILanguageModelChatResponse;
 		try {
