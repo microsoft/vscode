@@ -153,12 +153,6 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 
 	private async initialize(): Promise<void> {
 		this.logService.debug('[DefaultAccount] Starting initialization');
-<<<<<<< HEAD
-
-		if (!this.productService.defaultAccount) {
-			this.logService.debug('[DefaultAccount] No default account configuration in product service, skipping initialization');
-			return;
-=======
 		let defaultAccount: IDefaultAccount | null = null;
 		try {
 			defaultAccount = await this.fetchDefaultAccount();
@@ -178,7 +172,6 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		if (isWeb && !this.environmentService.remoteAuthority) {
 			this.logService.debug('[DefaultAccount] Running in web without remote, skipping initialization');
 			return null;
->>>>>>> origin/main
 		}
 
 		const defaultAccountProviderId = this.getDefaultAccountProviderId();
@@ -193,33 +186,11 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === defaultAccountProviderId);
 		if (!declaredProvider) {
 			this.logService.info(`[DefaultAccount] Authentication provider is not declared.`, defaultAccountProviderId);
-<<<<<<< HEAD
-			return;
-		}
-
-		this.registerSignInAction(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes);
-		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes));
-
-		this._register(this.authenticationService.onDidChangeSessions(async e => {
-			if (e.providerId !== this.getDefaultAccountProviderId()) {
-				return;
-			}
-
-			if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
-				this.setDefaultAccount(null);
-				return;
-			}
-			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount!.authenticationProvider.scopes));
-		}));
-
-		this.logService.debug('[DefaultAccount] Initialization complete');
-=======
 			return null;
 		}
 
 		this.registerSignInAction(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes[0]);
 		return await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes);
->>>>>>> origin/main
 	}
 
 	private setDefaultAccount(account: IDefaultAccount | null): void {
@@ -246,18 +217,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return result;
 	}
 
-<<<<<<< HEAD
-	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, scopes: string[]): Promise<IDefaultAccount | null> {
-		try {
-			this.logService.debug('[DefaultAccount] Getting Default Account from authenticated sessions for provider:', authProviderId);
-			const sessions = await this.authenticationService.getSessions(authProviderId, undefined, undefined, true);
-			const session = sessions.find(s => this.scopesMatch(s.scopes, scopes));
-=======
 	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, scopes: string[][]): Promise<IDefaultAccount | null> {
 		try {
 			this.logService.debug('[DefaultAccount] Getting Default Account from authenticated sessions for provider:', authProviderId);
 			const session = await this.findMatchingProviderSession(authProviderId, scopes);
->>>>>>> origin/main
 
 			if (!session) {
 				this.logService.debug('[DefaultAccount] No matching session found for provider:', authProviderId);
@@ -285,8 +248,6 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			this.logService.error('[DefaultAccount] Failed to create default account for provider:', authProviderId, getErrorMessage(error));
 			return null;
 		}
-<<<<<<< HEAD
-=======
 	}
 
 	private async findMatchingProviderSession(authProviderId: string, allScopes: string[][]): Promise<AuthenticationSession | undefined> {
@@ -315,7 +276,6 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			}
 		}
 		throw new Error('Unable to get sessions after multiple attempts');
->>>>>>> origin/main
 	}
 
 	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
