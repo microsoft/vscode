@@ -100,14 +100,20 @@ export const CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF = new RawContextKey<boolean>('inl
 export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('inlineChatRequestInProgress', false, localize('inlineChatRequestInProgress', "Whether an inline chat request is currently in progress"));
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 
-export const CTX_INLINE_CHAT_V1_ENABLED = ContextKeyExpr.or(
-	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR.negate(), CTX_INLINE_CHAT_HAS_AGENT),
-	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE)
+export const CTX_INLINE_CHAT_V1_ENABLED = ContextKeyExpr.and(
+	ContextKeyExpr.or(
+		ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR.negate(), CTX_INLINE_CHAT_HAS_AGENT),
+		ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE)
+	),
+	ContextKeyExpr.has('chatIsEnabled')
 );
 
-export const CTX_INLINE_CHAT_V2_ENABLED = ContextKeyExpr.or(
-	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR.negate(), CTX_INLINE_CHAT_HAS_AGENT2),
-	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT)
+export const CTX_INLINE_CHAT_V2_ENABLED = ContextKeyExpr.and(
+	ContextKeyExpr.or(
+		ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR.negate(), CTX_INLINE_CHAT_HAS_AGENT2),
+		ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT)
+	),
+	ContextKeyExpr.has('chatIsEnabled')
 );
 
 // --- (selected) action identifier
