@@ -3052,7 +3052,6 @@ class LayoutStateModel extends Disposable {
 
 	private loadKeyFromStorage<T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>): T | undefined {
 		const value = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
-
 		if (value !== undefined) {
 			this.isNew[key.scope] = false; // remember that we had previous state for this scope
 
