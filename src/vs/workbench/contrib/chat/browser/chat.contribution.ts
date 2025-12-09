@@ -369,23 +369,15 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.welcome.enabled', "Show welcome banner when chat is empty."),
 		},
-		[ChatConfiguration.ChatViewSessionsEnabled]: { // TODO@bpasero move off preview
+		[ChatConfiguration.ChatViewSessionsEnabled]: {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
-			tags: ['preview', 'experimental'],
-			experiment: {
-				mode: 'auto'
-			}
 		},
-		[ChatConfiguration.ChatViewTitleEnabled]: { // TODO@bpasero move off preview
+		[ChatConfiguration.ChatViewTitleEnabled]: {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.viewTitle.enabled', "Show the title of the chat above the chat in the chat view."),
-			tags: ['preview', 'experimental'],
-			experiment: {
-				mode: 'auto'
-			}
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
