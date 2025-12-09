@@ -298,8 +298,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._hasToolTerminalContext.set(toolCount > 0);
 		const hiddenTerminalCount = this.getToolSessionTerminalInstances(true).length;
 		this._hasHiddenToolTerminalContext.set(hiddenTerminalCount > 0);
-<<<<<<< HEAD
-=======
 	}
 
 	setChatSessionAutoApproval(chatSessionId: string, enabled: boolean): void {
@@ -312,6 +310,5 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	hasChatSessionAutoApproval(chatSessionId: string): boolean {
 		return this._sessionAutoApprovalEnabled.has(chatSessionId);
->>>>>>> origin/main
 	}
 }
