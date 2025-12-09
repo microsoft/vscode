@@ -60,6 +60,7 @@ export class ContinueChatInSessionAction extends Action2 {
 				ChatContextKeys.enabled,
 				ChatContextKeys.requestInProgress.negate(),
 				ChatContextKeys.remoteJobCreating.negate(),
+				ChatContextKeys.hasContinueInOptions,
 			),
 			menu: [{
 				id: MenuId.ChatExecute,
