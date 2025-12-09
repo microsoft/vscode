@@ -116,6 +116,10 @@
 
 	flex-direction: column;
 
+	.agent-sessions-title-container {
+		padding: 8px 8px 8px 18px; /* align with container title */
+	}
+
 	.agent-sessions-container {
 		border-bottom: 1px solid var(--vscode-panel-border);
 	}

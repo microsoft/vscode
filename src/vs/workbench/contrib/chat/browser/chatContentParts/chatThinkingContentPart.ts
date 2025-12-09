@@ -186,7 +186,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.markdownResult = undefined;
 		}
 
-		const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(contentToRender), undefined, target));
+		const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(contentToRender), {
+			fillInIncompleteTokens: true,
+			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+			codeBlockRendererSync: (_languageId, text, raw) => {
+				const codeElement = $('code');
+				codeElement.textContent = text;
+				return codeElement;
+			}
+		}, target));
 		this.markdownResult = rendered;
 		if (!target) {
 			clearNode(this.textContainer);

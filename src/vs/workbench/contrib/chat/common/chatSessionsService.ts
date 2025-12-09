@@ -231,7 +231,7 @@ export interface IChatSessionsService {
 	isEditable(sessionResource: URI): boolean;
 	// #endregion
 	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
-	getSessionDescription(chatModel: IChatModel): string | undefined;
+	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

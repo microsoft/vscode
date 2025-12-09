@@ -67,7 +67,9 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			// Check if the last request was completed successfully or failed
 			const lastRequest = requests[requests.length - 1];
 			if (lastRequest?.response) {
-				if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails) {
+				if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails?.code === 'canceled') {
+					return ChatSessionStatus.Completed;
+				} else if (lastRequest.response.result?.errorDetails) {
 					return ChatSessionStatus.Failed;
 				} else if (lastRequest.response.isComplete) {
 					return ChatSessionStatus.Completed;
@@ -122,7 +124,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		const model = this.chatService.getSession(chat.sessionResource);
 
 		let description: string | undefined;
-		let startTime: number | undefined;
+		let startTime: number;
 		let endTime: number | undefined;
 		if (model) {
 			if (!model.hasRequests) {
@@ -130,7 +132,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			}
 
 			const lastResponse = model.getRequests().at(-1)?.response;
-			description = this.chatSessionsService.getSessionDescription(model);
+			description = this.chatSessionsService.getInProgressSessionDescription(model);
 
 			startTime = model.timestamp;
 			if (lastResponse) {
