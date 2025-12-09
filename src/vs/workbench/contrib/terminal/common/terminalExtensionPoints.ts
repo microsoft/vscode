@@ -10,10 +10,7 @@ import { IExtensionTerminalProfile, ITerminalCompletionProviderContribution, ITe
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-<<<<<<< HEAD
-=======
 import { isObject, isString } from '../../../../base/common/types.js';
->>>>>>> origin/main
 
 // terminal extension point
 const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
