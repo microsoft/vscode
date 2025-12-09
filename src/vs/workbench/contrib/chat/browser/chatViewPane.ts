@@ -327,7 +327,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private createControls(parent: HTMLElement): void {
 
 		// Sessions Control
-		this.createSessionsControl(parent);
+		const sessionsControl = this.createSessionsControl(parent);
 
 		// Welcome Control
 		const welcomeController = this.welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, ChatAgentLocation.Chat));
@@ -336,13 +336,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const chatWidget = this.createChatControl(parent);
 
 		// Controls Listeners
-		this.registerControlsListeners(chatWidget, welcomeController);
+		this.registerControlsListeners(sessionsControl, chatWidget, welcomeController);
 
 		// Update sessions control visibility when all controls are created
 		this.updateSessionsControlVisibility();
 	}
 
-	private createSessionsControl(parent: HTMLElement): void {
+	private createSessionsControl(parent: HTMLElement): AgentSessionsControl {
 		const that = this;
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 
@@ -384,13 +384,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
-		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
+		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
 			allowOpenSessionsInPanel: true,
 			filter: sessionsFilter
 		}));
-		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
+		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 
-		sessionsToolbar.context = this.sessionsControl;
+		sessionsToolbar.context = sessionsControl;
 
 		// Link to Sessions View
 		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
@@ -403,9 +403,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				this.notifySessionsControlLimitedChanged(true);
 
-				this.sessionsControl?.focus();
+				sessionsControl.focus();
 			}
 		}));
+
+		return sessionsControl;
 	}
 
 	private notifySessionsControlLimitedChanged(triggerLayout: boolean): void {
@@ -543,7 +545,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 	}
 
-	private registerControlsListeners(chatWidget: ChatWidget, welcomeController: ChatViewWelcomeController): void {
+	private registerControlsListeners(sessionsControl: AgentSessionsControl, chatWidget: ChatWidget, welcomeController: ChatViewWelcomeController): void {
 
 		// Sessions control visibility is impacted by multiple things:
 		// - chat widget being in empty state or showing a chat
@@ -555,7 +557,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled))
 		)(() => {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-				this.sessionsControl?.clearFocus(); // improve visual appearance when switching visibility by clearing focus
+				sessionsControl.clearFocus(); // improve visual appearance when switching visibility by clearing focus
 			}
 			this.notifySessionsControlCountChanged();
 		}));
