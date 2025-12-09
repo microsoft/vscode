@@ -302,11 +302,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		try {
 			if (dto.context) {
 				store = new DisposableStore();
-<<<<<<< HEAD
-				const model = this._chatService.getSessionByLegacyId(dto.context.sessionId) as ChatModel | undefined;
-=======
 				const model = this._chatService.getSession(dto.context.sessionResource);
->>>>>>> origin/main
 				if (!model) {
 					throw new Error(`Tool called for unknown chat session`);
 				}
