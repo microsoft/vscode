@@ -205,6 +205,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			},
 		};
 
+		// Do not attempt to register migrated chatSession providers
+		if (chatSessionRegistration?.alternativeIds?.includes(id)) {
+			return;
+		}
+
 		let disposable: IDisposable;
 		if (!staticAgentRegistration && dynamicProps) {
 			const extensionDescription = this._extensionService.extensions.find(e => ExtensionIdentifier.equals(e.identifier, extension));
