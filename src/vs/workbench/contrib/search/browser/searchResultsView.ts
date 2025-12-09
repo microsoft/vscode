@@ -70,6 +70,7 @@ interface IMatchTemplate {
 	after: HTMLElement;
 	actions: MenuWorkbenchToolBar;
 	disposables: DisposableStore;
+	elementDisposables: DisposableStore;
 	contextKeyService: IContextKeyService;
 }
 
@@ -429,6 +430,10 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 			},
 		}));
 
+		const elementDisposables = new DisposableStore();
+		disposables.add(elementDisposables);
+
+
 		return {
 			parent,
 			before,
@@ -438,6 +443,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 			lineNumber,
 			actions,
 			disposables,
+			elementDisposables,
 			contextKeyService: contextKeyServiceMain
 		};
 	}
@@ -456,7 +462,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.after.textContent = preview.after;
 
 		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
-		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
+		templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
 
 		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!match.isReadonly);
 
@@ -468,14 +474,14 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
-		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
+		templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
 
 		templateData.actions.context = { viewer: this.searchView.getControl(), element: match } satisfies ISearchActionContext;
 
 	}
 
 	disposeElement(element: ITreeNode<ISearchTreeMatch, void>, index: number, templateData: IMatchTemplate, details?: ITreeElementRenderDetails): void {
-		templateData.disposables.clear();
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IMatchTemplate): void {
