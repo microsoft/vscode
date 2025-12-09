@@ -380,6 +380,7 @@
 		"--vscode-inlineChat-background",
 		"--vscode-inlineChat-border",
 		"--vscode-inlineChat-foreground",
+		"--vscode-inlineChat-regionHighlight",
 		"--vscode-inlineChat-shadow",
 		"--vscode-inlineChatDiff-inserted",
 		"--vscode-inlineChatDiff-removed",
