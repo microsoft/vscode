@@ -19,7 +19,8 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChange } from './model/mirrorTextModel.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
@@ -689,8 +690,8 @@ export interface ITextSnapshot {
 /**
  * @internal
  */
-export function isITextSnapshot(obj: any): obj is ITextSnapshot {
-	return (obj && typeof obj.read === 'function');
+export function isITextSnapshot(obj: unknown): obj is ITextSnapshot {
+	return (!!obj && typeof (obj as ITextSnapshot).read === 'function');
 }
 
 /**
@@ -1502,7 +1503,7 @@ export class ValidAnnotatedEditOperation implements IIdentifiedSingleEditOperati
  * `lineNumber` is 1 based.
  */
 export interface IReadonlyTextBuffer {
-	onDidChangeContent: Event<void>;
+	readonly onDidChangeContent: Event<void>;
 	equals(other: ITextBuffer): boolean;
 	mightContainRTL(): boolean;
 	mightContainUnusualLineTerminators(): boolean;

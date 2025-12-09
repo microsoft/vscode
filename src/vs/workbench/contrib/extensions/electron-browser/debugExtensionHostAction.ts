@@ -18,16 +18,68 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IExtensionService, IExtensionInspectInfo } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IConfig, IDebugService } from '../../debug/common/debug.js';
 import { RuntimeExtensionsEditor } from './runtimeExtensionsEditor.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 
-export class DebugExtensionHostAction extends Action2 {
+interface IExtensionHostQuickPickItem extends IQuickPickItem {
+	portInfo: IExtensionInspectInfo;
+}
+
+export class DebugExtensionHostInDevToolsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.extensions.action.devtoolsExtensionHost',
+			title: nls.localize2('openDevToolsForExtensionHost', 'Debug Extension Host In Dev Tools'),
+			category: Categories.Developer,
+			f1: true,
+			icon: Codicon.debugStart,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const extensionService = accessor.get(IExtensionService);
+		const nativeHostService = accessor.get(INativeHostService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const inspectPorts = await extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, true);
+
+		if (inspectPorts.length === 0) {
+			console.log('[devtoolsExtensionHost] No extension host inspect ports found.');
+			return;
+		}
+
+		const items: IExtensionHostQuickPickItem[] = inspectPorts.filter(portInfo => portInfo.devtoolsUrl).map(portInfo => ({
+			label: portInfo.devtoolsLabel ?? `${portInfo.host}:${portInfo.port}`,
+			detail: `${portInfo.host}:${portInfo.port}`,
+			portInfo: portInfo
+		}));
+
+		if (items.length === 1) {
+			const portInfo = items[0].portInfo;
+			nativeHostService.openDevToolsWindow(portInfo.devtoolsUrl!);
+			return;
+		}
+
+		const selected = await quickInputService.pick<IExtensionHostQuickPickItem>(items, {
+			placeHolder: nls.localize('selectExtensionHost', "Pick extension host"),
+			matchOnDetail: true,
+		});
+
+		if (selected) {
+			const portInfo = selected.portInfo;
+			nativeHostService.openDevToolsWindow(portInfo.devtoolsUrl!);
+		}
+	}
+}
+
+export class DebugExtensionHostInNewWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.extensions.action.debugExtensionHost',
-			title: { value: nls.localize('debugExtensionHost', "Start Debugging Extension Host In New Window"), original: 'Start Debugging Extension Host In New Window' },
+			title: nls.localize2('debugExtensionHost', "Debug Extension Host In New Window"),
 			category: Categories.Developer,
 			f1: true,
 			icon: Codicon.debugStart,

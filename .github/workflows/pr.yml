@@ -21,17 +21,15 @@ jobs:
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-        env:
-          NODEJS_ORG_MIRROR: https://github.com/joaomoreno/node-mirror/releases/download
 
       - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile $(node -p process.arch) > .build/packagelockhash
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -70,19 +68,16 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           set -e
-          node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
           mkdir -p .build/node_modules_cache
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 
-      - name: Compile /build/ folder
-        run: npm run compile
+      - name: Type check /build/ scripts
+        run: npm run typecheck
         working-directory: build
 
-      - name: Check /build/ folder
-        run: .github/workflows/check-clean-git-state.sh
-
       - name: Compile & Hygiene
-        run: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check
+        run: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

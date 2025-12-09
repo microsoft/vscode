@@ -175,4 +175,127 @@ suite('ContextKeyService', () => {
 
 		return def.p;
 	});
+
+	test('setting identical array values should not fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<string[]>('testArray', ['a', 'b', 'c']);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same array content (different reference)
+		key.set(['a', 'b', 'c']);
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical array');
+	});
+
+	test('setting different array values should fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<string[]>('testArray', ['a', 'b', 'c']);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set a different array
+		key.set(['a', 'b', 'd']);
+
+		assert.strictEqual(eventFired, true, 'Should fire event when setting different array');
+	});
+
+	test('setting identical complex object should not fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const initialValue = { foo: 'bar', count: 42 };
+		const key = root.createKey<Record<string, string | number>>('testObject', initialValue);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same object content (different reference)
+		key.set({ foo: 'bar', count: 42 });
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical object');
+	});
+
+	test('setting different complex object should fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const initialValue = { foo: 'bar', count: 42 };
+		const key = root.createKey<Record<string, string | number>>('testObject', initialValue);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set a different object
+		key.set({ foo: 'bar', count: 43 });
+
+		assert.strictEqual(eventFired, true, 'Should fire event when setting different object');
+	});
+
+	test('setting empty arrays should not fire change event when identical', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<string[]>('testArray', []);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set another empty array
+		key.set([]);
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical empty array');
+	});
+
+	test('setting nested arrays should handle deep equality', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const initialValue = ['a:b', 'c:d'];
+		const key = root.createKey<string[]>('testComplexArray', initialValue);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same array content with colon-separated values
+		key.set(['a:b', 'c:d']);
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical array with complex values');
+	});
+
+	test('setting same primitive values should not fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey('testString', 'hello');
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same string value
+		key.set('hello');
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical string');
+	});
+
+	test('setting different primitive values should fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<number>('testNumber', 42);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set a different number value
+		key.set(43);
+
+		assert.strictEqual(eventFired, true, 'Should fire event when setting different number');
+	});
 });

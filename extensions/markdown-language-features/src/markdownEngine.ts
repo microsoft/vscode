@@ -101,7 +101,7 @@ export class MarkdownItEngine implements IMdParser {
 	private _md?: Promise<MarkdownIt>;
 
 	private _slugCount = new Map<string, number>();
-	private _tokenCache = new TokenCache();
+	private readonly _tokenCache = new TokenCache();
 
 	public readonly slugifier: Slugifier;
 
@@ -143,6 +143,7 @@ export class MarkdownItEngine implements IMdParser {
 				const frontMatterPlugin = await import('markdown-it-front-matter');
 				// Extract rules from front matter plugin and apply at a lower precedence
 				let fontMatterRule: any;
+				// eslint-disable-next-line local/code-no-any-casts
 				frontMatterPlugin.default(<any>{
 					block: {
 						ruler: {
@@ -433,7 +434,7 @@ async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Opti
 }
 
 function normalizeHighlightLang(lang: string | undefined) {
-	switch (lang && lang.toLowerCase()) {
+	switch (lang?.toLowerCase()) {
 		case 'shell':
 			return 'sh';
 

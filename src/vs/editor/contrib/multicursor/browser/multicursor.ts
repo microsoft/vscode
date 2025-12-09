@@ -38,6 +38,11 @@ function announceCursorChange(previousCursorState: CursorState[], cursorState: C
 	}
 }
 
+interface InsertCursorArgs {
+	source?: string;
+	logicalLine?: boolean;
+}
+
 export class InsertCursorAbove extends EditorAction {
 
 	constructor() {
@@ -63,7 +68,7 @@ export class InsertCursorAbove extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: InsertCursorArgs): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -115,7 +120,7 @@ export class InsertCursorBelow extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: InsertCursorArgs): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -1073,6 +1078,10 @@ function getValueInRange(model: ITextModel, range: Range, toLowerCase: boolean):
 	return (toLowerCase ? text.toLowerCase() : text);
 }
 
+interface FocusCursorArgs {
+	source?: string;
+}
+
 export class FocusNextCursor extends EditorAction {
 	constructor() {
 		super({
@@ -1086,7 +1095,7 @@ export class FocusNextCursor extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: FocusCursorArgs): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -1124,7 +1133,7 @@ export class FocusPreviousCursor extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: FocusCursorArgs): void {
 		if (!editor.hasModel()) {
 			return;
 		}

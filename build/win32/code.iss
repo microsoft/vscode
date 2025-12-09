@@ -94,8 +94,11 @@ Name: "{app}"; AfterInstall: DisableAppDirInheritance
 Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\appx,\appx\*,\resources\app\product.json"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\resources\app"; Flags: ignoreversion
-#ifdef AppxPackageFullname
-Source: "appx\*"; DestDir: "{app}\appx"; BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater and QualityIsInsiders
+#ifdef AppxPackageName
+#if "user" == InstallTarget
+Source: "appx\{#AppxPackage}"; DestDir: "{app}\appx"; BeforeInstall: RemoveAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater
+Source: "appx\{#AppxPackageDll}"; DestDir: "{app}\appx"; AfterInstall: AddAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater
+#endif
 #endif
 
 [Icons]
@@ -276,7 +279,7 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.cls\s
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.code-workspace\OpenWithProgids"; ValueType: none; ValueName: "{#RegValueName}"; Flags: deletevalue uninsdeletevalue; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.code-workspace\OpenWithProgids"; ValueType: string; ValueName: "{#RegValueName}.code-workspace"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.code-workspace"; ValueType: string; ValueName: ""; ValueData: "{cm:SourceFile,Code Workspace}"; Flags: uninsdeletekey; Tasks: associatewithfiles
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.code"; ValueType: string; ValueName: "AppUserModelID"; ValueData: "{#AppUserId}"; Flags: uninsdeletekey; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.code-workspace"; ValueType: string; ValueName: "AppUserModelID"; ValueData: "{#AppUserId}"; Flags: uninsdeletekey; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.code-workspace\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\resources\app\resources\win32\default.ico"; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.code-workspace\shell\open"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#ExeBasename}.exe"""; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.code-workspace\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%1"""; Tasks: associatewithfiles
@@ -1354,7 +1357,7 @@ var
 	TaskKilled: Integer;
 begin
 	Log('Stopping all tunnel services (at ' + ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"') + ')');
-	ShellExec('', 'powershell.exe', '-Command "Get-WmiObject Win32_Process | Where-Object { $_.ExecutablePath -eq ' + ExpandConstant('''{app}\bin\{#TunnelApplicationName}.exe''') + ' } | Select @{Name=''Id''; Expression={$_.ProcessId}} | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, TaskKilled)
+	ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "Get-WmiObject Win32_Process | Where-Object { $_.ExecutablePath -eq ' + ExpandConstant('''{app}\bin\{#TunnelApplicationName}.exe''') + ' } | Select @{Name=''Id''; Expression={$_.ProcessId}} | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, TaskKilled)
 
 	WaitCounter := 10;
 	while (WaitCounter > 0) and CheckForMutexes('{#TunnelMutex}') do
@@ -1466,26 +1469,27 @@ begin
     Result := False;
 end;
 
-#ifdef AppxPackageFullname
+#ifdef AppxPackageName
 var
-  Line: String;
+  AppxPackageFullname: String;
 
 procedure ExecAndGetFirstLineLog(const S: String; const Error, FirstLine: Boolean);
 begin
-  if not Error and (Line = '') and (Trim(S) <> '') then
-    Line := S;
+  if not Error and (AppxPackageFullname = '') and (Trim(S) <> '') then
+    AppxPackageFullname := S;
   Log(S);
 end;
 
-function AppxPackageInstalled(var ResultCode: Integer): Boolean;
+function AppxPackageInstalled(const name: String; var ResultCode: Integer): Boolean;
 begin
-  Line := '';
+  AppxPackageFullname := '';
   try
-    ExecAndLogOutput('powershell.exe', '-Command ' + AddQuotes('Get-AppxPackage -Name ''{#AppxPackageName}'''), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, @ExecAndGetFirstLineLog);
+    Log('Get-AppxPackage for package with name: ' + name);
+    ExecAndLogOutput('powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Get-AppxPackage -Name ''' + name + ''' | Select-Object -ExpandProperty PackageFullName'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, @ExecAndGetFirstLineLog);
   except
     Log(GetExceptionMessage);
   end;
-  if (Line <> '') then
+  if (AppxPackageFullname <> '') then
     Result := True
   else
     Result := False
@@ -1495,8 +1499,10 @@ procedure AddAppxPackage();
 var
   AddAppxPackageResultCode: Integer;
 begin
-  if not AppxPackageInstalled(AddAppxPackageResultCode) and WizardIsTaskSelected('addcontextmenufiles') then begin
-    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
+  if not AppxPackageInstalled(ExpandConstant('{#AppxPackageName}'), AddAppxPackageResultCode) then begin
+    Log('Installing appx ' + AppxPackageFullname + ' ...');
+    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
+    Log('Add-AppxPackage complete.');
   end;
 end;
 
@@ -1504,8 +1510,18 @@ procedure RemoveAppxPackage();
 var
   RemoveAppxPackageResultCode: Integer;
 begin
-  if AppxPackageInstalled(RemoveAppxPackageResultCode) then begin
-    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''{#AppxPackageFullname}'''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+  // Remove the old context menu package
+  // Following condition can be removed after two versions.
+  if QualityIsInsiders() and AppxPackageInstalled('Microsoft.VSCodeInsiders', RemoveAppxPackageResultCode) then begin
+    Log('Deleting old appx ' + AppxPackageFullname + ' installation...');
+    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+    DeleteFile(ExpandConstant('{app}\appx\code_insiders_explorer_{#Arch}.appx'));
+    DeleteFile(ExpandConstant('{app}\appx\code_insiders_explorer_command.dll'));
+  end;
+  if AppxPackageInstalled(ExpandConstant('{#AppxPackageName}'), RemoveAppxPackageResultCode) then begin
+    Log('Removing current ' + AppxPackageFullname + ' appx installation...');
+    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+    Log('Remove-AppxPackage for current appx installation complete.');
   end;
 end;
 #endif
@@ -1517,10 +1533,9 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
-#ifdef AppxPackageFullname
-    if not WizardIsTaskSelected('addcontextmenufiles') then begin
-      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\{#RegValueName}ContextMenu');
-    end else begin
+#ifdef AppxPackageName
+    // Remove the old context menu registry keys for insiders
+    if QualityIsInsiders() and WizardIsTaskSelected('addcontextmenufiles') then begin
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}');
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}');
@@ -1606,15 +1621,14 @@ var
   Parts: TArrayOfString;
   NewPath: string;
   i: Integer;
-  ResultCode: Integer;
 begin
   if not CurUninstallStep = usUninstall then begin
     exit;
   end;
-#ifdef AppxPackageFullname
-  if AppxPackageInstalled(ResultCode) then begin
+#ifdef AppxPackageName
+  #if "user" == InstallTarget
     RemoveAppxPackage();
-  end;
+  #endif
 #endif
   if not RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', Path)
   then begin

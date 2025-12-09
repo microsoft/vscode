@@ -169,7 +169,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		if (fileEventImpactsModel && this.inOrphanMode !== newInOrphanModeGuess) {
-			let newInOrphanModeValidated: boolean = false;
+			let newInOrphanModeValidated = false;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
@@ -1118,7 +1118,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.forceResolveFromFile();
 	}
 
-	private hasEncodingSetExplicitly: boolean = false;
+	private hasEncodingSetExplicitly = false;
 
 	setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
 
@@ -1151,8 +1151,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return; // return early if the encoding is already the same
 			}
 
-			if (this.isDirty() && !this.inConflictMode) {
-				await this.save();
+			if (this.isDirty()) {
+				throw new Error('Cannot re-open a dirty text document with different encoding. Save it first.');
 			}
 
 			this.updatePreferredEncoding(encoding);

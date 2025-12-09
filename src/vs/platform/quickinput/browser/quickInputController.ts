@@ -12,12 +12,12 @@ import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, dispose } from '../../../base/common/lifecycle.js';
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
+import { isModifierKey } from '../../../base/common/keyCodes.js';
 import { localize } from '../../../nls.js';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType } from '../common/quickInput.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType, IQuickTree, IQuickTreeItem } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey, QuickInputAlignmentContextKey } from './quickInput.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
@@ -30,11 +30,13 @@ import { autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { Platform, platform } from '../../../base/common/platform.js';
+import { Platform, platform, setTimeout0 } from '../../../base/common/platform.js';
 import { getWindowControlsStyle, WindowControlsStyle } from '../../window/common/window.js';
 import { getZoomFactor } from '../../../base/browser/browser.js';
 import { TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
+import { QuickInputTreeController } from './tree/quickInputTreeController.js';
+import { QuickTree } from './tree/quickTree.js';
 
 const $ = dom.$;
 
@@ -209,12 +211,18 @@ export class QuickInputController extends Disposable {
 
 		const description1 = dom.append(container, $('.quick-input-description'));
 
+		// List
 		const listId = this.idPrefix + 'list';
 		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
-				inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
+				const activeDescendant = list.getActiveDescendant();
+				if (activeDescendant) {
+					inputBox.setAttribute('aria-activedescendant', activeDescendant);
+				} else {
+					inputBox.removeAttribute('aria-activedescendant');
+				}
 			}
 		}));
 		this._register(list.onChangedAllVisibleChecked(checked => {
@@ -225,7 +233,10 @@ export class QuickInputController extends Disposable {
 			visibleCount.setCount(c);
 		}));
 		this._register(list.onChangedCheckedCount(c => {
-			count.setCount(c);
+			// TODO@TylerLeonhardt: Without this setTimeout, the screen reader will not read out
+			// the final count of checked items correctly. Investigate a better way
+			// to do this. ref https://github.com/microsoft/vscode/issues/258617
+			setTimeout0(() => count.setCount(c));
 		}));
 		this._register(list.onLeave(() => {
 			// Defer to avoid the input field reacting to the triggering key.
@@ -240,6 +251,39 @@ export class QuickInputController extends Disposable {
 				}
 			}, 0);
 		}));
+
+		// Tree
+		const tree = this._register(this.instantiationService.createInstance(
+			QuickInputTreeController,
+			container,
+			this.options.hoverDelegate
+		));
+		this._register(tree.tree.onDidChangeFocus(() => {
+			if (inputBox.hasFocus()) {
+				const activeDescendant = tree.getActiveDescendant();
+				if (activeDescendant) {
+					inputBox.setAttribute('aria-activedescendant', activeDescendant);
+				} else {
+					inputBox.removeAttribute('aria-activedescendant');
+				}
+			}
+		}));
+		this._register(tree.onLeave(() => {
+			// Defer to avoid the input field reacting to the triggering key.
+			// TODO@TylerLeonhardt https://github.com/microsoft/vscode/issues/203675
+			setTimeout(() => {
+				if (!this.controller) {
+					return;
+				}
+				inputBox.setFocus();
+				tree.tree.setFocus([]);
+			}, 0);
+		}));
+		// Wire up tree's accept event to the UI's accept emitter for non-pickable items
+		this._register(tree.onDidAccept(() => {
+			this.onDidAcceptEmitter.fire();
+		}));
+		this._register(tree.tree.onDidChangeContentHeight(() => this.updateLayout()));
 
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
@@ -266,78 +310,24 @@ export class QuickInputController extends Disposable {
 			this.endOfQuickInputBoxContext.set(false);
 			this.previousFocusElement = undefined;
 		}));
-		this._register(inputBox.onKeyDown(_ => {
+		this._register(inputBox.onKeyDown(e => {
 			const value = this.getUI().inputBox.isSelectionAtEnd();
 			if (this.endOfQuickInputBoxContext.get() !== value) {
 				this.endOfQuickInputBoxContext.set(value);
 			}
-			// Allow screenreaders to read what's in the input
+			// Allow screen readers to read what's in the input
 			// Note: this works for arrow keys and selection changes,
 			// but not for deletions since that often triggers a
 			// change in the list.
-			inputBox.removeAttribute('aria-activedescendant');
+			// Don't remove aria-activedescendant when only modifier keys are pressed
+			// to prevent screen reader re-announcements when users press Ctrl to silence speech.
+			// See: https://github.com/microsoft/vscode/issues/271032
+			if (!isModifierKey(e.keyCode)) {
+				inputBox.removeAttribute('aria-activedescendant');
+			}
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
-		}));
-		// TODO: Turn into commands instead of handling KEY_DOWN
-		// Keybindings for the quickinput widget as a whole
-		this._register(dom.addStandardDisposableListener(container, dom.EventType.KEY_DOWN, (event) => {
-			if (dom.isAncestor(event.target, widget)) {
-				return; // Ignore event if target is inside widget to allow the widget to handle the event.
-			}
-			switch (event.keyCode) {
-				case KeyCode.Enter:
-					dom.EventHelper.stop(event, true);
-					if (this.enabled) {
-						this.onDidAcceptEmitter.fire();
-					}
-					break;
-				case KeyCode.Escape:
-					dom.EventHelper.stop(event, true);
-					this.hide(QuickInputHideReason.Gesture);
-					break;
-				case KeyCode.Tab:
-					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						// detect only visible actions
-						const selectors = [
-							'.quick-input-list .monaco-action-bar .always-visible',
-							'.quick-input-list-entry:hover .monaco-action-bar',
-							'.monaco-list-row.focused .monaco-action-bar'
-						];
-
-						if (container.classList.contains('show-checkboxes')) {
-							selectors.push('input');
-						} else {
-							selectors.push('input[type=text]');
-						}
-						if (this.getUI().list.displayed) {
-							selectors.push('.monaco-list');
-						}
-						// focus links if there are any
-						if (this.getUI().message) {
-							selectors.push('.quick-input-message a');
-						}
-
-						if (this.getUI().widget) {
-							if (dom.isAncestor(event.target, this.getUI().widget)) {
-								// let the widget control tab
-								break;
-							}
-							selectors.push('.quick-input-html-widget');
-						}
-						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
-						if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
-							dom.EventHelper.stop(event, true);
-							stops[0].focus();
-						}
-						if (event.shiftKey && dom.isAncestor(event.target, stops[0])) {
-							dom.EventHelper.stop(event, true);
-							stops[stops.length - 1].focus();
-						}
-					}
-					break;
-			}
 		}));
 
 		// Drag and Drop support
@@ -348,7 +338,8 @@ export class QuickInputController extends Disposable {
 			[
 				{
 					node: titleBar,
-					includeChildren: true
+					includeChildren: true,
+					excludeNodes: [leftActionBar.domNode, rightActionBar.domNode]
 				},
 				{
 					node: headerContainer,
@@ -409,6 +400,7 @@ export class QuickInputController extends Disposable {
 			customButtonContainer,
 			customButton,
 			list,
+			tree,
 			progressBar,
 			onDidAccept: this.onDidAcceptEmitter.event,
 			onDidCustom: this.onDidCustomEmitter.event,
@@ -515,10 +507,13 @@ export class QuickInputController extends Disposable {
 			}
 			input.canSelectMany = !!options.canPickMany;
 			input.placeholder = options.placeHolder;
+			input.prompt = options.prompt;
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
-			input.sortByLabel = !!options.sortByLabel;
+			if (options.sortByLabel !== undefined) {
+				input.sortByLabel = options.sortByLabel;
+			}
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
@@ -567,7 +562,7 @@ export class QuickInputController extends Disposable {
 				return;
 			}
 			const input = this.createInputBox();
-			const validateInput = options.validateInput || (() => <Promise<undefined>>Promise.resolve(undefined));
+			const validateInput = options.validateInput || (() => Promise.resolve(undefined));
 			const onDidValueChange = Event.debounce(input.onDidChangeValue, (last, cur) => cur, 100);
 			let validationValue = options.value || '';
 			let validation = Promise.resolve(validateInput(validationValue));
@@ -642,6 +637,11 @@ export class QuickInputController extends Disposable {
 		return new QuickWidget(ui);
 	}
 
+	createQuickTree<T extends IQuickTreeItem>(): IQuickTree<T> {
+		const ui = this.getUI(true);
+		return new QuickTree<T>(ui);
+	}
+
 	private show(controller: IQuickInput) {
 		const ui = this.getUI(true);
 		this.onShowEmitter.fire();
@@ -666,11 +666,17 @@ export class QuickInputController extends Disposable {
 		ui.count.setCount(0);
 		dom.reset(ui.message);
 		ui.progressBar.stop();
+		ui.progressBar.getContainer().setAttribute('aria-hidden', 'true');
 		ui.list.setElements([]);
 		ui.list.matchOnDescription = false;
 		ui.list.matchOnDetail = false;
 		ui.list.matchOnLabel = true;
 		ui.list.sortByLabel = true;
+		ui.tree.updateFilterOptions({
+			matchOnDescription: false,
+			matchOnLabel: true
+		});
+		ui.tree.sortByLabel = true;
 		ui.ignoreFocusOut = false;
 		ui.inputBox.toggles = undefined;
 
@@ -703,6 +709,7 @@ export class QuickInputController extends Disposable {
 		ui.message.style.display = visibilities.message ? '' : 'none';
 		ui.progressBar.getContainer().style.display = visibilities.progressBar ? '' : 'none';
 		ui.list.displayed = !!visibilities.list;
+		ui.tree.displayed = !!visibilities.tree;
 		ui.container.classList.toggle('show-checkboxes', !!visibilities.checkBox);
 		ui.container.classList.toggle('hidden-input', !visibilities.inputBox && !visibilities.description);
 		this.updateLayout(); // TODO
@@ -805,8 +812,8 @@ export class QuickInputController extends Disposable {
 		this.onDidTriggerButtonEmitter.fire(this.backButton);
 	}
 
-	async cancel() {
-		this.hide();
+	async cancel(reason?: QuickInputHideReason) {
+		this.hide(reason);
 	}
 
 	layout(dimension: dom.IDimension, titleBarOffset: number): void {
@@ -827,6 +834,7 @@ export class QuickInputController extends Disposable {
 
 			this.ui.inputBox.layout();
 			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
+			this.ui.tree.layout(this.dimension && this.dimension.height * 0.4);
 		}
 	}
 
@@ -846,6 +854,7 @@ export class QuickInputController extends Disposable {
 			this.ui.container.style.border = widgetBorder ? `1px solid ${widgetBorder}` : '';
 			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.list.style(this.styles.list);
+			this.ui.tree.tree.style(this.styles.list);
 
 			const content: string[] = [];
 			if (this.styles.pickerGroup.pickerGroupBorder) {
@@ -931,7 +940,7 @@ class QuickInputDragAndDropController extends Disposable {
 	constructor(
 		private _container: HTMLElement,
 		private readonly _quickInputContainer: HTMLElement,
-		private _quickInputDragAreas: { node: HTMLElement; includeChildren: boolean }[],
+		private _quickInputDragAreas: { node: HTMLElement; includeChildren: boolean; excludeNodes?: HTMLElement[] }[],
 		initialViewState: QuickInputViewState | undefined,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -1002,7 +1011,8 @@ class QuickInputDragAndDropController extends Disposable {
 			}
 
 			// Ignore event if the target is not the drag area
-			if (!this._quickInputDragAreas.some(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target as HTMLElement, node) : originEvent.target === node)) {
+			const area = this._quickInputDragAreas.find(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target, node) : originEvent.target === node);
+			if (!area || area.excludeNodes?.some(node => dom.isAncestor(originEvent.target, node))) {
 				return;
 			}
 
@@ -1015,7 +1025,8 @@ class QuickInputDragAndDropController extends Disposable {
 			const originEvent = new StandardMouseEvent(activeWindow, e);
 
 			// Ignore event if the target is not the drag area
-			if (!this._quickInputDragAreas.some(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target as HTMLElement, node) : originEvent.target === node)) {
+			const area = this._quickInputDragAreas.find(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target, node) : originEvent.target === node);
+			if (!area || area.excludeNodes?.some(node => dom.isAncestor(originEvent.target, node))) {
 				return;
 			}
 

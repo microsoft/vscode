@@ -9,7 +9,7 @@ import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js'
 import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, Throttler, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
@@ -158,7 +158,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
-		codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined);
+		this._register(codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined));
 
 		this._register(modelService.onModelRemoved(e => this.decorationCache.delete(e.uri)));
 
@@ -394,7 +394,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	) {
 		super();
 
-		codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined, editor);
+		this._register(codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined, editor));
 
 		this.attachModel(editor.getModel()?.uri);
 		this._register(decorations.onDidChange(() => {
@@ -403,10 +403,21 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 		}));
 
+		const msgThrottler = this._register(new Throttler());
+		this._register(this.results.onTestChanged(ev => {
+			if (ev.reason !== TestResultItemChangeReason.NewMessage) {
+				return;
+			}
+
+			msgThrottler.queue(() => {
+				this.applyResults();
+				return timeout(100);
+			});
+		}));
+
 		this._register(Event.any(
 			this.results.onResultsChanged,
 			editor.onDidChangeModel,
-			Event.filter(this.results.onTestChanged, c => c.reason === TestResultItemChangeReason.NewMessage),
 			this.testService.showInlineOutput.onDidChange,
 		)(() => this.applyResults()));
 
@@ -515,7 +526,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.decorations.syncDecorations(uri);
 
 		(async () => {
-			for await (const _test of testsInFile(this.testService, this.uriIdentityService, uri, false)) {
+			for await (const _tests of testsInFile(this.testService, this.uriIdentityService, uri, false)) {
 				// consume the iterator so that all tests in the file get expanded. Or
 				// at least until the URI changes. If new items are requested, changes
 				// will be trigged in the `onDidProcessDiff` callback.

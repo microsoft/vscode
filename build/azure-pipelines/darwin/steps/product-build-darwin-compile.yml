@@ -1,0 +1,306 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_CIBUILD
+    type: boolean
+  - name: VSCODE_RUN_ELECTRON_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_RUN_BROWSER_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_RUN_REMOTE_TESTS
+    type: boolean
+    default: false
+
+steps:
+  - template: ../../common/checkout.yml@self
+
+  - task: NodeTool@0
+    inputs:
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+
+  - template: ../../distro/download-distro.yml@self
+
+  - task: AzureKeyVault@2
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: vscode
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: Compilation
+      path: $(Build.ArtifactStagingDirectory)
+    displayName: Download compilation output
+
+  - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+    displayName: Extract compilation output
+
+  - script: node build/setup-npm-registry.ts $NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+    displayName: Prepare node_modules cache key
+
+  - task: Cache@2
+    inputs:
+      key: '"node_modules" | .build/packagelockhash'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - script: tar -xzf .build/node_modules_cache/cache.tgz
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract node_modules cache
+
+  - script: |
+      set -e
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - script: |
+      set -e
+      c++ --version
+      xcode-select -print-path
+      python3 -m pip install setuptools
+
+      for i in {1..5}; do # try 5 times
+        npm ci && break
+        if [ $i -eq 5 ]; then
+          echo "Npm install failed too many times" >&2
+          exit 1
+        fi
+        echo "Npm install failed $i, trying again..."
+      done
+    env:
+      npm_config_arch: $(VSCODE_ARCH)
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
+      # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
+      # flipped the default to support legacy linux distros which shouldn't happen
+      # on macOS.
+      GYP_DEFINES: "kerberos_use_rtld=false"
+    displayName: Install dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: node build/azure-pipelines/distro/mixin-npm.ts
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Mixin distro node modules
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+      mkdir -p .build/node_modules_cache
+      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Create node_modules archive
+
+  - script: node build/azure-pipelines/distro/mixin-quality.ts
+    displayName: Mixin distro quality
+
+  - template: ../../common/install-builtin-extensions.yml@self
+
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npm run copy-policy-dto --prefix build && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc darwin
+      displayName: Generate policy definitions
+      retryCountOnTaskFailure: 3
+
+  - script: |
+      set -e
+      npm run gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
+      echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Build client
+
+  - script: |
+      set -e
+      npm run gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
+      mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
+      ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
+      mkdir -p $(dirname $ARCHIVE_PATH)
+      (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
+      echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Build server
+
+  - script: |
+      set -e
+      npm run gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+      mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
+      ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
+      mkdir -p $(dirname $ARCHIVE_PATH)
+      (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
+      echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Build server (web)
+
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+        patterns: "**"
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME"
+        unzip $(Build.ArtifactStagingDirectory)/cli/*.zip -d $(Build.ArtifactStagingDirectory)/cli
+        CLI_APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").tunnelApplicationName")
+        APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").applicationName")
+        mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
+        chmod +x "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
+      displayName: Make CLI executable
+
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.ts $(VSCODE_ARCH)
+        APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.ts $(VSCODE_ARCH)
+      displayName: Verify arch of Mach-O objects
+
+    - script: |
+        set -e
+        ARCHIVE_PATH="$(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
+        echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
+      condition: eq(variables['BUILT_CLIENT'], 'true')
+      displayName: Package client
+
+    - pwsh: node build/azure-pipelines/common/checkForArtifact.ts CLIENT_ARCHIVE_UPLOADED unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Check for client artifact
+
+    # We are publishing the unsigned client artifact before running tests
+    # since the macOS (UNIVERSAL) job is blocked waiting for the artifact.
+    - template: ../../common/publish-artifact.yml@self
+      parameters:
+        targetPath: $(CLIENT_PATH)
+        artifactName: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+        displayName: Publish client archive (unsigned)
+        sbomEnabled: false
+        condition: and(ne(variables['CLIENT_PATH'], ''), eq(variables['CLIENT_ARCHIVE_UPLOADED'], 'false'))
+
+    # Hardened entitlements should be set after publishing unsigned client artifacts
+    # to ensure entitlement signing doesn't modify sha that would affect universal build.
+    #
+    # Setting hardened entitlements is a requirement for:
+    # * Apple notarization
+    # * Running tests on Big Sur (because Big Sur has additional security precautions)
+    - script: |
+        set -e
+        security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+        security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
+        security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+        echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
+        security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+        export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
+        DEBUG=electron-osx-sign* node build/darwin/sign.ts $(agent.builddirectory)
+      displayName: Set Hardened Entitlements
+
+    - script: |
+        set -e
+        ARCHIVE_PATH="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
+        echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
+      condition: eq(variables['BUILT_CLIENT'], 'true')
+      displayName: Re-package client after entitlement
+
+    - task: UseDotNet@2
+      inputs:
+        version: 6.x
+
+    - task: EsrpCodeSigning@5
+      inputs:
+        UseMSIAuthentication: true
+        ConnectedServiceName: vscode-esrp
+        AppRegistrationClientId: $(ESRP_CLIENT_ID)
+        AppRegistrationTenantId: $(ESRP_TENANT_ID)
+        AuthAKVName: vscode-esrp
+        AuthSignCertName: esrp-sign
+        FolderPath: .
+        Pattern: noop
+      displayName: 'Install ESRP Tooling'
+
+    - pwsh: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)/_tasks | Select-Object -last 1).FullName
+        $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
+        echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
+      displayName: Find ESRP CLI
+
+    - script: npx deemon --detach --wait node build/azure-pipelines/darwin/codesign.ts
+      env:
+        EsrpCliDllPath: $(EsrpCliDllPath)
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: ✍️ Codesign & Notarize
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - template: product-build-darwin-test.yml@self
+      parameters:
+        VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+        VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+        VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --attach node build/azure-pipelines/darwin/codesign.ts
+      condition: succeededOrFailed()
+      displayName: "Post-job: ✍️ Codesign & Notarize"
+
+    - script: unzip $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      displayName: Extract signed app
+
+    - script: |
+        set -e
+        APP_ROOT="$(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME"
+        codesign -dv --deep --verbose=4 "$APP_PATH"
+        "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
+      displayName: Verify signature
+
+    - script: |
+        set -e
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive
+        if [ "$VSCODE_ARCH" == "x64" ]; then
+          # Use legacy name for x64 builds
+          mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+        else
+          mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip
+        fi
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_server_darwin_$(VSCODE_ARCH)_archive
+        mv $(SERVER_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_server_darwin_$(VSCODE_ARCH)_archive/vscode-server-darwin-$(VSCODE_ARCH).zip
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_web_darwin_$(VSCODE_ARCH)_archive
+        mv $(WEB_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_web_darwin_$(VSCODE_ARCH)_archive/vscode-server-darwin-$(VSCODE_ARCH)-web.zip
+      displayName: Move artifacts to out directory

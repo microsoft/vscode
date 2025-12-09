@@ -12,7 +12,7 @@ export abstract class TextMateWorkerHost {
 	public static getChannel(workerServer: IWebWorkerServer): TextMateWorkerHost {
 		return workerServer.getChannel<TextMateWorkerHost>(TextMateWorkerHost.CHANNEL_NAME);
 	}
-	public static setChannel(workerClient: IWebWorkerClient<any>, obj: TextMateWorkerHost): void {
+	public static setChannel(workerClient: IWebWorkerClient<unknown>, obj: TextMateWorkerHost): void {
 		workerClient.setChannel<TextMateWorkerHost>(TextMateWorkerHost.CHANNEL_NAME, obj);
 	}
 

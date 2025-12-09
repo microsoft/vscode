@@ -52,7 +52,7 @@ type UserDataSyncStore = IUserDataSyncStore & { defaultType: UserDataSyncStoreTy
 
 export abstract class AbstractUserDataSyncStoreManagementService extends Disposable implements IUserDataSyncStoreManagementService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidChangeUserDataSyncStore = this._register(new Emitter<void>());
 	readonly onDidChangeUserDataSyncStore = this._onDidChangeUserDataSyncStore.event;
@@ -487,10 +487,6 @@ export class UserDataSyncStoreClient extends Disposable {
 			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
 		}
 
-		if (hasNoContent(context)) {
-			throw new UserDataSyncStoreError('Empty response', url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
-		}
-
 		const serverData = await asJson<IDownloadLatestDataType>(context);
 		if (!serverData) {
 			return null;
@@ -706,7 +702,7 @@ export class UserDataSyncStoreClient extends Disposable {
 
 export class UserDataSyncStoreService extends UserDataSyncStoreClient implements IUserDataSyncStoreService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IUserDataSyncStoreManagementService userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,

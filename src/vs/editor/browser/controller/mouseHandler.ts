@@ -241,13 +241,14 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
-		let target = e.target;
+		let target: HTMLElement | null = e.target;
 		if (!this.viewHelper.viewDomNode.contains(target)) {
 			const shadowRoot = dom.getShadowRoot(this.viewHelper.viewDomNode);
 			if (shadowRoot) {
-				target = (<any>shadowRoot).elementsFromPoint(e.posx, e.posy).find(
+				const potentialTarget = shadowRoot.elementsFromPoint(e.posx, e.posy).find(
 					(el: Element) => this.viewHelper.viewDomNode.contains(el)
-				);
+				) ?? null;
+				target = potentialTarget as HTMLElement;
 			}
 		}
 		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, e.relativePos, testEventTarget ? target : null);
@@ -339,7 +340,7 @@ export class MouseHandler extends ViewEventHandler {
 				this._mouseDownOperation.start(t.type, e, pointerId);
 				e.preventDefault();
 			}
-		} else if (targetIsWidget && this.viewHelper.shouldSuppressMouseDownOnWidget(<string>t.detail)) {
+		} else if (targetIsWidget && this.viewHelper.shouldSuppressMouseDownOnWidget(t.detail)) {
 			focus();
 			e.preventDefault();
 		}
@@ -570,10 +571,9 @@ class MouseDownOperation extends Disposable {
 
 		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
-		const horizontalScrollPadding = 10;
 		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo);
 
-		const xLeftBoundary = layoutInfo.contentLeft + horizontalScrollPadding;
+		const xLeftBoundary = layoutInfo.contentLeft;
 		if (e.relativePos.x <= xLeftBoundary) {
 			const outsideDistance = xLeftBoundary - e.relativePos.x;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
@@ -584,7 +584,7 @@ class MouseDownOperation extends Disposable {
 				? layoutInfo.width - layoutInfo.verticalScrollbarWidth // Happens when minimap is hidden
 				: layoutInfo.minimap.minimapLeft
 		);
-		const xRightBoundary = contentRight - horizontalScrollPadding;
+		const xRightBoundary = contentRight;
 		if (e.relativePos.x >= xRightBoundary) {
 			const outsideDistance = e.relativePos.x - xRightBoundary;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);

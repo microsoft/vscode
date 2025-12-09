@@ -4,70 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow } from 'electron';
-import { IWebContentExtractorService } from '../common/webContentExtractor.js';
-import { URI } from '../../../base/common/uri.js';
-import { AXNode, convertAXTreeToMarkdown } from './cdpAccessibilityDomain.js';
 import { Limiter } from '../../../base/common/async.js';
-import { ResourceMap } from '../../../base/common/map.js';
-
-interface CacheEntry {
-	content: string;
-	timestamp: number;
-}
+import { URI } from '../../../base/common/uri.js';
+import { ILogService } from '../../log/common/log.js';
+import { IWebContentExtractorOptions, IWebContentExtractorService, WebContentExtractResult } from '../common/webContentExtractor.js';
+import { WebContentCache } from './webContentCache.js';
+import { WebPageLoader } from './webPageLoader.js';
 
 export class NativeWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
 
 	// Only allow 3 windows to be opened at a time
 	// to avoid overwhelming the system with too many processes.
-	private _limiter = new Limiter<string>(3);
-	private _webContentsCache = new ResourceMap<CacheEntry>();
-	private readonly _cacheDuration = 24 * 60 * 60 * 1000; // 1 day in milliseconds
+	private _limiter = new Limiter<WebContentExtractResult>(3);
+	private _webContentsCache = new WebContentCache();
 
-	private isExpired(entry: CacheEntry): boolean {
-		return Date.now() - entry.timestamp > this._cacheDuration;
-	}
+	constructor(@ILogService private readonly _logger: ILogService) { }
 
-	extract(uris: URI[]): Promise<string[]> {
+	extract(uris: URI[], options?: IWebContentExtractorOptions): Promise<WebContentExtractResult[]> {
 		if (uris.length === 0) {
+			this._logger.info('No URIs provided for extraction');
 			return Promise.resolve([]);
 		}
-		return Promise.all(uris.map((uri) => this._limiter.queue(() => this.doExtract(uri))));
+		this._logger.info(`Extracting content from ${uris.length} URIs`);
+		return Promise.all(uris.map((uri) => this._limiter.queue(() => this.doExtract(uri, options))));
 	}
 
-	async doExtract(uri: URI): Promise<string> {
-		const cached = this._webContentsCache.get(uri);
-		if (cached) {
-			if (this.isExpired(cached)) {
-				this._webContentsCache.delete(uri);
-			} else {
-				return cached.content;
-			}
+	async doExtract(uri: URI, options: IWebContentExtractorOptions | undefined): Promise<WebContentExtractResult> {
+		const cached = this._webContentsCache.tryGet(uri, options);
+		if (cached !== undefined) {
+			this._logger.info(`Found cached content for ${uri.toString()}`);
+			return cached;
 		}
 
-		const win = new BrowserWindow({
-			width: 800,
-			height: 600,
-			show: false,
-			webPreferences: {
-				javascript: true,
-				offscreen: true,
-				sandbox: true,
-				webgl: false
-			}
-		});
+		const loader = new WebPageLoader((options) => new BrowserWindow(options), this._logger, uri, options);
 		try {
-			await win.loadURL(uri.toString(true));
-			win.webContents.debugger.attach('1.1');
-			const result: { nodes: AXNode[] } = await win.webContents.debugger.sendCommand('Accessibility.getFullAXTree');
-			const str = convertAXTreeToMarkdown(uri, result.nodes);
-			this._webContentsCache.set(uri, { content: str, timestamp: Date.now() });
-			return str;
-		} catch (err) {
-			console.log(err);
+			const result = await loader.load();
+			this._webContentsCache.add(uri, options, result);
+			return result;
 		} finally {
-			win.destroy();
+			loader.dispose();
 		}
-		return '';
 	}
 }

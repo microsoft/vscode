@@ -6,7 +6,7 @@
 import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { transaction } from '../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
@@ -29,6 +29,7 @@ export interface IRawToolContribution {
 	displayName: string;
 	modelDescription: string;
 	toolReferenceName?: string;
+	legacyToolReferenceFullNames?: string[];
 	icon?: string | { light: string; dark: string };
 	when?: string;
 	tags?: string[];
@@ -39,9 +40,9 @@ export interface IRawToolContribution {
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
 	extensionPoint: 'languageModelTools',
-	activationEventsGenerator: (contributions: IRawToolContribution[], result) => {
+	activationEventsGenerator: function* (contributions: readonly IRawToolContribution[]) {
 		for (const contrib of contributions) {
-			result.push(`onLanguageModelTool:${contrib.name}`);
+			yield `onLanguageModelTool:${contrib.name}`;
 		}
 	},
 	jsonSchema: {
@@ -86,6 +87,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('toolUserDescription', "A description of this tool that may be shown to the user."),
 					type: 'string'
 				},
+				// eslint-disable-next-line local/code-no-localized-model-description
 				modelDescription: {
 					description: localize('toolModelDescription', "A description of this tool that may be used by a language model to select it."),
 					type: 'string'
@@ -99,7 +101,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'boolean'
 				},
 				icon: {
-					markdownDescription: localize('icon', "An icon that represents this tool. Either a file path, an object with file paths for dark and light themes, or a theme icon reference, like `$(zap)`"),
+					markdownDescription: localize('icon', 'An icon that represents this tool. Either a file path, an object with file paths for dark and light themes, or a theme icon reference, like "\\$(zap)"'),
 					anyOf: [{
 						type: 'string'
 					},
@@ -140,6 +142,7 @@ export interface IRawToolSetContribution {
 	 * @deprecated
 	 */
 	referenceName?: string;
+	legacyFullNames?: string[];
 	description: string;
 	icon?: string;
 	tools: string[];
@@ -234,6 +237,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with tags starting with "vscode_" or "copilot_"`);
 					}
 
+					if (rawTool.legacyToolReferenceFullNames && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT use 'legacyToolReferenceFullNames' without the 'chatParticipantPrivate' API proposal enabled`);
+						continue;
+					}
+
 					const rawIcon = rawTool.icon;
 					let icon: IToolData['icon'] | undefined;
 					if (typeof rawIcon === 'string') {
@@ -307,6 +315,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						continue;
 					}
 
+					if (toolSet.legacyFullNames && !isProposedApiEnabled(extension.description, 'contribLanguageModelToolSets')) {
+						extension.collector.error(`Tool set '${toolSet.name}' CANNOT use 'legacyFullNames' without the 'contribLanguageModelToolSets' API proposal enabled`);
+						continue;
+					}
+
 					if (isFalsyOrEmpty(toolSet.tools)) {
 						extension.collector.error(`Tool set '${toolSet.name}' CANNOT have an empty tools array`);
 						continue;
@@ -335,16 +348,27 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					}
 
 					const store = new DisposableStore();
+					const referenceName = toolSet.referenceName ?? toolSet.name;
+					const existingToolSet = languageModelToolsService.getToolSetByName(referenceName);
+					const mergeExisting = isBuiltinTool && existingToolSet?.source === ToolDataSource.Internal;
 
-					const obj = languageModelToolsService.createToolSet(
-						source,
-						toToolSetKey(extension.description.identifier, toolSet.name),
-						toolSet.referenceName ?? toolSet.name,
-						{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description }
-					);
+					let obj: ToolSet & IDisposable;
+					// Allow built-in tool to update the tool set if it already exists
+					if (mergeExisting) {
+						obj = existingToolSet as ToolSet & IDisposable;
+					} else {
+						obj = languageModelToolsService.createToolSet(
+							source,
+							toToolSetKey(extension.description.identifier, toolSet.name),
+							referenceName,
+							{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description, legacyFullNames: toolSet.legacyFullNames }
+						);
+					}
 
 					transaction(tx => {
-						store.add(obj);
+						if (!mergeExisting) {
+							store.add(obj);
+						}
 						tools.forEach(tool => store.add(obj.addTool(tool, tx)));
 						toolSets.forEach(toolSet => store.add(obj.addToolSet(toolSet, tx)));
 					});

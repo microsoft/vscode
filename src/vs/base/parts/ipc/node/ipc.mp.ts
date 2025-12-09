@@ -20,7 +20,7 @@ class Protocol implements IMessagePassingProtocol {
 	constructor(private port: MessagePortMain) {
 		this.onMessage = Event.fromNodeEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => {
 			if (e.data) {
-				return VSBuffer.wrap(e.data);
+				return VSBuffer.wrap(e.data as Uint8Array);
 			}
 			return VSBuffer.alloc(0);
 		});

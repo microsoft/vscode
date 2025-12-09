@@ -11,9 +11,10 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { assertType } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { IActiveCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -43,32 +44,41 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IView, IViewDescriptorService } from '../../../../common/views.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
+import { TestChatEntitlementService, TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatAccessibilityService, IChatWidget, IChatWidgetService, IQuickChatService } from '../../../chat/browser/chat.js';
+import { ChatContextService, IChatContextService } from '../../../chat/browser/chatContextService.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
+import { ChatLayoutService } from '../../../chat/browser/chatLayoutService.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
-import { ChatWidgetService } from '../../../chat/browser/chatWidget.js';
+import { ChatWidget } from '../../../chat/browser/chatWidget.js';
+import { ChatWidgetService } from '../../../chat/browser/chatWidgetService.js';
 import { ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
-import { IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
+import { IChatLayoutService } from '../../../chat/common/chatLayoutService.js';
 import { IChatModeService } from '../../../chat/common/chatModes.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
 import { ChatService } from '../../../chat/common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat/common/chatSlashCommands.js';
+import { IChatTodo, IChatTodoListService } from '../../../chat/common/chatTodoListService.js';
+import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
 import { IChatVariablesService } from '../../../chat/common/chatVariables.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
 import { IPromptPath, IPromptsService } from '../../../chat/common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../chat/test/common/mockChatModeService.js';
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { RerunAction } from '../../browser/inlineChatActions.js';
 import { InlineChatController1, State } from '../../browser/inlineChatController.js';
@@ -76,20 +86,23 @@ import { IInlineChatSessionService } from '../../browser/inlineChatSessionServic
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
-import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
-import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
+import { MockChatSessionsService } from '../../../chat/test/common/mockChatSessionsService.js';
+import { IChatSessionsService } from '../../../chat/common/chatSessionsService.js';
+import { IAgentSessionsService } from '../../../chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentSessionsModel } from '../../../chat/browser/agentSessions/agentSessionsModel.js';
 
 suite('InlineChatController', function () {
 
 	const agentData = {
 		extensionId: nullExtensionDescription.identifier,
+		extensionVersion: undefined,
 		publisherDisplayName: '',
 		extensionDisplayName: '',
 		extensionPublisherId: '',
 		// id: 'testEditorAgent',
 		name: 'testEditorAgent',
 		isDefault: true,
-		locations: [ChatAgentLocation.Editor],
+		locations: [ChatAgentLocation.EditorInline],
 		modes: [ChatModeKind.Ask],
 		metadata: {},
 		slashCommands: [],
@@ -151,6 +164,7 @@ suite('InlineChatController', function () {
 			[IContextKeyService, new MockContextKeyService()],
 			[IViewsService, new class extends TestViewsService {
 				override async openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> {
+					// eslint-disable-next-line local/code-no-any-casts
 					return { widget: chatWidget ?? null } as any;
 				}
 			}()],
@@ -160,6 +174,7 @@ suite('InlineChatController', function () {
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
 			[IChatTransferService, new SyncDescriptor(ChatTransferService)],
 			[IChatService, new SyncDescriptor(ChatService)],
+			[IMcpService, new TestMcpService()],
 			[IChatAgentNameService, new class extends mock<IChatAgentNameService>() {
 				override getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {
 					return false;
@@ -184,8 +199,9 @@ suite('InlineChatController', function () {
 				}
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
-				override acceptResponse(response: IChatResponseViewModel | undefined, requestId: number): void { }
+				override acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: number): void { }
 				override acceptRequest(): number { return -1; }
+				override acceptElicitation(): void { }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
@@ -198,6 +214,9 @@ suite('InlineChatController', function () {
 			}],
 			[INotebookEditorService, new class extends mock<INotebookEditorService>() {
 				override listNotebookEditors() { return []; }
+				override getNotebookForPossibleCell(editor: ICodeEditor) {
+					return undefined;
+				}
 			}],
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],
@@ -210,6 +229,27 @@ suite('InlineChatController', function () {
 			}],
 			[IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }],
 			[IChatModeService, new SyncDescriptor(MockChatModeService)],
+			[IChatLayoutService, new SyncDescriptor(ChatLayoutService)],
+			[IQuickChatService, new class extends mock<IQuickChatService>() { }],
+			[IChatTodoListService, new class extends mock<IChatTodoListService>() {
+				override onDidUpdateTodos = Event.None;
+				override getTodos(sessionResource: URI): IChatTodo[] { return []; }
+				override setTodos(sessionResource: URI, todos: IChatTodo[]): void { }
+			}],
+			[IChatEntitlementService, new SyncDescriptor(TestChatEntitlementService)],
+			[IChatSessionsService, new SyncDescriptor(MockChatSessionsService)],
+			[IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override get model(): IAgentSessionsModel {
+					return {
+						onWillResolve: Event.None,
+						onDidResolve: Event.None,
+						onDidChangeSessions: Event.None,
+						sessions: [],
+						resolve: async () => { },
+						getSession: (resource: URI) => undefined,
+					} as IAgentSessionsModel;
+				}
+			}],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
@@ -234,6 +274,8 @@ suite('InlineChatController', function () {
 		model.setEOL(EndOfLineSequence.LF);
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
 
+		instaService.set(IChatContextService, store.add(instaService.createInstance(ChatContextService)));
+
 		store.add(chatAgentService.registerDynamicAgent({ id: 'testEditorAgent', ...agentData, }, {
 			async invoke(request, progress, history, token) {
 				progress([{
@@ -250,9 +292,10 @@ suite('InlineChatController', function () {
 
 	});
 
-	teardown(function () {
+	teardown(async function () {
 		store.clear();
 		ctrl?.dispose();
+		await chatService.waitForModelDisposals();
 	});
 
 	// TODO@jrieken re-enable, looks like List/ChatWidget is leaking
@@ -493,6 +536,43 @@ suite('InlineChatController', function () {
 
 	});
 
+	test('cancel while applying streamed edits should close the widget', async function () {
+
+		const workerService = instaService.get(IEditorWorkerService) as TestWorkerService;
+		const originalCompute = workerService.computeMoreMinimalEdits.bind(workerService);
+		const editsBarrier = new DeferredPromise<void>();
+		let computeInvoked = false;
+		workerService.computeMoreMinimalEdits = async (resource, edits, pretty) => {
+			computeInvoked = true;
+			await editsBarrier.p;
+			return originalCompute(resource, edits, pretty);
+		};
+		store.add({ dispose: () => { workerService.computeMoreMinimalEdits = originalCompute; } });
+
+		const progressBarrier = new DeferredPromise<void>();
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'pendingEditsAgent',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message }] }]);
+				await progressBarrier.p;
+				return {};
+			},
+		}));
+
+		ctrl = instaService.createInstance(TestController, editor);
+		const states = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
+		const run = ctrl.run({ message: 'BLOCK', autoSend: true });
+		assert.strictEqual(await states, undefined);
+		assert.ok(computeInvoked);
+
+		ctrl.cancelSession();
+		assert.strictEqual(await states, undefined);
+
+		await run;
+	});
+
 	test('re-run should discard pending edits', async function () {
 
 		let count = 1;
@@ -603,13 +683,14 @@ suite('InlineChatController', function () {
 
 		assert.strictEqual(model.getValue(), 'eins\nHello\nWorld\nHello Again\nHello World\n');
 
-		const targetModel = chatService.startSession(ChatAgentLocation.Editor, CancellationToken.None)!;
+		const targetModel = chatService.startSession(ChatAgentLocation.EditorInline)!;
 		store.add(targetModel);
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
-				return { model: targetModel } as any;
+				// eslint-disable-next-line local/code-no-any-casts
+				return { model: targetModel.object } as any;
 			}
-			override focusLastMessage() { }
+			override focusResponseItem() { }
 		};
 
 		const r = ctrl.joinCurrentRun();
@@ -651,13 +732,14 @@ suite('InlineChatController', function () {
 
 		assert.strictEqual(model.getValue(), 'zwei\neins\nHello\nWorld\nHello Again\nHello World\n');
 
-		const targetModel = chatService.startSession(ChatAgentLocation.Editor, CancellationToken.None)!;
+		const targetModel = chatService.startSession(ChatAgentLocation.EditorInline)!;
 		store.add(targetModel);
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
-				return { model: targetModel } as any;
+				// eslint-disable-next-line local/code-no-any-casts
+				return { model: targetModel.object } as any;
 			}
-			override focusLastMessage() { }
+			override focusResponseItem() { }
 		};
 
 		const r = ctrl.joinCurrentRun();
@@ -714,7 +796,7 @@ suite('InlineChatController', function () {
 		assertType(request);
 		const p2 = Event.toPromise(onDidInvoke.event);
 		const p3 = ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
-		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.Editor });
+		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.EditorInline });
 
 		await p2;
 		assert.strictEqual(await p3, undefined);
@@ -751,7 +833,7 @@ suite('InlineChatController', function () {
 		const request = ctrl.chatWidget.viewModel?.model.getRequests().at(-1);
 		assertType(request);
 		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
-		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.Editor });
+		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.EditorInline });
 
 		assert.strictEqual(await p2, undefined);
 
@@ -842,7 +924,7 @@ suite('InlineChatController', function () {
 		assert.strictEqual(model.getValue(), 'HelloWorld'); // first word has been streamed
 
 		const p2 = ctrl.awaitStates([State.WAIT_FOR_INPUT]);
-		chatService.cancelCurrentRequestForSession(ctrl.chatWidget.viewModel!.model.sessionId);
+		chatService.cancelCurrentRequestForSession(ctrl.chatWidget.viewModel!.model.sessionResource);
 		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'HelloWorld'); // CANCEL just stops the request and progressive typing but doesn't undo
@@ -856,9 +938,9 @@ suite('InlineChatController', function () {
 		const newSession = await inlineChatSessionService.createSession(editor, {}, CancellationToken.None);
 		assertType(newSession);
 
-		await (await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.Editor }))?.responseCreatedPromise;
+		await (await chatService.sendRequest(newSession.chatModel.sessionResource, 'Existing', { location: ChatAgentLocation.EditorInline }))?.responseCreatedPromise;
 
-		assert.strictEqual(newSession.chatModel.requestInProgress, true);
+		assert.strictEqual(newSession.chatModel.requestInProgress.get(), true);
 
 		const response = newSession.chatModel.lastRequest?.response;
 		assertType(response);
@@ -963,7 +1045,7 @@ suite('InlineChatController', function () {
 		assert.strictEqual(await p, undefined);
 
 		const p2 = ctrl.awaitStates([State.WAIT_FOR_INPUT]);
-		chatService.cancelCurrentRequestForSession(ctrl.chatWidget.viewModel!.model.sessionId);
+		chatService.cancelCurrentRequestForSession(ctrl.chatWidget.viewModel!.model.sessionResource);
 		assert.strictEqual(await p2, undefined);
 
 

@@ -42,10 +42,12 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				for (let i = 0, len = requests.length; i < len; i++) {
 					const injectedText = injectedTexts[i];
 					const previousLineBreakData = previousBreakingData[i];
-					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText) {
-						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
+					const lineText = requests[i];
+					const isLineFeedWrappingEnabled = wrapOnEscapedLineFeeds && lineText.includes('"') && lineText.includes('\\n');
+					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !isLineFeedWrappingEnabled) {
+						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, lineText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
-						result[i] = createLineBreaks(this.classifier, requests[i], injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
+						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, isLineFeedWrappingEnabled);
 					}
 				}
 				arrPool1.length = 0;
@@ -416,6 +418,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		const charCode = lineText.charCodeAt(i);
 		let charCodeClass: CharacterClass;
 		let charWidth: number;
+		let wrapEscapedLineFeed = false;
 
 		if (strings.isHighSurrogate(charCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
@@ -427,27 +430,20 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 			charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
 		}
 
-		if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass, isKeepAll)) {
+		// literal \n shall trigger a softwrap
+		if (wrapOnEscapedLineFeeds && isEscapedLineBreakAtPosition(lineText, i)) {
+			breakOffset = charStartOffset;
+			breakOffsetVisibleColumn = visibleColumn;
+			wrapEscapedLineFeed = true;
+		} else if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass, isKeepAll)) {
 			breakOffset = charStartOffset;
 			breakOffsetVisibleColumn = visibleColumn;
 		}
 
 		visibleColumn += charWidth;
 
-		// literal \n shall trigger a softwrap
-		if (
-			wrapOnEscapedLineFeeds
-			&& i >= 2
-			&& (i < 3 || lineText.charAt(i - 3) !== '\\')
-			&& lineText.charAt(i - 2) === '\\'
-			&& lineText.charAt(i - 1) === 'n'
-			&& lineText.includes('"')
-		) {
-			visibleColumn += breakingColumn;
-		}
-
 		// check if adding character at `i` will go over the breaking column
-		if (visibleColumn > breakingColumn) {
+		if (visibleColumn > breakingColumn || wrapEscapedLineFeed) {
 			// We need to break at least before character at `i`:
 
 			if (breakOffset === 0 || visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakColumn) {
@@ -494,6 +490,25 @@ function computeCharWidth(charCode: number, visibleColumn: number, tabSize: numb
 
 function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
 	return (tabSize - (visibleColumn % tabSize));
+}
+
+/**
+ * Checks if the current position in the text should trigger a soft wrap due to escaped line feeds.
+ * This handles the wrapOnEscapedLineFeeds feature which allows \n sequences in strings to trigger wrapping.
+ */
+function isEscapedLineBreakAtPosition(lineText: string, i: number): boolean {
+	if (i >= 2 && lineText.charAt(i - 1) === 'n') {
+		// Check if there's an odd number of backslashes
+		let escapeCount = 0;
+		for (let j = i - 2; j >= 0; j--) {
+			if (lineText.charAt(j) === '\\') {
+				escapeCount++;
+			} else {
+				return escapeCount % 2 === 1;
+			}
+		}
+	}
+	return false;
 }
 
 /**

@@ -66,7 +66,7 @@ class ChatEditorOverlayWidget extends Disposable {
 		const requestMessage = derived(r => {
 
 			const session = this._session.read(r);
-			const chatModel = this._chatService.getSession(session?.chatSessionId ?? '');
+			const chatModel = session?.chatSessionResource && this._chatService.getSession(session?.chatSessionResource);
 			if (!session || !chatModel) {
 				return undefined;
 			}
@@ -74,10 +74,6 @@ class ChatEditorOverlayWidget extends Disposable {
 			const response = this._entry.read(r)?.lastModifyingResponse.read(r);
 			if (!response) {
 				return { message: localize('working', "Working...") };
-			}
-
-			if (response.isPaused.read(r)) {
-				return { message: localize('paused', "Paused"), paused: true };
 			}
 
 			const lastPart = observableFromEventOpts({ equalsFn: arrays.equals }, response.onDidChange, () => response.response.value)
@@ -105,7 +101,7 @@ class ChatEditorOverlayWidget extends Disposable {
 
 		this._store.add(autorun(r => {
 			const value = requestMessage.read(r);
-			const busy = this._isBusy.read(r) && !value?.paused;
+			const busy = this._isBusy.read(r);
 
 			this._domNode.classList.toggle('busy', busy);
 
@@ -379,8 +375,8 @@ class ChatEditingOverlayController {
 				return false;
 			}
 
-			const chatModel = chatService.getSession(session.chatSessionId)!;
-			return chatModel.requestInProgressObs.read(r);
+			const chatModel = chatService.getSession(session.chatSessionResource)!;
+			return chatModel.requestInProgress.read(r);
 		});
 
 		this._store.add(autorun(r => {
@@ -394,7 +390,7 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
-			if (!session.isGlobalEditingSession && !inlineChatService.hideOnRequest.read(r)) {
+			if (!session.isGlobalEditingSession) {
 				// inline chat - no chat overlay unless hideOnRequest is on
 				hide();
 				return;

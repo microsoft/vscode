@@ -179,6 +179,7 @@ export class TestService extends Disposable implements ITestService {
 			group: req.group,
 			exclude: req.exclude?.map(t => t.item.extId),
 			continuous: req.continuous,
+			preserveFocus: req.preserveFocus,
 		};
 
 		// If no tests are covered by the defaults, just use whatever the defaults

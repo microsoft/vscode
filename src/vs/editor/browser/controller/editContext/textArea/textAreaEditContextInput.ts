@@ -18,8 +18,9 @@ import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ClipboardDataToCopy, ClipboardEventUtils, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { ClipboardEventUtils, ClipboardStoredMetadata, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
+import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -36,7 +37,7 @@ export interface IPasteData {
 }
 
 export interface ITextAreaInputHost {
-	getDataToCopy(): ClipboardDataToCopy;
+	readonly context: ViewContext | null;
 	getScreenReaderContent(): TextAreaState;
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }
@@ -357,19 +358,26 @@ export class TextAreaInput extends Disposable {
 		// --- Clipboard operations
 
 		this._register(this._textArea.onCut((e) => {
+			this._logService.trace(`TextAreaInput#onCut`, e);
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
 
-			this._ensureClipboardGetsEditorSelection(e);
+			if (this._host.context) {
+				ensureClipboardGetsEditorSelection(e, this._host.context, this._logService, this._browser.isFirefox);
+			}
 			this._asyncTriggerCut.schedule();
 		}));
 
 		this._register(this._textArea.onCopy((e) => {
-			this._ensureClipboardGetsEditorSelection(e);
+			this._logService.trace(`TextAreaInput#onCopy`, e);
+			if (this._host.context) {
+				ensureClipboardGetsEditorSelection(e, this._host.context, this._logService, this._browser.isFirefox);
+			}
 		}));
 
 		this._register(this._textArea.onPaste((e) => {
+			this._logService.trace(`TextAreaInput#onPaste`, e);
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
@@ -381,6 +389,7 @@ export class TextAreaInput extends Disposable {
 			}
 
 			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			this._logService.trace(`TextAreaInput#onPaste with id : `, metadata?.id, ' with text.length: ', text.length);
 			if (!text) {
 				return;
 			}
@@ -388,6 +397,7 @@ export class TextAreaInput extends Disposable {
 			// try the in-memory store
 			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 
+			this._logService.trace(`TextAreaInput#onPaste (before onPaste)`);
 			this._onPaste.fire({
 				text: text,
 				metadata: metadata
@@ -601,27 +611,6 @@ export class TextAreaInput extends Disposable {
 			return;
 		}
 		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
-	}
-
-	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		const dataToCopy = this._host.getDataToCopy();
-		const storedMetadata: ClipboardStoredMetadata = {
-			version: 1,
-			isFromEmptySelection: dataToCopy.isFromEmptySelection,
-			multicursorText: dataToCopy.multicursorText,
-			mode: dataToCopy.mode
-		};
-		InMemoryClipboardMetadataManager.INSTANCE.set(
-			// When writing "LINE\r\n" to the clipboard and then pasting,
-			// Firefox pastes "LINE\n", so let's work around this quirk
-			(this._browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
-			storedMetadata
-		);
-
-		e.preventDefault();
-		if (e.clipboardData) {
-			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
-		}
 	}
 }
 

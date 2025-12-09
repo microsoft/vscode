@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from '../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { registerModelAndPositionCommand } from '../../../browser/editorExtensions.js';
@@ -37,7 +37,7 @@ async function executeProvider(provider: HoverProvider, ordinal: number, model: 
 export function getHoverProviderResultsAsAsyncIterable(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): AsyncIterable<HoverProviderResult> {
 	const providers = registry.ordered(model, recursive);
 	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
-	return AsyncIterableObject.fromPromisesResolveOrder(promises).coalesce();
+	return AsyncIterableProducer.fromPromisesResolveOrder(promises).coalesce();
 }
 
 export async function getHoversPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): Promise<Hover[]> {

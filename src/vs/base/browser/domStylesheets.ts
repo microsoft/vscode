@@ -5,6 +5,7 @@
 
 import { DisposableStore, toDisposable, IDisposable } from '../common/lifecycle.js';
 import { autorun, IObservable } from '../common/observable.js';
+import { isFirefox } from './browser.js';
 import { getWindows, sharedMutationObserver } from './dom.js';
 import { mainWindow } from './window.js';
 
@@ -32,9 +33,9 @@ class WrappedStyleElement {
 		this._currentCssStyle = cssStyle;
 
 		if (!this._styleSheet) {
-			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.innerText = cssStyle);
+			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.textContent = cssStyle);
 		} else {
-			this._styleSheet.innerText = cssStyle;
+			this._styleSheet.textContent = cssStyle;
 		}
 	}
 
@@ -62,6 +63,9 @@ export function createStyleSheet(container: HTMLElement = mainWindow.document.he
 	if (container === mainWindow.document.head) {
 		const globalStylesheetClones = new Set<HTMLStyleElement>();
 		globalStylesheets.set(style, globalStylesheetClones);
+		if (disposableStore) {
+			disposableStore.add(toDisposable(() => globalStylesheets.delete(style)));
+		}
 
 		for (const { window: targetWindow, disposables } of getWindows()) {
 			if (targetWindow === mainWindow) {
@@ -97,7 +101,7 @@ function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, globalStylesh
 		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
 	}
 
-	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, { childList: true })(() => {
+	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, { childList: true, subtree: isFirefox, characterData: isFirefox })(() => {
 		clone.textContent = globalStylesheet.textContent;
 	}));
 

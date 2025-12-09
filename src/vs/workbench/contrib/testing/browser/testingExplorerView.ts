@@ -14,7 +14,7 @@ import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/icon
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from '../../../../base/browser/ui/tree/tree.js';
-import { Action, ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { RunOnceScheduler, disposableTimeout } from '../../../../base/common/async.js';
 import { groupBy } from '../../../../base/common/collections.js';
@@ -30,7 +30,7 @@ import { fuzzyContains } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { MenuEntryActionViewItem, createActionViewItem, getActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -71,6 +71,7 @@ import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemEx
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
+import { CountSummary, collectTestStateCounts, getTestProgressText } from '../common/testingProgressMessages.js';
 import { cmpPriority, isFailedState, isStateWithResult, statesInOrder } from '../common/testingStates.js';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from './explorerProjections/index.js';
 import { ListProjection } from './explorerProjections/listProjection.js';
@@ -82,7 +83,6 @@ import * as icons from './icons.js';
 import './media/testing.css';
 import { DebugLastRun, ReRunLastRun } from './testExplorerActions.js';
 import { TestingExplorerFilter } from './testingExplorerFilter.js';
-import { CountSummary, collectTestStateCounts, getTestProgressText } from './testingProgressUiService.js';
 
 const enum LastFocusState {
 	Input,
@@ -345,17 +345,15 @@ export class TestingExplorerView extends ViewPane {
 				if (!hasAdded) {
 					hasAdded = true;
 					participatingGroups++;
-					profileActions.push(new Action(`${controller.id}.$root`, controller.label.get(), undefined, false));
+					profileActions.push(toAction({ id: `${controller.id}.$root`, label: controller.label.get(), enabled: false, checked: false, run: () => { } }));
 				}
 
 				hasConfigurable = hasConfigurable || profile.hasConfigurationHandler;
 				participatingProfiles++;
-				profileActions.push(new Action(
-					`${controller.id}.${profile.profileId}`,
-					defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
-					undefined,
-					undefined,
-					() => {
+				profileActions.push(toAction({
+					id: `${controller.id}.${profile.profileId}`,
+					label: defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
+					run: () => {
 						const { include, exclude } = this.getTreeIncludeExclude(profile);
 						this.testService.runResolvedTests({
 							exclude: exclude.map(e => e.item.extId),
@@ -367,7 +365,7 @@ export class TestingExplorerView extends ViewPane {
 							}]
 						});
 					},
-				));
+				}));
 			}
 		}
 
@@ -390,23 +388,19 @@ export class TestingExplorerView extends ViewPane {
 
 		const postActions: IAction[] = [];
 		if (participatingProfiles > 1) {
-			postActions.push(new Action(
-				'selectDefaultTestConfigurations',
-				localize('selectDefaultConfigs', 'Select Default Profile'),
-				undefined,
-				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.SelectDefaultTestProfiles, group),
-			));
+			postActions.push(toAction({
+				id: 'selectDefaultTestConfigurations',
+				label: localize('selectDefaultConfigs', 'Select Default Profile'),
+				run: () => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.SelectDefaultTestProfiles, group),
+			}));
 		}
 
 		if (hasConfigurable) {
-			postActions.push(new Action(
-				'configureTestProfiles',
-				localize('configureTestProfiles', 'Configure Test Profiles'),
-				undefined,
-				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.ConfigureTestProfilesAction, group),
-			));
+			postActions.push(toAction({
+				id: 'configureTestProfiles',
+				label: localize('configureTestProfiles', 'Configure Test Profiles'),
+				run: () => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.ConfigureTestProfilesAction, group),
+			}));
 		}
 
 		// show menu actions if there are any otherwise don't
@@ -1370,7 +1364,7 @@ class TestExplorerActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected override async runAction(action: IAction, context: TestExplorerTreeElement): Promise<any> {
+	protected override async runAction(action: IAction, context: TestExplorerTreeElement): Promise<void> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -1451,14 +1445,11 @@ interface IErrorTemplateData {
 class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, IErrorTemplateData> {
 	static readonly ID = 'error';
 
-	private readonly renderer: MarkdownRenderer;
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
-		@IInstantiationService instantionService: IInstantiationService,
-	) {
-		this.renderer = instantionService.createInstance(MarkdownRenderer, {});
-	}
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+	) { }
 
 	get templateId(): string {
 		return ErrorRenderer.ID;
@@ -1475,7 +1466,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 		if (typeof element.message === 'string') {
 			data.label.innerText = element.message;
 		} else {
-			const result = this.renderer.render(element.message, undefined, document.createElement('span'));
+			const result = this.markdownRendererService.render(element.message, undefined, document.createElement('span'));
 			data.label.appendChild(result.element);
 		}
 		data.disposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, element.description));

@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { randomBoolean } from '../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
@@ -23,14 +20,10 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
 import { ChatModeKind } from '../../../common/constants.js';
-import { MarkdownLink } from '../../../common/promptSyntax/codecs/base/markdownCodec/tokens/markdownLink.js';
-import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { getPromptFileType } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { type TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
-import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
-import { type TPromptReference } from '../../../common/promptSyntax/parsers/types.js';
 import { IMockFolder, MockFilesystem } from './testUtils/mockFilesystem.js';
+import { IBodyFileReference, PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 
 /**
  * Represents a file reference with an expected
@@ -44,19 +37,18 @@ class ExpectedReference {
 
 	constructor(
 		dirname: URI,
-		public readonly linkToken: FileReference | MarkdownLink,
-		public readonly errorCondition?: TErrorCondition,
+		public readonly ref: IBodyFileReference,
 	) {
-		this.uri = (linkToken.path.startsWith('/'))
-			? URI.file(linkToken.path)
-			: URI.joinPath(dirname, linkToken.path);
+		this.uri = (ref.content.startsWith('/'))
+			? URI.file(ref.content)
+			: URI.joinPath(dirname, ref.content);
 	}
 
 	/**
 	 * Range of the underlying file reference token.
 	 */
 	public get range(): Range {
-		return this.linkToken.range;
+		return this.ref.range;
 	}
 
 	/**
@@ -65,6 +57,10 @@ class ExpectedReference {
 	public toString(): string {
 		return `file-prompt:${this.uri.path}`;
 	}
+}
+
+function toUri(filePath: string): URI {
+	return URI.parse('testFs://' + filePath);
 }
 
 /**
@@ -82,80 +78,33 @@ class TestPromptFileReference extends Disposable {
 
 		// create in-memory file system
 		const fileSystemProvider = this._register(new InMemoryFileSystemProvider());
-		this._register(this.fileService.registerProvider(Schemas.file, fileSystemProvider));
+		this._register(this.fileService.registerProvider('testFs', fileSystemProvider));
 	}
 
 	/**
 	 * Run the test.
 	 */
-	public async run(
-	): Promise<FilePromptParser> {
+	public async run(): Promise<any> {
 		// create the files structure on the disk
-		await (this.instantiationService.createInstance(MockFilesystem, this.fileStructure)).mock();
+		const mockFs = this.instantiationService.createInstance(MockFilesystem, this.fileStructure);
+		await mockFs.mock(toUri('/'));
 
-		// randomly test with and without delay to ensure that the file
-		// reference resolution is not susceptible to race conditions
-		if (randomBoolean()) {
-			await timeout(5);
-		}
+		const content = await this.fileService.readFile(this.rootFileUri);
 
-		// start resolving references for the specified root file
-		const rootReference = this._register(
-			this.instantiationService.createInstance(
-				FilePromptParser,
-				this.rootFileUri,
-				{ allowNonPromptFiles: true, languageId: undefined, updateOnChange: true },
-			),
-		).start();
-
-		// wait until entire prompts tree is resolved
-		await rootReference.settled();
+		const ast = new PromptFileParser().parse(this.rootFileUri, content.value.toString());
+		assert(ast.body, 'Prompt file must have a body');
 
 		// resolve the root file reference including all nested references
-		const resolvedReferences: readonly (TPromptReference | undefined)[] = rootReference.references;
+		const resolvedReferences = ast.body.fileReferences ?? [];
 
 		for (let i = 0; i < this.expectedReferences.length; i++) {
 			const expectedReference = this.expectedReferences[i];
 			const resolvedReference = resolvedReferences[i];
 
-			if (expectedReference.linkToken instanceof MarkdownLink) {
-				assert(
-					resolvedReference?.subtype === 'markdown',
-					[
-						`Expected ${i}th resolved reference to be a markdown link`,
-						`got '${resolvedReference}'.`,
-					].join(', '),
-				);
-			}
+			const resolvedUri = ast.body.resolveFilePath(resolvedReference.content);
 
-			if (expectedReference.linkToken instanceof FileReference) {
-				assert(
-					resolvedReference?.subtype === 'prompt',
-					[
-						`Expected ${i}th resolved reference to be a #file: link`,
-						`got '${resolvedReference}'.`,
-					].join(', '),
-				);
-			}
-
-			assert(
-				(resolvedReference) &&
-				(resolvedReference.uri.toString() === expectedReference.uri.toString()),
-				[
-					`Expected ${i}th resolved reference URI to be '${expectedReference.uri}'`,
-					`got '${resolvedReference?.uri}'.`,
-				].join(', '),
-			);
-
-			assert(
-				(resolvedReference) &&
-				(resolvedReference.range.equalsRange(expectedReference.range)),
-				[
-					`Expected ${i}th resolved reference range to be '${expectedReference.range}'`,
-					`got '${resolvedReference?.range}'.`,
-				].join(', '),
-			);
-
+			assert.equal(resolvedUri?.fsPath, expectedReference.uri.fsPath);
+			assert.deepStrictEqual(resolvedReference.range, expectedReference.range);
 		}
 
 		assert.strictEqual(
@@ -167,7 +116,19 @@ class TestPromptFileReference extends Disposable {
 			].join('\n'),
 		);
 
-		return rootReference;
+		const result: any = {};
+		result.promptType = getPromptFileType(this.rootFileUri);
+		if (ast.header) {
+			for (const key of ['tools', 'model', 'agent', 'applyTo', 'description'] as const) {
+				if (ast.header[key]) {
+					result[key] = ast.header[key];
+				}
+			}
+		}
+
+		await mockFs.delete();
+
+		return result;
 	}
 }
 
@@ -180,19 +141,34 @@ class TestPromptFileReference extends Disposable {
  * @param lineNumber The expected line number of the file reference.
  * @param startColumnNumber The expected start column number of the file reference.
  */
-function createTestFileReference(
-	filePath: string,
-	lineNumber: number,
-	startColumnNumber: number,
-): FileReference {
+function createFileReference(filePath: string, lineNumber: number, startColumnNumber: number): IBodyFileReference {
 	const range = new Range(
 		lineNumber,
-		startColumnNumber,
+		startColumnNumber + '#file:'.length,
 		lineNumber,
-		startColumnNumber + `#file:${filePath}`.length,
+		startColumnNumber + '#file:'.length + filePath.length,
 	);
 
-	return new FileReference(range, filePath);
+	return {
+		range,
+		content: filePath,
+		isMarkdownLink: false,
+	};
+}
+
+function createMarkdownReference(lineNumber: number, startColumnNumber: number, firstSeg: string, secondSeg: string): IBodyFileReference {
+	const range = new Range(
+		lineNumber,
+		startColumnNumber + firstSeg.length + 1,
+		lineNumber,
+		startColumnNumber + firstSeg.length + secondSeg.length - 1,
+	);
+
+	return {
+		range,
+		content: secondSeg.substring(1, secondSeg.length - 1),
+		isMarkdownLink: true,
+	};
 }
 
 suite('PromptFileReference', function () {
@@ -225,7 +201,7 @@ suite('PromptFileReference', function () {
 	test('resolves nested file references', async function () {
 		const rootFolderName = 'resolves-nested-file-references';
 		const rootFolder = `/${rootFolderName}`;
-		const rootUri = URI.file(rootFolder);
+		const rootUri = toUri(rootFolder);
 
 		const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
 			/**
@@ -282,18 +258,18 @@ suite('PromptFileReference', function () {
 			/**
 			 * The root file path to start the resolve process from.
 			 */
-			URI.file(`/${rootFolderName}/file2.prompt.md`),
+			toUri(`/${rootFolderName}/file2.prompt.md`),
 			/**
 			 * The expected references to be resolved.
 			 */
 			[
 				new ExpectedReference(
 					rootUri,
-					createTestFileReference('folder1/file3.prompt.md', 2, 14),
+					createFileReference('folder1/file3.prompt.md', 2, 14),
 				),
 				new ExpectedReference(
 					rootUri,
-					new MarkdownLink(
+					createMarkdownReference(
 						3, 14,
 						'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
 					),
@@ -309,7 +285,7 @@ suite('PromptFileReference', function () {
 		test('tools', async function () {
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
-			const rootUri = URI.file(rootFolder);
+			const rootUri = toUri(rootFolder);
 
 			const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
 				/**
@@ -332,7 +308,7 @@ suite('PromptFileReference', function () {
 								'---',
 								'description: \'Root prompt description.\'',
 								'tools: [\'my-tool1\']',
-								'mode: "agent" ',
+								'agent: "agent" ',
 								'---',
 								'## Files',
 								'\t- this file #file:folder1/file3.prompt.md ',
@@ -364,7 +340,7 @@ suite('PromptFileReference', function () {
 												'---',
 												'tools: [\'my-tool1\', "my-tool2", true, , ]',
 												'something: true',
-												'mode: \'ask\'\t',
+												'agent: \'ask\'\t',
 												'---',
 												'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
 												'',
@@ -405,18 +381,18 @@ suite('PromptFileReference', function () {
 				/**
 				 * The root file path to start the resolve process from.
 				 */
-				URI.file(`/${rootFolderName}/file2.prompt.md`),
+				toUri(`/${rootFolderName}/file2.prompt.md`),
 				/**
 				 * The expected references to be resolved.
 				 */
 				[
 					new ExpectedReference(
 						rootUri,
-						createTestFileReference('folder1/file3.prompt.md', 7, 14),
+						createFileReference('folder1/file3.prompt.md', 7, 14),
 					),
 					new ExpectedReference(
 						rootUri,
-						new MarkdownLink(
+						createMarkdownReference(
 							8, 14,
 							'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
 						),
@@ -424,15 +400,13 @@ suite('PromptFileReference', function () {
 				]
 			));
 
-			const rootReference = await test.run();
-
-			const { metadata } = rootReference;
+			const metadata = await test.run();
 
 			assert.deepStrictEqual(
 				metadata,
 				{
 					promptType: PromptsType.prompt,
-					mode: 'agent',
+					agent: 'agent',
 					description: 'Root prompt description.',
 					tools: ['my-tool1'],
 				},
@@ -445,7 +419,7 @@ suite('PromptFileReference', function () {
 			test('prompt language', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
-				const rootUri = URI.file(rootFolder);
+				const rootUri = toUri(rootFolder);
 
 				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
 					/**
@@ -497,7 +471,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , \'my-tool3\' , ]',
 													'something: true',
-													'mode: \'agent\'\t',
+													'agent: \'agent\'\t',
 													'---',
 													'',
 													'',
@@ -513,18 +487,18 @@ suite('PromptFileReference', function () {
 					/**
 					 * The root file path to start the resolve process from.
 					 */
-					URI.file(`/${rootFolderName}/file2.prompt.md`),
+					toUri(`/${rootFolderName}/file2.prompt.md`),
 					/**
 					 * The expected references to be resolved.
 					 */
 					[
 						new ExpectedReference(
 							rootUri,
-							createTestFileReference('folder1/file3.prompt.md', 7, 14),
+							createFileReference('folder1/file3.prompt.md', 7, 14),
 						),
 						new ExpectedReference(
 							rootUri,
-							new MarkdownLink(
+							createMarkdownReference(
 								8, 14,
 								'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
 							),
@@ -532,17 +506,15 @@ suite('PromptFileReference', function () {
 					]
 				));
 
-				const rootReference = await test.run();
-
-				const { metadata } = rootReference;
+				const metadata = await test.run();
 
 				assert.deepStrictEqual(
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatModeKind.Agent,
 						description: 'Description of my prompt.',
 						tools: ['my-tool12'],
+						applyTo: '**/*',
 					},
 					'Must have correct metadata.',
 				);
@@ -553,7 +525,7 @@ suite('PromptFileReference', function () {
 			test('instructions language', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
-				const rootUri = URI.file(rootFolder);
+				const rootUri = toUri(rootFolder);
 
 				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
 					/**
@@ -605,7 +577,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , \'my-tool3\' , ]',
 													'something: true',
-													'mode: \'agent\'\t',
+													'agent: \'agent\'\t',
 													'---',
 													'',
 													'',
@@ -621,18 +593,18 @@ suite('PromptFileReference', function () {
 					/**
 					 * The root file path to start the resolve process from.
 					 */
-					URI.file(`/${rootFolderName}/file2.instructions.md`),
+					toUri(`/${rootFolderName}/file2.instructions.md`),
 					/**
 					 * The expected references to be resolved.
 					 */
 					[
 						new ExpectedReference(
 							rootUri,
-							createTestFileReference('folder1/file3.prompt.md', 7, 14),
+							createFileReference('folder1/file3.prompt.md', 7, 14),
 						),
 						new ExpectedReference(
 							rootUri,
-							new MarkdownLink(
+							createMarkdownReference(
 								8, 14,
 								'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
 							),
@@ -640,9 +612,7 @@ suite('PromptFileReference', function () {
 					]
 				));
 
-				const rootReference = await test.run();
-
-				const { metadata } = rootReference;
+				const metadata = await test.run();
 
 				assert.deepStrictEqual(
 					metadata,
@@ -650,17 +620,18 @@ suite('PromptFileReference', function () {
 						promptType: PromptsType.instructions,
 						applyTo: '**/*',
 						description: 'Description of my instructions file.',
+						tools: ['my-tool12'],
 					},
 					'Must have correct metadata.',
 				);
 			});
 		});
 
-		suite('tools and mode compatibility', () => {
-			test('tools are ignored if root prompt is in the ask mode', async function () {
+		suite('tools and agent compatibility', () => {
+			test('ask agent', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
-				const rootUri = URI.file(rootFolder);
+				const rootUri = toUri(rootFolder);
 
 				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
 					/**
@@ -682,7 +653,7 @@ suite('PromptFileReference', function () {
 								contents: [
 									'---',
 									'description: \'Description of my prompt.\'',
-									'mode: "ask" ',
+									'agent: "ask" ',
 									'---',
 									'## Files',
 									'\t- this file #file:folder1/file3.prompt.md ',
@@ -698,7 +669,7 @@ suite('PromptFileReference', function () {
 										contents: [
 											'---',
 											'tools: [ false, \'my-tool1\' , ]',
-											'mode: \'agent\'\t',
+											'agent: \'agent\'\t',
 											'---',
 											' some more\t content',
 										],
@@ -712,7 +683,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , ]',
 													'something: true',
-													'mode: \'ask\'\t',
+													'agent: \'ask\'\t',
 													'---',
 													'',
 													'',
@@ -728,18 +699,18 @@ suite('PromptFileReference', function () {
 					/**
 					 * The root file path to start the resolve process from.
 					 */
-					URI.file(`/${rootFolderName}/file2.prompt.md`),
+					toUri(`/${rootFolderName}/file2.prompt.md`),
 					/**
 					 * The expected references to be resolved.
 					 */
 					[
 						new ExpectedReference(
 							rootUri,
-							createTestFileReference('folder1/file3.prompt.md', 6, 14),
+							createFileReference('folder1/file3.prompt.md', 6, 14),
 						),
 						new ExpectedReference(
 							rootUri,
-							new MarkdownLink(
+							createMarkdownReference(
 								7, 14,
 								'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
 							),
@@ -747,25 +718,23 @@ suite('PromptFileReference', function () {
 					]
 				));
 
-				const rootReference = await test.run();
-
-				const { metadata } = rootReference;
+				const metadata = await test.run();
 
 				assert.deepStrictEqual(
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatModeKind.Ask,
+						agent: ChatModeKind.Ask,
 						description: 'Description of my prompt.',
 					},
 					'Must have correct metadata.',
 				);
 			});
 
-			test('tools are ignored if root prompt is in the edit mode', async function () {
+			test('edit agent', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
-				const rootUri = URI.file(rootFolder);
+				const rootUri = toUri(rootFolder);
 
 				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
 					/**
@@ -787,7 +756,7 @@ suite('PromptFileReference', function () {
 								contents: [
 									'---',
 									'description: \'Description of my prompt.\'',
-									'mode:\t\t"edit"\t\t',
+									'agent:\t\t"edit"\t\t',
 									'---',
 									'## Files',
 									'\t- this file #file:folder1/file3.prompt.md ',
@@ -816,7 +785,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , ]',
 													'something: true',
-													'mode: \'agent\'\t',
+													'agent: \'agent\'\t',
 													'---',
 													'',
 													'',
@@ -832,18 +801,18 @@ suite('PromptFileReference', function () {
 					/**
 					 * The root file path to start the resolve process from.
 					 */
-					URI.file(`/${rootFolderName}/file2.prompt.md`),
+					toUri(`/${rootFolderName}/file2.prompt.md`),
 					/**
 					 * The expected references to be resolved.
 					 */
 					[
 						new ExpectedReference(
 							rootUri,
-							createTestFileReference('folder1/file3.prompt.md', 6, 14),
+							createFileReference('folder1/file3.prompt.md', 6, 14),
 						),
 						new ExpectedReference(
 							rootUri,
-							new MarkdownLink(
+							createMarkdownReference(
 								7, 14,
 								'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
 							),
@@ -851,15 +820,13 @@ suite('PromptFileReference', function () {
 					]
 				));
 
-				const rootReference = await test.run();
-
-				const { metadata } = rootReference;
+				const metadata = await test.run();
 
 				assert.deepStrictEqual(
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatModeKind.Edit,
+						agent: ChatModeKind.Edit,
 						description: 'Description of my prompt.',
 					},
 					'Must have correct metadata.',
@@ -867,10 +834,10 @@ suite('PromptFileReference', function () {
 
 			});
 
-			test('tools are not ignored if root prompt is in the agent mode', async function () {
+			test('agent', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
-				const rootUri = URI.file(rootFolder);
+				const rootUri = toUri(rootFolder);
 
 				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
 					/**
@@ -892,7 +859,7 @@ suite('PromptFileReference', function () {
 								contents: [
 									'---',
 									'description: \'Description of my prompt.\'',
-									'mode: \t\t "agent" \t\t ',
+									'agent: \t\t "agent" \t\t ',
 									'---',
 									'## Files',
 									'\t- this file #file:folder1/file3.prompt.md ',
@@ -921,7 +888,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , \'my-tool3\' , ]',
 													'something: true',
-													'mode: \'agent\'\t',
+													'agent: \'agent\'\t',
 													'---',
 													'',
 													'',
@@ -937,18 +904,18 @@ suite('PromptFileReference', function () {
 					/**
 					 * The root file path to start the resolve process from.
 					 */
-					URI.file(`/${rootFolderName}/file2.prompt.md`),
+					toUri(`/${rootFolderName}/file2.prompt.md`),
 					/**
 					 * The expected references to be resolved.
 					 */
 					[
 						new ExpectedReference(
 							rootUri,
-							createTestFileReference('folder1/file3.prompt.md', 6, 14),
+							createFileReference('folder1/file3.prompt.md', 6, 14),
 						),
 						new ExpectedReference(
 							rootUri,
-							new MarkdownLink(
+							createMarkdownReference(
 								7, 14,
 								'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
 							),
@@ -956,15 +923,13 @@ suite('PromptFileReference', function () {
 					]
 				));
 
-				const rootReference = await test.run();
-
-				const { metadata } = rootReference;
+				const metadata = await test.run();
 
 				assert.deepStrictEqual(
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatModeKind.Agent,
+						agent: ChatModeKind.Agent,
 						description: 'Description of my prompt.',
 					},
 					'Must have correct metadata.',
@@ -972,10 +937,10 @@ suite('PromptFileReference', function () {
 
 			});
 
-			test('tools are not ignored if root prompt implicitly in the agent mode', async function () {
+			test('no agent', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
-				const rootUri = URI.file(rootFolder);
+				const rootUri = toUri(rootFolder);
 
 				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
 					/**
@@ -1026,7 +991,7 @@ suite('PromptFileReference', function () {
 													'---',
 													'tools: [\'my-tool1\', "my-tool2", true, , \'my-tool3\' , ]',
 													'something: true',
-													'mode: \'agent\'\t',
+													'agent: \'agent\'\t',
 													'---',
 													'',
 													'',
@@ -1042,18 +1007,18 @@ suite('PromptFileReference', function () {
 					/**
 					 * The root file path to start the resolve process from.
 					 */
-					URI.file(`/${rootFolderName}/file2.prompt.md`),
+					toUri(`/${rootFolderName}/file2.prompt.md`),
 					/**
 					 * The expected references to be resolved.
 					 */
 					[
 						new ExpectedReference(
 							rootUri,
-							createTestFileReference('folder1/file3.prompt.md', 6, 14),
+							createFileReference('folder1/file3.prompt.md', 6, 14),
 						),
 						new ExpectedReference(
 							rootUri,
-							new MarkdownLink(
+							createMarkdownReference(
 								7, 14,
 								'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
 							),
@@ -1061,15 +1026,12 @@ suite('PromptFileReference', function () {
 					]
 				));
 
-				const rootReference = await test.run();
-
-				const { metadata, } = rootReference;
+				const metadata = await test.run();
 
 				assert.deepStrictEqual(
 					metadata,
 					{
 						promptType: PromptsType.prompt,
-						mode: ChatModeKind.Agent,
 						tools: ['my-tool12'],
 						description: 'Description of the prompt file.',
 					},

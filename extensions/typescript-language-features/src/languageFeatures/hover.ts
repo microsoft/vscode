@@ -33,9 +33,8 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			return undefined;
 		}
 
-		const enableExpandableHover = vscode.workspace.getConfiguration('typescript').get<boolean>('experimental.expandableHover', true);
 		let verbosityLevel: number | undefined;
-		if (enableExpandableHover && this.client.apiVersion.gte(API.v590)) {
+		if (this.client.apiVersion.gte(API.v590)) {
 			verbosityLevel = Math.max(0, this.getPreviousLevel(context?.previousHover) + (context?.verbosityDelta ?? 0));
 		}
 		const args = { ...typeConverters.Position.toFileLocationRequestArgs(filepath, position), verbosityLevel };

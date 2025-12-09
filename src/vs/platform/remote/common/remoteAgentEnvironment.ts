@@ -29,6 +29,7 @@ export interface IRemoteAgentEnvironment {
 		home: URI;
 	};
 	isUnsupportedGlibc: boolean;
+	reconnectionGraceTime?: number;
 }
 
 export interface RemoteAgentConnectionContext {

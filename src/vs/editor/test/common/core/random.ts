@@ -107,6 +107,60 @@ export abstract class Random {
 		const edit = this.nextStringEdit(target, 1, newTextAlphabet);
 		return edit.replacements[0];
 	}
+
+	/**
+	 * Fills the given array with random data.
+	*/
+	public nextRandomValues(data: Uint8Array): void {
+		for (let i = 0; i < data.length; i++) {
+			data[i] = this.nextIntRange(0, 256);
+		}
+	}
+
+	private _hex: string[] | undefined;
+	private _data: Uint8Array | undefined;
+
+	public nextUuid(): string {
+		if (!this._data) {
+			this._data = new Uint8Array(16);
+		}
+		if (!this._hex) {
+			this._hex = [];
+			for (let i = 0; i < 256; i++) {
+				this._hex.push(i.toString(16).padStart(2, '0'));
+			}
+		}
+
+		this.nextRandomValues(this._data);
+
+		// set version bits
+		this._data[6] = (this._data[6] & 0x0f) | 0x40;
+		this._data[8] = (this._data[8] & 0x3f) | 0x80;
+
+		let i = 0;
+		let result = '';
+		result += this._hex[this._data[i++]];
+		result += this._hex[this._data[i++]];
+		result += this._hex[this._data[i++]];
+		result += this._hex[this._data[i++]];
+		result += '-';
+		result += this._hex[this._data[i++]];
+		result += this._hex[this._data[i++]];
+		result += '-';
+		result += this._hex[this._data[i++]];
+		result += this._hex[this._data[i++]];
+		result += '-';
+		result += this._hex[this._data[i++]];
+		result += this._hex[this._data[i++]];
+		result += '-';
+		result += this._hex[this._data[i++]];
+		result += this._hex[this._data[i++]];
+		result += this._hex[this._data[i++]];
+		result += this._hex[this._data[i++]];
+		result += this._hex[this._data[i++]];
+		result += this._hex[this._data[i++]];
+		return result;
+	}
 }
 
 export function sequenceGenerator<T>(sequence: T[]): IGenerator<T> {

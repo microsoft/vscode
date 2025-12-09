@@ -13,9 +13,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileService, IFileSystemProvider, IFileWriteOptions, IStat, IWatchOptions } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { IChatEditingService } from '../../../common/chatEditingService.js';
-import { ChatEditingNotebookSnapshotScheme, deserializeSnapshot } from './chatEditingModifiedNotebookSnapshot.js';
+import { LocalChatSessionUri } from '../../../common/chatUri.js';
+import { ChatEditingNotebookSnapshotScheme } from './chatEditingModifiedNotebookSnapshot.js';
 
 
 export class ChatEditingNotebookFileSystemProviderContrib extends Disposable implements IWorkbenchContribution {
@@ -47,9 +47,8 @@ export class ChatEditingNotebookFileSystemProvider implements IFileSystemProvide
 		};
 	}
 
-	constructor(
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@INotebookService private readonly notebookService: INotebookService) { }
+	constructor(@IChatEditingService private readonly _chatEditingService: IChatEditingService) { }
+
 	readonly onDidChangeCapabilities = Event.None;
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.None;
 	watch(_resource: URI, _opts: IWatchOptions): IDisposable {
@@ -87,18 +86,16 @@ export class ChatEditingNotebookFileSystemProvider implements IFileSystemProvide
 		if (!queryData.viewType) {
 			throw new Error('File not found, viewType not found');
 		}
-		const session = this._chatEditingService.getEditingSession(queryData.sessionId);
+		const session = this._chatEditingService.getEditingSession(LocalChatSessionUri.forSession(queryData.sessionId));
 		if (!session || !queryData.requestId) {
 			throw new Error('File not found, session not found');
 		}
-		const snapshotEntry = session.getSnapshot(queryData.requestId, queryData.undoStop || undefined, resource);
+		const snapshotEntry = await session.getSnapshotContents(queryData.requestId, resource, queryData.undoStop || undefined);
 		if (!snapshotEntry) {
 			throw new Error('File not found, snapshot not found');
 		}
 
-		const { data } = deserializeSnapshot(snapshotEntry.current);
-		const { serializer } = await this.notebookService.withNotebookDataProvider(queryData.viewType);
-		return serializer.notebookToData(data).then(s => s.buffer);
+		return snapshotEntry.buffer;
 	}
 
 	writeFile?(__resource: URI, _content: Uint8Array, _opts: IFileWriteOptions): Promise<void> {

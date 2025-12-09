@@ -12,8 +12,8 @@ import path from 'path';
 import crypto from 'crypto';
 import { Stream } from 'stream';
 import File from 'vinyl';
-import { createStatsStream } from './stats';
-import * as util2 from './util';
+import { createStatsStream } from './stats.ts';
+import * as util2 from './util.ts';
 import filter from 'gulp-filter';
 import rename from 'gulp-rename';
 import fancyLog from 'fancy-log';
@@ -21,13 +21,16 @@ import ansiColors from 'ansi-colors';
 import buffer from 'gulp-buffer';
 import * as jsoncParser from 'jsonc-parser';
 import webpack from 'webpack';
-import { getProductionDependencies } from './dependencies';
-import { IExtensionDefinition, getExtensionStream } from './builtInExtensions';
-import { getVersion } from './getVersion';
-import { fetchUrls, fetchGithub } from './fetch';
-const vzip = require('gulp-vinyl-zip');
+import { getProductionDependencies } from './dependencies.ts';
+import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
+import { getVersion } from './getVersion.ts';
+import { fetchUrls, fetchGithub } from './fetch.ts';
+import vzip from 'gulp-vinyl-zip';
 
-const root = path.dirname(path.dirname(__dirname));
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
+const root = path.dirname(path.dirname(import.meta.dirname));
 const commit = getVersion(root);
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 
@@ -38,7 +41,7 @@ function minifyExtensionResources(input: Stream): Stream {
 		.pipe(buffer())
 		.pipe(es.mapSync((f: File) => {
 			const errors: jsoncParser.ParseError[] = [];
-			const value = jsoncParser.parse(f.contents.toString('utf8'), errors, { allowTrailingComma: true });
+			const value = jsoncParser.parse(f.contents!.toString('utf8'), errors, { allowTrailingComma: true });
 			if (errors.length === 0) {
 				// file parsed OK => just stringify to drop whitespace and comments
 				f.contents = Buffer.from(JSON.stringify(value));
@@ -54,7 +57,7 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
 		.pipe(es.mapSync((f: File) => {
-			const data = JSON.parse(f.contents.toString('utf8'));
+			const data = JSON.parse(f.contents!.toString('utf8'));
 			f.contents = Buffer.from(JSON.stringify(update(data)));
 			return f;
 		}))
@@ -63,11 +66,9 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 
 function fromLocal(extensionPath: string, forWeb: boolean, disableMangle: boolean): Stream {
 
-	const esm = JSON.parse(fs.readFileSync(path.join(extensionPath, 'package.json'), 'utf8')).type === 'module';
-
 	const webpackConfigFileName = forWeb
-		? `extension-browser.webpack.config.${!esm ? 'js' : 'cjs'}`
-		: `extension.webpack.config.${!esm ? 'js' : 'cjs'}`;
+		? `extension-browser.webpack.config.js`
+		: `extension.webpack.config.js`;
 
 	const isWebPacked = fs.existsSync(path.join(extensionPath, webpackConfigFileName));
 	let input = isWebPacked
@@ -99,7 +100,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 	const packagedDependencies: string[] = [];
 	const packageJsonConfig = require(path.join(extensionPath, 'package.json'));
 	if (packageJsonConfig.dependencies) {
-		const webpackRootConfig = require(path.join(extensionPath, webpackConfigFileName));
+		const webpackRootConfig = require(path.join(extensionPath, webpackConfigFileName)).default;
 		for (const key in webpackRootConfig.externals) {
 			if (key in packageJsonConfig.dependencies) {
 				packagedDependencies.push(key);
@@ -119,19 +120,18 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 				path: filePath,
 				stat: fs.statSync(filePath),
 				base: extensionPath,
-				contents: fs.createReadStream(filePath) as any
+				contents: fs.createReadStream(filePath)
 			}));
 
 		// check for a webpack configuration files, then invoke webpack
 		// and merge its output with the files stream.
-		const webpackConfigLocations = (<string[]>glob.sync(
+		const webpackConfigLocations = (glob.sync(
 			path.join(extensionPath, '**', webpackConfigFileName),
 			{ ignore: ['**/node_modules'] }
-		));
-
+		) as string[]);
 		const webpackStreams = webpackConfigLocations.flatMap(webpackConfigPath => {
 
-			const webpackDone = (err: any, stats: any) => {
+			const webpackDone = (err: Error | undefined, stats: any) => {
 				fancyLog(`Bundled extension: ${ansiColors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
 				if (err) {
 					result.emit('error', err);
@@ -145,7 +145,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 				}
 			};
 
-			const exportedConfig = require(webpackConfigPath);
+			const exportedConfig = require(webpackConfigPath).default;
 			return (Array.isArray(exportedConfig) ? exportedConfig : [exportedConfig]).map(config => {
 				const webpackConfig = {
 					...config,
@@ -177,7 +177,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 						// * rewrite sourceMappingURL
 						// * save to disk so that upload-task picks this up
 						if (path.extname(data.basename) === '.js') {
-							const contents = (<Buffer>data.contents).toString('utf8');
+							const contents = (data.contents as Buffer).toString('utf8');
 							data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
 								return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
 							}), 'utf8');
@@ -217,7 +217,7 @@ function fromLocalNormal(extensionPath: string): Stream {
 					path: filePath,
 					stat: fs.statSync(filePath),
 					base: extensionPath,
-					contents: fs.createReadStream(filePath) as any
+					contents: fs.createReadStream(filePath)
 				}));
 
 			es.readArray(files).pipe(result);
@@ -335,7 +335,7 @@ const marketplaceWebExtensionsExclude = new Set([
 	'ms-vscode.vscode-js-profile-table'
 ]);
 
-const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const productJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
 const builtInExtensions: IExtensionDefinition[] = productJson.builtInExtensions || [];
 const webBuiltInExtensions: IExtensionDefinition[] = productJson.webBuiltInExtensions || [];
 
@@ -419,7 +419,7 @@ export function packageAllLocalExtensionsStream(forWeb: boolean, disableMangle: 
 function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean, native: boolean): Stream {
 	const nativeExtensionsSet = new Set(nativeExtensions);
 	const localExtensionsDescriptions = (
-		(<string[]>glob.sync('extensions/*/package.json'))
+		(glob.sync('extensions/*/package.json') as string[])
 			.map(manifestPath => {
 				const absoluteManifestPath = path.join(root, manifestPath);
 				const extensionPath = path.dirname(path.join(root, manifestPath));
@@ -561,12 +561,13 @@ const extensionsPath = path.join(root, 'extensions');
 
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
-	'markdown-language-features/esbuild-notebook.js',
-	'markdown-language-features/esbuild-preview.js',
-	'markdown-math/esbuild.js',
-	'notebook-renderers/esbuild.js',
-	'ipynb/esbuild.js',
-	'simple-browser/esbuild-preview.js',
+	'ipynb/esbuild.mjs',
+	'markdown-language-features/esbuild-notebook.mjs',
+	'markdown-language-features/esbuild-preview.mjs',
+	'markdown-math/esbuild.mjs',
+	'mermaid-chat-features/esbuild-chat-webview.mjs',
+	'notebook-renderers/esbuild.mjs',
+	'simple-browser/esbuild-preview.mjs',
 ];
 
 export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string; outputRoot?: string }[]) {
@@ -575,7 +576,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 	const webpackConfigs: webpack.Configuration[] = [];
 
 	for (const { configPath, outputRoot } of webpackConfigLocations) {
-		const configOrFnOrArray = require(configPath);
+		const configOrFnOrArray = require(configPath).default;
 		function addConfig(configOrFnOrArray: webpack.Configuration | ((env: unknown, args: unknown) => webpack.Configuration) | webpack.Configuration[]) {
 			for (const configOrFn of Array.isArray(configOrFnOrArray) ? configOrFnOrArray : [configOrFnOrArray]) {
 				const config = typeof configOrFn === 'function' ? configOrFn({}, {}) : configOrFn;
@@ -587,6 +588,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 		}
 		addConfig(configOrFnOrArray);
 	}
+
 	function reporter(fullStats: any) {
 		if (Array.isArray(fullStats.children)) {
 			for (const stats of fullStats.children) {

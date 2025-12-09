@@ -22,7 +22,8 @@ import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExten
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
@@ -79,10 +80,11 @@ export interface ICodeBlockData {
 	readonly codeBlockPartIndex: number;
 	readonly element: unknown;
 
-	readonly textModel: Promise<ITextModel>;
+	readonly textModel: Promise<ITextModel> | undefined;
 	readonly languageId: string;
 
 	readonly codemapperUri?: URI;
+	readonly fromSubagent?: boolean;
 
 	readonly vulns?: readonly IMarkdownVulnerability[];
 	readonly range?: Range;
@@ -90,7 +92,7 @@ export interface ICodeBlockData {
 	readonly parentContextKeyService?: IContextKeyService;
 	readonly renderOptions?: ICodeBlockRenderOptions;
 
-	readonly chatSessionId: string;
+	readonly chatSessionResource: URI;
 }
 
 /**
@@ -132,13 +134,13 @@ export function parseLocalFileData(text: string) {
 }
 
 export interface ICodeBlockActionContext {
-	code: string;
-	codemapperUri?: URI;
-	languageId?: string;
-	codeBlockIndex: number;
-	element: unknown;
+	readonly code: string;
+	readonly codemapperUri?: URI;
+	readonly languageId?: string;
+	readonly codeBlockIndex: number;
+	readonly element: unknown;
 
-	chatSessionId: string | undefined;
+	readonly chatSessionResource: URI | undefined;
 }
 
 export interface ICodeBlockRenderOptions {
@@ -287,6 +289,14 @@ export class CodeBlockPart extends Disposable {
 			this.element.classList.add('focused');
 			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
 		}));
+		this._register(Event.any(
+			this.editor.onDidChangeModel,
+			this.editor.onDidChangeModelContent
+		)(() => {
+			if (this.currentCodeBlockData) {
+				this.updateContexts(this.currentCodeBlockData);
+			}
+		}));
 
 		// Parent list scrolled
 		if (delegate.onDidScroll) {
@@ -405,8 +415,8 @@ export class CodeBlockPart extends Disposable {
 			this.layout(width);
 		}
 
-		await this.updateEditor(data);
-		if (this.isDisposed) {
+		const didUpdate = await this.updateEditor(data);
+		if (!didUpdate || this.isDisposed || this.currentCodeBlockData !== data) {
 			return;
 		}
 
@@ -440,6 +450,7 @@ export class CodeBlockPart extends Disposable {
 
 	reset() {
 		this.clearWidgets();
+		this.currentCodeBlockData = undefined;
 	}
 
 	private clearWidgets() {
@@ -447,23 +458,21 @@ export class CodeBlockPart extends Disposable {
 		GlyphHoverController.get(this.editor)?.hideGlyphHover();
 	}
 
-	private async updateEditor(data: ICodeBlockData): Promise<void> {
+	private async updateEditor(data: ICodeBlockData): Promise<boolean> {
 		const textModel = await data.textModel;
+		if (this.isDisposed || this.currentCodeBlockData !== data || !textModel || textModel.isDisposed()) {
+			return false;
+		}
+
 		this.editor.setModel(textModel);
 		if (data.range) {
 			this.editor.setSelection(data.range);
 			this.editor.revealRangeInCenter(data.range, ScrollType.Immediate);
 		}
 
-		this.toolbar.context = {
-			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
-			codeBlockIndex: data.codeBlockIndex,
-			element: data.element,
-			languageId: textModel.getLanguageId(),
-			codemapperUri: data.codemapperUri,
-			chatSessionId: data.chatSessionId
-		} satisfies ICodeBlockActionContext;
-		this.resourceContextKey.set(textModel.uri);
+		this.updateContexts(data);
+
+		return true;
 	}
 
 	private getVulnerabilitiesLabel(): string {
@@ -476,6 +485,23 @@ export class CodeBlockPart extends Disposable {
 			localize('vulnerabilitiesSingular', "{0} vulnerability", 1);
 		const icon = (element: IChatResponseViewModel) => element.vulnerabilitiesListExpanded ? Codicon.chevronDown : Codicon.chevronRight;
 		return `${referencesLabel} $(${icon(this.currentCodeBlockData.element as IChatResponseViewModel).id})`;
+	}
+
+	private updateContexts(data: ICodeBlockData) {
+		const textModel = this.editor.getModel();
+		if (!textModel) {
+			return;
+		}
+
+		this.toolbar.context = {
+			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
+			codeBlockIndex: data.codeBlockIndex,
+			element: data.element,
+			languageId: textModel.getLanguageId(),
+			codemapperUri: data.codemapperUri,
+			chatSessionResource: data.chatSessionResource
+		} satisfies ICodeBlockActionContext;
+		this.resourceContextKey.set(textModel.uri);
 	}
 }
 
@@ -520,6 +546,9 @@ export interface ICodeCompareBlockData {
 	readonly diffData: Promise<ICodeCompareBlockDiffData | undefined>;
 
 	readonly parentContextKeyService?: IContextKeyService;
+
+	readonly horizontalPadding?: number;
+	readonly isReadOnly?: boolean;
 	// readonly hideToolbar?: boolean;
 }
 
@@ -535,9 +564,11 @@ export class CodeCompareBlockPart extends Disposable {
 	private readonly toolbar: MenuWorkbenchToolBar;
 	readonly element: HTMLElement;
 	private readonly messageElement: HTMLElement;
+	private readonly editorHeader: HTMLElement;
 
 	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable());
 	private currentScrollWidth = 0;
+	private currentHorizontalPadding = 0;
 
 	constructor(
 		private readonly options: ChatEditorOptions,
@@ -574,7 +605,7 @@ export class CodeCompareBlockPart extends Disposable {
 				}
 			}],
 		)));
-		const editorHeader = dom.append(this.element, $('.interactive-result-header.show-file-icons'));
+		const editorHeader = this.editorHeader = dom.append(this.element, $('.interactive-result-header.show-file-icons'));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.diffEditor = this.createDiffEditor(scopedInstantiationService, editorElement, {
 			...getSimpleEditorOptions(this.configurationService),
@@ -739,12 +770,12 @@ export class CodeCompareBlockPart extends Disposable {
 	layout(width: number): void {
 		const editorBorder = 2;
 
-		const toolbar = dom.getTotalHeight(this.toolbar.getElement());
+		const toolbar = dom.getTotalHeight(this.editorHeader);
 		const content = this.diffEditor.getModel()
 			? this.diffEditor.getContentHeight()
 			: dom.getTotalHeight(this.messageElement);
 
-		const dimension = new dom.Dimension(width - editorBorder, toolbar + content);
+		const dimension = new dom.Dimension(width - editorBorder - this.currentHorizontalPadding * 2, toolbar + content);
 		this.element.style.height = `${dimension.height}px`;
 		this.element.style.width = `${dimension.width}px`;
 		this.diffEditor.layout(dimension.with(undefined, content - editorBorder));
@@ -753,6 +784,8 @@ export class CodeCompareBlockPart extends Disposable {
 
 
 	async render(data: ICodeCompareBlockData, width: number, token: CancellationToken) {
+		this.currentHorizontalPadding = data.horizontalPadding || 0;
+
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}
@@ -766,12 +799,17 @@ export class CodeCompareBlockPart extends Disposable {
 		await this.updateEditor(data, token);
 
 		this.layout(width);
-		this.diffEditor.updateOptions({ ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits") });
+		this.diffEditor.updateOptions({
+			ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits"),
+			readOnly: !!data.isReadOnly,
+		});
 
 		this.resourceLabel.element.setFile(data.edit.uri, {
 			fileKind: FileKind.FILE,
 			fileDecorations: { colors: true, badges: false }
 		});
+
+		this._onDidChangeContentHeight.fire();
 	}
 
 	reset() {

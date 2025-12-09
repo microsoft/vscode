@@ -34,6 +34,7 @@ import { TerminalMultiLineLinkDetector } from './terminalMultiLineLinkDetector.j
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import type { IHoverAction } from '../../../../../base/browser/ui/hover/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { isString } from '../../../../../base/common/types.js';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
@@ -87,12 +88,12 @@ export class TerminalLinkManager extends DisposableStore {
 		// Setup link openers
 		const localFileOpener = this._instantiationService.createInstance(TerminalLocalFileLinkOpener);
 		const localFolderInWorkspaceOpener = this._instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+		const localFolderOutsideWorkspaceOpener = this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFile, localFileOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderInWorkspace, localFolderInWorkspaceOpener);
-		this._openers.set(TerminalBuiltinLinkType.LocalFolderOutsideWorkspace, this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener));
+		this._openers.set(TerminalBuiltinLinkType.LocalFolderOutsideWorkspace, localFolderOutsideWorkspaceOpener);
 		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, this._processInfo.initialCwd, localFileOpener, localFolderInWorkspaceOpener, () => this._processInfo.os || OS));
-		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processInfo.remoteAuthority));
-
+		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processInfo.remoteAuthority, localFileOpener, localFolderInWorkspaceOpener, localFolderOutsideWorkspaceOpener));
 		this._registerStandardLinkProviders();
 
 		let activeHoverDisposable: IDisposable | undefined;
@@ -105,7 +106,7 @@ export class TerminalLinkManager extends DisposableStore {
 		}));
 		this._xterm.options.linkHandler = {
 			allowNonHttpProtocols: true,
-			activate: (event, text) => {
+			activate: async (event, text) => {
 				if (!this._isLinkActivationModifierDown(event)) {
 					return;
 				}
@@ -115,18 +116,27 @@ export class TerminalLinkManager extends DisposableStore {
 				}
 				const scheme = text.substring(0, colonIndex);
 				if (terminalConfigurationService.config.allowedLinkSchemes.indexOf(scheme) === -1) {
-					notificationService.prompt(Severity.Warning, nls.localize('scheme', 'Opening URIs can be insecure, do you want to allow opening links with the scheme {0}?', scheme), [
-						{
-							label: nls.localize('allow', 'Allow {0}', scheme),
-							run: () => {
-								const allowedLinkSchemes = [
-									...terminalConfigurationService.config.allowedLinkSchemes,
-									scheme
-								];
-								this._configurationService.updateValue(`terminal.integrated.allowedLinkSchemes`, allowedLinkSchemes);
+					const userAllowed = await new Promise<boolean>((resolve) => {
+						notificationService.prompt(Severity.Warning, nls.localize('scheme', 'Opening URIs can be insecure, do you want to allow opening links with the scheme {0}?', scheme), [
+							{
+								label: nls.localize('allow', 'Allow {0}', scheme),
+								run: () => {
+									const allowedLinkSchemes = [
+										...terminalConfigurationService.config.allowedLinkSchemes,
+										scheme
+									];
+									this._configurationService.updateValue(`terminal.integrated.allowedLinkSchemes`, allowedLinkSchemes);
+									resolve(true);
+								}
 							}
-						}
-					]);
+						], {
+							onCancel: () => resolve(false)
+						});
+					});
+
+					if (!userAllowed) {
+						return;
+					}
 				}
 				this._openers.get(TerminalBuiltinLinkType.Url)?.open({
 					type: TerminalBuiltinLinkType.Url,
@@ -140,7 +150,10 @@ export class TerminalLinkManager extends DisposableStore {
 				activeHoverDisposable = undefined;
 				activeTooltipScheduler?.dispose();
 				activeTooltipScheduler = new RunOnceScheduler(() => {
-					const core = (this._xterm as any)._core as IXtermCore;
+					interface XtermWithCore extends Terminal {
+						_core: IXtermCore;
+					}
+					const core = (this._xterm as XtermWithCore)._core;
 					const cellDimensions = {
 						width: core._renderService.dimensions.css.cell.width,
 						height: core._renderService.dimensions.css.cell.height
@@ -199,7 +212,7 @@ export class TerminalLinkManager extends DisposableStore {
 			owner: 'tyriar';
 			comment: 'When the user opens a link in the terminal';
 			linkType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of link being opened' };
-		}>('terminal/openLink', { linkType: typeof link.type === 'string' ? link.type : `extension:${link.type.id}` });
+		}>('terminal/openLink', { linkType: isString(link.type) ? link.type : `extension:${link.type.id}` });
 		await opener.open(link);
 	}
 
@@ -338,7 +351,10 @@ export class TerminalLinkManager extends DisposableStore {
 			return;
 		}
 
-		const core = (this._xterm as any)._core as IXtermCore;
+		interface XtermWithCore extends Terminal {
+			_core: IXtermCore;
+		}
+		const core = (this._xterm as XtermWithCore)._core;
 		const cellDimensions = {
 			width: core._renderService.dimensions.css.cell.width,
 			height: core._renderService.dimensions.css.cell.height

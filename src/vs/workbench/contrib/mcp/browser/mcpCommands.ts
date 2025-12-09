@@ -3,13 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, disposableWindowInterval, EventType } from '../../../../base/browser/dom.js';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { IManagedHoverTooltipHTMLElement } from '../../../../base/browser/ui/hover/hover.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { findLast } from '../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../base/common/assert.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../base/common/observable.js';
+import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, derivedObservableWithCache, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,42 +27,45 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { ActiveEditorContext, RemoteNameContext, ResourceContextKey, WorkbenchStateContext, WorkspaceFolderCountContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
+import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService.js';
 import { ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
+import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
+import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
+import './media/mcpServerAction.css';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
-import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
-import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
-import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
-import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
-import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -71,14 +81,20 @@ export class ListMcpServerCommand extends Action2 {
 			icon: Codicon.server,
 			category,
 			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
-					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent)
+					ContextKeyExpr.or(
+						ContextKeyExpr.and(ContextKeyExpr.equals(`config.${mcpAutoStartConfig}`, McpAutoStartValue.Never), McpContextKeys.hasUnknownTools),
+						McpContextKeys.hasServersWithErrors,
+					),
+					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.Setup.hidden.negate(),
 				),
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 2,
+				order: 101,
 			}],
 		});
 	}
@@ -94,6 +110,8 @@ export class ListMcpServerCommand extends Action2 {
 		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
 		pick.placeholder = localize('mcp.selectServer', 'Select an MCP Server');
 
+		mcpService.activateCollections();
+
 		store.add(pick);
 
 		store.add(autorun(reader => {
@@ -101,9 +119,9 @@ export class ListMcpServerCommand extends Action2 {
 			const firstRun = pick.items.length === 0;
 			pick.items = [
 				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
-				...Object.values(servers).filter(s => s.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
-					{ type: 'separator', label: servers[0].collection.label, id: servers[0].collection.id },
-					...servers.map(server => ({
+				...Object.values(servers).filter(s => s!.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
+					{ type: 'separator', label: servers![0].collection.label, id: servers![0].collection.id },
+					...servers!.map(server => ({
 						id: server.definition.id,
 						label: server.definition.label,
 						description: McpConnectionState.toString(server.connectionState.read(reader)),
@@ -146,6 +164,45 @@ interface ActionItem extends IQuickPickItem {
 interface AuthActionItem extends IQuickPickItem {
 	action: 'disconnect' | 'signout';
 	accountQuery: IAccountQuery;
+}
+
+export class McpConfirmationServerOptionsCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.ServerOptionsInConfirmation,
+			title: localize2('mcp.options', 'Server Options'),
+			category,
+			icon: Codicon.settingsGear,
+			f1: false,
+			menu: [{
+				id: MenuId.ChatConfirmationMenu,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('chatConfirmationPartSource', 'mcp'),
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals('chatConfirmationPartType', 'chatToolConfirmation'),
+						ContextKeyExpr.equals('chatConfirmationPartType', 'elicitation'),
+					),
+				),
+				group: 'navigation'
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, arg: IChatToolInvocation | IChatElicitationRequest): Promise<void> {
+		const toolsService = accessor.get(ILanguageModelToolsService);
+		if (arg.kind === 'toolInvocation') {
+			const tool = toolsService.getTool(arg.toolId);
+			if (tool?.source.type === 'mcp') {
+				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, tool.source.definitionId);
+			}
+		} else if (arg.kind === 'elicitation2') {
+			if (arg.source?.type === 'mcp') {
+				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, arg.source.definitionId);
+			}
+		} else {
+			assertNever(arg);
+		}
+	}
 }
 
 export class McpServerOptionsCommand extends Action2 {
@@ -249,7 +306,7 @@ export class McpServerOptionsCommand extends Action2 {
 
 		switch (pick.action) {
 			case 'start':
-				await server.start({ isFromInteraction: true });
+				await server.start({ promptType: 'all-untrusted' });
 				server.showOutput();
 				break;
 			case 'stop':
@@ -257,7 +314,7 @@ export class McpServerOptionsCommand extends Action2 {
 				break;
 			case 'restart':
 				await server.stop();
-				await server.start({ isFromInteraction: true });
+				await server.start({ promptType: 'all-untrusted' });
 				break;
 			case 'disconnect':
 				await server.stop();
@@ -352,8 +409,12 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 		@IMcpService mcpService: IMcpService,
 		@IInstantiationService instaService: IInstantiationService,
 		@ICommandService commandService: ICommandService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+
+		const hoverIsOpen = observableValue(this, false);
+		const config = observableConfigValue(mcpAutoStartConfig, McpAutoStartValue.NewAndOutdated, configurationService);
 
 		const enum DisplayedState {
 			None,
@@ -362,19 +423,24 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			Refreshing,
 		}
 
-		const displayedState = derived((reader) => {
+		type DisplayedStateT = {
+			state: DisplayedState;
+			servers: (IMcpServer | McpCollectionDefinition)[];
+		};
+
+		function isServer(s: IMcpServer | McpCollectionDefinition): s is IMcpServer {
+			return typeof (s as IMcpServer).start === 'function';
+		}
+
+		const displayedStateCurrent = derived((reader): DisplayedStateT => {
 			const servers = mcpService.servers.read(reader);
-			const serversPerState: IMcpServer[][] = [];
+			const serversPerState: (IMcpServer | McpCollectionDefinition)[][] = [];
 			for (const server of servers) {
 				let thisState = DisplayedState.None;
 				switch (server.cacheState.read(reader)) {
 					case McpServerCacheState.Unknown:
 					case McpServerCacheState.Outdated:
-						if (server.trusted.read(reader) === false) {
-							thisState = DisplayedState.None;
-						} else {
-							thisState = server.connectionState.read(reader).state === McpConnectionState.Kind.Error ? DisplayedState.Error : DisplayedState.NewTools;
-						}
+						thisState = server.connectionState.read(reader).state === McpConnectionState.Kind.Error ? DisplayedState.Error : DisplayedState.NewTools;
 						break;
 					case McpServerCacheState.RefreshingFromUnknown:
 						thisState = DisplayedState.Refreshing;
@@ -389,17 +455,34 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			}
 
 			const unknownServerStates = mcpService.lazyCollectionState.read(reader);
-			if (unknownServerStates === LazyCollectionState.LoadingUnknown) {
+			if (unknownServerStates.state === LazyCollectionState.LoadingUnknown) {
 				serversPerState[DisplayedState.Refreshing] ??= [];
-			} else if (unknownServerStates === LazyCollectionState.HasUnknown) {
+				serversPerState[DisplayedState.Refreshing].push(...unknownServerStates.collections);
+			} else if (unknownServerStates.state === LazyCollectionState.HasUnknown) {
 				serversPerState[DisplayedState.NewTools] ??= [];
+				serversPerState[DisplayedState.NewTools].push(...unknownServerStates.collections);
 			}
 
-			const maxState = (serversPerState.length - 1) as DisplayedState;
+			let maxState = (serversPerState.length - 1) as DisplayedState;
+			if (maxState === DisplayedState.NewTools && config.read(reader) !== McpAutoStartValue.Never) {
+				maxState = DisplayedState.None;
+			}
+
 			return { state: maxState, servers: serversPerState[maxState] || [] };
 		});
 
-		this._store.add(actionViewItemService.register(MenuId.ChatExecute, McpCommandIds.ListServer, (action, options) => {
+		// avoid hiding the hover if a state changes while it's open:
+		const displayedState = derivedObservableWithCache<DisplayedStateT>(this, (reader, last) => {
+			if (last && hoverIsOpen.read(reader)) {
+				return last;
+			} else {
+				return displayedStateCurrent.read(reader);
+			}
+		});
+
+		const actionItemState = displayedState.map(s => s.state);
+
+		this._store.add(actionViewItemService.register(MenuId.ChatInput, McpCommandIds.ListServer, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -410,33 +493,30 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 
 					super.render(container);
 					container.classList.add('chat-mcp');
+					container.style.position = 'relative';
 
-					const action = h('button.chat-mcp-action', [h('span@icon')]);
+					const stateIndicator = container.appendChild($('.chat-mcp-state-indicator'));
+					stateIndicator.style.display = 'none';
 
 					this._register(autorun(r => {
-						const { state } = displayedState.read(r);
-						const { root, icon } = action;
+						const displayed = displayedState.read(r);
+						const { state } = displayed;
 						this.updateTooltip();
-						container.classList.toggle('chat-mcp-has-action', state !== DisplayedState.None);
 
-						if (!root.parentElement) {
-							container.appendChild(root);
-						}
 
-						root.ariaLabel = this.getLabelForState(displayedState.read(r));
-						root.className = 'chat-mcp-action';
-						icon.className = '';
+						stateIndicator.ariaLabel = this.getLabelForState(displayed);
+						stateIndicator.className = 'chat-mcp-state-indicator';
 						if (state === DisplayedState.NewTools) {
-							root.classList.add('chat-mcp-action-new');
-							icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.refresh));
+							stateIndicator.style.display = 'block';
+							stateIndicator.classList.add('chat-mcp-state-new', ...ThemeIcon.asClassNameArray(Codicon.refresh));
 						} else if (state === DisplayedState.Error) {
-							root.classList.add('chat-mcp-action-error');
-							icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+							stateIndicator.style.display = 'block';
+							stateIndicator.classList.add('chat-mcp-state-error', ...ThemeIcon.asClassNameArray(Codicon.warning));
 						} else if (state === DisplayedState.Refreshing) {
-							root.classList.add('chat-mcp-action-refreshing');
-							icon.classList.add(...ThemeIcon.asClassNameArray(spinningLoading));
+							stateIndicator.style.display = 'block';
+							stateIndicator.classList.add('chat-mcp-state-refreshing', ...ThemeIcon.asClassNameArray(spinningLoading));
 						} else {
-							root.remove();
+							stateIndicator.style.display = 'none';
 						}
 					}));
 				}
@@ -445,15 +525,17 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					e.preventDefault();
 					e.stopPropagation();
 
-					const { state, servers } = displayedState.get();
+					const { state, servers } = displayedStateCurrent.get();
 					if (state === DisplayedState.NewTools) {
-						servers.forEach(server => server.stop().then(() => server.start()));
+						const interaction = new McpStartServerInteraction();
+						servers.filter(isServer).forEach(server => server.stop().then(() => server.start({ interaction })));
 						mcpService.activateCollections();
 					} else if (state === DisplayedState.Refreshing) {
-						servers.at(-1)?.showOutput();
+						findLast(servers, isServer)?.showOutput();
 					} else if (state === DisplayedState.Error) {
-						const server = servers.at(-1);
+						const server = findLast(servers, isServer);
 						if (server) {
+							await server.showOutput(true);
 							commandService.executeCommand(McpCommandIds.ServerOptions, server.definition.id);
 						}
 					} else {
@@ -465,7 +547,93 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					return this.getLabelForState() || super.getTooltip();
 				}
 
-				private getLabelForState({ state, servers } = displayedState.get()) {
+				protected override getHoverContents({ state, servers } = displayedStateCurrent.get()): string | undefined | IManagedHoverTooltipHTMLElement {
+					const link = (s: IMcpServer) => createMarkdownCommandLink({
+						title: s.definition.label,
+						id: McpCommandIds.ServerOptions,
+						arguments: [s.definition.id],
+					});
+
+					const single = servers.length === 1;
+					const names = servers.map(s => isServer(s) ? link(s) : '`' + s.label + '`').map(l => single ? l : `- ${l}`).join('\n');
+					let markdown: MarkdownString;
+					if (state === DisplayedState.NewTools) {
+						markdown = new MarkdownString(single
+							? localize('mcp.newTools.md.single', "MCP server {0} has been updated and may have new tools available.", names)
+							: localize('mcp.newTools.md.multi', "MCP servers have been updated and may have new tools available:\n\n{0}", names)
+						);
+					} else if (state === DisplayedState.Error) {
+						markdown = new MarkdownString(single
+							? localize('mcp.err.md.single', "MCP server {0} was unable to start successfully.", names)
+							: localize('mcp.err.md.multi', "Multiple MCP servers were unable to start successfully:\n\n{0}", names)
+						);
+					} else {
+						return this.getLabelForState() || undefined;
+					}
+
+					return {
+						element: (token): HTMLElement => {
+							hoverIsOpen.set(true, undefined);
+
+							const store = new DisposableStore();
+							store.add(toDisposable(() => hoverIsOpen.set(false, undefined)));
+							store.add(token.onCancellationRequested(() => {
+								store.dispose();
+							}));
+
+							// todo@connor4312/@benibenj: workaround for #257923
+							store.add(disposableWindowInterval(mainWindow, () => {
+								if (!container.isConnected) {
+									store.dispose();
+								}
+							}, 2000));
+
+							const container = $('div.mcp-hover-contents');
+
+							// Render markdown content
+							markdown.isTrusted = true;
+							const markdownResult = store.add(renderMarkdown(markdown));
+							container.appendChild(markdownResult.element);
+
+							// Add divider
+							const divider = $('hr.mcp-hover-divider');
+							container.appendChild(divider);
+
+							// Add checkbox for mcpAutoStartConfig setting
+							const checkboxContainer = $('div.mcp-hover-setting');
+							const settingLabelStr = localize('mcp.autoStart', "Automatically start MCP servers when sending a chat message");
+
+							const checkbox = store.add(new Checkbox(
+								settingLabelStr,
+								config.get() !== McpAutoStartValue.Never,
+								{ ...defaultCheckboxStyles }
+							));
+
+							checkboxContainer.appendChild(checkbox.domNode);
+
+							// Add label next to checkbox
+							const settingLabel = $('span.mcp-hover-setting-label', undefined, settingLabelStr);
+							checkboxContainer.appendChild(settingLabel);
+
+							const onChange = () => {
+								const newValue = checkbox.checked ? McpAutoStartValue.NewAndOutdated : McpAutoStartValue.Never;
+								configurationService.updateValue(mcpAutoStartConfig, newValue);
+							};
+
+							store.add(checkbox.onChange(onChange));
+
+							store.add(addDisposableListener(settingLabel, EventType.CLICK, () => {
+								checkbox.checked = !checkbox.checked;
+								onChange();
+							}));
+							container.appendChild(checkboxContainer);
+
+							return container;
+						},
+					};
+				}
+
+				private getLabelForState({ state, servers } = displayedStateCurrent.get()) {
 					if (state === DisplayedState.NewTools) {
 						return localize('mcp.newTools', "New tools available ({0})", servers.length || 1);
 					} else if (state === DisplayedState.Error) {
@@ -476,11 +644,9 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 						return null;
 					}
 				}
-
-
 			}, action, { ...options, keybindingNotRenderedWithLabel: true });
 
-		}, Event.fromObservable(displayedState)));
+		}, Event.fromObservableLight(actionItemState)));
 	}
 }
 
@@ -491,12 +657,12 @@ export class ResetMcpTrustCommand extends Action2 {
 			title: localize2('mcp.resetTrust', "Reset Trust"),
 			category,
 			f1: true,
-			precondition: McpContextKeys.toolsCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
-		const mcpService = accessor.get(IMcpRegistry);
+		const mcpService = accessor.get(IMcpService);
 		mcpService.resetTrust();
 	}
 }
@@ -509,7 +675,7 @@ export class ResetMcpCachedTools extends Action2 {
 			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
 			category,
 			f1: true,
-			precondition: McpContextKeys.toolsCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
 		});
 	}
 
@@ -529,11 +695,13 @@ export class AddConfigurationAction extends Action2 {
 			},
 			category,
 			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 			menu: {
 				id: MenuId.EditorContent,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]mcp\.json$/),
-					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID)
+					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
+					ChatContextKeys.Setup.hidden.negate(),
 				)
 			}
 		});
@@ -639,7 +807,7 @@ export class RestartServer extends Action2 {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
 		s?.showOutput();
 		await s?.stop();
-		await s?.start({ isFromInteraction: true, ...opts });
+		await s?.start({ promptType: 'all-untrusted', ...opts });
 	}
 }
 
@@ -655,7 +823,7 @@ export class StartServer extends Action2 {
 
 	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.start({ isFromInteraction: true, ...opts });
+		await s?.start({ promptType: 'all-untrusted', ...opts });
 	}
 }
 
@@ -680,11 +848,19 @@ export class McpBrowseCommand extends Action2 {
 		super({
 			id: McpCommandIds.Browse,
 			title: localize2('mcp.command.browse', "MCP Servers"),
+			tooltip: localize2('mcp.command.browse.tooltip', "Browse MCP Servers"),
 			category,
+			icon: Codicon.search,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 			menu: [{
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',
 				order: 1,
+				when: ChatContextKeys.Setup.hidden.negate(),
+			}, {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId), ChatContextKeys.Setup.hidden.negate()),
+				group: 'navigation',
 			}],
 		});
 	}
@@ -697,31 +873,11 @@ export class McpBrowseCommand extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: McpCommandIds.Browse,
-		title: localize2('mcp.command.browse.mcp', "Browse Servers"),
-		category
+		title: localize2('mcp.command.browse.mcp', "Browse MCP Servers"),
+		category,
+		precondition: ChatContextKeys.Setup.hidden.negate(),
 	},
 });
-
-export class BrowseMcpServersPageCommand extends Action2 {
-	constructor() {
-		super({
-			id: McpCommandIds.BrowsePage,
-			title: localize2('mcp.command.open', "Browse MCP Servers"),
-			icon: Codicon.globe,
-			menu: [{
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', InstalledMcpServersViewId),
-				group: 'navigation',
-			}],
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
-		return openerService.open(productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp');
-	}
-}
 
 export class ShowInstalledMcpServersCommand extends Action2 {
 	constructor() {
@@ -729,7 +885,7 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 			id: McpCommandIds.ShowInstalled,
 			title: localize2('mcp.command.show.installed', "Show Installed Servers"),
 			category,
-			precondition: HasInstalledMcpServersContext,
+			precondition: ContextKeyExpr.and(HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate()),
 			f1: true,
 		});
 	}
@@ -750,8 +906,8 @@ MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
 		title: localize2('mcp.servers', "MCP Servers")
 	},
 	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-	order: 14,
-	group: '0_level'
+	order: 10,
+	group: '2_level'
 });
 
 abstract class OpenMcpResourceCommand extends Action2 {
@@ -774,7 +930,8 @@ export class OpenUserMcpResourceCommand extends OpenMcpResourceCommand {
 			id: McpCommandIds.OpenUserMcp,
 			title: localize2('mcp.command.openUserMcp', "Open User Configuration"),
 			category,
-			f1: true
+			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 		});
 	}
 
@@ -791,7 +948,10 @@ export class OpenRemoteUserMcpResourceCommand extends OpenMcpResourceCommand {
 			title: localize2('mcp.command.openRemoteUserMcp', "Open Remote User Configuration"),
 			category,
 			f1: true,
-			precondition: RemoteNameContext.notEqualsTo('')
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				RemoteNameContext.notEqualsTo('')
+			)
 		});
 	}
 
@@ -810,7 +970,10 @@ export class OpenWorkspaceFolderMcpResourceCommand extends Action2 {
 			title: localize2('mcp.command.openWorkspaceFolderMcp', "Open Workspace Folder MCP Configuration"),
 			category,
 			f1: true,
-			precondition: WorkspaceFolderCountContext.notEqualsTo(0)
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				WorkspaceFolderCountContext.notEqualsTo(0)
+			)
 		});
 	}
 
@@ -833,7 +996,10 @@ export class OpenWorkspaceMcpResourceCommand extends Action2 {
 			title: localize2('mcp.command.openWorkspaceMcp', "Open Workspace MCP Configuration"),
 			category,
 			f1: true,
-			precondition: WorkbenchStateContext.isEqualTo('workspace')
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				WorkbenchStateContext.isEqualTo('workspace')
+			)
 		});
 	}
 
@@ -853,7 +1019,7 @@ export class McpBrowseResourcesCommand extends Action2 {
 			id: McpCommandIds.BrowseResources,
 			title: localize2('mcp.browseResources', "Browse Resources..."),
 			category,
-			precondition: McpContextKeys.serverCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.serverCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
 			f1: true,
 		});
 	}
@@ -889,7 +1055,7 @@ export class McpConfigureSamplingModels extends Action2 {
 			}
 			return {
 				label: model.name,
-				description: model.description,
+				description: model.tooltip,
 				id,
 				picked: existingIds.size ? existingIds.has(id) : model.isDefault,
 			};
@@ -940,5 +1106,20 @@ export class McpStartPromptingServerCommand extends Action2 {
 		editor.setSelection(Range.fromPositions(range.getEndPosition().delta(0, text.length)));
 		widget.focusInput();
 		SuggestController.get(editor)?.triggerSuggest();
+	}
+}
+
+export class McpSkipCurrentAutostartCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.SkipCurrentAutostart,
+			title: localize2('mcp.skipCurrentAutostart', "Skip Current Autostart"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IMcpService).cancelAutostart();
 	}
 }
