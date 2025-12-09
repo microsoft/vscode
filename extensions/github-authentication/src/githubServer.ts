@@ -293,7 +293,7 @@ export class GitHubServer implements IGitHubServer {
 			if (isMember) {
 				this._logger.info('User is a member of an allowed organization');
 			} else {
-				this._logger.warn(`User is not a member of any allowed organizations. User orgs: ${userOrgs.join(', ')}, Allowed: ${allowedOrgsLower.join(', ')}`);
+				this._logger.warn('User is not a member of any allowed organizations');
 			}
 
 			return isMember;
