@@ -64,6 +64,24 @@ interface IAgentSessionData {
 	};
 }
 
+/**
+ * Checks if the provided changes object represents valid diff information.
+ */
+export function hasValidDiff(changes: IAgentSession['changes']): boolean {
+	if (!changes) {
+		return false;
+	}
+
+	if (changes instanceof Array) {
+		return changes.length > 0;
+	}
+
+	return changes.files > 0 || changes.insertions > 0 || changes.deletions > 0;
+}
+
+/**
+ * Gets a summary of agent session changes, converting from array format to object format if needed.
+ */
 export function getAgentChangesSummary(changes: IAgentSession['changes']) {
 	if (!changes) {
 		return;
@@ -86,6 +104,9 @@ export function getAgentChangesSummary(changes: IAgentSession['changes']) {
 export interface IAgentSession extends IAgentSessionData {
 	isArchived(): boolean;
 	setArchived(archived: boolean): void;
+
+	isRead(): boolean;
+	setRead(read: boolean): void;
 }
 
 interface IInternalAgentSessionData extends IAgentSessionData {
@@ -116,6 +137,11 @@ export function isAgentSessionsModel(obj: IAgentSessionsModel | IAgentSession): 
 	const sessionsModel = obj as IAgentSessionsModel | undefined;
 
 	return Array.isArray(sessionsModel?.sessions);
+}
+
+interface IAgentSessionState {
+	readonly archived: boolean;
+	readonly read: number /* last date turned read */;
 }
 
 //#endregion
@@ -341,13 +367,15 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		return {
 			...data,
 			isArchived: () => this.isArchived(data),
-			setArchived: (archived: boolean) => this.setArchived(data, archived)
+			setArchived: (archived: boolean) => this.setArchived(data, archived),
+			isRead: () => this.isRead(data),
+			setRead: (read: boolean) => this.setRead(data, read),
 		};
 	}
 
 	//#region States
 
-	private readonly sessionStates: ResourceMap<{ archived: boolean }>;
+	private readonly sessionStates: ResourceMap<IAgentSessionState>;
 
 	private isArchived(session: IInternalAgentSessionData): boolean {
 		return this.sessionStates.get(session.resource)?.archived ?? Boolean(session.archived);
@@ -358,7 +386,25 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return; // no change
 		}
 
-		this.sessionStates.set(session.resource, { archived });
+		const state = this.sessionStates.get(session.resource) ?? { archived: false, read: 0 };
+		this.sessionStates.set(session.resource, { ...state, archived });
+
+		this._onDidChangeSessions.fire();
+	}
+
+	private isRead(session: IInternalAgentSessionData): boolean {
+		const readDate = this.sessionStates.get(session.resource)?.read;
+
+		return (readDate ?? 0) >= (session.timing.endTime ?? session.timing.startTime);
+	}
+
+	private setRead(session: IInternalAgentSessionData, read: boolean): void {
+		if (read === this.isRead(session)) {
+			return; // no change
+		}
+
+		const state = this.sessionStates.get(session.resource) ?? { archived: false, read: 0 };
+		this.sessionStates.set(session.resource, { ...state, read: read ? Date.now() : 0 });
 
 		this._onDidChangeSessions.fire();
 	}
@@ -397,9 +443,8 @@ interface ISerializedAgentSession {
 	};
 }
 
-interface ISerializedAgentSessionState {
+interface ISerializedAgentSessionState extends IAgentSessionState {
 	readonly resource: UriComponents;
-	readonly archived: boolean;
 }
 
 class AgentSessionsCache {
@@ -482,17 +527,18 @@ class AgentSessionsCache {
 
 	//#region States
 
-	saveSessionStates(states: ResourceMap<{ archived: boolean }>): void {
+	saveSessionStates(states: ResourceMap<IAgentSessionState>): void {
 		const serialized: ISerializedAgentSessionState[] = Array.from(states.entries()).map(([resource, state]) => ({
 			resource: resource.toJSON(),
-			archived: state.archived
+			archived: state.archived,
+			read: state.read
 		}));
 
 		this.storageService.store(AgentSessionsCache.STATE_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	loadSessionStates(): ResourceMap<{ archived: boolean }> {
-		const states = new ResourceMap<{ archived: boolean }>();
+	loadSessionStates(): ResourceMap<IAgentSessionState> {
+		const states = new ResourceMap<IAgentSessionState>();
 
 		const statesCache = this.storageService.get(AgentSessionsCache.STATE_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (!statesCache) {
@@ -503,7 +549,10 @@ class AgentSessionsCache {
 			const cached = JSON.parse(statesCache) as ISerializedAgentSessionState[];
 
 			for (const entry of cached) {
-				states.set(URI.revive(entry.resource), { archived: entry.archived });
+				states.set(URI.revive(entry.resource), {
+					archived: entry.archived,
+					read: entry.read
+				});
 			}
 		} catch {
 			// invalid data in storage, fallback to empty states
