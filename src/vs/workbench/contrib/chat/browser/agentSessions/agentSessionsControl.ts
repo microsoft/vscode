@@ -191,7 +191,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		sessionOptions.ignoreInView = true;
 
-		const options: IChatEditorOptions = {
+		let options: IChatEditorOptions = {
 			...sessionOptions,
 			...e.editorOptions,
 			revealIfOpened: this.options?.allowOpenSessionsInPanel // always try to reveal if already opened
@@ -208,19 +208,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			target = ACTIVE_GROUP;
 		}
 
-		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor ||
-			session.resource.scheme === Schemas.vscodeLocalChatSession;
+		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || session.resource.scheme === Schemas.vscodeLocalChatSession;
 		if (!isLocalChatSession && !(await this.chatSessionsService.canResolveChatSession(session.resource))) {
-			// Not a chat session, let open editor figure out how to handle
-			const editorTarget = target === ChatViewPaneTarget ? undefined : target;
-			await this.editorService.openEditor({
-				resource: session.resource,
-				options: {
-					...options,
-					revealIfOpened: options?.revealIfOpened ?? true
-				}
-			}, editorTarget);
-			return;
+			target = e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP; // force to open in editor if session cannot be resolved in panel
+			options = { ...options, revealIfOpened: true };
 		}
 
 		await this.chatWidgetService.openSession(session.resource, target, options);
