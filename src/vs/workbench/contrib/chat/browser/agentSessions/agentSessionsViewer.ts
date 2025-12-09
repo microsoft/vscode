@@ -13,7 +13,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IAgentSession, IAgentSessionsModel, isAgentSession, isAgentSessionsModel } from './agentSessionsModel.js';
+import { IAgentSession, IAgentSessionsModel, isAgentSession, isAgentSessionsModel, hasValidDiff } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -162,11 +162,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Details Actions
 		const { changes: diff } = session.element;
-		if (session.element.status !== ChatSessionStatus.InProgress && diff && this.hasValidDiff(diff)) {
-			if (diff instanceof Array ? diff.length > 0 : (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
-				const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
-				template.detailsToolbar.push([diffAction], { icon: false, label: true });
-			}
+		if (session.element.status !== ChatSessionStatus.InProgress && diff && hasValidDiff(diff)) {
+			const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
+			template.detailsToolbar.push([diffAction], { icon: false, label: true });
 		}
 
 		// Description otherwise
@@ -181,17 +179,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		this.renderHover(session, template);
 	}
 
-	private hasValidDiff(diff: IAgentSession['changes']): boolean {
-		if (!diff) {
-			return false;
-		}
 
-		if (diff instanceof Array) {
-			return diff.length > 0;
-		}
-
-		return diff.files > 0 || diff.insertions > 0 || diff.deletions > 0;
-	}
 
 	private getIcon(session: IAgentSession): ThemeIcon {
 		if (session.status === ChatSessionStatus.InProgress) {
