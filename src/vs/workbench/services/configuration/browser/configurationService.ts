@@ -77,7 +77,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private readonly localUserConfiguration: UserConfiguration;
 	private readonly remoteUserConfiguration: RemoteUserConfiguration | null = null;
 	private readonly workspaceConfiguration: WorkspaceConfiguration;
-	private cachedFolderConfigs: DisposableMap<URI, FolderConfiguration> = this._register(new DisposableMap());
+	private cachedFolderConfigs: DisposableMap<URI, FolderConfiguration> = this._register(new DisposableMap(new ResourceMap()));
 	private readonly workspaceEditingQueue: Queue<void>;
 
 	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
