@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { TextEdit as EditorTextEdit } from '../../../../../editor/common/core/edits/textEdit.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
+import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -177,6 +178,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				resourceFilter.clear();
 			}
 		}));
+	}
+
+	getDiffInfo(): Promise<IDocumentDiff> {
+		return this._textModelChangeService.getDiffInfo();
 	}
 
 	equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {

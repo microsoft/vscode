@@ -942,7 +942,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 
-	public getSessionDescription(chatModel: IChatModel): string | undefined {
+	public getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
 		const requests = chatModel.getRequests();
 		if (requests.length === 0) {
 			return undefined;

@@ -171,6 +171,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
+					state: constObservable('idle'),
 					requestDisablement: observableValue('requestDisablement', []),
 					entries: constObservable([]),
 					dispose: () => { }
