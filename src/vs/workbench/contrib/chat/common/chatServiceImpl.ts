@@ -32,7 +32,7 @@ import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { chatEditingSessionIsReady } from './chatEditingService.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatResponseModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { ChatModelStore, IStartSessionProps } from './chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
@@ -614,12 +614,6 @@ export class ChatService extends Disposable implements IChatService {
 		});
 	}
 
-	private completeResponseIfNeeded(response: ChatResponseModel | undefined) {
-		if (response && !response.isComplete) {
-			response.complete();
-		}
-	}
-
 	async loadSessionForResource(chatSessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
 		// TODO: Move this into a new ChatModelService
 
@@ -662,7 +656,7 @@ export class ChatService extends Disposable implements IChatService {
 		for (const message of providedSession.history) {
 			if (message.type === 'request') {
 				if (lastRequest) {
-					this.completeResponseIfNeeded(lastRequest.response);
+					lastRequest.response?.completeResponseIfNeeded();
 				}
 
 				const requestText = message.prompt;
@@ -700,13 +694,13 @@ export class ChatService extends Disposable implements IChatService {
 						model.acceptResponseProgress(lastRequest, part);
 					}
 
-					this.completeResponseIfNeeded(lastRequest.response);
+					lastRequest.response?.completeResponseIfNeeded();
 				}
 			}
 		}
 
 		if (providedSession.isCompleteObs?.get()) {
-			this.completeResponseIfNeeded(lastRequest?.response);
+			lastRequest?.response?.completeResponseIfNeeded();
 		}
 
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
@@ -745,7 +739,7 @@ export class ChatService extends Disposable implements IChatService {
 
 				// Handle completion
 				if (isComplete) {
-					this.completeResponseIfNeeded(lastRequest?.response);
+					lastRequest.response?.completeResponseIfNeeded();
 					cancellationListener.clear();
 				}
 			}));
@@ -753,7 +747,7 @@ export class ChatService extends Disposable implements IChatService {
 			if (lastRequest && model.editingSession) {
 				// wait for timeline to load so that a 'changes' part is added when the response completes
 				await chatEditingSessionIsReady(model.editingSession);
-				this.completeResponseIfNeeded(lastRequest?.response);
+				lastRequest.response?.completeResponseIfNeeded();
 			}
 		}
 
