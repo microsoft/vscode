@@ -378,6 +378,21 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.ChatViewSessionsOrientation]: { // TODO@bpasero move off preview
+			type: 'string',
+			enum: ['auto', 'stacked', 'sideBySide'],
+			enumDescriptions: [
+				nls.localize('chat.viewSessions.orientation.auto', "Automatically determine the orientation based on available space."),
+				nls.localize('chat.viewSessions.orientation.stacked', "Display sessions vertically stacked unless a chat session is visible."),
+				nls.localize('chat.viewSessions.orientation.sideBySide', "Display sessions side by side if space is sufficient.")
+			],
+			default: 'auto',
+			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the chat agent sessions view when it is shown alongside the chat."),
+			tags: ['preview', 'experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		[ChatConfiguration.ChatViewTitleEnabled]: { // TODO@bpasero move off preview
 			type: 'boolean',
 			default: true,
