@@ -5,14 +5,11 @@
 
 import { fromNow } from '../../../../../base/common/date.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { isEqual } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
-import { IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 
 
@@ -20,16 +17,12 @@ export const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionE
 
 export type ChatSessionItemWithProvider = IChatSessionItem & {
 	readonly provider: IChatSessionItemProvider;
-	isHistory?: boolean;
 	relativeTime?: string;
 	relativeTimeFullWord?: string;
 	hideRelativeTime?: boolean;
-	timing?: {
-		startTime: number;
-	};
 };
 
-export function isChatSession(schemes: readonly string[], editor?: EditorInput): boolean {
+export function isChatSession(schemes: readonly string[], editor?: EditorInput): editor is ChatEditorInput {
 	if (!(editor instanceof ChatEditorInput)) {
 		return false;
 	}
@@ -43,24 +36,6 @@ export function isChatSession(schemes: readonly string[], editor?: EditorInput):
 	}
 
 	return true;
-}
-
-/**
- * Find existing chat editors that have the same session URI (for external providers)
- */
-export function findExistingChatEditorByUri(sessionUri: URI, editorGroupsService: IEditorGroupsService): { editor: ChatEditorInput; group: IEditorGroup } | undefined {
-	for (const group of editorGroupsService.groups) {
-		for (const editor of group.editors) {
-			if (editor instanceof ChatEditorInput && isEqual(editor.sessionResource, sessionUri)) {
-				return { editor, group };
-			}
-		}
-	}
-	return undefined;
-}
-
-export function isLocalChatSessionItem(item: ChatSessionItemWithProvider): boolean {
-	return item.provider.chatSessionType === localChatSessionType;
 }
 
 // Helper function to update relative time for chat sessions (similar to timeline)
@@ -93,7 +68,7 @@ export function extractTimestamp(item: IChatSessionItem): number | undefined {
 
 	// For other items, timestamp might already be set
 	if ('timestamp' in item) {
-		// eslint-disable-next-line local/code-no-any-casts
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		return (item as any).timestamp;
 	}
 
@@ -118,53 +93,44 @@ function applyTimeGrouping(sessions: ChatSessionItemWithProvider[]): void {
 }
 
 // Helper function to process session items with timestamps, sorting, and grouping
-export function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithProvider[]): void {
+export function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithProvider[]): ChatSessionItemWithProvider[] {
+	const sessionsTemp = [...sessions];
 	// Only process if we have sessions with timestamps
 	if (sessions.some(session => session.timing?.startTime !== undefined)) {
-		sortSessionsByTimestamp(sessions);
-		applyTimeGrouping(sessions);
+		sortSessionsByTimestamp(sessionsTemp);
+		applyTimeGrouping(sessionsTemp);
 	}
+	return sessionsTemp;
 }
 
 // Helper function to create context overlay for session items
 export function getSessionItemContextOverlay(
-	session: ChatSessionItemWithProvider,
+	session: IChatSessionItem,
 	provider?: IChatSessionItemProvider,
-	chatWidgetService?: IChatWidgetService,
 	chatService?: IChatService,
 	editorGroupsService?: IEditorGroupsService
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): [string, any][] {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const overlay: [string, any][] = [];
-	// Do not create an overaly for the show-history node
-	if (session.id === 'show-history') {
-		return overlay;
-	}
-
 	if (provider) {
-		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
+		overlay.push([ChatContextKeys.agentSessionType.key, provider.chatSessionType]);
 	}
 
 	// Mark history items
-	overlay.push([ChatContextKeys.isHistoryItem.key, session.isHistory]);
+	overlay.push([ChatContextKeys.isArchivedAgentSession.key, session.archived]);
 
 	// Mark active sessions - check if session is currently open in editor or widget
 	let isActiveSession = false;
 
-	if (!session.isHistory && provider?.chatSessionType === localChatSessionType) {
+	if (!session.archived && provider?.chatSessionType === localChatSessionType) {
 		// Local non-history sessions are always active
 		isActiveSession = true;
-	} else if (session.isHistory && chatWidgetService && chatService && editorGroupsService) {
-		// Check if session is open in a chat widget
-		const widget = chatWidgetService.getWidgetBySessionResource(session.resource);
-		if (widget) {
-			isActiveSession = true;
-		} else {
-			// Check if session is open in any editor
-			isActiveSession = !!findExistingChatEditorByUri(session.resource, editorGroupsService);
-		}
+	} else if (session.archived && chatService && editorGroupsService) {
+		isActiveSession = !!chatService.getSession(session.resource);
 	}
 
-	overlay.push([ChatContextKeys.isActiveSession.key, isActiveSession]);
+	overlay.push([ChatContextKeys.isActiveAgentSession.key, isActiveSession]);
 
 	return overlay;
 }

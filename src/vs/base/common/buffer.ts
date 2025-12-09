@@ -127,7 +127,7 @@ export class VSBuffer {
 			return this.buffer.toString();
 		} else {
 			if (!textDecoder) {
-				textDecoder = new TextDecoder();
+				textDecoder = new TextDecoder(undefined, { ignoreBOM: true });
 			}
 			return textDecoder.decode(this.buffer);
 		}

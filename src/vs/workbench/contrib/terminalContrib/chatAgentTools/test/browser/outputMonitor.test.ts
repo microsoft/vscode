@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsInputRequiredPattern, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -16,11 +16,14 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ChatModel } from '../../../../chat/common/chatModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { IToolInvocationContext } from '../../../../chat/common/languageModelToolsService.js';
+import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
+import { isNumber } from '../../../../../../base/common/types.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let monitor: OutputMonitor;
-	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText' | 'onData' | 'onDidInputData' | 'focus' | 'registerMarker'>; sessionId: string };
+	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText' | 'onData' | 'onDidInputData' | 'focus' | 'registerMarker' | 'onDisposed'>; sessionId: string };
 	let cts: CancellationTokenSource;
 	let instantiationService: TestInstantiationService;
 	let sendTextCalled: boolean;
@@ -36,6 +39,7 @@ suite('OutputMonitor', () => {
 				instanceId: 1,
 				sendText: async () => { sendTextCalled = true; },
 				onDidInputData: dataEmitter.event,
+				onDisposed: Event.None,
 				onData: dataEmitter.event,
 				focus: () => { },
 				// eslint-disable-next-line local/code-no-any-casts
@@ -84,7 +88,7 @@ suite('OutputMonitor', () => {
 				callCount++;
 				return callCount > 1 ? 'changed output' : 'test output';
 			};
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
@@ -95,7 +99,7 @@ suite('OutputMonitor', () => {
 
 	test('startMonitoring returns cancelled when token is cancelled', async () => {
 		return runWithFakedTimers({}, async () => {
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			cts.cancel();
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
@@ -105,7 +109,7 @@ suite('OutputMonitor', () => {
 	test('startMonitoring returns idle when isActive is false', async () => {
 		return runWithFakedTimers({}, async () => {
 			execution.isActive = async () => false;
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
@@ -121,7 +125,7 @@ suite('OutputMonitor', () => {
 				return callCount > 1 ? 'changed output' : 'test output';
 			};
 			delete execution.isActive;
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
@@ -136,7 +140,7 @@ suite('OutputMonitor', () => {
 				callCount++;
 				return callCount > 1 ? 'changed output' : 'test output';
 			};
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
@@ -168,7 +172,7 @@ suite('OutputMonitor', () => {
 					OutputMonitor,
 					execution,
 					timeoutThenIdle,
-					{ sessionId: '1' },
+					createTestContext('1'),
 					cts.token,
 					'test command'
 				)
@@ -179,7 +183,73 @@ suite('OutputMonitor', () => {
 			const res = monitor.pollingResult!;
 			assert.strictEqual(res.state, OutputMonitorState.Idle);
 			assert.strictEqual(res.output, 'test output');
-			assert.ok(typeof res.pollDurationMs === 'number');
+			assert.ok(isNumber(res.pollDurationMs));
 		});
 	});
+
+	suite('detectsInputRequiredPattern', () => {
+		test('detects yes/no confirmation prompts (pairs and variants)', () => {
+			assert.strictEqual(detectsInputRequiredPattern('Continue? (y/N) '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Continue? (y/n) '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Overwrite file? [Y/n] '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Are you sure? (Y/N) '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Delete files? [y/N] '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Proceed? (yes/no) '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Proceed? [no/yes] '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Continue? y/n '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Overwrite: yes/no '), true);
+
+			// No match if there's a response already
+			assert.strictEqual(detectsInputRequiredPattern('Continue? (y/N) y'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Continue? (y/n) n'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Overwrite file? [Y/n] N'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Are you sure? (Y/N) Y'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Delete files? [y/N] y'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Continue? y/n y\/n'), false);
+			assert.strictEqual(detectsInputRequiredPattern('Overwrite: yes/no yes\/n'), false);
+		});
+
+		test('detects PowerShell multi-option confirmation line', () => {
+			assert.strictEqual(
+				detectsInputRequiredPattern('[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): '),
+				true
+			);
+			// also matches without default suffix
+			assert.strictEqual(
+				detectsInputRequiredPattern('[Y] Yes  [N] No '),
+				true
+			);
+
+			// No match if there's a response already
+			assert.strictEqual(
+				detectsInputRequiredPattern('[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): Y'),
+				false
+			);
+			assert.strictEqual(
+				detectsInputRequiredPattern('[Y] Yes  [N] No N'),
+				false
+			);
+		});
+		test('Line ends with colon', () => {
+			assert.strictEqual(detectsInputRequiredPattern('Enter your name: '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Password: '), true);
+			assert.strictEqual(detectsInputRequiredPattern('File to overwrite: '), true);
+		});
+
+		test('detects trailing questions', () => {
+			assert.strictEqual(detectsInputRequiredPattern('Continue?'), true);
+			assert.strictEqual(detectsInputRequiredPattern('Proceed?   '), true);
+			assert.strictEqual(detectsInputRequiredPattern('Are you sure?'), true);
+		});
+
+		test('detects press any key prompts', () => {
+			assert.strictEqual(detectsInputRequiredPattern('Press any key to continue...'), true);
+			assert.strictEqual(detectsInputRequiredPattern('Press a key'), true);
+		});
+	});
+
 });
+function createTestContext(id: string): IToolInvocationContext {
+	return { sessionId: id, sessionResource: LocalChatSessionUri.forSession(id) };
+}
+

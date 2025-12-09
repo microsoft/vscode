@@ -237,6 +237,7 @@ export interface ISCMViewService {
 
 	repositories: ISCMRepository[];
 	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
+	readonly didFinishLoadingRepositories: IObservable<boolean>;
 
 	visibleRepositories: readonly ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;

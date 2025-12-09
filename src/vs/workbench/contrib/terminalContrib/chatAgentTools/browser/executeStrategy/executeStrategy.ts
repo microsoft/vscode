@@ -99,28 +99,6 @@ export function detectsCommonPromptPattern(cursorLine: string): IPromptDetection
 	return { detected: false, reason: `No common prompt pattern found in last line: "${cursorLine}"` };
 }
 
-
-// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending in whitespace
-const PS_CONFIRM_RE = /\s*(?:\[[^\]]\]\s+[^\[]+\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/;
-
-// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
-const YN_PAIRED_RE = /(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i;
-
-// Same as YN_PAIRED_RE but allows a preceding '?' or ':' and optional wrappers e.g. "Continue? (y/n)" or "Overwrite: [yes/no]"
-const YN_AFTER_PUNCT_RE = /[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*\/\s*n(?:o)?\s*(?:\]|\))?\s+$/i;
-
-// Confirmation prompts ending with (y) e.g. "Ok to proceed? (y)"
-const CONFIRM_Y_RE = /\(y\)\s*$/i;
-
-const LINE_ENDS_WITH_COLON_RE = /:\s*$/;
-
-const END = /\(END\)$/;
-
-export function detectsInputRequiredPattern(cursorLine: string): boolean {
-	return PS_CONFIRM_RE.test(cursorLine) || YN_PAIRED_RE.test(cursorLine) || YN_AFTER_PUNCT_RE.test(cursorLine) || CONFIRM_Y_RE.test(cursorLine) || LINE_ENDS_WITH_COLON_RE.test(cursorLine.trim()) || END.test(cursorLine);
-}
-
-
 /**
  * Enhanced version of {@link waitForIdle} that uses prompt detection heuristics. After the terminal
  * idles for the specified period, checks if the terminal's cursor line looks like a common prompt.
@@ -187,6 +165,17 @@ export async function trackIdleOnPrompt(
 	const scheduler = store.add(new RunOnceScheduler(() => {
 		idleOnPrompt.complete();
 	}, idleDurationMs));
+	let state: TerminalState = TerminalState.Initial;
+
+	// Fallback in case prompt sequences are not seen but the terminal goes idle.
+	const promptFallbackScheduler = store.add(new RunOnceScheduler(() => {
+		if (state === TerminalState.Executing || state === TerminalState.PromptAfterExecuting) {
+			promptFallbackScheduler.cancel();
+			return;
+		}
+		state = TerminalState.PromptAfterExecuting;
+		scheduler.schedule();
+	}, 1000));
 	// Only schedule when a prompt sequence (A) is seen after an execute sequence (C). This prevents
 	// cases where the command is executed before the prompt is written. While not perfect, sitting
 	// on an A without a C following shortly after is a very good indicator that the command is done
@@ -199,7 +188,6 @@ export async function trackIdleOnPrompt(
 		Executing,
 		PromptAfterExecuting,
 	}
-	let state: TerminalState = TerminalState.Initial;
 	store.add(onData(e => {
 		// Update state
 		// p10k fires C as `133;C;`
@@ -217,9 +205,15 @@ export async function trackIdleOnPrompt(
 		}
 		// Re-schedule on every data event as we're tracking data idle
 		if (state === TerminalState.PromptAfterExecuting) {
+			promptFallbackScheduler.cancel();
 			scheduler.schedule();
 		} else {
 			scheduler.cancel();
+			if (state === TerminalState.Initial || state === TerminalState.Prompt) {
+				promptFallbackScheduler.schedule();
+			} else {
+				promptFallbackScheduler.cancel();
+			}
 		}
 	}));
 	return idleOnPrompt.p;

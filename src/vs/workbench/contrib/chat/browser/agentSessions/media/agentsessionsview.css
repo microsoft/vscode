@@ -8,14 +8,9 @@
 	display: flex;
 	flex-direction: column;
 
-	.agent-sessions-viewer {
-		flex: 1 1 auto !important;
-		min-height: 0;
-	}
-
 	.agent-sessions-new-session-container {
-		padding: 5px 12px;
-		flex: 0 0 auto !important;
+		padding: 6px 12px;
+		flex: 0 0 auto;
 	}
 
 	.agent-sessions-new-session-container .monaco-dropdown-button {

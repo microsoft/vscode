@@ -66,11 +66,14 @@ export class TerminalTabsChatEntry extends Disposable {
 			this._entry.style.display = 'none';
 			this._label.textContent = '';
 			this._entry.removeAttribute('aria-label');
+			this._entry.removeAttribute('title');
 
 			return;
 		}
 
 		this._entry.style.display = '';
+		const tooltip = localize('terminal.tabs.chatEntryTooltip', "Show hidden chat terminals");
+		this._entry.setAttribute('title', tooltip);
 		const hasText = this._tabContainer.classList.contains('has-text');
 		if (hasText) {
 			this._label.textContent = hiddenChatTerminalCount === 1

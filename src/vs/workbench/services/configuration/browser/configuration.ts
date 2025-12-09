@@ -34,7 +34,7 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	static readonly DEFAULT_OVERRIDES_CACHE_EXISTS_KEY = 'DefaultOverridesCacheExists';
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
+	private cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
 	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
 
 	constructor(
@@ -44,11 +44,11 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	) {
 		super(logService);
 		if (environmentService.options?.configurationDefaults) {
-			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults }]);
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults as IStringDictionary<IStringDictionary<unknown>> }]);
 		}
 	}
 
-	protected override getConfigurationDefaultOverrides(): IStringDictionary<any> {
+	protected override getConfigurationDefaultOverrides(): IStringDictionary<unknown> {
 		return this.cachedConfigurationDefaultsOverrides;
 	}
 
@@ -94,7 +94,7 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	}
 
 	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
-		const cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
+		const cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
 		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
 		for (const [key, value] of configurationDefaultsOverrides) {
 			if (!OVERRIDE_PROPERTY_REGEX.test(key) && value.value !== undefined) {
@@ -964,7 +964,7 @@ class CachedFolderConfiguration {
 	}
 
 	async updateConfiguration(settingsContent: string | undefined, standAloneConfigurationContents: [string, string | undefined][]): Promise<void> {
-		const content: any = {};
+		const content: IStringDictionary<unknown> = {};
 		if (settingsContent) {
 			content[FOLDER_SETTINGS_NAME] = settingsContent;
 		}

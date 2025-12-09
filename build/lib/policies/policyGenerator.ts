@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import minimist from 'minimist';
-import { promises as fs } from 'fs';
+import * as fs from 'fs';
 import path from 'path';
-import { CategoryDto, ExportedPolicyDataDto } from './policyDto';
+import { type CategoryDto, type ExportedPolicyDataDto } from './policyDto.ts';
 import * as JSONC from 'jsonc-parser';
-import { BooleanPolicy } from './booleanPolicy';
-import { NumberPolicy } from './numberPolicy';
-import { ObjectPolicy } from './objectPolicy';
-import { StringEnumPolicy } from './stringEnumPolicy';
-import { StringPolicy } from './stringPolicy';
-import { Version, LanguageTranslations, Policy, Translations, Languages, ProductJson } from './types';
-import { renderGP, renderJsonPolicies, renderMacOSPolicy } from './render';
+import { BooleanPolicy } from './booleanPolicy.ts';
+import { NumberPolicy } from './numberPolicy.ts';
+import { ObjectPolicy } from './objectPolicy.ts';
+import { StringEnumPolicy } from './stringEnumPolicy.ts';
+import { StringPolicy } from './stringPolicy.ts';
+import { type Version, type LanguageTranslations, type Policy, type Translations, Languages, type ProductJson } from './types.ts';
+import { renderGP, renderJsonPolicies, renderMacOSPolicy } from './render.ts';
 
-const product = require('../../../product.json') as ProductJson;
-const packageJson = require('../../../package.json');
+const product: ProductJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../../product.json'), 'utf8'));
+const packageJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../../package.json'), 'utf8'));
 
 async function getSpecificNLS(resourceUrlTemplate: string, languageId: string, version: Version): Promise<LanguageTranslations> {
 	const resource = {
@@ -104,7 +104,7 @@ const PolicyTypes = [
 ];
 
 async function parsePolicies(policyDataFile: string): Promise<Policy[]> {
-	const contents = JSONC.parse(await fs.readFile(policyDataFile, { encoding: 'utf8' })) as ExportedPolicyDataDto;
+	const contents = JSONC.parse(await fs.promises.readFile(policyDataFile, { encoding: 'utf8' })) as ExportedPolicyDataDto;
 	const categories = new Map<string, CategoryDto>();
 	for (const category of contents.categories) {
 		categories.set(category.key, category);
@@ -171,15 +171,15 @@ async function windowsMain(policies: Policy[], translations: Translations) {
 	const root = '.build/policies/win32';
 	const { admx, adml } = renderGP(product, policies, translations);
 
-	await fs.rm(root, { recursive: true, force: true });
-	await fs.mkdir(root, { recursive: true });
+	await fs.promises.rm(root, { recursive: true, force: true });
+	await fs.promises.mkdir(root, { recursive: true });
 
-	await fs.writeFile(path.join(root, `${product.win32RegValueName}.admx`), admx.replace(/\r?\n/g, '\n'));
+	await fs.promises.writeFile(path.join(root, `${product.win32RegValueName}.admx`), admx.replace(/\r?\n/g, '\n'));
 
 	for (const { languageId, contents } of adml) {
 		const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
-		await fs.mkdir(languagePath, { recursive: true });
-		await fs.writeFile(path.join(languagePath, `${product.win32RegValueName}.adml`), contents.replace(/\r?\n/g, '\n'));
+		await fs.promises.mkdir(languagePath, { recursive: true });
+		await fs.promises.writeFile(path.join(languagePath, `${product.win32RegValueName}.adml`), contents.replace(/\r?\n/g, '\n'));
 	}
 }
 
@@ -191,14 +191,14 @@ async function darwinMain(policies: Policy[], translations: Translations) {
 	const root = '.build/policies/darwin';
 	const { profile, manifests } = renderMacOSPolicy(product, policies, translations);
 
-	await fs.rm(root, { recursive: true, force: true });
-	await fs.mkdir(root, { recursive: true });
-	await fs.writeFile(path.join(root, `${bundleIdentifier}.mobileconfig`), profile.replace(/\r?\n/g, '\n'));
+	await fs.promises.rm(root, { recursive: true, force: true });
+	await fs.promises.mkdir(root, { recursive: true });
+	await fs.promises.writeFile(path.join(root, `${bundleIdentifier}.mobileconfig`), profile.replace(/\r?\n/g, '\n'));
 
 	for (const { languageId, contents } of manifests) {
 		const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
-		await fs.mkdir(languagePath, { recursive: true });
-		await fs.writeFile(path.join(languagePath, `${bundleIdentifier}.plist`), contents.replace(/\r?\n/g, '\n'));
+		await fs.promises.mkdir(languagePath, { recursive: true });
+		await fs.promises.writeFile(path.join(languagePath, `${bundleIdentifier}.plist`), contents.replace(/\r?\n/g, '\n'));
 	}
 }
 
@@ -206,11 +206,11 @@ async function linuxMain(policies: Policy[]) {
 	const root = '.build/policies/linux';
 	const policyFileContents = JSON.stringify(renderJsonPolicies(policies), undefined, 4);
 
-	await fs.rm(root, { recursive: true, force: true });
-	await fs.mkdir(root, { recursive: true });
+	await fs.promises.rm(root, { recursive: true, force: true });
+	await fs.promises.mkdir(root, { recursive: true });
 
 	const jsonPath = path.join(root, `policy.json`);
-	await fs.writeFile(jsonPath, policyFileContents.replace(/\r?\n/g, '\n'));
+	await fs.promises.writeFile(jsonPath, policyFileContents.replace(/\r?\n/g, '\n'));
 }
 
 async function main() {
@@ -236,7 +236,7 @@ async function main() {
 	}
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main().catch(err => {
 		console.error(err);
 		process.exit(1);

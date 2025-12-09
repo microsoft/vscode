@@ -19,18 +19,16 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { DefaultModelSHA1Computer } from '../../../../../editor/common/services/modelService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatListItemRendererOptions } from '../chat.js';
-import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { IChatRendererDelegate } from '../chatListRenderer.js';
-import { ChatEditorOptions } from '../chatOptions.js';
-import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from '../codeBlockPart.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatListItemRendererOptions } from '../chat.js';
+import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from '../codeBlockPart.js';
+import { IDisposableReference } from './chatCollections.js';
+import { DiffEditorPool } from './chatContentCodePools.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 const $ = dom.$;
 
@@ -132,42 +130,6 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 
 	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);
-	}
-}
-
-export class DiffEditorPool extends Disposable {
-
-	private readonly _pool: ResourcePool<CodeCompareBlockPart>;
-
-	public inUse(): Iterable<CodeCompareBlockPart> {
-		return this._pool.inUse;
-	}
-
-	constructor(
-		options: ChatEditorOptions,
-		delegate: IChatRendererDelegate,
-		overflowWidgetsDomNode: HTMLElement | undefined,
-		private readonly isSimpleWidget: boolean = false,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-		this._pool = this._register(new ResourcePool(() => {
-			return instantiationService.createInstance(CodeCompareBlockPart, options, MenuId.ChatCompareBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
-		}));
-	}
-
-	get(): IDisposableReference<CodeCompareBlockPart> {
-		const codeBlock = this._pool.get();
-		let stale = false;
-		return {
-			object: codeBlock,
-			isStale: () => stale,
-			dispose: () => {
-				codeBlock.reset();
-				stale = true;
-				this._pool.release(codeBlock);
-			}
-		};
 	}
 }
 

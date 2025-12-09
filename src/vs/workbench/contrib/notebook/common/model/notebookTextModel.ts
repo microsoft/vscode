@@ -10,7 +10,7 @@ import { Disposable, dispose, IDisposable } from '../../../../../base/common/lif
 import { Schemas } from '../../../../../base/common/network.js';
 import { filter } from '../../../../../base/common/objects.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { isDefined } from '../../../../../base/common/types.js';
+import { hasKey, isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -436,11 +436,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _getCellIndexWithOutputIdHandleFromEdits(outputId: string, rawEdits: ICellEditOperation[]) {
-		const edit = rawEdits.find(e => 'outputs' in e && e.outputs.some(o => o.outputId === outputId));
+		const edit = rawEdits.find(e => hasKey(e, { outputs: true }) && e.outputs.some(o => o.outputId === outputId));
 		if (edit) {
-			if ('index' in edit) {
+			if (hasKey(edit, { index: true })) {
 				return edit.index;
-			} else if ('handle' in edit) {
+			} else if (hasKey(edit, { handle: true })) {
 				const cellIndex = this._getCellIndexByHandle(edit.handle);
 				this._assertIndex(cellIndex);
 				return cellIndex;
@@ -621,10 +621,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				return false;
 			}
 
-			if (('index' in edit) && !this.newCellsFromLastEdit.has(this.cells[edit.index].handle)) {
+			if (hasKey(edit, { index: true }) && !this.newCellsFromLastEdit.has(this.cells[edit.index].handle)) {
 				return false;
 			}
-			if ('handle' in edit && !this.newCellsFromLastEdit.has(edit.handle)) {
+			if (hasKey(edit, { handle: true }) && !this.newCellsFromLastEdit.has(edit.handle)) {
 				return false;
 			}
 		}
@@ -675,12 +675,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _doApplyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, computeUndoRedo: boolean, beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined): void {
 		const editsWithDetails = rawEdits.map((edit, index) => {
 			let cellIndex: number = -1;
-			if ('index' in edit) {
+			if (hasKey(edit, { index: true })) {
 				cellIndex = edit.index;
-			} else if ('handle' in edit) {
+			} else if (hasKey(edit, { handle: true })) {
 				cellIndex = this._getCellIndexByHandle(edit.handle);
 				this._assertIndex(cellIndex);
-			} else if ('outputId' in edit) {
+			} else if (hasKey(edit, { outputId: true })) {
 				cellIndex = this._getCellIndexWithOutputIdHandle(edit.outputId);
 				if (this._indexIsInvalid(cellIndex)) {
 					// The referenced output may have been created in this batch of edits
@@ -1110,8 +1110,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		let k: keyof NullablePartialNotebookCellMetadata;
 		for (k in metadata) {
 			const value = metadata[k] ?? undefined;
-			// eslint-disable-next-line local/code-no-any-casts
-			newMetadata[k] = value as any;
+			newMetadata[k] = value;
 		}
 
 		return this._changeCellMetadata(cell, newMetadata, computeUndoRedo, beginSelectionState, undoRedoGroup);
@@ -1152,8 +1151,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		let k: keyof NotebookCellInternalMetadata;
 		for (k in internalMetadata) {
 			const value = internalMetadata[k] ?? undefined;
-			// eslint-disable-next-line local/code-no-any-casts
-			newInternalMetadata[k] = value as any;
+			(newInternalMetadata[k] as unknown) = value;
 		}
 
 		cell.internalMetadata = newInternalMetadata;

@@ -6,7 +6,7 @@
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@vscode/iconv-lite-umd": "0.7.1",
-    "@vscode/tree-sitter-wasm": "^0.2.0",
+    "@vscode/tree-sitter-wasm": "^0.3.0",
     "@vscode/vscode-languagedetection": "1.0.21",
     "@xterm/addon-clipboard": "^0.2.0-beta.119",
     "@xterm/addon-image": "^0.9.0-beta.136",
@@ -19,7 +19,7 @@
     "@xterm/xterm": "^5.6.0-beta.136",
     "jschardet": "3.1.4",
     "katex": "^0.16.22",
-    "tas-client-umd": "0.2.0",
+    "tas-client": "0.3.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-textmate": "^9.2.1"
   }

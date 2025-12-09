@@ -190,8 +190,9 @@ export interface IGalleryExtensionAssets {
 	coreTranslations: [string, IGalleryExtensionAsset][];
 }
 
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
+export function isIExtensionIdentifier(obj: unknown): obj is IExtensionIdentifier {
+	const thing = obj as IExtensionIdentifier | undefined;
+	return !!thing
 		&& typeof thing === 'object'
 		&& typeof thing.id === 'string'
 		&& (!thing.uuid || typeof thing.uuid === 'string');
@@ -244,8 +245,8 @@ export interface IGalleryExtension {
 	detailsLink?: string;
 	ratingLink?: string;
 	supportLink?: string;
-	telemetryData?: any;
-	queryContext?: IStringDictionary<any>;
+	telemetryData?: IStringDictionary<unknown>;
+	queryContext?: IStringDictionary<unknown>;
 }
 
 export type InstallSource = 'gallery' | 'vsix' | 'resource';
@@ -435,7 +436,7 @@ export interface InstallExtensionResult {
 	readonly source?: URI | IGalleryExtension;
 	readonly local?: ILocalExtension;
 	readonly error?: Error;
-	readonly context?: IStringDictionary<any>;
+	readonly context?: IStringDictionary<unknown>;
 	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
@@ -578,7 +579,7 @@ export type InstallOptions = {
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */
-	context?: IStringDictionary<any>;
+	context?: IStringDictionary<unknown>;
 };
 
 export type UninstallOptions = {

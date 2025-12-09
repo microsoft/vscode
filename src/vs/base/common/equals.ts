@@ -10,7 +10,7 @@ export type EqualityComparer<T> = (a: T, b: T) => boolean;
 /**
  * Compares two items for equality using strict equality.
 */
-export const strictEquals: EqualityComparer<any> = (a, b) => a === b;
+export const strictEquals = <T>(a: T, b: T): boolean => a === b;
 
 /**
  * Checks if the items of two arrays are equal.
@@ -27,10 +27,14 @@ export function jsonStringifyEquals<T>(): EqualityComparer<T> {
 	return (a, b) => JSON.stringify(a) === JSON.stringify(b);
 }
 
+export interface IEquatable<T> {
+	equals(other: T): boolean;
+}
+
 /**
  * Uses `item.equals(other)` to determine equality.
  */
-export function itemEquals<T extends { equals(other: T): boolean }>(): EqualityComparer<T> {
+export function itemEquals<T extends IEquatable<T>>(): EqualityComparer<T> {
 	return (a, b) => a.equals(b);
 }
 

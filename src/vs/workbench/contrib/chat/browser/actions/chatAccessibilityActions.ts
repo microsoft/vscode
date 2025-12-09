@@ -34,14 +34,14 @@ class AnnounceChatConfirmationAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
+		const pendingWidget = chatWidgetService.getAllWidgets().find(widget => widget.viewModel?.model.requestNeedsInput.get());
 
-		if (!lastFocusedWidget) {
+		if (!pendingWidget) {
 			alert(localize('noChatSession', 'No active chat session found.'));
 			return;
 		}
 
-		const viewModel = lastFocusedWidget.viewModel;
+		const viewModel = pendingWidget.viewModel;
 		if (!viewModel) {
 			alert(localize('chatNotReady', 'Chat interface not ready.'));
 			return;
@@ -53,7 +53,7 @@ class AnnounceChatConfirmationAction extends Action2 {
 		const lastResponse = viewModel.getItems()[viewModel.getItems().length - 1];
 		if (isResponseVM(lastResponse)) {
 			// eslint-disable-next-line no-restricted-syntax
-			const confirmationWidgets = lastFocusedWidget.domNode.querySelectorAll('.chat-confirmation-widget-container');
+			const confirmationWidgets = pendingWidget.domNode.querySelectorAll('.chat-confirmation-widget-container');
 			if (confirmationWidgets.length > 0) {
 				firstConfirmationElement = confirmationWidgets[0] as HTMLElement;
 			}

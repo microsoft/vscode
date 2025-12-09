@@ -8,17 +8,14 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
-import { IChatResponseModel } from '../common/chatModel.js';
+import { IChatResponseModel, IChatModelInputState } from '../common/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
@@ -26,10 +23,9 @@ import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } f
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
+import { IChatEditorOptions } from './chatEditor.js';
 import { ChatInputPart } from './chatInputPart.js';
-import { findExistingChatEditorByUri } from './chatSessions/common.js';
-import { ChatViewPane } from './chatViewPane.js';
-import { ChatWidget, IChatViewState, IChatWidgetContrib } from './chatWidget.js';
+import { ChatWidget, IChatWidgetContrib } from './chatWidget.js';
 import { ICodeBlockActionContext } from './codeBlockPart.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -40,44 +36,42 @@ export interface IChatWidgetService {
 
 	/**
 	 * Returns the most recently focused widget if any.
+	 *
+	 * ⚠️ Consider carefully if this is appropriate for your use case. If you
+	 * can know what session you're interacting with, prefer {@link getWidgetBySessionResource}
+	 * or similar methods to work nicely with multiple chat widgets.
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
 	readonly onDidAddWidget: Event<IChatWidget>;
 
+	/**
+	 * Reveals the widget, focusing its input unless `preserveFocus` is true.
+	 */
+	reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean>;
+
+	/**
+	 * Reveals the last active widget, or creates a new chat if necessary.
+	 */
+	revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined>;
+
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
+	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
-	/** @deprecated Use {@link getWidgetBySessionResource} instead */
-	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
 	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
 
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
+
+	/**
+	 * An IChatWidget registers itself when created.
+	 */
+	register(newWidget: IChatWidget): IDisposable;
 }
 
-export async function showChatWidgetInViewOrEditor(accessor: ServicesAccessor, widget: IChatWidget) {
-	if ('viewId' in widget.viewContext) {
-		await accessor.get(IViewsService).openView(widget.viewContext.viewId);
-	} else {
-		const sessionResource = widget.viewModel?.sessionResource;
-		if (sessionResource) {
-			const existing = findExistingChatEditorByUri(sessionResource, accessor.get(IEditorGroupsService));
-			if (existing) {
-				existing.group.openEditor(existing.editor);
-			}
-		}
-	}
-}
-
-export async function showChatView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
-
-	// Ensure main window is in front
-	if (layoutService.activeContainer !== layoutService.mainContainer) {
-		layoutService.mainContainer.focus();
-	}
-
-	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
-}
+export const ChatViewPaneTarget = Symbol('ChatViewPaneTarget');
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
 export interface IQuickChatService {
@@ -85,6 +79,8 @@ export interface IQuickChatService {
 	readonly onDidClose: Event<void>;
 	readonly enabled: boolean;
 	readonly focused: boolean;
+	/** Defined when quick chat is open */
+	readonly sessionResource?: URI;
 	toggle(options?: IQuickChatOpenOptions): void;
 	focus(): void;
 	open(options?: IQuickChatOpenOptions): void;
@@ -111,6 +107,7 @@ export const IChatAccessibilityService = createDecorator<IChatAccessibilityServi
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
 	acceptRequest(): number;
+	disposeRequest(requestId: number): void;
 	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;
 }
@@ -157,6 +154,8 @@ export interface IChatWidgetViewOptions {
 	renderInputToolbarBelowInput?: boolean;
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
+	/** Action triggered when 'clear' is called on the widget. */
+	clear?: () => Promise<void>;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		/**
@@ -185,9 +184,17 @@ export interface IChatViewViewContext {
 	viewId: string;
 }
 
+export function isIChatViewViewContext(context: IChatWidgetViewContext): context is IChatViewViewContext {
+	return typeof (context as IChatViewViewContext).viewId === 'string';
+}
+
 export interface IChatResourceViewContext {
 	isQuickChat?: boolean;
 	isInlineChat?: boolean;
+}
+
+export function isIChatResourceViewContext(context: IChatWidgetViewContext): context is IChatResourceViewContext {
+	return !isIChatViewViewContext(context);
 }
 
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};
@@ -207,6 +214,7 @@ export interface IChatWidget {
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
+	readonly onDidFocus: Event<void>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
@@ -220,6 +228,7 @@ export interface IChatWidget {
 	readonly input: ChatInputPart;
 	readonly attachmentModel: ChatAttachmentModel;
 	readonly locationData?: IChatLocationData;
+	readonly contribs: readonly IChatWidgetContrib[];
 
 	readonly supportsChangingModes: boolean;
 
@@ -250,14 +259,10 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
-	clear(): void;
-	/**
-	 * Wait for this widget to have a VM with a fully initialized model and editing session.
-	 * Sort of a hack. See https://github.com/microsoft/vscode/issues/247484
-	 */
-	waitForReady(): Promise<void>;
-	getViewState(): IChatViewState;
+	clear(): Promise<void>;
+	getViewState(): IChatModelInputState | undefined;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
+	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
 }
@@ -275,3 +280,4 @@ export interface IChatCodeBlockContextProviderService {
 }
 
 export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
+export const ChatViewContainerId = 'workbench.panel.chat';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../common/policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from '../common/policy.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Throttler } from '../../../base/common/async.js';
 import type { PolicyUpdate, Watcher } from '@vscode/policy-watcher';
@@ -43,9 +43,8 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 	private _onDidPolicyChange(update: PolicyUpdate<IStringDictionary<PolicyDefinition>>): void {
 		this.logService.trace(`NativePolicyService#_onDidPolicyChange - Updated policy values: ${JSON.stringify(update)}`);
 
-		for (const key in update) {
-			// eslint-disable-next-line local/code-no-any-casts
-			const value = update[key] as any;
+		for (const key in update as Record<string, PolicyValue | undefined>) {
+			const value = update[key];
 
 			if (value === undefined) {
 				this.policies.delete(key);

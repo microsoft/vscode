@@ -559,6 +559,7 @@ export class DeleteLinesAction extends EditorAction {
 
 		editor.pushUndoStop();
 		editor.executeEdits(this.id, edits, cursorState);
+		editor.revealAllCursors(true);
 		editor.pushUndoStop();
 	}
 

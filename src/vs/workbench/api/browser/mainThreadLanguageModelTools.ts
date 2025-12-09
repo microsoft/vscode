@@ -37,6 +37,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 				id: tool.id,
 				displayName: tool.displayName,
 				toolReferenceName: tool.toolReferenceName,
+				legacyToolReferenceFullNames: tool.legacyToolReferenceFullNames,
 				tags: tool.tags,
 				userDescription: tool.userDescription,
 				modelDescription: tool.modelDescription,
@@ -49,9 +50,9 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return this.getToolDtos();
 	}
 
-	async $invokeTool(dto: IToolInvocation, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
+	async $invokeTool(dto: Dto<IToolInvocation>, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
 		const result = await this._languageModelToolsService.invokeTool(
-			dto,
+			revive<IToolInvocation>(dto),
 			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
 			token ?? CancellationToken.None,
 		);

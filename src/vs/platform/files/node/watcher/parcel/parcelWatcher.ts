@@ -65,8 +65,9 @@ export class ParcelWatcherInstance extends Disposable {
 	) {
 		super();
 
-		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
-		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
+		const ignoreCase = !isLinux;
+		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, ignoreCase) : undefined;
+		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes, ignoreCase) : undefined;
 
 		this._register(toDisposable(() => this.subscriptions.clear()));
 	}

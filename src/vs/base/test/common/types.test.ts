@@ -922,6 +922,7 @@ suite('Types', () => {
 			type B = { b: number };
 			const obj: A | B = { b: 42 };
 
+			// @ts-expect-error
 			assert(!types.hasKey(obj, { a: true }));
 		});
 
@@ -962,12 +963,17 @@ suite('Types', () => {
 			const objB: TypeA | TypeB | TypeC = { kind: 'b', count: 5 };
 
 			assert(types.hasKey(objA, { value: true }));
+			// @ts-expect-error
 			assert(!types.hasKey(objA, { count: true }));
-			// assert(!types.hasKey(objA, { items: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objA, { items: true }));
 
+			// @ts-expect-error
 			assert(!types.hasKey(objB, { value: true }));
-			// assert(types.hasKey(objB, { count: true }));
-			// assert(!types.hasKey(objB, { items: true }));
+			// @ts-expect-error
+			assert(types.hasKey(objB, { count: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objB, { items: true }));
 		});
 
 		test('should handle objects with optional properties', () => {
@@ -989,6 +995,7 @@ suite('Types', () => {
 			const obj: A | B = { data: { nested: 'test' } };
 
 			assert(types.hasKey(obj, { data: true }));
+			// @ts-expect-error
 			assert(!types.hasKey(obj, { value: true }));
 		});
 	});

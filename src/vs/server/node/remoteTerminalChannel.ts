@@ -90,12 +90,12 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 
 	private _lastReqId = 0;
 	private readonly _pendingCommands = new Map<number, {
-		resolve: (data: any) => void;
-		reject: (err: any) => void;
+		resolve: (value: unknown) => void;
+		reject: (err?: unknown) => void;
 		uriTransformer: IURITransformer;
 	}>();
 
-	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }>());
+	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: unknown[] }>());
 	readonly onExecuteCommand = this._onExecuteCommand.event;
 
 	constructor(
@@ -109,6 +109,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		super();
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async call(ctx: RemoteAgentConnectionContext, command: RemoteTerminalChannelRequest, args?: any): Promise<any> {
 		switch (command) {
 			case RemoteTerminalChannelRequest.RestartPtyHost: return this._ptyHostService.restartPtyHost.apply(this._ptyHostService, args);
@@ -167,21 +168,21 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		throw new Error(`IPC Command ${command} not found`);
 	}
 
-	listen(_: any, event: RemoteTerminalChannelEvent, arg: any): Event<any> {
+	listen<T>(_: unknown, event: RemoteTerminalChannelEvent, _arg: unknown): Event<T> {
 		switch (event) {
-			case RemoteTerminalChannelEvent.OnPtyHostExitEvent: return this._ptyHostService.onPtyHostExit || Event.None;
-			case RemoteTerminalChannelEvent.OnPtyHostStartEvent: return this._ptyHostService.onPtyHostStart || Event.None;
-			case RemoteTerminalChannelEvent.OnPtyHostUnresponsiveEvent: return this._ptyHostService.onPtyHostUnresponsive || Event.None;
-			case RemoteTerminalChannelEvent.OnPtyHostResponsiveEvent: return this._ptyHostService.onPtyHostResponsive || Event.None;
-			case RemoteTerminalChannelEvent.OnPtyHostRequestResolveVariablesEvent: return this._ptyHostService.onPtyHostRequestResolveVariables || Event.None;
-			case RemoteTerminalChannelEvent.OnProcessDataEvent: return this._ptyHostService.onProcessData;
-			case RemoteTerminalChannelEvent.OnProcessReadyEvent: return this._ptyHostService.onProcessReady;
-			case RemoteTerminalChannelEvent.OnProcessExitEvent: return this._ptyHostService.onProcessExit;
-			case RemoteTerminalChannelEvent.OnProcessReplayEvent: return this._ptyHostService.onProcessReplay;
-			case RemoteTerminalChannelEvent.OnProcessOrphanQuestion: return this._ptyHostService.onProcessOrphanQuestion;
-			case RemoteTerminalChannelEvent.OnExecuteCommand: return this.onExecuteCommand;
-			case RemoteTerminalChannelEvent.OnDidRequestDetach: return this._ptyHostService.onDidRequestDetach || Event.None;
-			case RemoteTerminalChannelEvent.OnDidChangeProperty: return this._ptyHostService.onDidChangeProperty;
+			case RemoteTerminalChannelEvent.OnPtyHostExitEvent: return (this._ptyHostService.onPtyHostExit || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnPtyHostStartEvent: return (this._ptyHostService.onPtyHostStart || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnPtyHostUnresponsiveEvent: return (this._ptyHostService.onPtyHostUnresponsive || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnPtyHostResponsiveEvent: return (this._ptyHostService.onPtyHostResponsive || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnPtyHostRequestResolveVariablesEvent: return (this._ptyHostService.onPtyHostRequestResolveVariables || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnProcessDataEvent: return (this._ptyHostService.onProcessData) as Event<T>;
+			case RemoteTerminalChannelEvent.OnProcessReadyEvent: return (this._ptyHostService.onProcessReady) as Event<T>;
+			case RemoteTerminalChannelEvent.OnProcessExitEvent: return (this._ptyHostService.onProcessExit) as Event<T>;
+			case RemoteTerminalChannelEvent.OnProcessReplayEvent: return (this._ptyHostService.onProcessReplay) as Event<T>;
+			case RemoteTerminalChannelEvent.OnProcessOrphanQuestion: return (this._ptyHostService.onProcessOrphanQuestion) as Event<T>;
+			case RemoteTerminalChannelEvent.OnExecuteCommand: return (this.onExecuteCommand) as Event<T>;
+			case RemoteTerminalChannelEvent.OnDidRequestDetach: return (this._ptyHostService.onDidRequestDetach || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnDidChangeProperty: return (this._ptyHostService.onDidChangeProperty) as Event<T>;
 		}
 
 		// @ts-expect-error Assert event is the `never` type to ensure all messages are handled
@@ -263,7 +264,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 
 		const persistentProcessId = await this._ptyHostService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
 		const commandsExecuter: ICommandsExecuter = {
-			executeCommand: <T>(id: string, ...args: any[]): Promise<T> => this._executeCommand(persistentProcessId, id, args, uriTransformer)
+			executeCommand: <T>(id: string, ...args: unknown[]): Promise<T> => this._executeCommand(persistentProcessId, id, args, uriTransformer)
 		};
 		const cliServer = new CLIServerBase(commandsExecuter, this._logService, ipcHandlePath);
 		this._ptyHostService.onProcessExit(e => e.id === persistentProcessId && cliServer.dispose());
@@ -274,11 +275,11 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		};
 	}
 
-	private _executeCommand<T>(persistentProcessId: number, commandId: string, commandArgs: any[], uriTransformer: IURITransformer): Promise<T> {
+	private _executeCommand<T>(persistentProcessId: number, commandId: string, commandArgs: unknown[], uriTransformer: IURITransformer): Promise<T> {
 		const { resolve, reject, promise } = promiseWithResolvers<T>();
 
 		const reqId = ++this._lastReqId;
-		this._pendingCommands.set(reqId, { resolve, reject, uriTransformer });
+		this._pendingCommands.set(reqId, { resolve: resolve as (value: unknown) => void, reject, uriTransformer });
 
 		const serializedCommandArgs = cloneAndChange(commandArgs, (obj) => {
 			if (obj && obj.$mid === 1) {
@@ -300,7 +301,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		return promise;
 	}
 
-	private _sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
+	private _sendCommandResult(reqId: number, isError: boolean, serializedPayload: unknown): void {
 		const data = this._pendingCommands.get(reqId);
 		if (!data) {
 			return;

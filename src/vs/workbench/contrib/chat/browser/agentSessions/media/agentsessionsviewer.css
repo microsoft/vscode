@@ -5,21 +5,64 @@
 
 .agent-sessions-viewer {
 
-	.monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {
+	flex: 1 1 auto;
+	height: 100%;
+	min-height: 0;
+
+	.monaco-list-row .force-no-twistie {
 		display: none !important;
 	}
 
-	.monaco-list-row.selected .agent-session-details-row,
-	.monaco-list-row.selected span.agent-session-diff-added,
-	.monaco-list-row.selected span.agent-session-diff-removed {
+	.monaco-list-row.selected .agent-session-details-row {
 		color: unset;
+
+		.rendered-markdown {
+			a {
+				color: unset;
+			}
+		}
+
+		.agent-session-diff-container {
+			background-color: unset;
+			outline: 1px solid var(--vscode-foreground);
+
+			.agent-session-diff-files,
+			.agent-session-diff-added,
+			.agent-session-diff-removed {
+				color: unset;
+			}
+		}
+	}
+
+	.monaco-list-row .agent-session-title-toolbar {
+		position: relative; /* for the absolute positioning of the toolbar below */
+
+		.monaco-toolbar {
+			/* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
+			position: absolute;
+			right: 0;
+			top: 0;
+			display: none;
+		}
+	}
+
+	.monaco-list-row:hover .agent-session-title-toolbar,
+	.monaco-list-row.focused .agent-session-title-toolbar {
+		width: 22px;
+
+		.monaco-toolbar {
+			display: block;
+		}
 	}
 
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 0 12px;
-		gap: 2px;
+		padding: 8px 12px /* to offset from possible scrollbar */ 8px 8px;
+
+		&.archived {
+			color: var(--vscode-descriptionForeground);
+		}
 
 		.agent-session-main-col,
 		.agent-session-title-row,
@@ -31,67 +74,105 @@
 		.agent-session-icon-col {
 			display: flex;
 			align-items: flex-start;
-			padding-top: 4px;
 
 			.agent-session-icon {
 				flex-shrink: 0;
-				width: 16px;
-				height: 16px;
 				font-size: 16px;
+
+				&.codicon.codicon-session-in-progress {
+					color: var(--vscode-textLink-foreground);
+				}
+
+				&.codicon.codicon-error {
+					color: var(--vscode-errorForeground);
+				}
+
+				&.codicon.codicon-circle-filled {
+					color: var(--vscode-textLink-foreground);
+				}
+
+				&.codicon.codicon-circle-small-filled {
+					color: var(--vscode-agentSessionReadIndicator-foreground);
+				}
 			}
+		}
+
+		.agent-session-main-col {
+			padding-left: 8px;
 		}
 
 		.agent-session-title-row,
 		.agent-session-details-row {
 			display: flex;
 			align-items: center;
-			line-height: 20px; /* ends up as 22px with the padding below */
-			gap: 6px;
+			line-height: 16px;
 		}
 
 		.agent-session-title-row {
-			padding: 2px 6px 0 6px;
+			padding-bottom: 4px;
 		}
 
 		.agent-session-details-row {
-			padding: 0 6px 2px 6px;
 			font-size: 12px;
 			color: var(--vscode-descriptionForeground);
 
 			.rendered-markdown {
 				p {
+					display: flex;
+					align-items: center;
 					margin: 0;
+
+					> span.codicon {
+						margin-right: 2px;
+					}
 				}
 
 				a {
 					color: var(--vscode-descriptionForeground);
 				}
 			}
+
+			.agent-session-diff-container {
+				background-color: var(--vscode-toolbar-hoverBackground);
+				font-weight: 500;
+				display: flex;
+				gap: 4px;
+				padding: 0 4px;
+				font-variant-numeric: tabular-nums;
+				border-radius: 5px;
+
+				&:not(.has-diff) {
+					display: none;
+				}
+
+				.agent-session-diff-files {
+					color: var(--vscode-descriptionForeground);
+				}
+
+				.agent-session-diff-added {
+					color: var(--vscode-chat-linesAddedForeground);
+				}
+
+				.agent-session-diff-removed {
+					color: var(--vscode-chat-linesRemovedForeground);
+				}
+			}
 		}
 
 		.agent-session-title,
 		.agent-session-description {
+			flex: 1; /* push other items to the end */
 			text-overflow: ellipsis;
 			overflow: hidden;
 		}
 
-		/* #region Diff Styling */
+		.agent-session-status {
+			padding-left: 8px;
+			font-variant-numeric: tabular-nums;
 
-		.agent-session-diff {
-			flex: 1; /* push status to the end */
-			font-weight: 700;
-			display: flex;
-			gap: 4px;
+			/* In case the changes toolbar to the left is greedy, we give up space */
+			overflow: hidden;
+			text-overflow: ellipsis;
 		}
-
-		span.agent-session-diff-added {
-			color: var(--vscode-chat-linesAddedForeground);
-		}
-
-		span.agent-session-diff-removed {
-			color: var(--vscode-chat-linesRemovedForeground);
-		}
-
-		/* #endregion */
 	}
 }

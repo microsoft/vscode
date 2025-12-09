@@ -258,7 +258,7 @@ export interface IConfigurationNode {
 export type ConfigurationDefaultValueSource = IExtensionInfo | Map<string, IExtensionInfo>;
 
 export interface IConfigurationDefaults {
-	overrides: IStringDictionary<any>;
+	overrides: IStringDictionary<unknown>;
 	source?: IExtensionInfo;
 }
 
@@ -269,18 +269,18 @@ export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchem
 		order?: number;
 		extensionInfo?: IExtensionInfo;
 	};
-	defaultDefaultValue?: any;
+	defaultDefaultValue?: unknown;
 	source?: IExtensionInfo; // Source of the Property
 	defaultValueSource?: ConfigurationDefaultValueSource; // Source of the Default Value
 };
 
 export interface IConfigurationDefaultOverride {
-	readonly value: any;
+	readonly value: unknown;
 	readonly source?: IExtensionInfo;  // Source of the default override
 }
 
 export interface IConfigurationDefaultOverrideValue {
-	readonly value: any;
+	readonly value: unknown;
 	readonly source?: ConfigurationDefaultValueSource;
 }
 
@@ -397,7 +397,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 
 				// Configuration defaults for Override Identifiers
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-					const newDefaultOverride = this.mergeDefaultConfigurationsForOverrideIdentifier(key, value, source, configurationDefaultOverridesForKey.configurationDefaultOverrideValue);
+					const newDefaultOverride = this.mergeDefaultConfigurationsForOverrideIdentifier(key, value as IStringDictionary<unknown>, source, configurationDefaultOverridesForKey.configurationDefaultOverrideValue);
 					if (!newDefaultOverride) {
 						continue;
 					}
@@ -464,7 +464,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 					let configurationDefaultOverrideValue: IConfigurationDefaultOverrideValue | undefined;
 					for (const configurationDefaultOverride of configurationDefaultOverridesForKey.configurationDefaultOverrides) {
-						configurationDefaultOverrideValue = this.mergeDefaultConfigurationsForOverrideIdentifier(key, configurationDefaultOverride.value, configurationDefaultOverride.source, configurationDefaultOverrideValue);
+						configurationDefaultOverrideValue = this.mergeDefaultConfigurationsForOverrideIdentifier(key, configurationDefaultOverride.value as IStringDictionary<unknown>, configurationDefaultOverride.source, configurationDefaultOverrideValue);
 					}
 					if (configurationDefaultOverrideValue && !types.isEmptyObject(configurationDefaultOverrideValue.value)) {
 						configurationDefaultOverridesForKey.configurationDefaultOverrideValue = configurationDefaultOverrideValue;
@@ -512,7 +512,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
 	}
 
-	private mergeDefaultConfigurationsForOverrideIdentifier(overrideIdentifier: string, configurationValueObject: IStringDictionary<any>, valueSource: IExtensionInfo | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
+	private mergeDefaultConfigurationsForOverrideIdentifier(overrideIdentifier: string, configurationValueObject: IStringDictionary<unknown>, valueSource: IExtensionInfo | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
 		const defaultValue = existingDefaultOverride?.value || {};
 		const source = existingDefaultOverride?.source ?? new Map<string, IExtensionInfo>();
 
@@ -526,11 +526,11 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 			const propertyDefaultValue = configurationValueObject[propertyKey];
 
 			const isObjectSetting = types.isObject(propertyDefaultValue) &&
-				(types.isUndefined(defaultValue[propertyKey]) || types.isObject(defaultValue[propertyKey]));
+				(types.isUndefined((defaultValue as IStringDictionary<unknown>)[propertyKey]) || types.isObject((defaultValue as IStringDictionary<unknown>)[propertyKey]));
 
 			// If the default value is an object, merge the objects and store the source of each keys
 			if (isObjectSetting) {
-				defaultValue[propertyKey] = { ...(defaultValue[propertyKey] ?? {}), ...propertyDefaultValue };
+				(defaultValue as IStringDictionary<unknown>)[propertyKey] = { ...((defaultValue as IStringDictionary<unknown>)[propertyKey] ?? {}), ...propertyDefaultValue };
 				// Track the source of each value in the object
 				if (valueSource) {
 					for (const objectKey in propertyDefaultValue) {
@@ -541,7 +541,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 
 			// Primitive values are overridden
 			else {
-				defaultValue[propertyKey] = propertyDefaultValue;
+				(defaultValue as IStringDictionary<unknown>)[propertyKey] = propertyDefaultValue;
 				if (valueSource) {
 					source.set(propertyKey, valueSource);
 				} else {
@@ -553,7 +553,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		return { value: defaultValue, source };
 	}
 
-	private mergeDefaultConfigurationsForConfigurationProperty(propertyKey: string, value: any, valuesSource: IExtensionInfo | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
+	private mergeDefaultConfigurationsForConfigurationProperty(propertyKey: string, value: unknown, valuesSource: IExtensionInfo | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
 		const property = this.configurationProperties[propertyKey];
 		const existingDefaultValue = existingDefaultOverride?.value ?? property?.defaultDefaultValue;
 		let source: ConfigurationDefaultValueSource | undefined = valuesSource;
@@ -574,12 +574,12 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 				return undefined;
 			}
 
-			for (const objectKey in value) {
+			for (const objectKey in (value as IStringDictionary<unknown>)) {
 				if (valuesSource) {
 					source.set(`${propertyKey}.${objectKey}`, valuesSource);
 				}
 			}
-			value = { ...(types.isObject(existingDefaultValue) ? existingDefaultValue : {}), ...value };
+			value = { ...(types.isObject(existingDefaultValue) ? existingDefaultValue : {}), ...(value as IStringDictionary<unknown>) };
 		}
 
 		return { value, source };

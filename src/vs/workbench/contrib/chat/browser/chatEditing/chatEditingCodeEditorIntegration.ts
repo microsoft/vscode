@@ -7,7 +7,7 @@ import '../media/chatEditorController.css';
 
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
@@ -39,9 +39,9 @@ import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGu
 import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { AcceptHunkAction, RejectHunkAction } from './chatEditingEditorActions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ctxCursorInChangeRange } from './chatEditingEditorContextKeys.js';
+import { LinkedList } from '../../../../../base/common/linkedList.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
 
@@ -50,6 +50,27 @@ export interface IDocumentDiff2 extends IDocumentDiff {
 
 	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
 	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
+}
+
+class ObjectPool<T extends IDisposable> {
+
+	private readonly _free = new LinkedList<T>();
+
+	dispose(): void {
+		dispose(this._free);
+	}
+
+	get(): T | undefined {
+		return this._free.shift();
+	}
+
+	putBack(obj: T): void {
+		this._free.push(obj);
+	}
+
+	get free(): Iterable<T> {
+		return this._free;
+	}
 }
 
 export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEditorIntegration {
@@ -63,6 +84,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 	private readonly _diffLineDecorations: IEditorDecorationsCollection;
 	private readonly _diffVisualDecorations: IEditorDecorationsCollection;
 	private readonly _diffHunksRenderStore = this._store.add(new DisposableStore());
+	private readonly _diffHunkWidgetPool = this._store.add(new ObjectPool<DiffHunkWidget>());
 	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
 	private _viewZones: string[] = [];
 
@@ -279,6 +301,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		});
 		this._viewZones = [];
 		this._diffHunksRenderStore.clear();
+		for (const widget of this._diffHunkWidgetPool.free) {
+			widget.remove();
+		}
 		this._diffVisualDecorations.clear();
 	}
 
@@ -400,10 +425,19 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 				if (reviewMode || diffMode) {
 
 					// Add content widget for each diff change
-					const widget = this._editor.invokeWithinContext(accessor => {
-						const instaService = accessor.get(IInstantiationService);
-						return instaService.createInstance(DiffHunkWidget, diff, diffEntry, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : extraLines);
-					});
+					let widget = this._diffHunkWidgetPool.get();
+					if (!widget) {
+						// make a new one
+						widget = this._editor.invokeWithinContext(accessor => {
+							const instaService = accessor.get(IInstantiationService);
+							return instaService.createInstance(DiffHunkWidget, this._editor, diff, diffEntry, this._editor.getModel()!.getVersionId(), isCreatedContent ? 0 : extraLines);
+						});
+					} else {
+						widget.update(diff, diffEntry, this._editor.getModel()!.getVersionId(), isCreatedContent ? 0 : extraLines);
+					}
+					this._diffHunksRenderStore.add(toDisposable(() => {
+						this._diffHunkWidgetPool.putBack(widget);
+					}));
 
 					widget.layout(diffEntry.modified.startLineNumber);
 
@@ -424,10 +458,13 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		const diffHunkDecoCollection = this._editor.createDecorationsCollection(diffHunkDecorations);
 
 		this._diffHunksRenderStore.add(toDisposable(() => {
-			dispose(this._diffHunkWidgets);
-			this._diffHunkWidgets.length = 0;
 			diffHunkDecoCollection.clear();
 		}));
+
+		// HIDE pooled widgets that are not used
+		for (const extraWidget of this._diffHunkWidgetPool.free) {
+			extraWidget.remove();
+		}
 
 		const positionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, _ => this._editor.getPosition());
 
@@ -690,14 +727,14 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 	private readonly _store = new DisposableStore();
 	private _position: IOverlayWidgetPosition | undefined;
 	private _lastStartLineNumber: number | undefined;
-
+	private _removed: boolean = false;
 
 	constructor(
-		private readonly _diffInfo: IDocumentDiff2,
-		private readonly _change: DetailedLineRangeMapping,
-		private readonly _versionId: number,
 		private readonly _editor: ICodeEditor,
-		private readonly _lineDelta: number,
+		private _diffInfo: IDocumentDiff2,
+		private _change: DetailedLineRangeMapping,
+		private _versionId: number,
+		private _lineDelta: number,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 		this._domNode = document.createElement('div');
@@ -712,10 +749,10 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 				arg: this,
 			},
 			actionViewItemProvider: (action, options) => {
-				if (action.id === AcceptHunkAction.ID || action.id === RejectHunkAction.ID) {
+				if (!action.class) {
 					return new class extends ActionViewItem {
 						constructor() {
-							super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true, icon: false, label: true });
+							super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true /* hide keybinding for actions without icon */, icon: false, label: true });
 						}
 					};
 				}
@@ -728,9 +765,17 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 		this._editor.addOverlayWidget(this);
 	}
 
+	update(diffInfo: IDocumentDiff2, change: DetailedLineRangeMapping, versionId: number, lineDelta: number): void {
+		this._diffInfo = diffInfo;
+		this._change = change;
+		this._versionId = versionId;
+		this._lineDelta = lineDelta;
+	}
+
 	dispose(): void {
 		this._store.dispose();
 		this._editor.removeOverlayWidget(this);
+		this._removed = true;
 	}
 
 	getId(): string {
@@ -744,15 +789,25 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 		const scrollTop = this._editor.getScrollTop();
 
 		this._position = {
-			stackOridinal: 1,
+			stackOrdinal: 1,
 			preference: {
 				top: this._editor.getTopForLineNumber(startLineNumber) - scrollTop - (lineHeight * this._lineDelta),
 				left: contentLeft + contentWidth - (2 * verticalScrollbarWidth + getTotalWidth(this._domNode))
 			}
 		};
 
-		this._editor.layoutOverlayWidget(this);
+		if (this._removed) {
+			this._removed = false;
+			this._editor.addOverlayWidget(this);
+		} else {
+			this._editor.layoutOverlayWidget(this);
+		}
 		this._lastStartLineNumber = startLineNumber;
+	}
+
+	remove(): void {
+		this._editor.removeOverlayWidget(this);
+		this._removed = true;
 	}
 
 	toggle(show: boolean) {
@@ -814,7 +869,7 @@ class AccessibleDiffViewContainer implements IOverlayWidget {
 	getPosition(): IOverlayWidgetPosition | null {
 		return {
 			preference: { top: 0, left: 0 },
-			stackOridinal: 1
+			stackOrdinal: 1
 		};
 	}
 }

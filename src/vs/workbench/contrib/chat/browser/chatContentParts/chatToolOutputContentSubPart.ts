@@ -31,7 +31,6 @@ import { CodeBlockPart, ICodeBlockData } from '../codeBlockPart.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
 import { IDisposableReference } from './chatCollections.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
-import { EditorPool } from './chatMarkdownContentPart.js';
 import { ChatCollapsibleIOPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
 
 /**
@@ -50,17 +49,15 @@ export class ChatToolOutputContentSubPart extends Disposable {
 
 	constructor(
 		private readonly context: IChatContentPartRenderContext,
-		private readonly editorPool: EditorPool,
 		private readonly parts: ChatCollapsibleIOPart[],
-		width: number,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
-		this._currentWidth = width;
 		this.domNode = this.createOutputContents();
+		this._currentWidth = context.currentWidth();
 	}
 
 	private createOutputContents(): HTMLElement {
@@ -158,7 +155,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			renderOptions: part.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
-		const editorReference = this._register(this.editorPool.get());
+		const editorReference = this._register(this.context.editorPool.get());
 		editorReference.object.render(data, this._currentWidth || 300);
 		this._register(editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 		container.appendChild(editorReference.object.element);

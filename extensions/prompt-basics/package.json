@@ -20,8 +20,7 @@
           "prompt"
         ],
         "extensions": [
-          ".prompt.md",
-          "copilot-instructions.md"
+          ".prompt.md"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -93,9 +92,10 @@
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       },
       "[instructions]": {
         "editor.insertSpaces": true,
@@ -107,9 +107,10 @@
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       },
       "[chatagent]": {
         "editor.insertSpaces": true,
@@ -121,9 +122,10 @@
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       }
     }
   },

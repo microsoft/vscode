@@ -314,6 +314,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private static readonly LABEL_HANDLE_PREFIX = '0';
 	private static readonly ID_HANDLE_PREFIX = '1';
+	private static readonly ROOT_FETCH_KEY = Symbol('extHostTreeViewRoot');
 
 	private readonly _dataProvider: vscode.TreeDataProvider<T>;
 	private readonly _dndController: vscode.TreeDragAndDropController<T> | undefined;
@@ -321,6 +322,9 @@ class ExtHostTreeView<T> extends Disposable {
 	private _roots: TreeNode[] | undefined = undefined;
 	private _elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
 	private _nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
+	// Track the latest child-fetch per element so that refresh-triggered cache clears ignore stale results.
+	// Without these tokens, an earlier getChildren promise resolving after refresh would re-register handles and hit the duplicate-id guard.
+	private readonly _childrenFetchTokens = new Map<T | typeof ExtHostTreeView.ROOT_FETCH_KEY, number>();
 
 	private _visible: boolean = false;
 	get visible(): boolean { return this._visible; }
@@ -725,14 +729,25 @@ class ExtHostTreeView<T> extends Disposable {
 		return this._roots;
 	}
 
+	private _getFetchKey(parentElement?: T): T | typeof ExtHostTreeView.ROOT_FETCH_KEY {
+		return parentElement ?? ExtHostTreeView.ROOT_FETCH_KEY;
+	}
+
 	private async _fetchChildrenNodes(parentElement?: T): Promise<TreeNode[] | undefined> {
 		// clear children cache
 		this._addChildrenToClear(parentElement);
+		const fetchKey = this._getFetchKey(parentElement);
+		let requestId = this._childrenFetchTokens.get(fetchKey) ?? 0;
+		requestId++;
+		this._childrenFetchTokens.set(fetchKey, requestId);
 
 		const cts = new CancellationTokenSource(this._refreshCancellationSource.token);
 
 		try {
 			const elements = await this._dataProvider.getChildren(parentElement);
+			if (this._childrenFetchTokens.get(fetchKey) !== requestId) {
+				return undefined;
+			}
 			const parentNode = parentElement ? this._nodes.get(parentElement) : undefined;
 
 			if (cts.token.isCancellationRequested) {
@@ -743,12 +758,18 @@ class ExtHostTreeView<T> extends Disposable {
 			const treeItems = await Promise.all(coalesce(coalescedElements).map(element => {
 				return this._dataProvider.getTreeItem(element);
 			}));
+			if (this._childrenFetchTokens.get(fetchKey) !== requestId) {
+				return undefined;
+			}
 			if (cts.token.isCancellationRequested) {
 				return undefined;
 			}
 
 			// createAndRegisterTreeNodes adds the nodes to a cache. This must be done sync so that they get added in the correct order.
 			const items = treeItems.map((item, index) => item ? this._createAndRegisterTreeNode(coalescedElements[index], item, parentNode) : null);
+			if (this._childrenFetchTokens.get(fetchKey) !== requestId) {
+				return undefined;
+			}
 
 			return coalesce(items);
 		} finally {
@@ -1049,6 +1070,7 @@ class ExtHostTreeView<T> extends Disposable {
 		});
 		this._nodes.clear();
 		this._elements.clear();
+		this._childrenFetchTokens.clear();
 	}
 
 	private _clearNodes(nodes: TreeNode[]): void {
@@ -1062,6 +1084,7 @@ class ExtHostTreeView<T> extends Disposable {
 		this._nodes.clear();
 		dispose(this._nodesToClear);
 		this._nodesToClear.clear();
+		this._childrenFetchTokens.clear();
 	}
 
 	override dispose() {

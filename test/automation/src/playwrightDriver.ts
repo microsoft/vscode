@@ -8,11 +8,12 @@ import type { Protocol } from 'playwright-core/types/protocol';
 import { dirname, join } from 'path';
 import { promises } from 'fs';
 import { IWindowDriver } from './driver';
-import { PageFunction } from 'playwright-core/types/structs';
 import { measureAndLog } from './logger';
 import { LaunchOptions } from './code';
 import { teardown } from './processes';
 import { ChildProcess } from 'child_process';
+
+type PageFunction<Arg, T> = (arg: Arg) => T | Promise<T>;
 
 export class PlaywrightDriver {
 

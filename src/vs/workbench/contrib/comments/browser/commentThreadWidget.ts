@@ -5,7 +5,6 @@
 
 import './media/review.css';
 import * as dom from '../../../../base/browser/dom.js';
-import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -21,11 +20,7 @@ import { CommentThreadHeader } from './commentThreadHeader.js';
 import { CommentThreadAdditionalActions } from './commentThreadAdditionalActions.js';
 import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
-import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
-import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { PANEL_BORDER } from '../../../common/theme.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
-import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from './commentColors.js';
 import { ICellRange } from '../../notebook/common/notebookRange.js';
 import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
@@ -48,7 +43,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _commentMenus: CommentMenus;
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _threadIsEmpty: IContextKey<boolean>;
-	private _styleElement: HTMLStyleElement;
 	private _commentThreadContextValue: IContextKey<string | undefined>;
 	private _focusedContextKey: IContextKey<boolean>;
 	private _onDidResize = new Emitter<dom.Dimension>();
@@ -139,8 +133,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		) as unknown as CommentThreadBody<T>;
 		this._register(this._body);
 		this._setAriaLabel();
-		this._styleElement = domStylesheets.createStyleSheet(this.container);
-
 
 		this._commentThreadContextValue = CommentContextKeys.commentThreadContext.bindTo(this._contextKeyService);
 		this._commentThreadContextValue.set(_commentThread.contextValue);
@@ -382,72 +374,12 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 	}
 
-	applyTheme(theme: IColorTheme, fontInfo: FontInfo) {
-		const content: string[] = [];
-
-		content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid var(${commentThreadStateColorVar}) }`);
-		content.push(`.monaco-editor .review-widget > .head { background-color: var(${commentThreadStateBackgroundColorVar}) }`);
-
-		const linkColor = theme.getColor(textLinkForeground);
-		if (linkColor) {
-			content.push(`.review-widget .body .comment-body a { color: ${linkColor} }`);
-		}
-
-		const linkActiveColor = theme.getColor(textLinkActiveForeground);
-		if (linkActiveColor) {
-			content.push(`.review-widget .body .comment-body a:hover, a:active { color: ${linkActiveColor} }`);
-		}
-
-		const focusColor = theme.getColor(focusBorder);
-		if (focusColor) {
-			content.push(`.review-widget .body .comment-body a:focus { outline: 1px solid ${focusColor}; }`);
-			content.push(`.review-widget .body .monaco-editor.focused { outline: 1px solid ${focusColor}; }`);
-		}
-
-		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
-		if (blockQuoteBackground) {
-			content.push(`.review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
-		}
-
-		const border = theme.getColor(PANEL_BORDER);
-		if (border) {
-			content.push(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label { border-color: ${border}; }`);
-		}
-
-		const hcBorder = theme.getColor(contrastBorder);
-		if (hcBorder) {
-			content.push(`.review-widget .body .comment-form .review-thread-reply-button { outline-color: ${hcBorder}; }`);
-			content.push(`.review-widget .body .monaco-editor { outline: 1px solid ${hcBorder}; }`);
-		}
-
-		const errorBorder = theme.getColor(inputValidationErrorBorder);
-		if (errorBorder) {
-			content.push(`.review-widget .validation-error { border: 1px solid ${errorBorder}; }`);
-		}
-
-		const errorBackground = theme.getColor(inputValidationErrorBackground);
-		if (errorBackground) {
-			content.push(`.review-widget .validation-error { background: ${errorBackground}; }`);
-		}
-
-		const errorForeground = theme.getColor(inputValidationErrorForeground);
-		if (errorForeground) {
-			content.push(`.review-widget .body .comment-form .validation-error { color: ${errorForeground}; }`);
-		}
-
+	applyTheme(fontInfo: FontInfo) {
 		const fontFamilyVar = '--comment-thread-editor-font-family';
-		const fontSizeVar = '--comment-thread-editor-font-size';
 		const fontWeightVar = '--comment-thread-editor-font-weight';
 		this.container?.style.setProperty(fontFamilyVar, fontInfo.fontFamily);
-		this.container?.style.setProperty(fontSizeVar, `${fontInfo.fontSize}px`);
 		this.container?.style.setProperty(fontWeightVar, fontInfo.fontWeight);
 
-		content.push(`.review-widget .body code {
-			font-family: var(${fontFamilyVar});
-			font-weight: var(${fontWeightVar});
-		}`);
-
-		this._styleElement.textContent = content.join('\n');
 		this._commentReply?.setCommentEditorDecorations();
 	}
 }

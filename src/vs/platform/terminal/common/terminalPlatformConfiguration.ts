@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getAllCodicons } from '../../../base/common/codicons.js';
+import { Codicon, getAllCodicons } from '../../../base/common/codicons.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../base/common/jsonSchema.js';
 import { OperatingSystem, Platform, PlatformToString } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
@@ -175,7 +175,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: {
 				'PowerShell': {
 					source: 'PowerShell',
-					icon: 'terminal-powershell'
+					icon: Codicon.terminalPowershell.id,
 				},
 				'Command Prompt': {
 					path: [
@@ -183,10 +183,11 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 						'${env:windir}\\System32\\cmd.exe'
 					],
 					args: [],
-					icon: 'terminal-cmd'
+					icon: Codicon.terminalCmd,
 				},
 				'Git Bash': {
-					source: 'Git Bash'
+					source: 'Git Bash',
+					icon: Codicon.terminalGitBash.id,
 				}
 			},
 			additionalProperties: {
@@ -234,7 +235,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				'bash': {
 					path: 'bash',
 					args: ['-l'],
-					icon: 'terminal-bash'
+					icon: Codicon.terminalBash.id
 				},
 				'zsh': {
 					path: 'zsh',
@@ -246,11 +247,11 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux',
-					icon: 'terminal-tmux'
+					icon: Codicon.terminalTmux.id
 				},
 				'pwsh': {
 					path: 'pwsh',
-					icon: 'terminal-powershell'
+					icon: Codicon.terminalPowershell.id
 				}
 			},
 			additionalProperties: {
@@ -286,7 +287,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: {
 				'bash': {
 					path: 'bash',
-					icon: 'terminal-bash'
+					icon: Codicon.terminalBash.id
 				},
 				'zsh': {
 					path: 'zsh'
@@ -296,11 +297,11 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux',
-					icon: 'terminal-tmux'
+					icon: Codicon.terminalTmux.id
 				},
 				'pwsh': {
 					path: 'pwsh',
-					icon: 'terminal-powershell'
+					icon: Codicon.terminalPowershell.id
 				}
 			},
 			additionalProperties: {

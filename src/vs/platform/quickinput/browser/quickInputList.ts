@@ -421,6 +421,9 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			checkbox = new Checkbox(element.saneLabel, element.checked, { ...defaultCheckboxStyles, size: 15 });
 			data.checkbox.value = checkbox;
 			data.outerLabel.prepend(checkbox.domNode);
+			// Remove checkbox from tab order since tree items are navigable with arrow keys
+			// This prevents the issue where pressing Space toggles both the tabbed checkbox and the focused item
+			checkbox.domNode.tabIndex = -1;
 		} else {
 			checkbox.setTitle(element.saneLabel);
 		}

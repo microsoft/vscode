@@ -29,7 +29,7 @@ suite('ChatEditingCheckpointTimeline', function () {
 	const DEFAULT_TELEMETRY_INFO: IModifiedEntryTelemetryInfo = upcastPartial({
 		agentId: 'testAgent',
 		command: undefined,
-		sessionId: 'test-session',
+		sessionResource: URI.parse('chat://test-session'),
 		requestId: 'test-request',
 		result: undefined,
 		modelId: undefined,
@@ -105,7 +105,7 @@ suite('ChatEditingCheckpointTimeline', function () {
 		collection.set(INotebookService, new SyncDescriptor(TestNotebookService));
 		const insta = store.add(workbenchInstantiationService(undefined, store).createChild(collection));
 
-		timeline = insta.createInstance(ChatEditingCheckpointTimelineImpl, 'test-session', fileDelegate);
+		timeline = insta.createInstance(ChatEditingCheckpointTimelineImpl, URI.parse('chat://test-session'), fileDelegate);
 	});
 
 	teardown(() => {
@@ -507,7 +507,7 @@ suite('ChatEditingCheckpointTimeline', function () {
 
 		const newTimeline = insta.createInstance(
 			ChatEditingCheckpointTimelineImpl,
-			'test-session-2',
+			URI.parse('chat://test-session-2'),
 			fileDelegate
 		);
 
@@ -872,6 +872,91 @@ suite('ChatEditingCheckpointTimeline', function () {
 
 		assert.strictEqual(timeline.hasFileBaseline(uri, 'req1'), true);
 		assert.strictEqual(timeline.hasFileBaseline(uri, 'req2'), false);
+	});
+
+	test('hasFileBaseline returns true for files with create operations', function () {
+		const uri = URI.parse('file:///created.txt');
+
+		// Initially, no baseline
+		assert.strictEqual(timeline.hasFileBaseline(uri, 'req1'), false);
+
+		// Record a create operation without recording an explicit baseline
+		timeline.recordFileOperation(createFileCreateOperation(
+			uri,
+			'req1',
+			timeline.incrementEpoch(),
+			'created content'
+		));
+
+		// hasFileBaseline should now return true because of the create operation
+		assert.strictEqual(timeline.hasFileBaseline(uri, 'req1'), true);
+		assert.strictEqual(timeline.hasFileBaseline(uri, 'req2'), false);
+	});
+
+	test('hasFileBaseline distinguishes between different request IDs for create operations', function () {
+		const uri = URI.parse('file:///created.txt');
+
+		// Record a create operation for req1
+		timeline.recordFileOperation(createFileCreateOperation(
+			uri,
+			'req1',
+			timeline.incrementEpoch(),
+			'content from req1'
+		));
+
+		// hasFileBaseline should only return true for req1
+		assert.strictEqual(timeline.hasFileBaseline(uri, 'req1'), true);
+		assert.strictEqual(timeline.hasFileBaseline(uri, 'req2'), false);
+		assert.strictEqual(timeline.hasFileBaseline(uri, 'req3'), false);
+	});
+
+	test('hasFileBaseline returns true when both baseline and create operation exist', function () {
+		const uri = URI.parse('file:///test.txt');
+
+		// Record both a baseline and a create operation
+		timeline.recordFileBaseline(upcastPartial({
+			uri,
+			requestId: 'req1',
+			content: 'baseline content',
+			epoch: timeline.incrementEpoch(),
+			telemetryInfo: DEFAULT_TELEMETRY_INFO
+		}));
+
+		timeline.recordFileOperation(createFileCreateOperation(
+			uri,
+			'req1',
+			timeline.incrementEpoch(),
+			'created content'
+		));
+
+		// Should return true (checking either source)
+		assert.strictEqual(timeline.hasFileBaseline(uri, 'req1'), true);
+	});
+
+	test('hasFileBaseline with create operation followed by edit', function () {
+		const uri = URI.parse('file:///created-and-edited.txt');
+
+		// Record a create operation
+		timeline.recordFileOperation(createFileCreateOperation(
+			uri,
+			'req1',
+			timeline.incrementEpoch(),
+			'initial content'
+		));
+
+		// hasFileBaseline should return true
+		assert.strictEqual(timeline.hasFileBaseline(uri, 'req1'), true);
+
+		// Record an edit operation on the created file
+		timeline.recordFileOperation(createTextEditOperation(
+			uri,
+			'req1',
+			timeline.incrementEpoch(),
+			[{ range: new Range(1, 1, 1, 16), text: 'edited content' }]
+		));
+
+		// hasFileBaseline should still return true
+		assert.strictEqual(timeline.hasFileBaseline(uri, 'req1'), true);
 	});
 
 	test('multiple text edits to same file are properly replayed', async function () {

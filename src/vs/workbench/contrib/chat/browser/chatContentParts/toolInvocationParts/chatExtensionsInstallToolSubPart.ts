@@ -16,7 +16,7 @@ import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
-import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
+import { IChatWidgetService } from '../../chat.js';
 import { ChatConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatExtensionsContentPart } from '../chatExtensionsContentPart.js';
@@ -24,7 +24,15 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
-	public readonly codeblocks: IChatCodeBlockInfo[] = [];
+	private readonly _confirmWidget?: ChatConfirmationWidget<ConfirmedReason>;
+
+	public get codeblocks() {
+		return this._confirmWidget?.codeblocks || [];
+	}
+
+	public override get codeblocksPartId() {
+		return this._confirmWidget?.codeblocksPartId || '<none>';
+	}
 
 	constructor(
 		toolInvocation: IChatToolInvocation,
@@ -82,6 +90,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 					buttons,
 				}
 			));
+			this._confirmWidget = confirmWidget;
 			this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			dom.append(this.domNode, confirmWidget.domNode);
 			this._register(confirmWidget.onDidClick(button => {

@@ -35,10 +35,10 @@ export class ConfigurationModel implements IConfigurationModel {
 	private readonly overrideConfigurations = new Map<string, ConfigurationModel>();
 
 	constructor(
-		private readonly _contents: any,
+		private readonly _contents: IStringDictionary<unknown>,
 		private readonly _keys: string[],
 		private readonly _overrides: IOverrides[],
-		readonly raw: IStringDictionary<any> | ReadonlyArray<IStringDictionary<any> | ConfigurationModel> | undefined,
+		private readonly _raw: IStringDictionary<unknown> | ReadonlyArray<IStringDictionary<unknown> | ConfigurationModel> | undefined,
 		private readonly logService: ILogService
 	) {
 	}
@@ -46,8 +46,8 @@ export class ConfigurationModel implements IConfigurationModel {
 	private _rawConfiguration: ConfigurationModel | undefined;
 	get rawConfiguration(): ConfigurationModel {
 		if (!this._rawConfiguration) {
-			if (this.raw) {
-				const rawConfigurationModels = (Array.isArray(this.raw) ? this.raw : [this.raw]).map(raw => {
+			if (this._raw) {
+				const rawConfigurationModels = (Array.isArray(this._raw) ? this._raw : [this._raw]).map(raw => {
 					if (raw instanceof ConfigurationModel) {
 						return raw;
 					}
@@ -64,7 +64,7 @@ export class ConfigurationModel implements IConfigurationModel {
 		return this._rawConfiguration;
 	}
 
-	get contents(): any {
+	get contents(): IStringDictionary<unknown> {
 		return this._contents;
 	}
 
@@ -76,12 +76,22 @@ export class ConfigurationModel implements IConfigurationModel {
 		return this._keys;
 	}
 
+	get raw(): IStringDictionary<unknown> | IStringDictionary<unknown>[] | undefined {
+		if (!this._raw) {
+			return undefined;
+		}
+		if (Array.isArray(this._raw) && this._raw.every(raw => raw instanceof ConfigurationModel)) {
+			return undefined;
+		}
+		return this._raw as IStringDictionary<unknown> | IStringDictionary<unknown>[];
+	}
+
 	isEmpty(): boolean {
 		return this._keys.length === 0 && Object.keys(this._contents).length === 0 && this._overrides.length === 0;
 	}
 
-	getValue<V>(section: string | undefined): V {
-		return section ? getConfigurationValue<any>(this.contents, section) : this.contents;
+	getValue<V>(section: string | undefined): V | undefined {
+		return section ? getConfigurationValue<V>(this.contents, section) : this.contents as V;
 	}
 
 	inspect<V>(section: string | undefined, overrideIdentifier?: string | null): InspectValue<V> {
@@ -112,7 +122,7 @@ export class ConfigurationModel implements IConfigurationModel {
 	getOverrideValue<V>(section: string | undefined, overrideIdentifier: string): V | undefined {
 		const overrideContents = this.getContentsForOverrideIdentifer(overrideIdentifier);
 		return overrideContents
-			? section ? getConfigurationValue<any>(overrideContents, section) : overrideContents
+			? section ? getConfigurationValue<V>(overrideContents, section) : overrideContents as V
 			: undefined;
 	}
 
@@ -147,10 +157,10 @@ export class ConfigurationModel implements IConfigurationModel {
 		const contents = objects.deepClone(this.contents);
 		const overrides = objects.deepClone(this.overrides);
 		const keys = [...this.keys];
-		const raws = this.raw ? Array.isArray(this.raw) ? [...this.raw] : [this.raw] : [this];
+		const raws = this._raw ? Array.isArray(this._raw) ? [...this._raw] : [this._raw] : [this];
 
 		for (const other of others) {
-			raws.push(...(other.raw ? Array.isArray(other.raw) ? other.raw : [other.raw] : [other]));
+			raws.push(...(other._raw ? Array.isArray(other._raw) ? other._raw : [other._raw] : [other]));
 			if (other.isEmpty()) {
 				continue;
 			}
@@ -183,7 +193,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			return this;
 		}
 
-		const contents: any = {};
+		const contents: IStringDictionary<unknown> = {};
 		for (const key of arrays.distinct([...Object.keys(this.contents), ...Object.keys(overrideContents)])) {
 
 			let contentsForKey = this.contents[key];
@@ -194,7 +204,7 @@ export class ConfigurationModel implements IConfigurationModel {
 				// Clone and merge only if base contents and override contents are of type object otherwise just override
 				if (typeof contentsForKey === 'object' && typeof overrideContentsForKey === 'object') {
 					contentsForKey = objects.deepClone(contentsForKey);
-					this.mergeContents(contentsForKey, overrideContentsForKey);
+					this.mergeContents(contentsForKey as IStringDictionary<unknown>, overrideContentsForKey as IStringDictionary<unknown>);
 				} else {
 					contentsForKey = overrideContentsForKey;
 				}
@@ -206,11 +216,11 @@ export class ConfigurationModel implements IConfigurationModel {
 		return new ConfigurationModel(contents, this.keys, this.overrides, undefined, this.logService);
 	}
 
-	private mergeContents(source: any, target: any): void {
+	private mergeContents(source: IStringDictionary<unknown>, target: IStringDictionary<unknown>): void {
 		for (const key of Object.keys(target)) {
 			if (key in source) {
 				if (types.isObject(source[key]) && types.isObject(target[key])) {
-					this.mergeContents(source[key], target[key]);
+					this.mergeContents(source[key] as IStringDictionary<unknown>, target[key] as IStringDictionary<unknown>);
 					continue;
 				}
 			}
@@ -218,10 +228,10 @@ export class ConfigurationModel implements IConfigurationModel {
 		}
 	}
 
-	private getContentsForOverrideIdentifer(identifier: string): any {
-		let contentsForIdentifierOnly: IStringDictionary<any> | null = null;
-		let contents: IStringDictionary<any> | null = null;
-		const mergeContents = (contentsToMerge: any) => {
+	private getContentsForOverrideIdentifer(identifier: string): IStringDictionary<unknown> | null {
+		let contentsForIdentifierOnly: IStringDictionary<unknown> | null = null;
+		let contents: IStringDictionary<unknown> | null = null;
+		const mergeContents = (contentsToMerge: IStringDictionary<unknown> | null) => {
 			if (contentsToMerge) {
 				if (contents) {
 					this.mergeContents(contents, contentsToMerge);
@@ -252,11 +262,11 @@ export class ConfigurationModel implements IConfigurationModel {
 
 	// Update methods
 
-	public addValue(key: string, value: any): void {
+	public addValue(key: string, value: unknown): void {
 		this.updateValue(key, value, true);
 	}
 
-	public setValue(key: string, value: any): void {
+	public setValue(key: string, value: unknown): void {
 		this.updateValue(key, value, false);
 	}
 
@@ -272,18 +282,19 @@ export class ConfigurationModel implements IConfigurationModel {
 		}
 	}
 
-	private updateValue(key: string, value: any, add: boolean): void {
+	private updateValue(key: string, value: unknown, add: boolean): void {
 		addToValueTree(this.contents, key, value, e => this.logService.error(e));
 		add = add || this.keys.indexOf(key) === -1;
 		if (add) {
 			this.keys.push(key);
 		}
 		if (OVERRIDE_PROPERTY_REGEX.test(key)) {
+			const overrideContents = this.contents[key] as IStringDictionary<unknown>;
 			const identifiers = overrideIdentifiersFromKey(key);
 			const override = {
 				identifiers,
-				keys: Object.keys(this.contents[key]),
-				contents: toValuesTree(this.contents[key], message => this.logService.error(message)),
+				keys: Object.keys(overrideContents),
+				contents: toValuesTree(overrideContents, message => this.logService.error(message)),
 			};
 			const index = this.overrides.findIndex(o => arrays.equals(o.identifiers, identifiers));
 			if (index !== -1) {
@@ -305,10 +316,10 @@ export interface ConfigurationParseOptions {
 
 export class ConfigurationModelParser {
 
-	private _raw: any = null;
+	private _raw: IStringDictionary<unknown> | null = null;
 	private _configurationModel: ConfigurationModel | null = null;
 	private _restrictedConfigurations: string[] = [];
-	private _parseErrors: any[] = [];
+	private _parseErrors: json.ParseError[] = [];
 
 	constructor(
 		protected readonly _name: string,
@@ -323,7 +334,7 @@ export class ConfigurationModelParser {
 		return this._restrictedConfigurations;
 	}
 
-	get errors(): any[] {
+	get errors(): json.ParseError[] {
 		return this._parseErrors;
 	}
 
@@ -340,21 +351,21 @@ export class ConfigurationModelParser {
 		}
 	}
 
-	public parseRaw(raw: any, options?: ConfigurationParseOptions): void {
+	public parseRaw(raw: IStringDictionary<unknown>, options?: ConfigurationParseOptions): void {
 		this._raw = raw;
 		const { contents, keys, overrides, restricted, hasExcludedProperties } = this.doParseRaw(raw, options);
 		this._configurationModel = new ConfigurationModel(contents, keys, overrides, hasExcludedProperties ? [raw] : undefined /* raw has not changed */, this.logService);
 		this._restrictedConfigurations = restricted || [];
 	}
 
-	private doParseContent(content: string): any {
-		let raw: any = {};
+	private doParseContent(content: string): IStringDictionary<unknown> {
+		let raw: IStringDictionary<unknown> = {};
 		let currentProperty: string | null = null;
-		let currentParent: any = [];
-		const previousParents: any[] = [];
+		let currentParent: unknown[] | IStringDictionary<unknown> = [];
+		const previousParents: (unknown[] | IStringDictionary<unknown>)[] = [];
 		const parseErrors: json.ParseError[] = [];
 
-		function onValue(value: any) {
+		function onValue(value: unknown) {
 			if (Array.isArray(currentParent)) {
 				currentParent.push(value);
 			} else if (currentProperty !== null) {
@@ -374,17 +385,17 @@ export class ConfigurationModelParser {
 				currentProperty = name;
 			},
 			onObjectEnd: () => {
-				currentParent = previousParents.pop();
+				currentParent = previousParents.pop()!;
 			},
 			onArrayBegin: () => {
-				const array: any[] = [];
+				const array: unknown[] = [];
 				onValue(array);
 				previousParents.push(currentParent);
 				currentParent = array;
 				currentProperty = null;
 			},
 			onArrayEnd: () => {
-				currentParent = previousParents.pop();
+				currentParent = previousParents.pop()!;
 			},
 			onLiteralValue: onValue,
 			onError: (error: json.ParseErrorCode, offset: number, length: number) => {
@@ -394,17 +405,17 @@ export class ConfigurationModelParser {
 		if (content) {
 			try {
 				json.visit(content, visitor);
-				raw = currentParent[0] || {};
+				raw = (currentParent[0] as IStringDictionary<unknown>) || {};
 			} catch (e) {
 				this.logService.error(`Error while parsing settings file ${this._name}: ${e}`);
-				this._parseErrors = [e];
+				this._parseErrors = [e as json.ParseError];
 			}
 		}
 
 		return raw;
 	}
 
-	protected doParseRaw(raw: any, options?: ConfigurationParseOptions): IConfigurationModel & { restricted?: string[]; hasExcludedProperties?: boolean } {
+	protected doParseRaw(raw: IStringDictionary<unknown>, options?: ConfigurationParseOptions): IConfigurationModel & { restricted?: string[]; hasExcludedProperties?: boolean } {
 		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		const configurationProperties = registry.getConfigurationProperties();
 		const excludedConfigurationProperties = registry.getExcludedConfigurationProperties();
@@ -416,16 +427,16 @@ export class ConfigurationModelParser {
 		return { contents, keys, overrides, restricted: filtered.restricted, hasExcludedProperties: filtered.hasExcludedProperties };
 	}
 
-	private filter(properties: any, configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, excludedConfigurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}; restricted: string[]; hasExcludedProperties: boolean } {
+	private filter(properties: IStringDictionary<unknown>, configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, excludedConfigurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: IStringDictionary<unknown>; restricted: string[]; hasExcludedProperties: boolean } {
 		let hasExcludedProperties = false;
 		if (!options?.scopes && !options?.skipRestricted && !options?.skipUnregistered && !options?.exclude?.length) {
 			return { raw: properties, restricted: [], hasExcludedProperties };
 		}
-		const raw: any = {};
+		const raw: IStringDictionary<unknown> = {};
 		const restricted: string[] = [];
 		for (const key in properties) {
 			if (OVERRIDE_PROPERTY_REGEX.test(key) && filterOverriddenProperties) {
-				const result = this.filter(properties[key], configurationProperties, excludedConfigurationProperties, false, options);
+				const result = this.filter(properties[key] as IStringDictionary<unknown>, configurationProperties, excludedConfigurationProperties, false, options);
 				raw[key] = result.raw;
 				hasExcludedProperties = hasExcludedProperties || result.hasExcludedProperties;
 				restricted.push(...result.restricted);
@@ -470,13 +481,14 @@ export class ConfigurationModelParser {
 		return options.scopes.includes(scope);
 	}
 
-	private toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
+	private toOverrides(raw: IStringDictionary<unknown>, conflictReporter: (message: string) => void): IOverrides[] {
 		const overrides: IOverrides[] = [];
 		for (const key of Object.keys(raw)) {
 			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-				const overrideRaw: any = {};
-				for (const keyInOverrideRaw in raw[key]) {
-					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
+				const overrideRaw: IStringDictionary<unknown> = {};
+				const rawKey = raw[key] as IStringDictionary<unknown>;
+				for (const keyInOverrideRaw in rawKey) {
+					overrideRaw[keyInOverrideRaw] = rawKey[keyInOverrideRaw];
 				}
 				overrides.push({
 					identifiers: overrideIdentifiersFromKey(key),
@@ -729,12 +741,12 @@ export class Configuration {
 	) {
 	}
 
-	getValue(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): any {
+	getValue(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): unknown {
 		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(section, overrides, workspace);
 		return consolidateConfigurationModel.getValue(section);
 	}
 
-	updateValue(key: string, value: any, overrides: IConfigurationUpdateOverrides = {}): void {
+	updateValue(key: string, value: unknown, overrides: IConfigurationUpdateOverrides = {}): void {
 		let memoryConfiguration: ConfigurationModel | undefined;
 		if (overrides.resource) {
 			memoryConfiguration = this._memoryConfigurationByResource.get(overrides.resource);
@@ -1262,7 +1274,7 @@ function compare(from: ConfigurationModel | undefined, to: ConfigurationModel | 
 	return { added, removed, updated, overrides };
 }
 
-function compareConfigurationContents(to: { keys: string[]; contents: any } | undefined, from: { keys: string[]; contents: any } | undefined) {
+function compareConfigurationContents(to: { keys: string[]; contents: IStringDictionary<unknown> } | undefined, from: { keys: string[]; contents: IStringDictionary<unknown> } | undefined) {
 	const added = to
 		? from ? to.keys.filter(key => from.keys.indexOf(key) === -1) : [...to.keys]
 		: [];

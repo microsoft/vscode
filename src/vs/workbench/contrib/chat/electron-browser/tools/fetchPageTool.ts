@@ -6,6 +6,8 @@
 import { assertNever } from '../../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { extname } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -13,6 +15,8 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWebContentExtractorService, WebContentExtractResult } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
 import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
+import { IChatService } from '../../common/chatService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
@@ -21,7 +25,7 @@ export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
 	displayName: 'Fetch Web Page',
 	canBeReferencedInPrompt: false,
-	modelDescription: localize('fetchWebPage.modelDescription', 'Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
+	modelDescription: 'Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.',
 	source: ToolDataSource.Internal,
 	canRequestPostApproval: true,
 	canRequestPreApproval: true,
@@ -40,6 +44,10 @@ export const FetchWebPageToolData: IToolData = {
 	}
 };
 
+export interface IFetchWebPageToolParams {
+	urls?: string[];
+}
+
 type ResultType = string | { type: 'tooldata'; value: IToolResultDataPart } | { type: 'extracted'; value: WebContentExtractResult } | undefined;
 
 export class FetchWebPageTool implements IToolImpl {
@@ -47,11 +55,12 @@ export class FetchWebPageTool implements IToolImpl {
 	constructor(
 		@IWebContentExtractorService private readonly _readerModeService: IWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
-		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService
+		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
+		@IChatService private readonly _chatService: IChatService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const urls = (invocation.parameters as { urls?: string[] }).urls || [];
+		const urls = (invocation.parameters as IFetchWebPageToolParams).urls || [];
 		const { webUris, fileUris, invalidUris } = this._parseUris(urls);
 		const allValidUris = [...webUris.values(), ...fileUris.values()];
 
@@ -158,7 +167,7 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls];
-		const urlsNeedingConfirmation = [...webUris.values(), ...validFileUris];
+		const urlsNeedingConfirmation = new ResourceSet([...webUris.values(), ...validFileUris]);
 
 		const pastTenseMessage = invalid.length
 			? invalid.length > 1
@@ -166,7 +175,7 @@ export class FetchWebPageTool implements IToolImpl {
 				? new MarkdownString(
 					localize(
 						'fetchWebPage.pastTenseMessage.plural',
-						'Fetched {0} resources, but the following were invalid URLs:\n\n{1}\n\n', urlsNeedingConfirmation.length, invalid.map(url => `- ${url}`).join('\n')
+						'Fetched {0} resources, but the following were invalid URLs:\n\n{1}\n\n', urlsNeedingConfirmation.size, invalid.map(url => `- ${url}`).join('\n')
 					))
 				// If there is only one invalid URL, show it
 				: new MarkdownString(
@@ -178,11 +187,11 @@ export class FetchWebPageTool implements IToolImpl {
 			: new MarkdownString();
 
 		const invocationMessage = new MarkdownString();
-		if (urlsNeedingConfirmation.length > 1) {
-			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', urlsNeedingConfirmation.length));
-			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', urlsNeedingConfirmation.length));
-		} else if (urlsNeedingConfirmation.length === 1) {
-			const url = urlsNeedingConfirmation[0].toString();
+		if (urlsNeedingConfirmation.size > 1) {
+			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', urlsNeedingConfirmation.size));
+			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', urlsNeedingConfirmation.size));
+		} else if (urlsNeedingConfirmation.size === 1) {
+			const url = Iterable.first(urlsNeedingConfirmation)!.toString(true);
 			// If the URL is too long or it's a file url, show it as a link... otherwise, show it as plain text
 			if (url.length > 400 || validFileUris.length === 1) {
 				pastTenseMessage.appendMarkdown(localize({
@@ -205,22 +214,34 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
+		if (context.chatSessionId) {
+			const model = this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
+			const userMessages = model?.getRequests().map(r => r.message.text.toLowerCase());
+			for (const uri of urlsNeedingConfirmation) {
+				// Normalize to lowercase and remove any trailing slash
+				const toToCheck = uri.toString(true).toLowerCase().replace(/\/$/, '');
+				if (userMessages?.some(m => m.includes(toToCheck))) {
+					urlsNeedingConfirmation.delete(uri);
+				}
+			}
+		}
+
 		const result: IPreparedToolInvocation = { invocationMessage, pastTenseMessage };
-		const allDomainsTrusted = urlsNeedingConfirmation.every(u => this._trustedDomainService.isValid(u));
+		const allDomainsTrusted = Iterable.every(urlsNeedingConfirmation, u => this._trustedDomainService.isValid(u));
 		let confirmationTitle: string | undefined;
 		let confirmationMessage: string | MarkdownString | undefined;
 
-		if (urlsNeedingConfirmation.length && !allDomainsTrusted) {
-			if (urlsNeedingConfirmation.length === 1) {
+		if (urlsNeedingConfirmation.size && !allDomainsTrusted) {
+			if (urlsNeedingConfirmation.size === 1) {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch web page?');
 				confirmationMessage = new MarkdownString(
-					urlsNeedingConfirmation[0].toString(),
+					Iterable.first(urlsNeedingConfirmation)!.toString(true),
 					{ supportThemeIcons: true }
 				);
 			} else {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch web pages?');
 				confirmationMessage = new MarkdownString(
-					urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n'),
+					[...urlsNeedingConfirmation].map(uri => `- ${uri.toString(true)}`).join('\n'),
 					{ supportThemeIcons: true }
 				);
 			}
@@ -228,7 +249,7 @@ export class FetchWebPageTool implements IToolImpl {
 		result.confirmationMessages = {
 			title: confirmationTitle,
 			message: confirmationMessage,
-			confirmResults: urlsNeedingConfirmation.length > 0,
+			confirmResults: urlsNeedingConfirmation.size > 0,
 			allowAutoConfirm: true,
 			disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true })
 		};

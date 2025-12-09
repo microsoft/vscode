@@ -5,7 +5,7 @@
 
 import { ProgressBar } from '../../../../../../base/browser/ui/progressbar/progressbar.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
-import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, createMarkdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getExtensionForMimeType } from '../../../../../../base/common/mime.js';
@@ -13,13 +13,13 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatResponseResource } from '../../../common/chatModel.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
 import { IToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
-import { EditorPool } from '../chatMarkdownContentPart.js';
 import { ChatCollapsibleInputOutputContentPart, ChatCollapsibleIOPart, IChatCollapsibleIOCodePart } from '../chatToolInputOutputContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
@@ -37,14 +37,12 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		context: IChatContentPartRenderContext,
-		editorPool: EditorPool,
 		codeBlockStartIndex: number,
 		message: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		input: string,
 		output: IToolResultInputOutputDetails['output'] | undefined,
 		isError: boolean,
-		currentWidthDelegate: () => number,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
@@ -95,8 +93,8 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			ChatCollapsibleInputOutputContentPart,
 			message,
 			subtitle,
+			this.getAutoApproveMessageContent(),
 			context,
-			editorPool,
 			toCodePart(input),
 			processedOutput && {
 				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
@@ -122,14 +120,13 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 						}
 
 						// Fall back to text if it's not valid base64
-						const permalinkUri = ChatResponseResource.createUri(context.element.sessionId, toolInvocation.toolCallId, i, permalinkBasename);
+						const permalinkUri = ChatResponseResource.createUri(context.element.sessionResource, toolInvocation.toolCallId, i, permalinkBasename);
 						return { kind: 'data', value: decoded || new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
 					}
 				}),
 			},
 			isError,
 			ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false,
-			currentWidthDelegate(),
 		));
 		this._codeblocks.push(...collapsibleListPart.codeblocks);
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -150,5 +147,35 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		}
 
 		this.domNode = collapsibleListPart.domNode;
+	}
+
+	private getAutoApproveMessageContent() {
+		const reason = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
+		if (!reason || typeof reason === 'boolean') {
+			return;
+		}
+
+		let md: string;
+		switch (reason.type) {
+			case ToolConfirmKind.Setting:
+				md = localize('chat.autoapprove.setting', 'Auto approved by {0}', createMarkdownCommandLink({ title: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id] }, false));
+				break;
+			case ToolConfirmKind.LmServicePerTool:
+				md = reason.scope === 'session'
+					? localize('chat.autoapprove.lmServicePerTool.session', 'Auto approved for this session')
+					: reason.scope === 'workspace'
+						? localize('chat.autoapprove.lmServicePerTool.workspace', 'Auto approved for this workspace')
+						: localize('chat.autoapprove.lmServicePerTool.profile', 'Auto approved for this profile');
+				md += ' (' + createMarkdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope] }) + ')';
+				break;
+			case ToolConfirmKind.UserAction:
+			case ToolConfirmKind.Denied:
+			case ToolConfirmKind.ConfirmationNotNeeded:
+			default:
+				return;
+		}
+
+
+		return new MarkdownString(md, { isTrusted: true });
 	}
 }

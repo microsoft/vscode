@@ -11,7 +11,7 @@ import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, ITo
 import { ITaskService, ITaskSummary, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { TaskRunSource } from '../../../../../tasks/common/tasks.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
+import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks, tasksMatch } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
@@ -76,7 +76,8 @@ export class RunTaskTool implements IToolImpl {
 			token,
 			store,
 			(terminalTask) => this._isTaskActive(terminalTask),
-			dependencyTasks
+			dependencyTasks,
+			this._tasksService
 		);
 		store.dispose();
 		for (const r of terminalResults) {
@@ -106,8 +107,8 @@ export class RunTaskTool implements IToolImpl {
 	}
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
-		const activeTasks = await this._tasksService.getActiveTasks();
-		return Promise.resolve(activeTasks?.some((t) => t._id === task._id));
+		const busyTasks = await this._tasksService.getBusyTasks();
+		return busyTasks?.some(t => tasksMatch(t, task)) ?? false;
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -147,9 +148,10 @@ export class RunTaskTool implements IToolImpl {
 export const RunTaskToolData: IToolData = {
 	id: 'run_task',
 	toolReferenceName: 'runTask',
+	legacyToolReferenceFullNames: ['runTasks/runTask'],
 	displayName: localize('runInTerminalTool.displayName', 'Run Task'),
 	modelDescription: 'Runs a VS Code task.\n\n- If you see that an appropriate task exists for building or running code, prefer to use this tool to run the task instead of using the run_in_terminal tool.\n- Make sure that any appropriate build or watch task is running before trying to run tests or execute code.\n- If the user asks to run a task, use this tool to do so.',
-	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running tasks in the workspace'),
+	userDescription: localize('runInTerminalTool.userDescription', 'Run tasks in the workspace'),
 	icon: Codicon.tools,
 	source: ToolDataSource.Internal,
 	when: TasksAvailableContext,
@@ -171,5 +173,3 @@ export const RunTaskToolData: IToolData = {
 		]
 	}
 };
-
-
