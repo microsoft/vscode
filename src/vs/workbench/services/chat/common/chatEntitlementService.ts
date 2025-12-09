@@ -239,12 +239,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-<<<<<<< HEAD
-		@ITelemetryService private readonly telemetryService: ITelemetryService
-=======
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
->>>>>>> origin/main
 	) {
 		super();
 
