@@ -656,7 +656,7 @@ export class ChatService extends Disposable implements IChatService {
 		for (const message of providedSession.history) {
 			if (message.type === 'request') {
 				if (lastRequest) {
-					lastRequest.response?.completeResponseIfNeeded();
+					lastRequest.response?.complete();
 				}
 
 				const requestText = message.prompt;
@@ -693,12 +693,14 @@ export class ChatService extends Disposable implements IChatService {
 					for (const part of message.parts) {
 						model.acceptResponseProgress(lastRequest, part);
 					}
+
+					lastRequest.response?.complete();
 				}
 			}
 		}
 
 		if (providedSession.isCompleteObs?.get()) {
-			lastRequest?.response?.completeResponseIfNeeded();
+			lastRequest?.response?.complete();
 		}
 
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
@@ -737,7 +739,7 @@ export class ChatService extends Disposable implements IChatService {
 
 				// Handle completion
 				if (isComplete) {
-					lastRequest.response?.completeResponseIfNeeded();
+					lastRequest.response?.complete();
 					cancellationListener.clear();
 				}
 			}));
@@ -745,7 +747,7 @@ export class ChatService extends Disposable implements IChatService {
 			if (lastRequest && model.editingSession) {
 				// wait for timeline to load so that a 'changes' part is added when the response completes
 				await chatEditingSessionIsReady(model.editingSession);
-				lastRequest.response?.completeResponseIfNeeded();
+				lastRequest.response?.complete();
 			}
 		}
 
