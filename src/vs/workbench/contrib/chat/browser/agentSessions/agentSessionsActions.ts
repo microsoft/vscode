@@ -3,22 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentsessionsactions.css';
 import { localize, localize2 } from '../../../../../nls.js';
-import { IAgentSession, getAgentChangesSummary } from './agentSessionsModel.js';
-import { Action, IAction } from '../../../../../base/common/actions.js';
-import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { EventHelper, h, hide, show } from '../../../../../base/browser/dom.js';
-import { assertReturnsDefined } from '../../../../../base/common/types.js';
+import { IAgentSession } from './agentSessionsModel.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, IAgentSessionsControl } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, IAgentSessionsControl } from './agentSessions.js';
+import { IChatService } from '../../common/chatService.js';
 import { AgentSessionsView } from './agentSessionsView.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { IChatModelReference, IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IMarshalledChatSessionContext, isMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
@@ -117,109 +110,6 @@ export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
 		session.setArchived(false);
 	}
 }
-
-//#endregion
-
-//#region Session Detail Actions
-
-export class AgentSessionShowDiffAction extends Action {
-
-	static ID = 'agentSession.showDiff';
-
-	constructor(
-		private readonly session: IAgentSession
-	) {
-		super(AgentSessionShowDiffAction.ID, localize('showDiff', "Open Changes"), undefined, true);
-	}
-
-	override async run(): Promise<void> {
-		// This will be handled by the action view item
-	}
-
-	getSession(): IAgentSession {
-		return this.session;
-	}
-}
-
-export class AgentSessionDiffActionViewItem extends ActionViewItem {
-
-	override get action(): AgentSessionShowDiffAction {
-		return super.action as AgentSessionShowDiffAction;
-	}
-
-	constructor(
-		action: IAction,
-		options: IActionViewItemOptions,
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super(null, action, options);
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-
-		const label = assertReturnsDefined(this.label);
-		label.textContent = '';
-
-		const session = this.action.getSession();
-		const diff = getAgentChangesSummary(session.changes);
-		if (!diff) {
-			return;
-		}
-
-		const elements = h(
-			'div.agent-session-diff-container@diffContainer',
-			[
-				h('span.agent-session-diff-files@filesSpan'),
-				h('span.agent-session-diff-added@addedSpan'),
-				h('span.agent-session-diff-removed@removedSpan')
-			]
-		);
-
-		if (diff.files > 0) {
-			elements.filesSpan.textContent = diff.files === 1 ? localize('diffFile', "1 file") : localize('diffFiles', "{0} files", diff.files);
-			show(elements.filesSpan);
-		} else {
-			hide(elements.filesSpan);
-		}
-
-		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
-			elements.addedSpan.textContent = `+${diff.insertions}`;
-			show(elements.addedSpan);
-		} else {
-			hide(elements.addedSpan);
-		}
-
-		if (diff.deletions >= 0 /* render even `0` for more homogeneity */) {
-			elements.removedSpan.textContent = `-${diff.deletions}`;
-			show(elements.removedSpan);
-		} else {
-			hide(elements.removedSpan);
-		}
-
-		label.appendChild(elements.diffContainer);
-	}
-
-	override onClick(event: MouseEvent): void {
-		EventHelper.stop(event, true);
-
-		const session = this.action.getSession();
-
-		this.commandService.executeCommand(`agentSession.${session.providerType}.openChanges`, this.action.getSession().resource);
-	}
-}
-
-CommandsRegistry.registerCommand(`agentSession.${AgentSessionProviders.Local}.openChanges`, async (accessor: ServicesAccessor, resource: URI) => {
-	const chatService = accessor.get(IChatService);
-
-	let sessionRef: IChatModelReference | undefined;
-	try {
-		sessionRef = await chatService.getOrRestoreSession(resource);
-		await sessionRef?.object.editingSession?.show();
-	} finally {
-		sessionRef?.dispose();
-	}
-});
 
 //#endregion
 

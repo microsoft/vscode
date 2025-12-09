@@ -122,7 +122,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		const model = this.chatService.getSession(chat.sessionResource);
 
 		let description: string | undefined;
-		let startTime: number | undefined;
+		let startTime: number;
 		let endTime: number | undefined;
 		if (model) {
 			if (!model.hasRequests) {
