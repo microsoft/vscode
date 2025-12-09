@@ -35,6 +35,8 @@ import { AgentSessionsFilter } from './agentSessionsFilter.js';
 import { AgentSessionsControl } from './agentSessionsControl.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 
 type AgentSessionsViewPaneOpenedClassification = {
 	owner: 'bpasero';
@@ -60,6 +62,7 @@ export class AgentSessionsView extends ViewPane {
 		@IMenuService private readonly menuService: IMenuService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 	) {
 		super({ ...options, titleMenuId: MenuId.AgentSessionsViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -81,6 +84,16 @@ export class AgentSessionsView extends ViewPane {
 				},
 				() => didResolve.p
 			);
+		}));
+
+		this._register(autorun(reader => {
+			const editingSessions = this.chatEditingService.editingSessionsObs.read(reader);
+			for (const session of editingSessions) {
+				session.canUndo.read(reader);
+				session.canRedo.read(reader);
+			}
+
+			this.sessionsControl?.refresh();
 		}));
 	}
 
