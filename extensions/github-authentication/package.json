@@ -68,6 +68,15 @@
             "default": false,
             "scope": "application",
             "markdownDescription": "%config.github-authentication.preferDeviceCodeFlow.description%"
+          },
+          "github-authentication.allowedOrganizations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "scope": "application",
+            "markdownDescription": "%config.github-authentication.allowedOrganizations.description%"
           }
         }
       }

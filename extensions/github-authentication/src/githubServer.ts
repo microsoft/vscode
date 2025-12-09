@@ -23,6 +23,7 @@ export interface IGitHubServer {
 	logout(session: vscode.AuthenticationSession): Promise<void>;
 	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
+	checkOrganizationMembership(token: string, allowedOrganizations: string[]): Promise<boolean>;
 	friendlyName: string;
 }
 
@@ -257,6 +258,48 @@ export class GitHubServer implements IGitHubServer {
 			}
 			this._logger.error(`Getting account info failed: ${errorMessage}`);
 			throw new Error(errorMessage);
+		}
+	}
+
+	public async checkOrganizationMembership(token: string, allowedOrganizations: string[]): Promise<boolean> {
+		if (!allowedOrganizations || allowedOrganizations.length === 0) {
+			// If no organizations are specified, allow all users
+			return true;
+		}
+
+		try {
+			this._logger.info('Checking organization membership...');
+			const result = await fetching(this.getServerUri('/user/orgs').toString(), {
+				logger: this._logger,
+				retryFallbacks: true,
+				expectJSON: true,
+				headers: {
+					Authorization: `token ${token}`,
+					'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
+				}
+			});
+
+			if (!result.ok) {
+				this._logger.error(`Failed to fetch user organizations: ${result.statusText}`);
+				return false;
+			}
+
+			const orgs = await result.json() as { login: string }[];
+			const userOrgs = orgs.map(org => org.login.toLowerCase());
+			const allowedOrgsLower = allowedOrganizations.map(org => org.toLowerCase());
+
+			const isMember = allowedOrgsLower.some(allowedOrg => userOrgs.includes(allowedOrg));
+			
+			if (isMember) {
+				this._logger.info('User is a member of an allowed organization');
+			} else {
+				this._logger.warn(`User is not a member of any allowed organizations. User orgs: ${userOrgs.join(', ')}, Allowed: ${allowedOrgsLower.join(', ')}`);
+			}
+
+			return isMember;
+		} catch (ex) {
+			this._logger.error(`Error checking organization membership: ${ex.message}`);
+			return false;
 		}
 	}
 
