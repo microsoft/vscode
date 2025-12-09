@@ -1409,10 +1409,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private archiveLocalParentSession(sessionResource: URI): void {
+	private async archiveLocalParentSession(sessionResource: URI): Promise<void> {
 		if (sessionResource.scheme !== Schemas.vscodeLocalChatSession) {
 			return;
 		}
+
+		// Implicitly keep parent session's changes as they've now been delegated to the new agent.
+		await this.chatService.getSession(sessionResource)?.editingSession?.accept();
+
 		const session = this.agentSessionsService.getSession(sessionResource);
 		session?.setArchived(true);
 	}
