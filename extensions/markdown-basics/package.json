@@ -91,7 +91,16 @@
         },
         "unbalancedBracketScopes": [
           "markup.underline.link.markdown",
-          "punctuation.definition.list.begin.markdown"
+          "punctuation.definition.list.begin.markdown",
+          "keyword.operator.relational.cs",
+          "keyword.operator.arrow.cs",
+          "punctuation.accessor.pointer.cs",
+          "keyword.operator.bitwise.shift.cs",
+          "keyword.operator.assignment.compound.bitwise.cs",
+          "keyword.operator.relational.ts",
+          "storage.type.function.arrow.ts",
+          "keyword.operator.bitwise.shift.ts",
+          "keyword.operator.assignment.compound.bitwise.ts"
         ]
       }
     ],
