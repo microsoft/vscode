@@ -32,7 +32,7 @@ import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState, editEntriesToMultiDiffData } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext, ResponseModelState } from './chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
@@ -194,6 +194,8 @@ export interface IChatResponseModel {
 	readonly timestamp: number;
 	/** Milliseconds timestamp when this chat response was completed or cancelled. */
 	readonly completedAt?: number;
+	/** The state of this response */
+	readonly state: ResponseModelState;
 	/**
 	 * Adjusted millisecond timestamp that excludes the duration during which
 	 * the model was pending user confirmation. `Date.now() - confirmationAdjustedTimestamp`
@@ -772,15 +774,9 @@ export interface IChatResponseModelParameters {
 	codeBlockInfos: ICodeBlockInfo[] | undefined;
 }
 
-const enum ResponseModelState {
-	Pending,
-	Complete,
-	Cancelled,
-}
-
 type ResponseModelStateT =
 	| { value: ResponseModelState.Pending }
-	| { value: ResponseModelState.Complete | ResponseModelState.Cancelled; completedAt: number };
+	| { value: ResponseModelState.Complete | ResponseModelState.Cancelled | ResponseModelState.Failed; completedAt: number };
 
 export class ChatResponseModel extends Disposable implements IChatResponseModel {
 	private readonly _onDidChange = this._register(new Emitter<ChatResponseModelChangeReason>());
@@ -838,10 +834,19 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	public get completedAt(): number | undefined {
 		const state = this._modelState.get();
-		if (state.value === ResponseModelState.Complete || state.value === ResponseModelState.Cancelled) {
+		if (state.value === ResponseModelState.Complete || state.value === ResponseModelState.Cancelled || state.value === ResponseModelState.Failed) {
 			return state.completedAt;
 		}
 		return undefined;
+	}
+
+	public get state(): ResponseModelState {
+		const state = this._modelState.get().value;
+		if (state === ResponseModelState.Complete && !!this._result?.errorDetails) {
+			return ResponseModelState.Failed;
+		}
+
+		return state;
 	}
 
 	public get vote(): ChatAgentVoteDirection | undefined {
@@ -1073,7 +1078,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			this._response.clear();
 		}
 
-		this._modelState.set({ value: ResponseModelState.Complete, completedAt: Date.now() }, undefined);
+		const state = !!this._result?.errorDetails ? ResponseModelState.Failed : ResponseModelState.Complete;
+		this._modelState.set({ value: state, completedAt: Date.now() }, undefined);
 		this._onDidChange.fire({ reason: 'completedRequest' });
 	}
 

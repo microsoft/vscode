@@ -916,12 +916,20 @@ export interface IChatSessionStats {
 	removed: number;
 }
 
+export const enum ResponseModelState {
+	Pending,
+	Complete,
+	Cancelled,
+	Failed
+}
+
 export interface IChatDetail {
 	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
 	isActive: boolean;
 	stats?: IChatSessionStats;
+	lastResponseState: ResponseModelState;
 }
 
 export interface IChatProviderInfo {
