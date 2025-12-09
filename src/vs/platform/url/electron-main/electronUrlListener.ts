@@ -49,7 +49,9 @@ export class ElectronURLListener extends Disposable {
 		}
 
 		// Windows: install as protocol handler
-		if (isWindows) {
+		// Skip protocol handler registration in portable mode to prevent
+		// launching VS Code in non-portable mode via OAuth redirects
+		if (isWindows && !environmentMainService.isPortable) {
 			const windowsParameters = environmentMainService.isBuilt ? [] : [`"${environmentMainService.appRoot}"`];
 			windowsParameters.push('--open-url', '--');
 			app.setAsDefaultProtocolClient(productService.urlProtocol, process.execPath, windowsParameters);

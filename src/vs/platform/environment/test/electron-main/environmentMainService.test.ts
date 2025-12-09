@@ -127,5 +127,33 @@ suite('EnvironmentMainService', () => {
 		}
 	});
 
+	test('isPortable returns true when VSCODE_PORTABLE is set', () => {
+		const originalPortable = process.env['VSCODE_PORTABLE'];
+		try {
+			process.env['VSCODE_PORTABLE'] = '/path/to/portable';
+			const service = new EnvironmentMainService({ '_': [] }, { '_serviceBrand': undefined, ...product });
+			assert.strictEqual(service.isPortable, true);
+		} finally {
+			if (originalPortable !== undefined) {
+				process.env['VSCODE_PORTABLE'] = originalPortable;
+			} else {
+				delete process.env['VSCODE_PORTABLE'];
+			}
+		}
+	});
+
+	test('isPortable returns false when VSCODE_PORTABLE is not set', () => {
+		const originalPortable = process.env['VSCODE_PORTABLE'];
+		try {
+			delete process.env['VSCODE_PORTABLE'];
+			const service = new EnvironmentMainService({ '_': [] }, { '_serviceBrand': undefined, ...product });
+			assert.strictEqual(service.isPortable, false);
+		} finally {
+			if (originalPortable !== undefined) {
+				process.env['VSCODE_PORTABLE'] = originalPortable;
+			}
+		}
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
