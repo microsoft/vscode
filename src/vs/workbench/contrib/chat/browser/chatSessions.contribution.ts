@@ -46,6 +46,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatViewId } from './chat.js';
 import { ChatViewPane } from './chatViewPane.js';
+import { AgentSessionProviders } from './agentSessions/agentSessions.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -695,7 +696,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		// Check if there are any available continue-in options (Background or Cloud)
 		const contributions = this.getAllChatSessionContributions();
 		const hasBackgroundOrCloud = contributions.some(contrib =>
-			(contrib.type === 'copilotcli' || contrib.type === 'copilot-cloud-agent') &&
+			(contrib.type === AgentSessionProviders.Background || contrib.type === AgentSessionProviders.Cloud) &&
 			contrib.canDelegate !== false
 		);
 		this._ctxHasContinueInOptions.set(hasBackgroundOrCloud);
