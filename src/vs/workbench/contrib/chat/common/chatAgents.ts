@@ -257,8 +257,11 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		this._extensionAgentRegistered = ChatContextKeys.extensionParticipantRegistered.bindTo(this.contextKeyService);
 		this._defaultAgentRegistered = ChatContextKeys.panelParticipantRegistered.bindTo(this.contextKeyService);
 		this._register(contextKeyService.onDidChangeContext((e) => {
-			if (e.affectsSome(this._agentsContextKeys) || e.affectsSome(new Set(['defaultAccountStatus']))) {
+			if (e.affectsSome(this._agentsContextKeys)) {
 				this._updateContextKeys();
+			}
+			if (e.affectsSome(new Set(['defaultAccountStatus']))) {
+				this._updateChatEnabledState();
 			}
 		}));
 		this._updateChatEnabledState();
