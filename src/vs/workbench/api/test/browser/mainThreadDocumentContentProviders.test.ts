@@ -77,12 +77,12 @@ suite('MainThreadDocumentContentProviders', function () {
 				override async computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | undefined) {
 					// Simulate async operation
 					await new Promise(resolve => setTimeout(resolve, 10));
-					
+
 					// Dispose model during the async operation if flag is set
 					if (disposeModelDuringEdit) {
 						model.dispose();
 					}
-					
+
 					return data;
 				}
 			},
@@ -98,7 +98,7 @@ suite('MainThreadDocumentContentProviders', function () {
 		// Second call should not throw even though model gets disposed during async operation
 		disposeModelDuringEdit = true;
 		await providers.$onVirtualDocumentChange(uri, 'should not apply');
-		
+
 		// Model should be disposed and value unchanged
 		assert.ok(model.isDisposed());
 	});
