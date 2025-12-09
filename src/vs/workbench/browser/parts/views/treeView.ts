@@ -696,7 +696,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const aligner = this.treeDisposables.add(new Aligner(this.themeService));
 		const checkboxStateHandler = this.treeDisposables.add(new CheckboxStateHandler());
 		const renderer = this.treeDisposables.add(this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes));
-		this.treeDisposables.add(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
+		this.treeDisposables.add(renderer.onDidChangeCheckboxState(e => {
+			this._onDidChangeCheckboxState.fire(e);
+			this.autoCollapseFoldersIfNeeded(e);
+		}));
 
 		const widgetAriaLabel = this._title;
 
@@ -1008,6 +1011,64 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	private updateCheckboxes(elements: readonly ITreeItem[]): ITreeItem[] {
 		return setCascadingCheckboxUpdates(elements);
+	}
+
+	private autoCollapseFoldersIfNeeded(items: readonly ITreeItem[]): void {
+		if (!this.configurationService.getValue<boolean>('workbench.tree.autoCollapseCheckedFolders')) {
+			return;
+		}
+
+		if (!this.tree) {
+			return;
+		}
+
+		// Check each item and its parent to see if we should auto-collapse
+		const parentsToCheck = new Set<ITreeItem>();
+		
+		for (const item of items) {
+			// If an item's checkbox state changed, check its parent
+			if (item.parent && item.checkbox) {
+				parentsToCheck.add(item.parent);
+			}
+		}
+
+		// For each parent, check if all children are checked
+		for (const parent of parentsToCheck) {
+			if (this.shouldCollapseParent(parent)) {
+				// Collapse the parent
+				try {
+					this.tree.collapse(parent, false);
+				} catch (e) {
+					// Ignore errors during collapse
+				}
+			}
+		}
+	}
+
+	private shouldCollapseParent(parent: ITreeItem): boolean {
+		// Only collapse if parent is expanded and has children
+		if (!parent.children || parent.children.length === 0) {
+			return false;
+		}
+
+		// Parent must be expanded to be collapsed
+		if (!this.tree || this.tree.isCollapsed(parent)) {
+			return false;
+		}
+
+		// Check if all children with checkboxes are checked
+		let hasCheckboxChildren = false;
+		for (const child of parent.children) {
+			if (child.checkbox) {
+				hasCheckboxChildren = true;
+				if (!child.checkbox.isChecked) {
+					return false;
+				}
+			}
+		}
+
+		// Only collapse if there are checkbox children and all are checked
+		return hasCheckboxChildren;
 	}
 
 	async refresh(elements?: readonly ITreeItem[], checkboxes?: readonly ITreeItem[]): Promise<void> {
