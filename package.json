@@ -8,6 +8,9 @@
   "license": "MIT",
   "main": "./out/main.js",
   "type": "module",
+  "engines": {
+    "node": ">=22.20.0"
+  },
   "private": true,
   "scripts": {
     "test": "echo Please run any of the test scripts from the scripts folder.",
