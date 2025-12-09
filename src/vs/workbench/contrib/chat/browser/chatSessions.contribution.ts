@@ -757,6 +757,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			.filter(contribution => this._isContributionAvailable(contribution));
 	}
 
+	hasChatSessionRegistration(chatSessionType: string): boolean {
+		// Check if the type exists as a primary type
+		if (this._contributions.has(chatSessionType)) {
+			return true;
+		}
+		// Check if the type exists as an alternative ID
+		return this._alternativeIdMap.has(chatSessionType);
+	}
+
 	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
 		if (!contribution) {
