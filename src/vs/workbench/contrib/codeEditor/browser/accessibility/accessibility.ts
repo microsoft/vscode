@@ -12,7 +12,7 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { accessibilityHelpIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { alert } from '../../../../../base/browser/ui/aria/aria.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { AccessibilityHelpNLS } from '../../../../../editor/common/standaloneStrings.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 
@@ -73,7 +73,7 @@ class AnnounceCursorPosition extends Action2 {
 		if (!position) {
 			return;
 		}
-		alert(nls.localize('screenReader.lineColPosition', "Line {0}, Column {1}", position.lineNumber, position.column));
+		status(nls.localize('screenReader.lineColPosition', "Line {0}, Column {1}", position.lineNumber, position.column));
 	}
 }
 
