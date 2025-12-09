@@ -285,7 +285,6 @@ export class MenuId {
 	static readonly DiffEditorSelectionToolbar = new MenuId('DiffEditorSelectionToolbar');
 	static readonly BrowserNavigationToolbar = new MenuId('BrowserNavigationToolbar');
 	static readonly BrowserActionsToolbar = new MenuId('BrowserActionsToolbar');
-	static readonly AgentSessionsFilterSubMenu = new MenuId('AgentSessionsFilterSubMenu');
 	static readonly AgentSessionsViewerFilterSubMenu = new MenuId('AgentSessionsViewerFilterSubMenu');
 	static readonly AgentSessionsInstallMenu = new MenuId('AgentSessionsInstallMenu');
 	static readonly AgentSessionsContext = new MenuId('AgentSessionsContext');
