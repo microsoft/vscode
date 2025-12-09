@@ -9,9 +9,9 @@ import vfs from 'vinyl-fs';
 import merge from 'gulp-merge-json';
 import gzip from 'gulp-gzip';
 import { ClientAssertionCredential } from '@azure/identity';
-import path = require('path');
+import path from 'path';
 import { readFileSync } from 'fs';
-const azure = require('gulp-azure-storage');
+import azure from 'gulp-azure-storage';
 
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
@@ -126,15 +126,15 @@ function main(): Promise<void> {
 			.pipe(azure.upload({
 				account: process.env.AZURE_STORAGE_ACCOUNT,
 				credential,
-				container: 'nlsmetadata',
-				prefix: commit + '/',
+				container: '$web',
+				prefix: `nlsmetadata/${commit}/`,
 				contentSettings: {
 					contentEncoding: 'gzip',
 					cacheControl: 'max-age=31536000, public'
 				}
 			}))
 			.on('end', () => c())
-			.on('error', (err: any) => e(err));
+			.on('error', (err: unknown) => e(err));
 	});
 }
 

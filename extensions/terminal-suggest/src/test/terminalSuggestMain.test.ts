@@ -6,12 +6,12 @@
 import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { basename } from 'path';
-import { asArray, getCompletionItemsFromSpecs } from '../terminalSuggestMain';
+import { asArray, getCompletionItemsFromSpecs, getCurrentCommandAndArgs } from '../terminalSuggestMain';
 import { getTokenType } from '../tokens';
 import { cdTestSuiteSpec as cdTestSuite } from './completions/cd.test';
-import { codeSpecOptions, codeTestSuite } from './completions/code.test';
+import { codeSpecOptionsAndSubcommands, codeTestSuite, codeTunnelTestSuite } from './completions/code.test';
 import { testPaths, type ISuiteSpec } from './helpers';
-import { codeInsidersTestSuite } from './completions/code-insiders.test';
+import { codeInsidersTestSuite, codeTunnelInsidersTestSuite } from './completions/code-insiders.test';
 import { lsTestSuiteSpec } from './completions/upstream/ls.test';
 import { echoTestSuiteSpec } from './completions/upstream/echo.test';
 import { mkdirTestSuiteSpec } from './completions/upstream/mkdir.test';
@@ -22,6 +22,7 @@ import { gitTestSuiteSpec } from './completions/upstream/git.test';
 import { osIsWindows } from '../helpers/os';
 import codeCompletionSpec from '../completions/code';
 import { figGenericTestSuites } from './fig.test';
+import { IFigExecuteExternals } from '../fig/execute';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -42,6 +43,8 @@ const testSpecs2: ISuiteSpec[] = [
 	cdTestSuite,
 	codeTestSuite,
 	codeInsidersTestSuite,
+	codeTunnelTestSuite,
+	codeTunnelInsidersTestSuite,
 
 	// completions/upstream/
 	echoTestSuiteSpec,
@@ -64,11 +67,11 @@ if (osIsWindows()) {
 			'code.anything',
 		],
 		testSpecs: [
-			{ input: 'code |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.bat |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.cmd |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.exe |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.anything |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.bat |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.cmd |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.exe |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.anything |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		]
 	});
 }
@@ -88,24 +91,35 @@ suite('Terminal Suggest', () => {
 				}
 				test(`'${testSpec.input}' -> ${expectedString}`, async () => {
 					const commandLine = testSpec.input.split('|')[0];
-					const cursorPosition = testSpec.input.indexOf('|');
-					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
-					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
-					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const terminalContext = { commandLine, cursorPosition };
+					const cursorIndex = testSpec.input.indexOf('|');
+					const currentCommandString = getCurrentCommandAndArgs(commandLine, cursorIndex, undefined);
+					const showFiles = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
+					const showFolders = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
+					const terminalContext = { commandLine, cursorIndex };
 					const result = await getCompletionItemsFromSpecs(
 						completionSpecs,
 						terminalContext,
 						availableCommands.map(c => { return { label: c }; }),
-						prefix,
+						currentCommandString,
 						getTokenType(terminalContext, undefined),
 						testPaths.cwd,
 						{},
-						'testName'
+						'testName',
+						undefined,
+						new MockFigExecuteExternals()
 					);
-					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
-					strictEqual(result.filesRequested, filesRequested, 'Files requested different than expected, got: ' + result.filesRequested);
-					strictEqual(result.foldersRequested, foldersRequested, 'Folders requested different than expected, got: ' + result.foldersRequested);
+					deepStrictEqual(
+						// Add detail to the label if it exists
+						result.items.map(i => {
+							if (typeof i.label === 'object' && i.label.detail) {
+								return `${i.label.label}${i.label.detail}`;
+							}
+							return i.label;
+						}).sort(),
+						(testSpec.expectedCompletions ?? []).sort()
+					);
+					strictEqual(result.showFiles, showFiles, 'Show files different than expected, got: ' + result.showFiles);
+					strictEqual(result.showFolders, showFolders, 'Show folders different than expected, got: ' + result.showFolders);
 					if (testSpec.expectedResourceRequests?.cwd) {
 						strictEqual(result.cwd?.fsPath, testSpec.expectedResourceRequests.cwd.fsPath, 'Non matching cwd');
 					}
@@ -114,3 +128,23 @@ suite('Terminal Suggest', () => {
 		});
 	}
 });
+
+
+class MockFigExecuteExternals implements IFigExecuteExternals {
+	public async executeCommand(input: Fig.ExecuteCommandInput): Promise<Fig.ExecuteCommandOutput> {
+		return this.executeCommandTimeout(input);
+	}
+	async executeCommandTimeout(input: Fig.ExecuteCommandInput): Promise<Fig.ExecuteCommandOutput> {
+		const command = [input.command, ...input.args].join(' ');
+		try {
+			return {
+				status: 0,
+				stdout: input.command,
+				stderr: '',
+			};
+		} catch (err) {
+			console.error(`Error running shell command '${command}'`, { err });
+			throw err;
+		}
+	}
+}

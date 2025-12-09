@@ -178,7 +178,7 @@ class ChatListTreeRenderer implements ICompressibleTreeRenderer<IChatResponsePro
 
 	constructor(private labels: ResourceLabels, private decorations: IFilesConfiguration['explorer']['decorations']) { }
 
-	renderCompressedElements(element: ITreeNode<ICompressedTreeNode<IChatResponseProgressFileTreeData>, void>, index: number, templateData: IChatListTreeRendererTemplate, height: number | undefined): void {
+	renderCompressedElements(element: ITreeNode<ICompressedTreeNode<IChatResponseProgressFileTreeData>, void>, index: number, templateData: IChatListTreeRendererTemplate): void {
 		templateData.label.element.style.display = 'flex';
 		const label = element.element.elements.map((e) => e.label);
 		templateData.label.setResource({ resource: element.element.elements[0].uri, name: label }, {
@@ -193,7 +193,7 @@ class ChatListTreeRenderer implements ICompressibleTreeRenderer<IChatResponsePro
 		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
 		return { templateDisposables, label };
 	}
-	renderElement(element: ITreeNode<IChatResponseProgressFileTreeData, void>, index: number, templateData: IChatListTreeRendererTemplate, height: number | undefined): void {
+	renderElement(element: ITreeNode<IChatResponseProgressFileTreeData, void>, index: number, templateData: IChatListTreeRendererTemplate): void {
 		templateData.label.element.style.display = 'flex';
 		if (!element.children.length && element.element.type !== FileType.Directory) {
 			templateData.label.setFile(element.element.uri, {

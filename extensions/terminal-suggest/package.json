@@ -15,19 +15,39 @@
   ],
   "enabledApiProposals": [
     "terminalCompletionProvider",
-    "terminalShellEnv",
-    "terminalShellType"
+    "terminalShellEnv"
   ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "terminal.integrated.suggest.clearCachedGlobals",
+        "category": "Terminal",
+        "title": "%terminal.integrated.suggest.clearCachedGlobals%"
+      }
+    ],
+    "terminal": {
+      "completionProviders": [
+        {
+          "description": "Show suggestions for commands, arguments, flags, and file paths based upon the Fig spec."
+        }
+      ]
+    }
+  },
   "scripts": {
     "compile": "npx gulp compile-extension:terminal-suggest",
-    "watch": "npx gulp watch-extension:terminal-suggest"
+    "watch": "npx gulp watch-extension:terminal-suggest",
+    "pull-zshbuiltins": "node ./scripts/pullZshBuiltins.ts",
+    "pull-fishbuiltins": "node ./scripts/pullFishBuiltins.ts"
   },
   "main": "./out/terminalSuggestMain",
   "activationEvents": [
-    "onTerminalCompletionsRequested"
+    "onTerminalShellIntegration:*"
   ],
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.10"
   }
 }

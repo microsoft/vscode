@@ -5,24 +5,26 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { HoverStyle, type IHoverOptions, type IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString, createMarkdownLink } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { SettingsTreeSettingElement } from './settingsTreeModels.js';
-import { EXPERIMENTAL_INDICATOR_DESCRIPTION, POLICY_SETTING_TAG, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
 import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import type { IHoverOptions, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { ADVANCED_INDICATOR_DESCRIPTION, EXPERIMENTAL_INDICATOR_DESCRIPTION, POLICY_SETTING_TAG, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
+import { SettingsTreeSettingElement } from './settingsTreeModels.js';
 
 const $ = DOM.$;
 
@@ -100,13 +102,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
 		trapFocus: true,
+		style: HoverStyle.Pointer,
 		position: {
 			hoverPosition: HoverPosition.BELOW,
 		},
-		appearance: {
-			showPointer: true,
-			compact: false,
-		}
 	};
 
 	private addHoverDisposables(disposables: DisposableStore, element: HTMLElement, showHover: (focus: boolean) => IHoverWidget | undefined) {
@@ -145,7 +144,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 		const content = localize('trustLabel', "The setting value can only be applied in a trusted workspace.");
 		const showHover = (focus: boolean) => {
-			return this.hoverService.showHover({
+			return this.hoverService.showInstantHover({
 				...this.defaultHoverOptions,
 				content,
 				target: workspaceTrustElement,
@@ -186,7 +185,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 		const syncIgnoredHoverContent = localize('syncIgnoredTitle', "This setting is ignored during sync");
 		const showHover = (focus: boolean) => {
-			return this.hoverService.showHover({
+			return this.hoverService.showInstantHover({
 				...this.defaultHoverOptions,
 				content: syncIgnoredHoverContent,
 				target: syncIgnoredElement
@@ -322,14 +321,17 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	updatePreviewIndicator(element: SettingsTreeSettingElement) {
 		const isPreviewSetting = element.tags?.has('preview');
 		const isExperimentalSetting = element.tags?.has('experimental');
-		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting) ? 'inline' : 'none';
+		const isAdvancedSetting = element.tags?.has('advanced');
+		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting || isAdvancedSetting) ? 'inline' : 'none';
 		this.previewIndicator.label.text = isPreviewSetting ?
 			localize('previewLabel', "Preview") :
-			localize('experimentalLabel', "Experimental");
+			isExperimentalSetting ?
+				localize('experimentalLabel', "Experimental") :
+				localize('advancedLabel', "Advanced");
 
-		const content = isPreviewSetting ? PREVIEW_INDICATOR_DESCRIPTION : EXPERIMENTAL_INDICATOR_DESCRIPTION;
+		const content = isPreviewSetting ? PREVIEW_INDICATOR_DESCRIPTION : isExperimentalSetting ? EXPERIMENTAL_INDICATOR_DESCRIPTION : ADVANCED_INDICATOR_DESCRIPTION;
 		const showHover = (focus: boolean) => {
-			return this.hoverService.showHover({
+			return this.hoverService.showInstantHover({
 				...this.defaultHoverOptions,
 				content,
 				target: this.previewIndicator.element
@@ -362,6 +364,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
+		this.scopeOverridesIndicator.disposables.clear();
 		this.scopeOverridesIndicator.element.innerText = '';
 		this.scopeOverridesIndicator.element.style.display = 'none';
 		this.scopeOverridesIndicator.focusElement = this.scopeOverridesIndicator.element;
@@ -373,7 +376,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.scopeOverridesIndicator.label.text = '$(briefcase) ' + localize('policyLabelText', "Managed by organization");
 			const content = localize('policyDescription', "This setting is managed by your organization and its actual value cannot be changed.");
 			const showHover = (focus: boolean) => {
-				return this.hoverService.showHover({
+				return this.hoverService.showInstantHover({
 					...this.defaultHoverOptions,
 					content,
 					actions: [{
@@ -395,7 +398,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value when switching profiles.");
 			const showHover = (focus: boolean) => {
-				return this.hoverService.showHover({
+				return this.hoverService.showInstantHover({
 					...this.defaultHoverOptions,
 					content,
 					target: this.scopeOverridesIndicator.element
@@ -409,7 +412,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// just to click into the one override there is.
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.remove('setting-indicator');
-				this.scopeOverridesIndicator.disposables.clear();
 
 				const prefaceText = element.isConfigured ?
 					localize('alsoConfiguredIn', "Also modified in") :
@@ -455,7 +457,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					contentMarkdownString = prefaceText;
 					for (const scope of element.overriddenScopeList) {
 						const scopeDisplayText = this.getInlineScopeDisplayText(scope);
-						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(scope)} "${getAccessibleScopeDisplayText(scope, this.languageService)}")`;
+						contentMarkdownString += '\n- ' + createMarkdownLink(scopeDisplayText, SettingScopeLink.create(scope).toString(), getAccessibleScopeDisplayText(scope, this.languageService));
 					}
 				}
 				if (element.overriddenDefaultsLanguageList.length) {
@@ -466,7 +468,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					contentMarkdownString += prefaceText;
 					for (const language of element.overriddenDefaultsLanguageList) {
 						const scopeDisplayText = this.languageService.getLanguageName(language);
-						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(`default:${language}`)} "${scopeDisplayText}")`;
+						contentMarkdownString += '\n- ' + createMarkdownLink(scopeDisplayText ?? language, SettingScopeLink.create(`default:${language}`).toString());
 					}
 				}
 				const content: IMarkdownString = {
@@ -478,7 +480,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					...this.defaultHoverOptions,
 					content,
 					linkHandler: (url: string) => {
-						const [scope, language] = decodeURIComponent(url).split(':');
+						const [scope, language] = SettingScopeLink.parse(url).split(':');
 						onDidClickOverrideElement.fire({
 							settingKey: element.setting.key,
 							scope: scope as ScopeString,
@@ -512,16 +514,13 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			}
 
 			const showHover = (focus: boolean) => {
-				return this.hoverService.showHover({
+				return this.hoverService.showInstantHover({
 					content: new MarkdownString().appendMarkdown(defaultOverrideHoverContent),
 					target: this.defaultOverrideIndicator.element,
+					style: HoverStyle.Pointer,
 					position: {
 						hoverPosition: HoverPosition.BELOW,
 					},
-					appearance: {
-						showPointer: true,
-						compact: false
-					}
 				}, focus);
 			};
 			this.addHoverDisposables(this.defaultOverrideIndicator.disposables, this.defaultOverrideIndicator.element, showHover);
@@ -576,11 +575,13 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IWorkbenchConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
-	// Add preview or experimental indicator text
+	// Add preview or experimental or advanced indicator text
 	if (element.tags?.has('preview')) {
 		ariaLabelSections.push(localize('previewLabel', "Preview"));
 	} else if (element.tags?.has('experimental')) {
 		ariaLabelSections.push(localize('experimentalLabel', "Experimental"));
+	} else if (element.tags?.has('advanced')) {
+		ariaLabelSections.push(localize('advancedLabel', "Advanced"));
 	}
 
 	// Add workspace trust text
@@ -635,4 +636,22 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 
 	const ariaLabel = ariaLabelSections.join('. ');
 	return ariaLabel;
+}
+
+/**
+ * Internal links used to open a specific scope in the settings editor
+ */
+namespace SettingScopeLink {
+	export function create(scope: string): URI {
+		return URI.from({
+			scheme: Schemas.internal,
+			path: '/',
+			query: encodeURIComponent(scope)
+		});
+	}
+
+	export function parse(link: string): string {
+		const uri = URI.parse(link);
+		return decodeURIComponent(uri.query);
+	}
 }

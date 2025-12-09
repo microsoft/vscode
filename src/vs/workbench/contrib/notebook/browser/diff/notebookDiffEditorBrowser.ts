@@ -18,6 +18,7 @@ import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolba
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../nls.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 
 export enum DiffSide {
 	Original = 0,
@@ -32,9 +33,10 @@ export interface INotebookTextDiffEditor {
 	notebookOptions: NotebookOptions;
 	readonly textModel?: NotebookTextModel;
 	inlineNotebookEditor: INotebookEditor | undefined;
-	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: IDiffElementViewModelBase }>;
-	onDidScroll: Event<void>;
-	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>;
+	readonly currentChangedIndex: IObservable<number>;
+	readonly onMouseUp: Event<{ readonly event: MouseEvent; readonly target: IDiffElementViewModelBase }>;
+	readonly onDidScroll: Event<void>;
+	readonly onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>;
 	getOverflowContainerDomNode(): HTMLElement;
 	getLayoutInfo(): NotebookLayoutInfo;
 	getScrollTop(): number;
@@ -54,6 +56,8 @@ export interface INotebookTextDiffEditor {
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, height: number, isInit: boolean): void;
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]): void;
+	firstChange(): void;
+	lastChange(): void;
 	previousChange(): void;
 	nextChange(): void;
 	toggleInlineView(): void;
@@ -108,7 +112,7 @@ export interface NotebookDocumentDiffElementRenderTemplate extends CellDiffCommo
 }
 
 export interface IDiffCellMarginOverlay extends IDisposable {
-	onAction: Event<void>;
+	readonly onAction: Event<void>;
 	show(): void;
 	hide(): void;
 }
@@ -181,7 +185,7 @@ export interface INotebookDiffViewModel extends IDisposable {
 	/**
 	 * Triggered when ever there's a change in the view model items.
 	 */
-	onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
+	readonly onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
 	/**
 	 * Computes the differences and generates the viewmodel.
 	 * If view models are generated, then the onDidChangeItems is triggered.

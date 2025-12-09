@@ -5,7 +5,7 @@
 
 import { forEachAdjacent } from '../../../../../base/common/arrays.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
-import { OffsetRange } from '../../../core/offsetRange.js';
+import { OffsetRange } from '../../../core/ranges/offsetRange.js';
 
 /**
  * Represents a synchronous diff algorithm. Should be executed in a worker.

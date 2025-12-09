@@ -82,7 +82,13 @@ export namespace Schemas {
 	export const vscodeChatCodeCompareBlock = 'vscode-chat-code-compare-block';
 
 	/** Scheme used for the chat input editor. */
-	export const vscodeChatSesssion = 'vscode-chat-editor';
+	export const vscodeChatEditor = 'vscode-chat-editor';
+
+	/** Scheme used for the chat input part */
+	export const vscodeChatInput = 'chatSessionInput';
+
+	/** Scheme used for local chat session content */
+	export const vscodeLocalChatSession = 'vscode-chat-session';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
@@ -139,6 +145,17 @@ export namespace Schemas {
 	 * Scheme used for the accessible view
 	 */
 	export const accessibleView = 'accessible-view';
+
+	/**
+	 * Used for snapshots of chat edits
+	 */
+	export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
+	export const chatEditingModel = 'chat-editing-text-model';
+
+	/**
+	 * Used for rendering multidiffs in copilot agent sessions
+	 */
+	export const copilotPr = 'copilot-pr';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {
@@ -333,7 +350,7 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+	private toUri(uriOrModule: URI | string): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
@@ -351,12 +368,19 @@ class FileAccessImpl {
 			return URI.file(modulePath);
 		}
 
-		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
+		throw new Error('Cannot determine URI for module id!');
 	}
 }
 
 export const FileAccess = new FileAccessImpl();
 
+export const CacheControlheaders: Record<string, string> = Object.freeze({
+	'Cache-Control': 'no-cache, no-store'
+});
+
+export const DocumentPolicyheaders: Record<string, string> = Object.freeze({
+	'Document-Policy': 'include-js-call-stacks-in-crash-reports'
+});
 
 export namespace COI {
 
@@ -394,7 +418,7 @@ export namespace COI {
 	 * isn't enabled the current context
 	 */
 	export function addSearchParam(urlOrSearch: URLSearchParams | Record<string, string>, coop: boolean, coep: boolean): void {
-		if (!(<any>globalThis).crossOriginIsolated) {
+		if (!(globalThis as typeof globalThis & { crossOriginIsolated?: boolean }).crossOriginIsolated) {
 			// depends on the current context being COI
 			return;
 		}
@@ -402,7 +426,7 @@ export namespace COI {
 		if (urlOrSearch instanceof URLSearchParams) {
 			urlOrSearch.set(coiSearchParamName, value);
 		} else {
-			(<Record<string, string>>urlOrSearch)[coiSearchParamName] = value;
+			urlOrSearch[coiSearchParamName] = value;
 		}
 	}
 }

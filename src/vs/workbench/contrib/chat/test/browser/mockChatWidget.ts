@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatWidgetService implements IChatWidgetService {
 	readonly onDidAddWidget: Event<IChatWidget> = Event.None;
@@ -22,11 +23,31 @@ export class MockChatWidgetService implements IChatWidgetService {
 		return undefined;
 	}
 
-	getWidgetBySessionId(sessionId: string): IChatWidget | undefined {
+	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined {
 		return undefined;
 	}
 
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
 		return [];
+	}
+
+	revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
+		return Promise.resolve(undefined);
+	}
+
+	reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> {
+		return Promise.resolve(true);
+	}
+
+	getAllWidgets(): ReadonlyArray<IChatWidget> {
+		throw new Error('Method not implemented.');
+	}
+
+	openSession(sessionResource: URI): Promise<IChatWidget | undefined> {
+		throw new Error('Method not implemented.');
+	}
+
+	register(newWidget: IChatWidget): IDisposable {
+		return Disposable.None;
 	}
 }

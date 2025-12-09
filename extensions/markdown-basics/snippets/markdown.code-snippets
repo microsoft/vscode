@@ -11,7 +11,7 @@
 	},
 	"Insert quoted text": {
 		"prefix": "quote",
-		"body": "> ${1:${TM_SELECTED_TEXT}}",
+		"body": "${1:${TM_SELECTED_TEXT/^/> /gm}}",
 		"description": "Insert quoted text"
 	},
 	"Insert inline code": {

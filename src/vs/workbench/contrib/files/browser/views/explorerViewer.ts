@@ -170,16 +170,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 }
 
 export class PhantomExplorerItem extends ExplorerItem {
-	constructor(
-		resource: URI,
-		fileService: IFileService,
-		configService: IConfigurationService,
-		filesConfigService: IFilesConfigurationService,
-		_parent: ExplorerItem | undefined,
-		_isDirectory?: boolean,
-	) {
-		super(resource, fileService, configService, filesConfigService, _parent, _isDirectory);
-	}
+
 }
 
 interface FindHighlightLayer {
@@ -556,7 +547,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			const firstParent = findFirstParent(resource, root);
 			if (firstParent) {
 				this.findHighlightTree.add(resource, root);
-				storeDirectories(firstParent.parent!);
+				storeDirectories(firstParent.parent);
 			}
 		}
 
@@ -746,7 +737,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 
 	get index(): number { return this._index; }
 	get count(): number { return this.items.length; }
-	get current(): ExplorerItem { return this.items[this._index]!; }
+	get current(): ExplorerItem { return this.items[this._index]; }
 	get currentId(): string { return `${this.id}_${this.index}`; }
 	get labels(): HTMLElement[] { return this._labels; }
 
@@ -761,7 +752,8 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	}
 
 	private updateLabels(templateData: IFileTemplateData): void {
-		this._labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
+		// eslint-disable-next-line no-restricted-syntax
+		this._labels = Array.from(templateData.container.querySelectorAll('.label-name'));
 		let parents = '';
 		for (let i = 0; i < this.labels.length; i++) {
 			const ariaLabel = parents.length ? `${this.items[i].name}, compact, ${parents}` : this.items[i].name;
@@ -898,13 +890,16 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const templateDisposables = new DisposableStore();
 		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
 		templateDisposables.add(label.onDidRender(() => {
-			try {
-				if (templateData.currentContext) {
-					this.updateWidth(templateData.currentContext);
+			// schedule this on the next animation frame to avoid rendering reentry
+			DOM.scheduleAtNextAnimationFrame(DOM.getWindow(templateData.container), () => {
+				try {
+					if (templateData.currentContext) {
+						this.updateWidth(templateData.currentContext);
+					}
+				} catch (e) {
+					// noop since the element might no longer be in the tree, no update of width necessary
 				}
-			} catch (e) {
-				// noop since the element might no longer be in the tree, no update of width necessary
-			}
+			});
 		}));
 
 		const contribs = explorerFileContribRegistry.create(this.instantiationService, container, templateDisposables);
@@ -940,7 +935,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		}
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
 		const stat = node.element.elements[node.element.elements.length - 1];
 		templateData.currentContext = stat;
 
@@ -957,7 +952,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 			// If there is a fuzzy score, we need to adjust the offset of the score
 			// to align with the last stat of the compressed label
-			let fuzzyScore = node.filterData as FuzzyScore | undefined;
+			let fuzzyScore = node.filterData;
 			if (fuzzyScore && fuzzyScore.length > 2) {
 				const filterDataOffset = labels.join('/').length - labels[labels.length - 1].length;
 				fuzzyScore = [fuzzyScore[0], fuzzyScore[1] + filterDataOffset, ...fuzzyScore.slice(2)];
@@ -1018,6 +1013,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const theme = this.themeService.getFileIconTheme();
 
 		// Hack to always render chevrons for file nests, or else may not be able to identify them.
+		// eslint-disable-next-line no-restricted-syntax
 		const twistieContainer = templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie');
 		twistieContainer?.classList.toggle('force-twistie', stat.hasNests && theme.hidesExplorerArrows);
 
@@ -1292,7 +1288,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 				}
 
 				const stat = this.explorerService.findClosest(e.resource);
-				if (stat && stat.isExcluded) {
+				if (stat?.isExcluded) {
 					// A filtered resource suddenly became visible since user opened an editor
 					shouldFire = true;
 					break;
@@ -1419,9 +1415,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)));
+		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent?.getChild(name)));
 		// Small optimization to only run isHiddenResource (traverse gitIgnore) if the globMatch from fileExclude returned nothing
-		const isHiddenResource = !!globMatch ? true : this.isIgnored(stat.resource, stat.root.resource, stat.isDirectory);
+		const isHiddenResource = globMatch ? true : this.isIgnored(stat.resource, stat.root.resource, stat.isDirectory);
 		if (isHiddenResource || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
@@ -1781,7 +1777,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const items = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, originalEvent);
-		if (items && items.length && originalEvent.dataTransfer) {
+		if (items.length && originalEvent.dataTransfer) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, items, originalEvent));
 

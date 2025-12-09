@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "84f6285324151a9aeb0422e3683e4ff85b9f77c8"
+					"commitHash": "c128b60bcfa95fd7050b7241c5289967d4ee077c"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "132.0.6834.194"
+			"version": "142.0.7444.175"
 		},
 		{
 			"component": {
@@ -516,11 +516,12 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "70178110a8e52d28dc957b6b20da94e455922025"
+					"commitHash": "6ac4ab19ad02803f03b54501193397563e99988e",
+					"tag": "22.21.1"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "20.18.1"
+			"version": "22.21.1"
 		},
 		{
 			"component": {
@@ -528,12 +529,13 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "c1918f96cb88b61be2b54589f98038c01a0881de"
+					"commitHash": "14565211f7fd33f3fe2f75ec1254cfa57d5bc848",
+					"tag": "39.2.3"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "34.1.0"
+			"version": "39.2.3"
 		},
 		{
 			"component": {
@@ -587,12 +589,12 @@
 				"git": {
 					"name": "spdlog original",
 					"repositoryUrl": "https://github.com/gabime/spdlog",
-					"commitHash": "4fba14c79f356ae48d6141c561bf9fd7ba33fabd"
+					"commitHash": "7e635fca68d014934b4af8a1cf874f63989352b7"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "0.14.0"
+			"version": "1.12.0"
 		},
 		{
 			"component": {
@@ -600,11 +602,11 @@
 				"git": {
 					"name": "vscode-codicons",
 					"repositoryUrl": "https://github.com/microsoft/vscode-codicons",
-					"commitHash": "ccdcf91d57d3a5a1d6b620d95d518bab4d75984d"
+					"commitHash": "906a02039fe8d29721f3eec1e46406be8c4bee39"
 				}
 			},
 			"license": "MIT and Creative Commons Attribution 4.0",
-			"version": "0.0.14"
+			"version": "0.0.41"
 		},
 		{
 			"component": {
@@ -634,12 +636,13 @@
 				"git": {
 					"name": "ripgrep",
 					"repositoryUrl": "https://github.com/BurntSushi/ripgrep",
-					"commitHash": "973de50c9ef451da2cfcdfa86f2b2711d8d6ff48"
+					"commitHash": "af6b6c543b224d348a8876f0c06245d9ea7929c5",
+					"tag": "13.0.0"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "0.10.0"
+			"version": "13.0.0"
 		},
 		{
 			"name": "@vscode/win32-app-container-tokens",

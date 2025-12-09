@@ -75,7 +75,7 @@ registerTerminalAction({
 		}
 		const data = await quickInputService.input({
 			value: '',
-			placeHolder: 'Enter data, use \\x to escape',
+			placeHolder: 'Enter data (supports \\n, \\r, \\xAB)',
 			prompt: localize('workbench.action.terminal.writeDataToTerminal.prompt', "Enter data to write directly to the terminal, bypassing the pty"),
 		});
 		if (!data) {
@@ -91,7 +91,7 @@ registerTerminalAction({
 			}
 			escapedData = escapedData.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + escapedData.slice(match.index + 4);
 		}
-		const xterm = instance.xterm as any as IInternalXtermTerminal;
+		const xterm = instance.xterm as IInternalXtermTerminal;
 		xterm._writeText(escapedData);
 	}
 });
@@ -227,7 +227,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 	}
 
 	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
-	private readonly _activeDevModeDisposables = new MutableDisposable();
+	private readonly _activeDevModeDisposables = this._register(new MutableDisposable());
 	private _currentColor = 0;
 
 	private _state: DevModeContributionState = DevModeContributionState.Off;
@@ -341,10 +341,8 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 					return;
 				}
 				this._state = DevModeContributionState.WaitingForCapability;
-				this._activeDevModeDisposables.value = this._ctx.instance.capabilities.onDidAddCapabilityType(e => {
-					if (e === TerminalCapability.CommandDetection) {
-						this._updateDevMode();
-					}
+				this._activeDevModeDisposables.value = this._ctx.instance.capabilities.onDidAddCommandDetectionCapability(e => {
+					this._updateDevMode();
 				});
 			}
 		} else {

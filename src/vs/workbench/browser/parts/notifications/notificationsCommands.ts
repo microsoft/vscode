@@ -154,7 +154,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Accept Primary Action
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: ACCEPT_PRIMARY_ACTION_NOTIFICATION,
-		weight: KeybindingWeight.WorkbenchContrib,
+		weight: KeybindingWeight.WorkbenchContrib + 1,
 		when: ContextKeyExpr.or(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 		handler: (accessor) => {
@@ -169,6 +169,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 			}
 			actionRunner.run(primaryAction, notification);
 			notification.close();
+			actionRunner.dispose();
 		}
 	});
 

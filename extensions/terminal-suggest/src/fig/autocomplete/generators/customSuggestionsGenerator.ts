@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { executeCommand } from '../../api-binding-wrappers/executeCommandWrappers';
+
+import { IFigExecuteExternals } from '../../execute';
 import {
 	runCachedGenerator,
 	GeneratorContext,
@@ -13,6 +14,7 @@ import {
 export async function getCustomSuggestions(
 	generator: Fig.Generator,
 	context: GeneratorContext,
+	executableExternals: IFigExecuteExternals
 ): Promise<Fig.Suggestion[] | undefined> {
 	if (!generator.custom) {
 		return [];
@@ -37,7 +39,7 @@ export async function getCustomSuggestions(
 			generator,
 			context,
 			() =>
-				generator.custom!(tokenArray, executeCommand, {
+				generator.custom!(tokenArray, executableExternals.executeCommand, {
 					currentWorkingDirectory,
 					currentProcess,
 					sshPrefix: '',

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { executeCommandTimeout } from '../../api-binding-wrappers/executeCommand';
+
+import { IFigExecuteExternals } from '../../execute';
 import {
 	GeneratorContext,
 	haveContextForGenerator,
@@ -14,6 +15,7 @@ export async function getScriptSuggestions(
 	generator: Fig.Generator,
 	context: GeneratorContext,
 	defaultTimeout: number = 5000,
+	executeExternals: IFigExecuteExternals
 ): Promise<Fig.Suggestion[] | undefined> {
 	const { script, postProcess, splitOn } = generator;
 	if (!script) {
@@ -26,7 +28,7 @@ export async function getScriptSuggestions(
 	}
 
 	try {
-		const { isDangerous, tokenArray, currentWorkingDirectory } = context;
+		const { isDangerous, tokenArray, currentWorkingDirectory, environmentVariables } = context;
 		// A script can either be a string or a function that returns a string.
 		// If the script is a function, run it, and get the output string.
 		const commandToRun =
@@ -44,6 +46,7 @@ export async function getScriptSuggestions(
 				command: commandToRun[0],
 				args: commandToRun.slice(1),
 				cwd: currentWorkingDirectory,
+				env: environmentVariables
 			};
 		} else {
 			executeCommandInput = {
@@ -62,10 +65,12 @@ export async function getScriptSuggestions(
 		const { stdout } = await runCachedGenerator(
 			generator,
 			context,
-			() => executeCommandTimeout(executeCommandInput, timeout),
+			() => {
+				return executeExternals.executeCommandTimeout(executeCommandInput, timeout);
+			},
 			generator.cache?.cacheKey ?? JSON.stringify(executeCommandInput),
 		);
-
+		//
 		let result: Array<Fig.Suggestion | string | null> | undefined = [];
 
 		// If we have a splitOn function

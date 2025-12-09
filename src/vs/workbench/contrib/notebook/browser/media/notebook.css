@@ -263,6 +263,10 @@
 	line-height: 15px;
 }
 
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .execution-count-label .codicon {
+	font-size: 14px;
+}
+
 .monaco-workbench .notebookOverlay .cell .cell-editor-part {
 	position: relative;
 }
@@ -332,10 +336,6 @@
 
 .cell-contributed-items.cell-contributed-items-right {
 	flex-direction: row-reverse;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row .codicon:not(.suggest-icon) {
-	color: var(--vscode-icon-foreground);
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-overview-ruler-container {

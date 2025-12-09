@@ -319,7 +319,7 @@ suite('WordOperations', () => {
 
 			assert.strictEqual(editor.getValue(), 'foo qbar baz');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			editor.runCommand(CoreEditingCommands.Undo, null);
 			assert.strictEqual(editor.getValue(), 'foo bar baz');
 		});
 	});

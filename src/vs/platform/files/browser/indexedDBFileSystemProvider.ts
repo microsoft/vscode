@@ -221,58 +221,46 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 	}
 
 	async readdir(resource: URI): Promise<DirEntry[]> {
-		try {
-			const entry = (await this.getFiletree()).read(resource.path);
-			if (!entry) {
-				// Dirs aren't saved to disk, so empty dirs will be lost on reload.
-				// Thus we have two options for what happens when you try to read a dir and nothing is found:
-				// - Throw FileSystemProviderErrorCode.FileNotFound
-				// - Return []
-				// We choose to return [] as creating a dir then reading it (even after reload) should not throw an error.
-				return [];
-			}
-			if (entry.type !== FileType.Directory) {
-				throw ERR_FILE_NOT_DIR;
-			}
-			else {
-				return [...entry.children.entries()].map(([name, node]) => [name, node.type]);
-			}
-		} catch (error) {
-			throw error;
+		const entry = (await this.getFiletree()).read(resource.path);
+		if (!entry) {
+			// Dirs aren't saved to disk, so empty dirs will be lost on reload.
+			// Thus we have two options for what happens when you try to read a dir and nothing is found:
+			// - Throw FileSystemProviderErrorCode.FileNotFound
+			// - Return []
+			// We choose to return [] as creating a dir then reading it (even after reload) should not throw an error.
+			return [];
+		}
+		if (entry.type !== FileType.Directory) {
+			throw ERR_FILE_NOT_DIR;
+		}
+		else {
+			return [...entry.children.entries()].map(([name, node]) => [name, node.type]);
 		}
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		try {
-			const result = await this.indexedDB.runInTransaction(this.store, 'readonly', objectStore => objectStore.get(resource.path));
-			if (result === undefined) {
-				throw ERR_FILE_NOT_FOUND;
-			}
-			const buffer = result instanceof Uint8Array ? result : isString(result) ? VSBuffer.fromString(result).buffer : undefined;
-			if (buffer === undefined) {
-				throw ERR_UNKNOWN_INTERNAL(`IndexedDB entry at "${resource.path}" in unexpected format`);
-			}
-
-			// update cache
-			const fileTree = await this.getFiletree();
-			fileTree.add(resource.path, { type: 'file', size: buffer.byteLength });
-
-			return buffer;
-		} catch (error) {
-			throw error;
+		const result = await this.indexedDB.runInTransaction(this.store, 'readonly', objectStore => objectStore.get(resource.path));
+		if (result === undefined) {
+			throw ERR_FILE_NOT_FOUND;
 		}
+		const buffer = result instanceof Uint8Array ? result : isString(result) ? VSBuffer.fromString(result).buffer : undefined;
+		if (buffer === undefined) {
+			throw ERR_UNKNOWN_INTERNAL(`IndexedDB entry at "${resource.path}" in unexpected format`);
+		}
+
+		// update cache
+		const fileTree = await this.getFiletree();
+		fileTree.add(resource.path, { type: 'file', size: buffer.byteLength });
+
+		return buffer;
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		try {
-			const existing = await this.stat(resource).catch(() => undefined);
-			if (existing?.type === FileType.Directory) {
-				throw ERR_FILE_IS_DIR;
-			}
-			await this.bulkWrite([[resource, content]]);
-		} catch (error) {
-			throw error;
+		const existing = await this.stat(resource).catch(() => undefined);
+		if (existing?.type === FileType.Directory) {
+			throw ERR_FILE_IS_DIR;
 		}
+		await this.bulkWrite([[resource, content]]);
 	}
 
 	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {

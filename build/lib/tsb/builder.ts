@@ -6,11 +6,11 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import * as utils from './utils';
+import * as utils from './utils.ts';
 import colors from 'ansi-colors';
 import ts from 'typescript';
 import Vinyl from 'vinyl';
-import { RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
+import { type RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
 
 export interface IConfiguration {
 	logFn: (topic: string, message: string) => void;
@@ -21,11 +21,11 @@ export interface CancellationToken {
 	isCancellationRequested(): boolean;
 }
 
-export namespace CancellationToken {
-	export const None: CancellationToken = {
+export const CancellationToken = new class {
+	None: CancellationToken = {
 		isCancellationRequested() { return false; }
 	};
-}
+};
 
 export interface ITypeScriptBuilder {
 	build(out: (file: Vinyl) => void, onError: (err: ts.Diagnostic) => void, token?: CancellationToken): Promise<any>;
@@ -44,7 +44,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 	const host = new LanguageServiceHost(cmd, projectFile, _log);
 
 	const outHost = new LanguageServiceHost({ ...cmd, options: { ...cmd.options, sourceRoot: cmd.options.outDir } }, cmd.options.outDir ?? '', _log);
-	let lastCycleCheckVersion: string;
+	const toBeCheckedForCycles: string[] = [];
 
 	const service = ts.createLanguageService(host, ts.createDocumentRegistry());
 	const lastBuildVersion: { [path: string]: string } = Object.create(null);
@@ -59,7 +59,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 	function file(file: Vinyl): void {
 		// support gulp-sourcemaps
-		if ((<any>file).sourceMap) {
+		if (file.sourceMap) {
 			emitSourceMapsInStream = false;
 		}
 
@@ -80,7 +80,10 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 	}
 
 	function isExternalModule(sourceFile: ts.SourceFile): boolean {
-		return (<any>sourceFile).externalModuleIndicator
+		interface SourceFileWithModuleIndicator extends ts.SourceFile {
+			externalModuleIndicator?: unknown;
+		}
+		return !!(sourceFile as SourceFileWithModuleIndicator).externalModuleIndicator
 			|| /declare\s+module\s+('|")(.+)\1/.test(sourceFile.getText());
 	}
 
@@ -164,7 +167,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 								const dirname = path.dirname(vinyl.relative);
 								const tsname = (dirname === '.' ? '' : dirname + '/') + basename + '.ts';
 
-								let sourceMap = <RawSourceMap>JSON.parse(sourcemapFile.text);
+								let sourceMap = JSON.parse(sourcemapFile.text) as RawSourceMap;
 								sourceMap.sources[0] = tsname.replace(/\\/g, '/');
 
 								// check for an "input source" map and combine them
@@ -219,17 +222,19 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 									if (didChange) {
 
+										interface SourceMapGeneratorWithSources extends SourceMapGenerator {
+											_sources: { add(source: string): void };
+										}
+
 										[tsSMC, inputSMC].forEach((consumer) => {
-											(<SourceMapConsumer & { sources: string[] }>consumer).sources.forEach((sourceFile: any) => {
-												(<any>smg)._sources.add(sourceFile);
+											(consumer as SourceMapConsumer & { sources: string[] }).sources.forEach((sourceFile: string) => {
+												(smg as SourceMapGeneratorWithSources)._sources.add(sourceFile);
 												const sourceContent = consumer.sourceContentFor(sourceFile);
 												if (sourceContent !== null) {
 													smg.setSourceContent(sourceFile, sourceContent);
 												}
 											});
-										});
-
-										sourceMap = JSON.parse(smg.toString());
+										}); sourceMap = JSON.parse(smg.toString());
 
 										// const filename = '/Users/jrieken/Code/vscode/src2/' + vinyl.relative + '.map';
 										// fs.promises.mkdir(path.dirname(filename), { recursive: true }).then(async () => {
@@ -239,11 +244,9 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 									}
 								}
 
-								(<any>vinyl).sourceMap = sourceMap;
+								(vinyl as Vinyl & { sourceMap?: RawSourceMap }).sourceMap = sourceMap;
 							}
-						}
-
-						files.push(vinyl);
+						} files.push(vinyl);
 					}
 
 					resolve({
@@ -315,6 +318,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						const jsValue = value.files.find(candidate => candidate.basename.endsWith('.js'));
 						if (jsValue) {
 							outHost.addScriptSnapshot(jsValue.path, new ScriptSnapshot(String(jsValue.contents), new Date()));
+							toBeCheckedForCycles.push(normalize(jsValue.path));
 						}
 
 					}).catch(e => {
@@ -424,25 +428,24 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 		}).then(() => {
 			// check for cyclic dependencies
-			const thisCycleCheckVersion = outHost.getProjectVersion();
-			if (thisCycleCheckVersion === lastCycleCheckVersion) {
-				return;
-			}
-			const oneCycle = outHost.hasCyclicDependency();
-			lastCycleCheckVersion = thisCycleCheckVersion;
-			delete oldErrors[projectFile];
+			const cycles = outHost.getCyclicDependencies(toBeCheckedForCycles);
+			toBeCheckedForCycles.length = 0;
 
-			if (oneCycle) {
-				const cycleError: ts.Diagnostic = {
-					category: ts.DiagnosticCategory.Error,
-					code: 1,
-					file: undefined,
-					start: undefined,
-					length: undefined,
-					messageText: `CYCLIC dependency between ${oneCycle}`
-				};
-				onError(cycleError);
-				newErrors[projectFile] = [cycleError];
+			for (const [filename, error] of cycles) {
+				const cyclicDepErrors: ts.Diagnostic[] = [];
+				if (error) {
+					cyclicDepErrors.push({
+						category: ts.DiagnosticCategory.Error,
+						code: 1,
+						file: undefined,
+						start: undefined,
+						length: undefined,
+						messageText: `CYCLIC dependency: ${error}`
+					});
+				}
+				delete oldErrors[filename];
+				newErrors[filename] = cyclicDepErrors;
+				cyclicDepErrors.forEach(d => onError(d));
 			}
 
 		}).then(() => {
@@ -464,7 +467,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 			const MB = 1024 * 1024;
 			_log(
 				'[tsb]',
-				`time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgcyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`
+				`time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`
 			);
 			headUsed = headNow;
 		});
@@ -526,19 +529,25 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 	private readonly _snapshots: { [path: string]: ScriptSnapshot };
 	private readonly _filesInProject: Set<string>;
 	private readonly _filesAdded: Set<string>;
-	private readonly _dependencies: utils.graph.Graph<string>;
+	private readonly _dependencies: InstanceType<typeof utils.graph.Graph<string>>;
 	private readonly _dependenciesRecomputeList: string[];
 	private readonly _fileNameToDeclaredModule: { [path: string]: string[] };
 
 	private _projectVersion: number;
+	private readonly _cmdLine: ts.ParsedCommandLine;
+	private readonly _projectPath: string;
+	private readonly _log: (topic: string, message: string) => void;
 
 	constructor(
-		private readonly _cmdLine: ts.ParsedCommandLine,
-		private readonly _projectPath: string,
-		private readonly _log: (topic: string, message: string) => void
+		cmdLine: ts.ParsedCommandLine,
+		projectPath: string,
+		log: (topic: string, message: string) => void
 	) {
+		this._cmdLine = cmdLine;
+		this._projectPath = projectPath;
+		this._log = log;
 		this._snapshots = Object.create(null);
-		this._filesInProject = new Set(_cmdLine.fileNames);
+		this._filesInProject = new Set(this._cmdLine.fileNames);
 		this._filesAdded = new Set();
 		this._dependencies = new utils.graph.Graph<string>();
 		this._dependenciesRecomputeList = [];
@@ -586,7 +595,7 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		let result = this._snapshots[filename];
 		if (!result && resolve) {
 			try {
-				result = new VinylScriptSnapshot(new Vinyl(<any>{
+				result = new VinylScriptSnapshot(new Vinyl({
 					path: filename,
 					contents: fs.readFileSync(filename),
 					base: this.getCompilationSettings().outDir,
@@ -630,10 +639,11 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 	}
 
 	removeScriptSnapshot(filename: string): boolean {
+		filename = normalize(filename);
+		this._log('removeScriptSnapshot', filename);
 		this._filesInProject.delete(filename);
 		this._filesAdded.delete(filename);
 		this._projectVersion++;
-		filename = normalize(filename);
 		delete this._fileNameToDeclaredModule[filename];
 		return delete this._snapshots[filename];
 	}
@@ -661,19 +671,21 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		filename = normalize(filename);
 		const node = this._dependencies.lookup(filename);
 		if (node) {
-			node.incoming.forEach(entry => target.push(entry.data));
+			node.incoming.forEach((entry: any) => target.push(entry.data));
 		}
 	}
 
-	hasCyclicDependency(): string | undefined {
+	getCyclicDependencies(filenames: string[]): Map<string, string | undefined> {
 		// Ensure dependencies are up to date
 		while (this._dependenciesRecomputeList.length) {
 			this._processFile(this._dependenciesRecomputeList.pop()!);
 		}
-		const cycle = this._dependencies.findCycle();
-		return cycle
-			? cycle.join(' -> ')
-			: undefined;
+		const cycles = this._dependencies.findCycles(filenames.sort((a, b) => a.localeCompare(b)));
+		const result = new Map<string, string | undefined>();
+		for (const [key, value] of cycles) {
+			result.set(key, value?.join(' -> '));
+		}
+		return result;
 	}
 
 	_processFile(filename: string): void {
@@ -702,11 +714,13 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		// (2) import-require statements
 		info.importedFiles.forEach(ref => {
 
-			if (!ref.fileName.startsWith('.') || path.extname(ref.fileName) === '') {
+			if (!ref.fileName.startsWith('.')) {
 				// node module?
 				return;
 			}
-
+			if (ref.fileName.endsWith('.css')) {
+				return;
+			}
 
 			const stopDirname = normalize(this.getCurrentDirectory());
 			let dirname = filename;

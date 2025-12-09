@@ -117,7 +117,7 @@ class LocalizationsDataRenderer extends Disposable implements IExtensionFeatureT
 
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'localizations',
-	label: localize('localizations', "Langauage Packs"),
+	label: localize('localizations', "Language Packs"),
 	access: {
 		canToggle: false
 	},

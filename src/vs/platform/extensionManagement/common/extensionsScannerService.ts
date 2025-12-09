@@ -35,7 +35,13 @@ import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfil
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { localizeManifest } from './extensionNls.js';
 
-export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
+export type ManifestMetadata = Partial<{
+	targetPlatform: TargetPlatform;
+	installedTimestamp: number;
+	size: number;
+}>;
+
+export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: ManifestMetadata };
 
 interface IRelaxedScannedExtension {
 	type: ExtensionType;
@@ -136,7 +142,7 @@ export interface IExtensionsScannerService {
 	scanMultipleExtensions(extensionLocations: URI[], extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension[]>;
 	scanOneOrMultipleExtensions(extensionLocation: URI, extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension[]>;
 
-	updateMetadata(extensionLocation: URI, metadata: Partial<Metadata>): Promise<void>;
+	updateManifestMetadata(extensionLocation: URI, metadata: ManifestMetadata): Promise<void>;
 	initializeDefaultProfileExtensions(): Promise<void>;
 }
 
@@ -149,15 +155,15 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	private readonly _onDidChangeCache = this._register(new Emitter<ExtensionType>());
 	readonly onDidChangeCache = this._onDidChangeCache.event;
 
-	private readonly systemExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, this.currentProfile));
-	private readonly userExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, this.currentProfile));
-	private readonly extensionsScanner = this._register(this.instantiationService.createInstance(ExtensionsScanner));
+	private readonly systemExtensionsCachedScanner: CachedExtensionsScanner;
+	private readonly userExtensionsCachedScanner: CachedExtensionsScanner;
+	private readonly extensionsScanner: ExtensionsScanner;
 
 	constructor(
 		readonly systemExtensionsLocation: URI,
 		readonly userExtensionsLocation: URI,
 		private readonly extensionsControlLocation: URI,
-		private readonly currentProfile: IUserDataProfile,
+		currentProfile: IUserDataProfile,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IExtensionsProfileScannerService protected readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IFileService protected readonly fileService: IFileService,
@@ -168,6 +174,10 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.systemExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, currentProfile));
+		this.userExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, currentProfile));
+		this.extensionsScanner = this._register(this.instantiationService.createInstance(ExtensionsScanner));
 
 		this._register(this.systemExtensionsCachedScanner.onDidChangeCache(() => this._onDidChangeCache.fire(ExtensionType.System)));
 		this._register(this.userExtensionsCachedScanner.onDidChangeCache(() => this._onDidChangeCache.fire(ExtensionType.User)));
@@ -270,18 +280,10 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		return this.applyScanOptions(extensions, extensionType, { includeInvalid: scanOptions.includeInvalid, pickLatest: true });
 	}
 
-	async updateMetadata(extensionLocation: URI, metaData: Partial<Metadata>): Promise<void> {
+	async updateManifestMetadata(extensionLocation: URI, metaData: ManifestMetadata): Promise<void> {
 		const manifestLocation = joinPath(extensionLocation, 'package.json');
 		const content = (await this.fileService.readFile(manifestLocation)).value.toString();
 		const manifest: IScannedExtensionManifest = JSON.parse(content);
-
-		// unset if false
-		if (metaData.isMachineScoped === false) {
-			delete metaData.isMachineScoped;
-		}
-		if (metaData.isBuiltin === false) {
-			delete metaData.isBuiltin;
-		}
 		manifest.__metadata = { ...manifest.__metadata, ...metaData };
 
 		await this.fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
@@ -350,6 +352,14 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 
 	private dedupExtensions(system: IScannedExtension[] | undefined, user: IScannedExtension[] | undefined, development: IScannedExtension[] | undefined, targetPlatform: TargetPlatform, pickLatest: boolean): IScannedExtension[] {
 		const pick = (existing: IScannedExtension, extension: IScannedExtension, isDevelopment: boolean): boolean => {
+			if (!isDevelopment) {
+				if (existing.metadata?.isApplicationScoped && !extension.metadata?.isApplicationScoped) {
+					return false;
+				}
+				if (!existing.metadata?.isApplicationScoped && extension.metadata?.isApplicationScoped) {
+					return true;
+				}
+			}
 			if (existing.isValid && !extension.isValid) {
 				return false;
 			}
@@ -665,10 +675,21 @@ class ExtensionsScanner extends Disposable {
 		if (!manifest.publisher) {
 			manifest.publisher = UNDEFINED_PUBLISHER;
 		}
-		const metadata = scannedProfileExtension?.metadata ?? manifest.__metadata;
-		if (metadata && !metadata?.size && manifest.__metadata?.size) {
-			metadata.size = manifest.__metadata?.size;
+
+		let metadata: Metadata | undefined;
+		if (scannedProfileExtension) {
+			metadata = {
+				...scannedProfileExtension.metadata,
+				size: manifest.__metadata?.size,
+			};
+		} else if (manifest.__metadata) {
+			metadata = {
+				installedTimestamp: manifest.__metadata.installedTimestamp,
+				size: manifest.__metadata.size,
+				targetPlatform: manifest.__metadata.targetPlatform,
+			};
 		}
+
 		delete manifest.__metadata;
 		const id = getGalleryExtensionId(manifest.publisher, manifest.name);
 		const identifier = metadata?.id ? { id, uuid: metadata.id } : { id };

@@ -25,7 +25,6 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { OutlineViewState } from './outlineViewState.js';
 import { IOutline, IOutlineComparator, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
 import { EditorResourceAccessor, IEditorPane } from '../../../common/editor.js';
@@ -72,7 +71,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 	private _message!: HTMLDivElement;
 	private _progressBar!: ProgressBar;
 	private _treeContainer!: HTMLElement;
-	private _tree?: WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>;
+	private _tree?: WorkbenchDataTree<IOutline<unknown> | undefined, unknown, FuzzyScore>;
 	private _treeDimensions?: dom.Dimension;
 	private _treeStates = new LRUCache<string, IAbstractTreeViewState>(10);
 
@@ -94,10 +93,9 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, hoverService);
 		this._outlineViewState.restore(this._storageService);
 		this._disposables.add(this._outlineViewState);
 
@@ -182,7 +180,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 	private _showMessage(message: string) {
 		this._domNode.classList.add('message');
 		this._progressBar.stop().hide();
-		this._message.innerText = message;
+		this._message.textContent = message;
 	}
 
 	private _captureViewState(uri?: URI): boolean {
@@ -255,7 +253,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		const sorter = new OutlineTreeSorter(newOutline.config.comparator, this._outlineViewState.sortBy);
 
 		const tree = this._instantiationService.createInstance(
-			WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>,
+			WorkbenchDataTree<IOutline<unknown> | undefined, unknown, FuzzyScore>,
 			'OutlinePane',
 			this._treeContainer,
 			newOutline.config.delegate,
@@ -297,7 +295,6 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		};
 		updateTree();
 		this._editorControlDisposables.add(newOutline.onDidChange(updateTree));
-		tree.findMode = this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight;
 
 		// feature: apply panel background to tree
 		this._editorControlDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {

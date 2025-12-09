@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates, ResolveProxyWithRequest } from '@vscode/proxy-agent';
-import { AuthInfo } from '../../../platform/request/common/request.js';
+import { AuthInfo, systemCertificatesNodeDefault } from '../../../platform/request/common/request.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { createRequire } from 'node:module';
 import type * as undiciType from 'undici-types';
@@ -44,8 +44,9 @@ export function connectProxyResolver(
 	const fallbackToLocalKerberos = useHostProxyDefault;
 	const loadLocalCertificates = useHostProxyDefault;
 	const isUseHostProxyEnabled = () => !isRemote || configProvider.getConfiguration('http').get<boolean>('useLocalProxyConfiguration', useHostProxyDefault);
+	const timedResolveProxy = createTimedResolveProxy(extHostWorkspace, mainThreadTelemetry);
 	const params: ProxyAgentParams = {
-		resolveProxy: url => extHostWorkspace.resolveProxy(url),
+		resolveProxy: timedResolveProxy,
 		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostWorkspace, extHostLogService, mainThreadTelemetry, configProvider, {}, {}, initData.remote.isRemote, fallbackToLocalKerberos),
 		getProxyURL: () => getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxy'),
 		getProxySupport: () => getExtHostConfigValue<ProxySupportSetting>(configProvider, isRemote, 'http.proxySupport') || 'off',
@@ -53,6 +54,7 @@ export function connectProxyResolver(
 		isAdditionalFetchSupportEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.fetchAdditionalSupport', true),
 		addCertificatesV1: () => certSettingV1(configProvider, isRemote),
 		addCertificatesV2: () => certSettingV2(configProvider, isRemote),
+		loadSystemCertificatesFromNode: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', systemCertificatesNodeDefault),
 		log: extHostLogService,
 		getLogLevel: () => {
 			const level = extHostLogService.getLevel();
@@ -72,27 +74,43 @@ export function connectProxyResolver(
 		},
 		proxyResolveTelemetry: () => { },
 		isUseHostProxyEnabled,
+		getNetworkInterfaceCheckInterval: () => {
+			const intervalSeconds = getExtHostConfigValue<number>(configProvider, isRemote, 'http.experimental.networkInterfaceCheckInterval', 300);
+			return intervalSeconds * 1000;
+		},
 		loadAdditionalCertificates: async () => {
+			const useNodeSystemCerts = getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', systemCertificatesNodeDefault);
 			const promises: Promise<string[]>[] = [];
-			if (initData.remote.isRemote) {
-				promises.push(loadSystemCertificates({ log: extHostLogService }));
+			if (isRemote) {
+				promises.push(loadSystemCertificates({
+					loadSystemCertificatesFromNode: () => useNodeSystemCerts,
+					log: extHostLogService,
+				}));
 			}
 			if (loadLocalCertificates) {
-				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading certificates from main process');
-				const certs = extHostWorkspace.loadCertificates(); // Loading from main process to share cache.
-				certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
-				promises.push(certs);
+				if (!isRemote && useNodeSystemCerts) {
+					promises.push(loadSystemCertificates({
+						loadSystemCertificatesFromNode: () => useNodeSystemCerts,
+						log: extHostLogService,
+					}));
+				} else {
+					extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading certificates from main process');
+					const certs = extHostWorkspace.loadCertificates(); // Loading from main process to share cache.
+					certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
+					promises.push(certs);
+				}
 			}
 			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
-			if (initData.environment.extensionTestsLocationURI && (https.globalAgent as any).testCertificates?.length) {
+			if (initData.environment.extensionTestsLocationURI && https.globalAgent.testCertificates?.length) {
 				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
-				promises.push(Promise.resolve((https.globalAgent as any).testCertificates as string[]));
+				promises.push(Promise.resolve(https.globalAgent.testCertificates as string[]));
 			}
 			return (await Promise.all(promises)).flat();
 		},
 		env: process.env,
 	};
 	const { resolveProxyWithRequest, resolveProxyURL } = createProxyResolver(params);
+	// eslint-disable-next-line local/code-no-any-casts
 	const target = (proxyAgent as any).default || proxyAgent;
 	target.resolveProxyURL = resolveProxyURL;
 
@@ -115,10 +133,13 @@ const unsafeHeaders = [
 ];
 
 function patchGlobalFetch(params: ProxyAgentParams, configProvider: ExtHostConfigProvider, mainThreadTelemetry: MainThreadTelemetryShape, initData: IExtensionHostInitData, resolveProxyURL: (url: string) => Promise<string | undefined>, disposables: DisposableStore) {
+	// eslint-disable-next-line local/code-no-any-casts
 	if (!(globalThis as any).__vscodeOriginalFetch) {
 		const originalFetch = globalThis.fetch;
+		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).__vscodeOriginalFetch = originalFetch;
 		const patchedFetch = proxyAgent.createFetchPatch(params, originalFetch, resolveProxyURL);
+		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).__vscodePatchedFetch = patchedFetch;
 		let useElectronFetch = false;
 		if (!initData.remote.isRemote) {
@@ -222,18 +243,86 @@ const fetchFeatureUse: FetchFeatureUseEvent = {
 	manualRedirect: 0,
 };
 
-let timer: NodeJS.Timeout | undefined;
-
+let timer: Timeout | undefined;
+const enableFeatureUseTelemetry = false;
 function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, feature: keyof typeof fetchFeatureUse) {
-	if (!fetchFeatureUse[feature]++) {
+	if (enableFeatureUseTelemetry && !fetchFeatureUse[feature]++) {
 		if (timer) {
 			clearTimeout(timer);
 		}
 		timer = setTimeout(() => {
 			mainThreadTelemetry.$publicLog2<FetchFeatureUseEvent, FetchFeatureUseClassification>('fetchFeatureUse', fetchFeatureUse);
 		}, 10000); // collect additional features for 10 seconds
-		timer.unref();
+		(timer as unknown as NodeJS.Timeout).unref?.();
 	}
+}
+
+type ProxyResolveStatsClassification = {
+	owner: 'chrmarti';
+	comment: 'Performance statistics for proxy resolution';
+	count: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Number of proxy resolution calls' };
+	totalDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Total time spent in proxy resolution (ms)' };
+	minDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Minimum resolution time (ms)' };
+	maxDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Maximum resolution time (ms)' };
+	avgDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Average resolution time (ms)' };
+};
+
+type ProxyResolveStatsEvent = {
+	count: number;
+	totalDuration: number;
+	minDuration: number;
+	maxDuration: number;
+	avgDuration: number;
+};
+
+const proxyResolveStats = {
+	count: 0,
+	totalDuration: 0,
+	minDuration: Number.MAX_SAFE_INTEGER,
+	maxDuration: 0,
+	lastSentTime: 0,
+};
+
+const telemetryInterval = 60 * 60 * 1000; // 1 hour
+
+function sendProxyResolveStats(mainThreadTelemetry: MainThreadTelemetryShape) {
+	if (proxyResolveStats.count > 0) {
+		const avgDuration = proxyResolveStats.totalDuration / proxyResolveStats.count;
+		mainThreadTelemetry.$publicLog2<ProxyResolveStatsEvent, ProxyResolveStatsClassification>('proxyResolveStats', {
+			count: proxyResolveStats.count,
+			totalDuration: proxyResolveStats.totalDuration,
+			minDuration: proxyResolveStats.minDuration,
+			maxDuration: proxyResolveStats.maxDuration,
+			avgDuration,
+		});
+		// Reset stats after sending
+		proxyResolveStats.count = 0;
+		proxyResolveStats.totalDuration = 0;
+		proxyResolveStats.minDuration = Number.MAX_SAFE_INTEGER;
+		proxyResolveStats.maxDuration = 0;
+	}
+	proxyResolveStats.lastSentTime = Date.now();
+}
+
+function createTimedResolveProxy(extHostWorkspace: IExtHostWorkspaceProvider, mainThreadTelemetry: MainThreadTelemetryShape) {
+	return async (url: string): Promise<string | undefined> => {
+		const startTime = performance.now();
+		try {
+			return await extHostWorkspace.resolveProxy(url);
+		} finally {
+			const duration = performance.now() - startTime;
+			proxyResolveStats.count++;
+			proxyResolveStats.totalDuration += duration;
+			proxyResolveStats.minDuration = Math.min(proxyResolveStats.minDuration, duration);
+			proxyResolveStats.maxDuration = Math.max(proxyResolveStats.maxDuration, duration);
+
+			// Send telemetry if at least an hour has passed since last send
+			const now = Date.now();
+			if (now - proxyResolveStats.lastSentTime >= telemetryInterval) {
+				sendProxyResolveStats(mainThreadTelemetry);
+			}
+		}
+	};
 }
 
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ResolveProxyWithRequest) {
@@ -291,7 +380,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 						cache[request] = undici;
 					} else {
 						const mod = lookup[request];
-						cache[request] = <any>{ ...mod }; // Copy to work around #93167.
+						cache[request] = { ...mod }; // Copy to work around #93167.
 					}
 				}
 				return cache[request];
@@ -394,9 +483,9 @@ type ProxyAuthenticationEvent = {
 };
 
 let telemetrySent = false;
-
+const enableProxyAuthenticationTelemetry = false;
 function sendTelemetry(mainThreadTelemetry: MainThreadTelemetryShape, authenticate: string[], isRemote: boolean) {
-	if (telemetrySent || !authenticate.length) {
+	if (!enableProxyAuthenticationTelemetry || telemetrySent || !authenticate.length) {
 		return;
 	}
 	telemetrySent = true;

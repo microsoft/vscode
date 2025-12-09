@@ -10,7 +10,7 @@ const offlineName = 'Offline';
 /**
  * Checks if the given error is offline error
  */
-export function isOfflineError(error: any): boolean {
+export function isOfflineError(error: unknown): boolean {
 	if (error instanceof OfflineError) {
 		return true;
 	}

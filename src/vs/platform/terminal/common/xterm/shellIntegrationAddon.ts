@@ -8,17 +8,18 @@ import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base
 import { TerminalCapabilityStore } from '../capabilities/terminalCapabilityStore.js';
 import { CommandDetectionCapability } from '../capabilities/commandDetectionCapability.js';
 import { CwdDetectionCapability } from '../capabilities/cwdDetectionCapability.js';
-import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, IShellEnvDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
+import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, IPromptTypeDetectionCapability, ISerializedCommandDetectionCapability, IShellEnvDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
 import { PartialCommandDetectionCapability } from '../capabilities/partialCommandDetectionCapability.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { BufferMarkCapability } from '../capabilities/bufferMarkCapability.js';
 import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from '../../../../base/common/uri.js';
 import { sanitizeCwd } from '../terminalEnvironment.js';
 import { removeAnsiEscapeCodesFromPrompt } from '../../../../base/common/strings.js';
 import { ShellEnvDetectionCapability } from '../capabilities/shellEnvDetectionCapability.js';
+import { PromptTypeDetectionCapability } from '../capabilities/promptTypeDetectionCapability.js';
 
 
 /**
@@ -131,8 +132,10 @@ const enum VSCodeOscPt {
 	CommandExecuted = 'C',
 
 	/**
-	 * Sent just after a command has finished. The exit code is optional, when not specified it
-	 * means no command was run (ie. enter on empty prompt or ctrl+c).
+	 * Sent just after a command has finished. This should generally be used on the new line
+	 * following the end of a command's output, just before {@link PromptStart}. The exit code is
+	 * optional, when not specified it means no command was run (ie. enter on empty prompt or
+	 * ctrl+c).
 	 *
 	 * Format: `OSC 633 ; D [; <ExitCode>] ST`
 	 *
@@ -204,11 +207,15 @@ const enum VSCodeOscPt {
 	 * Known properties:
 	 *
 	 * - `Cwd` - Reports the current working directory to the terminal.
-	 * - `IsWindows` - Indicates whether the terminal is using a Windows backend like winpty or
-	 *   conpty. This may be used to enable additional heuristics as the positioning of the shell
+	 * - `IsWindows` - Reports whether the shell is using a Windows backend like winpty or conpty.
+	 *   This may be used to enable additional heuristics as the positioning of the shell
 	 *   integration sequences are not guaranteed to be correct. Valid values: `True`, `False`.
 	 * - `ContinuationPrompt` - Reports the continuation prompt that is printed at the start of
 	 *   multi-line inputs.
+	 * - `HasRichCommandDetection` - Reports whether the shell has rich command line detection,
+	 *   meaning that sequences A, B, C, D and E are exactly where they're meant to be. In
+	 *   particular, {@link CommandLine} must happen immediately before {@link CommandExecuted} so
+	 *   VS Code knows the command line when the execution begins.
 	 *
 	 * WARNING: Any other properties may be changed and are not guaranteed to work in the future.
 	 */
@@ -233,7 +240,8 @@ const enum VSCodeOscPt {
 	 *
 	 * - `Environment` - A stringified JSON object containing the shell's complete environment. The
 	 *    variables and values use the same encoding rules as the {@link CommandLine} sequence.
-	 * - `Nonce` - An _mandatory_ nonce to ensure the sequence is not malicious.
+	 * - `Nonce` - An _mandatory_ nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -242,7 +250,10 @@ const enum VSCodeOscPt {
 	/**
 	 * Delete a single environment variable from cached environment.
 	 *
-	 * Format: `OSC 633 ; EnvSingleDelete ; <EnvironmentKey> ; <EnvironmentValue> ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleDelete ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -250,9 +261,12 @@ const enum VSCodeOscPt {
 
 	/**
 	 * The start of the collecting user's environment variables individually.
-	 * Clears any environment residuals in previous sessions.
 	 *
-	 * Format: `OSC 633 ; EnvSingleStart ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleStart ; <Clear> [; <Nonce>]`
+	 *
+	 * - `Clear` - An _mandatory_ flag indicating any cached environment variables will be cleared.
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -261,7 +275,10 @@ const enum VSCodeOscPt {
 	/**
 	 * Sets an entry of single environment variable to transactional pending map of environment variables.
 	 *
-	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -271,7 +288,10 @@ const enum VSCodeOscPt {
 	 * The end of the collecting user's environment variables individually.
 	 * Clears any pending environment variables and fires an event that contains user's environment.
 	 *
-	 * Format: `OSC 633 ; EnvSingleEnd ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleEnd [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -306,18 +326,24 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _terminal?: Terminal;
 	readonly capabilities = this._register(new TerminalCapabilityStore());
 	private _hasUpdatedTelemetry: boolean = false;
-	private _activationTimeout: any;
+	private _activationTimeout: Timeout | undefined;
 	private _commonProtocolDisposables: IDisposable[] = [];
-	private _status: ShellIntegrationStatus = ShellIntegrationStatus.Off;
 
+	private _seenSequences: Set<string> = new Set();
+	get seenSequences(): ReadonlySet<string> { return this._seenSequences; }
+
+	private _status: ShellIntegrationStatus = ShellIntegrationStatus.Off;
 	get status(): ShellIntegrationStatus { return this._status; }
 
 	private readonly _onDidChangeStatus = new Emitter<ShellIntegrationStatus>();
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
+	private readonly _onDidChangeSeenSequences = new Emitter<ReadonlySet<string>>();
+	readonly onDidChangeSeenSequences = this._onDidChangeSeenSequences.event;
 
 	constructor(
 		private _nonce: string,
 		private readonly _disableTelemetry: boolean | undefined,
+		private _onDidExecuteText: Event<void> | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
 		private readonly _logService: ILogService
 	) {
@@ -335,7 +361,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
-		this.capabilities.add(TerminalCapability.PartialCommandDetection, this._register(new PartialCommandDetectionCapability(this._terminal)));
+		this.capabilities.add(TerminalCapability.PartialCommandDetection, this._register(new PartialCommandDetectionCapability(this._terminal, this._onDidExecuteText)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
 		this._commonProtocolDisposables.push(
@@ -348,6 +374,19 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 	getMarkerId(terminal: Terminal, vscodeMarkerId: string) {
 		this._createOrGetBufferMarkDetection(terminal).getMark(vscodeMarkerId);
+	}
+
+	setNextCommandId(command: string, commandId: string): void {
+		if (this._terminal) {
+			this._createOrGetCommandDetection(this._terminal).setNextCommandId(command, commandId);
+		}
+	}
+
+	private _markSequenceSeen(sequence: string) {
+		if (!this._seenSequences.has(sequence)) {
+			this._seenSequences.add(sequence);
+			this._onDidChangeSeenSequences.fire(this._seenSequences);
+		}
 	}
 
 	private _handleFinalTermSequence(data: string): boolean {
@@ -370,6 +409,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		// when instant prompt is enabled though. If this does end up being a problem we could pass
 		// a type flag through the capability calls
 		const [command, ...args] = data.split(';');
+		this._markSequenceSeen(command);
 		switch (command) {
 			case FinalTermOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
@@ -410,7 +450,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 		this._activationTimeout = setTimeout(() => {
 			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
-				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationTimeout');
+				this._telemetryService?.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates shell integration activation timeout' }>('terminal/shellIntegrationActivationTimeout');
 				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
 			}
 			this._hasUpdatedTelemetry = true;
@@ -431,10 +471,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		// Pass the sequence along to the capability
 		const argsIndex = data.indexOf(';');
-		const sequenceCommand = argsIndex === -1 ? data : data.substring(0, argsIndex);
+		const command = argsIndex === -1 ? data : data.substring(0, argsIndex);
+		this._markSequenceSeen(command);
 		// Cast to strict checked index access
 		const args: (string | undefined)[] = argsIndex === -1 ? [] : data.substring(argsIndex + 1).split(';');
-		switch (sequenceCommand) {
+		switch (command) {
 			case VSCodeOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
 				return true;
@@ -455,7 +496,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				const arg1 = args[1];
 				let commandLine: string;
 				if (arg0 !== undefined) {
-					commandLine = deserializeMessage(arg0);
+					commandLine = deserializeVSCodeOscMessage(arg0);
 				} else {
 					commandLine = '';
 				}
@@ -475,7 +516,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				const arg1 = args[1];
 				if (arg0 !== undefined) {
 					try {
-						const env = JSON.parse(deserializeMessage(arg0));
+						const env = JSON.parse(deserializeVSCodeOscMessage(arg0));
 						this._createOrGetShellEnvDetection().setEnvironment(env, arg1 === this._nonce);
 					} catch (e) {
 						this._logService.warn('Failed to parse environment from shell integration sequence', arg0);
@@ -484,7 +525,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.EnvSingleStart: {
-				this._createOrGetShellEnvDetection().startEnvironmentSingleVar(args[0] === this._nonce);
+				this._createOrGetShellEnvDetection().startEnvironmentSingleVar(args[0] === '1', args[1] === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.EnvSingleDelete: {
@@ -493,7 +534,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				const arg1 = args[1];
 				const arg2 = args[2];
 				if (arg0 !== undefined && arg1 !== undefined) {
-					const env = deserializeMessage(arg1);
+					const env = deserializeVSCodeOscMessage(arg1);
 					this._createOrGetShellEnvDetection().deleteEnvironmentSingleVar(arg0, env, arg2 === this._nonce);
 				}
 				return true;
@@ -503,7 +544,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				const arg1 = args[1];
 				const arg2 = args[2];
 				if (arg0 !== undefined && arg1 !== undefined) {
-					const env = deserializeMessage(arg1);
+					const env = deserializeVSCodeOscMessage(arg1);
 					this._createOrGetShellEnvDetection().setEnvironmentSingleVar(arg0, env, arg2 === this._nonce);
 				}
 				return true;
@@ -522,7 +563,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.Property: {
 				const arg0 = args[0];
-				const deserialized = arg0 !== undefined ? deserializeMessage(arg0) : '';
+				const deserialized = arg0 !== undefined ? deserializeVSCodeOscMessage(arg0) : '';
 				const { key, value } = parseKeyValueAssignment(deserialized);
 				if (value === undefined) {
 					return true;
@@ -540,10 +581,18 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
 						return true;
 					}
+					case 'HasRichCommandDetection': {
+						this._createOrGetCommandDetection(this._terminal).setHasRichCommandDetection(value === 'True' ? true : false);
+						return true;
+					}
 					case 'Prompt': {
 						// Remove escape sequences from the user's prompt
 						const sanitizedValue = value.replace(/\x1b\[[0-9;]*m/g, '');
 						this._updatePromptTerminator(sanitizedValue);
+						return true;
+					}
+					case 'PromptType': {
+						this._createOrGetPromptTypeDetection().setPromptType(value);
 						return true;
 					}
 					case 'Task': {
@@ -575,7 +624,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			return;
 		}
 		const lastPromptLine = prompt.substring(prompt.lastIndexOf('\n') + 1);
-		const promptTerminator = lastPromptLine.substring(lastPromptLine.lastIndexOf(' '));
+		const lastPromptLineTrimmed = lastPromptLine.trim();
+		const promptTerminator = (
+			lastPromptLineTrimmed.length === 1
+				// The prompt line contains a single character, treat the full line as the
+				// terminator for example "\u2b9e "
+				? lastPromptLine
+				: lastPromptLine.substring(lastPromptLine.lastIndexOf(' '))
+		);
 		if (promptTerminator) {
 			this._createOrGetCommandDetection(this._terminal).setPromptTerminator(promptTerminator, lastPromptLine);
 		}
@@ -594,6 +650,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		const [command] = data.split(';');
+		this._markSequenceSeen(`${ShellIntegrationOscPs.ITerm};${command}`);
 		switch (command) {
 			case ITermOscPt.SetMark: {
 				this._createOrGetBufferMarkDetection(this._terminal).addMark();
@@ -628,6 +685,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		const [command, ...args] = data.split(';');
+		this._markSequenceSeen(`${ShellIntegrationOscPs.SetWindowsFriendlyCwd};${command}`);
 		switch (command) {
 			case '9':
 				// Encountered `OSC 9 ; 9 ; <cwd> ST`
@@ -650,6 +708,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		const [command] = data.split(';');
+		this._markSequenceSeen(`${ShellIntegrationOscPs.SetCwd};${command}`);
 
 		if (command.match(/^file:\/\/.*\//)) {
 			const uri = URI.parse(command);
@@ -667,6 +726,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._terminal || !this.capabilities.has(TerminalCapability.CommandDetection)) {
 			return {
 				isWindowsPty: false,
+				hasRichCommandDetection: false,
 				commands: [],
 				promptInputModel: undefined,
 			};
@@ -722,15 +782,40 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 		return shellEnvDetection;
 	}
+
+	protected _createOrGetPromptTypeDetection(): IPromptTypeDetectionCapability {
+		let promptTypeDetection = this.capabilities.get(TerminalCapability.PromptTypeDetection);
+		if (!promptTypeDetection) {
+			promptTypeDetection = this._register(new PromptTypeDetectionCapability());
+			this.capabilities.add(TerminalCapability.PromptTypeDetection, promptTypeDetection);
+		}
+		return promptTypeDetection;
+	}
 }
 
-export function deserializeMessage(message: string): string {
+export function deserializeVSCodeOscMessage(message: string): string {
 	return message.replaceAll(
 		// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
 		/\\(\\|x([0-9a-f]{2}))/gi,
 		// If it's a hex value, parse it to a character.
 		// Otherwise the operator is '\', which we return literally, now unescaped.
 		(_match: string, op: string, hex?: string) => hex ? String.fromCharCode(parseInt(hex, 16)) : op);
+}
+
+export function serializeVSCodeOscMessage(message: string): string {
+	return message.replace(
+		// Match backslash ('\'), semicolon (';'), or characters 0x20 and below
+		/[\\;\x00-\x20]/g,
+		(char: string) => {
+			// Escape backslash as '\\'
+			if (char === '\\') {
+				return '\\\\';
+			}
+			// Escape other characters as '\xAB' where AB is the hex representation
+			const charCode = char.charCodeAt(0);
+			return `\\x${charCode.toString(16).padStart(2, '0')}`;
+		}
+	);
 }
 
 export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {

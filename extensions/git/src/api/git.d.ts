@@ -30,6 +30,7 @@ export interface Ref {
 	readonly type: RefType;
 	readonly name?: string;
 	readonly commit?: string;
+	readonly commitDetails?: Commit;
 	readonly remote?: string;
 }
 
@@ -145,6 +146,7 @@ export interface LogOptions {
 	readonly sortByAuthorDate?: boolean;
 	readonly shortStats?: boolean;
 	readonly author?: string;
+	readonly grep?: string;
 	readonly refNames?: string[];
 	readonly maxParents?: number;
 	readonly skip?: number;
@@ -181,11 +183,24 @@ export interface InitOptions {
 	defaultBranch?: string;
 }
 
+export interface CloneOptions {
+	parentPath?: Uri;
+	/**
+	 * ref is only used if the repository cache is missed.
+	 */
+	ref?: string;
+	recursive?: boolean;
+	/**
+	 * If no postCloneAction is provided, then the users setting for git.openAfterClone is used.
+	 */
+	postCloneAction?: 'none';
+}
+
 export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
 	readonly pattern?: string | string[];
-	readonly sort?: 'alphabetically' | 'committerdate';
+	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
 }
 
 export interface BranchQuery extends RefQuery {
@@ -222,10 +237,12 @@ export interface Repository {
 	diff(cached?: boolean): Promise<string>;
 	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
+	diffWithHEADShortStats(path?: string): Promise<CommitShortStat>;
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
+	diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat>;
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffBlobs(object1: string, object2: string): Promise<string>;
@@ -247,7 +264,7 @@ export interface Repository {
 
 	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;
 
-	tag(name: string, upstream: string): Promise<void>;
+	tag(name: string, message: string, ref?: string | undefined): Promise<void>;
 	deleteTag(name: string): Promise<void>;
 
 	status(): Promise<void>;
@@ -272,6 +289,11 @@ export interface Repository {
 	applyStash(index?: number): Promise<void>;
 	popStash(index?: number): Promise<void>;
 	dropStash(index?: number): Promise<void>;
+
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string>;
+	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void>;
+
+	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void>;
 }
 
 export interface RemoteSource {
@@ -362,8 +384,16 @@ export interface API {
 
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
+	getRepositoryRoot(uri: Uri): Promise<Uri | null>;
+	getRepositoryWorkspace(uri: Uri): Promise<Uri[] | null>;
 	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
-	openRepository(root: Uri): Promise<Repository | null>
+	/**
+	 * Checks the cache of known cloned repositories, and clones if the repository is not found.
+	 * Make sure to pass `postCloneAction` 'none' if you want to have the uri where you can find the repository returned.
+	 * @returns The URI of a folder or workspace file which, when opened, will open the cloned repository.
+	 */
+	clone(uri: Uri, options?: CloneOptions): Promise<Uri | null>;
+	openRepository(root: Uri): Promise<Repository | null>;
 
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
@@ -394,11 +424,13 @@ export interface GitExtension {
 
 export const enum GitErrorCodes {
 	BadConfigFile = 'BadConfigFile',
+	BadRevision = 'BadRevision',
 	AuthenticationFailed = 'AuthenticationFailed',
 	NoUserNameConfigured = 'NoUserNameConfigured',
 	NoUserEmailConfigured = 'NoUserEmailConfigured',
 	NoRemoteRepositorySpecified = 'NoRemoteRepositorySpecified',
 	NotAGitRepository = 'NotAGitRepository',
+	NotASafeGitRepository = 'NotASafeGitRepository',
 	NotAtRepositoryRoot = 'NotAtRepositoryRoot',
 	Conflict = 'Conflict',
 	StashConflict = 'StashConflict',
@@ -435,5 +467,8 @@ export const enum GitErrorCodes {
 	BranchNotYetBorn = 'BranchNotYetBorn',
 	TagConflict = 'TagConflict',
 	CherryPickEmpty = 'CherryPickEmpty',
-	CherryPickConflict = 'CherryPickConflict'
+	CherryPickConflict = 'CherryPickConflict',
+	WorktreeContainsChanges = 'WorktreeContainsChanges',
+	WorktreeAlreadyExists = 'WorktreeAlreadyExists',
+	WorktreeBranchAlreadyUsed = 'WorktreeBranchAlreadyUsed'
 }

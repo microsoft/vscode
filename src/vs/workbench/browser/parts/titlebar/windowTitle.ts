@@ -15,7 +15,6 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from '../.
 import { isWindows, isWeb, isMacintosh, isNative } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { trim } from '../../../../base/common/strings.js';
-import { IEditorGroupsContainer } from '../../../services/editor/common/editorGroupsService.js';
 import { template } from '../../../../base/common/labels.js';
 import { ILabelService, Verbosity as LabelVerbosity } from '../../../../platform/label/common/label.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -30,10 +29,11 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { getWindowById } from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
-	title = 'window.title'
+	title = 'window.title',
 }
 
 export const defaultWindowTitle = (() => {
@@ -82,27 +82,24 @@ export class WindowTitle extends Disposable {
 	private titleIncludesFocusedView: boolean = false;
 	private titleIncludesEditorState: boolean = false;
 
-	private readonly editorService: IEditorService;
-
 	private readonly windowId: number;
 
 	constructor(
 		targetWindow: CodeWindow,
-		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorService editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly productService: IProductService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IDecorationsService private readonly decorationsService: IDecorationsService
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 
-		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 		this.windowId = targetWindow.vscodeWindowId;
 
 		this.checkTitleVariables();
@@ -128,6 +125,7 @@ export class WindowTitle extends Disposable {
 				this.titleUpdater.schedule();
 			}
 		}));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
@@ -372,6 +370,10 @@ export class WindowTitle extends Disposable {
 			titleTemplate = defaultWindowTitle;
 		}
 
+		if (!this.titleIncludesEditorState && this.accessibilityService.isScreenReaderOptimized() && this.configurationService.getValue('accessibility.windowTitleOptimized')) {
+			titleTemplate += '${separator}${activeEditorState}';
+		}
+
 		let separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
 		if (typeof separator !== 'string') {
 			separator = defaultWindowTitleSeparator;
@@ -401,6 +403,9 @@ export class WindowTitle extends Disposable {
 	}
 
 	isCustomTitleFormat(): boolean {
+		if (this.accessibilityService.isScreenReaderOptimized() || this.titleIncludesEditorState) {
+			return true;
+		}
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
 

@@ -24,7 +24,7 @@ import * as domFontInfo from '../../../browser/config/domFontInfo.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
-import { IDimension } from '../../../common/core/dimension.js';
+import { IDimension } from '../../../common/core/2d/dimension.js';
 import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { ScrollType } from '../../../common/editorCommon.js';
@@ -45,6 +45,7 @@ import {
 	widgetShadow
 } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 
 /** for debugging */
 const _sticky = false
@@ -345,7 +346,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 			totalHeightAvailable = this._nPxAvailableAbove;
 		}
 
-		this._renameCandidateListView!.layout({
+		this._renameCandidateListView.layout({
 			height: totalHeightAvailable - labelHeight - inputBoxHeight,
 			width: dom.getTotalWidth(this._inputWithButton.domNode),
 		});
@@ -595,7 +596,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 	}
 
 	private async _updateRenameCandidates(candidates: ProviderResult<NewSymbolName[]>[], currentName: string, token: CancellationToken) {
-		const trace = (...args: any[]) => this._trace('_updateRenameCandidates', ...args);
+		const trace = (...args: unknown[]) => this._trace('_updateRenameCandidates', ...args);
 
 		trace('start');
 		const namesListResults = await raceCancellation(Promise.allSettled(candidates), token);
@@ -692,23 +693,23 @@ class RenameCandidateListView {
 
 		this._listWidget = RenameCandidateListView._createListWidget(this._listContainer, this._candidateViewHeight, opts.fontInfo);
 
-		this._listWidget.onDidChangeFocus(
+		this._disposables.add(this._listWidget.onDidChangeFocus(
 			e => {
 				if (e.elements.length === 1) {
 					opts.onFocusChange(e.elements[0].newSymbolName);
 				}
 			},
 			this._disposables
-		);
+		));
 
-		this._listWidget.onDidChangeSelection(
+		this._disposables.add(this._listWidget.onDidChangeSelection(
 			e => {
 				if (e.elements.length === 1) {
 					opts.onSelectionChange();
 				}
 			},
 			this._disposables
-		);
+		));
 
 		this._disposables.add(
 			this._listWidget.onDidBlur(e => { // @ulugbekna: because list widget otherwise remembers last focused element and returns it as focused element
@@ -930,15 +931,12 @@ class InputWithButton implements IDisposable {
 			this._buttonNode.className = 'rename-suggestions-button';
 			this._buttonNode.setAttribute('tabindex', '0');
 
-			this._buttonGenHoverText = nls.localize('generateRenameSuggestionsButton', "Generate new name suggestions");
+			this._buttonGenHoverText = nls.localize('generateRenameSuggestionsButton', "Generate New Name Suggestions");
 			this._buttonCancelHoverText = nls.localize('cancelRenameSuggestionsButton', "Cancel");
 			this._buttonHoverContent = this._buttonGenHoverText;
 			this._disposables.add(getBaseLayerHoverDelegate().setupDelayedHover(this._buttonNode, () => ({
 				content: this._buttonHoverContent,
-				appearance: {
-					showPointer: true,
-					compact: true,
-				}
+				style: HoverStyle.Pointer,
 			})));
 
 			this._domNode.appendChild(this._buttonNode);
