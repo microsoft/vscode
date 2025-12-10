@@ -1077,6 +1077,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire({ reason: 'completedRequest' });
 	}
 
+	completeResponseIfNeeded() {
+		if (!this.isComplete) {
+			this.complete();
+		}
+	}
+
 	cancel(): void {
 		this._modelState.set({ value: ResponseModelState.Cancelled, completedAt: Date.now() }, undefined);
 		this._onDidChange.fire({ reason: 'completedRequest' });
