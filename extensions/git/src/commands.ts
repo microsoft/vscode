@@ -5423,12 +5423,38 @@ export class CommandCenter {
 						options.modal = false;
 						break;
 					default: {
-						const hint = (err.stderr || err.message || String(err))
+						const lines = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter((line: string) => !!line)
-						[0];
+							.filter((line: string) => !!line);
+
+						// Prioritize error messages over informational messages
+						// Look for lines indicating actual failures (Failed, exit code, hook id)
+						let hint = lines.find((line: string) =>
+							/Failed/i.test(line) ||
+							/exit code/i.test(line) ||
+							/hook id:/i.test(line)
+						);
+
+						// If no explicit failure line found, look for lines that don't indicate success/skip
+						if (!hint) {
+							hint = lines.find((line: string) =>
+								!/Passed/i.test(line) &&
+								!/Skipped/i.test(line) &&
+								!/no files to check/i.test(line)
+							);
+						}
+
+						// Fall back to first line only if it's not a success-related message
+						// Otherwise use a generic error message to avoid showing success as error
+						if (!hint && lines.length > 0) {
+							const firstLine = lines[0];
+							const isSuccessMessage = /Passed/i.test(firstLine) ||
+								/Skipped/i.test(firstLine) ||
+								/no files to check/i.test(firstLine);
+							hint = isSuccessMessage ? undefined : firstLine;
+						}
 
 						message = hint
 							? l10n.t('Git: {0}', hint)
