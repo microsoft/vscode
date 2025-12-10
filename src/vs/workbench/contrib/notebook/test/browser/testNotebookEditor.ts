@@ -545,7 +545,7 @@ export function valueBytesFromString(value: string): VSBuffer {
 }
 
 class TestCellExecution implements INotebookCellExecution {
-	private _state: NotebookCellExecutionState = NotebookCellExecutionState.Executing;
+	private _state: NotebookCellExecutionState = NotebookCellExecutionState.Unconfirmed;
 
 	constructor(
 		readonly notebook: URI,
@@ -572,6 +572,8 @@ class TestCellExecution implements INotebookCellExecution {
 	}
 
 	complete(complete: ICellExecutionComplete): void {
+		// Execution is complete - it will be removed from the map
+		// No need to update state as the execution object will be disposed
 		this.onComplete();
 	}
 }
@@ -619,6 +621,12 @@ export class TestNotebookExecutionStateService implements INotebookExecutionStat
 		throw new Error('Method not implemented.');
 	}
 	hasRunningExecutions(): boolean {
-		return this._executions.size > 0;
+		for (const execution of this._executions.values()) {
+			if (execution.state === NotebookCellExecutionState.Pending ||
+				execution.state === NotebookCellExecutionState.Executing) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

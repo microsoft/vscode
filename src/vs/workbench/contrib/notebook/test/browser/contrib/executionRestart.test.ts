@@ -63,9 +63,10 @@ suite('NotebookExecutionRestartVeto', () => {
 		// Create the veto contribution
 		disposables.add(instantiationService.createInstance(NotebookExecutionRestartVeto));
 
-		// Create a fake execution
+		// Create a fake execution and confirm it to transition to Pending state
 		const notebookUri = URI.parse('notebook://test.ipynb');
-		executionStateService.createCellExecution(notebookUri, 0);
+		const execution = executionStateService.createCellExecution(notebookUri, 0);
+		execution.confirm();
 
 		// Fire the will stop event
 		const vetoed = extensionService.fireWillStop('test reason');
@@ -89,17 +90,33 @@ suite('NotebookExecutionRestartVeto', () => {
 		// Create the veto contribution
 		disposables.add(instantiationService.createInstance(NotebookExecutionRestartVeto));
 
-		// Create a fake execution
+		// Create a fake execution and confirm it
 		const notebookUri = URI.parse('notebook://test.ipynb');
 		const execution = executionStateService.createCellExecution(notebookUri, 0);
+		execution.confirm();
 
-		// Complete the execution
+		// Complete the execution (this removes it from the map)
 		execution.complete({});
 
 		// Fire the will stop event
 		const vetoed = extensionService.fireWillStop('test reason');
 
 		// Should not be vetoed because the execution completed
+		assert.strictEqual(vetoed, false);
+	});
+
+	test('should not veto for unconfirmed execution', () => {
+		// Create the veto contribution
+		disposables.add(instantiationService.createInstance(NotebookExecutionRestartVeto));
+
+		// Create an execution but don't confirm it (stays in Unconfirmed state)
+		const notebookUri = URI.parse('notebook://test.ipynb');
+		executionStateService.createCellExecution(notebookUri, 0);
+
+		// Fire the will stop event
+		const vetoed = extensionService.fireWillStop('test reason');
+
+		// Should not be vetoed because the execution is unconfirmed (hasn't really started)
 		assert.strictEqual(vetoed, false);
 	});
 });
