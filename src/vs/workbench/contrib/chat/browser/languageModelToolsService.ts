@@ -770,6 +770,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	/**
+	 * Check if a tool belongs to a restricted toolset (execute or read)
+	 */
+	private isToolInRestrictedToolSet(tool: IToolData): boolean {
+		return Iterable.some(this.executeToolSet.getTools(), t => t === tool) ||
+			Iterable.some(this.readToolSet.getTools(), t => t === tool);
+	}
+
+	/**
 	 * Create a map that contains all tools and toolsets with their enablement state.
 	 * @param fullReferenceNames A list of tool or toolset by their full reference names that are enabled.
 	 * @returns A map of tool or toolset instances to their enablement state.
@@ -778,21 +786,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		const toolOrToolSetNames = new Set(fullReferenceNames);
 		const result = new Map<ToolSet | IToolData, boolean>();
 		const isAgentModeEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
-
-		// Helper to check if a tool belongs to a restricted toolset
-		const isToolInRestrictedToolSet = (tool: IToolData): boolean => {
-			for (const memberTool of this.executeToolSet.getTools()) {
-				if (memberTool === tool) {
-					return true;
-				}
-			}
-			for (const memberTool of this.readToolSet.getTools()) {
-				if (memberTool === tool) {
-					return true;
-				}
-			}
-			return false;
-		};
 
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {
 			if (tool instanceof ToolSet) {
@@ -815,7 +808,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			} else {
 				if (!result.has(tool)) { // already set via an enabled toolset
 					// Check if this tool belongs to a restricted toolset
-					const toolInRestrictedToolSet = !isAgentModeEnabled && isToolInRestrictedToolSet(tool);
+					const toolInRestrictedToolSet = !isAgentModeEnabled && this.isToolInRestrictedToolSet(tool);
 
 					const enabled = toolInRestrictedToolSet ? false : (toolOrToolSetNames.has(fullReferenceName)
 						|| Iterable.some(this.getToolAliases(tool, fullReferenceName), name => toolOrToolSetNames.has(name))
