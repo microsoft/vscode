@@ -976,15 +976,9 @@ configurationRegistry.registerConfiguration({
 		},
 		[NotebookSetting.cellToolbarLocation]: {
 			description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
-			type: 'object',
-			additionalProperties: {
-				markdownDescription: nls.localize('notebook.cellToolbarLocation.viewType', "Configure the cell toolbar position for for specific file types"),
-				type: 'string',
-				enum: ['left', 'right', 'hidden']
-			},
-			default: {
-				'default': 'right'
-			},
+			type: 'string',
+			enum: ['left', 'right', 'hidden'],
+			default: 'right',
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.showCellStatusBar]: {
