@@ -72,6 +72,8 @@ export class DiffEditorHeightCalculatorService {
 	}
 
 	public computeHeightFromLines(lineCount: number): number {
-		return lineCount * this.lineHeight + getEditorPadding(lineCount).top + getEditorPadding(lineCount).bottom;
+		const scrollbarSize = this.configurationService.getValue<number>('editor.scrollbar.horizontalScrollbarSize');
+		const horizontalScrollbarHeight = scrollbarSize ?? 12; // Default to 12px if not configured
+		return lineCount * this.lineHeight + getEditorPadding(lineCount).top + getEditorPadding(lineCount).bottom + horizontalScrollbarHeight;
 	}
 }
