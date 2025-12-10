@@ -9,7 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMatch } from '../../../../base/common/filters.js';
 import { IPreparedQuery, pieceToQuery, prepareQuery, scoreFuzzy2 } from '../../../../base/common/fuzzyScorer.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { format, trim } from '../../../../base/common/strings.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { ScrollType } from '../../../common/editorCommon.js';
@@ -169,21 +169,21 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const symbolsPromise = this.getDocumentSymbols(model, token);
 
 		// Set initial picks and update on type
-		let picksCts: CancellationTokenSource | undefined = undefined;
+		const picksCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const updatePickerItems = async (positionToEnclose: Position | undefined) => {
 
 			// Cancel any previous ask for picks and busy
-			picksCts?.dispose(true);
+			picksCts?.value?.cancel();
 			picker.busy = false;
 
 			// Create new cancellation source for this run
-			picksCts = new CancellationTokenSource(token);
+			picksCts.value = new CancellationTokenSource();
 
 			// Collect symbol picks
 			picker.busy = true;
 			try {
 				const query = prepareQuery(picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim());
-				const items = await this.doGetSymbolPicks(symbolsPromise, query, undefined, picksCts.token, model);
+				const items = await this.doGetSymbolPicks(symbolsPromise, query, undefined, picksCts.value.token, model);
 				if (token.isCancellationRequested) {
 					return;
 				}

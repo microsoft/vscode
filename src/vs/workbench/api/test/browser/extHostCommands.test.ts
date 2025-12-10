@@ -89,6 +89,7 @@ suite('ExtHostCommands', function () {
 					throw new Error('$executeCommand:retry');
 				} else {
 					assert.strictEqual(retry, false);
+					// eslint-disable-next-line local/code-no-any-casts
 					return <any>17;
 				}
 			}

@@ -60,7 +60,7 @@ const newCommands: ApiCommand[] = [
 				range!: vscode.Range;
 				selectionRange!: vscode.Range;
 				children!: vscode.DocumentSymbol[];
-				override containerName!: string;
+				override containerName: string = '';
 			}
 			return value.map(MergedInfo.to);
 
@@ -547,8 +547,10 @@ const newCommands: ApiCommand[] = [
 				initialRange: v.initialRange ? typeConverters.Range.from(v.initialRange) : undefined,
 				initialSelection: types.Selection.isSelection(v.initialSelection) ? typeConverters.Selection.from(v.initialSelection) : undefined,
 				message: v.message,
+				attachments: v.attachments,
 				autoSend: v.autoSend,
 				position: v.position ? typeConverters.Position.from(v.position) : undefined,
+				blockOnResponse: v.blockOnResponse
 			};
 		})],
 		ApiCommandResult.Void
@@ -559,16 +561,20 @@ type InlineChatEditorApiArg = {
 	initialRange?: vscode.Range;
 	initialSelection?: vscode.Selection;
 	message?: string;
+	attachments?: vscode.Uri[];
 	autoSend?: boolean;
 	position?: vscode.Position;
+	blockOnResponse?: boolean;
 };
 
 type InlineChatRunOptions = {
 	initialRange?: IRange;
 	initialSelection?: ISelection;
 	message?: string;
+	attachments?: URI[];
 	autoSend?: boolean;
 	position?: IPosition;
+	blockOnResponse?: boolean;
 };
 
 //#endregion

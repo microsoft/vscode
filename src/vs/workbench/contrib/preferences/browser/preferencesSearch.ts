@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType, ISettingMatch, SettingKeyMatchTypes } from '../../../services/preferences/common/preferences.js';
-import { IRange } from '../../../../editor/common/core/range.js';
 import { distinct } from '../../../../base/common/arrays.js';
-import * as strings from '../../../../base/common/strings.js';
-import { IMatch, matchesContiguousSubString, matchesSubString, matchesWords } from '../../../../base/common/filters.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
-import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from '../../../services/aiRelatedInformation/common/aiRelatedInformation.js';
-import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IMatch, matchesBaseContiguousSubString, matchesContiguousSubString, matchesSubString, matchesWords } from '../../../../base/common/filters.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import * as strings from '../../../../base/common/strings.js';
+import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/common/aiSettingsSearch.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IGroupFilter, ISearchResult, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingKeyMatchTypes, SettingMatchType } from '../../../services/preferences/common/preferences.js';
 import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
+import { EMBEDDINGS_ONLY_SEARCH_PROVIDER_NAME, EMBEDDINGS_SEARCH_PROVIDER_NAME, IAiSearchProvider, IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration, LLM_RANKED_SEARCH_PROVIDER_NAME, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME } from '../common/preferences.js';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -33,6 +33,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
 	private _installedExtensions: Promise<ILocalExtension[]>;
 	private _remoteSearchProvider: IRemoteSearchProvider | undefined;
+	private _aiSearchProvider: IAiSearchProvider | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -52,6 +53,10 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		});
 	}
 
+	getLocalSearchProvider(filter: string): LocalSearchProvider {
+		return this.instantiationService.createInstance(LocalSearchProvider, filter);
+	}
+
 	private get remoteSearchAllowed(): boolean {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		return workbenchSettings.enableNaturalLanguageSearch;
@@ -67,8 +72,14 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		return this._remoteSearchProvider;
 	}
 
-	getLocalSearchProvider(filter: string): LocalSearchProvider {
-		return this.instantiationService.createInstance(LocalSearchProvider, filter);
+	getAiSearchProvider(filter: string): IAiSearchProvider | undefined {
+		if (!this.remoteSearchAllowed) {
+			return undefined;
+		}
+
+		this._aiSearchProvider ??= this.instantiationService.createInstance(AiSearchProvider);
+		this._aiSearchProvider.setFilter(filter);
+		return this._aiSearchProvider;
 	}
 }
 
@@ -82,9 +93,6 @@ function cleanFilter(filter: string): string {
 }
 
 export class LocalSearchProvider implements ISearchProvider {
-	static readonly EXACT_MATCH_SCORE = 10000;
-	static readonly START_SCORE = 1000;
-
 	constructor(
 		private _filter: string,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -92,60 +100,45 @@ export class LocalSearchProvider implements ISearchProvider {
 		this._filter = cleanFilter(this._filter);
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
+	searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
 		if (!this._filter) {
 			return Promise.resolve(null);
 		}
 
-		let orderedScore = LocalSearchProvider.START_SCORE; // Sort is not stable
-		const useNewKeyMatchAlgorithm = this.configurationService.getValue('workbench.settings.useWeightedKeySearch') === true;
-		const settingMatcher = (setting: ISetting) => {
-			const { matches, matchType, keyMatchScore } = new SettingMatches(
+		const settingMatcher: ISettingMatcher = (setting: ISetting) => {
+			let { matches, matchType, keyMatchScore } = new SettingMatches(
 				this._filter,
 				setting,
 				true,
-				(filter, setting) => preferencesModel.findValueMatches(filter, setting),
-				useNewKeyMatchAlgorithm,
 				this.configurationService
 			);
 			if (matchType === SettingMatchType.None || matches.length === 0) {
 				return null;
 			}
-
-			const score = strings.equalsIgnoreCase(this._filter, setting.key) ?
-				LocalSearchProvider.EXACT_MATCH_SCORE :
-				orderedScore--;
+			if (strings.equalsIgnoreCase(this._filter, setting.key)) {
+				matchType = SettingMatchType.ExactMatch;
+			}
 			return {
 				matches,
 				matchType,
 				keyMatchScore,
-				score
+				score: 0 // only used for RemoteSearchProvider matches.
 			};
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		const exactMatch = filterMatches.find(m => m.score === LocalSearchProvider.EXACT_MATCH_SCORE);
-		if (exactMatch) {
-			return Promise.resolve({
-				filterMatches: [exactMatch],
-				exactMatch: true
-			});
-		} else if (useNewKeyMatchAlgorithm) {
-			// Check the top key match type.
-			const topKeyMatchType = Math.max(...filterMatches.map(m => (m.matchType & SettingKeyMatchTypes)));
-			// Always allow description matches as part of https://github.com/microsoft/vscode/issues/239936.
-			const alwaysAllowedMatchTypes = SettingMatchType.DescriptionOrValueMatch | SettingMatchType.LanguageTagSettingMatch;
-			const filteredMatches = filterMatches.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes));
-			return Promise.resolve({
-				filterMatches: filteredMatches,
-				exactMatch: false
-			});
-		} else {
-			return Promise.resolve({
-				filterMatches: filterMatches,
-				exactMatch: false
-			});
-		}
+
+		// Check the top key match type.
+		const topKeyMatchType = Math.max(...filterMatches.map(m => (m.matchType & SettingKeyMatchTypes)));
+		// Always allow description matches as part of https://github.com/microsoft/vscode/issues/239936.
+		const alwaysAllowedMatchTypes = SettingMatchType.DescriptionOrValueMatch | SettingMatchType.LanguageTagSettingMatch;
+		const filteredMatches = filterMatches
+			.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch)
+			.map(m => ({ ...m, providerName: STRING_MATCH_SEARCH_PROVIDER_NAME }));
+		return Promise.resolve({
+			filterMatches: filteredMatches,
+			exactMatch: filteredMatches.some(m => m.matchType === SettingMatchType.ExactMatch)
+		});
 	}
 
 	private getGroupFilter(filter: string): IGroupFilter {
@@ -169,8 +162,6 @@ export class SettingMatches {
 		searchString: string,
 		setting: ISetting,
 		private searchDescription: boolean,
-		valuesMatcher: (filter: string, setting: ISetting) => IRange[],
-		private useNewKeyMatchAlgorithm: boolean,
 		private readonly configurationService: IConfigurationService
 	) {
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
@@ -192,7 +183,7 @@ export class SettingMatches {
 	}
 
 	private _toAlphaNumeric(s: string): string {
-		return s.replace(/[^A-Za-z0-9]+/g, '');
+		return s.replace(/[^\p{L}\p{N}]+/gu, '');
 	}
 
 	private _doFindMatchesInSetting(searchString: string, setting: ISetting): IRange[] {
@@ -205,68 +196,52 @@ export class SettingMatches {
 		const settingKeyAsWords: string = this._keyToLabel(setting.key);
 		const queryWords = new Set<string>(searchString.split(' '));
 		for (const word of queryWords) {
-			// Check if the key contains the word.
-			// Force contiguous matching iff we're using the new algorithm.
-			const keyMatches = matchesWords(word, settingKeyAsWords, this.useNewKeyMatchAlgorithm);
+			// Check if the key contains the word. Use contiguous search.
+			const keyMatches = matchesWords(word, settingKeyAsWords, true);
 			if (keyMatches?.length) {
 				keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
 			}
 		}
-		if (this.useNewKeyMatchAlgorithm) {
-			// New key match algorithm
-			if (keyMatchingWords.size === queryWords.size) {
-				// All words in the query matched with something in the setting key.
-				// Matches "edit format on paste" to "editor.formatOnPaste".
-				this.matchType |= SettingMatchType.AllWordsInSettingsLabel;
-			} else if (keyMatchingWords.size >= 2) {
-				// Matches "edit paste" to "editor.formatOnPaste".
-				// The if statement reduces noise by preventing "editor formatonpast" from matching all editor settings.
-				this.matchType |= SettingMatchType.ContiguousWordsInSettingsLabel;
-				this.keyMatchScore = keyMatchingWords.size;
-			}
-			const searchStringAlphaNumeric = this._toAlphaNumeric(searchString);
-			const keyAlphaNumeric = this._toAlphaNumeric(setting.key);
-			const keyIdMatches = matchesContiguousSubString(searchStringAlphaNumeric, keyAlphaNumeric);
-			if (keyIdMatches?.length) {
-				// Matches "editorformatonp" to "editor.formatonpaste".
-				keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
-				this.matchType |= SettingMatchType.ContiguousQueryInSettingId;
-			}
+		if (keyMatchingWords.size === queryWords.size) {
+			// All words in the query matched with something in the setting key.
+			// Matches "edit format on paste" to "editor.formatOnPaste".
+			this.matchType |= SettingMatchType.AllWordsInSettingsLabel;
+		} else if (keyMatchingWords.size >= 2) {
+			// Matches "edit paste" to "editor.formatOnPaste".
+			// The if statement reduces noise by preventing "editor formatonpast" from matching all editor settings.
+			this.matchType |= SettingMatchType.ContiguousWordsInSettingsLabel;
+			this.keyMatchScore = keyMatchingWords.size;
+		}
+		const searchStringAlphaNumeric = this._toAlphaNumeric(searchString);
+		const keyAlphaNumeric = this._toAlphaNumeric(setting.key);
+		const keyIdMatches = matchesContiguousSubString(searchStringAlphaNumeric, keyAlphaNumeric);
+		if (keyIdMatches?.length) {
+			// Matches "editorformatonp" to "editor.formatonpaste".
+			keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
+			this.matchType |= SettingMatchType.ContiguousQueryInSettingId;
+		}
 
-			// Fall back to non-contiguous searches if nothing matched yet.
-			if (this.matchType === SettingMatchType.None) {
-				keyMatchingWords.clear();
-				for (const word of queryWords) {
-					const keyMatches = matchesWords(word, settingKeyAsWords, false);
-					if (keyMatches?.length) {
-						keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
-					}
-				}
-				if (keyMatchingWords.size >= 2 || (keyMatchingWords.size === 1 && queryWords.size === 1)) {
-					// Matches "edforonpas" to "editor.formatOnPaste".
-					// The if statement reduces noise by preventing "editor fomonpast" from matching all editor settings.
-					this.matchType |= SettingMatchType.NonContiguousWordsInSettingsLabel;
-					this.keyMatchScore = keyMatchingWords.size;
-				} else {
-					const keyIdMatches = matchesSubString(searchStringAlphaNumeric, keyAlphaNumeric);
-					if (keyIdMatches?.length) {
-						// Matches "edfmonpas" to "editor.formatOnPaste".
-						keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
-						this.matchType |= SettingMatchType.NonContiguousQueryInSettingId;
-					}
+		// Fall back to non-contiguous key (ID) searches if nothing matched yet.
+		if (this.matchType === SettingMatchType.None) {
+			keyMatchingWords.clear();
+			for (const word of queryWords) {
+				const keyMatches = matchesWords(word, settingKeyAsWords, false);
+				if (keyMatches?.length) {
+					keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
 				}
 			}
-		} else {
-			// Old key match algorithm
-			if (keyMatchingWords.size) {
+			if (keyMatchingWords.size >= 2 || (keyMatchingWords.size === 1 && queryWords.size === 1)) {
+				// Matches "edforonpas" to "editor.formatOnPaste".
+				// The if statement reduces noise by preventing "editor fomonpast" from matching all editor settings.
 				this.matchType |= SettingMatchType.NonContiguousWordsInSettingsLabel;
 				this.keyMatchScore = keyMatchingWords.size;
-			}
-			const keyIdMatches = matchesContiguousSubString(searchString, setting.key);
-			if (keyIdMatches?.length) {
-				// Handles cases such as "editor.formatonpaste" where the user tries searching for the ID.
-				keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
-				this.matchType |= SettingMatchType.ContiguousQueryInSettingId;
+			} else {
+				const keyIdMatches = matchesSubString(searchStringAlphaNumeric, keyAlphaNumeric);
+				if (keyIdMatches?.length) {
+					// Matches "edfmonpas" to "editor.formatOnPaste".
+					keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
+					this.matchType |= SettingMatchType.NonContiguousQueryInSettingId;
+				}
 			}
 		}
 
@@ -280,15 +255,13 @@ export class SettingMatches {
 		}
 
 		// Description search
-		// Old algorithm: search the description if we haven't matched anything yet.
-		// New algorithm: search the description if we found non-contiguous key matches at best.
+		// Search the description if we found non-contiguous key matches at best.
 		const hasContiguousKeyMatchTypes = this.matchType >= SettingMatchType.ContiguousWordsInSettingsLabel;
-		const checkDescription = (!this.useNewKeyMatchAlgorithm && this.matchType === SettingMatchType.None) || (this.useNewKeyMatchAlgorithm && !hasContiguousKeyMatchTypes);
-		if (this.searchDescription && checkDescription) {
+		if (this.searchDescription && !hasContiguousKeyMatchTypes) {
 			for (const word of queryWords) {
 				// Search the description lines.
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-					const descriptionMatches = matchesContiguousSubString(word, setting.description[lineIndex]);
+					const descriptionMatches = matchesBaseContiguousSubString(word, setting.description[lineIndex]);
 					if (descriptionMatches?.length) {
 						descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
 					}
@@ -304,10 +277,8 @@ export class SettingMatches {
 
 		// Value search
 		// Check if the value contains all the words.
-		// Old algorithm: always search the values.
-		// New algorithm: search the values if we found non-contiguous key matches at best.
-		const checkValue = !this.useNewKeyMatchAlgorithm || !hasContiguousKeyMatchTypes;
-		if (checkValue) {
+		// Search the values if we found non-contiguous key matches at best.
+		if (!hasContiguousKeyMatchTypes) {
 			if (setting.enum?.length) {
 				// Search all string values of enums.
 				for (const option of setting.enum) {
@@ -392,110 +363,96 @@ export class SettingMatches {
 	}
 }
 
-class AiRelatedInformationSearchKeysProvider {
-	private settingKeys: string[] = [];
-	private settingsRecord: IStringDictionary<ISetting> = {};
-	private currentPreferencesModel: ISettingsEditorModel | undefined;
+class SettingsRecordProvider {
+	private _settingsRecord: IStringDictionary<ISetting> = {};
+	private _currentPreferencesModel: ISettingsEditorModel | undefined;
 
-	constructor(
-		private readonly aiRelatedInformationService: IAiRelatedInformationService
-	) { }
+	constructor() { }
 
 	updateModel(preferencesModel: ISettingsEditorModel) {
-		if (preferencesModel === this.currentPreferencesModel) {
+		if (preferencesModel === this._currentPreferencesModel) {
 			return;
 		}
 
-		this.currentPreferencesModel = preferencesModel;
+		this._currentPreferencesModel = preferencesModel;
 		this.refresh();
 	}
 
 	private refresh() {
-		this.settingKeys = [];
-		this.settingsRecord = {};
+		this._settingsRecord = {};
 
-		if (
-			!this.currentPreferencesModel ||
-			!this.aiRelatedInformationService.isEnabled()
-		) {
+		if (!this._currentPreferencesModel) {
 			return;
 		}
 
-		for (const group of this.currentPreferencesModel.settingsGroups) {
+		for (const group of this._currentPreferencesModel.settingsGroups) {
 			if (group.id === 'mostCommonlyUsed') {
 				continue;
 			}
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
-					this.settingKeys.push(setting.key);
-					this.settingsRecord[setting.key] = setting;
+					this._settingsRecord[setting.key] = setting;
 				}
 			}
 		}
 	}
 
-	getSettingKeys(): string[] {
-		return this.settingKeys;
-	}
-
 	getSettingsRecord(): IStringDictionary<ISetting> {
-		return this.settingsRecord;
+		return this._settingsRecord;
 	}
 }
 
-class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
-	private static readonly AI_RELATED_INFORMATION_MAX_PICKS = 5;
+class EmbeddingsSearchProvider implements IRemoteSearchProvider {
+	private static readonly EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS = 10;
 
-	private readonly _keysProvider: AiRelatedInformationSearchKeysProvider;
+	private readonly _recordProvider: SettingsRecordProvider;
 	private _filter: string = '';
 
 	constructor(
-		@IAiRelatedInformationService private readonly aiRelatedInformationService: IAiRelatedInformationService
+		private readonly _aiSettingsSearchService: IAiSettingsSearchService,
+		private readonly _excludeSelectionStep: boolean
 	) {
-		this._keysProvider = new AiRelatedInformationSearchKeysProvider(aiRelatedInformationService);
+		this._recordProvider = new SettingsRecordProvider();
 	}
 
 	setFilter(filter: string) {
 		this._filter = cleanFilter(filter);
 	}
 
-	async searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken | undefined): Promise<ISearchResult | null> {
-		if (
-			!this._filter ||
-			!this.aiRelatedInformationService.isEnabled()
-		) {
+	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
+		if (!this._filter || !this._aiSettingsSearchService.isEnabled()) {
 			return null;
 		}
 
-		this._keysProvider.updateModel(preferencesModel);
+		this._recordProvider.updateModel(preferencesModel);
+		this._aiSettingsSearchService.startSearch(this._filter, this._excludeSelectionStep, token);
 
 		return {
-			filterMatches: await this.getAiRelatedInformationItems(token)
+			filterMatches: await this.getEmbeddingsItems(token),
+			exactMatch: false
 		};
 	}
 
-	private async getAiRelatedInformationItems(token?: CancellationToken | undefined) {
-		const settingsRecord = this._keysProvider.getSettingsRecord();
-
+	private async getEmbeddingsItems(token: CancellationToken): Promise<ISettingMatch[]> {
+		const settingsRecord = this._recordProvider.getSettingsRecord();
 		const filterMatches: ISettingMatch[] = [];
-		const relatedInformation = await this.aiRelatedInformationService.getRelatedInformation(
-			this._filter,
-			[RelatedInformationType.SettingInformation],
-			token ?? CancellationToken.None
-		) as SettingInformationResult[];
-		relatedInformation.sort((a, b) => b.weight - a.weight);
+		const settings = await this._aiSettingsSearchService.getEmbeddingsResults(this._filter, token);
+		if (!settings) {
+			return [];
+		}
 
-		for (const info of relatedInformation) {
-			if (filterMatches.length === AiRelatedInformationSearchProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
+		const providerName = this._excludeSelectionStep ? EMBEDDINGS_ONLY_SEARCH_PROVIDER_NAME : EMBEDDINGS_SEARCH_PROVIDER_NAME;
+		for (const settingKey of settings) {
+			if (filterMatches.length === EmbeddingsSearchProvider.EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS) {
 				break;
 			}
-			const pick = info.setting;
 			filterMatches.push({
-				setting: settingsRecord[pick],
-				matches: [settingsRecord[pick].range],
+				setting: settingsRecord[settingKey],
+				matches: [settingsRecord[settingKey].range],
 				matchType: SettingMatchType.RemoteMatch,
 				keyMatchScore: 0,
-				score: info.weight
+				score: 0, // the results are sorted upstream.
+				providerName
 			});
 		}
 
@@ -537,7 +494,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 		return result;
 	}
 
-	async searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken | undefined): Promise<ISearchResult | null> {
+	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
 		if (!this._filter) {
 			return null;
 		}
@@ -564,15 +521,16 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 		}
 
 		return {
-			filterMatches: await this.getTfIdfItems(token)
+			filterMatches: await this.getTfIdfItems(token),
+			exactMatch: false
 		};
 	}
 
-	private async getTfIdfItems(token?: CancellationToken | undefined): Promise<ISettingMatch[]> {
+	private async getTfIdfItems(token: CancellationToken): Promise<ISettingMatch[]> {
 		const filterMatches: ISettingMatch[] = [];
 		const tfIdfCalculator = new TfIdfCalculator();
 		tfIdfCalculator.updateDocuments(this._documents);
-		const tfIdfRankings = tfIdfCalculator.calculateScores(this._filter, token ?? CancellationToken.None);
+		const tfIdfRankings = tfIdfCalculator.calculateScores(this._filter, token);
 		tfIdfRankings.sort((a, b) => b.score - a.score);
 		const maxScore = tfIdfRankings[0].score;
 
@@ -591,7 +549,8 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 				matches: [this._settingsRecord[pick].range],
 				matchType: SettingMatchType.RemoteMatch,
 				keyMatchScore: 0,
-				score: info.score
+				score: info.score,
+				providerName: TF_IDF_SEARCH_PROVIDER_NAME
 			});
 		}
 
@@ -600,44 +559,91 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 }
 
 class RemoteSearchProvider implements IRemoteSearchProvider {
-	private adaSearchProvider: AiRelatedInformationSearchProvider | undefined;
-	private tfIdfSearchProvider: TfIdfSearchProvider | undefined;
-	private filter: string = '';
+	private _tfIdfSearchProvider: TfIdfSearchProvider;
+	private _filter: string = '';
 
-	constructor(
-		@IAiRelatedInformationService private readonly aiRelatedInformationService: IAiRelatedInformationService
-	) {
-	}
-
-	private initializeSearchProviders() {
-		if (this.aiRelatedInformationService.isEnabled()) {
-			this.adaSearchProvider ??= new AiRelatedInformationSearchProvider(this.aiRelatedInformationService);
-		}
-		this.tfIdfSearchProvider ??= new TfIdfSearchProvider();
+	constructor() {
+		this._tfIdfSearchProvider = new TfIdfSearchProvider();
 	}
 
 	setFilter(filter: string): void {
-		this.initializeSearchProviders();
-		this.filter = filter;
-		if (this.adaSearchProvider) {
-			this.adaSearchProvider.setFilter(filter);
-		}
-		this.tfIdfSearchProvider!.setFilter(filter);
+		this._filter = filter;
+		this._tfIdfSearchProvider.setFilter(filter);
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
-		if (!this.filter) {
-			return Promise.resolve(null);
+	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
+		if (!this._filter) {
+			return null;
 		}
 
-		if (!this.adaSearchProvider) {
-			return this.tfIdfSearchProvider!.searchModel(preferencesModel, token);
+		const results = await this._tfIdfSearchProvider.searchModel(preferencesModel, token);
+		return results;
+	}
+}
+
+class AiSearchProvider implements IAiSearchProvider {
+	private readonly _embeddingsSearchProvider: EmbeddingsSearchProvider;
+	private readonly _recordProvider: SettingsRecordProvider;
+	private _filter: string = '';
+
+	constructor(
+		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
+	) {
+		this._embeddingsSearchProvider = new EmbeddingsSearchProvider(this.aiSettingsSearchService, false);
+		this._recordProvider = new SettingsRecordProvider();
+	}
+
+	setFilter(filter: string): void {
+		this._filter = filter;
+		this._embeddingsSearchProvider.setFilter(filter);
+	}
+
+	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
+		if (!this._filter || !this.aiSettingsSearchService.isEnabled()) {
+			return null;
 		}
 
-		// Use TF-IDF search as a fallback, ref https://github.com/microsoft/vscode/issues/224946
-		return this.adaSearchProvider.searchModel(preferencesModel, token).then((results) => {
-			return results?.filterMatches.length ? results : this.tfIdfSearchProvider!.searchModel(preferencesModel, token);
-		});
+		this._recordProvider.updateModel(preferencesModel);
+		const results = await this._embeddingsSearchProvider.searchModel(preferencesModel, token);
+		return results;
+	}
+
+	async getLLMRankedResults(token: CancellationToken): Promise<ISearchResult | null> {
+		if (!this._filter || !this.aiSettingsSearchService.isEnabled()) {
+			return null;
+		}
+
+		const items = await this.getLLMRankedItems(token);
+		return {
+			filterMatches: items,
+			exactMatch: false
+		};
+	}
+
+	private async getLLMRankedItems(token: CancellationToken): Promise<ISettingMatch[]> {
+		const settingsRecord = this._recordProvider.getSettingsRecord();
+		const filterMatches: ISettingMatch[] = [];
+		const settings = await this.aiSettingsSearchService.getLLMRankedResults(this._filter, token);
+		if (!settings) {
+			return [];
+		}
+
+		for (const settingKey of settings) {
+			if (!settingsRecord[settingKey]) {
+				// Non-existent setting.
+				continue;
+			}
+			filterMatches.push({
+				setting: settingsRecord[settingKey],
+				matches: [settingsRecord[settingKey].range],
+				matchType: SettingMatchType.RemoteMatch,
+				keyMatchScore: 0,
+				score: 0, // the results are sorted upstream.
+				providerName: LLM_RANKED_SEARCH_PROVIDER_NAME
+			});
+		}
+
+		return filterMatches;
 	}
 }
 

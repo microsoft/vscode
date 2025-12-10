@@ -97,7 +97,7 @@ export class TypeHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		this.create();
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this._applyTheme(themeService.getColorTheme());
-		this._disposables.add(themeService.onDidColorThemeChange(e => this._applyTheme(e.theme), this));
+		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._disposables.add(this._previewDisposable);
 	}
 

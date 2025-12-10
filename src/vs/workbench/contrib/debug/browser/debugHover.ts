@@ -20,9 +20,10 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../../editor/common/config/editorOptions.js';
-import { IDimension } from '../../../../editor/common/core/dimension.js';
+import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -93,7 +94,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private tree!: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position | null;
 	private positionPreference: ContentWidgetPositionPreference[];
-	private readonly highlightDecorations = this.editor.createDecorationsCollection();
+	private readonly highlightDecorations: IEditorDecorationsCollection;
 	private complexValueContainer!: HTMLElement;
 	private complexValueTitle!: HTMLElement;
 	private valueContainer!: HTMLElement;
@@ -118,6 +119,7 @@ export class DebugHoverWidget implements IContentWidget {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
+		this.highlightDecorations = this.editor.createDecorationsCollection();
 		this.toDispose = [];
 
 		this.showAtPosition = null;

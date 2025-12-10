@@ -27,12 +27,14 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
 import { reviewEdits } from '../../../inlineChat/browser/inlineChatController.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService.js';
-import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -65,7 +67,7 @@ function isResponseFiltered(context: ICodeBlockActionContext) {
 }
 
 abstract class ChatCodeBlockAction extends Action2 {
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		let context = args[0];
 		if (!isCodeBlockActionContext(context)) {
 			const codeEditorService = accessor.get(ICodeEditorService);
@@ -83,6 +85,7 @@ abstract class ChatCodeBlockAction extends Action2 {
 		return this.runWithContext(accessor, context);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	abstract runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext): any;
 }
 
@@ -141,21 +144,24 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
 			if (!isCodeBlockActionContext(context) || isResponseFiltered(context)) {
 				return;
 			}
 
 			const clipboardService = accessor.get(IClipboardService);
+			const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
 			clipboardService.writeText(context.code);
 
 			if (isResponseVM(context.element)) {
 				const chatService = accessor.get(IChatService);
+				const requestId = context.element.requestId;
+				const request = context.element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
 				chatService.notifyUserAction({
 					agentId: context.element.agent?.id,
 					command: context.element.slashCommand?.name,
-					sessionId: context.element.sessionId,
+					sessionResource: context.element.sessionResource,
 					requestId: context.element.requestId,
 					result: context.element.result,
 					action: {
@@ -165,7 +171,25 @@ export function registerChatCodeBlockActions() {
 						copiedCharacters: context.code.length,
 						totalCharacters: context.code.length,
 						copiedText: context.code,
+						copiedLines: context.code.split('\n').length,
+						languageId: context.languageId,
+						totalLines: context.code.split('\n').length,
+						modelId: request?.modelId ?? ''
 					}
+				});
+
+				const codeBlockInfo = context.element.model.codeBlockInfos?.at(context.codeBlockIndex);
+				aiEditTelemetryService.handleCodeAccepted({
+					acceptanceMethod: 'copyButton',
+					suggestionId: codeBlockInfo?.suggestionId,
+					editDeltaInfo: EditDeltaInfo.fromText(context.code),
+					feature: 'sideBarChat',
+					languageId: context.languageId,
+					modeId: context.element.model.request?.modeInfo?.modeId,
+					modelId: request?.modelId,
+					presentation: 'codeBlock',
+					applyCodeBlockSuggestionId: undefined,
+					source: undefined,
 				});
 			}
 		}
@@ -196,12 +220,15 @@ export function registerChatCodeBlockActions() {
 
 		// Report copy to extensions
 		const chatService = accessor.get(IChatService);
+		const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
 		const element = context.element as IChatResponseViewModel | undefined;
-		if (element) {
+		if (isResponseVM(element)) {
+			const requestId = element.requestId;
+			const request = element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
 			chatService.notifyUserAction({
 				agentId: element.agent?.id,
 				command: element.slashCommand?.name,
-				sessionId: element.sessionId,
+				sessionResource: element.sessionResource,
 				requestId: element.requestId,
 				result: element.result,
 				action: {
@@ -211,7 +238,25 @@ export function registerChatCodeBlockActions() {
 					copiedText,
 					copiedCharacters: copiedText.length,
 					totalCharacters,
+					languageId: context.languageId,
+					totalLines: context.code.split('\n').length,
+					copiedLines: copiedText.split('\n').length,
+					modelId: request?.modelId ?? ''
 				}
+			});
+
+			const codeBlockInfo = element.model.codeBlockInfos?.at(context.codeBlockIndex);
+			aiEditTelemetryService.handleCodeAccepted({
+				acceptanceMethod: 'copyManual',
+				suggestionId: codeBlockInfo?.suggestionId,
+				editDeltaInfo: EditDeltaInfo.fromText(copiedText),
+				feature: 'sideBarChat',
+				languageId: context.languageId,
+				modeId: element.model.request?.modeInfo?.modeId,
+				modelId: request?.modelId,
+				presentation: 'codeBlock',
+				applyCodeBlockSuggestionId: undefined,
+				source: undefined,
 			});
 		}
 
@@ -332,22 +377,43 @@ export function registerChatCodeBlockActions() {
 
 			const editorService = accessor.get(IEditorService);
 			const chatService = accessor.get(IChatService);
+			const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
 
 			editorService.openEditor({ contents: context.code, languageId: context.languageId, resource: undefined } satisfies IUntitledTextResourceEditorInput);
 
 			if (isResponseVM(context.element)) {
+				const requestId = context.element.requestId;
+				const request = context.element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
 				chatService.notifyUserAction({
 					agentId: context.element.agent?.id,
 					command: context.element.slashCommand?.name,
-					sessionId: context.element.sessionId,
+					sessionResource: context.element.sessionResource,
 					requestId: context.element.requestId,
 					result: context.element.result,
 					action: {
 						kind: 'insert',
 						codeBlockIndex: context.codeBlockIndex,
 						totalCharacters: context.code.length,
-						newFile: true
+						newFile: true,
+						totalLines: context.code.split('\n').length,
+						languageId: context.languageId,
+						modelId: request?.modelId ?? ''
 					}
+				});
+
+				const codeBlockInfo = context.element.model.codeBlockInfos?.at(context.codeBlockIndex);
+
+				aiEditTelemetryService.handleCodeAccepted({
+					acceptanceMethod: 'insertInNewFile',
+					suggestionId: codeBlockInfo?.suggestionId,
+					editDeltaInfo: EditDeltaInfo.fromText(context.code),
+					feature: 'sideBarChat',
+					languageId: context.languageId,
+					modeId: context.element.model.request?.modeInfo?.modeId,
+					modelId: request?.modelId,
+					presentation: 'codeBlock',
+					applyCodeBlockSuggestionId: undefined,
+					source: undefined,
 				});
 			}
 		}
@@ -423,7 +489,7 @@ export function registerChatCodeBlockActions() {
 				chatService.notifyUserAction({
 					agentId: context.element.agent?.id,
 					command: context.element.slashCommand?.name,
-					sessionId: context.element.sessionId,
+					sessionResource: context.element.sessionResource,
 					requestId: context.element.requestId,
 					result: context.element.result,
 					action: {
@@ -484,7 +550,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateCodeBlocks(accessor);
 		}
 	});
@@ -506,7 +572,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateCodeBlocks(accessor, true);
 		}
 	});
@@ -538,14 +604,15 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 		codeBlockIndex: codeBlockInfo.codeBlockIndex,
 		code: editor.getValue(),
 		languageId: editor.getModel()!.getLanguageId(),
-		codemapperUri: codeBlockInfo.codemapperUri
+		codemapperUri: codeBlockInfo.codemapperUri,
+		chatSessionResource: codeBlockInfo.chatSessionResource,
 	};
 }
 
 export function registerChatCodeCompareBlockActions() {
 
 	abstract class ChatCompareCodeBlockAction extends Action2 {
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
 			if (!isCodeCompareBlockActionContext(context)) {
 				return;
@@ -555,6 +622,7 @@ export function registerChatCodeCompareBlockActions() {
 			return this.runWithContext(accessor, context);
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		abstract runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): any;
 	}
 
@@ -575,6 +643,7 @@ export function registerChatCodeCompareBlockActions() {
 			});
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 
 			const instaService = accessor.get(IInstantiationService);
@@ -602,7 +671,7 @@ export function registerChatCodeCompareBlockActions() {
 			const editorToApply = await editorService.openCodeEditor({ resource: item.uri }, null);
 			if (editorToApply) {
 				editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
-				instaService.invokeFunction(reviewEdits, editorToApply, textEdits, CancellationToken.None);
+				instaService.invokeFunction(reviewEdits, editorToApply, textEdits, CancellationToken.None, undefined);
 				response.setEditApplied(item, 1);
 				return true;
 			}
@@ -627,6 +696,7 @@ export function registerChatCodeCompareBlockActions() {
 			});
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 			const instaService = accessor.get(IInstantiationService);
 			const editor = instaService.createInstance(DefaultChatTextEditor);

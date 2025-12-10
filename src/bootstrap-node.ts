@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
-import { fileURLToPath } from 'url';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { createRequire } from 'node:module';
 import type { IProductConfiguration } from './vs/base/common/product.js';
 
 const require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isWindows = process.platform === 'win32';
 
 // increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
@@ -85,7 +83,7 @@ export function removeGlobalNodeJsModuleLookupPaths(): void {
 
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
 
-	Module._resolveLookupPaths = function (moduleName: string, parent: any): string[] {
+	Module._resolveLookupPaths = function (moduleName: string, parent: unknown): string[] {
 		const paths = originalResolveLookupPaths(moduleName, parent);
 		if (Array.isArray(paths)) {
 			let commonSuffixLength = 0;
@@ -133,7 +131,7 @@ export function removeGlobalNodeJsModuleLookupPaths(): void {
  * Helper to enable portable mode.
  */
 export function configurePortable(product: Partial<IProductConfiguration>): { portableDataPath: string; isPortable: boolean } {
-	const appRoot = path.dirname(__dirname);
+	const appRoot = path.dirname(import.meta.dirname);
 
 	function getApplicationPath(): string {
 		if (process.env['VSCODE_DEV']) {
@@ -141,6 +139,11 @@ export function configurePortable(product: Partial<IProductConfiguration>): { po
 		}
 
 		if (process.platform === 'darwin') {
+			return path.dirname(path.dirname(path.dirname(appRoot)));
+		}
+
+		// appRoot = ..\Microsoft VS Code Insiders\<version>\resources\app
+		if (process.platform === 'win32' && product.quality === 'insider') {
 			return path.dirname(path.dirname(path.dirname(appRoot)));
 		}
 

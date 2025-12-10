@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IEncodingSupport, ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions, IReadTextFileEncodingOptions, TextFileEditorModelState } from '../common/textfiles.js';
+import { IEncodingSupport, ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions, IReadTextFileEncodingOptions, TextFileEditorModelState, IResolvedTextFileEditorModel } from '../common/textfiles.js';
 import { IRevertOptions, SaveSourceRegistry } from '../../../common/editor.js';
 import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from '../../../../platform/files/common/files.js';
@@ -13,7 +13,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { extname as pathExtname } from '../../../../base/common/path.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from '../../untitled/common/untitledTextEditorService.js';
-import { UntitledTextEditorModel } from '../../untitled/common/untitledTextEditorModel.js';
+import { IResolvedUntitledTextEditorModel, UntitledTextEditorModel } from '../../untitled/common/untitledTextEditorModel.js';
 import { TextFileEditorModelManager } from '../common/textFileEditorModelManager.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -51,13 +51,13 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private static readonly TEXTFILE_SAVE_CREATE_SOURCE = SaveSourceRegistry.registerSource('textFileCreate.source', localize('textFileCreate.source', "File Created"));
 	private static readonly TEXTFILE_SAVE_REPLACE_SOURCE = SaveSourceRegistry.registerSource('textFileOverwrite.source', localize('textFileOverwrite.source', "File Replaced"));
 
-	readonly files: ITextFileEditorModelManager = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
+	readonly files: ITextFileEditorModelManager;
 
-	readonly untitled: IUntitledTextEditorModelManager = this.untitledTextEditorService;
+	readonly untitled: IUntitledTextEditorModelManager;
 
 	constructor(
 		@IFileService protected readonly fileService: IFileService,
-		@IUntitledTextEditorService private untitledTextEditorService: IUntitledTextEditorModelManager,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorModelManager,
 		@ILifecycleService protected readonly lifecycleService: ILifecycleService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -76,6 +76,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IDecorationsService private readonly decorationsService: IDecorationsService
 	) {
 		super();
+
+		this.files = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
+		this.untitled = untitledTextEditorService;
 
 		this.provideDecorations();
 	}
@@ -270,11 +273,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.fileService.writeFile(resource, readable, options);
 	}
 
-	getEncoding(resource: URI): string {
-		const model = resource.scheme === Schemas.untitled ? this.untitled.get(resource) : this.files.get(resource);
-		return model?.getEncoding() ?? this.encoding.getUnvalidatedEncodingForResource(resource);
-	}
-
 	async getEncodedReadable(resource: URI | undefined, value: ITextSnapshot): Promise<VSBufferReadable>;
 	async getEncodedReadable(resource: URI | undefined, value: string): Promise<VSBuffer | VSBufferReadable>;
 	async getEncodedReadable(resource: URI | undefined, value?: ITextSnapshot): Promise<VSBufferReadable | undefined>;
@@ -314,12 +312,35 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			candidateGuessEncodings:
 				options?.candidateGuessEncodings ||
 				this.textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings'),
-			overwriteEncoding: async detectedEncoding => {
-				const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, detectedEncoding ?? undefined);
-
-				return encoding;
-			}
+			overwriteEncoding: async detectedEncoding => this.validateDetectedEncoding(resource, detectedEncoding ?? undefined, options)
 		});
+	}
+
+	getEncoding(resource: URI): string {
+		const model = resource.scheme === Schemas.untitled ? this.untitled.get(resource) : this.files.get(resource);
+		return model?.getEncoding() ?? this.encoding.getUnvalidatedEncodingForResource(resource);
+	}
+
+	async resolveDecoding(resource: URI | undefined, options?: IReadTextFileEncodingOptions): Promise<{ preferredEncoding: string; guessEncoding: boolean; candidateGuessEncodings: string[] }> {
+		return {
+			preferredEncoding: (await this.encoding.getPreferredReadEncoding(resource, options, undefined)).encoding,
+			guessEncoding:
+				options?.autoGuessEncoding ||
+				this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			candidateGuessEncodings:
+				options?.candidateGuessEncodings ||
+				this.textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings'),
+		};
+	}
+
+	async validateDetectedEncoding(resource: URI | undefined, detectedEncoding: string | undefined, options?: IReadTextFileEncodingOptions): Promise<string> {
+		const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, detectedEncoding);
+
+		return encoding;
+	}
+
+	resolveEncoding(resource: URI | undefined, options?: IWriteTextFileOptions): Promise<{ encoding: string; addBOM: boolean }> {
+		return this.encoding.getWriteEncoding(resource, options);
 	}
 
 	//#endregion
@@ -415,11 +436,23 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private async doSaveAs(source: URI, target: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 		let success = false;
 
-		// If the source is an existing text file model, we can directly
-		// use that model to copy the contents to the target destination
-		const textFileModel = this.files.get(source);
-		if (textFileModel?.isResolved()) {
-			success = await this.doSaveAsTextFile(textFileModel, source, target, options);
+		let resolvedTextModel: IResolvedTextFileEditorModel | IResolvedUntitledTextEditorModel | undefined;
+		if (source.scheme !== Schemas.untitled) {
+			const textFileModel = this.files.get(source);
+			if (textFileModel?.isResolved()) {
+				resolvedTextModel = textFileModel;
+			}
+		} else {
+			const untitledTextModel = this.untitled.get(source);
+			if (untitledTextModel?.isResolved()) {
+				resolvedTextModel = untitledTextModel;
+			}
+		}
+
+		// If the source is an existing resolved file or untitled text model, we can
+		// directly use that model to copy the contents to the target destination
+		if (resolvedTextModel) {
+			success = await this.doSaveAsTextFile(resolvedTextModel, source, target, options);
 		}
 
 		// Otherwise if the source can be handled by the file service
@@ -464,7 +497,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return target;
 	}
 
-	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel | ITextModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel | IResolvedUntitledTextEditorModel | ITextModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
 
 		// Find source encoding if any
 		let sourceModelEncoding: string | undefined = undefined;
@@ -474,7 +507,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Prefer an existing model if it is already resolved for the given target resource
-		let targetExists: boolean = false;
+		let targetExists = false;
 		let targetModel = this.files.get(target);
 		if (targetModel?.isResolved()) {
 			targetExists = true;

@@ -10,7 +10,7 @@ declare module 'vscode' {
 		/**
 		 * The dictionary of environment variables.
 		 */
-		value: { [key: string]: string | undefined } | undefined;
+		value: { [key: string]: string | undefined };
 
 		/**
 		 * Whether the environment came from a trusted source and is therefore safe to use its

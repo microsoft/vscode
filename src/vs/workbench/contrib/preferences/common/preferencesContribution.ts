@@ -125,13 +125,6 @@ registry.registerConfiguration({
 			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the Settings editor Table of Contents while searching. If this setting is being changed in the Settings editor, the setting will take effect after the search query is modified."),
 			'default': 'filter',
 			'scope': ConfigurationScope.WINDOW
-		},
-		'workbench.settings.useWeightedKeySearch': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('useWeightedKeySearch', "Controls whether to use an experimental ranking algorithm for search results in the Settings editor. The newer algorithm is still in development and aims to show fewer and more relevant results."),
-			'scope': ConfigurationScope.WINDOW,
-			'tags': ['experimental']
 		}
 	}
 });

@@ -312,7 +312,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number, reason?: string): void {
-		this.logger.value.info(`moveViewContainerToLocation: viewContainer:${viewContainer.id} location:${location} reason:${reason}`);
+		this.logger.value.trace(`moveViewContainerToLocation: viewContainer:${viewContainer.id} location:${location} reason:${reason}`);
 		this.moveViewContainerToLocationWithoutSaving(viewContainer, location, requestedIndex);
 		this.saveViewCustomizations();
 	}
@@ -327,7 +327,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation, reason?: string): void {
-		this.logger.value.info(`moveViewToLocation: view:${view.id} location:${location} reason:${reason}`);
+		this.logger.value.trace(`moveViewToLocation: view:${view.id} location:${location} reason:${reason}`);
 		const container = this.registerGeneratedViewContainer(location);
 		this.moveViewsToContainer([view], container);
 	}
@@ -337,7 +337,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			return;
 		}
 
-		this.logger.value.info(`moveViewsToContainer: views:${views.map(view => view.id).join(',')} viewContainer:${viewContainer.id} reason:${reason}`);
+		this.logger.value.trace(`moveViewsToContainer: views:${views.map(view => view.id).join(',')} viewContainer:${viewContainer.id} reason:${reason}`);
 
 		const from = this.getViewContainerByViewId(views[0].id);
 		const to = viewContainer;

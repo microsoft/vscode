@@ -647,6 +647,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					}
 					case 'themeTokenColors':
 					case 'id': case 'label': case 'settingsId': case 'watch': case 'themeSemanticHighlighting':
+						// eslint-disable-next-line local/code-no-any-casts
 						(theme as any)[key] = data[key];
 						break;
 					case 'semanticTokenRules': {
@@ -821,13 +822,11 @@ function nameMatcher(identifiers: string[], scopes: ProbeScope): number {
 		return -1;
 	}
 
-	let lastIndex = 0;
 	let score: number | undefined = undefined;
-	const every = identifiers.every((identifier, identifierIndex) => {
-		for (let i = lastIndex; i < scopes.length; i++) {
+	const every = identifiers.every((identifier) => {
+		for (let i = scopes.length - 1; i >= 0; i--) {
 			if (scopesAreMatching(scopes[i], identifier)) {
-				score = (identifierIndex + 1) * 0x10000 + identifier.length;
-				lastIndex = i + 1;
+				score = (i + 1) * 0x10000 + identifier.length;
 				return true;
 			}
 		}

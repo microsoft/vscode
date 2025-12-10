@@ -18,6 +18,7 @@ export const MOST_RECENT_REPL_EDITOR = new RawContextKey<string>('mostRecentRepl
 export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_EDITOR_ID);
 export const INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', INTERACTIVE_WINDOW_EDITOR_ID);
 export const REPL_NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', REPL_EDITOR_ID);
+export const NOTEBOOK_OR_COMPOSITE_IS_ACTIVE_EDITOR = ContextKeyExpr.or(NOTEBOOK_IS_ACTIVE_EDITOR, INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, REPL_NOTEBOOK_IS_ACTIVE_EDITOR);
 export const IS_COMPOSITE_NOTEBOOK = new RawContextKey<boolean>('isCompositeNotebook', false);
 
 // Editor keys
@@ -55,7 +56,6 @@ export const NOTEBOOK_CELL_OUTPUT_MIMETYPE = new RawContextKey<string>('notebook
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false);
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false);
 export const NOTEBOOK_CELL_RESOURCE = new RawContextKey<string>('notebookCellResource', '');
-export const NOTEBOOK_CELL_GENERATED_BY_CHAT = new RawContextKey<boolean>('notebookCellGenerateByChat', false);
 export const NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS = new RawContextKey<boolean>('notebookCellHasErrorDiagnostics', false);
 export const NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT = new RawContextKey<string[]>('notebookCellOutputMimeTypeListForChat', []);
 

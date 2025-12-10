@@ -161,7 +161,7 @@ export class UnresolvedCommentsBadge extends Disposable implements IWorkbenchCon
 		super();
 		this._register(this._commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this));
 		this._register(this._commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this));
-
+		this._register(this._commentService.onDidDeleteDataProvider(this.onCommentsUpdated, this));
 	}
 
 	private onAllCommentsChanged(e: IWorkspaceCommentThreadsEvent): void {

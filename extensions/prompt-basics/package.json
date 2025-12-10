@@ -1,0 +1,137 @@
+{
+  "name": "prompt",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.20.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "prompt",
+        "aliases": [
+          "Prompt",
+          "prompt"
+        ],
+        "extensions": [
+          ".prompt.md"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "instructions",
+        "aliases": [
+          "Instructions",
+          "instructions"
+        ],
+        "extensions": [
+          ".instructions.md",
+          "copilot-instructions.md"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "chatagent",
+        "aliases": [
+          "Agent",
+          "chat agent"
+        ],
+        "extensions": [
+          ".agent.md",
+          ".chatmode.md"
+        ],
+        "filenamePatterns": [
+          "**/.github/agents/*.md"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "prompt",
+        "path": "./syntaxes/prompt.tmLanguage.json",
+        "scopeName": "text.html.markdown.prompt",
+        "unbalancedBracketScopes": [
+          "markup.underline.link.markdown",
+          "punctuation.definition.list.begin.markdown"
+        ]
+      },
+      {
+        "language": "instructions",
+        "path": "./syntaxes/prompt.tmLanguage.json",
+        "scopeName": "text.html.markdown.prompt",
+        "unbalancedBracketScopes": [
+          "markup.underline.link.markdown",
+          "punctuation.definition.list.begin.markdown"
+        ]
+      },
+      {
+        "language": "chatagent",
+        "path": "./syntaxes/prompt.tmLanguage.json",
+        "scopeName": "text.html.markdown.prompt",
+        "unbalancedBracketScopes": [
+          "markup.underline.link.markdown",
+          "punctuation.definition.list.begin.markdown"
+        ]
+      }
+    ],
+    "configurationDefaults": {
+      "[prompt]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.unicodeHighlight.invisibleCharacters": false,
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
+      },
+      "[instructions]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.unicodeHighlight.invisibleCharacters": false,
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
+      },
+      "[chatagent]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.unicodeHighlight.invisibleCharacters": false,
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
+      }
+    }
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

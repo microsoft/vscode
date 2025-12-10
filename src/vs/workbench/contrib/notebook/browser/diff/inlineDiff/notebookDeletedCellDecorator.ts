@@ -13,13 +13,15 @@ import { NotebookCellTextModel } from '../../../common/model/notebookCellTextMod
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { DefaultLineHeight } from '../diffElementViewModel.js';
 import { CellDiffInfo } from '../notebookDiffViewModel.js';
-import { INotebookEditor } from '../../notebookBrowser.js';
+import { INotebookEditor, NotebookOverviewRulerLane } from '../../notebookBrowser.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { MenuWorkbenchToolBar, HiddenItemStrategy } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { overviewRulerDeletedForeground } from '../../../../scm/common/quickDiff.js';
+import { IActionViewItemProvider } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 
 const ttPolicy = createTrustedTypesPolicy('notebookRenderer', { createHTML: value => value });
 
@@ -34,7 +36,7 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 	private readonly deletedCellInfos = new Map<number, { height: number; previousIndex: number; offset: number }>();
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		private readonly toolbar: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any } | undefined,
+		private readonly toolbar: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any; actionViewItemProvider?: IActionViewItemProvider } | undefined,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -45,6 +47,10 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 		const info = this.deletedCellInfos.get(deletedIndex);
 		if (!info) {
 			return;
+		}
+		if (info.previousIndex === -1) {
+			// deleted cell is before the first real cell
+			return 0;
 		}
 		const cells = this._notebookEditor.getCellsInRange({ start: info.previousIndex, end: info.previousIndex + 1 });
 		if (!cells.length) {
@@ -65,7 +71,7 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 			const info = this.deletedCellInfos.get(deletedIndex);
 
 			if (info) {
-				const prevIndex = info.previousIndex;
+				const prevIndex = info.previousIndex === -1 ? 0 : info.previousIndex;
 				this._notebookEditor.setFocus({ start: prevIndex, end: prevIndex });
 				this._notebookEditor.setSelections([{ start: prevIndex, end: prevIndex }]);
 			}
@@ -139,6 +145,16 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 			const id = accessor.addZone(notebookViewZone);
 			accessor.layoutZone(id);
 			this.createdViewZones.set(index, id);
+
+			const deletedCellOverviewRulereDecorationIds = this._notebookEditor.deltaCellDecorations([], [{
+				viewZoneId: id,
+				options: {
+					overviewRuler: {
+						color: overviewRulerDeletedForeground,
+						position: NotebookOverviewRulerLane.Center,
+					}
+				}
+			}]);
 			this.zoneRemover.add(toDisposable(() => {
 				if (this.createdViewZones.get(index) === id) {
 					this.createdViewZones.delete(index);
@@ -148,6 +164,8 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 						accessor.removeZone(id);
 						dispose(widgets);
 					});
+
+					this._notebookEditor.deltaCellDecorations(deletedCellOverviewRulereDecorationIds, []);
 				}
 			}));
 		});
@@ -161,7 +179,7 @@ export class NotebookDeletedCellWidget extends Disposable {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		private readonly _toolbarOptions: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any } | undefined,
+		private readonly _toolbarOptions: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any; actionViewItemProvider?: IActionViewItemProvider } | undefined,
 		private readonly code: string,
 		private readonly language: string,
 		container: HTMLElement,
@@ -203,7 +221,7 @@ export class NotebookDeletedCellWidget extends Disposable {
 
 		if (this._toolbarOptions) {
 			const toolbar = document.createElement('div');
-			toolbar.className = this._toolbarOptions?.className;
+			toolbar.className = this._toolbarOptions.className;
 			rootContainer.appendChild(toolbar);
 
 			const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this._notebookEditor.scopedContextKeyService])));
@@ -215,8 +233,8 @@ export class NotebookDeletedCellWidget extends Disposable {
 					renderShortTitle: true,
 					arg: this._toolbarOptions.argFactory(this._originalIndex),
 				},
+				actionViewItemProvider: this._toolbarOptions.actionViewItemProvider
 			});
-
 			this._store.add(toolbarWidget);
 
 			toolbar.style.position = 'absolute';

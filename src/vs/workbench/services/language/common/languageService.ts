@@ -112,10 +112,10 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 			}
 		}
 	},
-	activationEventsGenerator: (languageContributions, result) => {
+	activationEventsGenerator: function* (languageContributions) {
 		for (const languageContribution of languageContributions) {
 			if (languageContribution.id && languageContribution.configuration) {
-				result.push(`onLanguage:${languageContribution.id}`);
+				yield `onLanguage:${languageContribution.id}`;
 			}
 		}
 	}

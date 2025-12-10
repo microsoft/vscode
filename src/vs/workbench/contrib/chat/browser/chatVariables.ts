@@ -3,59 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from '../../../../base/common/arrays.js';
-import { URI } from '../../../../base/common/uri.js';
-import { Location } from '../../../../editor/common/languages.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ChatAgentLocation } from '../common/chatAgents.js';
-import { IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
-import { ChatRequestDynamicVariablePart, ChatRequestToolPart, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
-import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
+import { IToolAndToolSetEnablementMap } from '../common/languageModelToolsService.js';
+import { IChatWidgetService } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export class ChatVariablesService implements IChatVariablesService {
 	declare _serviceBrand: undefined;
 
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IViewsService private readonly viewsService: IViewsService,
-	) {
-	}
+	) { }
 
-	resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined): IChatRequestVariableData {
-		let resolvedVariables: IChatRequestVariableEntry[] = [];
-
-		prompt.parts
-			.forEach((part, i) => {
-				if (part instanceof ChatRequestDynamicVariablePart || part instanceof ChatRequestToolPart) {
-					resolvedVariables[i] = part.toVariableEntry();
-				}
-			});
-
-		// Make array not sparse
-		resolvedVariables = coalesce<IChatRequestVariableEntry>(resolvedVariables);
-
-		// "reverse", high index first so that replacement is simple
-		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
-
-		if (attachedContextVariables) {
-			// attachments not in the prompt
-			resolvedVariables.push(...attachedContextVariables);
-		}
-
-
-		return {
-			variables: resolvedVariables,
-		};
-	}
-
-	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable> {
+	getDynamicVariables(sessionResource: URI): ReadonlyArray<IDynamicVariable> {
 		// This is slightly wrong... the parser pulls dynamic references from the input widget, but there is no guarantee that message came from the input here.
 		// Need to ...
 		// - Parser takes list of dynamic references (annoying)
 		// - Or the parser is known to implicitly act on the input widget, and we need to call it before calling the chat service (maybe incompatible with the future, but easy)
-		const widget = this.chatWidgetService.getWidgetBySessionId(sessionId);
+		const widget = this.chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!widget || !widget.viewModel || !widget.supportsFileReferences) {
 			return [];
 		}
@@ -65,32 +32,37 @@ export class ChatVariablesService implements IChatVariablesService {
 			return [];
 		}
 
+		if (widget.input.attachmentModel.attachments.length > 0 && widget.viewModel.editing) {
+			const references: IDynamicVariable[] = [];
+			for (const attachment of widget.input.attachmentModel.attachments) {
+				// If the attachment has a range, it is a dynamic variable
+				if (attachment.range) {
+					const referenceObj: IDynamicVariable = {
+						id: attachment.id,
+						fullName: attachment.name,
+						modelDescription: attachment.modelDescription,
+						range: new Range(1, attachment.range.start + 1, 1, attachment.range.endExclusive + 1),
+						icon: attachment.icon,
+						isFile: attachment.kind === 'file',
+						isDirectory: attachment.kind === 'directory',
+						data: attachment.value
+					};
+					references.push(referenceObj);
+				}
+			}
+
+			return [...model.variables, ...references];
+		}
+
 		return model.variables;
 	}
 
-	async attachContext(name: string, value: string | URI | Location, location: ChatAgentLocation) {
-		if (location !== ChatAgentLocation.Panel && location !== ChatAgentLocation.EditingSession) {
-			return;
+	getSelectedToolAndToolSets(sessionResource: URI): IToolAndToolSetEnablementMap {
+		const widget = this.chatWidgetService.getWidgetBySessionResource(sessionResource);
+		if (!widget) {
+			return new Map();
 		}
+		return widget.input.selectedToolsModel.entriesMap.get();
 
-		const widget = location === ChatAgentLocation.EditingSession
-			? await showEditsView(this.viewsService)
-			: (this.chatWidgetService.lastFocusedWidget ?? await showChatView(this.viewsService));
-		if (!widget || !widget.viewModel) {
-			return;
-		}
-
-		const key = name.toLowerCase();
-		if (key === 'file' && typeof value !== 'string') {
-			const uri = URI.isUri(value) ? value : value.uri;
-			const range = 'range' in value ? value.range : undefined;
-			widget.attachmentModel.addFile(uri, range);
-			return;
-		}
-
-		if (key === 'folder' && URI.isUri(value)) {
-			widget.attachmentModel.addFolder(value);
-			return;
-		}
 	}
 }

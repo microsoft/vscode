@@ -53,7 +53,6 @@ export interface ISettingsGroup {
 }
 
 export interface ISettingsSection {
-	titleRange?: IRange;
 	title?: string;
 	settings: ISetting[];
 }
@@ -109,7 +108,7 @@ export interface IExtensionSetting extends ISetting {
 
 export interface ISearchResult {
 	filterMatches: ISettingMatch[];
-	exactMatch?: boolean;
+	exactMatch: boolean;
 	metadata?: IFilterMetadata;
 }
 
@@ -143,6 +142,7 @@ export enum SettingMatchType {
 	ContiguousWordsInSettingsLabel = 1 << 5,
 	ContiguousQueryInSettingId = 1 << 6,
 	AllWordsInSettingsLabel = 1 << 7,
+	ExactMatch = 1 << 8,
 }
 export const SettingKeyMatchTypes = (SettingMatchType.AllWordsInSettingsLabel
 	| SettingMatchType.ContiguousWordsInSettingsLabel
@@ -156,6 +156,7 @@ export interface ISettingMatch {
 	matchType: SettingMatchType;
 	keyMatchScore: number;
 	score: number;
+	providerName?: string;
 }
 
 export interface IScoredResults {
@@ -200,7 +201,6 @@ export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> 
 	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
-	findValueMatches(filter: string, setting: ISetting): IRange[];
 	updateResultGroup(id: string, resultGroup: ISearchResultGroup | undefined): IFilterResult | undefined;
 }
 
@@ -261,6 +261,8 @@ export interface IPreferencesService {
 	getDefaultSettingsContent(uri: URI): string | undefined;
 	hasDefaultSettingsContent(uri: URI): boolean;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
+
+	openPreferences(): Promise<void>;
 
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
 	openSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;

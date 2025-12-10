@@ -4,41 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
 import type { IPromptInputModel, ISerializedPromptInputModel } from './commandDetection/promptInputModel.js';
 import { ICurrentPartialCommand } from './commandDetection/terminalCommand.js';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from '../terminal.js';
 import { ReplayEntry } from '../terminalProcess.js';
-
-interface IEvent<T, U = void> {
-	(listener: (arg1: T, arg2: U) => any): IDisposable;
-}
-
-export interface IMarker extends IDisposable {
-	/**
-	 * A unique identifier for this marker.
-	 */
-	readonly id: number;
-
-	/**
-	 * Whether this marker is disposed.
-	 */
-	readonly isDisposed: boolean;
-
-	/**
-	 * The actual line index in the buffer at this point in time. This is set to
-	 * -1 if the marker has been disposed.
-	 */
-	readonly line: number;
-
-	/**
-	 * Event listener to get notified when the marker gets disposed. Automatic disposal
-	 * might happen for a marker, that got invalidated by scrolling out or removal of
-	 * a line from the buffer.
-	 */
-	onDispose: IEvent<void>;
-}
-
+import type { IMarker } from '@xterm/headless';
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
@@ -77,6 +47,10 @@ export const enum TerminalCapability {
 	 */
 	ShellEnvDetection,
 
+	/**
+	 * The terminal can detect the prompt type being used (e.g., p10k, posh-git).
+	 */
+	PromptTypeDetection,
 }
 
 /**
@@ -90,28 +64,42 @@ export interface ITerminalCapabilityStore {
 	readonly items: IterableIterator<TerminalCapability>;
 
 	/**
-	 * Fired when a capability is added. The event data for this is only the
-	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
-	 * capability.
-	 */
-	readonly onDidAddCapabilityType: Event<TerminalCapability>;
-
-	/**
-	 * Fired when a capability is removed. The event data for this is only the
-	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
-	 * capability.
-	 */
-	readonly onDidRemoveCapabilityType: Event<TerminalCapability>;
-
-	/**
 	 * Fired when a capability is added.
 	 */
-	readonly onDidAddCapability: Event<TerminalCapabilityChangeEvent<any>>;
+	readonly onDidAddCapability: Event<AnyTerminalCapabilityChangeEvent>;
 
 	/**
 	 * Fired when a capability is removed.
+	*/
+	readonly onDidRemoveCapability: Event<AnyTerminalCapabilityChangeEvent>;
+
+	/**
+	 * Fired when a capability if added or removed.
 	 */
-	readonly onDidRemoveCapability: Event<TerminalCapabilityChangeEvent<any>>;
+	readonly onDidChangeCapabilities: Event<void>;
+
+	/** Fired when the command detection capability is added. */
+	readonly onDidAddCommandDetectionCapability: Event<ICommandDetectionCapability>;
+	/** Fired when the command detection capability is removed. */
+	readonly onDidRemoveCommandDetectionCapability: Event<void>;
+	/** Fired when the cwd detection capability is added. */
+	readonly onDidAddCwdDetectionCapability: Event<ICwdDetectionCapability>;
+	/** Fired when the cwd detection capability is removed. */
+	readonly onDidRemoveCwdDetectionCapability: Event<void>;
+
+	/**
+	 * Create an event that's fired when a specific capability type is added. Use this over
+	 * {@link onDidAddCapability} when the generic type needs to be retained.
+	 * @param type The capability type.
+	 */
+	createOnDidAddCapabilityOfTypeEvent<T extends TerminalCapability>(type: T): Event<ITerminalCapabilityImplMap[T]>;
+
+	/**
+	 * Create an event that's fired when a specific capability type is removed. Use this over
+	 * {@link onDidRemoveCapability} when the generic type needs to be retained.
+	 * @param type The capability type.
+	 */
+	createOnDidRemoveCapabilityOfTypeEvent<T extends TerminalCapability>(type: T): Event<ITerminalCapabilityImplMap[T]>;
 
 	/**
 	 * Gets whether the capability exists in the store.
@@ -129,6 +117,10 @@ export interface TerminalCapabilityChangeEvent<T extends TerminalCapability> {
 	capability: ITerminalCapabilityImplMap[T];
 }
 
+export type AnyTerminalCapabilityChangeEvent = {
+	[K in TerminalCapability]: TerminalCapabilityChangeEvent<K>
+}[TerminalCapability];
+
 /**
  * Maps capability types to their implementation, enabling strongly typed fetching of
  * implementations.
@@ -140,6 +132,7 @@ export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
 	[TerminalCapability.BufferMarkDetection]: IBufferMarkCapability;
 	[TerminalCapability.ShellEnvDetection]: IShellEnvDetectionCapability;
+	[TerminalCapability.PromptTypeDetection]: IPromptTypeDetectionCapability;
 }
 
 export interface ICwdDetectionCapability {
@@ -159,6 +152,13 @@ export interface IShellEnvDetectionCapability {
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;
 	deleteEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;
 	endEnvironmentSingleVar(isTrusted: boolean): void;
+}
+
+export interface IPromptTypeDetectionCapability {
+	readonly type: TerminalCapability.PromptTypeDetection;
+	readonly promptType: string | undefined;
+	readonly onPromptTypeChanged: Event<string | undefined>;
+	setPromptType(value: string): void;
 }
 
 export interface TerminalShellIntegrationEnvironment {
@@ -199,7 +199,7 @@ export interface ICommandInvalidationRequest {
 export interface IBufferMarkCapability {
 	type: TerminalCapability.BufferMarkDetection;
 	markers(): IterableIterator<IMarker>;
-	onMarkAdded: Event<IMarkProperties>;
+	readonly onMarkAdded: Event<IMarkProperties>;
 	addMark(properties?: IMarkProperties): void;
 	getMark(id: string): IMarker | undefined;
 }
@@ -214,12 +214,14 @@ export interface ICommandDetectionCapability {
 	readonly executingCommandConfidence: 'low' | 'medium' | 'high' | undefined;
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
+	readonly hasRichCommandDetection: boolean;
 	readonly currentCommand: ICurrentPartialCommand | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	readonly onCommandExecuted: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
+	readonly onSetRichCommandDetection: Event<boolean>;
 	setContinuationPrompt(value: string): void;
 	setPromptTerminator(value: string, lastPromptLine: string): void;
 	setCwd(value: string): void;
@@ -239,6 +241,7 @@ export interface ICommandDetectionCapability {
 	handleCommandStart(options?: IHandleCommandOptions): void;
 	handleCommandExecuted(options?: IHandleCommandOptions): void;
 	handleCommandFinished(exitCode?: number, options?: IHandleCommandOptions): void;
+	setHasRichCommandDetection(value: boolean): void;
 	/**
 	 * Set the command line explicitly.
 	 * @param commandLine The command line being set.
@@ -248,6 +251,12 @@ export interface ICommandDetectionCapability {
 	 * always be present when running the _builtin_ SI scripts.
 	 */
 	setCommandLine(commandLine: string, isTrusted: boolean): void;
+	/**
+	 * Sets the command ID to use for the next command that starts.
+	 * This allows pre-assigning an ID before the shell sends the command start sequence,
+	 * which is useful for linking commands across renderer and ptyHost.
+	 */
+	setNextCommandId(command: string, commandId: string): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
@@ -277,8 +286,8 @@ export interface INaiveCwdDetectionCapability {
 
 export interface IPartialCommandDetectionCapability {
 	readonly type: TerminalCapability.PartialCommandDetection;
-	readonly commands: readonly IXtermMarker[];
-	readonly onCommandFinished: Event<IXtermMarker>;
+	readonly commands: readonly IMarker[];
+	readonly onCommandFinished: Event<IMarker>;
 }
 
 interface IBaseTerminalCommand {
@@ -288,6 +297,7 @@ interface IBaseTerminalCommand {
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
+	id: string | undefined;
 
 	// Optional serializable
 	cwd: string | undefined;
@@ -301,9 +311,9 @@ interface IBaseTerminalCommand {
 export interface ITerminalCommand extends IBaseTerminalCommand {
 	// Optional non-serializable
 	readonly promptStartMarker?: IMarker;
-	readonly marker?: IXtermMarker;
-	endMarker?: IXtermMarker;
-	readonly executedMarker?: IXtermMarker;
+	readonly marker?: IMarker;
+	endMarker?: IMarker;
+	readonly executedMarker?: IMarker;
 	readonly aliases?: string[][];
 	readonly wasReplayed?: boolean;
 
@@ -326,15 +336,15 @@ export interface ISerializedTerminalCommand extends IBaseTerminalCommand {
 /**
  * A clone of the IMarker from xterm which cannot be imported from common
  */
-export interface IXtermMarker {
-	readonly id: number;
-	readonly isDisposed: boolean;
-	readonly line: number;
-	dispose(): void;
-	onDispose: {
-		(listener: () => any): { dispose(): void };
-	};
-}
+// export interface IMarker {
+// 	readonly id: number;
+// 	readonly isDisposed: boolean;
+// 	readonly line: number;
+// 	dispose(): void;
+// 	onDispose: {
+// 		(listener: () => any): { dispose(): void };
+// 	};
+// }
 
 export interface IMarkProperties {
 	hoverMessage?: string;
@@ -345,6 +355,7 @@ export interface IMarkProperties {
 }
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
+	hasRichCommandDetection: boolean;
 	commands: ISerializedTerminalCommand[];
 	promptInputModel: ISerializedPromptInputModel | undefined;
 }

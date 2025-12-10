@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { MockFilesystem } from './mockFilesystem.js';
+import { mockFiles, MockFilesystem } from './mockFilesystem.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
@@ -46,11 +46,11 @@ interface IExpectedFolder extends IExpectedFilesystemNode {
 /**
  * Validates that file at {@link filePath} has expected attributes.
  */
-const validateFile = async (
+async function validateFile(
 	filePath: string,
 	expectedFile: IExpectedFile,
 	fileService: IFileService,
-) => {
+) {
 	let readFile: IFileStat | undefined;
 	try {
 		readFile = await fileService.resolve(URI.file(filePath));
@@ -100,16 +100,16 @@ const validateFile = async (
 		expectedFile.contents,
 		`File '${expectedFile.resource.fsPath}' must have correct contents.`,
 	);
-};
+}
 
 /**
  * Validates that folder at {@link folderPath} has expected attributes.
  */
-const validateFolder = async (
+async function validateFolder(
 	folderPath: string,
 	expectedFolder: IExpectedFolder,
 	fileService: IFileService,
-) => {
+): Promise<void> {
 	let readFolder: IFileStat | undefined;
 	try {
 		readFolder = await fileService.resolve(URI.file(folderPath));
@@ -177,51 +177,41 @@ const validateFolder = async (
 			fileService,
 		);
 	}
-};
+}
 
 suite('MockFilesystem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let initService: TestInstantiationService;
+	let instantiationService: TestInstantiationService;
 	let fileService: IFileService;
 	setup(async () => {
-		initService = disposables.add(new TestInstantiationService());
-		initService.stub(ILogService, new NullLogService());
+		instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
 
-		fileService = disposables.add(initService.createInstance(FileService));
+		fileService = disposables.add(instantiationService.createInstance(FileService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
-		initService.stub(IFileService, fileService);
+		instantiationService.stub(IFileService, fileService);
 	});
 
-	test('• mocks file structure', async () => {
-		const mockFilesystem = initService.createInstance(MockFilesystem, [
+	test('mocks file structure using new simplified format', async () => {
+		const mockFilesystem = instantiationService.createInstance(MockFilesystem, [
 			{
-				name: '/root/folder',
-				children: [
-					{
-						name: 'file.txt',
-						contents: 'contents',
-					},
-					{
-						name: 'Subfolder',
-						children: [
-							{
-								name: 'test.ts',
-								contents: 'other contents',
-							},
-							{
-								name: 'file.test.ts',
-								contents: 'hello test',
-							},
-							{
-								name: '.file-2.TEST.ts',
-								contents: 'test hello',
-							},
-						]
-					}
-				]
+				path: '/root/folder/file.txt',
+				contents: ['contents']
+			},
+			{
+				path: '/root/folder/Subfolder/test.ts',
+				contents: ['other contents']
+			},
+			{
+				path: '/root/folder/Subfolder/file.test.ts',
+				contents: ['hello test']
+			},
+			{
+				path: '/root/folder/Subfolder/.file-2.TEST.ts',
+				contents: ['test hello']
 			}
 		]);
 
@@ -282,6 +272,28 @@ suite('MockFilesystem', () => {
 						],
 					}
 				],
+			},
+			fileService,
+		);
+	});
+
+	test('can be created using static factory method', async () => {
+		await mockFiles(fileService, [
+			{
+				path: '/simple/test.txt',
+				contents: ['line 1', 'line 2', 'line 3']
+			}
+		]);
+
+		await validateFile(
+			'/simple/test.txt',
+			{
+				resource: URI.file('/simple/test.txt'),
+				name: 'test.txt',
+				isFile: true,
+				isDirectory: false,
+				isSymbolicLink: false,
+				contents: 'line 1\nline 2\nline 3',
 			},
 			fileService,
 		);

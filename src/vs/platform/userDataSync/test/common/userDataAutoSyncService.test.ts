@@ -148,27 +148,17 @@ suite('UserDataAutoSyncService', () => {
 				// Machines
 				{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: {} },
 				// Settings
-				{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 				{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
 				// Keybindings
-				{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 				{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
 				// Snippets
-				{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 				{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
 				// Tasks
-				{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 				{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
 				// Global state
-				{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 				{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
-				// Extensions
-				{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 				// Prompts
-				{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
 				{ type: 'POST', url: `${target.url}/v1/resource/prompts`, headers: { 'If-Match': '0' } },
-				// Profiles
-				{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 				// Manifest
 				{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 				// Machines

@@ -179,6 +179,10 @@ export class MockSession implements IDebugSession {
 	readonly suppressDebugView = false;
 	readonly autoExpandLazyVariables = false;
 
+	dispose(): void {
+
+	}
+
 	getMemory(memoryReference: string): IMemoryRegion {
 		throw new Error('Method not implemented.');
 	}
@@ -231,7 +235,7 @@ export class MockSession implements IDebugSession {
 		throw new Error('Method not implemented.');
 	}
 
-	dataBreakpointInfo(name: string, variablesReference?: number | undefined): Promise<{ dataId: string | null; description: string; canPersist?: boolean | undefined } | undefined> {
+	dataBreakpointInfo(name: string, variablesReference?: number | undefined, frameId?: number | undefined): Promise<{ dataId: string | null; description: string; canPersist?: boolean | undefined } | undefined> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -519,7 +523,7 @@ export class MockRawSession {
 		throw new Error('not implemented');
 	}
 
-	disconnect(restart?: boolean): Promise<any> {
+	disconnect(): Promise<any> {
 		throw new Error('not implemented');
 	}
 
@@ -688,6 +692,6 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 export class MockDebugStorage extends DebugStorage {
 
 	constructor(storageService: IStorageService) {
-		super(storageService, undefined as any, undefined as any, new NullLogService());
+		super(storageService, undefined!, undefined!, new NullLogService());
 	}
 }

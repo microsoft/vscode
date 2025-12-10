@@ -8,106 +8,158 @@ import { Emitter } from '../../../../base/common/event.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
+import { IChatRequestFileEntry, IChatRequestVariableEntry, isPromptFileVariableEntry } from '../common/chatVariableEntries.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { equals } from '../../../../base/common/objects.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+
+export interface IChatAttachmentChangeEvent {
+	readonly deleted: readonly string[];
+	readonly added: readonly IChatRequestVariableEntry[];
+	readonly updated: readonly IChatRequestVariableEntry[];
+}
 
 export class ChatAttachmentModel extends Disposable {
-	/**
-	 * Collection on prompt instruction attachments.
-	 */
-	public readonly promptInstructions: ChatPromptAttachmentsCollection;
+
+	private readonly _attachments = new Map<string, IChatRequestVariableEntry>();
+
+	private _onDidChange = this._register(new Emitter<IChatAttachmentChangeEvent>());
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService,
+		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
+		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 	) {
 		super();
-
-		this.promptInstructions = this._register(
-			this.initService.createInstance(ChatPromptAttachmentsCollection),
-		).onUpdate(() => {
-			this._onDidChangeContext.fire();
-		});
 	}
 
-	private _attachments = new Map<string, IChatRequestVariableEntry>();
 	get attachments(): ReadonlyArray<IChatRequestVariableEntry> {
 		return Array.from(this._attachments.values());
 	}
-
-	protected _onDidChangeContext = this._register(new Emitter<void>());
-	readonly onDidChangeContext = this._onDidChangeContext.event;
 
 	get size(): number {
 		return this._attachments.size;
 	}
 
 	get fileAttachments(): URI[] {
-		return this.attachments.reduce<URI[]>((acc, file) => {
-			if (file.isFile && URI.isUri(file.value)) {
-				acc.push(file.value);
-			}
-			return acc;
-		}, []);
+		return this.attachments.filter(file => file.kind === 'file' && URI.isUri(file.value))
+			.map(file => file.value as URI);
 	}
 
 	getAttachmentIDs() {
 		return new Set(this._attachments.keys());
 	}
 
-	clear(): void {
-		this._attachments.clear();
-		this._onDidChangeContext.fire();
-	}
-
-	delete(...variableEntryIds: string[]) {
-		for (const variableEntryId of variableEntryIds) {
-			this._attachments.delete(variableEntryId);
+	async addFile(uri: URI, range?: IRange) {
+		if (/\.(png|jpe?g|gif|bmp|webp)$/i.test(uri.path)) {
+			const context = await this.asImageVariableEntry(uri);
+			if (context) {
+				this.addContext(context);
+			}
+			return;
+		} else {
+			this.addContext(this.asFileVariableEntry(uri, range));
 		}
-		this._onDidChangeContext.fire();
-	}
-
-	addFile(uri: URI, range?: IRange) {
-		this.addContext(this.asVariableEntry(uri, range));
 	}
 
 	addFolder(uri: URI) {
 		this.addContext({
+			kind: 'directory',
 			value: uri,
 			id: uri.toString(),
 			name: basename(uri),
-			isFile: false,
-			isDirectory: true,
 		});
 	}
 
-	asVariableEntry(uri: URI, range?: IRange, isMarkedReadonly?: boolean): IChatRequestVariableEntry {
-		return {
-			value: range ? { uri, range } : uri,
-			id: uri.toString() + (range?.toString() ?? ''),
-			name: basename(uri),
-			isFile: true,
-			isMarkedReadonly,
-		};
+	clear(clearStickyAttachments: boolean = false): void {
+		if (clearStickyAttachments) {
+			const deleted = Array.from(this._attachments.keys());
+			this._attachments.clear();
+			this._onDidChange.fire({ deleted, added: [], updated: [] });
+		} else {
+			const deleted: string[] = [];
+			const allIds = Array.from(this._attachments.keys());
+			for (const id of allIds) {
+				const entry = this._attachments.get(id);
+				if (entry && !isPromptFileVariableEntry(entry)) {
+					this._attachments.delete(id);
+					deleted.push(id);
+				}
+			}
+			this._onDidChange.fire({ deleted, added: [], updated: [] });
+		}
 	}
 
 	addContext(...attachments: IChatRequestVariableEntry[]) {
-		let hasAdded = false;
-
-		for (const attachment of attachments) {
-			if (!this._attachments.has(attachment.id)) {
-				this._attachments.set(attachment.id, attachment);
-				hasAdded = true;
-			}
-		}
-
-		if (hasAdded) {
-			this._onDidChangeContext.fire();
-		}
+		attachments = attachments.filter(attachment => !this._attachments.has(attachment.id));
+		this.updateContext(Iterable.empty(), attachments);
 	}
 
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {
-		this.clear();
-		this.addContext(...attachments);
+		this.updateContext(Array.from(this._attachments.keys()), attachments);
 	}
+
+	delete(...variableEntryIds: string[]) {
+		this.updateContext(variableEntryIds, Iterable.empty());
+	}
+
+	updateContext(toDelete: Iterable<string>, upsert: Iterable<IChatRequestVariableEntry>) {
+		const deleted: string[] = [];
+		const added: IChatRequestVariableEntry[] = [];
+		const updated: IChatRequestVariableEntry[] = [];
+
+		for (const id of toDelete) {
+			const item = this._attachments.get(id);
+			if (item) {
+				this._attachments.delete(id);
+				deleted.push(id);
+			}
+		}
+
+		for (const item of upsert) {
+			const oldItem = this._attachments.get(item.id);
+			if (!oldItem) {
+				this._attachments.set(item.id, item);
+				added.push(item);
+			} else if (!equals(oldItem, item)) {
+				this._attachments.set(item.id, item);
+				updated.push(item);
+			}
+		}
+
+		if (deleted.length > 0 || added.length > 0 || updated.length > 0) {
+			this._onDidChange.fire({ deleted, added, updated });
+		}
+	}
+
+	// ---- create utils
+
+	asFileVariableEntry(uri: URI, range?: IRange): IChatRequestFileEntry {
+		return {
+			kind: 'file',
+			value: range ? { uri, range } : uri,
+			id: uri.toString() + (range?.toString() ?? ''),
+			name: basename(uri),
+		};
+	}
+
+	// Gets an image variable for a given URI, which may be a file or a web URL
+	async asImageVariableEntry(uri: URI): Promise<IChatRequestVariableEntry | undefined> {
+		if (uri.scheme === Schemas.file && await this.fileService.canHandleResource(uri)) {
+			return await this.chatAttachmentResolveService.resolveImageEditorAttachContext(uri);
+		} else if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
+			const extractedImages = await this.webContentExtractorService.readImage(uri, CancellationToken.None);
+			if (extractedImages) {
+				return await this.chatAttachmentResolveService.resolveImageEditorAttachContext(uri, extractedImages);
+			}
+		}
+
+		return undefined;
+	}
+
 }

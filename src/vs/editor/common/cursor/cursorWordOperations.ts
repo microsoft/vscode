@@ -746,11 +746,19 @@ export class WordOperations {
 			let endColumn: number;
 
 			if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end) {
-				// isTouchingPrevWord
+				// isTouchingPrevWord (Regular word)
+				startColumn = prevWord.start + 1;
+				endColumn = prevWord.end + 1;
+			} else if (prevWord && prevWord.wordType === WordType.Separator && prevWord.start <= position.column - 1 && position.column - 1 < prevWord.end) {
+				// isTouchingPrevWord (Separator word) - stricter check, don't include end boundary
 				startColumn = prevWord.start + 1;
 				endColumn = prevWord.end + 1;
 			} else if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end) {
-				// isTouchingNextWord
+				// isTouchingNextWord (Regular word)
+				startColumn = nextWord.start + 1;
+				endColumn = nextWord.end + 1;
+			} else if (nextWord && nextWord.wordType === WordType.Separator && nextWord.start <= position.column - 1 && position.column - 1 < nextWord.end) {
+				// isTouchingNextWord (Separator word) - stricter check, don't include end boundary
 				startColumn = nextWord.start + 1;
 				endColumn = nextWord.end + 1;
 			} else {
@@ -776,11 +784,11 @@ export class WordOperations {
 		let endColumn: number;
 
 		if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start < position.column - 1 && position.column - 1 < prevWord.end) {
-			// isInsidePrevWord
+			// isInsidePrevWord (Regular word)
 			startColumn = prevWord.start + 1;
 			endColumn = prevWord.end + 1;
 		} else if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start < position.column - 1 && position.column - 1 < nextWord.end) {
-			// isInsideNextWord
+			// isInsideNextWord (Regular word)
 			startColumn = nextWord.start + 1;
 			endColumn = nextWord.end + 1;
 		} else {

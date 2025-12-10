@@ -37,11 +37,13 @@ suite('Date', () => {
 		test('yesterday', () => {
 			const yesterday = new Date();
 			yesterday.setDate(yesterday.getDate() - 1);
+			yesterday.setHours(12);
 			strictEqual(fromNowByDay(yesterday), 'Yesterday');
 		});
 		test('daysAgo', () => {
 			const daysAgo = new Date();
 			daysAgo.setDate(daysAgo.getDate() - 5);
+			daysAgo.setHours(daysAgo.getHours() - 2); // 2 hours further to avoid DST issues
 			strictEqual(fromNowByDay(daysAgo, true), '5 days ago');
 		});
 	});
@@ -72,13 +74,13 @@ suite('Date', () => {
 
 		suite('safeIntl', () => {
 			test('Collator fallback', () => {
-				const collator = safeIntl.Collator('en_IT');
+				const collator = safeIntl.Collator('en_IT').value;
 				const comparison = collator.compare('a', 'b');
 				strictEqual(comparison, -1);
 			});
 
 			test('Locale fallback', () => {
-				const locale = safeIntl.Locale('en_IT');
+				const locale = safeIntl.Locale('en_IT').value;
 				strictEqual(locale.baseName, LANGUAGE_DEFAULT);
 			});
 		});

@@ -52,7 +52,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	// Data Stores
 	private _editors: Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>> = new Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>>();
 	private _flattenedEditors: Map<string | glob.IRelativePattern, RegisteredEditors> = new Map();
-	private _shouldReFlattenEditors: boolean = true;
+	private _shouldReFlattenEditors = true;
 	private cache: Set<string> | undefined;
 
 	constructor(
@@ -399,7 +399,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		const findMatchingEditor = (editors: RegisteredEditors, viewType: string) => {
 			return editors.find((editor) => {
-				if (editor.options && editor.options.canSupportResource !== undefined) {
+				if (editor.options?.canSupportResource !== undefined) {
 					return editor.editorInfo.id === viewType && editor.options.canSupportResource(resource);
 				}
 				return editor.editorInfo.id === viewType;
@@ -427,15 +427,20 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				conflictingDefault: false
 			};
 		}
-		// If the editor is exclusive we use that, else use the user setting, else use the built-in+ editor
+		// If the editor is exclusive we use that, else use the user setting, else we check canSupportResource, else take the viewtype of first possible editor
 		const selectedViewType = possibleEditors[0].editorInfo.priority === RegisteredEditorPriority.exclusive ?
 			possibleEditors[0].editorInfo.id :
-			associationsFromSetting[0]?.viewType || possibleEditors[0].editorInfo.id;
+			associationsFromSetting[0]?.viewType ||
+			(possibleEditors.find(editor => (!editor.options?.canSupportResource || editor.options.canSupportResource(resource)))?.editorInfo.id) ||
+			possibleEditors[0].editorInfo.id;
 
 		let conflictingDefault = false;
 
 		// Filter out exclusive before we check for conflicts as exclusive editors cannot be manually chosen
-		possibleEditors = possibleEditors.filter(editor => editor.editorInfo.priority !== RegisteredEditorPriority.exclusive);
+		// similar to above, need to check canSupportResource if nothing is exclusive
+		possibleEditors = possibleEditors
+			.filter(editor => editor.editorInfo.priority !== RegisteredEditorPriority.exclusive)
+			.filter(editor => !editor.options?.canSupportResource || editor.options.canSupportResource(resource));
 		if (associationsFromSetting.length === 0 && possibleEditors.length > 1) {
 			conflictingDefault = true;
 		}
@@ -600,7 +605,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		};
 
 		// If the user has already made a choice for this editor we don't want to ask them again
-		if (storedChoices[globForResource] && storedChoices[globForResource].find(editorID => editorID === currentEditor.editorId)) {
+		if (storedChoices[globForResource]?.find(editorID => editorID === currentEditor.editorId)) {
 			return;
 		}
 
@@ -758,7 +763,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				resolve({ item: e.item, openInBackground: false });
 
 				// Persist setting
-				if (resource && e.item && e.item.id) {
+				if (resource && e.item?.id) {
 					this.updateUserAssociations(`*${extname(resource)}`, e.item.id,);
 				}
 			}));
