@@ -34,6 +34,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 interface ISerializedEditorHistoryEntry {
 	readonly editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
@@ -73,6 +74,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -674,10 +676,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // we need a untyped editor to restore from going forward
 		}
 
-		if (!editor.canReopen()) {
-			return; // only editors that can be reopened
-		}
-
 		const associatedResources: URI[] = [];
 		const editorResource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
 		if (URI.isUri(editorResource)) {
@@ -734,6 +732,25 @@ export class HistoryService extends Disposable implements IHistoryService {
 			(!lastClosedEditor.sticky && this.editorGroupService.activeGroup.isSticky(lastClosedEditor.index))
 		) {
 			options.index = undefined;
+		}
+
+		// Check if the closed editor is a Terminal Editor Input (which is prone to restoration failure).
+		// Use the confirmed unique string ID for the Terminal Editor.
+		const TERMINAL_EDITOR_ID = 'terminalEditor';
+
+		// Check if the history entry is the problematic Terminal Editor.
+		if (lastClosedEditor.editorId === TERMINAL_EDITOR_ID) {
+
+			// Instead of restoring the problematic history state,
+			// execute the reliable command to create a brand new terminal editor.
+
+			// The 'reopenClosedEditor' command is expected to succeed in opening *something*.
+			// We fulfill this expectation by creating a new, healthy Editor Terminal.
+			await this.commandService.executeCommand('workbench.action.terminal.createTerminalEditor');
+
+			// NOTE: We do NOT need to run this.reopenLastClosedEditor() again here,
+			// because executing the command successfully counts as reopening an editor.
+			return;
 		}
 
 		// Re-open editor unless already opened
