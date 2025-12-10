@@ -226,6 +226,12 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 		}
 
+		// Ensure the target has the correct extension if it doesn't match
+		if (!provider.matches(target)) {
+			target = this.ensureProviderExtension(provider, target);
+		}
+
+		// Final validation after ensuring extension
 		if (!provider.matches(target)) {
 			const patterns = provider.selectors.map(pattern => {
 				if (typeof pattern === 'string') {
@@ -264,7 +270,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return URI.joinPath(defaultFilePath, resource.path);
 	}
 
-	private ensureProviderExtension(provider: NotebookProviderInfo) {
+	private ensureProviderExtension(provider: NotebookProviderInfo, resource?: URI) {
 		const firstSelector = provider.selectors[0];
 		let selectorStr = firstSelector && typeof firstSelector === 'string' ? firstSelector : undefined;
 		if (!selectorStr && firstSelector) {
@@ -274,18 +280,18 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 		}
 
-		const resource = this.resource;
+		const targetResource = resource ?? this.resource;
 		if (selectorStr) {
 			const matches = /^\*\.([A-Za-z_-]*)$/.exec(selectorStr);
 			if (matches && matches.length > 1) {
 				const fileExt = matches[1];
-				if (!resource.path.endsWith(fileExt)) {
-					return resource.with({ path: resource.path + '.' + fileExt });
+				if (!targetResource.path.endsWith(fileExt)) {
+					return targetResource.with({ path: targetResource.path + '.' + fileExt });
 				}
 			}
 		}
 
-		return resource;
+		return targetResource;
 	}
 
 	// called when users rename a notebook document
