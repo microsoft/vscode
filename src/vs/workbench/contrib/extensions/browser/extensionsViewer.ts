@@ -68,7 +68,7 @@ export class ExtensionsList extends Disposable {
 		this._register(this.contextMenuActionRunner.onDidRun(({ error }) => error && notificationService.error(error)));
 		const delegate = new Delegate();
 		// Show publisher in name when in chat context for better visibility
-		const showPublisherInName = viewId.includes('.chat.view.');
+		const showPublisherInName = viewId.startsWith('workbench.panel.chat.view.');
 		const renderer = instantiationService.createInstance(Renderer, extensionsViewState, {
 			hoverOptions: {
 				position: () => {

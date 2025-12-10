@@ -192,11 +192,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
 
 		// Show publisher in the name when requested for better visibility
-		if (this.options.showPublisherInName) {
-			data.name.textContent = `${extension.displayName} (${extension.publisher})`;
-		} else {
-			data.name.textContent = extension.displayName;
-		}
+		data.name.textContent = this.options.showPublisherInName
+			? `${extension.displayName} (${extension.publisher})`
+			: extension.displayName;
 		data.description.textContent = extension.description;
 
 		data.installCount.style.display = '';
