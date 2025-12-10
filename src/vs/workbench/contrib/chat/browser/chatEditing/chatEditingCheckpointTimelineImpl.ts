@@ -379,10 +379,10 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			const info = await this._notebookService.withNotebookDataProvider(notebookViewType);
 			const bytes = await info.serializer.notebookToData(data);
 
-			// Convert bytes to string (this is what the notebook serializer expects)
-			return new TextDecoder().decode(bytes);
+			// Convert bytes to string using UTF-8 encoding (standard for notebook JSON)
+			return new TextDecoder('utf-8').decode(bytes);
 		} catch (error) {
-			console.error(`Error converting notebook snapshot to serialized format for viewType '${notebookViewType}' (snapshot length: ${snapshotContent.length}):`, error);
+			console.error(`Error converting notebook snapshot to serialized format for viewType '${notebookViewType}':`, error);
 			// Return an empty notebook structure if conversion fails to avoid parsing errors
 			return JSON.stringify({
 				cells: [],
