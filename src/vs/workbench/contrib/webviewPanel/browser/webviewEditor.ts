@@ -71,10 +71,19 @@ export class WebviewEditor extends EditorPane {
 			}
 		}));
 		const mainContainer = this._workbenchLayoutService.getContainer(this.window);
+
+		// Use manual throttling to support 'capture: true' (required for scroll events)
+		let timeout: any = undefined;
 		this._register(DOM.addDisposableListener(mainContainer, 'scroll', () => {
-			if (this.webview && this._visible) {
-				this.synchronizeWebviewContainerDimensions(this.webview);
+			if (timeout) {
+				return; // Already scheduled, ignore this event
 			}
+			timeout = this.window.setTimeout(() => {
+				timeout = undefined;
+				if (this.webview && this._visible) {
+					this.synchronizeWebviewContainerDimensions(this.webview);
+				}
+			}, 16);
 		}, true));
 	}
 
