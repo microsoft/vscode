@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// Note: This file is a duplicate of src/vs/platform/notebook/common/alternativeContentProvider.xml.ts
+// The duplication is necessary because extensions cannot import from the VS Code platform layer.
+// Any changes to this file should also be made to the platform version.
+
 import type * as nbformat from '@jupyterlab/nbformat';
 
 /**
@@ -132,6 +136,8 @@ function parseCells(cellsXml: string): nbformat.ICell[] {
 }
 
 function extractTagContent(xml: string, tagName: string): string | undefined {
+	// Simple regex for extracting text-only content (no nested tags)
+	// This is sufficient for the metadata fields we're parsing
 	const regex = new RegExp(`<${tagName}>([^<]*)<\/${tagName}>`, 'i');
 	const match = xml.match(regex);
 	return match ? match[1].trim() : undefined;
