@@ -19,6 +19,12 @@ const fixedEditorPadding = {
 	bottom: 12
 };
 
+/**
+ * Default horizontal scrollbar height.
+ * Matches the default from editor.scrollbar.horizontalScrollbarSize configuration.
+ */
+export const DEFAULT_HORIZONTAL_SCROLLBAR_HEIGHT = 12;
+
 export function getEditorPadding(lineCount: number) {
 	return lineCount === 1 ? fixedEditorPaddingSingleLineCells : fixedEditorPadding;
 }

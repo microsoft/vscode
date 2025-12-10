@@ -17,7 +17,7 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { DefaultLinesDiffComputer } from '../../../../../../editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import { DiffAlgorithmName, IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IDocumentDiffProviderOptions, IDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
-import { getEditorPadding } from '../../../browser/diff/diffCellEditorOptions.js';
+import { getEditorPadding, DEFAULT_HORIZONTAL_SCROLLBAR_HEIGHT } from '../../../browser/diff/diffCellEditorOptions.js';
 import { HeightOfHiddenLinesRegionInDiffEditor } from '../../../browser/diff/diffElementViewModel.js';
 
 suite('NotebookDiff EditorHeightCalculator', () => {
@@ -140,8 +140,7 @@ suite('NotebookDiff EditorHeightCalculator', () => {
 			});
 
 			function getExpectedHeight(visibleLineCount: number, unchangeRegionsHeight: number): number {
-				const horizontalScrollbarHeight = 12; // Default scrollbar height
-				return (visibleLineCount * fontInfo.lineHeight) + getEditorPadding(visibleLineCount).top + getEditorPadding(visibleLineCount).bottom + (unchangeRegionsHeight * HeightOfHiddenLinesRegionInDiffEditor) + horizontalScrollbarHeight;
+				return (visibleLineCount * fontInfo.lineHeight) + getEditorPadding(visibleLineCount).top + getEditorPadding(visibleLineCount).bottom + (unchangeRegionsHeight * HeightOfHiddenLinesRegionInDiffEditor) + DEFAULT_HORIZONTAL_SCROLLBAR_HEIGHT;
 			}
 
 			function createLines(count: number, linePrefix = 'Hello World'): string[] {

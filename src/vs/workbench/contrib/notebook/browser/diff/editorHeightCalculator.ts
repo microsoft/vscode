@@ -8,7 +8,7 @@ import { UnchangedRegion } from '../../../../../editor/browser/widget/diffEditor
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { getEditorPadding } from './diffCellEditorOptions.js';
+import { DEFAULT_HORIZONTAL_SCROLLBAR_HEIGHT, getEditorPadding } from './diffCellEditorOptions.js';
 import { HeightOfHiddenLinesRegionInDiffEditor } from './diffElementViewModel.js';
 
 export interface IDiffEditorHeightCalculatorService {
@@ -77,6 +77,6 @@ export class DiffEditorHeightCalculatorService {
 	 */
 	private _getHorizontalScrollbarHeight(): number {
 		const scrollbarSize = this.configurationService.getValue<number>('editor.scrollbar.horizontalScrollbarSize');
-		return scrollbarSize ?? 12; // Default to 12px if not configured
+		return scrollbarSize ?? DEFAULT_HORIZONTAL_SCROLLBAR_HEIGHT;
 	}
 }
