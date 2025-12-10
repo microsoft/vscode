@@ -655,4 +655,72 @@ suite('NotebookDiff', () => {
 			await verifyChangeEventIsNotFired(diffViewModel);
 		});
 	});
+
+	test('diff with large image outputs should not hang', async () => {
+		// Create a large buffer simulating a base64-encoded PNG image (1MB)
+		const largeImageData = new Uint8Array(1024 * 1024);
+		// Fill with some pattern to simulate actual image data
+		for (let i = 0; i < largeImageData.length; i++) {
+			largeImageData[i] = i % 256;
+		}
+		const largeImageDataModified = new Uint8Array(1024 * 1024);
+		// Fill with different pattern to simulate a different image
+		for (let i = 0; i < largeImageDataModified.length; i++) {
+			largeImageDataModified[i] = (i + 1) % 256;
+		}
+
+		await withTestNotebookDiffModel([
+			['x', 'python', CellKind.Markup, [{ outputId: 'id1', outputs: [{ mime: 'image/png', data: VSBuffer.wrap(largeImageData) }] }], {}],
+		], [
+			['x', 'python', CellKind.Markup, [{ outputId: 'id1', outputs: [{ mime: 'image/png', data: VSBuffer.wrap(largeImageDataModified) }] }], {}],
+		], async (model, disposables, accessor) => {
+			const startTime = Date.now();
+			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
+			diffResult = diff.ComputeDiff(false);
+			const computeTime = Date.now() - startTime;
+
+			// The diff computation should complete quickly (under 1 second for hash computation)
+			// If it takes longer, it means we're hashing the entire buffer
+			assert.ok(computeTime < 1000, `Diff computation took ${computeTime}ms, expected less than 1000ms`);
+
+			// Verify that the cells are detected as different
+			assert.strictEqual(diffResult.changes.length, 1);
+			assert.strictEqual(diffResult.changes[0].originalStart, 0);
+			assert.strictEqual(diffResult.changes[0].originalLength, 1);
+			assert.strictEqual(diffResult.changes[0].modifiedStart, 0);
+			assert.strictEqual(diffResult.changes[0].modifiedLength, 1);
+
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
+			await diffViewModel.computeDiff(token);
+		});
+	});
+
+	test('diff with identical large image outputs should be detected as unchanged', async () => {
+		// Create a large buffer simulating a base64-encoded PNG image (1MB)
+		const largeImageData = new Uint8Array(1024 * 1024);
+		// Fill with some pattern to simulate actual image data
+		for (let i = 0; i < largeImageData.length; i++) {
+			largeImageData[i] = i % 256;
+		}
+
+		await withTestNotebookDiffModel([
+			['x', 'python', CellKind.Markup, [{ outputId: 'id1', outputs: [{ mime: 'image/png', data: VSBuffer.wrap(largeImageData) }] }], {}],
+		], [
+			['x', 'python', CellKind.Markup, [{ outputId: 'id1', outputs: [{ mime: 'image/png', data: VSBuffer.wrap(new Uint8Array(largeImageData)) }] }], {}],
+		], async (model, disposables, accessor) => {
+			const startTime = Date.now();
+			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
+			diffResult = diff.ComputeDiff(false);
+			const computeTime = Date.now() - startTime;
+
+			// The diff computation should complete quickly
+			assert.ok(computeTime < 1000, `Diff computation took ${computeTime}ms, expected less than 1000ms`);
+
+			// Verify that the cells are detected as identical
+			assert.strictEqual(diffResult.changes.length, 0);
+
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
+			await diffViewModel.computeDiff(token);
+		});
+	});
 });
