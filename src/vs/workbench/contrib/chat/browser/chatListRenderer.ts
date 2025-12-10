@@ -1686,7 +1686,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					e.stopPropagation();
 					this._onDidClickRequest.fire(templateData);
 				}));
-				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
+				markdownPart.addDisposable(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
 			}
 			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.FOCUS, () => {
 				this.hoverVisible(templateData.requestHover);
