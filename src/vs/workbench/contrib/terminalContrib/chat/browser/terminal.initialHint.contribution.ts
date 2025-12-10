@@ -161,7 +161,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			if (!this._hintWidget && this._xterm?.isFocused && this._terminalGroupService.instances.length + this._terminalEditorService.instances.length === 1) {
 				const terminalAgents = this._chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.Terminal));
 				if (terminalAgents?.length) {
-					const widget = this._register(this._instantiationService.createInstance(TerminalInitialHintWidget, instance));
+					const widget = this._register(this._instantiationService.createInstance(TerminalInlineHintWidget, instance));
 					this._addon?.dispose();
 					this._hintWidget = widget.getDomNode(terminalAgents);
 					if (!this._hintWidget) {
