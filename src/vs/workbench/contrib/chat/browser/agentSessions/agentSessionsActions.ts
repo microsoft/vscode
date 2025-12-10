@@ -26,6 +26,48 @@ import { showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+
+export class FocusAgentSessionsAction extends Action2 {
+
+	static readonly id = 'workbench.action.chat.focusAgentSessionsViewer';
+
+	constructor() {
+		super({
+			id: FocusAgentSessionsAction.id,
+			title: {
+				value: localize('chat.focusAgentSessionsViewer.label', "Focus Agent Sessions"),
+				original: 'Focus Agent Sessions'
+			},
+			category: CHAT_CATEGORY,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const configurationService = accessor.get(IConfigurationService);
+		const commandService = accessor.get(ICommandService);
+
+		const chatView = await viewsService.openView<ChatViewPane>(ChatViewId, true);
+		const focused = chatView?.focusSessions();
+		if (focused) {
+			return;
+		}
+
+		const configuredSessionsViewerOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		if (configuredSessionsViewerOrientation === 'auto' || configuredSessionsViewerOrientation === 'stacked') {
+			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		} else {
+			await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
+		}
+
+		chatView?.focusSessions();
+	}
+}
 
 abstract class BaseAgentSessionAction extends Action2 {
 
@@ -402,8 +444,6 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 
 	abstract getOrientation(): AgentSessionsViewerOrientation;
 }
-
-// TODO@bpasero these need to be revisited to work in all layouts
 
 export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 
