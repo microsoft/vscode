@@ -773,8 +773,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 * Check if a tool belongs to a restricted toolset (execute or read)
 	 */
 	private isToolInRestrictedToolSet(tool: IToolData): boolean {
-		return Iterable.some(this.executeToolSet.getTools(), t => t === tool) ||
-			Iterable.some(this.readToolSet.getTools(), t => t === tool);
+		return Iterable.some(
+			Iterable.concat(this.executeToolSet.getTools(), this.readToolSet.getTools()),
+			t => t === tool
+		);
 	}
 
 	/**
@@ -807,10 +809,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			} else {
 				if (!result.has(tool)) { // already set via an enabled toolset
-					// Check if this tool belongs to a restricted toolset
-					const toolInRestrictedToolSet = !isAgentModeEnabled && this.isToolInRestrictedToolSet(tool);
+					// Check if this tool should be disabled due to agent mode restrictions
+					const shouldDisableTool = !isAgentModeEnabled && this.isToolInRestrictedToolSet(tool);
 
-					const enabled = toolInRestrictedToolSet ? false : (toolOrToolSetNames.has(fullReferenceName)
+					const enabled = shouldDisableTool ? false : (toolOrToolSetNames.has(fullReferenceName)
 						|| Iterable.some(this.getToolAliases(tool, fullReferenceName), name => toolOrToolSetNames.has(name))
 						|| !!tool.legacyToolReferenceFullNames?.some(toolFullName => {
 							// enable tool if just the legacy tool set name is present
