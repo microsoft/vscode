@@ -282,7 +282,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	constructor(
-		@IChatService private readonly _chatService: IChatService,
+		@IChatService protected readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -335,9 +335,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Listen for chat session disposal to clean up associated terminals
 		this._register(this._chatService.onDidDisposeSession(e => {
-			const localSessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
-			if (localSessionId) {
-				this._cleanupSessionTerminals(localSessionId);
+			for (const resource of e.sessionResource) {
+				const localSessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+				if (localSessionId) {
+					this._cleanupSessionTerminals(localSessionId);
+				}
 			}
 		}));
 	}

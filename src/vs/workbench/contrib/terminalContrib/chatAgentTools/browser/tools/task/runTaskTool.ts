@@ -97,7 +97,7 @@ export class RunTaskTool implements IToolImpl {
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
-		const toolResultMessage = toolResultMessageFromResponse(result, taskLabel, toolResultDetails, terminalResults);
+		const toolResultMessage = toolResultMessageFromResponse(result, taskLabel, toolResultDetails, terminalResults, undefined, task.configurationProperties.isBackground);
 
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
