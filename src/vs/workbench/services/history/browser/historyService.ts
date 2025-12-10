@@ -674,6 +674,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // we need a untyped editor to restore from going forward
 		}
 
+		if (!editor.canReopen()) {
+			return; // only editors that can be reopened
+		}
+
 		const associatedResources: URI[] = [];
 		const editorResource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
 		if (URI.isUri(editorResource)) {
