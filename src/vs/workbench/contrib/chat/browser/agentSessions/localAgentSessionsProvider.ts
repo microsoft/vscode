@@ -124,22 +124,12 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		const model = this.chatService.getSession(chat.sessionResource);
 
 		let description: string | undefined;
-		let startTime: number;
-		let endTime: number | undefined;
 		if (model) {
 			if (!model.hasRequests) {
 				return undefined; // ignore sessions without requests
 			}
 
-			const lastResponse = model.getRequests().at(-1)?.response;
 			description = this.chatSessionsService.getInProgressSessionDescription(model);
-
-			startTime = model.timestamp;
-			if (lastResponse) {
-				endTime = lastResponse.completedAt ?? lastResponse.timestamp;
-			}
-		} else {
-			startTime = chat.lastMessageDate;
 		}
 
 		return {
@@ -151,10 +141,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 				this.modelToStatus(model) :
 				chatResponseStateToSessionStatus(chat.lastResponseState),
 			iconPath: Codicon.chatSparkle,
-			timing: {
-				startTime,
-				endTime
-			},
+			timing: chat.timing,
 			changes: chat.stats ? {
 				insertions: chat.stats.added,
 				deletions: chat.stats.removed,
