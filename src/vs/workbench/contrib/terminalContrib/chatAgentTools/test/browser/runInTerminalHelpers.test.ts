@@ -292,6 +292,7 @@ suite('generateAutoApproveActions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createMockRule(sourceText: string): IAutoApproveRule {
+		// Escape special regex characters for test purposes to prevent regex errors
 		const escapedText = sourceText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 		return {
 			regex: new RegExp(escapedText),
