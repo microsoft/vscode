@@ -326,17 +326,13 @@ export class ViewAllSessionChangesAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const chatWidgetService = accessor.get(IChatWidgetService);
+	override async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const commandService = accessor.get(ICommandService);
-
-		const chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).find(w => w.supportsChangingModes);
-		if (!chatWidget?.viewModel) {
+		if (!URI.isUri(sessionResource)) {
 			return;
 		}
 
-		const sessionResource = chatWidget.viewModel.model.sessionResource;
 		const session = agentSessionsService.getSession(sessionResource);
 		const changes = session?.changes;
 		if (!(changes instanceof Array)) {
@@ -349,6 +345,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 
 		if (resources.length > 0) {
 			await commandService.executeCommand('_workbench.openMultiDiffEditor', {
+				multiDiffSourceUri: sessionResource.with({ scheme: sessionResource.scheme + '-worktree-changes' }),
 				title: localize('chatEditing.allChanges.title', 'All Session Changes'),
 				resources,
 			});

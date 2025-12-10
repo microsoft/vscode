@@ -1069,6 +1069,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	complete(): void {
+		// No-op if it's already complete
+		if (this.isComplete) {
+			return;
+		}
 		if (this._result?.errorDetails?.responseIsRedacted) {
 			this._response.clear();
 		}
@@ -1294,6 +1298,9 @@ export interface IInputModel {
 
 	/** Clear input state (after sending or clearing) */
 	clearState(): void;
+
+	/** Serializes the state */
+	toJSON(): ISerializableChatModelInputState | undefined;
 }
 
 /**
@@ -1542,6 +1549,25 @@ class InputModel implements IInputModel {
 	clearState(): void {
 		this._state.set(undefined, undefined);
 	}
+
+	toJSON(): ISerializableChatModelInputState | undefined {
+		const value = this.state.get();
+		if (!value) {
+			return undefined;
+		}
+
+		return {
+			contrib: value.contrib,
+			attachments: value.attachments,
+			mode: value.mode,
+			selectedModel: value.selectedModel ? {
+				identifier: value.selectedModel.identifier,
+				metadata: value.selectedModel.metadata
+			} : undefined,
+			inputText: value.inputText,
+			selections: value.selections
+		};
+	}
 }
 
 export class ChatModel extends Disposable implements IChatModel {
@@ -1664,7 +1690,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; inputState?: ISerializableChatModelInputState; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -1689,7 +1715,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._customTitle = isValidFullData ? initialData.customTitle : undefined;
 
 		// Initialize input model from serialized data (undefined for new chats)
-		const serializedInputState = isValidFullData && initialData.inputState ? initialData.inputState : undefined;
+		const serializedInputState = initialModelProps.inputState || (isValidFullData && initialData.inputState ? initialData.inputState : undefined);
 		this.inputModel = new InputModel(serializedInputState && {
 			attachments: serializedInputState.attachments,
 			mode: serializedInputState.mode,
@@ -1724,8 +1750,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					) {
 						const diffs = this._editingSession.getDiffsForFilesInRequest(request.id);
 						request.response?.updateContent(editEntriesToMultiDiffData(diffs), true);
-						this._onDidChange.fire({ kind: 'completedRequest', request });
 					}
+					this._onDidChange.fire({ kind: 'completedRequest', request });
 				}
 			}));
 		}));
@@ -1797,7 +1823,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 	}
 
-	private _deserialize(obj: IExportableChatData): ChatRequestModel[] {
+	private _deserialize(obj: IExportableChatData | ISerializableChatData): ChatRequestModel[] {
 		const requests = obj.requests;
 		if (!Array.isArray(requests)) {
 			this.logService.error(`Ignoring malformed session data: ${JSON.stringify(obj)}`);
@@ -1839,7 +1865,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						agent,
 						slashCommand: raw.slashCommand,
 						requestId: request.id,
-						modelState: raw.modelState || { value: raw.isCanceled ? ResponseModelState.Cancelled : ResponseModelState.Complete, completedAt: Date.now() },
+						modelState: raw.modelState || { value: raw.isCanceled ? ResponseModelState.Cancelled : ResponseModelState.Complete, completedAt: 'lastMessageDate' in obj ? obj.lastMessageDate : Date.now() },
 						vote: raw.vote,
 						timestamp: raw.timestamp,
 						voteDownReason: raw.voteDownReason,
@@ -2155,7 +2181,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	toJSON(): ISerializableChatData {
-		const inputState = this.inputModel.state.get();
 		return {
 			version: 3,
 			...this.toExport(),
@@ -2164,20 +2189,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			lastMessageDate: this._lastMessageDate,
 			customTitle: this._customTitle,
 			hasPendingEdits: !!(this._editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)),
-			// Only include inputState if it has been set
-			...(inputState ? {
-				inputState: {
-					contrib: inputState.contrib,
-					attachments: inputState.attachments,
-					mode: inputState.mode,
-					selectedModel: inputState.selectedModel ? {
-						identifier: inputState.selectedModel.identifier,
-						metadata: inputState.selectedModel.metadata
-					} : undefined,
-					inputText: inputState.inputText,
-					selections: inputState.selections
-				}
-			} : {})
+			inputState: this.inputModel.toJSON(),
 		};
 	}
 
