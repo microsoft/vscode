@@ -42,6 +42,7 @@ export class FocusAgentSessionsAction extends Action2 {
 				value: localize('chat.focusAgentSessionsViewer.label', "Focus Agent Sessions"),
 				original: 'Focus Agent Sessions'
 			},
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			f1: true,
 		});
