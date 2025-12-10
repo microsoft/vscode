@@ -496,7 +496,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 				if (dep.includes('node-pty')) {
 					// TODO: @rzhao271 switch node-pty to use optionalDependencies
 					console.warn(`Warning: could not patch ${dep} - deleting`);
-					util.rimraf(path.join(cwd, dep));
+					await util.rimraf(path.join(cwd, dep))();
 				} else {
 					throw err;
 				}
