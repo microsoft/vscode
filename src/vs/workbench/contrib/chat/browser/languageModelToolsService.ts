@@ -779,6 +779,21 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		const result = new Map<ToolSet | IToolData, boolean>();
 		const isAgentModeEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
 
+		// Helper to check if a tool belongs to a restricted toolset
+		const isToolInRestrictedToolSet = (tool: IToolData): boolean => {
+			for (const memberTool of this.executeToolSet.getTools()) {
+				if (memberTool === tool) {
+					return true;
+				}
+			}
+			for (const memberTool of this.readToolSet.getTools()) {
+				if (memberTool === tool) {
+					return true;
+				}
+			}
+			return false;
+		};
+
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {
 			if (tool instanceof ToolSet) {
 				// Gate execute and read toolsets based on agent mode setting
@@ -791,16 +806,24 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					for (const memberTool of tool.getTools()) {
 						result.set(memberTool, true);
 					}
+				} else if (shouldDisableToolSet) {
+					// When a restricted toolset is disabled, also disable its member tools
+					for (const memberTool of tool.getTools()) {
+						result.set(memberTool, false);
+					}
 				}
 			} else {
 				if (!result.has(tool)) { // already set via an enabled toolset
-					const enabled = toolOrToolSetNames.has(fullReferenceName)
+					// Check if this tool belongs to a restricted toolset
+					const toolInRestrictedToolSet = !isAgentModeEnabled && isToolInRestrictedToolSet(tool);
+
+					const enabled = toolInRestrictedToolSet ? false : (toolOrToolSetNames.has(fullReferenceName)
 						|| Iterable.some(this.getToolAliases(tool, fullReferenceName), name => toolOrToolSetNames.has(name))
 						|| !!tool.legacyToolReferenceFullNames?.some(toolFullName => {
 							// enable tool if just the legacy tool set name is present
 							const index = toolFullName.lastIndexOf('/');
 							return index !== -1 && toolOrToolSetNames.has(toolFullName.substring(0, index));
-						});
+						}));
 					result.set(tool, enabled);
 				}
 			}
