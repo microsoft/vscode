@@ -132,6 +132,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
 	private static _instanceIdCounter = 1;
 
+	private _primaryShellType: TerminalShellType | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
 
 	private readonly _processManager: ITerminalProcessManager;
@@ -1505,6 +1506,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._initialDataEventsListener.value = processManager.onProcessData(ev => this._initialDataEvents?.push(ev.data));
 		this._register(processManager.onProcessReplayComplete(() => this._onProcessReplayComplete.fire()));
 		this._register(processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e)));
+		this._register(this.onDidChangeHasChildProcesses(hasChildProcesses => {
+			if (!hasChildProcesses) {
+				this._restorePrimaryShellTypeAfterNestedProcessExit();
+			}
+		}));
 		this._register(processManager.onPtyDisconnect(() => {
 			if (this.xterm) {
 				this.xterm.raw.options.disableStdin = true;
@@ -1983,9 +1989,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._processManager.setDimensions(rawXterm.cols, rawXterm.rows);
 	}
 
+	private _restorePrimaryShellTypeAfterNestedProcessExit(): void {
+		if (this._shellType === GeneralShellType.Python && this._primaryShellType && this._primaryShellType !== GeneralShellType.Python) {
+			this.setShellType(this._primaryShellType);
+		}
+	}
+
 	setShellType(shellType: TerminalShellType | undefined) {
 		if (this._shellType === shellType) {
 			return;
+		}
+
+		// Remember the most recent non-Python shell type so we can fall back to it after exiting
+		// a nested Python REPL (for example after running `python` from zsh or bash).
+		if (shellType && shellType !== GeneralShellType.Python) {
+			this._primaryShellType = shellType;
 		}
 		this._shellType = shellType;
 		if (shellType === undefined) {
