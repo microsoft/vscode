@@ -427,14 +427,16 @@
 	white-space: nowrap;
 
 	height: 24px;
+	cursor: pointer;
 }
 
 .notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center span.codicon {
 	vertical-align: middle;
 }
 
-.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center a:hover .codicon {
-	cursor: pointer;
+.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center a:hover .codicon,
+.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center:hover .codicon {
+	color: var(--vscode-editorLink-activeForeground) !important;
 }
 
 /** Overlay to unhide the unchanged cells */
@@ -451,6 +453,7 @@
 	white-space: nowrap;
 
 	height: 24px;
+	cursor: pointer;
 }
 
 .notebook-text-diff-editor .cell-placeholder-body .text {
@@ -463,7 +466,7 @@
 	vertical-align: middle;
 }
 
-.notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center a:hover .codicon {
-	cursor: pointer;
+.notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center a:hover .codicon,
+.notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center:hover .codicon {
 	color: var(--vscode-editorLink-activeForeground) !important;
 }
