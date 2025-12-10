@@ -616,7 +616,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			const padding = this.compositeBarPosition === CompositeBarPosition.TITLE ? 16 : 8;
 			const borderWidth = this.partId === Parts.PANEL_PART ? 0 : 1;
 			let availableWidth = this.contentDimension.width - padding - borderWidth;
-			availableWidth = Math.max(AbstractPaneCompositePart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth());
+			availableWidth = Math.max(AbstractPaneCompositePart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarMinWidth());
 			this.paneCompositeBar.value.layout(availableWidth, this.dimension.height);
 		}
 	}
@@ -643,6 +643,27 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const toolBarWidth = this.toolBar.getItemsWidth() + this.toolBar.getItemsLength() * 4;
 		const globalToolBarWidth = this.globalToolBar ? this.globalToolBar.getItemsWidth() + this.globalToolBar.getItemsLength() * 4 : 0;
 		return toolBarWidth + globalToolBarWidth + 8; // 8px padding left
+	}
+
+	/**
+	 * Get the minimum toolbar width when items can be compressed.
+	 * This is currently duplicate code
+	 * but I'm not sure if I can modify the original APIs.
+	 */
+	protected getToolbarMinWidth(): number {
+		if (!this.toolBar || this.compositeBarPosition !== CompositeBarPosition.TITLE) {
+			return 0;
+		}
+
+		const activePane = this.getActivePaneComposite();
+		if (!activePane) {
+			return 0;
+		}
+
+		// Each toolbar item has 4px margin
+		const toolBarMinWidth = this.toolBar.getItemsMinWidth() + this.toolBar.getItemsLength() * 4;
+		const globalToolBarMinWidth = this.globalToolBar ? this.globalToolBar.getItemsMinWidth() + this.globalToolBar.getItemsLength() * 4 : 0;
+		return toolBarMinWidth + globalToolBarMinWidth + 5; // 5px padding left
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {

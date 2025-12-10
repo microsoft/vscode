@@ -26,6 +26,10 @@ export interface IActionViewItem extends IDisposable {
 	showHover?(): void;
 }
 
+export interface IResponsiveActionViewItem extends IActionViewItem {
+	getMinWidth(): number;
+}
+
 export interface IActionViewItemProvider {
 	(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined;
 }
@@ -432,6 +436,22 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		return 0;
+	}
+
+	getMinWidth(index: number): number {
+		if (index >= 0 && index < this.viewItems.length) {
+			const viewItem = this.viewItems[index];
+			if (this.isResponsiveActionViewItem(viewItem)) {
+				return viewItem.getMinWidth();
+			}
+			// Fall back to current width
+			return this.getWidth(index);
+		}
+		return 0;
+	}
+
+	private isResponsiveActionViewItem(item: IActionViewItem): item is IResponsiveActionViewItem {
+		return 'getMinWidth' in item;
 	}
 
 	getHeight(index: number): number {
