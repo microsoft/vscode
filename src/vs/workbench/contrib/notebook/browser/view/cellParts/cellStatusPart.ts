@@ -370,13 +370,17 @@ class CellStatusBarItem extends Disposable {
 			return;
 		}
 
-		const id = typeof command === 'string'
-			? command
-			: typeof command.id === 'string'
-				? command.id
-				: typeof (command as { command?: unknown }).command === 'string'
-					? (command as { command: string }).command
-					: undefined;
+		let id: string | undefined;
+		if (typeof command === 'string') {
+			id = command;
+		} else if (typeof command.id === 'string') {
+			id = command.id;
+		} else {
+			const commandId = (command as { command?: unknown }).command;
+			if (typeof commandId === 'string') {
+				id = commandId;
+			}
+		}
 		const args = typeof command === 'string' ? [] : command.arguments ?? [];
 
 		if (!id) {
