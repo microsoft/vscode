@@ -69,6 +69,7 @@ function npmInstall(dir: string, opts?: child_process.SpawnSyncOptions) {
 		run(npm, command.split(' '), opts);
 	}
 	removeParcelWatcherPrebuild(dir);
+	removeNodePtyPrebuild(dir);
 }
 
 function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
@@ -166,7 +167,6 @@ for (const dir of dirs) {
 
 	if (/^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		// node modules used by vscode server
-		removeNodePtyPrebuild(dir);
 		opts = {
 			env: {
 				...process.env
