@@ -92,4 +92,51 @@ suite('NotebookProviderInfoStore', function () {
 		assert.strictEqual(providers[0] === barInfo, true);
 	});
 
+	test('Virtual scheme URIs should be supported for notebook diffs #242097', function () {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const store = new NotebookProviderInfoStore(
+			new class extends mock<IStorageService>() {
+				override get() { return ''; }
+				override store() { }
+				override getObject() { return {}; }
+			},
+			new class extends mock<IExtensionService>() {
+				override onDidRegisterExtensions = Event.None;
+			},
+			disposables.add(instantiationService.createInstance(EditorResolverService)),
+			new TestConfigurationService(),
+			new class extends mock<IAccessibilityService>() {
+				override onDidChangeScreenReaderOptimized: Event<void> = Event.None;
+			},
+			instantiationService,
+			new class extends mock<IFileService>() {
+				override hasProvider() { return true; }
+			},
+			new class extends mock<INotebookEditorModelResolverService>() { },
+			new class extends mock<IUriIdentityService>() { }
+		);
+		disposables.add(store);
+
+		const ipynbInfo = new NotebookProviderInfo({
+			extension: nullExtensionDescription.identifier,
+			id: 'jupyter-notebook',
+			displayName: 'Jupyter Notebook',
+			selectors: [{ filenamePattern: '*.ipynb' }],
+			priority: RegisteredEditorPriority.default,
+			providerDisplayName: 'Jupyter',
+		});
+
+		store.add(ipynbInfo);
+
+		// Test that git scheme URIs are recognized for timeline diffs
+		let providers = store.getContributedNotebook(URI.parse('git:/test/notebook.ipynb?%7B%22path%22%3A%22%2Ftest%2Fnotebook.ipynb%22%2C%22ref%22%3A%22HEAD%22%7D'));
+		assert.strictEqual(providers.length, 1);
+		assert.strictEqual(providers[0] === ipynbInfo, true);
+
+		// Test that vscode-local-history scheme URIs are also recognized
+		providers = store.getContributedNotebook(URI.parse('vscode-local-history:/test/notebook.ipynb'));
+		assert.strictEqual(providers.length, 1);
+		assert.strictEqual(providers[0] === ipynbInfo, true);
+	});
+
 });

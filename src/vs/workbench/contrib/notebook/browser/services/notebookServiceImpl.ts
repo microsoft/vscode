@@ -190,8 +190,9 @@ export class NotebookProviderInfoStore extends Disposable {
 						const params = new URLSearchParams(resource.query);
 						return params.get('openIn') === 'notebook';
 					}
-					// Support git scheme for timeline view diffs
-					if (resource.scheme === 'git') {
+					// Support virtual schemes used for timeline and diff views
+					// These schemes are used to show historical versions of files
+					if (resource.scheme === 'git' || resource.scheme === 'vscode-local-history') {
 						return true;
 					}
 					return resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource);
