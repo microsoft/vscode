@@ -322,7 +322,8 @@ suite('LocalAgentsSessionsProvider', () => {
 				title: 'Test Session',
 				lastMessageDate: Date.now(),
 				isActive: true,
-				lastResponseState: ResponseModelState.Complete
+				lastResponseState: ResponseModelState.Complete,
+				timing: { startTime: 0, endTime: 1 }
 			}]);
 
 			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -344,7 +345,8 @@ suite('LocalAgentsSessionsProvider', () => {
 				title: 'History Session',
 				lastMessageDate: Date.now() - 10000,
 				isActive: false,
-				lastResponseState: ResponseModelState.Complete
+				lastResponseState: ResponseModelState.Complete,
+				timing: { startTime: 0, endTime: 1 }
 			}]);
 
 			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -369,14 +371,16 @@ suite('LocalAgentsSessionsProvider', () => {
 				title: 'Live Session',
 				lastMessageDate: Date.now(),
 				isActive: true,
-				lastResponseState: ResponseModelState.Complete
+				lastResponseState: ResponseModelState.Complete,
+				timing: { startTime: 0, endTime: 1 }
 			}]);
 			mockChatService.setHistorySessionItems([{
 				sessionResource,
 				title: 'History Session',
 				lastMessageDate: Date.now() - 10000,
 				isActive: false,
-				lastResponseState: ResponseModelState.Complete
+				lastResponseState: ResponseModelState.Complete,
+				timing: { startTime: 0, endTime: 1 }
 			}]);
 
 			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -403,7 +407,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'In Progress Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
-					lastResponseState: ResponseModelState.Complete
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -432,7 +437,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Completed Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
-					lastResponseState: ResponseModelState.Complete
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 },
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -460,7 +466,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Canceled Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
-					lastResponseState: ResponseModelState.Complete
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 },
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -488,7 +495,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Error Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
-					lastResponseState: ResponseModelState.Complete
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 },
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -532,6 +540,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 },
 					stats: {
 						added: 30,
 						removed: 8,
@@ -575,7 +584,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'No Stats Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
-					lastResponseState: ResponseModelState.Complete
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -604,7 +614,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Timing Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
-					lastResponseState: ResponseModelState.Complete
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: modelTimestamp }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -626,7 +637,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'History Timing Session',
 					lastMessageDate,
 					isActive: false,
-					lastResponseState: ResponseModelState.Complete
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: lastMessageDate }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -654,7 +666,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'EndTime Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
-					lastResponseState: ResponseModelState.Complete
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: completedAt }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -681,7 +694,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Icon Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
-					lastResponseState: ResponseModelState.Complete
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);

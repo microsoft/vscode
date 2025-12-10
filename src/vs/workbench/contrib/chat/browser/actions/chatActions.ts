@@ -766,6 +766,7 @@ export function registerChatActions() {
 											title: session.label,
 											isActive: false,
 											lastMessageDate: 0,
+											timing: { startTime: 0 },
 											lastResponseState: ResponseModelState.Complete
 										},
 										buttons,

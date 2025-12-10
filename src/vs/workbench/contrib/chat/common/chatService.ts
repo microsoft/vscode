@@ -923,10 +923,16 @@ export const enum ResponseModelState {
 	Failed
 }
 
+export interface IChatSessionTiming {
+	startTime: number;
+	endTime?: number;
+}
+
 export interface IChatDetail {
 	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
+	timing: IChatSessionTiming;
 	isActive: boolean;
 	stats?: IChatSessionStats;
 	lastResponseState: ResponseModelState;
