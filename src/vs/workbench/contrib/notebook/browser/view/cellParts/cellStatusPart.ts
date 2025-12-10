@@ -375,7 +375,7 @@ class CellStatusBarItem extends Disposable {
 			id = command;
 		} else if (typeof command.id === 'string') {
 			id = command.id;
-		} else {
+		} else if ('command' in command) {
 			const commandId = (command as { command?: unknown }).command;
 			if (typeof commandId === 'string') {
 				id = commandId;
