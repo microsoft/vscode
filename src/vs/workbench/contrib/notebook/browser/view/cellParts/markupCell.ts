@@ -146,6 +146,10 @@ export class MarkupCell extends Disposable {
 					this.foldingState = foldingState;
 					this.layoutFoldingIndicator();
 				}
+				
+				// When folding state changes, we need to update the view to show/hide the preview
+				// This is important when restoring folding state on notebook open
+				this.viewUpdate();
 			}
 
 			if (e.cellIsHoveredChanged) {
@@ -409,6 +413,20 @@ export class MarkupCell extends Disposable {
 				domSanitize.safeSetInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
 			} else {
 				DOM.clearNode(this.markdownAccessibilityContainer);
+			}
+		}
+
+		// Check if the cell is inside a folded region - if so, hide the preview instead of creating it
+		// This handles the case where the preview was created before folding state was restored
+		const viewModel = this.notebookEditor.getViewModel();
+		if (viewModel) {
+			const modelIndex = viewModel.getCellIndex(this.viewCell);
+			const foldedRanges = viewModel.getHiddenRanges();
+			const isHidden = foldedRanges.some(range => modelIndex >= range.start && modelIndex <= range.end);
+			
+			if (isHidden) {
+				this.notebookEditor.hideMarkupPreviews([this.viewCell]);
+				return;
 			}
 		}
 
