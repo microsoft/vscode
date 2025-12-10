@@ -84,43 +84,29 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 	get linesAdded(): IObservable<number> {
 		return this._cellsDiffInfo.map(cellsDiffInfo => {
-			let added = 0;
-			for (const cellDiff of cellsDiffInfo) {
-				const diff = cellDiff.diff.get();
-				// When we accept some of the cell insert/delete the items might still be in the list.
-				if (diff.identical) {
-					continue;
-				}
-				switch (cellDiff.type) {
-					case 'insert':
-						added += 1; // Count inserted cells
-						break;
-					case 'modified':
-						added += 1; // Count modified cells
-						break;
-				}
-			}
-			return added;
+			return this.countCellChanges(cellsDiffInfo, ['insert', 'modified']);
 		});
 	}
 
 	get linesRemoved(): IObservable<number> {
 		return this._cellsDiffInfo.map(cellsDiffInfo => {
-			let removed = 0;
-			for (const cellDiff of cellsDiffInfo) {
-				const diff = cellDiff.diff.get();
-				// When we accept some of the cell insert/delete the items might still be in the list.
-				if (diff.identical) {
-					continue;
-				}
-				switch (cellDiff.type) {
-					case 'delete':
-						removed += 1; // Count deleted cells
-						break;
-				}
-			}
-			return removed;
+			return this.countCellChanges(cellsDiffInfo, ['delete']);
 		});
+	}
+
+	private countCellChanges(cellsDiffInfo: ICellDiffInfo[], types: ('insert' | 'delete' | 'modified')[]): number {
+		let count = 0;
+		for (const cellDiff of cellsDiffInfo) {
+			const diff = cellDiff.diff.get();
+			// When we accept some of the cell insert/delete the items might still be in the list.
+			if (diff.identical) {
+				continue;
+			}
+			if (types.includes(cellDiff.type as any)) {
+				count += 1;
+			}
+		}
+		return count;
 	}
 
 	private readonly cellEntryMap = new ResourceMap<ChatEditingNotebookCellEntry>();
