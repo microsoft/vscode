@@ -85,3 +85,9 @@ export const agentSessionSelectedBadgeBorder = registerColor(
 	{ dark: transparent(listActiveSelectionForeground, 0.3), light: transparent(listActiveSelectionForeground, 0.3), hcDark: foreground, hcLight: foreground },
 	localize('agentSessionSelectedBadgeBorder', "Border color for the badges in selected agent session items.")
 );
+
+export const agentSessionSelectedUnfocusedBadgeBorder = registerColor(
+	'agentSessionSelectedUnfocusedBadge.border',
+	{ dark: transparent(foreground, 0.3), light: transparent(foreground, 0.3), hcDark: foreground, hcLight: foreground },
+	localize('agentSessionSelectedUnfocusedBadgeBorder', "Border color for the badges in selected agent session items when the view is unfocused.")
+);
