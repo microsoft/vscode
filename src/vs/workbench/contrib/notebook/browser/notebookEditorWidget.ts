@@ -2315,11 +2315,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	//#region View Zones
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void {
+		if (!this._list) {
+			throw new Error('Cannot create notebook viewzones before the list view is initialized. Consider deferring the viewzone creation until after the notebook editor is fully initialized (e.g., after the view model is attached).');
+		}
 		this._list.changeViewZones(callback);
 		this._onDidChangeLayout.fire();
 	}
 
 	getViewZoneLayoutInfo(id: string): { top: number; height: number } | null {
+		if (!this._list) {
+			throw new Error('Cannot get notebook viewzone layout info before the list view is initialized. Consider deferring the call until after the notebook editor is fully initialized (e.g., after the view model is attached).');
+		}
 		return this._list.getViewZoneLayoutInfo(id);
 	}
 	//#endregion
