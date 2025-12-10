@@ -33,7 +33,7 @@
     "kerberos": "2.1.1",
     "minimist": "^1.2.8",
     "native-watchdog": "^1.4.1",
-    "node-pty": "^1.1.0-beta39",
+    "node-pty": "1.1.0-beta35",
     "tas-client": "0.3.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",

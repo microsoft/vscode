@@ -108,7 +108,7 @@
     "native-is-elevated": "0.8.0",
     "native-keymap": "^3.3.5",
     "native-watchdog": "^1.4.1",
-    "node-pty": "^1.1.0-beta39",
+    "node-pty": "1.1.0-beta35",
     "open": "^10.1.2",
     "tas-client": "0.3.1",
     "undici": "^7.9.0",
