@@ -279,7 +279,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	}
 
 	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
-		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
+		return expectedScopes.every(scope => scopes.includes(scope));
 	}
 
 	private async getTokenEntitlements(accessToken: string): Promise<Partial<IDefaultAccount>> {
