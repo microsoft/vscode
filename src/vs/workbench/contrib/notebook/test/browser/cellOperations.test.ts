@@ -199,7 +199,7 @@ suite('CellOperations', () => {
 			],
 			async (editor, viewModel) => {
 				const markdownCell = viewModel.cellAt(0)!;
-				
+
 				// Set the markdown cell to editing mode
 				markdownCell.updateEditState(CellEditState.Editing, 'test');
 				assert.strictEqual(markdownCell.getEditState(), CellEditState.Editing);
@@ -227,7 +227,7 @@ suite('CellOperations', () => {
 			],
 			async (editor, viewModel) => {
 				const markdownCell = viewModel.cellAt(0)!;
-				
+
 				// Set the markdown cell to editing mode
 				markdownCell.updateEditState(CellEditState.Editing, 'test');
 				assert.strictEqual(markdownCell.getEditState(), CellEditState.Editing);
