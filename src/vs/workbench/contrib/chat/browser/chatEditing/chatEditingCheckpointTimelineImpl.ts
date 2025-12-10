@@ -372,25 +372,15 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	 */
 	private async _convertNotebookSnapshotToSerializedFormat(snapshotContent: string, notebookViewType: string): Promise<string> {
 		try {
-			// Deserialize the internal snapshot format
+			// Deserialize the internal snapshot format to get NotebookData
 			const { data } = deserializeSnapshot(snapshotContent);
 
-			// Create a temporary notebook model to use the notebook's serializer
-			const notebook = await this._notebookEditorModelResolverService.createUntitledNotebookTextModel(notebookViewType);
-			try {
-				// Restore the notebook data into the model
-				notebook.restoreSnapshot(data, undefined);
+			// Get the notebook serializer and serialize the NotebookData to bytes
+			const info = await this._notebookService.withNotebookDataProvider(notebookViewType);
+			const bytes = await info.serializer.notebookToData(data);
 
-				// Get the notebook serializer and serialize the notebook
-				const info = await this._notebookService.withNotebookDataProvider(notebookViewType);
-				const serialized = await info.serializer.notebookToData(notebook);
-
-				// Convert to bytes and back to string (this is what the serializer expects)
-				const bytes = await info.serializer.dataToNotebook(serialized);
-				return new TextDecoder().decode(bytes);
-			} finally {
-				notebook.dispose();
-			}
+			// Convert bytes to string (this is what the notebook serializer expects)
+			return new TextDecoder().decode(bytes);
 		} catch (error) {
 			console.error('Error converting notebook snapshot to serialized format:', error);
 			// Return the original content if conversion fails
