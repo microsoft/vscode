@@ -145,7 +145,7 @@
 	},
 	"trustedExtensionAuthAccess": {
 		"github": [
-			"github.copilot-chat"
+			"GitHub.copilot-chat"
 		]
 	}
 }
