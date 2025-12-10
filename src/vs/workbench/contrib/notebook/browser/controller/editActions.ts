@@ -13,8 +13,7 @@ import { EditorContextKeys } from '../../../../../editor/common/editorContextKey
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
-import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
+import { getIconClassesForLanguageId } from '../../../../../editor/common/services/getIconClasses.js';
 import { LineCommentCommand, Type } from '../../../../../editor/contrib/comment/browser/lineCommentCommand.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -467,7 +466,6 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		const mainItems: ILanguagePickInput[] = [];
 
 		const languageService = accessor.get(ILanguageService);
-		const modelService = accessor.get(IModelService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const languageDetectionService = accessor.get(ILanguageDetectionService);
 		const kernelService = accessor.get(INotebookKernelService);
@@ -500,7 +498,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 
 			const item: ILanguagePickInput = {
 				label: languageName,
-				iconClasses: getIconClasses(modelService, languageService, this.getFakeResource(languageName, languageService)),
+				iconClasses: getIconClassesForLanguageId(languageId),
 				description,
 				languageId
 			};
@@ -541,28 +539,6 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 
 	private async setLanguage(context: IChangeCellContext, languageId: string) {
 		await setCellToLanguage(languageId, context);
-	}
-
-	/**
-	 * Copied from editorStatus.ts
-	 */
-	private getFakeResource(lang: string, languageService: ILanguageService): URI | undefined {
-		let fakeResource: URI | undefined;
-
-		const languageId = languageService.getLanguageIdByLanguageName(lang);
-		if (languageId) {
-			const extensions = languageService.getExtensions(languageId);
-			if (extensions.length) {
-				fakeResource = URI.file(extensions[0]);
-			} else {
-				const filenames = languageService.getFilenames(languageId);
-				if (filenames.length) {
-					fakeResource = URI.file(filenames[0]);
-				}
-			}
-		}
-
-		return fakeResource;
 	}
 });
 
