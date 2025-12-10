@@ -111,12 +111,26 @@ export class EditTool implements IToolImpl {
 		}
 
 		let dispose: IDisposable;
-		await new Promise((resolve) => {
+		await new Promise((resolve, reject) => {
 			// The file will not be modified until the first edits start streaming in,
 			// so wait until we see that it _was_ modified before waiting for it to be done.
 			let wasFileBeingModified = false;
 
+			// Set up timeout to prevent infinite wait if file can't be modified
+			const timeout = setTimeout(() => {
+				if (dispose) {
+					dispose.dispose();
+					reject(new Error('Timeout waiting for file modification to complete. This may be due to the chat agent being in a different window where file modifications are not allowed.'));
+				}
+			}, 30000); // 30 second timeout
+
 			dispose = autorun((r) => {
+				// Check for cancellation
+				if (token.isCancellationRequested) {
+					clearTimeout(timeout);
+					reject(new Error('File modification was cancelled'));
+					return;
+				}
 
 				const entries = editSession.entries.read(r);
 				const currentFile = entries?.find((e) => e.modifiedURI.toString() === uri.toString());
@@ -124,12 +138,15 @@ export class EditTool implements IToolImpl {
 					if (currentFile.isCurrentlyBeingModifiedBy.read(r)) {
 						wasFileBeingModified = true;
 					} else if (wasFileBeingModified) {
+						clearTimeout(timeout);
 						resolve(true);
 					}
 				}
 			});
 		}).finally(() => {
-			dispose.dispose();
+			if (dispose) {
+				dispose.dispose();
+			}
 		});
 
 		return {
