@@ -507,7 +507,8 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyCode.Equal
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Equal,  // Add Shift to avoid zoom conflict
+				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow]        // Alternative keybinding
 			}
 		});
 	}
