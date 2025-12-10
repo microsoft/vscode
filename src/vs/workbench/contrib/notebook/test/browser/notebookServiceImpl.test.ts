@@ -129,6 +129,7 @@ suite('NotebookProviderInfoStore', function () {
 		store.add(ipynbInfo);
 
 		// Test that git scheme URIs are recognized for timeline diffs
+		// Git URIs have query params with JSON like: {"path":"/test/notebook.ipynb","ref":"HEAD"}
 		let providers = store.getContributedNotebook(URI.parse('git:/test/notebook.ipynb?%7B%22path%22%3A%22%2Ftest%2Fnotebook.ipynb%22%2C%22ref%22%3A%22HEAD%22%7D'));
 		assert.strictEqual(providers.length, 1);
 		assert.strictEqual(providers[0] === ipynbInfo, true);
