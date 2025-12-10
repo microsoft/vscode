@@ -15,6 +15,7 @@ import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBIN
 import { WebviewEditor } from './webviewEditor.js';
 import { WebviewInput } from './webviewEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 
 const webviewActiveContextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', WebviewEditor.ID), EditorContextKeys.focus.toNegated() /* https://github.com/microsoft/vscode/issues/58668 */)!;
 
@@ -121,6 +122,35 @@ export class ReloadWebviewAction extends Action2 {
 		const webviewService = accessor.get(IWebviewService);
 		for (const webview of webviewService.webviews) {
 			webview.reload();
+		}
+	}
+}
+
+export class CloseWebviewEditorAction extends Action2 {
+	static readonly ID = 'workbench.action.closeWebviewEditor';
+
+	public constructor() {
+		super({
+			id: CloseWebviewEditorAction.ID,
+			title: nls.localize2('closeWebviewEditor', "Close Webview Editor"),
+			keybinding: {
+				when: webviewActiveContextKeyExpr,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyW },
+				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
+				weight: KeybindingWeight.EditorContrib + 1
+			}
+		});
+	}
+
+	public async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const activeEditor = editorService.activeEditor;
+		
+		if (activeEditor instanceof WebviewInput) {
+			const group = editorGroupsService.activeGroup;
+			await group.closeEditor(activeEditor);
 		}
 	}
 }
