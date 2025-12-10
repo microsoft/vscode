@@ -245,7 +245,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		};
 	}
 
-	override canReopen(): boolean {
+	public override canReopen(): boolean {
 		return false;
 	}
 }
