@@ -2161,8 +2161,7 @@ export class UnchangedCellOverlayWidget extends Disposable implements IDiffCellM
 		}, [
 			DOM.$('a', {},
 				...renderLabelWithIcons('$(fold)')
-			),
-		]
+			)]
 		),
 	]);
 
