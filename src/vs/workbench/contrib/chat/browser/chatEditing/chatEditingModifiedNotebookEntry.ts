@@ -94,7 +94,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		});
 	}
 
-	private countCellChanges(cellsDiffInfo: ICellDiffInfo[], types: ('insert' | 'delete' | 'modified')[]): number {
+	private countCellChanges(cellsDiffInfo: ICellDiffInfo[], types: ICellDiffInfo['type'][]): number {
 		let count = 0;
 		for (const cellDiff of cellsDiffInfo) {
 			const diff = cellDiff.diff.get();
@@ -102,7 +102,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			if (diff.identical) {
 				continue;
 			}
-			if (types.includes(cellDiff.type as any)) {
+			if (types.includes(cellDiff.type)) {
 				count += 1;
 			}
 		}
