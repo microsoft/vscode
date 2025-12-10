@@ -41,6 +41,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	private _dependenciesToBeRemoved = new Set<IObservable<any>>();
 	private _changeSummary: TChangeSummary | undefined;
 	private _isRunning = false;
+	private _iteration = 0;
 
 	public get debugName(): string {
 		return this._debugNameData.getDebugName(this) ?? '(anonymous)';
@@ -136,6 +137,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	// IObserver implementation
 	public beginUpdate(_observable: IObservable<any>): void {
 		if (this._state === AutorunState.upToDate) {
+			this._checkInvariant();
 			this._state = AutorunState.dependenciesMightHaveChanged;
 		}
 		this._updateCount++;
@@ -144,7 +146,11 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	public endUpdate(_observable: IObservable<any>): void {
 		try {
 			if (this._updateCount === 1) {
+				this._iteration = 1;
 				do {
+					if (this._checkInvariant()) {
+						return;
+					}
 					if (this._state === AutorunState.dependenciesMightHaveChanged) {
 						this._state = AutorunState.upToDate;
 						for (const d of this._dependencies) {
@@ -156,6 +162,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 						}
 					}
 
+					this._iteration++;
 					if (this._state !== AutorunState.upToDate) {
 						this._run(); // Warning: indirect external call!
 					}
@@ -170,6 +177,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 
 	public handlePossibleChange(observable: IObservable<any>): void {
 		if (this._state === AutorunState.upToDate && this._isDependency(observable)) {
+			this._checkInvariant();
 			this._state = AutorunState.dependenciesMightHaveChanged;
 		}
 	}
@@ -186,6 +194,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 					didChange: (o): this is any => o === observable as any,
 				}, this._changeSummary!) : true;
 				if (shouldReact) {
+					this._checkInvariant();
 					this._state = AutorunState.stale;
 				}
 			} catch (e) {
@@ -261,5 +270,13 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 		} else {
 			this._state = AutorunState.stale;
 		}
+	}
+
+	private _checkInvariant(): boolean {
+		if (this._iteration > 100) {
+			onBugIndicatingError(new BugIndicatingError(`Autorun '${this.debugName}' is stuck in an infinite update loop.`));
+			return true;
+		}
+		return false;
 	}
 }
