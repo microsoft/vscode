@@ -190,6 +190,10 @@ export class NotebookProviderInfoStore extends Disposable {
 						const params = new URLSearchParams(resource.query);
 						return params.get('openIn') === 'notebook';
 					}
+					// Support git scheme for timeline view diffs
+					if (resource.scheme === 'git') {
+						return true;
+					}
 					return resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource);
 				}
 			};
