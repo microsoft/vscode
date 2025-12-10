@@ -15,6 +15,46 @@ export const INotificationService = createDecorator<INotificationService>('notif
 
 export type NotificationMessage = string | Error;
 
+/**
+ * Special formatting content section for rich notifications
+ */
+export interface ISpecialFormattingSection {
+	/**
+	 * Title of the section
+	 */
+	readonly title?: string;
+
+	/**
+	 * Content of the section
+	 */
+	readonly content: string;
+
+	/**
+	 * Optional icon for the section
+	 */
+	readonly icon?: string;
+}
+
+/**
+ * Special formatting content for notifications that require custom rendering
+ */
+export interface ISpecialFormattingContent {
+	/**
+	 * Type identifier for the special formatting
+	 */
+	readonly type: 'specialFormatting';
+
+	/**
+	 * Main heading of the notification
+	 */
+	readonly heading: string;
+
+	/**
+	 * Sections with special formatting
+	 */
+	readonly sections: ISpecialFormattingSection[];
+}
+
 export enum NotificationPriority {
 
 	/**
@@ -169,6 +209,13 @@ export interface INotification extends INotificationProperties {
 	 * later on, access the `INotificationHandle.progress` property.
 	 */
 	readonly progress?: INotificationProgressProperties;
+
+	/**
+	 * Optional special formatting content for rich notifications with custom rendering.
+	 * When provided, the notification will be rendered with a special template that
+	 * supports multiple sections and custom formatting.
+	 */
+	readonly specialFormattingContent?: ISpecialFormattingContent;
 }
 
 export interface INotificationActions {

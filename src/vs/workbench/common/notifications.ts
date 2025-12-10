@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority, INotificationSource, isNotificationSource, IStatusHandle } from '../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority, INotificationSource, isNotificationSource, IStatusHandle, ISpecialFormattingContent } from '../../platform/notification/common/notification.js';
 import { toErrorMessage, isErrorWithActions } from '../../base/common/errorMessage.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { Disposable } from '../../base/common/lifecycle.js';
@@ -305,6 +305,7 @@ export interface INotificationViewItem {
 	readonly sourceId: string | undefined;
 	readonly actions: INotificationActions | undefined;
 	readonly progress: INotificationViewItemProgress;
+	readonly specialFormattingContent: ISpecialFormattingContent | undefined;
 
 	readonly expanded: boolean;
 	readonly visible: boolean;
@@ -499,7 +500,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			}
 		}
 
-		return new NotificationViewItem(notification.id, severity, notification.sticky, priority, message, notification.source, notification.progress, actions);
+		return new NotificationViewItem(notification.id, severity, notification.sticky, priority, message, notification.source, notification.progress, actions, notification.specialFormattingContent);
 	}
 
 	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage | undefined {
@@ -538,7 +539,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		private _message: INotificationMessage,
 		private _source: string | INotificationSource | undefined,
 		progress: INotificationProgressProperties | undefined,
-		actions?: INotificationActions
+		actions?: INotificationActions,
+		readonly specialFormattingContent?: ISpecialFormattingContent
 	) {
 		super();
 

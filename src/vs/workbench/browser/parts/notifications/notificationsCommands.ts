@@ -346,3 +346,32 @@ export class NotificationActionRunner extends ActionRunner {
 		}
 	}
 }
+
+// Demo command for special formatting notification
+CommandsRegistry.registerCommand('_workbench.showSpecialFormattingNotificationDemo', (accessor) => {
+	const notificationService = accessor.get(INotificationService);
+
+	notificationService.notify({
+		severity: 1, // Info
+		message: 'Special Formatting Notification',
+		source: 'Demo',
+		specialFormattingContent: {
+			type: 'specialFormatting',
+			heading: 'Welcome to Special Formatting Notifications',
+			sections: [
+				{
+					title: 'Key Features',
+					content: 'This notification type supports multiple sections with custom formatting. Each section can have an optional title and detailed content.'
+				},
+				{
+					title: 'Use Cases',
+					content: 'Perfect for:\n• Release notes with multiple sections\n• Error messages with detailed explanations\n• Feature announcements with multiple points\n• System updates with changelog details'
+				},
+				{
+					content: 'Sections can also be displayed without a title, like this one. The content automatically wraps and maintains proper formatting.'
+				}
+			]
+		},
+		sticky: true
+	});
+});

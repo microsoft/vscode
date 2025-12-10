@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IListAccessibilityProvider, IListOptions } from '../../../../base/browser/ui/list/listWidget.js';
 import { NOTIFICATIONS_BACKGROUND } from '../../../common/theme.js';
 import { INotificationViewItem } from '../../../common/notifications.js';
-import { NotificationsListDelegate, NotificationRenderer } from './notificationsViewer.js';
+import { NotificationsListDelegate, NotificationRenderer, SpecialFormattingNotificationRenderer } from './notificationsViewer.js';
 import { CopyNotificationMessageAction } from './notificationsActions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { assertReturnsAllDefined } from '../../../../base/common/types.js';
@@ -65,8 +65,9 @@ export class NotificationsList extends Disposable {
 
 		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
 
-		// Notification Renderer
+		// Notification Renderers
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
+		const specialFormattingRenderer = this.instantiationService.createInstance(SpecialFormattingNotificationRenderer, actionRunner);
 
 		// List
 		const listDelegate = this.listDelegate = new NotificationsListDelegate(this.listContainer);
@@ -76,7 +77,7 @@ export class NotificationsList extends Disposable {
 			'NotificationsList',
 			this.listContainer,
 			listDelegate,
-			[renderer],
+			[renderer, specialFormattingRenderer],
 			{
 				...options,
 				setRowLineHeight: false,

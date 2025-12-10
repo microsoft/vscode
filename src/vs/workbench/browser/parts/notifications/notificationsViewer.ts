@@ -53,6 +53,11 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 			return NotificationsListDelegate.ROW_HEIGHT; // return early if there are no more rows to show
 		}
 
+		// Special handling for special formatting notifications
+		if (notification.specialFormattingContent) {
+			return this.getSpecialFormattingHeight(notification);
+		}
+
 		// First row: message and actions
 		let expandedHeight = NotificationsListDelegate.ROW_HEIGHT;
 
@@ -76,6 +81,29 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		}
 
 		return expandedHeight;
+	}
+
+	private getSpecialFormattingHeight(notification: INotificationViewItem): number {
+		// Base height for heading row
+		let height = NotificationsListDelegate.ROW_HEIGHT;
+
+		// Add height for sections if expanded
+		if (notification.specialFormattingContent) {
+			for (const section of notification.specialFormattingContent.sections) {
+				// Estimate section height: title (if present) + content
+				const titleHeight = section.title ? 16 : 0; // 12px font + 4px margin
+				const contentLines = Math.ceil(section.content.length / 60); // Rough estimate
+				const contentHeight = contentLines * 18; // 18px line height
+				height += titleHeight + contentHeight + 8; // 8px margin between sections
+			}
+		}
+
+		// Add height for source and buttons if present
+		if (notification.source || isNonEmptyArray(notification.actions?.primary)) {
+			height += NotificationsListDelegate.ROW_HEIGHT;
+		}
+
+		return height;
 	}
 
 	private computePreferredHeight(notification: INotificationViewItem): number {
@@ -108,6 +136,10 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 
 	getTemplateId(element: INotificationViewItem): string {
 		if (element instanceof NotificationViewItem) {
+			// Use special formatting template if content is provided
+			if (element.specialFormattingContent) {
+				return SpecialFormattingNotificationRenderer.TEMPLATE_ID;
+			}
 			return NotificationRenderer.TEMPLATE_ID;
 		}
 
@@ -454,6 +486,437 @@ export class NotificationTemplateRenderer extends Disposable {
 		// Close (unless progress is showing)
 		if (!notification.hasProgress) {
 			actions.push(NotificationTemplateRenderer.closeNotificationAction);
+		}
+
+		this.template.toolbar.clear();
+		this.template.toolbar.context = notification;
+		actions.forEach(action => this.template.toolbar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) }));
+	}
+
+	private renderSource(notification: INotificationViewItem, sourceCustomHover: IManagedHover): void {
+		if (notification.expanded && notification.source) {
+			this.template.source.textContent = localize('notificationSource', "Source: {0}", notification.source);
+			sourceCustomHover.update(notification.source);
+		} else {
+			this.template.source.textContent = '';
+			sourceCustomHover.update('');
+		}
+	}
+
+	private renderButtons(notification: INotificationViewItem): void {
+		clearNode(this.template.buttonsContainer);
+
+		const primaryActions = notification.actions ? notification.actions.primary : undefined;
+		if (notification.expanded && isNonEmptyArray(primaryActions)) {
+			const that = this;
+
+			const actionRunner: IActionRunner = this.inputDisposables.add(new class extends ActionRunner {
+				protected override async runAction(action: IAction): Promise<void> {
+
+					// Run action
+					that.actionRunner.run(action, notification);
+
+					// Hide notification (unless explicitly prevented)
+					if (!(action instanceof ChoiceAction) || !action.keepOpen) {
+						notification.close();
+					}
+				}
+			}());
+
+			const buttonToolbar = this.inputDisposables.add(new ButtonBar(this.template.buttonsContainer));
+			for (let i = 0; i < primaryActions.length; i++) {
+				const action = primaryActions[i];
+
+				const options: IButtonOptions = {
+					title: true,  // assign titles to buttons in case they overflow
+					secondary: i > 0,
+					...defaultButtonStyles
+				};
+
+				const dropdownActions = action instanceof ChoiceAction ? action.menu : undefined;
+				const button = this.inputDisposables.add(dropdownActions ?
+					buttonToolbar.addButtonWithDropdown({
+						...options,
+						contextMenuProvider: this.contextMenuService,
+						actions: dropdownActions,
+						actionRunner
+					}) :
+					buttonToolbar.addButton(options)
+				);
+
+				button.label = action.label;
+
+				this.inputDisposables.add(button.onDidClick(e => {
+					if (e) {
+						EventHelper.stop(e, true);
+					}
+
+					actionRunner.run(action);
+				}));
+			}
+		}
+	}
+
+	private renderProgress(notification: INotificationViewItem): void {
+
+		// Return early if the item has no progress
+		if (!notification.hasProgress) {
+			this.template.progress.stop().hide();
+
+			return;
+		}
+
+		// Infinite
+		const state = notification.progress.state;
+		if (state.infinite) {
+			this.template.progress.infinite().show();
+		}
+
+		// Total / Worked
+		else if (typeof state.total === 'number' || typeof state.worked === 'number') {
+			if (typeof state.total === 'number' && !this.template.progress.hasTotal()) {
+				this.template.progress.total(state.total);
+			}
+
+			if (typeof state.worked === 'number') {
+				this.template.progress.setWorked(state.worked).show();
+			}
+		}
+
+		// Done
+		else {
+			this.template.progress.done().hide();
+		}
+	}
+
+	private toSeverityIcon(severity: Severity): ThemeIcon {
+		switch (severity) {
+			case Severity.Warning:
+				return Codicon.warning;
+			case Severity.Error:
+				return Codicon.error;
+		}
+		return Codicon.info;
+	}
+
+	private getKeybindingLabel(action: IAction): string | null {
+		const keybinding = this.keybindingService.lookupKeybinding(action.id);
+
+		return keybinding ? keybinding.getLabel() : null;
+	}
+}
+
+// Special Formatting Notification Renderer
+
+export interface ISpecialFormattingNotificationTemplateData {
+	container: HTMLElement;
+	toDispose: DisposableStore;
+
+	mainRow: HTMLElement;
+	icon: HTMLElement;
+	heading: HTMLElement;
+	toolbar: ActionBar;
+
+	sectionsContainer: HTMLElement;
+	detailsRow: HTMLElement;
+	source: HTMLElement;
+	buttonsContainer: HTMLElement;
+	progress: ProgressBar;
+
+	renderer: SpecialFormattingNotificationTemplateRenderer;
+}
+
+export class SpecialFormattingNotificationRenderer implements IListRenderer<INotificationViewItem, ISpecialFormattingNotificationTemplateData> {
+
+	static readonly TEMPLATE_ID = 'specialFormattingNotification';
+
+	constructor(
+		private actionRunner: IActionRunner,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService
+	) {
+	}
+
+	get templateId() {
+		return SpecialFormattingNotificationRenderer.TEMPLATE_ID;
+	}
+
+	renderTemplate(container: HTMLElement): ISpecialFormattingNotificationTemplateData {
+		const data: ISpecialFormattingNotificationTemplateData = Object.create(null);
+		data.toDispose = new DisposableStore();
+
+		// Container
+		data.container = $('.notification-list-item.special-formatting');
+
+		// Main Row
+		data.mainRow = $('.notification-list-item-main-row');
+
+		// Icon
+		data.icon = $('.notification-list-item-icon.codicon');
+
+		// Heading
+		data.heading = $('.notification-list-item-heading');
+
+		// Toolbar
+		const that = this;
+		const toolbarContainer = $('.notification-list-item-toolbar-container');
+		data.toolbar = new ActionBar(
+			toolbarContainer,
+			{
+				ariaLabel: localize('notificationActions', "Notification Actions"),
+				actionViewItemProvider: (action, options) => {
+					if (action instanceof ConfigureNotificationAction) {
+						return data.toDispose.add(new DropdownMenuActionViewItem(action, {
+							getActions() {
+								const actions: IAction[] = [];
+
+								const source = { id: action.notification.sourceId, label: action.notification.source };
+								if (isNotificationSource(source)) {
+									const isSourceFiltered = that.notificationService.getFilter(source) === NotificationsFilter.ERROR;
+									actions.push(toAction({
+										id: source.id,
+										label: isSourceFiltered ? localize('turnOnNotifications', "Turn On All Notifications from '{0}'", source.label) : localize('turnOffNotifications', "Turn Off Info and Warning Notifications from '{0}'", source.label),
+										run: () => that.notificationService.setFilter({ ...source, filter: isSourceFiltered ? NotificationsFilter.OFF : NotificationsFilter.ERROR })
+									}));
+
+									if (action.notification.actions?.secondary?.length) {
+										actions.push(new Separator());
+									}
+								}
+
+								if (Array.isArray(action.notification.actions?.secondary)) {
+									actions.push(...action.notification.actions.secondary);
+								}
+
+								return actions;
+							},
+						}, this.contextMenuService, {
+							...options,
+							actionRunner: this.actionRunner,
+							classNames: action.class
+						}));
+					}
+
+					return undefined;
+				},
+				actionRunner: this.actionRunner
+			}
+		);
+		data.toDispose.add(data.toolbar);
+
+		// Sections Container
+		data.sectionsContainer = $('.notification-list-item-sections');
+
+		// Details Row
+		data.detailsRow = $('.notification-list-item-details-row');
+
+		// Source
+		data.source = $('.notification-list-item-source');
+
+		// Buttons Container
+		data.buttonsContainer = $('.notification-list-item-buttons-container');
+
+		container.appendChild(data.container);
+
+		// the details row appears first in order for better keyboard access to notification buttons
+		data.container.appendChild(data.detailsRow);
+		data.detailsRow.appendChild(data.source);
+		data.detailsRow.appendChild(data.buttonsContainer);
+
+		// main row
+		data.container.appendChild(data.mainRow);
+		data.mainRow.appendChild(data.icon);
+		data.mainRow.appendChild(data.heading);
+		data.mainRow.appendChild(toolbarContainer);
+
+		// sections container
+		data.container.appendChild(data.sectionsContainer);
+
+		// Progress: below the rows to span the entire width of the item
+		data.progress = new ProgressBar(container, defaultProgressBarStyles);
+		data.toDispose.add(data.progress);
+
+		// Renderer
+		data.renderer = this.instantiationService.createInstance(SpecialFormattingNotificationTemplateRenderer, data, this.actionRunner);
+		data.toDispose.add(data.renderer);
+
+		return data;
+	}
+
+	renderElement(notification: INotificationViewItem, index: number, data: ISpecialFormattingNotificationTemplateData): void {
+		data.renderer.setInput(notification);
+	}
+
+	disposeTemplate(templateData: ISpecialFormattingNotificationTemplateData): void {
+		dispose(templateData.toDispose);
+	}
+}
+
+export class SpecialFormattingNotificationTemplateRenderer extends Disposable {
+
+	private static closeNotificationAction: ClearNotificationAction;
+	private static expandNotificationAction: ExpandNotificationAction;
+	private static collapseNotificationAction: CollapseNotificationAction;
+
+	private static readonly SEVERITIES = [Severity.Info, Severity.Warning, Severity.Error];
+
+	private readonly inputDisposables = this._register(new DisposableStore());
+
+	constructor(
+		private template: ISpecialFormattingNotificationTemplateData,
+		private actionRunner: IActionRunner,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService private readonly hoverService: IHoverService,
+	) {
+		super();
+
+		if (!SpecialFormattingNotificationTemplateRenderer.closeNotificationAction) {
+			SpecialFormattingNotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
+			SpecialFormattingNotificationTemplateRenderer.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
+			SpecialFormattingNotificationTemplateRenderer.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
+		}
+	}
+
+	setInput(notification: INotificationViewItem): void {
+		this.inputDisposables.clear();
+
+		this.render(notification);
+	}
+
+	private render(notification: INotificationViewItem): void {
+
+		// Container
+		this.template.container.classList.toggle('expanded', notification.expanded);
+		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.MOUSE_UP, e => {
+			if (e.button === 1 /* Middle Button */) {
+				// Prevent firing the 'paste' event in the editor textarea - #109322
+				EventHelper.stop(e, true);
+			}
+		}));
+		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.AUXCLICK, e => {
+			if (!notification.hasProgress && e.button === 1 /* Middle Button */) {
+				EventHelper.stop(e, true);
+
+				notification.close();
+			}
+		}));
+
+		// Severity Icon
+		this.renderSeverity(notification);
+
+		// Heading
+		this.renderHeading(notification);
+
+		// Special Formatting Sections
+		this.renderSections(notification);
+
+		// Secondary Actions
+		this.renderSecondaryActions(notification);
+
+		// Source
+		const sourceCustomHover = this.inputDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.template.source, ''));
+		this.renderSource(notification, sourceCustomHover);
+
+		// Buttons
+		this.renderButtons(notification);
+
+		// Progress
+		this.renderProgress(notification);
+
+		// Label Change Events
+		this.inputDisposables.add(notification.onDidChangeContent(event => {
+			switch (event.kind) {
+				case NotificationViewItemContentChangeKind.SEVERITY:
+					this.renderSeverity(notification);
+					break;
+				case NotificationViewItemContentChangeKind.PROGRESS:
+					this.renderProgress(notification);
+					break;
+				case NotificationViewItemContentChangeKind.MESSAGE:
+					this.renderHeading(notification);
+					this.renderSections(notification);
+					break;
+			}
+		}));
+	}
+
+	private renderSeverity(notification: INotificationViewItem): void {
+		// first remove, then set as the codicon class names overlap
+		SpecialFormattingNotificationTemplateRenderer.SEVERITIES.forEach(severity => {
+			if (notification.severity !== severity) {
+				this.template.icon.classList.remove(...ThemeIcon.asClassNameArray(this.toSeverityIcon(severity)));
+			}
+		});
+		this.template.icon.classList.add(...ThemeIcon.asClassNameArray(this.toSeverityIcon(notification.severity)));
+	}
+
+	private renderHeading(notification: INotificationViewItem): void {
+		clearNode(this.template.heading);
+		if (notification.specialFormattingContent) {
+			this.template.heading.textContent = notification.specialFormattingContent.heading;
+		} else {
+			// Fallback to regular message if no special formatting
+			this.template.heading.textContent = notification.message.raw;
+		}
+	}
+
+	private renderSections(notification: INotificationViewItem): void {
+		clearNode(this.template.sectionsContainer);
+
+		if (!notification.specialFormattingContent || !notification.expanded) {
+			return;
+		}
+
+		for (const section of notification.specialFormattingContent.sections) {
+			const sectionElement = $('.notification-section');
+
+			if (section.title) {
+				const titleElement = $('.notification-section-title');
+				titleElement.textContent = section.title;
+				sectionElement.appendChild(titleElement);
+			}
+
+			const contentElement = $('.notification-section-content');
+			contentElement.textContent = section.content;
+			sectionElement.appendChild(contentElement);
+
+			this.template.sectionsContainer.appendChild(sectionElement);
+		}
+	}
+
+	private renderSecondaryActions(notification: INotificationViewItem): void {
+		const actions: IAction[] = [];
+
+		// Secondary Actions
+		if (isNonEmptyArray(notification.actions?.secondary)) {
+			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, notification);
+			actions.push(configureNotificationAction);
+			this.inputDisposables.add(configureNotificationAction);
+		}
+
+		// Expand / Collapse
+		let showExpandCollapseAction = false;
+		if (notification.canCollapse) {
+			if (notification.expanded) {
+				showExpandCollapseAction = true; // allow to collapse an expanded message
+			} else if (notification.source) {
+				showExpandCollapseAction = true; // allow to expand to details row
+			} else if (notification.specialFormattingContent) {
+				showExpandCollapseAction = true; // allow to expand to see sections
+			}
+		}
+
+		if (showExpandCollapseAction) {
+			actions.push(notification.expanded ? SpecialFormattingNotificationTemplateRenderer.collapseNotificationAction : SpecialFormattingNotificationTemplateRenderer.expandNotificationAction);
+		}
+
+		// Close (unless progress is showing)
+		if (!notification.hasProgress) {
+			actions.push(SpecialFormattingNotificationTemplateRenderer.closeNotificationAction);
 		}
 
 		this.template.toolbar.clear();

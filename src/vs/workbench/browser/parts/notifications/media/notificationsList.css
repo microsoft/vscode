@@ -143,3 +143,55 @@
 .monaco-workbench .notifications-list-container .progress-bit {
 	bottom: 0;
 }
+
+/** Special Formatting Notification */
+
+.monaco-workbench .notifications-list-container .notification-list-item.special-formatting .notification-list-item-heading {
+	line-height: 22px;
+	font-weight: 600;
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item.special-formatting.expanded .notification-list-item-heading {
+	white-space: normal;
+	word-wrap: break-word;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item.special-formatting .notification-list-item-sections {
+	display: none;
+	margin-left: 24px;
+	margin-right: 5px;
+	margin-top: 8px;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item.special-formatting.expanded .notification-list-item-sections {
+	display: block;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item.special-formatting .notification-section {
+	margin-bottom: 8px;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item.special-formatting .notification-section:last-child {
+	margin-bottom: 0;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item.special-formatting .notification-section-title {
+	font-size: 12px;
+	font-weight: 600;
+	margin-bottom: 4px;
+	opacity: 0.9;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item.special-formatting .notification-section-content {
+	font-size: 12px;
+	line-height: 18px;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	user-select: text;
+	-webkit-user-select: text;
+}
