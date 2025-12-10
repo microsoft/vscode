@@ -464,6 +464,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
 		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
+		this.sessionsControl?.setVisible(newSessionsContainerVisible);
 
 		return {
 			changed: sessionsContainerVisible !== newSessionsContainerVisible,
@@ -616,14 +617,24 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		});
 	}
 
+	override focus(): void {
+		super.focus();
+
+		this.focusInput();
+	}
+
 	focusInput(): void {
 		this._widget.focusInput();
 	}
 
-	override focus(): void {
-		super.focus();
+	focusSessions(): boolean {
+		if (!this.sessionsControl?.isVisible()) {
+			return false;
+		}
 
-		this._widget.focusInput();
+		this.sessionsControl.focus();
+
+		return true;
 	}
 
 	protected override layoutBody(height: number, width: number): void {

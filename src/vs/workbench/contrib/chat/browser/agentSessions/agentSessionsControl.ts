@@ -253,7 +253,15 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.sessionsList?.updateChildren();
 	}
 
+	isVisible(): boolean {
+		return this.visible;
+	}
+
 	setVisible(visible: boolean): void {
+		if (this.visible === visible) {
+			return;
+		}
+
 		this.visible = visible;
 
 		if (this.visible) {
