@@ -85,8 +85,6 @@ class MirrorCell {
 			op.outputs.map(o => {
 				const dataBuffer = o.data.buffer;
 				const bufferSize = dataBuffer.byteLength;
-				// Include the size in the hash to detect size changes
-				hashValue = numberHash(bufferSize, hashValue);
 				
 				// For large outputs (e.g., base64-encoded images), only hash a portion
 				// to avoid performance issues during diff computation
@@ -95,7 +93,8 @@ class MirrorCell {
 					const chunkSize = MAX_OUTPUT_DATA_SIZE_FOR_HASH / 2;
 					const firstChunk = Array.from(new Uint8Array(dataBuffer, 0, chunkSize));
 					const lastChunk = Array.from(new Uint8Array(dataBuffer, bufferSize - chunkSize, chunkSize));
-					return hash(firstChunk.concat(lastChunk));
+					// Include size in the hash data to detect size changes
+					return hash([bufferSize, ...firstChunk, ...lastChunk]);
 				} else {
 					return hash(Array.from(dataBuffer));
 				}

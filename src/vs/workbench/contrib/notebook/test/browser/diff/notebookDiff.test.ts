@@ -706,7 +706,8 @@ suite('NotebookDiff', () => {
 		await withTestNotebookDiffModel([
 			['x', 'python', CellKind.Markup, [{ outputId: 'id1', outputs: [{ mime: 'image/png', data: VSBuffer.wrap(largeImageData) }] }], {}],
 		], [
-			['x', 'python', CellKind.Markup, [{ outputId: 'id1', outputs: [{ mime: 'image/png', data: VSBuffer.wrap(new Uint8Array(largeImageData)) }] }], {}],
+			// Use slice() to create a copy with identical content
+			['x', 'python', CellKind.Markup, [{ outputId: 'id1', outputs: [{ mime: 'image/png', data: VSBuffer.wrap(largeImageData.slice()) }] }], {}],
 		], async (model, disposables, accessor) => {
 			const startTime = Date.now();
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
