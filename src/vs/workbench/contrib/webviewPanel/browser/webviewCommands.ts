@@ -148,10 +148,12 @@ export class CloseWebviewEditorAction extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const activeEditor = editorService.activeEditor;
 		
-		if (activeEditor instanceof WebviewInput) {
-			const group = editorGroupsService.activeGroup;
-			await group.closeEditor(activeEditor);
+		if (!(activeEditor instanceof WebviewInput)) {
+			return;
 		}
+
+		const group = editorGroupsService.activeGroup;
+		await group.closeEditor(activeEditor);
 	}
 }
 
