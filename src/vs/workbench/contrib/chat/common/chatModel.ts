@@ -1069,6 +1069,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	complete(): void {
+		// No-op if it's already complete
+		if (this.isComplete) {
+			return;
+		}
 		if (this._result?.errorDetails?.responseIsRedacted) {
 			this._response.clear();
 		}
