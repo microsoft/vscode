@@ -22,6 +22,7 @@
 		"--vscode-activityWarningBadge-background",
 		"--vscode-activityWarningBadge-foreground",
 		"--vscode-agentSessionReadIndicator-foreground",
+		"--vscode-agentSessionSelectedBadge-border",
 		"--vscode-badge-background",
 		"--vscode-badge-foreground",
 		"--vscode-banner-background",
