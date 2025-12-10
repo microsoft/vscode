@@ -210,7 +210,7 @@ export function registerTerminalSuggestProvidersConfiguration(providers?: Map<st
 	for (const id of Array.from(providers.keys()).sort()) {
 		providersProperties[id] = {
 			type: 'boolean',
-			default: true,
+			default: id === 'lsp' ? false : true,
 			description:
 				providers.get(id)?.description ??
 				localize('suggest.provider.title', "Show suggestions from {0}.", id)
