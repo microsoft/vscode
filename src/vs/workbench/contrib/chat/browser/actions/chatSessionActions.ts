@@ -22,7 +22,6 @@ import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatConfiguration, LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
 import { AGENT_SESSIONS_VIEW_CONTAINER_ID, AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
-import { AgentSessionShowDiffAction } from '../agentSessions/agentSessionsActions.js';
 import { ChatViewId, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
@@ -30,6 +29,15 @@ import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 export interface IMarshalledChatSessionContext {
 	readonly $mid: MarshalledId.ChatSessionContext;
 	readonly session: IChatSessionItem;
+}
+
+export function isMarshalledChatSessionContext(thing: unknown): thing is IMarshalledChatSessionContext {
+	if (typeof thing === 'object' && thing !== null) {
+		const candidate = thing as IMarshalledChatSessionContext;
+		return candidate.$mid === MarshalledId.ChatSessionContext && typeof candidate.session === 'object' && candidate.session !== null;
+	}
+
+	return false;
 }
 
 export class RenameChatSessionAction extends Action2 {
@@ -294,16 +302,6 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
-	command: {
-		id: AgentSessionShowDiffAction.ID,
-		title: localize('chat.session.openChanges', 'Open Changes'),
-		icon: Codicon.diff
-	},
-	group: 'inline',
-	order: 2,
-	when: ChatContextKeys.agentSessionHasChanges
-});
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	command: {
 		id: 'list.select',

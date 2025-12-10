@@ -205,8 +205,6 @@ export class AgentSessionsView extends ViewPane {
 			container,
 			{
 				filter: sessionsFilter,
-				allowNewSessionFromEmptySpace: true,
-				allowFiltering: true,
 				trackActiveEditor: true,
 			}
 		));

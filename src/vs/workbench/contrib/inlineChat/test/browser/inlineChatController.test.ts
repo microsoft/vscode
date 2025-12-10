@@ -88,6 +88,8 @@ import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponse
 import { TestWorkerService } from './testWorkerService.js';
 import { MockChatSessionsService } from '../../../chat/test/common/mockChatSessionsService.js';
 import { IChatSessionsService } from '../../../chat/common/chatSessionsService.js';
+import { IAgentSessionsService } from '../../../chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentSessionsModel } from '../../../chat/browser/agentSessions/agentSessionsModel.js';
 
 suite('InlineChatController', function () {
 
@@ -236,6 +238,18 @@ suite('InlineChatController', function () {
 			}],
 			[IChatEntitlementService, new SyncDescriptor(TestChatEntitlementService)],
 			[IChatSessionsService, new SyncDescriptor(MockChatSessionsService)],
+			[IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override get model(): IAgentSessionsModel {
+					return {
+						onWillResolve: Event.None,
+						onDidResolve: Event.None,
+						onDidChangeSessions: Event.None,
+						sessions: [],
+						resolve: async () => { },
+						getSession: (resource: URI) => undefined,
+					} as IAgentSessionsModel;
+				}
+			}],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));

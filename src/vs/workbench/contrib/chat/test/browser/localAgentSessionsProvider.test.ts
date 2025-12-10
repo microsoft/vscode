@@ -17,7 +17,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { LocalAgentsSessionsProvider } from '../../browser/agentSessions/localAgentSessionsProvider.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../common/chatModel.js';
-import { IChatDetail, IChatService, IChatSessionStartOptions } from '../../common/chatService.js';
+import { IChatDetail, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -37,10 +37,10 @@ class MockChatService implements IChatService {
 	private liveSessionItems: IChatDetail[] = [];
 	private historySessionItems: IChatDetail[] = [];
 
-	private readonly _onDidDisposeSession = new Emitter<{ sessionResource: URI; reason: 'cleared' }>();
+	private readonly _onDidDisposeSession = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
-	fireDidDisposeSession(sessionResource: URI): void {
+	fireDidDisposeSession(sessionResource: URI[]): void {
 		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
 	}
 
@@ -181,6 +181,10 @@ class MockChatService implements IChatService {
 	waitForModelDisposals(): Promise<void> {
 		return Promise.resolve();
 	}
+
+	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
+		throw new Error('Method not implemented.');
+	}
 }
 
 function createMockChatModel(options: {
@@ -317,7 +321,9 @@ suite('LocalAgentsSessionsProvider', () => {
 				sessionResource,
 				title: 'Test Session',
 				lastMessageDate: Date.now(),
-				isActive: true
+				isActive: true,
+				timing: { startTime: 0, endTime: 1 },
+				lastResponseState: ResponseModelState.Complete
 			}]);
 
 			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -338,7 +344,9 @@ suite('LocalAgentsSessionsProvider', () => {
 				sessionResource,
 				title: 'History Session',
 				lastMessageDate: Date.now() - 10000,
-				isActive: false
+				isActive: false,
+				lastResponseState: ResponseModelState.Complete,
+				timing: { startTime: 0, endTime: 1 }
 			}]);
 
 			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -362,13 +370,17 @@ suite('LocalAgentsSessionsProvider', () => {
 				sessionResource,
 				title: 'Live Session',
 				lastMessageDate: Date.now(),
-				isActive: true
+				isActive: true,
+				lastResponseState: ResponseModelState.Complete,
+				timing: { startTime: 0, endTime: 1 }
 			}]);
 			mockChatService.setHistorySessionItems([{
 				sessionResource,
 				title: 'History Session',
 				lastMessageDate: Date.now() - 10000,
-				isActive: false
+				isActive: false,
+				lastResponseState: ResponseModelState.Complete,
+				timing: { startTime: 0, endTime: 1 }
 			}]);
 
 			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -394,7 +406,9 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'In Progress Session',
 					lastMessageDate: Date.now(),
-					isActive: true
+					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -422,7 +436,9 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'Completed Session',
 					lastMessageDate: Date.now(),
-					isActive: true
+					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 },
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -431,7 +447,7 @@ suite('LocalAgentsSessionsProvider', () => {
 			});
 		});
 
-		test('should return Failed status when last response was canceled', async () => {
+		test('should return Success status when last response was canceled', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider = createProvider();
 
@@ -449,12 +465,14 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'Canceled Session',
 					lastMessageDate: Date.now(),
-					isActive: true
+					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 },
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].status, ChatSessionStatus.Failed);
+				assert.strictEqual(sessions[0].status, ChatSessionStatus.Completed);
 			});
 		});
 
@@ -476,7 +494,9 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'Error Session',
 					lastMessageDate: Date.now(),
-					isActive: true
+					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 },
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -519,6 +539,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Stats Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 },
 					stats: {
 						added: 30,
 						removed: 8,
@@ -528,10 +550,11 @@ suite('LocalAgentsSessionsProvider', () => {
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.ok(sessions[0].statistics);
-				assert.strictEqual(sessions[0].statistics?.files, 2);
-				assert.strictEqual(sessions[0].statistics?.insertions, 30);
-				assert.strictEqual(sessions[0].statistics?.deletions, 8);
+				assert.ok(sessions[0].changes);
+				const changes = sessions[0].changes as { files: number; insertions: number; deletions: number };
+				assert.strictEqual(changes.files, 2);
+				assert.strictEqual(changes.insertions, 30);
+				assert.strictEqual(changes.deletions, 8);
 			});
 		});
 
@@ -560,12 +583,14 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'No Stats Session',
 					lastMessageDate: Date.now(),
-					isActive: true
+					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].statistics, undefined);
+				assert.strictEqual(sessions[0].changes, undefined);
 			});
 		});
 	});
@@ -588,7 +613,9 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'Timing Session',
 					lastMessageDate: Date.now(),
-					isActive: true
+					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: modelTimestamp }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -609,7 +636,9 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'History Timing Session',
 					lastMessageDate,
-					isActive: false
+					isActive: false,
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: lastMessageDate }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -636,7 +665,9 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'EndTime Session',
 					lastMessageDate: Date.now(),
-					isActive: true
+					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: completedAt }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -662,7 +693,9 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'Icon Session',
 					lastMessageDate: Date.now(),
-					isActive: true
+					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
+					timing: { startTime: 0, endTime: 1 }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);

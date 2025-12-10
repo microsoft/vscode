@@ -13,7 +13,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IAgentSession, IAgentSessionsModel, isAgentSession, isAgentSessionsModel } from './agentSessionsModel.js';
+import { getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionsModel, isAgentSession, isAgentSessionsModel } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -35,8 +35,6 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../commo
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
-import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { AgentSessionDiffActionViewItem, AgentSessionShowDiffAction } from './agentSessionsActions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -57,7 +55,11 @@ interface IAgentSessionItemTemplate {
 	readonly titleToolbar: MenuWorkbenchToolBar;
 
 	// Column 2 Row 2
-	readonly detailsToolbar: ActionBar;
+	readonly diffContainer: HTMLElement;
+	readonly diffFilesSpan: HTMLSpanElement;
+	readonly diffAddedSpan: HTMLSpanElement;
+	readonly diffRemovedSpan: HTMLSpanElement;
+
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
 
@@ -98,7 +100,12 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
-						h('div.agent-session-details-toolbar@detailsToolbar'),
+						h('div.agent-session-diff-container@diffContainer',
+							[
+								h('span.agent-session-diff-files@filesSpan'),
+								h('span.agent-session-diff-added@addedSpan'),
+								h('span.agent-session-diff-removed@removedSpan')
+							]),
 						h('div.agent-session-description@description'),
 						h('div.agent-session-status@status')
 					])
@@ -112,16 +119,6 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		const detailsToolbar = disposables.add(new ActionBar(elements.detailsToolbar, {
-			actionViewItemProvider: (action, options) => {
-				if (action.id === AgentSessionShowDiffAction.ID) {
-					return this.instantiationService.createInstance(AgentSessionDiffActionViewItem, action, options);
-				}
-
-				return undefined;
-			},
-		}));
-
 		container.appendChild(elements.item);
 
 		return {
@@ -129,7 +126,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			titleToolbar,
-			detailsToolbar,
+			diffContainer: elements.diffContainer,
+			diffFilesSpan: elements.filesSpan,
+			diffAddedSpan: elements.addedSpan,
+			diffRemovedSpan: elements.removedSpan,
 			description: elements.description,
 			status: elements.status,
 			contextKeyService,
@@ -142,8 +142,13 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Clear old state
 		template.elementDisposable.clear();
-		template.detailsToolbar.clear();
+		template.diffFilesSpan.textContent = '';
+		template.diffAddedSpan.textContent = '';
+		template.diffRemovedSpan.textContent = '';
 		template.description.textContent = '';
+
+		// Archived
+		template.element.classList.toggle('archived', session.element.isArchived());
 
 		// Icon
 		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
@@ -154,19 +159,23 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Title Actions - Update context keys
 		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
-		const diff = session.element.statistics;
-		const hasChanges = session.element.status !== ChatSessionStatus.InProgress && !!diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0);
-		ChatContextKeys.agentSessionHasChanges.bindTo(template.contextKeyService).set(hasChanges);
+		ChatContextKeys.isReadAgentSession.bindTo(template.contextKeyService).set(session.element.isRead());
 		template.titleToolbar.context = session.element;
 
-		// Details Actions
-		if (hasChanges) {
-			const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
-			template.detailsToolbar.push([diffAction], { icon: false, label: true });
+		// Diff information
+		const { changes: diff } = session.element;
+		if (session.element.status !== ChatSessionStatus.InProgress && diff && hasValidDiff(diff)) {
+			if (this.renderDiff(session, template)) {
+				template.diffContainer.classList.add('has-diff');
+				ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(true);
+			}
 		}
 
 		// Description otherwise
 		else {
+			template.diffContainer.classList.remove('has-diff');
+			ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(false);
+
 			this.renderDescription(session, template);
 		}
 
@@ -177,36 +186,61 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		this.renderHover(session, template);
 	}
 
+	private renderDiff(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
+		const diff = getAgentChangesSummary(session.element.changes);
+		if (!diff) {
+			return false;
+		}
+
+		if (diff.files > 0) {
+			template.diffFilesSpan.textContent = diff.files === 1 ? localize('diffFile', "1 file") : localize('diffFiles', "{0} files", diff.files);
+		}
+
+		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
+			template.diffAddedSpan.textContent = `+${diff.insertions}`;
+		}
+
+		if (diff.deletions >= 0 /* render even `0` for more homogeneity */) {
+			template.diffRemovedSpan.textContent = `-${diff.deletions}`;
+		}
+
+		return true;
+	}
+
 	private getIcon(session: IAgentSession): ThemeIcon {
 		if (session.status === ChatSessionStatus.InProgress) {
-			return ThemeIcon.modify(Codicon.loading, 'spin');
+			return Codicon.sessionInProgress;
 		}
 
 		if (session.status === ChatSessionStatus.Failed) {
 			return Codicon.error;
 		}
 
-		return Codicon.pass;
+		if (!session.isRead() && !session.isArchived()) {
+			return Codicon.circleFilled;
+		}
+
+		return Codicon.circleSmallFilled;
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		const description = session.element.description;
+		if (description) {
 
-		// Support description as string
-		if (typeof session.element.description === 'string') {
-			template.description.textContent = session.element.description;
-		}
-
-		// or as markdown
-		else if (session.element.description) {
-			template.elementDisposable.add(this.markdownRendererService.render(session.element.description, {
-				sanitizerConfig: {
-					replaceWithPlaintext: true,
-					allowedTags: {
-						override: allowedChatMarkdownHtmlTags,
+			// Support description as string
+			if (typeof description === 'string') {
+				template.description.textContent = description;
+			} else {
+				template.elementDisposable.add(this.markdownRendererService.render(description, {
+					sanitizerConfig: {
+						replaceWithPlaintext: true,
+						allowedTags: {
+							override: allowedChatMarkdownHtmlTags,
+						},
+						allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
 					},
-					allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
-				},
-			}, template.description));
+				}, template.description));
+			}
 		}
 
 		// Fallback to state label

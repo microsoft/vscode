@@ -57,6 +57,13 @@
 				margin-bottom: 0px;
 				padding-top: 0px;
 			}
+
+			[data-code] {
+				background-color: var(--vscode-textPreformat-background);
+				padding: 1px 3px;
+				border-radius: 4px;
+				white-space: pre-wrap;
+			}
 		}
 
 		/* chain of thought lines */
