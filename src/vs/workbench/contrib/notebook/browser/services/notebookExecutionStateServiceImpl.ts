@@ -93,7 +93,28 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	}
 
 	hasRunningExecutions(): boolean {
-		return this._executions.size > 0 || this._notebookExecutions.size > 0;
+		// Check if there are any cell executions that are pending or executing
+		// Executions are removed from the map when they complete, so any execution
+		// in the map is potentially active. However, we filter to only Pending/Executing
+		// states to avoid vetoing for executions that haven't actually started yet.
+		for (const executionMap of this._executions.values()) {
+			for (const execution of executionMap.values()) {
+				if (execution.state === NotebookCellExecutionState.Pending ||
+					execution.state === NotebookCellExecutionState.Executing) {
+					return true;
+				}
+			}
+		}
+		
+		// Check if there are any notebook-level executions that are pending or executing
+		for (const [execution] of this._notebookExecutions.values()) {
+			if (execution.state === NotebookExecutionState.Pending ||
+				execution.state === NotebookExecutionState.Executing) {
+				return true;
+			}
+		}
+		
+		return false;
 	}
 
 	private _onCellExecutionDidChange(notebookUri: URI, cellHandle: number, exe: CellExecution): void {
