@@ -615,7 +615,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
-					timing: { startTime: 0, endTime: 1 }
+					timing: { startTime: modelTimestamp }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -638,7 +638,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate,
 					isActive: false,
 					lastResponseState: ResponseModelState.Complete,
-					timing: { startTime: 0, endTime: 1 }
+					timing: { startTime: lastMessageDate }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -667,7 +667,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
-					timing: { startTime: 0, endTime: 1 }
+					timing: { startTime: 0, endTime: completedAt }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
