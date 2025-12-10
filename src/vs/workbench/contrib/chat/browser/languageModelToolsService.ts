@@ -117,7 +117,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled) || e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
 				this._onDidChangeToolsScheduler.schedule();
 			}
 		}));
@@ -777,9 +777,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], _target: string | undefined): IToolAndToolSetEnablementMap {
 		const toolOrToolSetNames = new Set(fullReferenceNames);
 		const result = new Map<ToolSet | IToolData, boolean>();
+		const isAgentModeEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
+
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {
 			if (tool instanceof ToolSet) {
-				const enabled = toolOrToolSetNames.has(fullReferenceName) || Iterable.some(this.getToolSetAliases(tool, fullReferenceName), name => toolOrToolSetNames.has(name));
+				// Gate execute and read toolsets based on agent mode setting
+				const isRestrictedToolSet = tool === this.executeToolSet || tool === this.readToolSet;
+				const shouldDisableToolSet = isRestrictedToolSet && !isAgentModeEnabled;
+
+				const enabled = shouldDisableToolSet ? false : (toolOrToolSetNames.has(fullReferenceName) || Iterable.some(this.getToolSetAliases(tool, fullReferenceName), name => toolOrToolSetNames.has(name)));
 				result.set(tool, enabled);
 				if (enabled) {
 					for (const memberTool of tool.getTools()) {
