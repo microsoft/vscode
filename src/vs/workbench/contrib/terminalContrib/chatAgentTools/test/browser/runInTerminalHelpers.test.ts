@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { ok, strictEqual } from 'assert';
 import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, truncateOutputKeepingTail } from '../../browser/runInTerminalHelpers.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -292,7 +292,6 @@ suite('generateAutoApproveActions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createMockRule(sourceText: string): IAutoApproveRule {
-		// Escape special regex characters for test purposes
 		const escapedText = sourceText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 		return {
 			regex: new RegExp(escapedText),
@@ -324,7 +323,7 @@ suite('generateAutoApproveActions', () => {
 		ok(subCommandAction, 'Should suggest mvn test approval');
 	});
 
-	test('should suggest mvn test when flags appear before subcommand', () => {
+	test('should suggest mvn -DskipIT test when flags appear before subcommand', () => {
 		const commandLine = 'mvn -DskipIT test';
 		const subCommands = ['mvn -DskipIT test'];
 		const autoApproveResult = {
@@ -333,11 +332,11 @@ suite('generateAutoApproveActions', () => {
 		};
 
 		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
-		const subCommandAction = actions.find(action => action.label.includes('mvn test'));
-		ok(subCommandAction, 'Should suggest mvn test approval even with flags before subcommand');
+		const subCommandAction = actions.find(action => action.label.includes('mvn -DskipIT test'));
+		ok(subCommandAction, 'Should suggest mvn -DskipIT test approval (including flags)');
 	});
 
-	test('should suggest mvn test when multiple flags appear before subcommand', () => {
+	test('should suggest mvn -X -DskipIT test when multiple flags appear before subcommand', () => {
 		const commandLine = 'mvn -X -DskipIT test';
 		const subCommands = ['mvn -X -DskipIT test'];
 		const autoApproveResult = {
@@ -346,11 +345,11 @@ suite('generateAutoApproveActions', () => {
 		};
 
 		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
-		const subCommandAction = actions.find(action => action.label.includes('mvn test'));
-		ok(subCommandAction, 'Should suggest mvn test approval with multiple flags');
+		const subCommandAction = actions.find(action => action.label.includes('mvn -X -DskipIT test'));
+		ok(subCommandAction, 'Should suggest mvn -X -DskipIT test approval with multiple flags');
 	});
 
-	test('should suggest gradle build when flags appear before subcommand', () => {
+	test('should suggest gradle --info build when flags appear before subcommand', () => {
 		const commandLine = 'gradle --info build';
 		const subCommands = ['gradle --info build'];
 		const autoApproveResult = {
@@ -359,11 +358,11 @@ suite('generateAutoApproveActions', () => {
 		};
 
 		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
-		const subCommandAction = actions.find(action => action.label.includes('gradle build'));
-		ok(subCommandAction, 'Should suggest gradle build approval');
+		const subCommandAction = actions.find(action => action.label.includes('gradle --info build'));
+		ok(subCommandAction, 'Should suggest gradle --info build approval');
 	});
 
-	test('should suggest npm run test when flags appear before subcommand', () => {
+	test('should suggest npm --silent run test when flags appear before subcommand', () => {
 		const commandLine = 'npm --silent run test';
 		const subCommands = ['npm --silent run test'];
 		const autoApproveResult = {
@@ -372,12 +371,11 @@ suite('generateAutoApproveActions', () => {
 		};
 
 		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
-		// npm run is a sub-sub-command case, should suggest npm run test
-		const subCommandAction = actions.find(action => action.label.includes('npm run test'));
-		ok(subCommandAction, 'Should suggest npm run test approval');
+		const subCommandAction = actions.find(action => action.label.includes('npm --silent run test'));
+		ok(subCommandAction, 'Should suggest npm --silent run test approval (sub-sub-command with flags)');
 	});
 
-	test('should suggest npm run test when flags appear between run and test', () => {
+	test('should suggest npm --silent run --verbose test when flags appear between subcommands', () => {
 		const commandLine = 'npm --silent run --verbose test';
 		const subCommands = ['npm --silent run --verbose test'];
 		const autoApproveResult = {
@@ -386,8 +384,8 @@ suite('generateAutoApproveActions', () => {
 		};
 
 		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
-		const subCommandAction = actions.find(action => action.label.includes('npm run test'));
-		ok(subCommandAction, 'Should suggest npm run test approval even with flags between run and test');
+		const subCommandAction = actions.find(action => action.label.includes('npm --silent run --verbose test'));
+		ok(subCommandAction, 'Should suggest npm --silent run --verbose test with flags between subcommands');
 	});
 
 	test('should not suggest approval when only flags and no subcommand', () => {
@@ -429,9 +427,9 @@ suite('generateAutoApproveActions', () => {
 
 		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
 		const subCommandAction = actions.find(action =>
-			action.label.includes('mvn test') && action.label.includes('gradle build')
+			action.label.includes('mvn -DskipIT test') && action.label.includes('gradle --info build')
 		);
-		ok(subCommandAction, 'Should suggest both mvn test and gradle build');
+		ok(subCommandAction, 'Should suggest both mvn -DskipIT test and gradle --info build');
 	});
 
 	test('should not suggest when commands are denied', () => {
@@ -456,7 +454,7 @@ suite('generateAutoApproveActions', () => {
 		};
 
 		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
-		const subCommandAction = actions.find(action => action.label.includes('mvn test') && action.label.includes('Always Allow Command:'));
+		const subCommandAction = actions.find(action => action.label.includes('mvn -DskipIT test') && action.label.includes('Always Allow Command:'));
 		strictEqual(subCommandAction, undefined, 'Should not suggest approval for already approved commands');
 	});
 });
