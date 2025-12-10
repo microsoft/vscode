@@ -379,13 +379,13 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const part = getPartByLocation(chatLocation);
 		let currentSize = layoutService.getSize(part);
 
-		const sideBySideMinWidth = 600 + 1; // account for possible theme border
-		const stackedMaxWidth = 300 + 1; 	// account for possible theme border
+		const sideBySideMinWidth = 600 + 1;	// account for possible theme border
+		const stackedMaxWidth = 300 + 1;	// account for possible theme border
 
 		if (configuredSessionsViewerOrientation !== 'auto') {
 			if (
-				orientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth || // already wide enough to show side by side
-				orientation === AgentSessionsViewerOrientation.Stacked													// always wide enough to show stacked
+				(orientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||	// already wide enough to show side by side
+				orientation === AgentSessionsViewerOrientation.Stacked														// always wide enough to show stacked
 			) {
 				return; // if the orientation is not set to `auto`, we try to avoid resizing if not needed
 			}
@@ -408,6 +408,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			height: currentSize.height
 		});
 	}
+
 
 	abstract getOrientation(): AgentSessionsViewerOrientation;
 }
