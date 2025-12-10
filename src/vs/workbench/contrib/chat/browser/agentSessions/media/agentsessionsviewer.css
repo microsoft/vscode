@@ -24,7 +24,7 @@
 
 		.agent-session-diff-container {
 			background-color: unset;
-			outline: 1px solid var(--vscode-foreground);
+			outline: 1px solid var(--vscode-agentSessionSelectedBadge-border);
 
 			.agent-session-diff-files,
 			.agent-session-diff-added,
@@ -58,7 +58,9 @@
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 8px 12px /* to offset from possible scrollbar */ 8px 8px;
+		padding: 8px 12px
+			/* to offset from possible scrollbar */
+			8px 8px;
 
 		&.archived {
 			color: var(--vscode-descriptionForeground);

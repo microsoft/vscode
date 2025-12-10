@@ -456,7 +456,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Sessions control: sidebar
 			else {
-				newSessionsContainerVisible = true; // always visible in sidebar mode
+				newSessionsContainerVisible = !!this.lastDimensions && this.lastDimensions.width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH; // enough space
 			}
 		}
 
@@ -464,6 +464,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
 		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
+		this.sessionsControl?.setVisible(newSessionsContainerVisible);
 
 		return {
 			changed: sessionsContainerVisible !== newSessionsContainerVisible,
@@ -553,6 +554,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 			this.notifySessionsControlCountChanged();
 		}));
+
+		// Layout when orientation configuration changes
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsOrientation))(() => {
+			if (this.lastDimensions) {
+				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+			}
+		}));
 	}
 
 	private setupContextMenu(parent: HTMLElement): void {
@@ -609,14 +617,24 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		});
 	}
 
+	override focus(): void {
+		super.focus();
+
+		this.focusInput();
+	}
+
 	focusInput(): void {
 		this._widget.focusInput();
 	}
 
-	override focus(): void {
-		super.focus();
+	focusSessions(): boolean {
+		if (!this.sessionsControl?.isVisible()) {
+			return false;
+		}
 
-		this._widget.focusInput();
+		this.sessionsControl.focus();
+
+		return true;
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -647,15 +665,30 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return { heightReduction, widthReduction };
 		}
 
-		// Update orientation based on available width
+		const configuredSessionsViewerOrientation = this.configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
 		const oldSessionsViewerOrientation = this.sessionsViewerOrientation;
-		if (width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH) {
-			this.sessionsViewerOrientation = AgentSessionsViewerOrientation.SideBySide;
+		let newSessionsViewerOrientation: AgentSessionsViewerOrientation;
+		switch (configuredSessionsViewerOrientation) {
+			// Stacked
+			case 'stacked':
+				newSessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
+				break;
+			// Side by side
+			case 'sideBySide':
+				newSessionsViewerOrientation = AgentSessionsViewerOrientation.SideBySide;
+				break;
+			// Update orientation based on available width
+			default:
+				newSessionsViewerOrientation = width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH ? AgentSessionsViewerOrientation.SideBySide : AgentSessionsViewerOrientation.Stacked;
+		}
+
+		this.sessionsViewerOrientation = newSessionsViewerOrientation;
+
+		if (newSessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			this.viewPaneContainer.classList.add('sessions-control-orientation-sidebyside');
 			this.viewPaneContainer.classList.toggle('sessions-control-position-left', this.sessionsViewerPosition === AgentSessionsViewerPosition.Left);
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.SideBySide);
 		} else {
-			this.sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 			this.viewPaneContainer.classList.remove('sessions-control-orientation-sidebyside');
 			this.viewPaneContainer.classList.remove('sessions-control-position-left');
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.Stacked);
