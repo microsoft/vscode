@@ -67,7 +67,9 @@ export class ExtensionsList extends Disposable {
 		super();
 		this._register(this.contextMenuActionRunner.onDidRun(({ error }) => error && notificationService.error(error)));
 		const delegate = new Delegate();
-		const renderer = instantiationService.createInstance(Renderer, viewId, extensionsViewState, {
+		// Show publisher in name when in chat context for better visibility
+		const showPublisherInName = viewId.includes('.chat.view.');
+		const renderer = instantiationService.createInstance(Renderer, extensionsViewState, {
 			hoverOptions: {
 				position: () => {
 					const viewLocation = viewDescriptorService.getViewLocationById(viewId);
@@ -79,7 +81,8 @@ export class ExtensionsList extends Disposable {
 					}
 					return HoverPosition.RIGHT;
 				}
-			}
+			},
+			showPublisherInName
 		});
 		this.list = instantiationService.createInstance(WorkbenchPagedList, `${viewId}-Extensions`, parent, delegate, [renderer], {
 			multipleSelectionSupport: false,
@@ -171,7 +174,7 @@ export class ExtensionsGridView extends Disposable {
 	) {
 		super();
 		this.element = dom.append(parent, dom.$('.extensions-grid-view'));
-		this.renderer = this.instantiationService.createInstance(Renderer, 'extensionsGridView', { onFocus: Event.None, onBlur: Event.None, filters: {} }, { hoverOptions: { position() { return HoverPosition.BELOW; } } });
+		this.renderer = this.instantiationService.createInstance(Renderer, { onFocus: Event.None, onBlur: Event.None, filters: {} }, { hoverOptions: { position() { return HoverPosition.BELOW; } } });
 		this.delegate = delegate;
 		this.disposableStore = this._register(new DisposableStore());
 	}

@@ -25,7 +25,6 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { extensionVerifiedPublisherIconColor, verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
-import { ChatViewId } from '../../chat/browser/chat.js';
 
 const EXTENSION_LIST_ELEMENT_HEIGHT = 72;
 
@@ -51,12 +50,12 @@ export type ExtensionListRendererOptions = {
 	hoverOptions: {
 		position: () => HoverPosition;
 	};
+	showPublisherInName?: boolean;
 };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
-		private readonly viewId: string,
 		private readonly extensionViewState: IExtensionsViewState,
 		private readonly options: ExtensionListRendererOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -192,8 +191,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		updateEnablement();
 		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
 
-		// Show publisher in the name when in chat context for better visibility
-		if (this.viewId === ChatViewId) {
+		// Show publisher in the name when requested for better visibility
+		if (this.options.showPublisherInName) {
 			data.name.textContent = `${extension.displayName} (${extension.publisher})`;
 		} else {
 			data.name.textContent = extension.displayName;
