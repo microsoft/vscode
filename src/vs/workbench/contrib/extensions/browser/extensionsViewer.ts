@@ -67,7 +67,7 @@ export class ExtensionsList extends Disposable {
 		super();
 		this._register(this.contextMenuActionRunner.onDidRun(({ error }) => error && notificationService.error(error)));
 		const delegate = new Delegate();
-		const renderer = instantiationService.createInstance(Renderer, extensionsViewState, {
+		const renderer = instantiationService.createInstance(Renderer, viewId, extensionsViewState, {
 			hoverOptions: {
 				position: () => {
 					const viewLocation = viewDescriptorService.getViewLocationById(viewId);
