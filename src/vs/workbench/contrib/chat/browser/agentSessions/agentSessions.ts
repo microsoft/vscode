@@ -11,6 +11,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
+import { ChatViewId } from '../chat.js';
+import { foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 
 export const AGENT_SESSIONS_VIEW_CONTAINER_ID = 'workbench.viewContainer.agentSessions';
 export const AGENT_SESSIONS_VIEW_ID = 'workbench.view.agentSessions';
@@ -47,9 +49,33 @@ export function openAgentSessionsView(accessor: ServicesAccessor): void {
 	const viewService = accessor.get(IViewsService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	if (configurationService.getValue('chat.agentSessionsViewLocation') === 'single-view') {
+	const viewLocation = configurationService.getValue('chat.agentSessionsViewLocation');
+	if (viewLocation === 'single-view') {
 		viewService.openView(AGENT_SESSIONS_VIEW_ID, true);
-	} else {
+	} else if (viewLocation === 'view') {
 		viewService.openViewContainer(LEGACY_AGENT_SESSIONS_VIEW_ID, true);
+	} else {
+		viewService.openView(ChatViewId, true);
 	}
 }
+
+export enum AgentSessionsViewerOrientation {
+	Stacked = 1,
+	SideBySide,
+}
+
+export enum AgentSessionsViewerPosition {
+	Left = 1,
+	Right,
+}
+
+export interface IAgentSessionsControl {
+	refresh(): void;
+	openFind(): void;
+}
+
+export const agentSessionReadIndicatorForeground = registerColor(
+	'agentSessionReadIndicator.foreground',
+	{ dark: transparent(foreground, 0.15), light: transparent(foreground, 0.15), hcDark: null, hcLight: null },
+	localize('agentSessionReadIndicatorForeground', "Foreground color for the read indicator in an agent session.")
+);

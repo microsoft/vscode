@@ -6,6 +6,7 @@
 .agent-sessions-viewer {
 
 	flex: 1 1 auto;
+	height: 100%;
 	min-height: 0;
 
 	.monaco-list-row .force-no-twistie {
@@ -20,25 +21,48 @@
 				color: unset;
 			}
 		}
+
+		.agent-session-diff-container {
+			background-color: unset;
+			outline: 1px solid var(--vscode-foreground);
+
+			.agent-session-diff-files,
+			.agent-session-diff-added,
+			.agent-session-diff-removed {
+				color: unset;
+			}
+		}
 	}
 
-	.monaco-list-row .agent-session-title-toolbar .monaco-toolbar {
-		display: none;
+	.monaco-list-row .agent-session-title-toolbar {
+		position: relative; /* for the absolute positioning of the toolbar below */
+
+		.monaco-toolbar {
+			/* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
+			position: absolute;
+			right: 0;
+			top: 0;
+			display: none;
+		}
 	}
 
-	.monaco-list-row:hover .agent-session-title-toolbar .monaco-toolbar,
-	.monaco-list-row.focused .agent-session-title-toolbar .monaco-toolbar {
-		display: block;
-	}
+	.monaco-list-row:hover .agent-session-title-toolbar,
+	.monaco-list-row.focused .agent-session-title-toolbar {
+		width: 22px;
 
-	.monaco-list-row .agent-session-title-toolbar .monaco-toolbar .action-label {
-		padding: 0; /* limit padding top/bottom to preserve line-height per row */
+		.monaco-toolbar {
+			display: block;
+		}
 	}
 
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 8px;
+		padding: 8px 12px /* to offset from possible scrollbar */ 8px 8px;
+
+		&.archived {
+			color: var(--vscode-descriptionForeground);
+		}
 
 		.agent-session-main-col,
 		.agent-session-title-row,
@@ -54,6 +78,22 @@
 			.agent-session-icon {
 				flex-shrink: 0;
 				font-size: 16px;
+
+				&.codicon.codicon-session-in-progress {
+					color: var(--vscode-textLink-foreground);
+				}
+
+				&.codicon.codicon-error {
+					color: var(--vscode-errorForeground);
+				}
+
+				&.codicon.codicon-circle-filled {
+					color: var(--vscode-textLink-foreground);
+				}
+
+				&.codicon.codicon-circle-small-filled {
+					color: var(--vscode-agentSessionReadIndicator-foreground);
+				}
 			}
 		}
 
@@ -89,6 +129,32 @@
 
 				a {
 					color: var(--vscode-descriptionForeground);
+				}
+			}
+
+			.agent-session-diff-container {
+				background-color: var(--vscode-toolbar-hoverBackground);
+				font-weight: 500;
+				display: flex;
+				gap: 4px;
+				padding: 0 4px;
+				font-variant-numeric: tabular-nums;
+				border-radius: 5px;
+
+				&:not(.has-diff) {
+					display: none;
+				}
+
+				.agent-session-diff-files {
+					color: var(--vscode-descriptionForeground);
+				}
+
+				.agent-session-diff-added {
+					color: var(--vscode-chat-linesAddedForeground);
+				}
+
+				.agent-session-diff-removed {
+					color: var(--vscode-chat-linesRemovedForeground);
 				}
 			}
 		}

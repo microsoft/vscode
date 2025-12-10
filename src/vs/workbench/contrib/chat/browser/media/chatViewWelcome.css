@@ -180,7 +180,6 @@ div.chat-welcome-view {
 		background-color: var(--vscode-editorWidget-background);
 		cursor: pointer;
 		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-		max-width: 100%;
 		width: fit-content;
 		margin: 0;
 		box-sizing: border-box;

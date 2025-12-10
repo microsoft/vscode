@@ -21,14 +21,19 @@ export enum ChatConfiguration {
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
+	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
-	ChatViewRecentSessionsEnabled = 'chat.recentSessions.enabled',
-	ChatViewWelcomeEnabled = 'chat.welcome.enabled',
+	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
+	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
+	ChatViewTitleEnabled = 'chat.viewTitle.enabled',
+	ChatViewWelcomeEnabled = 'chat.viewWelcome.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
+	ExitAfterDelegation = 'chat.exitAfterDelegation',
+	SuspendThrottling = 'chat.suspendThrottling',
 }
 
 /**

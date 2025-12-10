@@ -104,7 +104,7 @@ export class StartSessionAction extends Action2 {
 		});
 	}
 
-	private _runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
+	private async _runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]) {
 
 		const ctrl = InlineChatController.get(editor);
 		if (!ctrl) {
@@ -116,11 +116,14 @@ export class StartSessionAction extends Action2 {
 		}
 
 		let options: InlineChatRunOptions | undefined;
-		const arg = _args[0];
+		const arg = args[0];
 		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
 			options = arg;
 		}
-		return InlineChatController.get(editor)?.run({ ...options });
+		const task = InlineChatController.get(editor)?.run({ ...options });
+		if (options?.blockOnResponse) {
+			await task;
+		}
 	}
 }
 

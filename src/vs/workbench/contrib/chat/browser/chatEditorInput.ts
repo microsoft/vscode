@@ -21,10 +21,9 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditi
 import { IChatModel } from '../common/chatModel.js';
 import { IChatModelReference, IChatService } from '../common/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../common/chatUri.js';
+import { LocalChatSessionUri, getChatSessionType } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
-import { showCloseActiveChatNotification } from './actions/chatCloseNotification.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
@@ -77,7 +76,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -252,11 +250,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	 * Returns chat session type from a URI, or {@linkcode localChatSessionType} if not specified or cannot be determined.
 	 */
 	public getSessionType(): string {
-		if (this.resource.scheme === Schemas.vscodeChatEditor || this.resource.scheme === Schemas.vscodeLocalChatSession) {
-			return localChatSessionType;
-		}
-
-		return this.resource.scheme;
+		return getChatSessionType(this.resource);
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
@@ -318,15 +312,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return false;
 	}
 
-	override dispose(): void {
-		// Check if we're disposing a model with an active request
-		if (this.modelRef.value?.object.requestInProgress.get()) {
-			const closingSessionResource = this.modelRef.value.object.sessionResource;
-			this.instantiationService.invokeFunction(showCloseActiveChatNotification, closingSessionResource);
-		}
-
-		super.dispose();
-	}
 }
 
 export class ChatEditorModel extends Disposable {
@@ -429,7 +414,7 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 }
 
 export async function showClearEditingSessionConfirmation(model: IChatModel, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
-	if (!model.editingSession || model.willKeepAlive) {
+	if (!model.editingSession || (model.willKeepAlive && !options?.isArchiveAction)) {
 		return true; // safe to dispose without confirmation
 	}
 

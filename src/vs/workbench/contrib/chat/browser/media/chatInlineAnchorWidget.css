@@ -16,6 +16,15 @@
 
 .chat-inline-anchor-widget .icon-label {
 	padding: 0 3px;
+	text-wrap: wrap;
+
+	.label-suffix {
+		color: var(--vscode-peekViewTitleDescription-foreground);
+	}
+}
+
+.chat-inline-anchor-widget:hover .icon-label .label-suffix  {
+	color: currentColor
 }
 
 .interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget {
@@ -49,8 +58,4 @@
 	margin-bottom: 1px;
 
 	flex-shrink: 0;
-}
-
-.chat-inline-anchor-widget .icon-label {
-	text-wrap: wrap;
 }

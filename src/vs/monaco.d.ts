@@ -7696,6 +7696,7 @@ declare namespace monaco.languages {
 		shownDuration: number;
 		shownDurationUncollapsed: number;
 		timeUntilShown: number | undefined;
+		timeUntilActuallyShown: number | undefined;
 		timeUntilProviderRequest: number;
 		timeUntilProviderResponse: number;
 		notShownReason: string | undefined;
@@ -7717,7 +7718,8 @@ declare namespace monaco.languages {
 		typingIntervalCharacterCount: number;
 		selectedSuggestionInfo: boolean;
 		availableProviders: string;
-		sku: string | undefined;
+		skuPlan: string | undefined;
+		skuType: string | undefined;
 		renameCreated: boolean;
 		renameDuration: number | undefined;
 		renameTimedOut: boolean;

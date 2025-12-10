@@ -5,6 +5,7 @@
 
 import { n } from '../../../../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../../../../../base/common/numbers.js';
 import { IObservable, derived, constObservable, IReader, autorun, observableValue } from '../../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../../../browser/editorBrowser.js';
@@ -116,6 +117,7 @@ export class LongDistancePreviewEditor extends Disposable {
 					props.inlineSuggestInfo,
 					LineRange.ofLength(state.visibleLineRange.startLineNumber, 1),
 					props.model,
+					undefined,
 				);
 			}),
 			this._tabAction,
@@ -261,8 +263,11 @@ export class LongDistancePreviewEditor extends Disposable {
 
 		// find the horizontal range we want to show.
 		const preferredRange = growUntilVariableBoundaries(editor.getModel()!, firstCharacterChange, 5);
-		const left = this._previewEditorObs.getLeftOfPosition(preferredRange.getStartPosition(), reader);
-		const right = trueContentWidth; //this._previewEditorObs.getLeftOfPosition(preferredRange.getEndPosition(), reader);
+		const leftOffset = this._previewEditorObs.getLeftOfPosition(preferredRange.getStartPosition(), reader);
+		const rightOffset = this._previewEditorObs.getLeftOfPosition(preferredRange.getEndPosition(), reader);
+
+		const left = clamp(leftOffset, 0, trueContentWidth);
+		const right = clamp(rightOffset, left, trueContentWidth);
 
 		const indentCol = editor.getModel()!.getLineFirstNonWhitespaceColumn(preferredRange.startLineNumber);
 		const indentationEnd = this._previewEditorObs.getLeftOfPosition(new Position(preferredRange.startLineNumber, indentCol), reader);
