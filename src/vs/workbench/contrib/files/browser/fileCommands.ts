@@ -11,7 +11,8 @@ import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindo
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME } from '../../../../platform/workspace/common/workspace.js';
-import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext, VIEW_ID } from '../common/files.js';
+import { ExplorerFocusCondition, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext, VIEW_ID } from '../common/files.js';
+import { SaveComparisonFileSystemProvider } from './saveComparisonFileSystemProvider.js';
 import { ExplorerViewPaneContainer } from './explorerViewlet.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -21,7 +22,6 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode, KeyChord } from '../../../../base/common/keyCodes.js';
 import { isWeb, isWindows } from '../../../../base/common/platform.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMultiSelection, IExplorerService } from './files.js';
 import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 import { resolveCommandsContext } from '../../../browser/parts/editor/editorCommandsContext.js';
@@ -136,7 +136,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-const COMPARE_WITH_SAVED_SCHEMA = 'showModifications';
 let providerDisposables: IDisposable[] = [];
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COMPARE_WITH_SAVED_COMMAND_ID,
@@ -145,7 +144,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyD),
 	handler: async (accessor, resource: URI | object) => {
 		const instantiationService = accessor.get(IInstantiationService);
-		const textModelService = accessor.get(ITextModelService);
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const listService = accessor.get(IListService);
@@ -155,23 +153,34 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (providerDisposables.length === 0) {
 			registerEditorListener = true;
 
-			const provider = instantiationService.createInstance(TextFileContentProvider);
-			providerDisposables.push(provider);
-			providerDisposables.push(textModelService.registerTextModelContentProvider(COMPARE_WITH_SAVED_SCHEMA, provider));
+			const provider = instantiationService.createInstance(SaveComparisonFileSystemProvider, fileService);
+			providerDisposables.push(fileService.registerProvider(SaveComparisonFileSystemProvider.SCHEMA, provider));
 		}
 
 		// Open editor (only resources that can be handled by file service are supported)
 		const uri = getResourceForCommand(resource, editorService, listService);
 		if (uri && fileService.hasProvider(uri)) {
 			const name = basename(uri);
-			const editorLabel = nls.localize('modifiedLabel', "{0} (in file) ↔ {1}", name, name);
+			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
+
+			// Create the file system URI for the saved version
+			const savedVersionUri = SaveComparisonFileSystemProvider.toSaveComparisonFileSystem({
+				location: uri,
+				associatedResource: uri
+			});
 
 			try {
-				await TextFileContentProvider.open(uri, COMPARE_WITH_SAVED_SCHEMA, editorLabel, editorService, { pinned: true });
+				await editorService.openEditor({
+					original: { resource: savedVersionUri },
+					modified: { resource: uri },
+					label: editorLabel,
+					options: { pinned: true }
+				});
+
 				// Dispose once no more diff editor is opened with the scheme
 				if (registerEditorListener) {
 					providerDisposables.push(editorService.onDidVisibleEditorsChange(() => {
-						if (!editorService.editors.some(editor => !!EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: COMPARE_WITH_SAVED_SCHEMA }))) {
+						if (!editorService.editors.some(editor => !!EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: SaveComparisonFileSystemProvider.SCHEMA }))) {
 							providerDisposables = dispose(providerDisposables);
 						}
 					}));
