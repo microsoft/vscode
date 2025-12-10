@@ -168,7 +168,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		enum: ['off', 'alwaysOnTopExceptExactMatch', 'alwaysOnTop'],
 		markdownEnumDescriptions: [
 			localize('suggest.inlineSuggestion.off', "Disable the feature."),
-			localize('suggest.inlineSuggestion.alwaysOnTopExceptExactMatch', "Enable the feature and sort the inline suggestion without forcing it to be on top. This means that exact matches will be will be above the inline suggestion."),
+			localize('suggest.inlineSuggestion.alwaysOnTopExceptExactMatch', "Enable the feature and sort the inline suggestion without forcing it to be on top. This means that exact matches will be above the inline suggestion."),
 			localize('suggest.inlineSuggestion.alwaysOnTop', "Enable the feature and always put the inline suggestion on top."),
 		],
 		default: 'alwaysOnTop',
@@ -210,7 +210,7 @@ export function registerTerminalSuggestProvidersConfiguration(providers?: Map<st
 	for (const id of Array.from(providers.keys()).sort()) {
 		providersProperties[id] = {
 			type: 'boolean',
-			default: true,
+			default: id === 'lsp' ? false : true,
 			description:
 				providers.get(id)?.description ??
 				localize('suggest.provider.title', "Show suggestions from {0}.", id)

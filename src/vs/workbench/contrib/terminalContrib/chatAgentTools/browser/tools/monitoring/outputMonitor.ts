@@ -401,10 +401,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				Response: {"prompt": "Continue", "options": ["y", "N"], "freeFormInput": false}
 
 			7. Output: "Press any key to close the terminal."
-				Response: {"prompt": "Press any key to continue...", "options": ["a"], "freeFormInput": false}
+				Response: null
 
 			8. Output: "Terminal will be reused by tasks, press any key to close it."
-				Response: {"prompt": "Terminal will be reused by tasks, press any key to close it.", "options": ["a"], "freeFormInput": false}
+				Response: null
 
 			9. Output: "Password:"
 				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
@@ -496,7 +496,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const parsed = suggestedOption.replace(/['"`]/g, '').trim();
 		const index = confirmationPrompt.options.indexOf(parsed);
-		const validOption = confirmationPrompt.options.find(opt => parsed === 'any key' || parsed === opt.replace(/['"`]/g, '').trim());
+		const validOption = confirmationPrompt.options.find(opt => parsed === opt.replace(/['"`]/g, '').trim());
 		if (!validOption || index === -1) {
 			return;
 		}
@@ -573,9 +573,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | boolean | undefined> {
-		let suggestedOptionValue = isString(suggestedOption) ? suggestedOption : suggestedOption.option;
+		const suggestedOptionValue = isString(suggestedOption) ? suggestedOption : suggestedOption.option;
 		if (suggestedOptionValue === 'any key') {
-			suggestedOptionValue = 'a';
+			return;
 		}
 		const focusTerminalSelection = Symbol('focusTerminalSelection');
 		let inputDataDisposable: IDisposable = Disposable.None;
