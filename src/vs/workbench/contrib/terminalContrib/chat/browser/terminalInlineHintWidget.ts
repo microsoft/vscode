@@ -181,7 +181,7 @@ export class TerminalInlineHintWidget extends Disposable {
 					getAnchor: () => { return new StandardMouseEvent(dom.getActiveWindow(), e); },
 					getActions: () => {
 						return [{
-							id: 'workench.action.disableTerminalInitialHint',
+							id: 'workbench.action.disableTerminalInitialHint',
 							label: localize('disableInitialHint', "Disable Initial Hint"),
 							tooltip: localize('disableInitialHint', "Disable Initial Hint"),
 							enabled: true,
