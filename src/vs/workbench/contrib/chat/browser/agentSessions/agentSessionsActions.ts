@@ -379,8 +379,8 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const part = getPartByLocation(chatLocation);
 		let currentSize = layoutService.getSize(part);
 
-		const sideBySideMinWidth = 600 + 1; // account for possible theme border
-		const stackedMaxWidth = 300 + 1; 	// account for possible theme border
+		const sideBySideMinWidth = 600 + 1;	// account for possible theme border
+		const stackedMaxWidth = 300 + 1;	// account for possible theme border
 
 		if (configuredSessionsViewerOrientation !== 'auto') {
 			if (
