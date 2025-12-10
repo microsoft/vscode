@@ -204,7 +204,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				return;
 			}
 			const queue = this._register(new Queue());
-			this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(e => queue.queue(() => this.syncInstalledMcpServers())));
+			this._register(this.mcpGalleryManifestService.onDidChangeMcpGalleryManifest(e => queue.queue(() => this.syncInstalledMcpServers())));
 			queue.queue(() => this.syncInstalledMcpServers());
 		});
 		urlService.registerHandler(this);
