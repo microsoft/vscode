@@ -91,8 +91,8 @@ class MirrorCell {
 				if (bufferSize > MAX_OUTPUT_DATA_SIZE_FOR_HASH) {
 					// Hash the first chunk and last chunk to detect changes
 					const chunkSize = MAX_OUTPUT_DATA_SIZE_FOR_HASH / 2;
-					const firstChunk = Array.from(new Uint8Array(dataBuffer, 0, chunkSize));
-					const lastChunk = Array.from(new Uint8Array(dataBuffer, bufferSize - chunkSize, chunkSize));
+					const firstChunk = Array.from(dataBuffer.subarray(0, chunkSize));
+					const lastChunk = Array.from(dataBuffer.subarray(bufferSize - chunkSize));
 					// Include size in the hash data to detect size changes
 					return hash([bufferSize, ...firstChunk, ...lastChunk]);
 				} else {
