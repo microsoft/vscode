@@ -17,7 +17,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { LocalAgentsSessionsProvider } from '../../browser/agentSessions/localAgentSessionsProvider.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../common/chatModel.js';
-import { IChatDetail, IChatService, IChatSessionStartOptions } from '../../common/chatService.js';
+import { IChatDetail, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -322,7 +322,8 @@ suite('LocalAgentsSessionsProvider', () => {
 				title: 'Test Session',
 				lastMessageDate: Date.now(),
 				isActive: true,
-				timing: { startTime: 0, endTime: 1 }
+				timing: { startTime: 0, endTime: 1 },
+				lastResponseState: ResponseModelState.Complete
 			}]);
 
 			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -344,6 +345,7 @@ suite('LocalAgentsSessionsProvider', () => {
 				title: 'History Session',
 				lastMessageDate: Date.now() - 10000,
 				isActive: false,
+				lastResponseState: ResponseModelState.Complete,
 				timing: { startTime: 0, endTime: 1 }
 			}]);
 
@@ -369,6 +371,7 @@ suite('LocalAgentsSessionsProvider', () => {
 				title: 'Live Session',
 				lastMessageDate: Date.now(),
 				isActive: true,
+				lastResponseState: ResponseModelState.Complete,
 				timing: { startTime: 0, endTime: 1 }
 			}]);
 			mockChatService.setHistorySessionItems([{
@@ -376,6 +379,7 @@ suite('LocalAgentsSessionsProvider', () => {
 				title: 'History Session',
 				lastMessageDate: Date.now() - 10000,
 				isActive: false,
+				lastResponseState: ResponseModelState.Complete,
 				timing: { startTime: 0, endTime: 1 }
 			}]);
 
@@ -403,6 +407,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'In Progress Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
 					timing: { startTime: 0, endTime: 1 }
 				}]);
 
@@ -432,6 +437,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Completed Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
 					timing: { startTime: 0, endTime: 1 },
 				}]);
 
@@ -460,6 +466,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Canceled Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
 					timing: { startTime: 0, endTime: 1 },
 				}]);
 
@@ -488,6 +495,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Error Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
 					timing: { startTime: 0, endTime: 1 },
 				}]);
 
@@ -531,6 +539,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Stats Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
 					timing: { startTime: 0, endTime: 1 },
 					stats: {
 						added: 30,
@@ -575,6 +584,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'No Stats Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
 					timing: { startTime: 0, endTime: 1 }
 				}]);
 
@@ -604,6 +614,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Timing Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
 					timing: { startTime: modelTimestamp }
 				}]);
 
@@ -626,6 +637,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'History Timing Session',
 					lastMessageDate,
 					isActive: false,
+					lastResponseState: ResponseModelState.Complete,
 					timing: { startTime: lastMessageDate }
 				}]);
 
@@ -654,6 +666,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'EndTime Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
 					timing: { startTime: 0, endTime: completedAt }
 				}]);
 
@@ -681,6 +694,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					title: 'Icon Session',
 					lastMessageDate: Date.now(),
 					isActive: true,
+					lastResponseState: ResponseModelState.Complete,
 					timing: { startTime: 0, endTime: 1 }
 				}]);
 

@@ -921,6 +921,13 @@ export interface IChatSessionTiming {
 	endTime?: number;
 }
 
+export const enum ResponseModelState {
+	Pending,
+	Complete,
+	Cancelled,
+	Failed
+}
+
 export interface IChatDetail {
 	sessionResource: URI;
 	title: string;
@@ -928,6 +935,7 @@ export interface IChatDetail {
 	timing: IChatSessionTiming;
 	isActive: boolean;
 	stats?: IChatSessionStats;
+	lastResponseState: ResponseModelState;
 }
 
 export interface IChatProviderInfo {
