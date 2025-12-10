@@ -434,7 +434,6 @@
 	vertical-align: middle;
 }
 
-.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center a:hover .codicon,
 .notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center:hover .codicon {
 	color: var(--vscode-editorLink-activeForeground) !important;
 }
@@ -466,7 +465,6 @@
 	vertical-align: middle;
 }
 
-.notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center a:hover .codicon,
 .notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center:hover .codicon {
 	color: var(--vscode-editorLink-activeForeground) !important;
 }

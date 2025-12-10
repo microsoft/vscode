@@ -2119,7 +2119,7 @@ export class CollapsedCellOverlayWidget extends Disposable implements IDiffCellM
 			role: 'button',
 			onclick: () => { this._action.fire(); }
 		}, [
-			DOM.$('a', {},
+			DOM.$('span', {},
 				...renderLabelWithIcons('$(unfold)'))]
 		),
 	]);
@@ -2159,7 +2159,7 @@ export class UnchangedCellOverlayWidget extends Disposable implements IDiffCellM
 			role: 'button',
 			onclick: () => { this._action.fire(); }
 		}, [
-			DOM.$('a', {},
+			DOM.$('span', {},
 				...renderLabelWithIcons('$(fold)')
 			)]
 		),
