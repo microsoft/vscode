@@ -15,6 +15,7 @@ import { Disposable, DisposableStore, dispose } from '../../../../../../base/com
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { isThemeColor } from '../../../../../../editor/common/editorCommon.js';
+import { Command } from '../../../../../../editor/common/languages.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -34,6 +35,8 @@ import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidg
 import type { IManagedHoverTooltipMarkdownString } from '../../../../../../base/browser/ui/hover/hover.js';
 
 const $ = DOM.$;
+
+type NotebookCellStatusBarCommand = Command & { command?: string };
 
 
 export class CellEditorStatusBar extends CellContentPart {
@@ -370,17 +373,7 @@ class CellStatusBarItem extends Disposable {
 			return;
 		}
 
-		let id: string | undefined;
-		if (typeof command === 'string') {
-			id = command;
-		} else if (typeof command.id === 'string') {
-			id = command.id;
-		} else if ('command' in command) {
-			const commandId = (command as { command?: unknown }).command;
-			if (typeof commandId === 'string') {
-				id = commandId;
-			}
-		}
+		const id = this.resolveCommandId(command);
 		const args = typeof command === 'string' ? [] : command.arguments ?? [];
 
 		if (!id) {
@@ -398,5 +391,17 @@ class CellStatusBarItem extends Disposable {
 		} catch (error) {
 			this._notificationService.error(toErrorMessage(error));
 		}
+	}
+
+	private resolveCommandId(command: string | NotebookCellStatusBarCommand): string | undefined {
+		if (typeof command === 'string') {
+			return command;
+		}
+
+		if (typeof command.id === 'string') {
+			return command.id;
+		}
+
+		return typeof command.command === 'string' ? command.command : undefined;
 	}
 }
