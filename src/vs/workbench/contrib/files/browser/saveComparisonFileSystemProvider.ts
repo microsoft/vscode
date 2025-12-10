@@ -32,6 +32,11 @@ interface ISerializedSaveComparisonResource {
  * A wrapper around a standard file system provider
  * that is entirely readonly and reads the saved version
  * of files for comparison purposes.
+ * 
+ * This provider is used by the "Compare with Saved" command
+ * to show differences between the current editor content and
+ * the saved file on disk. It supports all file types including
+ * custom editors like notebooks.
  */
 export class SaveComparisonFileSystemProvider implements IFileSystemProvider, IFileSystemProviderWithFileReadWriteCapability {
 
