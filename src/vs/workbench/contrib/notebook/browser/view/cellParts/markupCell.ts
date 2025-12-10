@@ -418,6 +418,7 @@ export class MarkupCell extends Disposable {
 
 		// Check if the cell is inside a folded region - if so, hide the preview instead of creating it
 		// This handles the case where the preview was created before folding state was restored
+		// Note: Hidden ranges start at the first hidden cell (not the fold header), so >= is correct
 		const viewModel = this.notebookEditor.getViewModel();
 		if (viewModel) {
 			const modelIndex = viewModel.getCellIndex(this.viewCell);
