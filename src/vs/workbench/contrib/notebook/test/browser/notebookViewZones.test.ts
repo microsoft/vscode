@@ -900,4 +900,68 @@ suite('NotebookRangeMap with whitesspaces', () => {
 				});
 			});
 	});
+
+	test('Whitespace with multiple viewzones at same non-zero position', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['# header c', 'markdown', CellKind.Markup, [], {}]
+			],
+			async (editor, viewModel, disposables) => {
+				viewModel.restoreEditorViewState({
+					editingCells: [false, false, false, false, false],
+					cellLineNumberStates: {},
+					editorViewStates: [null, null, null, null, null],
+					cellTotalHeights: [50, 100, 50, 100, 50],
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
+				});
+
+				const cellList = createNotebookCellList(instantiationService, disposables);
+				disposables.add(cellList);
+				cellList.attachViewModel(viewModel);
+
+				// render height 210, it can render 3 full cells and 1 partial cell
+				cellList.layout(210, 100);
+				assert.strictEqual(cellList.scrollHeight, 350);
+
+				cellList.changeViewZones(accessor => {
+					const first = accessor.addZone({
+						afterModelPosition: 1,
+						heightInPx: 20,
+						domNode: document.createElement('div')
+					});
+
+					accessor.layoutZone(first);
+					assert.strictEqual(cellList.scrollHeight, 370);
+
+					const second = accessor.addZone({
+						afterModelPosition: 1,
+						heightInPx: 30,
+						domNode: document.createElement('div')
+					});
+					accessor.layoutZone(second);
+					assert.strictEqual(cellList.scrollHeight, 400);
+
+					// With the fix, the first whitespace should be at position 50 (after cell 0)
+					// and the second whitespace should be at position 70 (after the first whitespace)
+					assert.strictEqual(cellList._getView().getWhitespacePosition(first), 50);
+					assert.strictEqual(cellList._getView().getWhitespacePosition(second), 70);
+
+					assert.strictEqual(cellList.getElementTop(0), 0);
+					assert.strictEqual(cellList.getElementTop(1), 100); // 50 (cell 0) + 20 (first zone) + 30 (second zone)
+					assert.strictEqual(cellList.getElementTop(2), 200); // previous + 100 (cell 1)
+					assert.strictEqual(cellList.getElementTop(3), 250); // previous + 50 (cell 2)
+					assert.strictEqual(cellList.getElementTop(4), 350); // previous + 100 (cell 3)
+
+					accessor.removeZone(first);
+					assert.strictEqual(cellList.scrollHeight, 380);
+					accessor.removeZone(second);
+					assert.strictEqual(cellList.scrollHeight, 350);
+				});
+			});
+	});
 });
