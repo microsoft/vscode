@@ -54,12 +54,17 @@ export class SaveComparisonFileSystemProvider implements IFileSystemProvider, IF
 	}
 
 	static fromSaveComparisonFileSystem(resource: URI): ISaveComparisonResource {
-		const serializedSaveComparisonResource: ISerializedSaveComparisonResource = JSON.parse(resource.query);
+		try {
+			const serializedSaveComparisonResource: ISerializedSaveComparisonResource = JSON.parse(resource.query);
 
-		return {
-			location: URI.parse(serializedSaveComparisonResource.location),
-			associatedResource: URI.parse(serializedSaveComparisonResource.associatedResource)
-		};
+			return {
+				location: URI.parse(serializedSaveComparisonResource.location),
+				associatedResource: URI.parse(serializedSaveComparisonResource.associatedResource)
+			};
+		} catch (error) {
+			// Fallback to empty resource if parsing fails
+			return SaveComparisonFileSystemProvider.EMPTY;
+		}
 	}
 
 	private static readonly EMPTY_RESOURCE = URI.from({ scheme: SaveComparisonFileSystemProvider.SCHEMA, path: '/empty' });
@@ -136,7 +141,7 @@ export class SaveComparisonFileSystemProvider implements IFileSystemProvider, IF
 			return provider.readFile(location);
 		}
 
-		throw new Error('Unsupported');
+		throw new Error(`Provider for scheme '${location.scheme}' does not support file read operations`);
 	}
 
 	//#endregion
@@ -146,13 +151,25 @@ export class SaveComparisonFileSystemProvider implements IFileSystemProvider, IF
 	readonly onDidChangeCapabilities = Event.None;
 	readonly onDidChangeFile = Event.None;
 
-	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> { }
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+		throw new Error('Not supported - SaveComparisonFileSystemProvider is readonly');
+	}
 
-	async mkdir(resource: URI): Promise<void> { }
-	async readdir(resource: URI): Promise<[string, FileType][]> { return []; }
+	mkdir(resource: URI): Promise<void> {
+		throw new Error('Not supported - SaveComparisonFileSystemProvider is readonly');
+	}
 
-	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> { }
-	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> { }
+	readdir(resource: URI): Promise<[string, FileType][]> {
+		throw new Error('Not supported - SaveComparisonFileSystemProvider is readonly');
+	}
+
+	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
+		throw new Error('Not supported - SaveComparisonFileSystemProvider is readonly');
+	}
+
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
+		throw new Error('Not supported - SaveComparisonFileSystemProvider is readonly');
+	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable { return Disposable.None; }
 

@@ -161,7 +161,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const uri = getResourceForCommand(resource, editorService, listService);
 		if (uri && fileService.hasProvider(uri)) {
 			const name = basename(uri);
-			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
+			const editorLabel = nls.localize('modifiedLabel', "{0} (saved) ↔ {1}", name, name);
 
 			// Create the file system URI for the saved version
 			const savedVersionUri = SaveComparisonFileSystemProvider.toSaveComparisonFileSystem({
