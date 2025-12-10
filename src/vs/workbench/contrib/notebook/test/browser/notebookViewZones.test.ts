@@ -901,7 +901,7 @@ suite('NotebookRangeMap with whitesspaces', () => {
 			});
 	});
 
-	test('Whitespace with multiple viewzones at same non-zero position', async function () {
+	test('Whitespace with multiple view zones at same non-zero position', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],
