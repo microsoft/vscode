@@ -48,8 +48,18 @@ export class McpContextKeysController extends Disposable implements IWorkbenchCo
 		const ctxHasUnknownTools = McpContextKeys.hasUnknownTools.bindTo(contextKeyService);
 		const ctxMcpDisabledByPolicy = McpContextKeys.mcpDisabledByPolicy.bindTo(contextKeyService);
 
-		// Set the policy context key
-		ctxMcpDisabledByPolicy.set(configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None);
+		// Initialize the policy context key
+		const updateMcpPolicyContextKey = () => {
+			ctxMcpDisabledByPolicy.set(configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None);
+		};
+		updateMcpPolicyContextKey();
+
+		// Listen for configuration changes that affect MCP policy
+		this._store.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(mcpAccessConfig)) {
+				updateMcpPolicyContextKey();
+			}
+		}));
 
 		this._store.add(bindContextKey(McpContextKeys.hasServersWithErrors, contextKeyService, r => mcpService.servers.read(r).some(c => c.connectionState.read(r).state === McpConnectionState.Kind.Error)));
 
