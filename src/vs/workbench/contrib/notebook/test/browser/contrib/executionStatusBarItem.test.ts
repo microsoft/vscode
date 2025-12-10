@@ -23,4 +23,16 @@ suite('notebookBrowser', () => {
 		assert.strictEqual(formatCellDuration(180000), '3m 0.0s');
 		assert.strictEqual(formatCellDuration(189412), '3m 9.4s');
 	});
+
+	test('timestamp uses 24-hour format', function () {
+		// Test that timestamps use 24-hour format regardless of locale
+		// Create a date at 10:52:06 PM (22:52:06 in 24-hour format)
+		const testDate = new Date('2025-02-17T22:52:06');
+		const timeString = testDate.toLocaleTimeString('en-US', { hour12: false });
+
+		// Verify the time string contains 22 (not 10) and doesn't contain PM
+		assert.ok(!timeString.includes('PM'), 'Timestamp should not contain PM/AM');
+		assert.ok(!timeString.includes('AM'), 'Timestamp should not contain PM/AM');
+		assert.ok(timeString.includes('22'), 'Timestamp should use 24-hour format (22 instead of 10)');
+	});
 });

@@ -302,7 +302,7 @@ class TimerCellStatusBarItem extends Disposable {
 
 		let tooltip: IMarkdownString | undefined;
 
-		const lastExecution = new Date(endTime).toLocaleTimeString(language);
+		const lastExecution = new Date(endTime).toLocaleTimeString(language, { hour12: false });
 
 		if (runtimeInformation) {
 			const { renderDuration, executionDuration, timerDuration } = runtimeInformation;
