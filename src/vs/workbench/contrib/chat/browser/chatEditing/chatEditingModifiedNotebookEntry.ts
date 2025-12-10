@@ -82,6 +82,47 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	private readonly _changesCount = observableValue<number>(this, 0);
 	override changesCount: IObservable<number> = this._changesCount;
 
+	get linesAdded(): IObservable<number> {
+		return this._cellsDiffInfo.map(cellsDiffInfo => {
+			let added = 0;
+			for (const cellDiff of cellsDiffInfo) {
+				const diff = cellDiff.diff.get();
+				// When we accept some of the cell insert/delete the items might still be in the list.
+				if (diff.identical) {
+					continue;
+				}
+				switch (cellDiff.type) {
+					case 'insert':
+						added += 1; // Count inserted cells
+						break;
+					case 'modified':
+						added += 1; // Count modified cells
+						break;
+				}
+			}
+			return added;
+		});
+	}
+
+	get linesRemoved(): IObservable<number> {
+		return this._cellsDiffInfo.map(cellsDiffInfo => {
+			let removed = 0;
+			for (const cellDiff of cellsDiffInfo) {
+				const diff = cellDiff.diff.get();
+				// When we accept some of the cell insert/delete the items might still be in the list.
+				if (diff.identical) {
+					continue;
+				}
+				switch (cellDiff.type) {
+					case 'delete':
+						removed += 1; // Count deleted cells
+						break;
+				}
+			}
+			return removed;
+		});
+	}
+
 	private readonly cellEntryMap = new ResourceMap<ChatEditingNotebookCellEntry>();
 	private modifiedToOriginalCell = new ResourceMap<URI>();
 	private readonly _cellsDiffInfo = observableValue<ICellDiffInfo[]>('diffInfo', []);
