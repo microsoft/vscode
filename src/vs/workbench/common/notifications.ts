@@ -539,8 +539,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		private _message: INotificationMessage,
 		private _source: string | INotificationSource | undefined,
 		progress: INotificationProgressProperties | undefined,
-		actions?: INotificationActions,
-		readonly specialFormattingContent?: ISpecialFormattingContent
+		actions: INotificationActions | undefined,
+		readonly specialFormattingContent: ISpecialFormattingContent | undefined
 	) {
 		super();
 

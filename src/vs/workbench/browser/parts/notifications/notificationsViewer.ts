@@ -766,7 +766,6 @@ export class SpecialFormattingNotificationTemplateRenderer extends Disposable {
 	constructor(
 		private template: ISpecialFormattingNotificationTemplateData,
 		private actionRunner: IActionRunner,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
