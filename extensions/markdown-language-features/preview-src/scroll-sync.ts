@@ -30,7 +30,7 @@ export class CodeLineElement {
 		}
 
 		const bounds = this.element.getBoundingClientRect();
-		if (bounds.height === 0 && bounds.width === 0) {
+		if (bounds.height === 0 || bounds.width === 0) {
 			return false;
 		}
 
