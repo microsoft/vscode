@@ -73,7 +73,7 @@ export class SaveComparisonFileSystemProvider implements IFileSystemProvider, IF
 		return FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly;
 	}
 
-	constructor(private readonly fileService: IFileService) { }
+	constructor(@IFileService private readonly fileService: IFileService) { }
 
 	private readonly mapSchemeToProvider = new Map<string, Promise<IFileSystemProvider>>();
 

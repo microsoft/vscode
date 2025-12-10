@@ -153,7 +153,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (providerDisposables.length === 0) {
 			registerEditorListener = true;
 
-			const provider = instantiationService.createInstance(SaveComparisonFileSystemProvider, fileService);
+			const provider = instantiationService.createInstance(SaveComparisonFileSystemProvider);
 			providerDisposables.push(fileService.registerProvider(SaveComparisonFileSystemProvider.SCHEMA, provider));
 		}
 
