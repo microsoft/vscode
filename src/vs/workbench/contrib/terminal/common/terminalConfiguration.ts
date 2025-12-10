@@ -470,7 +470,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: true
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.23.251008001) shipped with VS Code, instead of the one bundled with Windows."),
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.22.250204002) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
 		tags: ['preview'],
 		default: false
