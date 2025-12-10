@@ -16,6 +16,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly onDidChange = this._register(new Emitter<IChatChangeEvent>()).event;
 	readonly sessionId = '';
 	readonly timestamp = 0;
+	readonly timing = { startTime: 0 };
 	readonly initialLocation = ChatAgentLocation.Chat;
 	readonly title = '';
 	readonly hasCustomTitle = false;

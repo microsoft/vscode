@@ -1389,7 +1389,7 @@ suite('Agent Sessions', () => {
 		});
 	});
 
-	suite('AgentSessionsViewModel - Session Read Tracking', () => {
+	suite('AgentSessionsViewModel - Session Read State', () => {
 		const disposables = new DisposableStore();
 		let mockChatSessionsService: MockChatSessionsService;
 		let instantiationService: TestInstantiationService;
@@ -1424,7 +1424,6 @@ suite('Agent Sessions', () => {
 				await viewModel.resolve(undefined);
 
 				const session = viewModel.sessions[0];
-				assert.strictEqual(session.isRead(), false);
 
 				// Mark as read
 				session.setRead(true);
@@ -1452,6 +1451,8 @@ suite('Agent Sessions', () => {
 				await viewModel.resolve(undefined);
 
 				const session = viewModel.sessions[0];
+				session.setRead(false); // ensure it's unread first
+
 				let changeEventFired = false;
 				disposables.add(viewModel.onDidChangeSessions(() => {
 					changeEventFired = true;
@@ -1493,16 +1494,11 @@ suite('Agent Sessions', () => {
 
 		test('should preserve read state after re-resolve', async () => {
 			return runWithFakedTimers({}, async () => {
-				const fixedTiming = { startTime: Date.now() - 10000, endTime: Date.now() - 5000 };
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: fixedTiming
-						}
+						makeSimpleSessionItem('session-1'),
 					]
 				};
 
@@ -1515,29 +1511,29 @@ suite('Agent Sessions', () => {
 				session.setRead(true);
 				assert.strictEqual(session.isRead(), true);
 
-				// Re-resolve should preserve read state since timing hasn't changed
+				// Re-resolve should preserve read state
 				await viewModel.resolve(undefined);
 				const sessionAfterResolve = viewModel.sessions[0];
 				assert.strictEqual(sessionAfterResolve.isRead(), true);
 			});
 		});
 
-		test('should consider session unread when endTime is newer than read time', async () => {
+		test('should consider sessions before initial date as read by default', async () => {
 			return runWithFakedTimers({}, async () => {
-				const startTime = Date.now() - 10000;
-				let endTime = startTime + 1000;
+				// Session with timing before the READ_STATE_INITIAL_DATE (December 8, 2025)
+				const oldSessionTiming = {
+					startTime: Date.UTC(2025, 10 /* November */, 1),
+					endTime: Date.UTC(2025, 10 /* November */, 2),
+				};
 
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
 						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: {
-								startTime,
-								endTime
-							}
+							resource: URI.parse('test://old-session'),
+							label: 'Old Session',
+							timing: oldSessionTiming,
 						}
 					]
 				};
@@ -1548,26 +1544,28 @@ suite('Agent Sessions', () => {
 				await viewModel.resolve(undefined);
 
 				const session = viewModel.sessions[0];
-				session.setRead(true);
+				// Sessions before the initial date should be considered read
 				assert.strictEqual(session.isRead(), true);
-
-				// Simulate session getting updated with newer endTime
-				endTime = Date.now() + 5000;
-				await viewModel.resolve(undefined);
-
-				const sessionAfterUpdate = viewModel.sessions[0];
-				assert.strictEqual(sessionAfterUpdate.isRead(), false);
 			});
 		});
 
-		test('should handle read state independently per session', async () => {
+		test('should consider sessions after initial date as unread by default', async () => {
 			return runWithFakedTimers({}, async () => {
+				// Session with timing after the READ_STATE_INITIAL_DATE (December 8, 2025)
+				const newSessionTiming = {
+					startTime: Date.UTC(2025, 11 /* December */, 10),
+					endTime: Date.UTC(2025, 11 /* December */, 11),
+				};
+
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						makeSimpleSessionItem('session-1'),
-						makeSimpleSessionItem('session-2'),
+						{
+							resource: URI.parse('test://new-session'),
+							label: 'New Session',
+							timing: newSessionTiming,
+						}
 					]
 				};
 
@@ -1576,14 +1574,70 @@ suite('Agent Sessions', () => {
 
 				await viewModel.resolve(undefined);
 
-				const session1 = viewModel.sessions[0];
-				const session2 = viewModel.sessions[1];
+				const session = viewModel.sessions[0];
+				// Sessions after the initial date should be considered unread
+				assert.strictEqual(session.isRead(), false);
+			});
+		});
 
-				// Mark only first session as read
-				session1.setRead(true);
+		test('should use endTime for read state comparison when available', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with startTime before initial date but endTime after
+				const sessionTiming = {
+					startTime: Date.UTC(2025, 10 /* November */, 1),
+					endTime: Date.UTC(2025, 11 /* December */, 10),
+				};
 
-				assert.strictEqual(session1.isRead(), true);
-				assert.strictEqual(session2.isRead(), false);
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://session-with-endtime'),
+							label: 'Session With EndTime',
+							timing: sessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Should use endTime (December 10) which is after the initial date
+				assert.strictEqual(session.isRead(), false);
+			});
+		});
+
+		test('should use startTime for read state comparison when endTime is not available', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with only startTime before initial date
+				const sessionTiming = {
+					startTime: Date.UTC(2025, 10 /* November */, 1),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://session-no-endtime'),
+							label: 'Session Without EndTime',
+							timing: sessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Should use startTime (November 1) which is before the initial date
+				assert.strictEqual(session.isRead(), true);
 			});
 		});
 	});

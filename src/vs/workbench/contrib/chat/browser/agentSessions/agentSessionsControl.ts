@@ -16,7 +16,7 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getSessionItemContextOverlay } from '../chatSessions/common.js';
-import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
+import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -35,11 +35,11 @@ import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { IAgentSessionsControl } from './agentSessions.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly filter?: IAgentSessionsFilter;
-	readonly allowNewSessionFromEmptySpace?: boolean;
 	readonly allowOpenSessionsInPanel?: boolean; // TODO@bpasero retire this option eventually
 	readonly trackActiveEditor?: boolean;
 }
@@ -142,7 +142,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter,
 				overrideStyles: this.options?.overrideStyles,
-				paddingBottom: this.options?.allowNewSessionFromEmptySpace ? AgentSessionsListDelegate.ITEM_HEIGHT : undefined,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, IAgentSession, FuzzyScore>;
@@ -163,13 +162,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._register(list.onDidOpen(e => this.openAgentSession(e)));
 		this._register(list.onContextMenu(e => this.showContextMenu(e)));
 
-		if (this.options?.allowNewSessionFromEmptySpace) {
-			this._register(list.onMouseDblClick(({ element }) => {
-				if (element === null) {
-					this.commandService.executeCommand(ACTION_ID_OPEN_CHAT);
-				}
-			}));
-		}
+		this._register(list.onMouseDblClick(({ element }) => {
+			if (element === null) {
+				this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+			}
+		}));
 	}
 
 	private async openAgentSession(e: IOpenEvent<IAgentSession | undefined>): Promise<void> {
@@ -194,7 +191,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		sessionOptions.ignoreInView = true;
 
-		const options: IChatEditorOptions = {
+		let options: IChatEditorOptions = {
 			...sessionOptions,
 			...e.editorOptions,
 			revealIfOpened: this.options?.allowOpenSessionsInPanel // always try to reveal if already opened
@@ -209,6 +206,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			target = ChatViewPaneTarget;
 		} else {
 			target = ACTIVE_GROUP;
+		}
+
+		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || session.resource.scheme === Schemas.vscodeLocalChatSession;
+		if (!isLocalChatSession && !(await this.chatSessionsService.canResolveChatSession(session.resource))) {
+			target = e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP; // force to open in editor if session cannot be resolved in panel
+			options = { ...options, revealIfOpened: true };
 		}
 
 		await this.chatWidgetService.openSession(session.resource, target, options);
@@ -250,7 +253,15 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.sessionsList?.updateChildren();
 	}
 
+	isVisible(): boolean {
+		return this.visible;
+	}
+
 	setVisible(visible: boolean): void {
+		if (this.visible === visible) {
+			return;
+		}
+
 		this.visible = visible;
 
 		if (this.visible) {

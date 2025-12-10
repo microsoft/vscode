@@ -12,8 +12,9 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatModel } from '../../common/chatModel.js';
-import { IChatDetail, IChatService } from '../../common/chatService.js';
+import { IChatDetail, IChatService, ResponseModelState } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/chatUri.js';
 import { ChatSessionItemWithProvider } from '../chatSessions/common.js';
 
 export class LocalAgentsSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
@@ -53,6 +54,13 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 				this._onDidChange.fire();
 			}
 		}));
+
+		this._register(this.chatService.onDidDisposeSession(e => {
+			const session = e.sessionResource.filter(resource => getChatSessionType(resource) === this.chatSessionType);
+			if (session.length > 0) {
+				this._onDidChangeChatSessionItems.fire();
+			}
+		}));
 	}
 
 
@@ -67,7 +75,9 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			// Check if the last request was completed successfully or failed
 			const lastRequest = requests[requests.length - 1];
 			if (lastRequest?.response) {
-				if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails) {
+				if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails?.code === 'canceled') {
+					return ChatSessionStatus.Completed;
+				} else if (lastRequest.response.result?.errorDetails) {
 					return ChatSessionStatus.Failed;
 				} else if (lastRequest.response.isComplete) {
 					return ChatSessionStatus.Completed;
@@ -122,22 +132,12 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		const model = this.chatService.getSession(chat.sessionResource);
 
 		let description: string | undefined;
-		let startTime: number | undefined;
-		let endTime: number | undefined;
 		if (model) {
 			if (!model.hasRequests) {
 				return undefined; // ignore sessions without requests
 			}
 
-			const lastResponse = model.getRequests().at(-1)?.response;
-			description = this.chatSessionsService.getSessionDescription(model);
-
-			startTime = model.timestamp;
-			if (lastResponse) {
-				endTime = lastResponse.completedAt ?? lastResponse.timestamp;
-			}
-		} else {
-			startTime = chat.lastMessageDate;
+			description = this.chatSessionsService.getInProgressSessionDescription(model);
 		}
 
 		return {
@@ -145,17 +145,28 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			provider: this,
 			label: chat.title,
 			description,
-			status: model ? this.modelToStatus(model) : undefined,
+			status: model ?
+				this.modelToStatus(model) :
+				chatResponseStateToSessionStatus(chat.lastResponseState),
 			iconPath: Codicon.chatSparkle,
-			timing: {
-				startTime,
-				endTime
-			},
+			timing: chat.timing,
 			changes: chat.stats ? {
 				insertions: chat.stats.added,
 				deletions: chat.stats.removed,
 				files: chat.stats.fileCount,
 			} : undefined
 		};
+	}
+}
+
+function chatResponseStateToSessionStatus(state: ResponseModelState): ChatSessionStatus {
+	switch (state) {
+		case ResponseModelState.Cancelled:
+		case ResponseModelState.Complete:
+			return ChatSessionStatus.Completed;
+		case ResponseModelState.Failed:
+			return ChatSessionStatus.Failed;
+		case ResponseModelState.Pending:
+			return ChatSessionStatus.InProgress;
 	}
 }
