@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
 import * as fnv from '@enonic/fnv-plus';
 import { serializeNotebookToString } from './serializers';
+import { isXMLNotebook, parseXMLNotebook } from './xmlNotebookParser';
 
 export abstract class NotebookSerializerBase extends vscode.Disposable implements vscode.NotebookSerializer {
 	protected disposed: boolean = false;
@@ -28,7 +29,13 @@ export abstract class NotebookSerializerBase extends vscode.Disposable implement
 		} catch {
 		}
 
-		let json = contents && /\S/.test(contents) ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
+		// Check if content is XML format and parse it
+		let json: Partial<nbformat.INotebookContent>;
+		if (contents && isXMLNotebook(contents)) {
+			json = parseXMLNotebook(contents);
+		} else {
+			json = contents && /\S/.test(contents) ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
+		}
 
 		if (json.__webview_backup) {
 			const backupId = json.__webview_backup;
