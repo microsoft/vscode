@@ -92,6 +92,10 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		return exeMap ? new Map(exeMap.entries()) : undefined;
 	}
 
+	hasRunningExecutions(): boolean {
+		return this._executions.size > 0 || this._notebookExecutions.size > 0;
+	}
+
 	private _onCellExecutionDidChange(notebookUri: URI, cellHandle: number, exe: CellExecution): void {
 		this._onDidChangeExecution.fire(new NotebookCellExecutionEvent(notebookUri, cellHandle, exe));
 	}

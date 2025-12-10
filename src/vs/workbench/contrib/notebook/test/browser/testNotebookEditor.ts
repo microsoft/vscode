@@ -608,4 +608,7 @@ export class TestNotebookExecutionStateService implements INotebookExecutionStat
 	createExecution(notebook: URI): INotebookExecution {
 		throw new Error('Method not implemented.');
 	}
+	hasRunningExecutions(): boolean {
+		return this._executions.size > 0;
+	}
 }
