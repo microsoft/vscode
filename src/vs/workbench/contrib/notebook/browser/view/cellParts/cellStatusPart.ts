@@ -36,6 +36,9 @@ import type { IManagedHoverTooltipMarkdownString } from '../../../../../../base/
 
 const $ = DOM.$;
 
+// Notebook status bar commands may come from workbench providers (using `id`)
+// or from extensions where the command id lives on the `command` property.
+// Prefer `id` when both are present.
 type NotebookCellStatusBarCommand = Command & { command?: string };
 
 
@@ -402,6 +405,7 @@ class CellStatusBarItem extends Disposable {
 			return command.id;
 		}
 
+		// Extensions provide command objects with the identifier on `command`.
 		return typeof command.command === 'string' ? command.command : undefined;
 	}
 }
