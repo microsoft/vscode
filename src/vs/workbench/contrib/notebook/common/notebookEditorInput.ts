@@ -285,7 +285,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			const matches = /^\*\.([A-Za-z_-]*)$/.exec(selectorStr);
 			if (matches && matches.length > 1) {
 				const fileExt = matches[1];
-				if (!targetResource.path.endsWith(fileExt)) {
+				if (!targetResource.path.toLowerCase().endsWith(fileExt.toLowerCase())) {
 					return targetResource.with({ path: targetResource.path + '.' + fileExt });
 				}
 			}
