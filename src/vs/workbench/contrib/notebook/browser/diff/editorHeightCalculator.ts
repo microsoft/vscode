@@ -12,7 +12,7 @@ import { getEditorPadding } from './diffCellEditorOptions.js';
 import { HeightOfHiddenLinesRegionInDiffEditor } from './diffElementViewModel.js';
 
 export interface IDiffEditorHeightCalculatorService {
-	diffAndComputeHeight(original: URI, modified: URI, editorWidth?: number): Promise<number>;
+	diffAndComputeHeight(original: URI, modified: URI): Promise<number>;
 	computeHeightFromLines(lineCount: number): number;
 }
 
@@ -24,7 +24,7 @@ export class DiffEditorHeightCalculatorService {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	public async diffAndComputeHeight(original: URI, modified: URI, editorWidth?: number): Promise<number> {
+	public async diffAndComputeHeight(original: URI, modified: URI): Promise<number> {
 		const [originalModel, modifiedModel] = await Promise.all([this.textModelResolverService.createModelReference(original), this.textModelResolverService.createModelReference(modified)]);
 		try {
 			const diffChanges = await this.editorWorkerService.computeDiff(original, modified, {
@@ -59,12 +59,7 @@ export class DiffEditorHeightCalculatorService {
 			const unchangeRegionsHeight = numberOfHiddenSections * HeightOfHiddenLinesRegionInDiffEditor;
 			const visibleLineCount = orginalNumberOfLines + numberOfNewLines - numberOfHiddenLines;
 
-			// Always reserve space for the horizontal scrollbar to prevent layout shifts
-			// This ensures consistent height whether or not a scrollbar is displayed
-			const scrollbarSize = this.configurationService.getValue<number>('editor.scrollbar.horizontalScrollbarSize');
-			const horizontalScrollbarHeight = scrollbarSize ?? 12; // Default to 12px if not configured
-
-			return (visibleLineCount * this.lineHeight) + getEditorPadding(visibleLineCount).top + getEditorPadding(visibleLineCount).bottom + unchangeRegionsHeight + horizontalScrollbarHeight;
+			return (visibleLineCount * this.lineHeight) + getEditorPadding(visibleLineCount).top + getEditorPadding(visibleLineCount).bottom + unchangeRegionsHeight + this._getHorizontalScrollbarHeight();
 		} finally {
 			originalModel.dispose();
 			modifiedModel.dispose();
@@ -72,8 +67,16 @@ export class DiffEditorHeightCalculatorService {
 	}
 
 	public computeHeightFromLines(lineCount: number): number {
+		return lineCount * this.lineHeight + getEditorPadding(lineCount).top + getEditorPadding(lineCount).bottom + this._getHorizontalScrollbarHeight();
+	}
+
+	/**
+	 * Gets the horizontal scrollbar height from configuration.
+	 * Always reserves space for the horizontal scrollbar to prevent layout shifts.
+	 * This ensures consistent height whether or not a scrollbar is displayed.
+	 */
+	private _getHorizontalScrollbarHeight(): number {
 		const scrollbarSize = this.configurationService.getValue<number>('editor.scrollbar.horizontalScrollbarSize');
-		const horizontalScrollbarHeight = scrollbarSize ?? 12; // Default to 12px if not configured
-		return lineCount * this.lineHeight + getEditorPadding(lineCount).top + getEditorPadding(lineCount).bottom + horizontalScrollbarHeight;
+		return scrollbarSize ?? 12; // Default to 12px if not configured
 	}
 }
