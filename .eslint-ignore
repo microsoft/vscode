@@ -17,6 +17,7 @@
 **/extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts
 **/extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts
 **/extensions/terminal-suggest/third_party/**
+**/extensions/latex-language-features/vendors/**
 **/extensions/typescript-language-features/test-workspace/**
 **/extensions/typescript-language-features/extension.webpack.config.js
 **/extensions/typescript-language-features/extension-browser.webpack.config.js

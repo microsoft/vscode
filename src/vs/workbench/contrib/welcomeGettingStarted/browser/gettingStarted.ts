@@ -911,7 +911,9 @@ export class GettingStartedPage extends EditorPane {
 			onShowOnStartupChanged();
 		}));
 
+		// DSpace: Add logo to the Welcome page header
 		const header = $('.header', {},
+			$('.welcome-logo'),
 			$('h1.product-name.caption', {}, this.productService.nameLong),
 			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
 		);

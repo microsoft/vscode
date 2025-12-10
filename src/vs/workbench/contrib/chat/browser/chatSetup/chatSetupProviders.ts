@@ -610,6 +610,10 @@ export class AINewSymbolNamesProvider {
 
 export class ChatCodeActionsProvider {
 
+	// Languages that have their own AI-powered code action providers
+	// These should be excluded from the generic chat code actions
+	private static readonly EXCLUDED_LANGUAGES = new Set(['latex', 'tex']);
+
 	static registerProvider(instantiationService: IInstantiationService): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
 			const languageFeaturesService = accessor.get(ILanguageFeaturesService);
@@ -625,6 +629,12 @@ export class ChatCodeActionsProvider {
 	}
 
 	async provideCodeActions(model: ITextModel, range: Range | Selection): Promise<CodeActionList | undefined> {
+		// Skip for languages that have their own AI code action providers
+		const languageId = model.getLanguageId();
+		if (ChatCodeActionsProvider.EXCLUDED_LANGUAGES.has(languageId)) {
+			return undefined;
+		}
+
 		const actions: CodeAction[] = [];
 
 		// "Generate" if the line is whitespace only
@@ -761,8 +771,9 @@ export class AICodeActionsHelper {
 					message: `/fix ${markers.map(marker => marker.message).join(', ')}`,
 					initialSelection: this.rangeToSelection(range),
 					initialRange: range,
-					position: range.getStartPosition()
-				} satisfies { message: string; initialSelection: ISelection; initialRange: IRange; position: IPosition }
+					position: range.getStartPosition(),
+					autoSend: true
+				} satisfies { message: string; initialSelection: ISelection; initialRange: IRange; position: IPosition; autoSend: boolean }
 			]
 		};
 	}

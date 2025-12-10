@@ -180,11 +180,23 @@ export class ChatViewWelcomePart extends Disposable {
 					const iconId = `chat-welcome-icon-${hash.digest()}`;
 					const iconClass = `.chat-welcome-view-icon.${iconId}`;
 
-					createCSSRule(iconClass, `
-					mask: ${cssUrl} no-repeat 50% 50%;
-					-webkit-mask: ${cssUrl} no-repeat 50% 50%;
-					background-color: var(--vscode-icon-foreground);
-				`);
+					// Use background-image for PNG images to preserve colors, mask for SVG/icons
+					const isPngImage = content.icon.path.toLowerCase().endsWith('.png');
+					if (isPngImage) {
+						createCSSRule(iconClass, `
+						background-image: ${cssUrl};
+						background-size: contain;
+						background-repeat: no-repeat;
+						background-position: center;
+						background-color: transparent;
+					`);
+					} else {
+						createCSSRule(iconClass, `
+						mask: ${cssUrl} no-repeat 50% 50%;
+						-webkit-mask: ${cssUrl} no-repeat 50% 50%;
+						background-color: var(--vscode-icon-foreground);
+					`);
+					}
 					icon.classList.add(iconId, 'custom-icon');
 				}
 			}

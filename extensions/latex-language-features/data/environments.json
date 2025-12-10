@@ -1,0 +1,201 @@
+[
+	{
+		"name": "document",
+		"arg": {
+			"format": "",
+			"snippet": "\n$0"
+		}
+	},
+	{
+		"name": "table"
+	},
+	{
+		"name": "description",
+		"arg": {
+			"format": "",
+			"snippet": "\n\t\\item[$1] $0"
+		}
+	},
+	{
+		"name": "enumerate",
+		"arg": {
+			"format": "",
+			"snippet": "\n\t\\item $0"
+		}
+	},
+	{
+		"name": "itemize",
+		"arg": {
+			"format": "",
+			"snippet": "\n\t\\item $0"
+		}
+	},
+	{
+		"name": "math"
+	},
+	{
+		"name": "displaymath"
+	},
+	{
+		"name": "split"
+	},
+	{
+		"name": "array",
+		"arg": {
+			"format": "{}",
+			"snippet": "{${1:cols}}"
+		}
+	},
+	{
+		"name": "subarray",
+		"arg": {
+			"format": "{}",
+			"snippet": "{${1:align}}"
+		}
+	},
+	{
+		"name": "eqnarray"
+	},
+	{
+		"name": "equation"
+	},
+	{
+		"name": "equation*"
+	},
+	{
+		"name": "subequations"
+	},
+	{
+		"name": "subequations*"
+	},
+	{
+		"name": "multline"
+	},
+	{
+		"name": "multline*"
+	},
+	{
+		"name": "gather"
+	},
+	{
+		"name": "gather*"
+	},
+	{
+		"name": "gathered"
+	},
+	{
+		"name": "align"
+	},
+	{
+		"name": "align*"
+	},
+	{
+		"name": "aligned"
+	},
+	{
+		"name": "alignedat"
+	},
+	{
+		"name": "flalign"
+	},
+	{
+		"name": "flalign*"
+	},
+	{
+		"name": "xalignat"
+	},
+	{
+		"name": "xalignat*"
+	},
+	{
+		"name": "matrix"
+	},
+	{
+		"name": "bmatrix"
+	},
+	{
+		"name": "Bmatrix"
+	},
+	{
+		"name": "pmatrix"
+	},
+	{
+		"name": "vmatrix"
+	},
+	{
+		"name": "Vmatrix"
+	},
+	{
+		"name": "smallmatrix"
+	},
+	{
+		"name": "definition"
+	},
+	{
+		"name": "example"
+	},
+	{
+		"name": "remark"
+	},
+	{
+		"name": "lemma"
+	},
+	{
+		"name": "theorem"
+	},
+	{
+		"name": "corollary"
+	},
+	{
+		"name": "proposition"
+	},
+	{
+		"name": "proof"
+	},
+	{
+		"name": "cases"
+	},
+	{
+		"name": "center"
+	},
+	{
+		"name": "flushleft"
+	},
+	{
+		"name": "flushright"
+	},
+	{
+		"name": "minipage"
+	},
+	{
+		"name": "quotation"
+	},
+	{
+		"name": "quote"
+	},
+	{
+		"name": "verbatim"
+	},
+	{
+		"name": "verse"
+	},
+	{
+		"name": "picture"
+	},
+	{
+		"name": "tabbing"
+	},
+	{
+		"name": "tabular",
+		"arg": {
+			"format": "{}",
+			"snippet": "{${1:cols}}"
+		}
+	},
+	{
+		"name": "thebibliography"
+	},
+	{
+		"name": "titlepage"
+	}
+]

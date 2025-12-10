@@ -1,0 +1,795 @@
+{
+	"Document Class": {
+		"prefix": ["documentclass", "\\documentclass"],
+		"body": [
+			"\\documentclass[${1|11pt,12pt,10pt|}]{${2|article,report,book,letter,beamer|}}",
+			"",
+			"\\usepackage[utf8]{inputenc}",
+			"\\usepackage[${3|english,spanish,french,german|}]{babel}",
+			"\\usepackage{amsmath}",
+			"\\usepackage{graphicx}",
+			"",
+			"\\title{${4:Title}}",
+			"\\author{${5:Author}}",
+			"\\date{${6:\\today}}",
+			"",
+			"\\begin{document}",
+			"",
+			"\\maketitle",
+			"",
+			"$0",
+			"",
+			"\\end{document}"
+		],
+		"description": "Create a new LaTeX document with basic structure"
+	},
+	"Minimal Document": {
+		"prefix": ["doc", "document"],
+		"body": [
+			"\\documentclass{${1|article,report,book|}}",
+			"\\begin{document}",
+			"$0",
+			"\\end{document}"
+		],
+		"description": "Minimal LaTeX document"
+	},
+	"Begin Environment": {
+		"prefix": ["begin", "\\begin"],
+		"body": [
+			"\\begin{${1:environment}}",
+			"\t$0",
+			"\\end{$1}"
+		],
+		"description": "Generic environment"
+	},
+	"Figure": {
+		"prefix": ["figure", "fig", "\\figure"],
+		"body": [
+			"\\begin{figure}[${1|htbp,h,t,b,p,H|}]",
+			"\t\\centering",
+			"\t\\includegraphics[width=${2:0.8}\\textwidth]{${3:filename}}",
+			"\t\\caption{${4:Caption}}",
+			"\t\\label{fig:${5:label}}",
+			"\\end{figure}"
+		],
+		"description": "Figure environment with includegraphics"
+	},
+	"Figure with Subfigures": {
+		"prefix": ["subfigures", "subfig"],
+		"body": [
+			"\\begin{figure}[${1|htbp,h,t,b,p,H|}]",
+			"\t\\centering",
+			"\t\\begin{subfigure}[b]{0.45\\textwidth}",
+			"\t\t\\centering",
+			"\t\t\\includegraphics[width=\\textwidth]{${2:image1}}",
+			"\t\t\\caption{${3:Caption 1}}",
+			"\t\t\\label{fig:${4:label1}}",
+			"\t\\end{subfigure}",
+			"\t\\hfill",
+			"\t\\begin{subfigure}[b]{0.45\\textwidth}",
+			"\t\t\\centering",
+			"\t\t\\includegraphics[width=\\textwidth]{${5:image2}}",
+			"\t\t\\caption{${6:Caption 2}}",
+			"\t\t\\label{fig:${7:label2}}",
+			"\t\\end{subfigure}",
+			"\t\\caption{${8:Main caption}}",
+			"\t\\label{fig:${9:mainlabel}}",
+			"\\end{figure}"
+		],
+		"description": "Figure with two subfigures side by side"
+	},
+	"Table": {
+		"prefix": ["table", "tab", "\\table"],
+		"body": [
+			"\\begin{table}[${1|htbp,h,t,b,p,H|}]",
+			"\t\\centering",
+			"\t\\caption{${2:Caption}}",
+			"\t\\label{tab:${3:label}}",
+			"\t\\begin{tabular}{${4:l|c|r}}",
+			"\t\t\\hline",
+			"\t\t${5:Header 1} & ${6:Header 2} & ${7:Header 3} \\\\\\\\",
+			"\t\t\\hline",
+			"\t\t$0 & & \\\\\\\\",
+			"\t\t\\hline",
+			"\t\\end{tabular}",
+			"\\end{table}"
+		],
+		"description": "Table environment with tabular"
+	},
+	"Table with Booktabs": {
+		"prefix": ["booktable", "btab"],
+		"body": [
+			"\\begin{table}[${1|htbp,h,t,b,p,H|}]",
+			"\t\\centering",
+			"\t\\caption{${2:Caption}}",
+			"\t\\label{tab:${3:label}}",
+			"\t\\begin{tabular}{${4:lcc}}",
+			"\t\t\\toprule",
+			"\t\t${5:Header 1} & ${6:Header 2} & ${7:Header 3} \\\\\\\\",
+			"\t\t\\midrule",
+			"\t\t$0 & & \\\\\\\\",
+			"\t\t\\bottomrule",
+			"\t\\end{tabular}",
+			"\\end{table}"
+		],
+		"description": "Table with booktabs (professional style)"
+	},
+	"Itemize": {
+		"prefix": ["itemize", "ul", "\\itemize"],
+		"body": [
+			"\\begin{itemize}",
+			"\t\\item ${1:First item}",
+			"\t\\item ${2:Second item}",
+			"\t\\item $0",
+			"\\end{itemize}"
+		],
+		"description": "Unordered list (bullet points)"
+	},
+	"Enumerate": {
+		"prefix": ["enumerate", "ol", "\\enumerate"],
+		"body": [
+			"\\begin{enumerate}",
+			"\t\\item ${1:First item}",
+			"\t\\item ${2:Second item}",
+			"\t\\item $0",
+			"\\end{enumerate}"
+		],
+		"description": "Ordered list (numbered)"
+	},
+	"Description": {
+		"prefix": ["description", "dl", "\\description"],
+		"body": [
+			"\\begin{description}",
+			"\t\\item[${1:Term 1}] ${2:Description 1}",
+			"\t\\item[${3:Term 2}] ${4:Description 2}",
+			"\t\\item[$0] ",
+			"\\end{description}"
+		],
+		"description": "Description list"
+	},
+	"Equation": {
+		"prefix": ["equation", "eq", "\\equation"],
+		"body": [
+			"\\begin{equation}",
+			"\t${1:formula}",
+			"\t\\label{eq:${2:label}}",
+			"\\end{equation}"
+		],
+		"description": "Numbered equation environment"
+	},
+	"Equation*": {
+		"prefix": ["equation*", "eq*"],
+		"body": [
+			"\\begin{equation*}",
+			"\t$0",
+			"\\end{equation*}"
+		],
+		"description": "Unnumbered equation environment"
+	},
+	"Align": {
+		"prefix": ["align", "\\align"],
+		"body": [
+			"\\begin{align}",
+			"\t${1:left} &= ${2:right} \\\\\\\\",
+			"\t$0 &= ",
+			"\\end{align}"
+		],
+		"description": "Aligned equations (numbered)"
+	},
+	"Align*": {
+		"prefix": ["align*"],
+		"body": [
+			"\\begin{align*}",
+			"\t${1:left} &= ${2:right} \\\\\\\\",
+			"\t$0 &= ",
+			"\\end{align*}"
+		],
+		"description": "Aligned equations (unnumbered)"
+	},
+	"Gather": {
+		"prefix": ["gather", "\\gather"],
+		"body": [
+			"\\begin{gather}",
+			"\t${1:equation1} \\\\\\\\",
+			"\t$0",
+			"\\end{gather}"
+		],
+		"description": "Centered equations (numbered)"
+	},
+	"Cases": {
+		"prefix": ["cases", "\\cases"],
+		"body": [
+			"\\begin{cases}",
+			"\t${1:expression1} & \\text{if } ${2:condition1} \\\\\\\\",
+			"\t${3:expression2} & \\text{if } ${4:condition2} \\\\\\\\",
+			"\t$0 & \\text{otherwise}",
+			"\\end{cases}"
+		],
+		"description": "Piecewise function (cases)"
+	},
+	"Matrix": {
+		"prefix": ["matrix", "\\matrix"],
+		"body": [
+			"\\begin{${1|pmatrix,bmatrix,vmatrix,Vmatrix,matrix|}}",
+			"\t${2:a} & ${3:b} \\\\\\\\",
+			"\t${4:c} & ${5:d}",
+			"\\end{$1}"
+		],
+		"description": "Matrix environment"
+	},
+	"Fraction": {
+		"prefix": ["frac", "fraction", "\\frac"],
+		"body": "\\frac{${1:numerator}}{${2:denominator}}$0",
+		"description": "Fraction"
+	},
+	"Sum": {
+		"prefix": ["sum", "\\sum"],
+		"body": "\\sum_{${1:i=1}}^{${2:n}} ${3:term}$0",
+		"description": "Summation"
+	},
+	"Product": {
+		"prefix": ["prod", "\\prod"],
+		"body": "\\prod_{${1:i=1}}^{${2:n}} ${3:term}$0",
+		"description": "Product"
+	},
+	"Integral": {
+		"prefix": ["int", "integral", "\\int"],
+		"body": "\\int_{${1:a}}^{${2:b}} ${3:f(x)} \\, d${4:x}$0",
+		"description": "Definite integral"
+	},
+	"Limit": {
+		"prefix": ["lim", "limit", "\\lim"],
+		"body": "\\lim_{${1:x} \\to ${2:\\infty}} ${3:f(x)}$0",
+		"description": "Limit"
+	},
+	"Section": {
+		"prefix": ["section", "sec", "\\section"],
+		"body": [
+			"\\section{${1:Title}}",
+			"\\label{sec:${2:label}}",
+			"",
+			"$0"
+		],
+		"description": "Section with label"
+	},
+	"Subsection": {
+		"prefix": ["subsection", "ssec", "\\subsection"],
+		"body": [
+			"\\subsection{${1:Title}}",
+			"\\label{sec:${2:label}}",
+			"",
+			"$0"
+		],
+		"description": "Subsection with label"
+	},
+	"Subsubsection": {
+		"prefix": ["subsubsection", "sssec", "\\subsubsection"],
+		"body": [
+			"\\subsubsection{${1:Title}}",
+			"\\label{sec:${2:label}}",
+			"",
+			"$0"
+		],
+		"description": "Subsubsection with label"
+	},
+	"Chapter": {
+		"prefix": ["chapter", "chap", "\\chapter"],
+		"body": [
+			"\\chapter{${1:Title}}",
+			"\\label{chap:${2:label}}",
+			"",
+			"$0"
+		],
+		"description": "Chapter with label"
+	},
+	"Paragraph": {
+		"prefix": ["paragraph", "para", "\\paragraph"],
+		"body": [
+			"\\paragraph{${1:Title}}",
+			"$0"
+		],
+		"description": "Paragraph heading"
+	},
+	"Bold": {
+		"prefix": ["bf", "bold", "\\textbf"],
+		"body": "\\textbf{${1:text}}$0",
+		"description": "Bold text"
+	},
+	"Italic": {
+		"prefix": ["it", "italic", "\\textit"],
+		"body": "\\textit{${1:text}}$0",
+		"description": "Italic text"
+	},
+	"Underline": {
+		"prefix": ["ul", "underline", "\\underline"],
+		"body": "\\underline{${1:text}}$0",
+		"description": "Underlined text"
+	},
+	"Emphasis": {
+		"prefix": ["emph", "\\emph"],
+		"body": "\\emph{${1:text}}$0",
+		"description": "Emphasized text"
+	},
+	"Typewriter": {
+		"prefix": ["tt", "texttt", "\\texttt"],
+		"body": "\\texttt{${1:text}}$0",
+		"description": "Typewriter (monospace) text"
+	},
+	"Small Caps": {
+		"prefix": ["sc", "textsc", "\\textsc"],
+		"body": "\\textsc{${1:text}}$0",
+		"description": "Small caps text"
+	},
+	"Citation": {
+		"prefix": ["cite", "\\cite"],
+		"body": "\\cite{${1:key}}$0",
+		"description": "Citation"
+	},
+	"Citation with Page": {
+		"prefix": ["citep", "\\citep"],
+		"body": "\\cite[${1:p.~}${2:page}]{${3:key}}$0",
+		"description": "Citation with page number"
+	},
+	"Reference": {
+		"prefix": ["ref", "\\ref"],
+		"body": "\\ref{${1:label}}$0",
+		"description": "Cross-reference"
+	},
+	"Equation Reference": {
+		"prefix": ["eqref", "\\eqref"],
+		"body": "\\eqref{${1:eq:label}}$0",
+		"description": "Equation reference with parentheses"
+	},
+	"Page Reference": {
+		"prefix": ["pageref", "\\pageref"],
+		"body": "\\pageref{${1:label}}$0",
+		"description": "Page reference"
+	},
+	"Label": {
+		"prefix": ["label", "\\label"],
+		"body": "\\label{${1|sec:,fig:,tab:,eq:,chap:|}${2:name}}$0",
+		"description": "Label with prefix"
+	},
+	"Footnote": {
+		"prefix": ["footnote", "fn", "\\footnote"],
+		"body": "\\footnote{${1:text}}$0",
+		"description": "Footnote"
+	},
+	"Include Graphics": {
+		"prefix": ["includegraphics", "img", "\\includegraphics"],
+		"body": "\\includegraphics[width=${1:0.8}\\textwidth]{${2:filename}}$0",
+		"description": "Include graphics"
+	},
+	"Href": {
+		"prefix": ["href", "link", "\\href"],
+		"body": "\\href{${1:url}}{${2:text}}$0",
+		"description": "Hyperlink"
+	},
+	"URL": {
+		"prefix": ["url", "\\url"],
+		"body": "\\url{${1:url}}$0",
+		"description": "URL"
+	},
+	"Input": {
+		"prefix": ["input", "\\input"],
+		"body": "\\input{${1:filename}}$0",
+		"description": "Input file"
+	},
+	"Include": {
+		"prefix": ["include", "\\include"],
+		"body": "\\include{${1:filename}}$0",
+		"description": "Include file (with page break)"
+	},
+	"Usepackage": {
+		"prefix": ["usepackage", "\\usepackage"],
+		"body": "\\usepackage{${1:package}}$0",
+		"description": "Use package"
+	},
+	"Usepackage with Options": {
+		"prefix": ["usepackageopt"],
+		"body": "\\usepackage[${1:options}]{${2:package}}$0",
+		"description": "Use package with options"
+	},
+	"Minipage": {
+		"prefix": ["minipage", "\\minipage"],
+		"body": [
+			"\\begin{minipage}[${1|t,c,b|}]{${2:0.45}\\textwidth}",
+			"\t$0",
+			"\\end{minipage}"
+		],
+		"description": "Minipage environment"
+	},
+	"Two Columns": {
+		"prefix": ["twocol", "columns"],
+		"body": [
+			"\\begin{minipage}[t]{0.48\\textwidth}",
+			"\t${1:Left column}",
+			"\\end{minipage}",
+			"\\hfill",
+			"\\begin{minipage}[t]{0.48\\textwidth}",
+			"\t${2:Right column}",
+			"\\end{minipage}"
+		],
+		"description": "Two-column layout with minipages"
+	},
+	"Verbatim": {
+		"prefix": ["verbatim", "\\verbatim"],
+		"body": [
+			"\\begin{verbatim}",
+			"$0",
+			"\\end{verbatim}"
+		],
+		"description": "Verbatim environment"
+	},
+	"Listing": {
+		"prefix": ["lstlisting", "code", "\\lstlisting"],
+		"body": [
+			"\\begin{lstlisting}[language=${1|Python,Java,C,C++,JavaScript,LaTeX,Bash|}]",
+			"$0",
+			"\\end{lstlisting}"
+		],
+		"description": "Code listing with language"
+	},
+	"Theorem": {
+		"prefix": ["theorem", "thm", "\\theorem"],
+		"body": [
+			"\\begin{theorem}[${1:Name}]",
+			"\t\\label{thm:${2:label}}",
+			"\t$0",
+			"\\end{theorem}"
+		],
+		"description": "Theorem environment"
+	},
+	"Lemma": {
+		"prefix": ["lemma", "lem", "\\lemma"],
+		"body": [
+			"\\begin{lemma}[${1:Name}]",
+			"\t\\label{lem:${2:label}}",
+			"\t$0",
+			"\\end{lemma}"
+		],
+		"description": "Lemma environment"
+	},
+	"Proof": {
+		"prefix": ["proof", "\\proof"],
+		"body": [
+			"\\begin{proof}",
+			"\t$0",
+			"\\end{proof}"
+		],
+		"description": "Proof environment"
+	},
+	"Definition": {
+		"prefix": ["definition", "def", "\\definition"],
+		"body": [
+			"\\begin{definition}[${1:Name}]",
+			"\t\\label{def:${2:label}}",
+			"\t$0",
+			"\\end{definition}"
+		],
+		"description": "Definition environment"
+	},
+	"Example": {
+		"prefix": ["example", "ex", "\\example"],
+		"body": [
+			"\\begin{example}",
+			"\t$0",
+			"\\end{example}"
+		],
+		"description": "Example environment"
+	},
+	"Remark": {
+		"prefix": ["remark", "rem", "\\remark"],
+		"body": [
+			"\\begin{remark}",
+			"\t$0",
+			"\\end{remark}"
+		],
+		"description": "Remark environment"
+	},
+	"Abstract": {
+		"prefix": ["abstract", "\\abstract"],
+		"body": [
+			"\\begin{abstract}",
+			"\t$0",
+			"\\end{abstract}"
+		],
+		"description": "Abstract environment"
+	},
+	"Quote": {
+		"prefix": ["quote", "\\quote"],
+		"body": [
+			"\\begin{quote}",
+			"\t$0",
+			"\\end{quote}"
+		],
+		"description": "Quote environment"
+	},
+	"Center": {
+		"prefix": ["center", "\\center"],
+		"body": [
+			"\\begin{center}",
+			"\t$0",
+			"\\end{center}"
+		],
+		"description": "Center environment"
+	},
+	"TikZ Picture": {
+		"prefix": ["tikz", "tikzpicture"],
+		"body": [
+			"\\begin{tikzpicture}",
+			"\t$0",
+			"\\end{tikzpicture}"
+		],
+		"description": "TikZ picture environment"
+	},
+	"TikZ Node": {
+		"prefix": ["tikznode", "node"],
+		"body": "\\node[${1:options}] (${2:name}) at (${3:0,0}) {${4:text}};$0",
+		"description": "TikZ node"
+	},
+	"TikZ Draw": {
+		"prefix": ["tikzdraw", "draw"],
+		"body": "\\draw[${1:options}] (${2:0,0}) -- (${3:1,1});$0",
+		"description": "TikZ draw command"
+	},
+	"Beamer Frame": {
+		"prefix": ["frame", "\\frame"],
+		"body": [
+			"\\begin{frame}{${1:Title}}",
+			"\t$0",
+			"\\end{frame}"
+		],
+		"description": "Beamer frame"
+	},
+	"Beamer Frame with Subtitle": {
+		"prefix": ["framesub"],
+		"body": [
+			"\\begin{frame}{${1:Title}}{${2:Subtitle}}",
+			"\t$0",
+			"\\end{frame}"
+		],
+		"description": "Beamer frame with subtitle"
+	},
+	"Beamer Block": {
+		"prefix": ["block", "\\block"],
+		"body": [
+			"\\begin{block}{${1:Title}}",
+			"\t$0",
+			"\\end{block}"
+		],
+		"description": "Beamer block"
+	},
+	"Beamer Alert Block": {
+		"prefix": ["alertblock"],
+		"body": [
+			"\\begin{alertblock}{${1:Title}}",
+			"\t$0",
+			"\\end{alertblock}"
+		],
+		"description": "Beamer alert block"
+	},
+	"Beamer Columns": {
+		"prefix": ["beamercols", "bcols"],
+		"body": [
+			"\\begin{columns}",
+			"\t\\begin{column}{0.5\\textwidth}",
+			"\t\t${1:Left}",
+			"\t\\end{column}",
+			"\t\\begin{column}{0.5\\textwidth}",
+			"\t\t${2:Right}",
+			"\t\\end{column}",
+			"\\end{columns}"
+		],
+		"description": "Beamer two-column layout"
+	},
+	"Bibliography": {
+		"prefix": ["bibliography", "bib", "\\bibliography"],
+		"body": [
+			"\\bibliographystyle{${1|plain,alpha,abbrv,ieeetr,acm,unsrt|}}",
+			"\\bibliography{${2:references}}"
+		],
+		"description": "Bibliography"
+	},
+	"BibLaTeX": {
+		"prefix": ["biblatex", "addbibresource"],
+		"body": [
+			"\\usepackage[style=${1|numeric,alphabetic,authoryear,apa,ieee|}]{biblatex}",
+			"\\addbibresource{${2:references.bib}}",
+			"",
+			"% At the end of the document:",
+			"% \\printbibliography"
+		],
+		"description": "BibLaTeX setup"
+	},
+	"New Command": {
+		"prefix": ["newcommand", "\\newcommand"],
+		"body": "\\newcommand{\\${1:name}}[${2:0}]{${3:definition}}$0",
+		"description": "Define new command"
+	},
+	"Renew Command": {
+		"prefix": ["renewcommand", "\\renewcommand"],
+		"body": "\\renewcommand{\\${1:name}}[${2:0}]{${3:definition}}$0",
+		"description": "Redefine existing command"
+	},
+	"New Environment": {
+		"prefix": ["newenvironment", "\\newenvironment"],
+		"body": [
+			"\\newenvironment{${1:name}}[${2:0}]",
+			"\t{${3:begin code}}",
+			"\t{${4:end code}}"
+		],
+		"description": "Define new environment"
+	},
+	"Greek Alpha": {
+		"prefix": ["alpha", "\\alpha"],
+		"body": "\\alpha",
+		"description": "Greek letter alpha"
+	},
+	"Greek Beta": {
+		"prefix": ["beta", "\\beta"],
+		"body": "\\beta",
+		"description": "Greek letter beta"
+	},
+	"Greek Gamma": {
+		"prefix": ["gamma", "\\gamma"],
+		"body": "\\gamma",
+		"description": "Greek letter gamma"
+	},
+	"Greek Delta": {
+		"prefix": ["delta", "\\delta"],
+		"body": "\\delta",
+		"description": "Greek letter delta"
+	},
+	"Greek Epsilon": {
+		"prefix": ["epsilon", "\\epsilon"],
+		"body": "\\epsilon",
+		"description": "Greek letter epsilon"
+	},
+	"Greek Lambda": {
+		"prefix": ["lambda", "\\lambda"],
+		"body": "\\lambda",
+		"description": "Greek letter lambda"
+	},
+	"Greek Sigma": {
+		"prefix": ["sigma", "\\sigma"],
+		"body": "\\sigma",
+		"description": "Greek letter sigma"
+	},
+	"Greek Theta": {
+		"prefix": ["theta", "\\theta"],
+		"body": "\\theta",
+		"description": "Greek letter theta"
+	},
+	"Greek Phi": {
+		"prefix": ["phi", "\\phi"],
+		"body": "\\phi",
+		"description": "Greek letter phi"
+	},
+	"Greek Omega": {
+		"prefix": ["omega", "\\omega"],
+		"body": "\\omega",
+		"description": "Greek letter omega"
+	},
+	"Partial Derivative": {
+		"prefix": ["partial", "\\partial"],
+		"body": "\\frac{\\partial ${1:f}}{\\partial ${2:x}}$0",
+		"description": "Partial derivative"
+	},
+	"Derivative": {
+		"prefix": ["deriv", "derivative"],
+		"body": "\\frac{d${1:y}}{d${2:x}}$0",
+		"description": "Derivative"
+	},
+	"Square Root": {
+		"prefix": ["sqrt", "\\sqrt"],
+		"body": "\\sqrt{${1:x}}$0",
+		"description": "Square root"
+	},
+	"Nth Root": {
+		"prefix": ["nthroot"],
+		"body": "\\sqrt[${1:n}]{${2:x}}$0",
+		"description": "Nth root"
+	},
+	"Subscript": {
+		"prefix": ["sub", "_"],
+		"body": "_{${1:subscript}}$0",
+		"description": "Subscript"
+	},
+	"Superscript": {
+		"prefix": ["sup", "^"],
+		"body": "^{${1:superscript}}$0",
+		"description": "Superscript"
+	},
+	"Hat": {
+		"prefix": ["hat", "\\hat"],
+		"body": "\\hat{${1:x}}$0",
+		"description": "Hat accent"
+	},
+	"Bar": {
+		"prefix": ["bar", "\\bar"],
+		"body": "\\bar{${1:x}}$0",
+		"description": "Bar accent"
+	},
+	"Vector": {
+		"prefix": ["vec", "\\vec"],
+		"body": "\\vec{${1:v}}$0",
+		"description": "Vector arrow"
+	},
+	"Bold Math": {
+		"prefix": ["mathbf", "\\mathbf"],
+		"body": "\\mathbf{${1:x}}$0",
+		"description": "Bold math symbol"
+	},
+	"Calligraphic": {
+		"prefix": ["mathcal", "\\mathcal"],
+		"body": "\\mathcal{${1:A}}$0",
+		"description": "Calligraphic letter"
+	},
+	"Blackboard Bold": {
+		"prefix": ["mathbb", "\\mathbb"],
+		"body": "\\mathbb{${1|R,N,Z,Q,C|}}$0",
+		"description": "Blackboard bold (number sets)"
+	},
+	"Text in Math": {
+		"prefix": ["text", "\\text"],
+		"body": "\\text{${1:text}}$0",
+		"description": "Text in math mode"
+	},
+	"Left Right Parentheses": {
+		"prefix": ["lrparen", "leftright"],
+		"body": "\\left( ${1:content} \\right)$0",
+		"description": "Auto-sized parentheses"
+	},
+	"Left Right Brackets": {
+		"prefix": ["lrbrack"],
+		"body": "\\left[ ${1:content} \\right]$0",
+		"description": "Auto-sized brackets"
+	},
+	"Left Right Braces": {
+		"prefix": ["lrbrace"],
+		"body": "\\left\\{ ${1:content} \\right\\}$0",
+		"description": "Auto-sized braces"
+	},
+	"Left Right Absolute": {
+		"prefix": ["lrabs", "abs"],
+		"body": "\\left| ${1:content} \\right|$0",
+		"description": "Auto-sized absolute value"
+	},
+	"Left Right Norm": {
+		"prefix": ["lrnorm", "norm"],
+		"body": "\\left\\| ${1:content} \\right\\|$0",
+		"description": "Auto-sized norm"
+	},
+	"Infinity": {
+		"prefix": ["infty", "inf", "\\infty"],
+		"body": "\\infty",
+		"description": "Infinity symbol"
+	},
+	"Nabla": {
+		"prefix": ["nabla", "\\nabla"],
+		"body": "\\nabla",
+		"description": "Nabla (gradient) operator"
+	},
+	"Cdots": {
+		"prefix": ["cdots", "\\cdots"],
+		"body": "\\cdots",
+		"description": "Centered dots"
+	},
+	"Ldots": {
+		"prefix": ["ldots", "\\ldots"],
+		"body": "\\ldots",
+		"description": "Lower dots"
+	},
+	"Vdots": {
+		"prefix": ["vdots", "\\vdots"],
+		"body": "\\vdots",
+		"description": "Vertical dots"
+	},
+	"Ddots": {
+		"prefix": ["ddots", "\\ddots"],
+		"body": "\\ddots",
+		"description": "Diagonal dots"
+	}
+}
+

@@ -33,6 +33,7 @@ const allDirs = [
 	'extensions/jake',
 	'extensions/json-language-features',
 	'extensions/json-language-features/server',
+	'extensions/latex-language-features',
 	'extensions/markdown-language-features',
 	'extensions/markdown-math',
 	'extensions/media-preview',

@@ -23,3 +23,4 @@ product.overrides.json
 *.tsbuildinfo
 .vscode-test
 vscode-telemetry-docs/
+resources/extensions/latex-workshop

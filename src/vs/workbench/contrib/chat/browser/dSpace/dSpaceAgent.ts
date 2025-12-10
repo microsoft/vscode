@@ -502,11 +502,12 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 				},
 			});
 
-			// Show progress
+			// Show progress with semantic message
+			const semanticMessage = this.getSemanticToolMessage(toolCall.name, toolCall.arguments);
 			progress([
 				{
 					kind: 'progressMessage',
-					content: new MarkdownString(`Executing: \`${toolCall.name}\``),
+					content: new MarkdownString(semanticMessage),
 				},
 			]);
 
@@ -738,5 +739,38 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 		const shouldExecuteTools = choice.finish_reason === 'tool_calls' && this.toolCallsBuffer.size > 0;
 
 		return { shouldExecuteTools, finishReason: choice.finish_reason };
+	}
+
+	/**
+	 * Get a user-friendly semantic message for a tool invocation
+	 */
+	private getSemanticToolMessage(toolName: string, toolArguments?: string): string {
+		// Try to extract file path from arguments for more descriptive messages
+		let filePath: string | undefined;
+		if (toolArguments) {
+			try {
+				const args = JSON.parse(toolArguments);
+				filePath = args.path;
+				// Extract just the filename for a cleaner display
+				if (filePath) {
+					const parts = filePath.replace(/\\/g, '/').split('/');
+					filePath = parts[parts.length - 1];
+				}
+			} catch {
+				// Ignore parsing errors
+			}
+		}
+
+		// Map tool IDs to semantic messages
+		const toolMessages: Record<string, string> = {
+			'dSpace_readFile': filePath ? `Reading \`${filePath}\`...` : 'Reading file...',
+			'dSpace_writeFile': filePath ? `Creating \`${filePath}\`...` : 'Creating file...',
+			'dSpace_editFile': filePath ? `Editing \`${filePath}\`...` : 'Editing file...',
+			'dSpace_listFiles': filePath ? `Listing files in \`${filePath}\`...` : 'Listing files...',
+			'dSpace_deleteFile': filePath ? `Deleting \`${filePath}\`...` : 'Deleting file...',
+			'dSpace_openFile': filePath ? `Opening \`${filePath}\`...` : 'Opening file...',
+		};
+
+		return toolMessages[toolName] || `Running \`${toolName}\`...`;
 	}
 }
