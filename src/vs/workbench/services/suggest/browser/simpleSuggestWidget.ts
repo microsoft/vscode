@@ -443,6 +443,9 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 		this._loadingTimeout?.dispose();
 
+		const selectionMode = this._options?.selectionModeSettingId ? this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId) : undefined;
+		const noFocus = selectionMode === SuggestSelectionMode.Never;
+
 		// this._currentSuggestionDetails?.cancel();
 		// this._currentSuggestionDetails = undefined;
 
@@ -473,8 +476,6 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			this._list.splice(0, this._list.length, this._completionModel?.items ?? []);
 			this._setState(isFrozen ? State.Frozen : State.Open);
 			this._list.reveal(selectionIndex, 0);
-			this._list.setFocus([selectionIndex]);
-			const noFocus = this._options?.selectionModeSettingId ? this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId) === SuggestSelectionMode.Never : false;
 			this._list.setFocus(noFocus ? [] : [selectionIndex]);
 		} finally {
 			// this._onDidFocus.resume();
