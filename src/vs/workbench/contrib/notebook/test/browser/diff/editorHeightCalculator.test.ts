@@ -140,7 +140,8 @@ suite('NotebookDiff EditorHeightCalculator', () => {
 			});
 
 			function getExpectedHeight(visibleLineCount: number, unchangeRegionsHeight: number): number {
-				return (visibleLineCount * fontInfo.lineHeight) + getEditorPadding(visibleLineCount).top + getEditorPadding(visibleLineCount).bottom + (unchangeRegionsHeight * HeightOfHiddenLinesRegionInDiffEditor);
+				const horizontalScrollbarHeight = 12; // Default scrollbar height
+				return (visibleLineCount * fontInfo.lineHeight) + getEditorPadding(visibleLineCount).top + getEditorPadding(visibleLineCount).bottom + (unchangeRegionsHeight * HeightOfHiddenLinesRegionInDiffEditor) + horizontalScrollbarHeight;
 			}
 
 			function createLines(count: number, linePrefix = 'Hello World'): string[] {
