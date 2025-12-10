@@ -59,7 +59,7 @@
 	display: inline-block;
 	line-height: 22px;
 	height: 100%;
-	vertical-align: top;
+	vertical-align: middle;
 	max-width: 40vw;
 	font-variant-numeric: tabular-nums;
 }
