@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkerService, IMarker, MarkerSeverity, MarkerTag } from '../../../platform/markers/common/markers.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IModelDeltaDecoration, ITextModel, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, IModelDecoration, MinimapPosition, IModelDecorationMinimapOptions } from '../model.js';
 import { ClassName } from '../model/intervalTree.js';
@@ -19,6 +19,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { minimapInfo, minimapWarning, minimapError } from '../../../platform/theme/common/colorRegistry.js';
 import { BidirectionalMap, ResourceMap } from '../../../base/common/map.js';
 import { diffSets } from '../../../base/common/collections.js';
+import { Iterable } from '../../../base/common/iterator.js';
 
 export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
 
@@ -26,6 +27,8 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
+
+	private readonly _suppressedRanges = new ResourceMap<Set<Range>>();
 
 	private readonly _markerDecorations = new ResourceMap<MarkerDecorations>();
 
@@ -54,6 +57,28 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	getLiveMarkers(uri: URI): [Range, IMarker][] {
 		const markerDecorations = this._markerDecorations.get(uri);
 		return markerDecorations ? markerDecorations.getMarkers() : [];
+	}
+
+	addMarkerSuppression(uri: URI, range: Range): IDisposable {
+
+		let suppressedRanges = this._suppressedRanges.get(uri);
+		if (!suppressedRanges) {
+			suppressedRanges = new Set<Range>();
+			this._suppressedRanges.set(uri, suppressedRanges);
+		}
+		suppressedRanges.add(range);
+		this._handleMarkerChange([uri]);
+
+		return toDisposable(() => {
+			const suppressedRanges = this._suppressedRanges.get(uri);
+			if (suppressedRanges) {
+				suppressedRanges.delete(range);
+				if (suppressedRanges.size === 0) {
+					this._suppressedRanges.delete(uri);
+				}
+				this._handleMarkerChange([uri]);
+			}
+		});
 	}
 
 	private _handleMarkerChange(changedResources: readonly URI[]): void {
@@ -88,7 +113,16 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 	private _updateDecorations(markerDecorations: MarkerDecorations): void {
 		// Limit to the first 500 errors/warnings
-		const markers = this._markerService.read({ resource: markerDecorations.model.uri, take: 500 });
+		let markers = this._markerService.read({ resource: markerDecorations.model.uri, take: 500 });
+
+		// filter markers from suppressed ranges
+		const suppressedRanges = this._suppressedRanges.get(markerDecorations.model.uri);
+		if (suppressedRanges) {
+			markers = markers.filter(marker => {
+				return !Iterable.some(suppressedRanges, candidate => Range.areIntersectingOrTouching(candidate, marker));
+			});
+		}
+
 		if (markerDecorations.update(markers)) {
 			this._onDidChangeMarker.fire(markerDecorations.model);
 		}

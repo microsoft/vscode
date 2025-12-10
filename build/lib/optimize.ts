@@ -3,21 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as gulp from 'gulp';
-import * as filter from 'gulp-filter';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as pump from 'pump';
-import * as VinylFile from 'vinyl';
-import * as bundle from './bundle';
-import { gulpPostcss } from './postcss';
-import * as esbuild from 'esbuild';
-import * as sourcemaps from 'gulp-sourcemaps';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
+import es from 'event-stream';
+import gulp from 'gulp';
+import filter from 'gulp-filter';
+import path from 'path';
+import fs from 'fs';
+import pump from 'pump';
+import VinylFile from 'vinyl';
+import * as bundle from './bundle.ts';
+import esbuild from 'esbuild';
+import sourcemaps from 'gulp-sourcemaps';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import { getTargetStringFromTsConfig } from './tsconfigUtils.ts';
+import svgmin from 'gulp-svgmin';
+import { createRequire } from 'module';
 
-const REPO_ROOT_PATH = path.join(__dirname, '../..');
+const require = createRequire(import.meta.url);
+
+declare module 'gulp-sourcemaps' {
+	interface WriteOptions {
+		addComment?: boolean;
+		includeContent?: boolean;
+		sourceRoot?: string | WriteMapper;
+		sourceMappingURL?: ((f: any) => string);
+		sourceMappingURLPrefix?: string | WriteMapper;
+		clone?: boolean | CloneOptions;
+	}
+}
+
+const REPO_ROOT_PATH = path.join(import.meta.dirname, '../..');
 
 export interface IBundleESMTaskOpts {
 	/**
@@ -54,6 +69,8 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 	const resourcesStream = es.through(); // this stream will contain the resources
 	const bundlesStream = es.through(); // this stream will contain the bundled files
 
+	const target = getBuildTarget();
+
 	const entryPoints = opts.entryPoints.map(entryPoint => {
 		if (typeof entryPoint === 'string') {
 			return { name: path.parse(entryPoint).name };
@@ -61,13 +78,6 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 
 		return entryPoint;
 	});
-
-	const allMentionedModules = new Set<string>();
-	for (const entryPoint of entryPoints) {
-		allMentionedModules.add(entryPoint.name);
-		entryPoint.include?.forEach(allMentionedModules.add, allMentionedModules);
-		entryPoint.exclude?.forEach(allMentionedModules.add, allMentionedModules);
-	}
 
 	const bundleAsync = async () => {
 		const files: VinylFile[] = [];
@@ -129,13 +139,12 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 
 			const task = esbuild.build({
 				bundle: true,
-				external: entryPoint.exclude,
 				packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
 				platform: 'neutral', // makes esm
 				format: 'esm',
 				sourcemap: 'external',
 				plugins: [contentsMapper, externalOverride],
-				target: ['es2022'],
+				target: [target],
 				loader: {
 					'.ttf': 'file',
 					'.svg': 'file',
@@ -200,7 +209,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 		}));
 }
 
-export interface IBundleESMTaskOpts {
+export interface IBundleTaskOpts {
 	/**
 	 * Destination folder for the bundled files.
 	 */
@@ -211,7 +220,7 @@ export interface IBundleESMTaskOpts {
 	esm: IBundleESMTaskOpts;
 }
 
-export function bundleTask(opts: IBundleESMTaskOpts): () => NodeJS.ReadWriteStream {
+export function bundleTask(opts: IBundleTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
 		return bundleESMTask(opts.esm).pipe(gulp.dest(opts.out));
 	};
@@ -219,18 +228,16 @@ export function bundleTask(opts: IBundleESMTaskOpts): () => NodeJS.ReadWriteStre
 
 export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) => void {
 	const sourceMappingURL = sourceMapBaseUrl ? ((f: any) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
+	const target = getBuildTarget();
 
 	return cb => {
-		const cssnano = require('cssnano') as typeof import('cssnano');
-		const svgmin = require('gulp-svgmin') as typeof import('gulp-svgmin');
 
-		const jsFilter = filter('**/*.js', { restore: true });
-		const cssFilter = filter('**/*.css', { restore: true });
+		const esbuildFilter = filter('**/*.{js,css}', { restore: true });
 		const svgFilter = filter('**/*.svg', { restore: true });
 
 		pump(
 			gulp.src([src + '/**', '!' + src + '/**/*.map']),
-			jsFilter,
+			esbuildFilter,
 			sourcemaps.init({ loadMaps: true }),
 			es.map((f: any, cb) => {
 				esbuild.build({
@@ -240,13 +247,13 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 					outdir: '.',
 					packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
 					platform: 'neutral', // makes esm
-					target: ['es2022'],
-					write: false
+					target: [target],
+					write: false,
 				}).then(res => {
-					const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path))!;
-					const sourceMapFile = res.outputFiles.find(f => /\.js\.map$/.test(f.path))!;
+					const jsOrCSSFile = res.outputFiles.find(f => /\.(js|css)$/.test(f.path))!;
+					const sourceMapFile = res.outputFiles.find(f => /\.(js|css)\.map$/.test(f.path))!;
 
-					const contents = Buffer.from(jsFile.contents);
+					const contents = Buffer.from(jsOrCSSFile.contents);
 					const unicodeMatch = contents.toString().match(/[^\x00-\xFF]+/g);
 					if (unicodeMatch) {
 						cb(new Error(`Found non-ascii character ${unicodeMatch[0]} in the minified output of ${f.path}. Non-ASCII characters in the output can cause performance problems when loading. Please review if you have introduced a regular expression that esbuild is not automatically converting and convert it to using unicode escape sequences.`));
@@ -258,10 +265,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 					}
 				}, cb);
 			}),
-			jsFilter.restore,
-			cssFilter,
-			gulpPostcss([cssnano({ preset: 'default' })]),
-			cssFilter.restore,
+			esbuildFilter.restore,
 			svgFilter,
 			svgmin(),
 			svgFilter.restore,
@@ -270,8 +274,14 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 				sourceRoot: undefined,
 				includeContent: true,
 				addComment: true
-			} as any),
+			}),
 			gulp.dest(src + '-min'),
 			(err: any) => cb(err));
 	};
 }
+
+function getBuildTarget() {
+	const tsconfigPath = path.join(REPO_ROOT_PATH, 'src', 'tsconfig.base.json');
+	return getTargetStringFromTsConfig(tsconfigPath);
+}
+

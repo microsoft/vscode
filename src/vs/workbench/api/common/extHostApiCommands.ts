@@ -60,7 +60,7 @@ const newCommands: ApiCommand[] = [
 				range!: vscode.Range;
 				selectionRange!: vscode.Range;
 				children!: vscode.DocumentSymbol[];
-				override containerName!: string;
+				override containerName: string = '';
 			}
 			return value.map(MergedInfo.to);
 
@@ -509,6 +509,16 @@ const newCommands: ApiCommand[] = [
 		[ApiCommandArgument.TestItem],
 		ApiCommandResult.Void
 	),
+	new ApiCommand(
+		'vscode.startContinuousTestRun', 'testing.startContinuousRunFromExtension', 'Starts running the given tests with continuous run mode.',
+		[ApiCommandArgument.TestProfile, ApiCommandArgument.Arr(ApiCommandArgument.TestItem)],
+		ApiCommandResult.Void
+	),
+	new ApiCommand(
+		'vscode.stopContinuousTestRun', 'testing.stopContinuousRunFromExtension', 'Stops running the given tests with continuous run mode.',
+		[ApiCommandArgument.Arr(ApiCommandArgument.TestItem)],
+		ApiCommandResult.Void
+	),
 	// --- continue edit session
 	new ApiCommand(
 		'vscode.experimental.editSession.continue', '_workbench.editSessions.actions.continueEditSession', 'Continue the current edit session in a different workspace',
@@ -524,25 +534,6 @@ const newCommands: ApiCommand[] = [
 		],
 		ApiCommandResult.Void
 	),
-	// --- mapped edits
-	new ApiCommand(
-		'vscode.executeMappedEditsProvider', '_executeMappedEditsProvider', 'Execute Mapped Edits Provider',
-		[
-			ApiCommandArgument.Uri,
-			ApiCommandArgument.StringArray,
-			new ApiCommandArgument(
-				'MappedEditsContext',
-				'Mapped Edits Context',
-				(v: unknown) => typeConverters.MappedEditsContext.is(v),
-				(v: vscode.MappedEditsContext) => typeConverters.MappedEditsContext.from(v)
-			)
-		],
-		new ApiCommandResult<IWorkspaceEditDto | null, vscode.WorkspaceEdit | null>(
-			'A promise that resolves to a workspace edit or null',
-			(value) => {
-				return value ? typeConverters.WorkspaceEdit.to(value) : null;
-			})
-	),
 	// --- inline chat
 	new ApiCommand(
 		'vscode.editorChat.start', 'inlineChat.start', 'Invoke a new editor chat session',
@@ -556,8 +547,10 @@ const newCommands: ApiCommand[] = [
 				initialRange: v.initialRange ? typeConverters.Range.from(v.initialRange) : undefined,
 				initialSelection: types.Selection.isSelection(v.initialSelection) ? typeConverters.Selection.from(v.initialSelection) : undefined,
 				message: v.message,
+				attachments: v.attachments,
 				autoSend: v.autoSend,
 				position: v.position ? typeConverters.Position.from(v.position) : undefined,
+				blockOnResponse: v.blockOnResponse
 			};
 		})],
 		ApiCommandResult.Void
@@ -568,16 +561,20 @@ type InlineChatEditorApiArg = {
 	initialRange?: vscode.Range;
 	initialSelection?: vscode.Selection;
 	message?: string;
+	attachments?: vscode.Uri[];
 	autoSend?: boolean;
 	position?: vscode.Position;
+	blockOnResponse?: boolean;
 };
 
 type InlineChatRunOptions = {
 	initialRange?: IRange;
 	initialSelection?: ISelection;
 	message?: string;
+	attachments?: URI[];
 	autoSend?: boolean;
 	position?: IPosition;
+	blockOnResponse?: boolean;
 };
 
 //#endregion

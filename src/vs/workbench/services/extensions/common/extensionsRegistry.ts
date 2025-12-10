@@ -226,6 +226,7 @@ export const schema: IJSONSchema = {
 		contributes: {
 			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
 			type: 'object',
+			// eslint-disable-next-line local/code-no-any-casts
 			properties: {
 				// extensions will fill in
 			} as any as { [key: string]: any },
@@ -394,14 +395,29 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
 					},
 					{
+						label: 'onLanguageModelChatProvider',
+						body: 'onLanguageModelChatProvider:${1:vendor}',
+						description: nls.localize('vscode.extension.activationEvents.onLanguageModelChatProvider', 'An activation event emitted when a chat model provider for the given vendor is requested.'),
+					},
+					{
 						label: 'onLanguageModelTool',
 						body: 'onLanguageModelTool:${1:toolId}',
 						description: nls.localize('vscode.extension.activationEvents.onLanguageModelTool', 'An activation event emitted when the specified language model tool is invoked.'),
 					},
 					{
-						label: 'onTerminalCompletionsRequested',
-						body: 'onTerminalCompletionsRequested',
-						description: nls.localize('vscode.extension.activationEvents.onTerminalCompletionsRequested', 'An activation event emitted when terminal completions are requested.'),
+						label: 'onTerminal',
+						body: 'onTerminal:{1:shellType}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminal', 'An activation event emitted when a terminal of the given shell type is opened.'),
+					},
+					{
+						label: 'onTerminalShellIntegration',
+						body: 'onTerminalShellIntegration:${1:shellType}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalShellIntegration', 'An activation event emitted when terminal shell integration is activated for the given shell type.'),
+					},
+					{
+						label: 'onMcpCollection',
+						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenver a tool from the MCP server is requested.'),
+						body: 'onMcpCollection:${2:collectionId}',
 					},
 					{
 						label: '*',

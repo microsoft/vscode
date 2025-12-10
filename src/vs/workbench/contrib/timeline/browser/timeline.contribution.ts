@@ -21,6 +21,7 @@ import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { URI } from '../../../../base/common/uri.js';
 
 const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
 const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', 'Icon for the open timeline action.'));
@@ -51,13 +52,13 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'timeline.pageSize': {
 			type: ['number', 'null'],
-			default: null,
-			markdownDescription: localize('timeline.pageSize', "The number of items to show in the Timeline view by default and when loading more items. Setting to `null` (the default) will automatically choose a page size based on the visible area of the Timeline view."),
+			default: 50,
+			markdownDescription: localize('timeline.pageSize', "The number of items to show in the Timeline view by default and when loading more items. Setting to `null` will automatically choose a page size based on the visible area of the Timeline view."),
 		},
 		'timeline.pageOnScroll': {
 			type: 'boolean',
-			default: false,
-			description: localize('timeline.pageOnScroll', "Experimental. Controls whether the Timeline view will load the next page of items when you scroll to the end of the list."),
+			default: true,
+			description: localize('timeline.pageOnScroll', "Controls whether the Timeline view will load the next page of items when you scroll to the end of the list."),
 		},
 	}
 });
@@ -72,7 +73,10 @@ namespace OpenTimelineAction {
 	export function handler(): ICommandHandler {
 		return (accessor, arg) => {
 			const service = accessor.get(ITimelineService);
-			return service.setUri(arg);
+
+			if (URI.isUri(arg)) {
+				return service.setUri(arg);
+			}
 		};
 	}
 }

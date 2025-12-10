@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension } from '../../../../base/browser/dom.js';
-import { AsyncIterableObject } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ScrollEvent } from '../../../../base/common/scrollable.js';
+import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IModelDecoration } from '../../../common/model.js';
-import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
 import { HoverStartSource } from './hoverOperation.js';
 
 export interface IHoverPart {
@@ -103,11 +103,15 @@ export interface IEditorHoverContext {
 	/**
 	 * Set the minimum dimensions of the resizable hover
 	 */
-	setMinimumDimensions?(dimensions: Dimension): void;
+	setMinimumDimensions(dimensions: Dimension): void;
 	/**
 	 * Hide the hover.
 	 */
 	hide(): void;
+	/**
+	 * Focus the hover.
+	 */
+	focus(): void;
 }
 
 export interface IEditorHoverRenderContext extends IEditorHoverContext {
@@ -144,12 +148,13 @@ export interface IRenderedHoverParts<T extends IHoverPart> extends IDisposable {
  */
 export class RenderedHoverParts<T extends IHoverPart> implements IRenderedHoverParts<T> {
 
-	constructor(public readonly renderedHoverParts: IRenderedHoverPart<T>[]) { }
+	constructor(public readonly renderedHoverParts: IRenderedHoverPart<T>[], private readonly disposables?: IDisposable) { }
 
 	dispose() {
 		for (const part of this.renderedHoverParts) {
 			part.dispose();
 		}
+		this.disposables?.dispose();
 	}
 }
 
@@ -157,12 +162,14 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	readonly hoverOrdinal: number;
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource): T[];
-	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableObject<T>;
+	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterable<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IRenderedHoverParts<T>;
 	getAccessibleContent(hoverPart: T): string;
 	handleResize?(): void;
 	handleHide?(): void;
+	handleContentsChanged?(): void;
+	handleScroll?(e: ScrollEvent): void;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;

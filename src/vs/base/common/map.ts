@@ -116,12 +116,12 @@ export class ResourceMap<T> implements Map<URI, T> {
 		return this.map.delete(this.toKey(resource));
 	}
 
-	forEach(clb: (value: T, key: URI, map: Map<URI, T>) => void, thisArg?: any): void {
+	forEach(clb: (value: T, key: URI, map: Map<URI, T>) => void, thisArg?: object): void {
 		if (typeof thisArg !== 'undefined') {
 			clb = clb.bind(thisArg);
 		}
 		for (const [_, entry] of this.map) {
-			clb(entry.value, entry.uri, <any>this);
+			clb(entry.value, entry.uri, this);
 		}
 	}
 
@@ -185,7 +185,7 @@ export class ResourceSet implements Set<URI> {
 		return this._map.delete(value);
 	}
 
-	forEach(callbackfn: (value: URI, value2: URI, set: Set<URI>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: URI, value2: URI, set: Set<URI>) => void, thisArg?: unknown): void {
 		this._map.forEach((_value, key) => callbackfn.call(thisArg, key, key, this));
 	}
 
@@ -340,7 +340,7 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		return item.value;
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: unknown): void {
 		const state = this._state;
 		let current = this._head;
 		while (current) {
@@ -789,7 +789,7 @@ export class BidirectionalMap<K, V> {
 		return true;
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: BidirectionalMap<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: BidirectionalMap<K, V>) => void, thisArg?: unknown): void {
 		this._m1.forEach((value, key) => {
 			callbackfn.call(thisArg, value, key, this);
 		});
@@ -877,91 +877,79 @@ export function mapsStrictEqualIgnoreOrder(a: Map<unknown, unknown>, b: Map<unkn
 }
 
 /**
- * A map that is addressable with 2 separate keys. This is useful in high performance scenarios
- * where creating a composite key whenever the data is accessed is too expensive.
+ * A map that is addressable with an arbitrary number of keys. This is useful in high performance
+ * scenarios where creating a composite key whenever the data is accessed is too expensive. For
+ * example for a very hot function, constructing a string like `first-second-third` for every call
+ * will cause a significant hit to performance.
  */
-export class TwoKeyMap<TFirst extends string | number, TSecond extends string | number, TValue> {
-	private _data: { [key: string | number]: { [key: string | number]: TValue | undefined } | undefined } = {};
+export class NKeyMap<TValue, TKeys extends (string | boolean | number)[]> {
+	private _data: Map<any, any> = new Map();
 
-	public set(first: TFirst, second: TSecond, value: TValue): void {
-		if (!this._data[first]) {
-			this._data[first] = {};
-		}
-		this._data[first as string | number]![second] = value;
-	}
-
-	public get(first: TFirst, second: TSecond): TValue | undefined {
-		return this._data[first as string | number]?.[second];
-	}
-
-	public clear(): void {
-		this._data = {};
-	}
-
-	public *values(): IterableIterator<TValue> {
-		for (const first in this._data) {
-			for (const second in this._data[first]) {
-				const value = this._data[first]![second];
-				if (value) {
-					yield value;
-				}
+	/**
+	 * Sets a value on the map. Note that unlike a standard `Map`, the first argument is the value.
+	 * This is because the spread operator is used for the keys and must be last..
+	 * @param value The value to set.
+	 * @param keys The keys for the value.
+	 */
+	public set(value: TValue, ...keys: [...TKeys]): void {
+		let currentMap = this._data;
+		for (let i = 0; i < keys.length - 1; i++) {
+			let nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
+				nextMap = new Map();
+				currentMap.set(keys[i], nextMap);
 			}
+			currentMap = nextMap;
 		}
-	}
-}
-
-/**
- * A map that is addressable with 3 separate keys. This is useful in high performance scenarios
- * where creating a composite key whenever the data is accessed is too expensive.
- */
-export class ThreeKeyMap<TFirst extends string | number, TSecond extends string | number, TThird extends string | number, TValue> {
-	private _data: { [key: string | number]: TwoKeyMap<TSecond, TThird, TValue> | undefined } = {};
-
-	public set(first: TFirst, second: TSecond, third: TThird, value: TValue): void {
-		if (!this._data[first]) {
-			this._data[first] = new TwoKeyMap();
-		}
-		this._data[first as string | number]!.set(second, third, value);
+		currentMap.set(keys[keys.length - 1], value);
 	}
 
-	public get(first: TFirst, second: TSecond, third: TThird): TValue | undefined {
-		return this._data[first as string | number]?.get(second, third);
-	}
-
-	public clear(): void {
-		this._data = {};
-	}
-
-	public *values(): IterableIterator<TValue> {
-		for (const first in this._data) {
-			for (const value of this._data[first]!.values()) {
-				if (value) {
-					yield value;
-				}
+	public get(...keys: [...TKeys]): TValue | undefined {
+		let currentMap = this._data;
+		for (let i = 0; i < keys.length - 1; i++) {
+			const nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
+				return undefined;
 			}
+			currentMap = nextMap;
 		}
-	}
-}
-
-/**
- * A map that is addressable with 4 separate keys. This is useful in high performance scenarios
- * where creating a composite key whenever the data is accessed is too expensive.
- */
-export class FourKeyMap<TFirst extends string | number, TSecond extends string | number, TThird extends string | number, TFourth extends string | number, TValue> {
-	private _data: TwoKeyMap<TFirst, TSecond, TwoKeyMap<TThird, TFourth, TValue>> = new TwoKeyMap();
-
-	public set(first: TFirst, second: TSecond, third: TThird, fourth: TFourth, value: TValue): void {
-		if (!this._data.get(first, second)) {
-			this._data.set(first, second, new TwoKeyMap());
-		}
-		this._data.get(first, second)!.set(third, fourth, value);
-	}
-
-	public get(first: TFirst, second: TSecond, third: TThird, fourth: TFourth): TValue | undefined {
-		return this._data.get(first, second)?.get(third, fourth);
+		return currentMap.get(keys[keys.length - 1]);
 	}
 
 	public clear(): void {
 		this._data.clear();
+	}
+
+	public *values(): IterableIterator<TValue> {
+		function* iterate(map: Map<any, any>): IterableIterator<TValue> {
+			for (const value of map.values()) {
+				if (value instanceof Map) {
+					yield* iterate(value);
+				} else {
+					yield value;
+				}
+			}
+		}
+		yield* iterate(this._data);
+	}
+
+	/**
+	 * Get a textual representation of the map for debugging purposes.
+	 */
+	public toString(): string {
+		const printMap = (map: Map<any, any>, depth: number): string => {
+			let result = '';
+			for (const [key, value] of map) {
+				result += `${'  '.repeat(depth)}${key}: `;
+				if (value instanceof Map) {
+					result += '\n' + printMap(value, depth + 1);
+				} else {
+					result += `${value}\n`;
+				}
+			}
+			return result;
+		};
+
+		return printMap(this._data, 0);
 	}
 }

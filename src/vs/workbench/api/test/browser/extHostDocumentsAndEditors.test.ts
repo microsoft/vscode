@@ -32,7 +32,8 @@ suite('ExtHostDocumentsAndEditors', () => {
 				lines: [
 					'first',
 					'second'
-				]
+				],
+				encoding: 'utf8'
 			}]
 		});
 

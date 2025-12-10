@@ -538,6 +538,7 @@ suite('ExtHostWorkspace', function () {
 		const sub = ws.onDidChangeWorkspace(e => {
 			try {
 				assert.throws(() => {
+					// eslint-disable-next-line local/code-no-any-casts
 					(<any>e).added = [];
 				});
 				// assert.throws(() => {
@@ -772,6 +773,32 @@ suite('ExtHostWorkspace', function () {
 			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
 			return ws.findFiles2([new RelativePattern('/other/folder', 'glob/**')], {}, new ExtensionIdentifier('test')).then(() => {
 				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+
+		test('no dups', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.includePattern, undefined);
+					assert.strictEqual(options.excludePattern, undefined);
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					return Promise.resolve([URI.file(root + '/main.py')]);
+				}
+			});
+
+			// Only add the root directory as a workspace folder - main.py will be a file within it
+			const folders = [aWorkspaceFolderData(URI.file(root), 0)];
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: folders, name: 'Test' }, new NullLogService());
+
+			return ws.findFiles2(['**/main.py', '**/main.py/**'], {}, new ExtensionIdentifier('test')).then((uris) => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+				assert.equal(uris.length, 1);
+				assert.equal(uris[0].toString(), URI.file(root + '/main.py').toString());
 			});
 		});
 

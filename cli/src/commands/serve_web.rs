@@ -88,8 +88,16 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 
 	let cm: Arc<ConnectionManager> = ConnectionManager::new(&ctx, platform, args.clone());
 	let update_check_interval = 3600;
-	cm.clone()
-		.start_update_checker(Duration::from_secs(update_check_interval));
+	if args.commit_id.is_none() {
+		cm.clone()
+			.start_update_checker(Duration::from_secs(update_check_interval));
+	} else {
+		// If a commit was provided, invoke get_latest_release() once to ensure we're using that exact version;
+		// get_latest_release() will short-circuit to args.commit_id.
+		if let Err(e) = cm.get_latest_release().await {
+			warning!(cm.log, "error getting latest version: {}", e);
+		}
+	}
 
 	let key = get_server_key_half(&ctx.paths);
 	let make_svc = move || {
@@ -125,7 +133,9 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		};
 		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
 
-		let mut listening = format!("Web UI available at http://{addr}");
+		// Get the actual bound address (important when port 0 is used for random port assignment)
+		let bound_addr = builder.local_addr();
+		let mut listening = format!("Web UI available at http://{bound_addr}");
 		if let Some(base) = args.server_base_path {
 			if !base.starts_with('/') {
 				listening.push('/');
@@ -548,9 +558,11 @@ impl ConnectionManager {
 			Err(_) => Quality::Stable,
 		});
 
+		let now = Instant::now();
 		let latest_version = tokio::sync::Mutex::new(cache.get().first().map(|latest_commit| {
 			(
-				Instant::now() - Duration::from_secs(RELEASE_CHECK_INTERVAL),
+				now.checked_sub(Duration::from_secs(RELEASE_CHECK_INTERVAL))
+					.unwrap_or(now), // handle 0-ish instants, #233155
 				Release {
 					name: String::from("0.0.0"), // Version information not stored on cache
 					commit: latest_commit.clone(),
@@ -626,6 +638,22 @@ impl ConnectionManager {
 			.and_then(|q| {
 				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
 			})?;
+
+		if let Some(commit) = &self.args.commit_id {
+			let release = Release {
+				name: commit.to_string(),
+				commit: commit.to_string(),
+				platform: self.platform,
+				target: target_kind,
+				quality,
+			};
+			debug!(
+				self.log,
+				"using provided commit instead of latest release: {}", release
+			);
+			*latest = Some((now, release.clone()));
+			return Ok(release);
+		}
 
 		let release = self
 			.update_service
@@ -774,14 +802,6 @@ impl ConnectionManager {
 		}
 		if let Some(a) = &args.args.server_data_dir {
 			cmd.arg("--server-data-dir");
-			cmd.arg(a);
-		}
-		if let Some(a) = &args.args.user_data_dir {
-			cmd.arg("--user-data-dir");
-			cmd.arg(a);
-		}
-		if let Some(a) = &args.args.extensions_dir {
-			cmd.arg("--extensions-dir");
 			cmd.arg(a);
 		}
 		if args.args.without_connection_token {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
-import * as workerpool from 'workerpool';
-import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
+import ts from 'typescript';
+import workerpool from 'workerpool';
+import { StaticLanguageServiceHost } from './staticLanguageServiceHost.ts';
 
 let service: ts.LanguageService | undefined;
 

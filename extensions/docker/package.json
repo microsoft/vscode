@@ -9,7 +9,6 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin moby/moby contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage ./syntaxes/docker.tmLanguage.json"
   },
   "categories": ["Programming Languages"],
   "contributes": {

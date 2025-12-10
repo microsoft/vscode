@@ -289,10 +289,14 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
-	getFocusedViewName(): string {
+	getFocusedView(): IViewDescriptor | null {
 		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
+		return this.viewDescriptorService.getViewDescriptorById(viewId.toString());
+	}
+
+	getFocusedViewName(): string {
 		const textEditorFocused = this.editorService.activeTextEditorControl?.hasTextFocus() ? localize('editor', "Text Editor") : undefined;
-		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name?.value ?? textEditorFocused ?? '';
+		return this.getFocusedView()?.name?.value ?? textEditorFocused ?? '';
 	}
 
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
@@ -309,7 +313,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		const compositeDescriptor = this.getComposite(viewContainer.id, location!);
 		if (compositeDescriptor) {
 			const paneComposite = await this.openComposite(compositeDescriptor.id, location!) as IPaneComposite | undefined;
-			if (paneComposite && paneComposite.openView) {
+			if (paneComposite?.openView) {
 				return paneComposite.openView<T>(id, focus) || null;
 			} else if (focus) {
 				paneComposite?.focus();
@@ -420,7 +424,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						f1: true
 					});
 				}
-				public async run(serviceAccessor: ServicesAccessor): Promise<any> {
+				public async run(serviceAccessor: ServicesAccessor): Promise<void> {
 					const editorGroupService = serviceAccessor.get(IEditorGroupsService);
 					const viewDescriptorService = serviceAccessor.get(IViewDescriptorService);
 					const layoutService = serviceAccessor.get(IWorkbenchLayoutService);
@@ -467,68 +471,84 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private registerOpenViewAction(viewDescriptor: IViewDescriptor): IDisposable {
 		const disposables = new DisposableStore();
-		if (viewDescriptor.openCommandActionDescriptor) {
-			const title = viewDescriptor.openCommandActionDescriptor.title ?? viewDescriptor.name;
-			const commandId = viewDescriptor.openCommandActionDescriptor.id;
-			const that = this;
-			disposables.add(registerAction2(class OpenViewAction extends Action2 {
-				constructor() {
-					super({
-						id: commandId,
-						get title(): ICommandActionTitle {
-							const viewContainerLocation = that.viewDescriptorService.getViewLocationById(viewDescriptor.id);
-							const localizedTitle = typeof title === 'string' ? title : title.value;
-							const originalTitle = typeof title === 'string' ? title : title.original;
-							if (viewContainerLocation === ViewContainerLocation.Sidebar) {
-								return { value: localize('show view', "Show {0}", localizedTitle), original: `Show ${originalTitle}` };
-							} else {
-								return { value: localize('toggle view', "Toggle {0}", localizedTitle), original: `Toggle ${originalTitle}` };
-							}
-						},
-						category: Categories.View,
-						precondition: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
-						keybinding: viewDescriptor.openCommandActionDescriptor!.keybindings ? { ...viewDescriptor.openCommandActionDescriptor!.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
-						f1: true
-					});
-				}
-				public async run(serviceAccessor: ServicesAccessor): Promise<any> {
-					const editorGroupService = serviceAccessor.get(IEditorGroupsService);
-					const viewDescriptorService = serviceAccessor.get(IViewDescriptorService);
-					const layoutService = serviceAccessor.get(IWorkbenchLayoutService);
-					const viewsService = serviceAccessor.get(IViewsService);
-					const contextKeyService = serviceAccessor.get(IContextKeyService);
-
-					const focusedViewId = FocusedViewContext.getValue(contextKeyService);
-					if (focusedViewId === viewDescriptor.id) {
-
-						const viewLocation = viewDescriptorService.getViewLocationById(viewDescriptor.id);
-						if (viewDescriptorService.getViewLocationById(viewDescriptor.id) === ViewContainerLocation.Sidebar) {
-							// focus the editor if the view is focused and in the side bar
-							editorGroupService.activeGroup.focus();
-						} else if (viewLocation !== null) {
-							// otherwise hide the part where the view lives if focused
-							layoutService.setPartHidden(true, getPartByLocation(viewLocation));
+		const title = viewDescriptor.openCommandActionDescriptor?.title ?? viewDescriptor.name;
+		const commandId = viewDescriptor.openCommandActionDescriptor?.id ?? `${viewDescriptor.id}.open`;
+		const that = this;
+		disposables.add(registerAction2(class OpenViewAction extends Action2 {
+			constructor() {
+				super({
+					id: commandId,
+					get title(): ICommandActionTitle {
+						const viewContainerLocation = that.viewDescriptorService.getViewLocationById(viewDescriptor.id);
+						const localizedTitle = typeof title === 'string' ? title : title.value;
+						const originalTitle = typeof title === 'string' ? title : title.original;
+						if (viewContainerLocation === ViewContainerLocation.Sidebar) {
+							return { value: localize('show view', "Show {0}", localizedTitle), original: `Show ${originalTitle}` };
+						} else {
+							return { value: localize('toggle view', "Toggle {0}", localizedTitle), original: `Toggle ${originalTitle}` };
 						}
-					} else {
-						viewsService.openView(viewDescriptor.id, true);
+					},
+					category: Categories.View,
+					precondition: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
+					keybinding: viewDescriptor.openCommandActionDescriptor?.keybindings ? { ...viewDescriptor.openCommandActionDescriptor.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
+					f1: viewDescriptor.openCommandActionDescriptor ? true : undefined,
+					metadata: {
+						description: localize('open view', "Opens view {0}", viewDescriptor.name.value),
+						args: [
+							{
+								name: 'options',
+								schema: {
+									type: 'object',
+									properties: {
+										'preserveFocus': {
+											type: 'boolean',
+											default: false,
+											description: localize('preserveFocus', "Whether to preserve the existing focus when opening the view.")
+										}
+									},
+								}
+							}
+						]
 					}
-				}
-			}));
+				});
+			}
+			public async run(serviceAccessor: ServicesAccessor, options?: { preserveFocus?: boolean }): Promise<void> {
+				const editorGroupService = serviceAccessor.get(IEditorGroupsService);
+				const viewDescriptorService = serviceAccessor.get(IViewDescriptorService);
+				const layoutService = serviceAccessor.get(IWorkbenchLayoutService);
+				const viewsService = serviceAccessor.get(IViewsService);
+				const contextKeyService = serviceAccessor.get(IContextKeyService);
 
-			if (viewDescriptor.openCommandActionDescriptor.mnemonicTitle) {
-				const defaultViewContainer = this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id);
-				if (defaultViewContainer) {
-					const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(defaultViewContainer);
-					disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-						command: {
-							id: commandId,
-							title: viewDescriptor.openCommandActionDescriptor.mnemonicTitle,
-						},
-						group: defaultLocation === ViewContainerLocation.Sidebar ? '3_sidebar' : defaultLocation === ViewContainerLocation.AuxiliaryBar ? '4_auxbar' : '5_panel',
-						when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
-						order: viewDescriptor.openCommandActionDescriptor.order ?? Number.MAX_VALUE
-					}));
+				const focusedViewId = FocusedViewContext.getValue(contextKeyService);
+				if (focusedViewId === viewDescriptor.id && !options?.preserveFocus) {
+
+					const viewLocation = viewDescriptorService.getViewLocationById(viewDescriptor.id);
+					if (viewDescriptorService.getViewLocationById(viewDescriptor.id) === ViewContainerLocation.Sidebar) {
+						// focus the editor if the view is focused and in the side bar
+						editorGroupService.activeGroup.focus();
+					} else if (viewLocation !== null) {
+						// otherwise hide the part where the view lives if focused
+						layoutService.setPartHidden(true, getPartByLocation(viewLocation));
+					}
+				} else {
+					await viewsService.openView(viewDescriptor.id, !options?.preserveFocus);
 				}
+			}
+		}));
+
+		if (viewDescriptor.openCommandActionDescriptor?.mnemonicTitle) {
+			const defaultViewContainer = this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id);
+			if (defaultViewContainer) {
+				const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(defaultViewContainer);
+				disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+					command: {
+						id: commandId,
+						title: viewDescriptor.openCommandActionDescriptor.mnemonicTitle,
+					},
+					group: defaultLocation === ViewContainerLocation.Sidebar ? '3_sidebar' : defaultLocation === ViewContainerLocation.AuxiliaryBar ? '4_auxbar' : '5_panel',
+					when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
+					order: viewDescriptor.openCommandActionDescriptor.order ?? Number.MAX_VALUE
+				}));
 			}
 		}
 		return disposables;
@@ -541,6 +561,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				super({
 					id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
 					title,
+					category,
 					menu: [{
 						id: MenuId.CommandPalette,
 						when: viewDescriptor.when,
@@ -665,7 +686,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private createViewPaneContainer(element: HTMLElement, viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation, disposables: DisposableStore, instantiationService: IInstantiationService): ViewPaneContainer {
-		const viewPaneContainer: ViewPaneContainer = (instantiationService as any).createInstance(viewContainer.ctorDescriptor.ctor, ...(viewContainer.ctorDescriptor.staticArguments || []));
+		const viewPaneContainer: ViewPaneContainer = instantiationService.createInstance(viewContainer.ctorDescriptor.ctor, ...(viewContainer.ctorDescriptor.staticArguments || []));
 
 		this.viewPaneContainers.set(viewPaneContainer.getId(), viewPaneContainer);
 		disposables.add(toDisposable(() => this.viewPaneContainers.delete(viewPaneContainer.getId())));

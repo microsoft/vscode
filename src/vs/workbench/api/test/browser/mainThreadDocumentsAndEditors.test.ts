@@ -36,8 +36,10 @@ import { LanguageService } from '../../../../editor/common/services/languageServ
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
-import { IDirtyDiffModelService } from '../../../contrib/scm/browser/diff.js';
+import { IQuickDiffModelService } from '../../../contrib/scm/browser/quickDiffModel.js';
 import { ITextEditorDiffInformation } from '../../../../platform/editor/common/editor.js';
+import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../../../../editor/test/common/services/testTreeSitterLibraryService.js';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -70,6 +72,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const instantiationService = new TestInstantiationService();
 		instantiationService.set(ILanguageService, disposables.add(new LanguageService()));
 		instantiationService.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
+		instantiationService.set(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
 		instantiationService.set(IUndoRedoService, undoRedoService);
 		modelService = new ModelService(
 			configService,
@@ -80,11 +83,18 @@ suite('MainThreadDocumentsAndEditors', () => {
 		codeEditorService = new TestCodeEditorService(themeService);
 		textFileService = new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
+			// eslint-disable-next-line local/code-no-any-casts
 			override files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
-				onDidChangeDirty: Event.None
+				onDidChangeDirty: Event.None,
+				onDidChangeEncoding: Event.None
 			};
+			// eslint-disable-next-line local/code-no-any-casts
+			override untitled = <any>{
+				onDidChangeEncoding: Event.None
+			};
+			override getEncoding() { return 'utf8'; }
 		};
 		const workbenchEditorService = disposables.add(new TestEditorService());
 		const editorGroupService = new TestEditorGroupsService();
@@ -124,8 +134,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 			},
 			new TestPathService(),
 			new TestConfigurationService(),
-			new class extends mock<IDirtyDiffModelService>() {
-				override getOrCreateModel() {
+			new class extends mock<IQuickDiffModelService>() {
+				override createQuickDiffModelReference() {
 					return undefined;
 				}
 			}

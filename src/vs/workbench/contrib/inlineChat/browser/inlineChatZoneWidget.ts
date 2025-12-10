@@ -16,13 +16,15 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IOptions, ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
+import { ChatMode } from '../../chat/common/chatModes.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
-import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
+import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 
 export class InlineChatZoneWidget extends ZoneWidget {
@@ -45,16 +47,20 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	private readonly _scrollUp = this._disposables.add(new ScrollUpState(this.editor));
 	private readonly _ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
 	private _dimension?: Dimension;
+	private notebookEditor?: INotebookEditor;
 
 	constructor(
 		location: IChatWidgetLocationOptions,
-		editor: ICodeEditor,
+		options: IChatWidgetViewOptions | undefined,
+		editors: { editor: ICodeEditor; notebookEditor?: INotebookEditor },
+		/** @deprecated should go away with inline2 */
+		clearDelegate: () => Promise<void>,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(editor, InlineChatZoneWidget._options);
+		super(editors.editor, InlineChatZoneWidget._options);
+		this.notebookEditor = editors.notebookEditor;
 
 		this._ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
 
@@ -81,15 +87,19 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			chatWidgetViewOptions: {
 				menus: {
 					telemetrySource: 'interactiveEditorWidget-toolbar',
+					inputSideToolbar: MENU_INLINE_CHAT_SIDE
 				},
+				clear: clearDelegate,
+				...options,
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
-						// render edits as summary only when using Live mode and when
-						// dealing with the current file in the editor
-						return isEqual(uri, editor.getModel()?.uri)
-							&& configurationService.getValue<EditMode>(InlineChatConfigKeys.Mode) === EditMode.Live;
+						// render when dealing with the current file in the editor
+						return isEqual(uri, editors.editor.getModel()?.uri);
 					},
-				}
+					renderDetectedCommandsWithRequest: true,
+					...options?.rendererOptions
+				},
+				defaultMode: ChatMode.Ask
 			}
 		});
 		this._disposables.add(this.widget);
@@ -106,7 +116,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				revealFn ??= this._createZoneAndScrollRestoreFn(this.position);
 				const height = this._computeHeight();
 				this._relayout(height.linesValue);
-				revealFn();
+				revealFn?.();
 				revealFn = undefined;
 			}
 		}));
@@ -154,8 +164,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._updatePadding();
 
 		const info = this.editor.getLayoutInfo();
-		let width = info.contentWidth - info.verticalScrollbarWidth;
-		width = Math.min(850, width);
+		const width = info.contentWidth - info.verticalScrollbarWidth;
+		// width = Math.min(850, width);
 
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.layout(this._dimension);
@@ -163,7 +173,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	private _computeHeight(): { linesValue: number; pixelsValue: number } {
 		const chatContentHeight = this.widget.contentHeight;
-		const editorHeight = this.editor.getLayoutInfo().height;
+		const editorHeight = this.notebookEditor?.getLayoutInfo().height ?? this.editor.getLayoutInfo().height;
 
 		const contentHeight = this._decoratingElementsHeight() + Math.min(chatContentHeight, Math.max(this.widget.minHeight, editorHeight * 0.42));
 		const heightInLines = contentHeight / this.editor.getOption(EditorOption.lineHeight);
@@ -280,7 +290,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 		this._scrollUp.disable();
 		this._ctxCursorPosition.reset();
-		this.widget.reset();
 		this.widget.chatWidget.setVisible(false);
 		super.hide();
 		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));

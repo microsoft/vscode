@@ -20,7 +20,7 @@ export interface IObjectCollectionBuffer<T extends ObjectCollectionBufferPropert
 	/**
 	 * The underlying buffer. This **should not** be modified externally.
 	 */
-	readonly buffer: ArrayBuffer;
+	readonly buffer: ArrayBufferLike;
 	/**
 	 * A view of the underlying buffer. This **should not** be modified externally.
 	 */
@@ -79,7 +79,7 @@ export function createObjectCollectionBuffer<T extends ObjectCollectionBufferPro
 }
 
 class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> extends Disposable implements IObjectCollectionBuffer<T> {
-	buffer: ArrayBuffer;
+	buffer: ArrayBufferLike;
 	view: Float32Array;
 
 	get bufferUsedSize() {

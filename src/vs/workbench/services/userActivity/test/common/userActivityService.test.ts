@@ -71,4 +71,29 @@ suite('UserActivityService', () => {
 		clock.tick(duration + MARK_INACTIVE_DEBOUNCE);
 		assert.strictEqual(userActivityService.isActive, false);
 	});
+
+	test('markActive with extendOnly only extends if already active', () => {
+		// Make user inactive
+		userActivityService.markActive().dispose();
+		clock.tick(MARK_INACTIVE_DEBOUNCE);
+		assert.strictEqual(userActivityService.isActive, false);
+
+		// Should not activate if inactive and extendOnly is true
+		const handle = userActivityService.markActive({ extendOnly: true });
+		assert.strictEqual(userActivityService.isActive, false);
+		handle.dispose();
+
+		// Activate normally
+		const h1 = userActivityService.markActive();
+		assert.strictEqual(userActivityService.isActive, true);
+
+		// Should extend activity if already active
+		const h2 = userActivityService.markActive({ extendOnly: true });
+		h1.dispose();
+		// Still active because h2 is holding
+		assert.strictEqual(userActivityService.isActive, true);
+		h2.dispose();
+		clock.tick(MARK_INACTIVE_DEBOUNCE);
+		assert.strictEqual(userActivityService.isActive, false);
+	});
 });

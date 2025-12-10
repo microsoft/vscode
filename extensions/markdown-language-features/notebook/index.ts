@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOMPurify from 'dompurify';
+import DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
 import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
@@ -380,6 +380,7 @@ function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
 	const originalRender = md.render;
 	md.render = function () {
 		slugCounter.clear();
+		// eslint-disable-next-line local/code-no-any-casts
 		return originalRender.apply(this, arguments as any);
 	};
 }

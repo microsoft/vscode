@@ -5,7 +5,7 @@
 
 import { mark } from '../../base/common/performance.js';
 import { domContentLoaded, detectFullscreen, getCookieValue, getWindow } from '../../base/browser/dom.js';
-import { assertIsDefined } from '../../base/common/types.js';
+import { assertReturnsDefined } from '../../base/common/types.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, ConsoleLogger, getLogLevel, ILoggerService, ILogger } from '../../platform/log/common/log.js';
 import { ConsoleLogInAutomationLogger } from '../../platform/log/browser/log.js';
@@ -27,7 +27,7 @@ import { IAnyWorkspaceIdentifier, IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW
 import { IWorkbenchConfigurationService } from '../services/configuration/common/configuration.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { setFullscreen } from '../../base/browser/browser.js';
-import { URI } from '../../base/common/uri.js';
+import { URI, UriComponents } from '../../base/common/uri.js';
 import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
 import { ConfigurationCache } from '../services/configuration/common/configurationCache.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
@@ -40,7 +40,7 @@ import { isWorkspaceToOpen, isFolderToOpen } from '../../platform/window/common/
 import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from '../services/workspaces/browser/workspaces.js';
 import { InMemoryFileSystemProvider } from '../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ICommandService } from '../../platform/commands/common/commands.js';
-import { IndexedDBFileSystemProviderErrorDataClassification, IndexedDBFileSystemProvider, IndexedDBFileSystemProviderErrorData } from '../../platform/files/browser/indexedDBFileSystemProvider.js';
+import { IndexedDBFileSystemProvider } from '../../platform/files/browser/indexedDBFileSystemProvider.js';
 import { BrowserRequestService } from '../services/request/browser/requestService.js';
 import { IRequestService } from '../../platform/request/common/request.js';
 import { IUserDataInitializationService, IUserDataInitializer, UserDataInitializationService } from '../services/userData/browser/userDataInit.js';
@@ -64,12 +64,11 @@ import { IOpenerService } from '../../platform/opener/common/opener.js';
 import { mixin, safeStringify } from '../../base/common/objects.js';
 import { IndexedDB } from '../../base/browser/indexedDB.js';
 import { WebFileSystemAccess } from '../../platform/files/browser/webFileSystemAccess.js';
-import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IProgressService } from '../../platform/progress/common/progress.js';
 import { DelayedLogChannel } from '../services/output/common/delayedLogChannel.js';
 import { dirname, joinPath } from '../../base/common/resources.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
-import { NullPolicyService } from '../../platform/policy/common/policy.js';
+import { IPolicyService } from '../../platform/policy/common/policy.js';
 import { IRemoteExplorerService } from '../services/remote/common/remoteExplorerService.js';
 import { DisposableTunnel, TunnelProtocol } from '../../platform/tunnel/common/tunnel.js';
 import { ILabelService } from '../../platform/label/common/label.js';
@@ -77,7 +76,7 @@ import { UserDataProfileService } from '../services/userDataProfile/common/userD
 import { IUserDataProfileService } from '../services/userDataProfile/common/userDataProfile.js';
 import { BrowserUserDataProfilesService } from '../../platform/userDataProfile/browser/userDataProfile.js';
 import { DeferredPromise, timeout } from '../../base/common/async.js';
-import { windowLogId } from '../services/log/common/logConstants.js';
+import { windowLogGroup, windowLogId } from '../services/log/common/logConstants.js';
 import { LogService } from '../../platform/log/common/logService.js';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from '../../platform/remote/common/remoteSocketFactoryService.js';
 import { BrowserSocketFactory } from '../../platform/remote/browser/browserSocketFactory.js';
@@ -96,6 +95,9 @@ import { ISecretStorageService } from '../../platform/secrets/common/secrets.js'
 import { TunnelSource } from '../services/remote/common/tunnelModel.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { INotificationService, Severity } from '../../platform/notification/common/notification.js';
+import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+import { DefaultAccountService } from '../services/accounts/common/defaultAccount.js';
+import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
 
 export class BrowserMain extends Disposable {
 
@@ -136,13 +138,6 @@ export class BrowserMain extends Disposable {
 
 		// Logging
 		services.logService.trace('workbench#open with configuration', safeStringify(this.configuration));
-
-		instantiationService.invokeFunction(accessor => {
-			const telemetryService = accessor.get(ITelemetryService);
-			for (const indexedDbFileSystemProvider of this.indexedDBFileSystemProviders) {
-				this._register(indexedDbFileSystemProvider.onReportError(e => telemetryService.publicLog2<IndexedDBFileSystemProviderErrorData, IndexedDBFileSystemProviderErrorDataClassification>('indexedDBFileSystemProviderError', e)));
-			}
-		});
 
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
@@ -190,8 +185,8 @@ export class BrowserMain extends Disposable {
 
 						return timerService.getPerformanceMarks();
 					},
-					async openUri(uri: URI): Promise<boolean> {
-						return openerService.open(uri, {});
+					async openUri(uri: URI | UriComponents): Promise<boolean> {
+						return openerService.open(URI.isUri(uri) ? uri : URI.from(uri), {});
 					}
 				},
 				logger: {
@@ -217,7 +212,7 @@ export class BrowserMain extends Disposable {
 						await remoteAuthorityResolverService.resolveAuthority(this.configuration.remoteAuthority);
 					},
 					openTunnel: async tunnelOptions => {
-						const tunnel = assertIsDefined(await remoteExplorerService.forward({
+						const tunnel = assertReturnsDefined(await remoteExplorerService.forward({
 							remote: tunnelOptions.remoteAddress,
 							local: tunnelOptions.localAddressPort,
 							name: tunnelOptions.label,
@@ -298,7 +293,7 @@ export class BrowserMain extends Disposable {
 		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
 			otherLoggers.push(new ConsoleLogInAutomationLogger(loggerService.getLogLevel()));
 		}
-		const logger = loggerService.createLogger(environmentService.logFile, { id: windowLogId, name: localize('rendererLog', "Window") });
+		const logger = loggerService.createLogger(environmentService.logFile, { id: windowLogId, name: windowLogGroup.name, group: windowLogGroup });
 		const logService = new LogService(logger, otherLoggers);
 		serviceCollection.set(ILogService, logService);
 
@@ -353,9 +348,17 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
 
+		// Default Account
+		const defaultAccountService = this._register(new DefaultAccountService());
+		serviceCollection.set(IDefaultAccountService, defaultAccountService);
+
+		// Policies
+		const policyService = new AccountPolicyService(logService, defaultAccountService);
+		serviceCollection.set(IPolicyService, policyService);
+
 		// Long running services (workspace, config, storage)
 		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
+			this.createWorkspaceService(workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, policyService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -397,7 +400,7 @@ export class BrowserMain extends Disposable {
 		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted())));
 
 		// Request Service
-		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
+		const requestService = new BrowserRequestService(remoteAgentService, configurationService, loggerService);
 		serviceCollection.set(IRequestService, requestService);
 
 		// Userdata Sync Store Management Service
@@ -486,7 +489,7 @@ export class BrowserMain extends Disposable {
 		if (indexedDB) {
 			userDataProvider = new IndexedDBFileSystemProvider(Schemas.vscodeUserData, indexedDB, userDataStore, true);
 			this.indexedDBFileSystemProviders.push(userDataProvider);
-			this.registerDeveloperActions(<IndexedDBFileSystemProvider>userDataProvider);
+			this.registerDeveloperActions(userDataProvider);
 		} else {
 			logService.info('Using in-memory user data provider');
 			userDataProvider = new InMemoryFileSystemProvider();
@@ -559,7 +562,7 @@ export class BrowserMain extends Disposable {
 		}
 	}
 
-	private async createWorkspaceService(workspace: IAnyWorkspaceIdentifier, environmentService: IBrowserWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+	private async createWorkspaceService(workspace: IAnyWorkspaceIdentifier, environmentService: IBrowserWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, policyService: IPolicyService, logService: ILogService): Promise<WorkspaceService> {
 
 		// Temporary workspaces do not exist on startup because they are
 		// just in memory. As such, detect this case and eagerly create
@@ -575,7 +578,7 @@ export class BrowserMain extends Disposable {
 		}
 
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData, Schemas.tmp] /* Cache all non native resources */, environmentService, fileService);
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, new NullPolicyService());
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService);
 
 		try {
 			await workspaceService.initialize(workspace);

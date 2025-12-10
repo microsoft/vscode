@@ -196,7 +196,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 				return;
 			}
 
-			this.textModelResolverService.createModelReference(result.uri).then(ref => {
+			return this.textModelResolverService.createModelReference(result.uri).then(ref => {
 
 				if (!ref.object || !ref.object.textEditorModel) {
 					ref.dispose();
@@ -229,7 +229,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		if (numberOfLinesInRange >= GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
 			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
 		}
-
+		rangeToUse = textEditorModel.validateRange(rangeToUse);
 		const previewValue = this.stripIndentationFromPreviewRange(textEditorModel, startLineNumber, rangeToUse);
 		return previewValue;
 	}
@@ -300,7 +300,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		return getDefinitionsAtPosition(this.languageFeaturesService.definitionProvider, model, position, false, token);
 	}
 
-	private gotoDefinition(position: Position, openToSide: boolean): Promise<any> {
+	private async gotoDefinition(position: Position, openToSide: boolean): Promise<unknown> {
 		this.editor.setPosition(position);
 		return this.editor.invokeWithinContext((accessor) => {
 			const canPeek = !openToSide && this.editor.getOption(EditorOption.definitionLinkOpensInPeek) && !this.isInPeekEditor(accessor);

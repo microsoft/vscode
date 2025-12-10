@@ -6,8 +6,11 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { extractSelection, withSelection } from '../../common/opener.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('extractSelection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('extractSelection with only startLineNumber', async () => {
 		const uri = URI.parse('file:///some/file.js#73');

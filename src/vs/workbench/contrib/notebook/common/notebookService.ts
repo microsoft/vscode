@@ -91,6 +91,7 @@ export interface INotebookService {
 	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable;
 	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined;
 	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[];
+	hasSupportedNotebooks(resource: URI): boolean;
 	getNotebookProviderResourceRoots(): URI[];
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;

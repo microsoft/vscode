@@ -316,10 +316,27 @@ export class TextSearchContext2 {
 }
 
 /**
+/**
+ * Keyword suggestion for AI search.
+ */
+export class AISearchKeyword {
+	/**
+	 * @param keyword The keyword associated with the search.
+	 */
+	constructor(public keyword: string) { }
+}
+
+/**
  * A result payload for a text search, pertaining to matches within a single file.
  */
 export type TextSearchResult2 = TextSearchMatch2 | TextSearchContext2;
 
+/**
+ * A result payload for an AI search.
+ * This can be a {@link TextSearchMatch2 match} or a {@link AISearchKeyword keyword}.
+ * The result can be a match or a keyword.
+*/
+export type AISearchResult = TextSearchResult2 | AISearchKeyword;
 
 /**
  * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickaccess or other extensions.

@@ -28,6 +28,8 @@ import { NotebookMultiTextDiffEditor } from './notebookMultiDiffEditor.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import type { URI } from '../../../../../base/common/uri.js';
 import { TextEditorSelectionRevealType, type ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import product from '../../../../../platform/product/common/product.js';
+import { ctxHasEditorModification, ctxHasRequestInProgress } from '../../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -194,7 +196,7 @@ registerAction2(class GoToFileAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const uri = args[0] as URI;
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
@@ -264,7 +266,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const uri = args[0] as URI;
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
@@ -308,7 +310,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const uri = args[0] as URI;
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
@@ -351,7 +353,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const uri = args[0] as URI;
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
@@ -695,6 +697,34 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: 'notebook.diff.inline.toggle',
+				title: localize('notebook.diff.inline.toggle.title', "Toggle Inline View"),
+				menu: {
+					id: MenuId.EditorTitle,
+					group: '1_diff',
+					order: 10,
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+						ContextKeyExpr.equals('config.notebook.diff.experimental.toggleInline', true),
+						ctxHasEditorModification.negate(), ctxHasRequestInProgress.negate())
+				}
+			}
+		);
+	}
+	run(accessor: ServicesAccessor) {
+		const editorService: IEditorService = accessor.get(IEditorService);
+		if (editorService.activeEditorPane?.getId() !== NOTEBOOK_DIFF_EDITOR_ID) {
+			return;
+		}
+
+		const editor = editorService.activeEditorPane.getControl() as INotebookTextDiffEditor | undefined;
+		editor?.toggleInlineView();
+	}
+});
+
 
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -711,6 +741,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			markdownDescription: localize('notebook.diff.ignoreOutputs', "Hide Outputs Differences")
+		},
+		'notebook.diff.experimental.toggleInline': {
+			type: 'boolean',
+			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
+			markdownDescription: localize('notebook.diff.toggleInline', "Enable the command to toggle the experimental notebook inline diff editor.")
 		},
 	}
 });

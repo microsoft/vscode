@@ -5,7 +5,6 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { DefaultStyleController, IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
@@ -20,10 +19,10 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { editorBackground, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { settingsHeaderForeground, settingsHeaderHoverForeground } from '../common/settingsEditorColorRegistry.js';
 import { SettingsTreeFilter } from './settingsTree.js';
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from './settingsTreeModels.js';
-import { settingsHeaderForeground, settingsHeaderHoverForeground } from '../common/settingsEditorColorRegistry.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 const $ = DOM.$;
 
@@ -132,7 +131,7 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 		const label = element.label;
 
 		template.labelElement.textContent = label;
-		template.elementDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.labelElement, label));
+		template.elementDisposables.add(this._hoverService.setupDelayedHover(template.labelElement, { content: label }));
 
 		if (count) {
 			template.countElement.textContent = ` (${count})`;

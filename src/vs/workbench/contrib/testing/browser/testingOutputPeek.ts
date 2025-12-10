@@ -6,16 +6,16 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Color } from '../../../../base/common/color.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Event } from '../../../../base/common/event.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, disposableObservableValue, observableValue } from '../../../../base/common/observable.js';
-import { count } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../editor/browser/editorExtensions.js';
@@ -47,7 +47,6 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -112,16 +111,14 @@ function messageItReferenceToUri({ result, test, taskIndex, messageIndex }: IMes
 type TestUriWithDocument = ParsedTestUri & { documentUri: URI };
 
 export class TestingPeekOpener extends Disposable implements ITestingPeekOpener {
+	public static readonly ID = 'workbench.contrib.testing.peekOpener';
+
 	declare _serviceBrand: undefined;
 
 	private lastUri?: TestUriWithDocument;
 
 	/** @inheritdoc */
-	public readonly historyVisible = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
-		key: 'testHistoryVisibleInPeek',
-		scope: StorageScope.PROFILE,
-		target: StorageTarget.USER,
-	}, this.storageService), false));
+	public readonly historyVisible: MutableObservableValue<boolean>;
 
 	constructor(
 		@IConfigurationService private readonly configuration: IConfigurationService,
@@ -129,13 +126,18 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITestResultService private readonly testResults: ITestResultService,
 		@ITestService private readonly testService: ITestService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this._register(testResults.onTestChanged(this.openPeekOnFailure, this));
+		this.historyVisible = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
+			key: 'testHistoryVisibleInPeek',
+			scope: StorageScope.PROFILE,
+			target: StorageTarget.USER,
+		}, storageService), false));
 	}
 
 	/** @inheritdoc */
@@ -678,10 +680,8 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 
 class TestResultsPeek extends PeekViewWidget {
-	private static lastHeightInLines?: number;
-
-	private readonly visibilityChange = this._disposables.add(new Emitter<boolean>());
 	public readonly current = observableValue<InspectSubject | undefined>('testPeekCurrent', undefined);
+	private resizeOnNextContentHeightUpdate = false;
 	private content!: TestResultsViewContent;
 	private scopedContextKeyService!: IContextKeyService;
 	private dimension?: dom.Dimension;
@@ -701,8 +701,26 @@ class TestResultsPeek extends PeekViewWidget {
 		super(editor, { showFrame: true, frameWidth: 1, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
 
 		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme, this));
-		this._disposables.add(this.onDidClose(() => this.visibilityChange.fire(false)));
 		peekViewService.addExclusiveWidget(editor, this);
+	}
+
+	protected override _getMaximumHeightInLines(): number | undefined {
+		const defaultMaxHeight = super._getMaximumHeightInLines();
+		const contentHeight = this.content?.contentHeight;
+		if (!contentHeight) { // undefined or 0
+			return defaultMaxHeight;
+		}
+
+		if (this.testingPeek.historyVisible.value) { // don't cap height with the history split
+			return defaultMaxHeight;
+		}
+
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		// 41 is experimentally determined to be the overhead of the peek view itself
+		// to avoid showing scrollbars by default in its content.
+		const basePeekOverhead = 41;
+
+		return Math.min(defaultMaxHeight || Infinity, (contentHeight + basePeekOverhead) / lineHeight + 1);
 	}
 
 	private applyTheme() {
@@ -764,6 +782,27 @@ class TestResultsPeek extends PeekViewWidget {
 
 	protected override _fillBody(containerElement: HTMLElement): void {
 		this.content.fillBody(containerElement);
+
+		// Resize on height updates for a short time to allow any heights made
+		// by editor contributions to come into effect before.
+		const contentHeightSettleTimer = this._disposables.add(new RunOnceScheduler(() => {
+			this.resizeOnNextContentHeightUpdate = false;
+		}, 500));
+
+		this._disposables.add(this.content.onDidChangeContentHeight(height => {
+			if (!this.resizeOnNextContentHeightUpdate || !height) {
+				return;
+			}
+
+			const displayed = this._getMaximumHeightInLines();
+			if (displayed) {
+				this._relayout(Math.min(displayed, this.getVisibleEditorLines() / 2), true);
+				if (!contentHeightSettleTimer.isScheduled()) {
+					contentHeightSettleTimer.schedule();
+				}
+			}
+		}));
+
 		this._disposables.add(this.content.onDidRequestReveal(sub => {
 			TestingOutputPeekController.get(this.editor)?.show(sub instanceof MessageSubject
 				? sub.messageUri
@@ -780,7 +819,6 @@ class TestResultsPeek extends PeekViewWidget {
 			return this.showInPlace(subject);
 		}
 
-		const message = subject.message;
 		const previous = this.current;
 		const revealLocation = subject.revealLocation?.range.getStartPosition();
 		if (!revealLocation && !previous) {
@@ -792,13 +830,8 @@ class TestResultsPeek extends PeekViewWidget {
 			return this.showInPlace(subject);
 		}
 
-		// If there is a stack we want to display, ensure the default size is large-ish
-		const peekLines = TestResultsPeek.lastHeightInLines || Math.max(
-			inspectSubjectHasStack(subject) ? Math.ceil(this.getVisibleEditorLines() / 2) : 0,
-			hintMessagePeekHeight(message)
-		);
-
-		this.show(revealLocation, peekLines);
+		this.resizeOnNextContentHeightUpdate = true;
+		this.show(revealLocation, 10); // 10 is just a random number, we resize once content is available
 		this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(revealLocation), ScrollType.Smooth);
 
 		return this.showInPlace(subject);
@@ -830,11 +863,6 @@ class TestResultsPeek extends PeekViewWidget {
 		}
 		this.applyTheme();
 		await this.content.reveal({ subject, preserveFocus: false });
-	}
-
-	protected override _relayout(newHeightInLines: number): void {
-		super._relayout(newHeightInLines);
-		TestResultsPeek.lastHeightInLines = newHeightInLines;
 	}
 
 	/** @override */
@@ -871,11 +899,10 @@ export class TestResultsView extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITestResultService private readonly resultService: ITestResultService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
 
 	public get subject() {
@@ -919,22 +946,10 @@ export class TestResultsView extends ViewPane {
 	}
 }
 
-const hintMessagePeekHeight = (msg: ITestMessage) => {
-	const msgHeight = ITestMessage.isDiffable(msg)
-		? Math.max(hintPeekStrHeight(msg.actual), hintPeekStrHeight(msg.expected))
-		: hintPeekStrHeight(typeof msg.message === 'string' ? msg.message : msg.message.value);
-
-	// add 8ish lines for the size of the title and decorations in the peek.
-	return msgHeight + 8;
-};
-
 const firstLine = (str: string) => {
 	const index = str.indexOf('\n');
 	return index === -1 ? str : str.slice(0, index);
 };
-
-
-const hintPeekStrHeight = (str: string) => Math.min(count(str, '\n'), 24);
 
 function getOuterEditorFromDiffEditor(codeEditorService: ICodeEditorService): ICodeEditor | null {
 	const diffEditors = codeEditorService.listDiffEditors();

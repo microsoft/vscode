@@ -194,25 +194,37 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	private async acceptLocal(resourcePreview: IGlobalStateResourcePreview): Promise<IGlobalStateResourceMergeResult> {
-		return {
-			content: resourcePreview.localContent,
-			local: { added: {}, removed: [], updated: {} },
-			remote: { added: Object.keys(resourcePreview.localUserData.storage), removed: [], updated: [], all: resourcePreview.localUserData.storage },
-			localChange: Change.None,
-			remoteChange: Change.Modified,
-		};
+		if (resourcePreview.remoteContent !== null) {
+			const remoteGlobalState: IGlobalState = JSON.parse(resourcePreview.remoteContent);
+			const { local, remote } = merge(resourcePreview.localUserData.storage, remoteGlobalState.storage, remoteGlobalState.storage, resourcePreview.storageKeys, this.logService);
+			return {
+				content: resourcePreview.remoteContent,
+				local,
+				remote,
+				localChange: Change.None,
+				remoteChange: remote.all !== null ? Change.Modified : Change.None,
+			};
+		} else {
+			return {
+				content: resourcePreview.localContent,
+				local: { added: {}, removed: [], updated: {} },
+				remote: { added: Object.keys(resourcePreview.localUserData.storage), removed: [], updated: [], all: resourcePreview.localUserData.storage },
+				localChange: Change.None,
+				remoteChange: Change.Modified,
+			};
+		}
 	}
 
 	private async acceptRemote(resourcePreview: IGlobalStateResourcePreview): Promise<IGlobalStateResourceMergeResult> {
 		if (resourcePreview.remoteContent !== null) {
 			const remoteGlobalState: IGlobalState = JSON.parse(resourcePreview.remoteContent);
-			const { local, remote } = merge(resourcePreview.localUserData.storage, remoteGlobalState.storage, null, resourcePreview.storageKeys, this.logService);
+			const { local, remote } = merge(resourcePreview.localUserData.storage, remoteGlobalState.storage, resourcePreview.localUserData.storage, resourcePreview.storageKeys, this.logService);
 			return {
 				content: resourcePreview.remoteContent,
 				local,
 				remote,
 				localChange: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0 ? Change.Modified : Change.None,
-				remoteChange: remote !== null ? Change.Modified : Change.None,
+				remoteChange: Change.None,
 			};
 		} else {
 			return {

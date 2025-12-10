@@ -15,7 +15,6 @@ import { ViewContainer } from '../../../common/views.js';
 
 export interface IActivity {
 	readonly badge: IBadge;
-	readonly priority?: number;
 }
 
 export const IActivityService = createDecorator<IActivityService>('activityService');
@@ -71,16 +70,16 @@ export interface IBadgeStyles {
 	readonly badgeBorder: Color | undefined;
 }
 
-class BaseBadge implements IBadge {
+class BaseBadge<T = unknown> implements IBadge {
 
 	constructor(
-		protected readonly descriptorFn: (arg: any) => string,
+		protected readonly descriptorFn: (arg: T) => string,
 		private readonly stylesFn: ((theme: IColorTheme) => IBadgeStyles | undefined) | undefined,
 	) {
 	}
 
 	getDescription(): string {
-		return this.descriptorFn(null);
+		return this.descriptorFn(null as T);
 	}
 
 	getColors(theme: IColorTheme): IBadgeStyles | undefined {
@@ -88,7 +87,7 @@ class BaseBadge implements IBadge {
 	}
 }
 
-export class NumberBadge extends BaseBadge {
+export class NumberBadge extends BaseBadge<number> {
 
 	constructor(readonly number: number, descriptorFn: (num: number) => string) {
 		super(descriptorFn, undefined);
@@ -101,7 +100,7 @@ export class NumberBadge extends BaseBadge {
 	}
 }
 
-export class IconBadge extends BaseBadge {
+export class IconBadge extends BaseBadge<void> {
 	constructor(
 		readonly icon: ThemeIcon,
 		descriptorFn: () => string,
@@ -111,7 +110,7 @@ export class IconBadge extends BaseBadge {
 	}
 }
 
-export class ProgressBadge extends BaseBadge {
+export class ProgressBadge extends BaseBadge<void> {
 	constructor(descriptorFn: () => string) {
 		super(descriptorFn, undefined);
 	}

@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import { Readable } from 'stream';
 import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
-import * as yauzl from 'yauzl';
-import * as crypto from 'crypto';
-import { retry } from './retry';
+import yauzl from 'yauzl';
+import crypto from 'crypto';
+import { retry } from './retry.ts';
 import { CosmosClient } from '@azure/cosmos';
-import * as cp from 'child_process';
-import * as os from 'os';
+import cp from 'child_process';
+import os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
 import { ConfidentialClientApplication } from '@azure/msal-node';
-import { BlobClient, BlobServiceClient, ContainerClient } from '@azure/storage-blob';
-import * as jws from 'jws';
+import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient, ContainerSASPermissions, generateBlobSASQueryParameters } from '@azure/storage-blob';
+import jws from 'jws';
+import { clearInterval, setInterval } from 'node:timers';
 
-function e(name: string): string {
+export function e(name: string): string {
 	const result = process.env[name];
 
 	if (typeof result !== 'string') {
@@ -72,14 +73,16 @@ interface ReleaseError {
 	errorMessages: string[];
 }
 
-const enum StatusCode {
-	Pass = 'pass',
-	Inprogress = 'inprogress',
-	FailCanRetry = 'failCanRetry',
-	FailDoNotRetry = 'failDoNotRetry',
-	PendingAnalysis = 'pendingAnalysis',
-	Cancelled = 'cancelled'
-}
+const StatusCode = Object.freeze({
+	Pass: 'pass',
+	Aborted: 'aborted',
+	Inprogress: 'inprogress',
+	FailCanRetry: 'failCanRetry',
+	FailDoNotRetry: 'failDoNotRetry',
+	PendingAnalysis: 'pendingAnalysis',
+	Cancelled: 'cancelled'
+});
+type StatusCode = typeof StatusCode[keyof typeof StatusCode];
 
 interface ReleaseResultMessage {
 	activities: ReleaseActivityInfo[];
@@ -313,12 +316,13 @@ function getCertificatesFromPFX(pfx: string): string[] {
 class ESRPReleaseService {
 
 	static async create(
-		log: (...args: any[]) => void,
+		log: (...args: unknown[]) => void,
 		tenantId: string,
 		clientId: string,
 		authCertificatePfx: string,
 		requestSigningCertificatePfx: string,
-		containerClient: ContainerClient
+		containerClient: ContainerClient,
+		stagingSasToken: string
 	) {
 		const authKey = getKeyFromPFX(authCertificatePfx);
 		const authCertificate = getCertificatesFromPFX(authCertificatePfx)[0];
@@ -341,19 +345,36 @@ class ESRPReleaseService {
 			scopes: ['https://api.esrp.microsoft.com/.default']
 		});
 
-		return new ESRPReleaseService(log, clientId, response!.accessToken, requestSigningCertificates, requestSigningKey, containerClient);
+		return new ESRPReleaseService(log, clientId, response!.accessToken, requestSigningCertificates, requestSigningKey, containerClient, stagingSasToken);
 	}
 
 	private static API_URL = 'https://api.esrp.microsoft.com/api/v3/releaseservices/clients/';
 
+	private readonly log: (...args: unknown[]) => void;
+	private readonly clientId: string;
+	private readonly accessToken: string;
+	private readonly requestSigningCertificates: string[];
+	private readonly requestSigningKey: string;
+	private readonly containerClient: ContainerClient;
+	private readonly stagingSasToken: string;
+
 	private constructor(
-		private readonly log: (...args: any[]) => void,
-		private readonly clientId: string,
-		private readonly accessToken: string,
-		private readonly requestSigningCertificates: string[],
-		private readonly requestSigningKey: string,
-		private readonly containerClient: ContainerClient
-	) { }
+		log: (...args: unknown[]) => void,
+		clientId: string,
+		accessToken: string,
+		requestSigningCertificates: string[],
+		requestSigningKey: string,
+		containerClient: ContainerClient,
+		stagingSasToken: string
+	) {
+		this.log = log;
+		this.clientId = clientId;
+		this.accessToken = accessToken;
+		this.requestSigningCertificates = requestSigningCertificates;
+		this.requestSigningKey = requestSigningKey;
+		this.containerClient = containerClient;
+		this.stagingSasToken = stagingSasToken;
+	}
 
 	async createRelease(version: string, filePath: string, friendlyFileName: string) {
 		const correlationId = crypto.randomUUID();
@@ -376,8 +397,12 @@ class ESRPReleaseService {
 
 				if (releaseStatus.status === 'pass') {
 					break;
+				} else if (releaseStatus.status === 'aborted') {
+					this.log(JSON.stringify(releaseStatus));
+					throw new Error(`Release was aborted`);
 				} else if (releaseStatus.status !== 'inprogress') {
-					throw new Error(`Failed to submit release: ${JSON.stringify(releaseStatus)}`);
+					this.log(JSON.stringify(releaseStatus));
+					throw new Error(`Unknown error when polling for release`);
 				}
 			}
 
@@ -405,6 +430,7 @@ class ESRPReleaseService {
 	): Promise<ReleaseSubmitResponse> {
 		const size = fs.statSync(filePath).size;
 		const hash = await hashStream('sha256', fs.createReadStream(filePath));
+		const blobUrl = `${blobClient.url}?${this.stagingSasToken}`;
 
 		const message: ReleaseRequestMessage = {
 			customerCorrelationId: correlationId,
@@ -437,11 +463,11 @@ class ESRPReleaseService {
 			files: [{
 				name: path.basename(filePath),
 				friendlyFileName,
-				tenantFileLocation: blobClient.url,
+				tenantFileLocation: blobUrl,
 				tenantFileLocationType: 'AzureBlob',
 				sourceLocation: {
 					type: 'azureBlob',
-					blobUrl: blobClient.url
+					blobUrl
 				},
 				hashType: 'sha256',
 				hash: Array.from(hash),
@@ -471,11 +497,11 @@ class ESRPReleaseService {
 	private async getReleaseStatus(releaseId: string): Promise<ReleaseResultMessage> {
 		const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grs/${releaseId}`;
 
-		const res = await fetch(url, {
+		const res = await retry(() => fetch(url, {
 			headers: {
 				'Authorization': `Bearer ${this.accessToken}`
 			}
-		});
+		}));
 
 		if (!res.ok) {
 			const text = await res.text();
@@ -488,11 +514,11 @@ class ESRPReleaseService {
 	private async getReleaseDetails(releaseId: string): Promise<ReleaseDetailsMessage> {
 		const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grd/${releaseId}`;
 
-		const res = await fetch(url, {
+		const res = await retry(() => fetch(url, {
 			headers: {
 				'Authorization': `Bearer ${this.accessToken}`
 			}
-		});
+		}));
 
 		if (!res.ok) {
 			const text = await res.text();
@@ -503,17 +529,21 @@ class ESRPReleaseService {
 	}
 
 	private async generateJwsToken(message: ReleaseRequestMessage): Promise<string> {
+		// Create header with properly typed properties, then override x5c with the non-standard string format
+		const header: jws.Header = {
+			alg: 'RS256',
+			crit: ['exp', 'x5t'],
+			// Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
+			exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
+			// Release service uses hex format, not base64url :roll_eyes:
+			x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
+		};
+
+		// The Release service expects x5c as a '.' separated string, not the standard array format
+		(header as Record<string, unknown>)['x5c'] = this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.');
+
 		return jws.sign({
-			header: {
-				alg: 'RS256',
-				crit: ['exp', 'x5t'],
-				// Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
-				exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
-				// Release service uses hex format, not base64url :roll_eyes:
-				x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
-				// Release service uses a '.' separated string, not an array of strings :roll_eyes:
-				x5c: this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.') as any,
-			},
+			header,
 			payload: message,
 			privateKey: this.requestSigningKey,
 		});
@@ -574,12 +604,12 @@ const azdoFetchOptions = {
 	}
 };
 
-async function requestAZDOAPI<T>(path: string): Promise<T> {
+export async function requestAZDOAPI<T>(path: string): Promise<T> {
 	const abortController = new AbortController();
 	const timeout = setTimeout(() => abortController.abort(), 2 * 60 * 1000);
 
 	try {
-		const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal });
+		const res = await retry(() => fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal }));
 
 		if (!res.ok) {
 			throw new Error(`Unexpected status code: ${res.status}`);
@@ -591,7 +621,7 @@ async function requestAZDOAPI<T>(path: string): Promise<T> {
 	}
 }
 
-interface Artifact {
+export interface Artifact {
 	readonly name: string;
 	readonly resource: {
 		readonly downloadUrl: string;
@@ -611,6 +641,7 @@ interface Timeline {
 		readonly name: string;
 		readonly type: string;
 		readonly state: string;
+		readonly result: string;
 	}[];
 }
 
@@ -685,7 +716,7 @@ interface Asset {
 }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product: string, os: string, arch: string, type: string, isLegacy: boolean): string {
+function getPlatform(product: string, os: string, arch: string, type: string): string {
 	switch (os) {
 		case 'win32':
 			switch (product) {
@@ -730,12 +761,12 @@ function getPlatform(product: string, os: string, arch: string, type: string, is
 						case 'client':
 							return `linux-${arch}`;
 						case 'server':
-							return isLegacy ? `server-linux-legacy-${arch}` : `server-linux-${arch}`;
+							return `server-linux-${arch}`;
 						case 'web':
 							if (arch === 'standalone') {
 								return 'web-standalone';
 							}
-							return isLegacy ? `server-linux-legacy-${arch}-web` : `server-linux-${arch}-web`;
+							return `server-linux-${arch}-web`;
 						default:
 							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
@@ -788,62 +819,129 @@ function getRealType(type: string) {
 	}
 }
 
+async function withLease<T>(client: BlockBlobClient, fn: () => Promise<T>) {
+	const lease = client.getBlobLeaseClient();
+
+	for (let i = 0; i < 360; i++) { // Try to get lease for 30 minutes
+		try {
+			await client.uploadData(new ArrayBuffer()); // blob needs to exist for lease to be acquired
+			await lease.acquireLease(60);
+
+			try {
+				const abortController = new AbortController();
+				const refresher = new Promise<void>((c, e) => {
+					abortController.signal.onabort = () => {
+						clearInterval(interval);
+						c();
+					};
+
+					const interval = setInterval(() => {
+						lease.renewLease().catch(err => {
+							clearInterval(interval);
+							e(new Error('Failed to renew lease ' + err));
+						});
+					}, 30_000);
+				});
+
+				const result = await Promise.race([fn(), refresher]);
+				abortController.abort();
+				return result;
+			} finally {
+				await lease.releaseLease();
+			}
+		} catch (err) {
+			if (err.statusCode !== 409 && err.statusCode !== 412) {
+				throw err;
+			}
+
+			await new Promise(c => setTimeout(c, 5000));
+		}
+	}
+
+	throw new Error('Failed to acquire lease on blob after 30 minutes');
+}
+
 async function processArtifact(
 	artifact: Artifact,
 	filePath: string
 ) {
+	const log = (...args: unknown[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {
 		throw new Error(`Invalid artifact name: ${artifact.name}`);
 	}
 
-	// getPlatform needs the unprocessedType
 	const { cosmosDBAccessToken, blobServiceAccessToken } = JSON.parse(e('PUBLISH_AUTH_TOKENS'));
 	const quality = e('VSCODE_QUALITY');
 	const version = e('BUILD_SOURCEVERSION');
-	const { product, os, arch, unprocessedType } = match.groups!;
-	const isLegacy = artifact.name.includes('_legacy');
-	const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
-	const type = getRealType(unprocessedType);
-	const size = fs.statSync(filePath).size;
-	const stream = fs.createReadStream(filePath);
-	const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
-
-	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
-	const blobServiceClient = new BlobServiceClient(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, { getToken: async () => blobServiceAccessToken });
-	const containerClient = blobServiceClient.getContainerClient('staging');
-
-	const releaseService = await ESRPReleaseService.create(
-		log,
-		e('RELEASE_TENANT_ID'),
-		e('RELEASE_CLIENT_ID'),
-		e('RELEASE_AUTH_CERT'),
-		e('RELEASE_REQUEST_SIGNING_CERT'),
-		containerClient
-	);
-
 	const friendlyFileName = `${quality}/${version}/${path.basename(filePath)}`;
-	const url = `${e('PRSS_CDN_URL')}/${friendlyFileName}`;
-	const res = await retry(() => fetch(url));
 
-	if (res.status === 200) {
-		log(`Already released and provisioned: ${url}`);
-	} else {
-		await releaseService.createRelease(version, filePath, friendlyFileName);
-	}
+	const blobServiceClient = new BlobServiceClient(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, { getToken: async () => blobServiceAccessToken });
+	const leasesContainerClient = blobServiceClient.getContainerClient('leases');
+	await leasesContainerClient.createIfNotExists();
+	const leaseBlobClient = leasesContainerClient.getBlockBlobClient(friendlyFileName);
 
-	const asset: Asset = { platform, type, url, hash: hash.toString('hex'), sha256hash: sha256hash.toString('hex'), size, supportsFastUpdate: true };
-	log('Creating asset...', JSON.stringify(asset, undefined, 2));
+	log(`Acquiring lease for: ${friendlyFileName}`);
 
-	await retry(async (attempt) => {
-		log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
-		const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT')!, tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken.token}`) });
-		const scripts = client.database('builds').container(quality).scripts;
-		await scripts.storedProcedure('createAsset').execute('', [version, asset, true]);
+	await withLease(leaseBlobClient, async () => {
+		log(`Successfully acquired lease for: ${friendlyFileName}`);
+
+		const url = `${e('PRSS_CDN_URL')}/${friendlyFileName}`;
+		const res = await retry(() => fetch(url));
+
+		if (res.status === 200) {
+			log(`Already released and provisioned: ${url}`);
+		} else {
+			const stagingContainerClient = blobServiceClient.getContainerClient('staging');
+			await stagingContainerClient.createIfNotExists();
+
+			const now = new Date().valueOf();
+			const oneHour = 60 * 60 * 1000;
+			const oneHourAgo = new Date(now - oneHour);
+			const oneHourFromNow = new Date(now + oneHour);
+			const userDelegationKey = await blobServiceClient.getUserDelegationKey(oneHourAgo, oneHourFromNow);
+			const sasOptions = { containerName: 'staging', permissions: ContainerSASPermissions.from({ read: true }), startsOn: oneHourAgo, expiresOn: oneHourFromNow };
+			const stagingSasToken = generateBlobSASQueryParameters(sasOptions, userDelegationKey, e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')).toString();
+
+			const releaseService = await ESRPReleaseService.create(
+				log,
+				e('RELEASE_TENANT_ID'),
+				e('RELEASE_CLIENT_ID'),
+				e('RELEASE_AUTH_CERT'),
+				e('RELEASE_REQUEST_SIGNING_CERT'),
+				stagingContainerClient,
+				stagingSasToken
+			);
+
+			await releaseService.createRelease(version, filePath, friendlyFileName);
+		}
+
+		const { product, os, arch, unprocessedType } = match.groups!;
+		const platform = getPlatform(product, os, arch, unprocessedType);
+		const type = getRealType(unprocessedType);
+		const size = fs.statSync(filePath).size;
+		const stream = fs.createReadStream(filePath);
+		const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
+		const asset: Asset = { platform, type, url, hash: hash.toString('hex'), sha256hash: sha256hash.toString('hex'), size, supportsFastUpdate: true };
+		log('Creating asset...');
+
+		const result = await retry(async (attempt) => {
+			log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
+			const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT')!, tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken.token}`) });
+			const scripts = client.database('builds').container(quality).scripts;
+			const { resource: result } = await scripts.storedProcedure('createAsset').execute<'ok' | 'already exists'>('', [version, asset, true]);
+			return result;
+		});
+
+		if (result === 'already exists') {
+			log('Asset already exists!');
+		} else {
+			log('Asset successfully created: ', JSON.stringify(asset, undefined, 2));
+		}
 	});
 
-	log('Asset successfully created');
+	log(`Successfully released lease for: ${friendlyFileName}`);
 }
 
 // It is VERY important that we don't download artifacts too much too fast from AZDO.
@@ -866,19 +964,30 @@ async function main() {
 		console.log(`\u2705 ${name}`);
 	}
 
-	const stages = new Set<string>(['Compile', 'CompileCLI']);
+	const stages = new Set<string>(['Compile']);
+
+	if (
+		e('VSCODE_BUILD_STAGE_LINUX') === 'True' ||
+		e('VSCODE_BUILD_STAGE_ALPINE') === 'True' ||
+		e('VSCODE_BUILD_STAGE_MACOS') === 'True' ||
+		e('VSCODE_BUILD_STAGE_WINDOWS') === 'True'
+	) {
+		stages.add('CompileCLI');
+	}
+
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }
-	if (e('VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER') === 'True') { stages.add('LinuxLegacyServer'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
+	let timeline: Timeline;
+	let artifacts: Artifact[];
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
 
 	while (true) {
-		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
+		[timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
@@ -917,7 +1026,7 @@ async function main() {
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
-				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath } });
+				const worker = new Worker(import.meta.filename, { workerData: { artifact, artifactFilePath } });
 				worker.on('error', reject);
 				worker.on('exit', code => {
 					if (code === 0) {
@@ -959,14 +1068,31 @@ async function main() {
 		}
 	}
 
+	// Fail the job if any of the artifacts failed to publish
 	if (results.some(r => r.status === 'rejected')) {
 		throw new Error('Some artifacts failed to publish');
+	}
+
+	// Also fail the job if any of the stages did not succeed
+	let shouldFail = false;
+
+	for (const stage of stages) {
+		const record = timeline.records.find(r => r.name === stage && r.type === 'Stage')!;
+
+		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
+			shouldFail = true;
+			console.error(`Stage ${stage} did not succeed: ${record.result}`);
+		}
+	}
+
+	if (shouldFail) {
+		throw new Error('Some stages did not succeed');
 	}
 
 	console.log(`All ${done.size} artifacts published!`);
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main().then(() => {
 		process.exit(0);
 	}, err => {

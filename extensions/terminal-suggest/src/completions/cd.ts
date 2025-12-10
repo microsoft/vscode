@@ -9,17 +9,11 @@ const cdSpec: Fig.Spec = {
 	args: {
 		name: 'folder',
 		template: 'folders',
-		isVariadic: true,
 
 		suggestions: [
 			{
 				name: '-',
 				description: 'Switch to the last used folder',
-				hidden: true,
-			},
-			{
-				name: '~',
-				description: 'Switch to the home directory',
 				hidden: true,
 			},
 		],

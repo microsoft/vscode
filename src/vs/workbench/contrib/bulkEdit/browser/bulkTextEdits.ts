@@ -22,10 +22,11 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { SnippetParser } from '../../../../editor/contrib/snippet/browser/snippetParser.js';
 import { ISnippetEdit } from '../../../../editor/contrib/snippet/browser/snippetSession.js';
+import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 
 type ValidationResult = { canApply: true } | { canApply: false; reason: URI };
 
-type ISingleSnippetEditOperation = ISingleEditOperation & { insertAsSnippet?: boolean };
+type ISingleSnippetEditOperation = ISingleEditOperation & { insertAsSnippet?: boolean; keepWhitespace?: boolean };
 
 class ModelEditTask implements IDisposable {
 
@@ -80,7 +81,7 @@ class ModelEditTask implements IDisposable {
 		} else {
 			range = Range.lift(textEdit.range);
 		}
-		this._edits.push({ ...EditOperation.replaceMove(range, textEdit.text), insertAsSnippet: textEdit.insertAsSnippet });
+		this._edits.push({ ...EditOperation.replaceMove(range, textEdit.text), insertAsSnippet: textEdit.insertAsSnippet, keepWhitespace: textEdit.keepWhitespace });
 	}
 
 	validate(): ValidationResult {
@@ -94,12 +95,12 @@ class ModelEditTask implements IDisposable {
 		return null;
 	}
 
-	apply(): void {
+	apply(reason?: TextModelEditSource): void {
 		if (this._edits.length > 0) {
 			this._edits = this._edits
 				.map(this._transformSnippetStringToInsertText, this) // no editor -> no snippet mode
 				.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-			this.model.pushEditOperations(null, this._edits, () => null);
+			this.model.pushEditOperations(null, this._edits, () => null, undefined, reason);
 		}
 		if (this._newEol !== undefined) {
 			this.model.pushEOL(this._newEol);
@@ -134,7 +135,7 @@ class EditorEditTask extends ModelEditTask {
 		return this._canUseEditor() ? this._editor.getSelections() : null;
 	}
 
-	override apply(): void {
+	override apply(reason?: TextModelEditSource): void {
 
 		// Check that the editor is still for the wanted model. It might have changed in the
 		// meantime and that means we cannot use the editor anymore (instead we perform the edit through the model)
@@ -152,7 +153,8 @@ class EditorEditTask extends ModelEditTask {
 					if (edit.range && edit.text !== null) {
 						snippetEdits.push({
 							range: Range.lift(edit.range),
-							template: edit.insertAsSnippet ? edit.text : SnippetParser.escape(edit.text)
+							template: edit.insertAsSnippet ? edit.text : SnippetParser.escape(edit.text),
+							keepWhitespace: edit.keepWhitespace
 						});
 					}
 				}
@@ -163,7 +165,7 @@ class EditorEditTask extends ModelEditTask {
 				this._edits = this._edits
 					.map(this._transformSnippetStringToInsertText, this) // mixed edits (snippet and normal) -> no snippet mode
 					.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-				this._editor.executeEdits('', this._edits);
+				this._editor.executeEdits(reason, this._edits);
 			}
 		}
 		if (this._newEol !== undefined) {
@@ -286,7 +288,7 @@ export class BulkTextEdits {
 		return { canApply: true };
 	}
 
-	async apply(): Promise<readonly URI[]> {
+	async apply(reason?: TextModelEditSource): Promise<readonly URI[]> {
 
 		this._validateBeforePrepare();
 		const tasks = await this._createEditsTasks();
@@ -307,7 +309,7 @@ export class BulkTextEdits {
 				if (!task.isNoOp()) {
 					const singleModelEditStackElement = new SingleModelEditStackElement(this._label, this._code, task.model, task.getBeforeCursorState());
 					this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
-					task.apply();
+					task.apply(reason);
 					singleModelEditStackElement.close();
 					resources.push(task.model.uri);
 				}

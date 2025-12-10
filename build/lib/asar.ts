@@ -3,19 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as es from 'event-stream';
-const pickle = require('chromium-pickle-js');
-const Filesystem = <typeof AsarFilesystem>require('asar/lib/filesystem');
-import * as VinylFile from 'vinyl';
-import * as minimatch from 'minimatch';
-
-declare class AsarFilesystem {
-	readonly header: unknown;
-	constructor(src: string);
-	insertDirectory(path: string, shouldUnpack?: boolean): unknown;
-	insertFile(path: string, shouldUnpack: boolean, file: { stat: { size: number; mode: number } }, options: {}): Promise<void>;
-}
+import path from 'path';
+import es from 'event-stream';
+import pickle from 'chromium-pickle-js';
+import Filesystem from 'asar/lib/filesystem.js';
+import VinylFile from 'vinyl';
+import minimatch from 'minimatch';
 
 export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs: string[], duplicateGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
 

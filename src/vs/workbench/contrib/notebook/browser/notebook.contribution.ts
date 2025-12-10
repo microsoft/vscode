@@ -10,7 +10,7 @@ import { extname, isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { toFormattedString } from '../../../../base/common/jsonFormatter.js';
-import { ITextModel, ITextBufferFactory, DefaultEndOfLine, ITextBuffer } from '../../../../editor/common/model.js';
+import { ITextModel, ITextBufferFactory, ITextBuffer } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageSelection, ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -100,12 +100,10 @@ import './contrib/kernelDetection/notebookKernelDetection.js';
 import './contrib/cellDiagnostics/cellDiagnostics.js';
 import './contrib/multicursor/notebookMulticursor.js';
 import './contrib/multicursor/notebookSelectionHighlight.js';
+import './contrib/notebookVariables/notebookInlineVariables.js';
 
 // Diff Editor Contribution
 import './diff/notebookDiffActions.js';
-
-// Chat Edit Contributions
-import './contrib/chatEdit/notebookChatEditController.js';
 
 // Services
 import { editorOptionsRegistry } from '../../../../editor/common/config/editorOptions.js';
@@ -134,6 +132,8 @@ import { NotebookMultiDiffEditorInput } from './diff/notebookMultiDiffEditorInpu
 import { getFormattedMetadataJSON } from '../common/model/notebookCellTextModel.js';
 import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from './viewModel/notebookOutlineEntryFactory.js';
 import { getFormattedNotebookMetadataJSON } from '../common/model/notebookMetadataTextModel.js';
+import { NotebookOutputEditor } from './outputEditor/notebookOutputEditor.js';
+import { NotebookOutputEditorInput } from './outputEditor/notebookOutputEditorInput.js';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -156,6 +156,17 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(NotebookDiffEditorInput)
+	]
+);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		NotebookOutputEditor,
+		NotebookOutputEditor.ID,
+		'Notebook Output Editor'
+	),
+	[
+		new SyncDescriptor(NotebookOutputEditorInput)
 	]
 );
 
@@ -241,6 +252,32 @@ class NotebookEditorSerializer implements IEditorSerializer {
 	}
 }
 
+export type SerializedNotebookOutputEditorData = { notebookUri: URI; cellIndex: number; outputIndex: number };
+class NotebookOutputEditorSerializer implements IEditorSerializer {
+	canSerialize(input: EditorInput): boolean {
+		return input.typeId === NotebookOutputEditorInput.ID;
+	}
+	serialize(input: EditorInput): string | undefined {
+		assertType(input instanceof NotebookOutputEditorInput);
+
+		const data = input.getSerializedData(); // in case of cell movement etc get latest indices
+		if (!data) {
+			return undefined;
+		}
+
+		return JSON.stringify(data);
+	}
+	deserialize(instantiationService: IInstantiationService, raw: string): EditorInput | undefined {
+		const data = <SerializedNotebookOutputEditorData>parse(raw);
+		if (!data) {
+			return undefined;
+		}
+
+		const input = instantiationService.createInstance(NotebookOutputEditorInput, data.notebookUri, data.cellIndex, undefined, data.outputIndex);
+		return input;
+	}
+}
+
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	NotebookEditorInput.ID,
 	NotebookEditorSerializer
@@ -249,6 +286,11 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	NotebookDiffEditorInput.ID,
 	NotebookDiffEditorSerializer
+);
+
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
+	NotebookOutputEditorInput.ID,
+	NotebookOutputEditorSerializer
 );
 
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
@@ -274,7 +316,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}));
 
 		// register comment decoration
-		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
+		this._register(this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {}));
 	}
 
 	// Add or remove the cell undo redo comparison key based on the user setting
@@ -356,8 +398,6 @@ class CellContentProvider implements ITextModelContentProvider {
 			if (cell.uri.toString() === resource.toString()) {
 				const bufferFactory: ITextBufferFactory = {
 					create: (defaultEOL) => {
-						const newEOL = (defaultEOL === DefaultEndOfLine.CRLF ? '\r\n' : '\n');
-						(cell.textBuffer as ITextBuffer).setEOL(newEOL);
 						return { textBuffer: cell.textBuffer as ITextBuffer, disposable: Disposable.None };
 					},
 					getFirstLineText: (limit: number) => {
@@ -450,7 +490,7 @@ class CellInfoContentProvider {
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
 				const cellIndex = ref.object.notebook.cells.indexOf(cell);
-				const metadataSource = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language);
+				const metadataSource = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language, true);
 				result = this._modelService.createModel(
 					metadataSource,
 					mode,
@@ -458,9 +498,9 @@ class CellInfoContentProvider {
 				);
 				this._disposables.push(disposables.add(ref.object.notebook.onDidChangeContent(e => {
 					if (result && e.rawEvents.some(event => (event.kind === NotebookCellsChangeType.ChangeCellMetadata || event.kind === NotebookCellsChangeType.ChangeCellLanguage) && event.index === cellIndex)) {
-						const value = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language);
+						const value = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language, true);
 						if (result.getValue() !== value) {
-							result.setValue(getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language));
+							result.setValue(value);
 						}
 					}
 				})));
@@ -880,7 +920,6 @@ registerSingleton(INotebookLoggingService, NotebookLoggingService, Instantiation
 registerSingleton(INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory, InstantiationType.Delayed);
 registerSingleton(INotebookOutlineEntryFactory, NotebookOutlineEntryFactory, InstantiationType.Delayed);
 
-
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
 	return (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
@@ -953,10 +992,20 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['hidden', 'visible', 'visibleAfterExecute'],
 			enumDescriptions: [
-				nls.localize('notebook.showCellStatusbar.hidden.description', "The cell Status bar is always hidden."),
-				nls.localize('notebook.showCellStatusbar.visible.description', "The cell Status bar is always visible."),
-				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell Status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
+				nls.localize('notebook.showCellStatusbar.hidden.description', "The cell status bar is always hidden."),
+				nls.localize('notebook.showCellStatusbar.visible.description', "The cell status bar is always visible."),
+				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
 			default: 'visible',
+			tags: ['notebookLayout']
+		},
+		[NotebookSetting.cellExecutionTimeVerbosity]: {
+			description: nls.localize('notebook.cellExecutionTimeVerbosity.description', "Controls the verbosity of the cell execution time in the cell status bar."),
+			type: 'string',
+			enum: ['default', 'verbose'],
+			enumDescriptions: [
+				nls.localize('notebook.cellExecutionTimeVerbosity.default.description', "The cell execution duration is visible, with advanced information in the hover tooltip."),
+				nls.localize('notebook.cellExecutionTimeVerbosity.verbose.description', "The cell last execution timestamp and duration are visible, with advanced information in the hover tooltip.")],
+			default: 'default',
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.textDiffEditorPreview]: {
@@ -1039,6 +1088,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['notebookLayout']
 		},
+		// [NotebookSetting.openOutputInPreviewEditor]: {
+		// 	description: nls.localize('notebook.output.openInPreviewEditor.description', "Controls whether or not the action to open a cell output in a preview editor is enabled. This action can be used via the cell output menu."),
+		// 	type: 'boolean',
+		// 	default: false,
+		// 	tags: ['preview']
+		// },
 		[NotebookSetting.showFoldingControls]: {
 			description: nls.localize('notebook.showFoldingControls.description', "Controls when the Markdown header folding arrow is shown."),
 			type: 'string',
@@ -1223,6 +1278,17 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false
 		},
+		[NotebookSetting.notebookInlineValues]: {
+			markdownDescription: nls.localize('notebook.inlineValues.description', "Control whether to show inline values within notebook code cells after cell execution. Values will remain until the cell is edited, re-executed, or explicitly cleared via the Clear All Outputs toolbar button or the `Notebook: Clear Inline Values` command."),
+			type: 'string',
+			enum: ['on', 'auto', 'off'],
+			enumDescriptions: [
+				nls.localize('notebook.inlineValues.on', "Always show inline values, with a regex fallback if no inline value provider is registered. Note: There may be a performance impact in larger cells if the fallback is used."),
+				nls.localize('notebook.inlineValues.auto', "Show inline values only when an inline value provider is registered."),
+				nls.localize('notebook.inlineValues.off', "Never show inline values."),
+			],
+			default: 'off'
+		},
 		[NotebookSetting.cellFailureDiagnostics]: {
 			markdownDescription: nls.localize('notebook.cellFailureDiagnostics', "Show available diagnostics for cell failures."),
 			type: 'boolean',
@@ -1238,5 +1304,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false
 		},
+		[NotebookSetting.markupFontFamily]: {
+			markdownDescription: nls.localize('notebook.markup.fontFamily', "Controls the font family of rendered markup in notebooks. When left blank, this will fall back to the default workbench font family."),
+			type: 'string',
+			default: '',
+			tags: ['notebookLayout']
+		}
 	}
 });

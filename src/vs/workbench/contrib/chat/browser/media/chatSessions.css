@@ -1,0 +1,299 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Ensure consistent title background regardless of number of views */
+.composite.viewlet[id="workbench.view.chat.sessions"] .pane-header.expanded.not-collapsible {
+	background-color: var(--vscode-sideBarSectionHeader-background) !important;
+}
+
+.chat-sessions-view {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.chat-sessions-tree-container,
+.getting-started-list-container {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.chat-sessions-tree-container > .monaco-list,
+.getting-started-list-container > .monaco-list {
+	flex: 1;
+}
+
+/* Style for empty state message */
+.chat-sessions-message {
+	padding: 20px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-sessions-message .no-sessions-message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	font-style: italic;
+}
+
+/* Simple approach - directly style the edit container for chat sessions */
+.chat-sessions-tree-container .explorer-item.explorer-item-edited {
+	display: flex;
+	align-items: center;
+	height: 22px;
+	padding: 0;
+}
+
+.chat-sessions-tree-container .explorer-item.explorer-item-edited .codicon {
+	margin-right: 6px;
+	flex-shrink: 0;
+}
+
+.chat-sessions-tree-container .explorer-item.explorer-item-edited .monaco-inputbox {
+	flex: 1;
+	width: 100%;
+	line-height: normal;
+	border: none !important;
+	background: transparent !important;
+}
+
+/* Add the complete outline border that file explorer uses (this replaces the border) */
+.chat-sessions-tree-container .explorer-item.explorer-item-edited .monaco-inputbox input[type="text"] {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+	opacity: 1;
+	border: none !important; /* Remove any default border */
+}
+
+.chat-sessions-tree-container .chat-session-item.multiline {
+	padding: 2px 0;
+}
+
+/* Position session content and actions inline */
+.chat-sessions-tree-container .chat-session-item .session-content {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	width: 100%;
+	min-height: 22px;
+	line-height: 22px;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row {
+	display: none;
+	align-items: center;
+	font-size: 0.9em;
+	line-height: 1em;
+	margin: 2px 22px 0 20px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row p {
+	padding: 2px;
+	margin: 0px;
+	border-radius: 4px;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row a {
+	color: var(--vscode-foreground);
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .description:hover p {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .description {
+	opacity: 0.5;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .description p {
+	display: flex;
+	align-items: center;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .description p .codicon {
+	font-size: 14px;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .statistics {
+	margin-left: 8px;
+}
+
+.getting-started-list-container .monaco-list-row {
+	padding-left: 8px;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .statistics .insertions {
+	color: var(--vscode-chat-linesAddedForeground);
+	padding-left: 4px;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .statistics .deletions {
+	color: var(--vscode-chat-linesRemovedForeground);
+	padding-left: 4px;
+}
+
+.chat-sessions-tree-container .chat-session-item .actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+/* Hide actions by default, show on hover and focus */
+.chat-sessions-tree-container .chat-session-item .actions .monaco-action-bar .action-label {
+	opacity: 0;
+}
+
+.chat-sessions-tree-container .chat-session-item:hover .actions .monaco-action-bar .action-label,
+.chat-sessions-tree-container .monaco-list-row.focused .chat-session-item .actions .monaco-action-bar .action-label,
+.chat-sessions-tree-container .monaco-list-row.selected .chat-session-item .actions .monaco-action-bar .action-label {
+	opacity: 1;
+}
+
+/* For items with descriptions, keep the structure but adjust alignment */
+.chat-sessions-tree-container .chat-session-item .session-content {
+	align-items: center;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+/* Ensure resource label takes up available space */
+.chat-sessions-tree-container .chat-session-item .monaco-icon-label {
+	flex: 1;
+	min-width: 0; /* Allow text to truncate */
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.chat-sessions-tree-container .chat-session-item .monaco-icon-label::before {
+	text-align: center;
+}
+
+/* Chat session icon */
+.chat-sessions-tree-container .chat-session-item .chat-session-custom-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	font-size: 16px;
+	display: flex;
+}
+
+/* Timestamp styling - similar to timeline pane */
+.chat-sessions-tree-container .chat-session-item .timestamp-container {
+	margin-left: auto;
+	margin-right: 4px;
+	opacity: 0.5;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex-shrink: 0;
+	font-size: 0.9em;
+	min-width: 10px;
+}
+
+.chat-sessions-tree-container .chat-session-item .timestamp-container.timestamp-duplicate::before {
+	content: ' ';
+	position: absolute;
+	top: 0px;
+	right: 10px;
+	border-right: 1px solid currentColor;
+	display: block;
+	height: 100%;
+	width: 1px;
+	opacity: 0.25;
+}
+
+.chat-sessions-tree-container .monaco-list-row:hover .chat-session-item .timestamp-container.timestamp-duplicate::before,
+.chat-sessions-tree-container .monaco-list-row.selected .chat-session-item .timestamp-container.timestamp-duplicate::before,
+.chat-sessions-tree-container .monaco-list-row.focused .chat-session-item .timestamp-container.timestamp-duplicate::before {
+	display: none;
+}
+
+.chat-sessions-tree-container .chat-session-item .timestamp-container .timestamp {
+	display: inline-block;
+}
+
+.chat-sessions-tree-container .chat-session-item .timestamp-container.timestamp-duplicate .timestamp {
+	visibility: hidden;
+	width: 10px;
+}
+
+.chat-sessions-tree-container .monaco-list-row:hover .chat-session-item .timestamp-container.timestamp-duplicate .timestamp,
+.chat-sessions-tree-container .monaco-list-row.selected .chat-session-item .timestamp-container.timestamp-duplicate .timestamp,
+.chat-sessions-tree-container .monaco-list-row.focused .chat-session-item .timestamp-container.timestamp-duplicate .timestamp {
+	visibility: visible !important;
+	width: initial;
+}
+
+.chat-sessions-tree-container .monaco-list-row .actions {
+	display: none;
+}
+
+.chat-sessions-tree-container .monaco-list-row:hover .actions {
+	display: block;
+}
+
+/* Hide twisties for elements that don't have children */
+.chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie {
+	/* Ultra-small indent to separate parent/child without large gutter */
+	visibility: hidden; /* keep layout space */
+	width: 3px;
+	min-width: 3px;
+	padding: 0;
+	margin: 0;
+}
+
+/* Show twistie only for collapsible items (like "Show history...") */
+.chat-sessions-tree-container .monaco-list-row[aria-expanded] .monaco-tl-twistie {
+	visibility: visible;
+	width: auto;
+	padding-left: 0px;
+	padding-right: 6px;
+	margin: initial;
+}
+
+/* History items styling */
+.chat-sessions-tree-container .chat-session-item[data-history-item="true"] {
+	opacity: 0.9;
+}
+
+.chat-sessions-tree-container .chat-session-item[data-history-item="true"]:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Chat editor relative positioning for loading overlay */
+.chat-editor-relative {
+	position: relative;
+}
+
+/* Chat editor loading overlay styles */
+.chat-loading-overlay {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+	z-index: 1000;
+}
+
+.chat-loading-overlay .chat-loading-content {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--vscode-editor-foreground);
+}
+
+.chat-loading-overlay .codicon {
+	font-size: 16px;
+}

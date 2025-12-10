@@ -147,7 +147,7 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 
 					// untitled notebooks are disposed when they get saved. we should not hold a reference
 					// to such a disposed notebook and therefore dispose the reference as well
-					ref.object.notebook.onWillDispose(() => {
+					Event.once(ref.object.notebook.onWillDispose)(() => {
 						ref.dispose();
 					});
 					const label = (options as INotebookEditorOptions)?.label ?? undefined;
@@ -340,7 +340,8 @@ registerAction2(class extends Action2 {
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					IS_COMPOSITE_NOTEBOOK,
-					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl')
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
+					NOTEBOOK_CELL_LIST_FOCUSED.negate()
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
@@ -348,7 +349,8 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
-					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
+					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true),
+					NOTEBOOK_CELL_LIST_FOCUSED.negate()
 				),
 				primary: KeyMod.Shift | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
@@ -356,7 +358,8 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
-					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
+					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false),
+					NOTEBOOK_CELL_LIST_FOCUSED.negate()
 				),
 				primary: KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
@@ -431,7 +434,7 @@ async function executeReplInput(
 			// Just accept any existing inline chat hunk
 			const ctrl = InlineChatController.get(editorControl.activeCodeEditor);
 			if (ctrl) {
-				ctrl.acceptHunk();
+				ctrl.acceptSession();
 			}
 
 			historyService.replaceLast(notebookDocument.uri, value);

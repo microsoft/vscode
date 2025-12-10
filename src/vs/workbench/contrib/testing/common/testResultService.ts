@@ -78,6 +78,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 	private _results: ITestResult[] = [];
 	private readonly _resultsDisposables: DisposableStore[] = [];
 	private testChangeEmitter = this._register(new Emitter<TestResultItemChange>());
+	private insertOrderCounter = 0;
 
 	/**
 	 * @inheritdoc
@@ -139,7 +140,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 	public createLiveResult(req: ResolvedTestRunRequest | ExtensionRunTestsRequest) {
 		if ('targets' in req) {
 			const id = generateUuid();
-			return this.push(new LiveTestResult(id, true, req, this.telemetryService));
+			return this.push(new LiveTestResult(id, true, req, this.insertOrderCounter++, this.telemetryService));
 		}
 
 		let profile: ITestRunProfile | undefined;
@@ -164,7 +165,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 			});
 		}
 
-		return this.push(new LiveTestResult(req.id, req.persist, resolved, this.telemetryService));
+		return this.push(new LiveTestResult(req.id, req.persist, resolved, this.insertOrderCounter++, this.telemetryService));
 	}
 
 	/**
@@ -251,7 +252,17 @@ export class TestResultService extends Disposable implements ITestResultService 
 	}
 
 	private resort() {
-		this.results.sort((a, b) => (b.completedAt ?? Number.MAX_SAFE_INTEGER) - (a.completedAt ?? Number.MAX_SAFE_INTEGER));
+		this.results.sort((a, b) => {
+			// Running tests should always be sorted higher:
+			if (!!a.completedAt !== !!b.completedAt) {
+				return a.completedAt === undefined ? -1 : 1;
+			}
+
+			// Otherwise sort by insertion order, hydrated tests are always last:
+			const aComp = a instanceof LiveTestResult ? a.insertOrder : -1;
+			const bComp = b instanceof LiveTestResult ? b.insertOrder : -1;
+			return bComp - aComp;
+		});
 	}
 
 	private updateIsRunning() {

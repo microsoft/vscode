@@ -6,7 +6,7 @@
 import * as path from '../../../base/common/path.js';
 
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { win32 } from '../../../base/node/processes.js';
+import { findExecutable } from '../../../base/node/processes.js';
 import * as types from '../common/extHostTypes.js';
 import { IExtHostWorkspace } from '../common/extHostWorkspace.js';
 import type * as vscode from 'vscode';
@@ -144,7 +144,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }; variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }> {
 		const uri: URI = URI.revive(uriComponents);
 		const result = {
-			process: <unknown>undefined as string,
+			process: undefined as string | undefined,
 			variables: Object.create(null)
 		};
 		const workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder(uri);
@@ -171,11 +171,16 @@ export class ExtHostTask extends ExtHostTaskBase {
 					paths[i] = await resolver.resolveAsync(ws, paths[i]);
 				}
 			}
-			result.process = await win32.findExecutable(
-				await resolver.resolveAsync(ws, toResolve.process.name),
-				toResolve.process.cwd !== undefined ? await resolver.resolveAsync(ws, toResolve.process.cwd) : undefined,
-				paths
-			);
+			const processName = await resolver.resolveAsync(ws, toResolve.process.name);
+			const cwd = toResolve.process.cwd !== undefined ? await resolver.resolveAsync(ws, toResolve.process.cwd) : undefined;
+			const foundExecutable = await findExecutable(processName, cwd, paths);
+			if (foundExecutable) {
+				result.process = foundExecutable;
+			} else if (path.isAbsolute(processName)) {
+				result.process = processName;
+			} else {
+				result.process = path.join(cwd ?? '', processName);
+			}
 		}
 		return result;
 	}
@@ -184,7 +189,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 		return true;
 	}
 
-	public async $findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string> {
-		return win32.findExecutable(command, cwd, paths);
+	public async $findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined> {
+		return findExecutable(command, cwd, paths);
 	}
 }

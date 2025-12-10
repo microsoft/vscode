@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SetWithKey } from './collections.js';
+import { Event } from './event.js';
+import { IDisposable } from './lifecycle.js';
 import { ArrayNavigator, INavigator } from './navigator.js';
 
 export interface IHistory<T> {
@@ -11,13 +13,15 @@ export interface IHistory<T> {
 	add(t: T): this;
 	has(t: T): boolean;
 	clear(): void;
-	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void;
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: unknown): void;
 	replace?(t: T[]): void;
+	readonly onDidChange?: Event<string[]>;
 }
 
 export class HistoryNavigator<T> implements INavigator<T> {
 	private _limit: number;
 	private _navigator!: ArrayNavigator<T>;
+	private _disposable: IDisposable | undefined;
 
 	constructor(
 		private _history: IHistory<T> = new Set(),
@@ -25,6 +29,9 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	) {
 		this._limit = limit;
 		this._onChange();
+		if (this._history.onDidChange) {
+			this._disposable = this._history.onDidChange(() => this._onChange());
+		}
 	}
 
 	public getHistory(): T[] {
@@ -113,6 +120,13 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		const elements: T[] = [];
 		this._history.forEach(e => elements.push(e));
 		return elements;
+	}
+
+	public dispose(): void {
+		if (this._disposable) {
+			this._disposable.dispose();
+			this._disposable = undefined;
+		}
 	}
 }
 

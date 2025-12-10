@@ -72,9 +72,52 @@
 	outline: none;
 }
 
+.monaco-workbench .inline-chat .chat-widget {
+	.checkpoint-container,
+	.checkpoint-restore-container {
+		display: none;
+	}
+}
+
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
 	padding: 4px 0 0 0;
 }
+
+
+@keyframes pulse-opacity {
+	0%, 100% {
+		opacity: 1;
+	}
+	33% {
+		opacity: .6;
+	}
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget.inline-chat-2 {
+
+	.inline-chat .chat-widget .interactive-session .interactive-input-part {
+		padding: 8px 0 0 0;
+	}
+
+	.interactive-session .chat-input-container {
+		border-color: var(--vscode-input-border, transparent);
+	}
+
+	.interactive-session .chat-input-container:focus-within {
+		border-color: var(--vscode-input-border, transparent);
+	}
+
+	.chat-attachments-container > .chat-input-toolbar {
+		margin-left: auto;
+		margin-right: 16px;
+	}
+
+	/* TODO@jrieken this isn't the nicest selector... */
+	.request-in-progress .monaco-editor [class^="ced-chat-session-detail"]::after {
+		animation: pulse-opacity 2.5s ease-in-out infinite;
+	}
+}
+
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	margin-bottom: 1px;
@@ -87,7 +130,7 @@
 
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
-	margin: 2px 0 0 4px;
+	margin: 3px 0 0 4px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .monaco-scrollable-element {
@@ -141,7 +184,6 @@
 
 .monaco-workbench .inline-chat > .status {
 	display: flex;
-	justify-content: space-between;
 	align-items: center;
 	padding-right: 16px;
 }
@@ -149,7 +191,7 @@
 .monaco-workbench .inline-chat > .status {
 	.label,
 	.actions {
-		padding-top: 8px;
+		padding: 4px 0;
 	}
 }
 
@@ -160,14 +202,13 @@
 .monaco-workbench .inline-chat .status .label {
 	overflow: hidden;
 	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
+	font-size: 12px;
 	display: flex;
 	white-space: nowrap;
 }
 
 .monaco-workbench .inline-chat .status .label.info {
 	margin-right: auto;
-	padding-left: 2px;
 }
 
 .monaco-workbench .inline-chat .status .label.status {
@@ -195,6 +236,24 @@
 	line-height: 18px;
 }
 
+.monaco-workbench .inline-chat .status .rerun {
+	display: inline-flex;
+}
+
+.monaco-workbench .inline-chat .status .rerun:not(:empty) {
+	padding-top: 8px;
+	padding-left: 4px;
+}
+
+.monaco-workbench .inline-chat .status .rerun .agentOrSlashCommandDetected A {
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .inline-chat .interactive-item-container.interactive-response .detail-container .detail .agentOrSlashCommandDetected,
+.monaco-workbench .inline-chat .interactive-item-container.interactive-response .detail-container .chat-animated-ellipsis {
+	display: none;
+}
 
 .monaco-workbench .inline-chat .status .actions,
 .monaco-workbench .inline-chat-diff-overlay {
@@ -238,12 +297,13 @@
 }
 
 .monaco-workbench .inline-chat .status .actions.secondary {
+	margin-left: auto;
 	display: none;
 }
 
-.monaco-workbench .inline-chat .status:hover .actions.secondary,
-.monaco-workbench .inline-chat:focus .status .actions.secondary,
-.monaco-workbench .inline-chat .status:focus-within .actions.secondary {
+.monaco-workbench .inline-chat .status:hover .actions.secondary:not(.has-no-actions),
+.monaco-workbench .inline-chat:focus .status .actions.secondary:not(.has-no-actions),
+.monaco-workbench .inline-chat .status:focus-within .actions.secondary:not(.has-no-actions) {
 	display: inherit;
 }
 
@@ -272,6 +332,15 @@
 	}
 }
 
+.monaco-workbench .inline-chat .status .disclaimer {
+	a {
+		color: var(--vscode-textLink-foreground);
+	}
+
+	p {
+		margin: 0;
+	}
+}
 
 /* TODO@jrieken not needed? */
 .monaco-workbench .inline-chat .status .monaco-toolbar .action-label.checked {
@@ -337,38 +406,6 @@
 	opacity: 1;
 }
 
-
-/* HINT */
-
-.monaco-workbench .monaco-editor .inline-chat-hint {
-	cursor: pointer;
-	color: var(--vscode-editorGhostText-foreground);
-	background-image: linear-gradient(45deg, var(--vscode-editorGhostText-foreground), 95%, transparent);
-	background-clip: text;
-	-webkit-text-fill-color: transparent;
-}
-
-.monaco-workbench .monaco-editor .inline-chat-hint.embedded {
-	border: 1px solid var(--vscode-editorSuggestWidget-border);
-	border-radius: 3px;
-}
-
-@property --inline-chat-hint-progress {
-	syntax: '<percentage>';
-	initial-value: 33%;
-	inherits: false;
-}
-
-@keyframes ltr {
-	0% {
-		--inline-chat-hint-progress: 33%;
-	}
-	100% {
-		--inline-chat-hint-progress: 95%;
-	}
-}
-
-.monaco-workbench .monaco-editor .inline-chat-hint.first {
-	background-image: linear-gradient(45deg, var(--vscode-editorGhostText-foreground), var(--inline-chat-hint-progress), transparent);
-	animation: 75ms ltr ease-in forwards;
+.monaco-workbench .inline-chat .chat-attached-context {
+	padding: 2px 0px;
 }

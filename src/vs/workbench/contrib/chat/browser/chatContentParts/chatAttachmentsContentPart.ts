@@ -4,201 +4,190 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { basename, dirname } from '../../../../../base/common/path.js';
+import { basename } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IRange, Range } from '../../../../../editor/common/core/range.js';
-import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
-import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
-import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
-import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isTerminalVariableEntry, isWorkspaceVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../chatAttachmentWidgets.js';
+
+export interface IChatAttachmentsContentPartOptions {
+	readonly variables: IChatRequestVariableEntry[];
+	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
+	readonly domNode?: HTMLElement;
+	readonly limit?: number;
+}
 
 export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
+	private readonly _contextResourceLabels: ResourceLabels;
+	private _showingAll = false;
+
+	private readonly variables: IChatRequestVariableEntry[];
+	private readonly contentReferences: ReadonlyArray<IChatContentReference>;
+	private readonly limit?: number;
+	public readonly domNode: HTMLElement | undefined;
+
+	public contextMenuHandler?: (attachment: IChatRequestVariableEntry, event: MouseEvent) => void;
 
 	constructor(
-		private readonly variables: IChatRequestVariableEntry[],
-		private readonly contentReferences: ReadonlyArray<IChatContentReference> = [],
-		private readonly workingSet: ReadonlyArray<URI> = [],
-		public readonly domNode: HTMLElement = dom.$('.chat-attached-context'),
+		options: IChatAttachmentsContentPartOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IFileService private readonly fileService: IFileService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
+		this.variables = options.variables;
+		this.contentReferences = options.contentReferences ?? [];
+		this.limit = options.limit;
+		this.domNode = options.domNode ?? dom.$('.chat-attached-context');
 
-		this.initAttachedContext(domNode);
+		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
+
+		this.initAttachedContext(this.domNode);
+		if (!this.domNode.childElementCount) {
+			this.domNode = undefined;
+		}
 	}
 
 	private initAttachedContext(container: HTMLElement) {
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
-		dom.setVisibility(Boolean(this.variables.length), this.domNode);
-		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
 
-		this.variables.forEach(async (attachment) => {
-			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
-			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
-			if (resource && attachment.isFile && this.workingSet.find(entry => entry.toString() === resource.toString())) {
-				// Don't render attachment if it's in the working set
-				return;
-			}
+		const visibleAttachments = this.getVisibleAttachments();
+		const hasMoreAttachments = this.limit && this.variables.length > this.limit && !this._showingAll;
 
-			const widget = dom.append(container, dom.$('.chat-attached-context-attachment.show-file-icons'));
-			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverride: widget });
+		for (const attachment of visibleAttachments) {
+			this.renderAttachment(attachment, container);
+		}
 
-			const correspondingContentReference = this.contentReferences.find((ref) => typeof ref.reference === 'object' && 'variableName' in ref.reference && ref.reference.variableName === attachment.name);
-			const isAttachmentOmitted = correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted;
-			const isAttachmentPartialOrOmitted = isAttachmentOmitted || correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial;
-
-			let ariaLabel: string | undefined;
-
-			if (resource && (attachment.isFile || attachment.isDirectory)) {
-				const fileBasename = basename(resource.path);
-				const fileDirname = dirname(resource.path);
-				const friendlyName = `${fileBasename} ${fileDirname}`;
-
-				if (isAttachmentOmitted) {
-					ariaLabel = range ? localize('chat.omittedFileAttachmentWithRange', "Omitted: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.omittedFileAttachment', "Omitted: {0}.", friendlyName);
-				} else if (isAttachmentPartialOrOmitted) {
-					ariaLabel = range ? localize('chat.partialFileAttachmentWithRange', "Partially attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.partialFileAttachment', "Partially attached: {0}.", friendlyName);
-				} else {
-					ariaLabel = range ? localize('chat.fileAttachmentWithRange3', "Attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment3', "Attached: {0}.", friendlyName);
-				}
-
-				const fileOptions = {
-					hidePath: true,
-					title: correspondingContentReference?.options?.status?.description
-				};
-				label.setFile(resource, attachment.isFile ? {
-					...fileOptions,
-					fileKind: FileKind.FILE,
-					range,
-				} : {
-					...fileOptions,
-					fileKind: FileKind.FOLDER,
-					icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
-				});
-
-			} else if (attachment.isImage) {
-				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
-
-				const hoverElement = dom.$('div.chat-attached-context-hover');
-				hoverElement.setAttribute('aria-label', ariaLabel);
-
-				// Custom label
-				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
-				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
-				widget.appendChild(pillIcon);
-				widget.appendChild(textLabel);
-
-				let buffer: Uint8Array;
-				try {
-					if (attachment.value instanceof URI) {
-						const readFile = await this.fileService.readFile(attachment.value);
-						buffer = readFile.value.buffer;
-
-					} else {
-						buffer = attachment.value as Uint8Array;
-					}
-					await this.createImageElements(buffer, widget, hoverElement);
-				} catch (error) {
-					console.error('Error processing attachment:', error);
-				}
-
-				widget.style.position = 'relative';
-				if (!this.attachedContextDisposables.isDisposed) {
-					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
-				}
-			} else {
-				const attachmentLabel = attachment.fullName ?? attachment.name;
-				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
-				label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
-
-				ariaLabel = localize('chat.attachment3', "Attached context: {0}.", attachment.name);
-			}
-
-			if (isAttachmentPartialOrOmitted) {
-				widget.classList.add('warning');
-			}
-			const description = correspondingContentReference?.options?.status?.description;
-			if (isAttachmentPartialOrOmitted) {
-				ariaLabel = `${ariaLabel}${description ? ` ${description}` : ''}`;
-				for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
-					const element = label.element.querySelector(selector);
-					if (element) {
-						element.classList.add('warning');
-					}
-				}
-			}
-
-			if (resource) {
-				widget.style.cursor = 'pointer';
-				if (!this.attachedContextDisposables.isDisposed) {
-					this.attachedContextDisposables.add(dom.addDisposableListener(widget, dom.EventType.CLICK, async (e: MouseEvent) => {
-						dom.EventHelper.stop(e, true);
-						if (attachment.isDirectory) {
-							this.openResource(resource, true);
-						} else {
-							this.openResource(resource, false, range);
-						}
-					}));
-				}
-			}
-
-			widget.ariaLabel = ariaLabel;
-			widget.tabIndex = 0;
-		});
+		if (hasMoreAttachments) {
+			this.renderShowMoreButton(container);
+		}
 	}
 
-	private openResource(resource: URI, isDirectory: true): void;
-	private openResource(resource: URI, isDirectory: false, range: IRange | undefined): void;
-	private openResource(resource: URI, isDirectory?: boolean, range?: IRange): void {
-		if (isDirectory) {
-			// Reveal Directory in explorer
-			this.commandService.executeCommand(revealInSideBarCommand.id, resource);
+	private getVisibleAttachments(): IChatRequestVariableEntry[] {
+		if (!this.limit || this._showingAll) {
+			return this.variables;
+		}
+		return this.variables.slice(0, this.limit);
+	}
+
+	private renderShowMoreButton(container: HTMLElement) {
+		const remainingCount = this.variables.length - (this.limit ?? 0);
+
+		// Create a button that looks like the attachment pills
+		const showMoreButton = dom.$('div.chat-attached-context-attachment.chat-attachments-show-more-button');
+		showMoreButton.setAttribute('role', 'button');
+		showMoreButton.setAttribute('tabindex', '0');
+		showMoreButton.style.cursor = 'pointer';
+
+		// Add pill icon (ellipsis)
+		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-ellipsis'));
+
+		// Add text label
+		const textLabel = dom.$('span.chat-attached-context-custom-text');
+		textLabel.textContent = `${remainingCount} more`;
+
+		showMoreButton.appendChild(pillIcon);
+		showMoreButton.appendChild(textLabel);
+
+		// Add click and keyboard event handlers
+		const clickHandler = () => {
+			this._showingAll = true;
+			this.initAttachedContext(container);
+		};
+
+		this.attachedContextDisposables.add(dom.addDisposableListener(showMoreButton, 'click', clickHandler));
+		this.attachedContextDisposables.add(dom.addDisposableListener(showMoreButton, 'keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				clickHandler();
+			}
+		}));
+
+		container.appendChild(showMoreButton);
+		this.attachedContextDisposables.add({ dispose: () => showMoreButton.remove() });
+	}
+
+	private renderAttachment(attachment: IChatRequestVariableEntry, container: HTMLElement) {
+		const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
+		const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
+		const correspondingContentReference = this.contentReferences.find((ref) => (typeof ref.reference === 'object' && 'variableName' in ref.reference && ref.reference.variableName === attachment.name) || (URI.isUri(ref.reference) && basename(ref.reference.path) === attachment.name));
+		const isAttachmentOmitted = correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted;
+		const isAttachmentPartialOrOmitted = isAttachmentOmitted || correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial;
+
+		let widget;
+		if (attachment.kind === 'tool' || attachment.kind === 'toolset') {
+			widget = this.instantiationService.createInstance(ToolSetOrToolItemAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (isElementVariableEntry(attachment)) {
+			widget = this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (isImageVariableEntry(attachment)) {
+			attachment.omittedState = isAttachmentPartialOrOmitted ? OmittedState.Full : attachment.omittedState;
+			widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (isPromptFileVariableEntry(attachment)) {
+			if (attachment.automaticallyAdded) {
+				return; // Skip automatically added prompt files
+			}
+			widget = this.instantiationService.createInstance(PromptFileAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (isPromptTextVariableEntry(attachment)) {
+			if (attachment.automaticallyAdded) {
+				return; // Skip automatically added prompt text
+			}
+			widget = this.instantiationService.createInstance(PromptTextAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
+			widget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (isTerminalVariableEntry(attachment)) {
+			widget = this.instantiationService.createInstance(TerminalCommandAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (isPasteVariableEntry(attachment)) {
+			widget = this.instantiationService.createInstance(PasteAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (resource && isNotebookOutputVariableEntry(attachment)) {
+			widget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (isSCMHistoryItemVariableEntry(attachment)) {
+			widget = this.instantiationService.createInstance(SCMHistoryItemAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (isSCMHistoryItemChangeVariableEntry(attachment)) {
+			widget = this.instantiationService.createInstance(SCMHistoryItemChangeAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (isSCMHistoryItemChangeRangeVariableEntry(attachment)) {
+			widget = this.instantiationService.createInstance(SCMHistoryItemChangeRangeAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (isWorkspaceVariableEntry(attachment)) {
+			// skip workspace attachments
+			return;
+		} else {
+			widget = this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		}
+
+		let ariaLabel: string | null = null;
+
+		if (isAttachmentPartialOrOmitted) {
+			widget.element.classList.add('warning');
+		}
+		const description = correspondingContentReference?.options?.status?.description;
+		if (isAttachmentPartialOrOmitted) {
+			ariaLabel = `${ariaLabel}${description ? ` ${description}` : ''}`;
+			for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
+				// eslint-disable-next-line no-restricted-syntax
+				const element = widget.label.element.querySelector(selector);
+				if (element) {
+					element.classList.add('warning');
+				}
+			}
+		}
+
+		this._register(dom.addDisposableListener(widget.element, 'contextmenu', e => this.contextMenuHandler?.(attachment, e)));
+
+		if (this.attachedContextDisposables.isDisposed) {
+			widget.dispose();
 			return;
 		}
 
-		// Open file in editor
-		const openTextEditorOptions: ITextEditorOptions | undefined = range ? { selection: range } : undefined;
-		const options: OpenInternalOptions = {
-			fromUserGesture: true,
-			editorOptions: openTextEditorOptions,
-		};
-		this.openerService.open(resource, options);
-	}
-
-	// Helper function to create and replace image
-	private async createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement) {
-		const blob = new Blob([buffer], { type: 'image/png' });
-		const url = URL.createObjectURL(blob);
-		const img = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
-		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
-		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
-
-		const existingPill = widget.querySelector('.chat-attached-context-pill');
-		if (existingPill) {
-			existingPill.replaceWith(pill);
+		if (ariaLabel) {
+			widget.element.ariaLabel = ariaLabel;
 		}
 
-		// Update hover image
-		hoverElement.appendChild(img);
+		this.attachedContextDisposables.add(widget);
 	}
 }

@@ -11,15 +11,15 @@ import { Part } from '../../part.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ToggleSidebarPositionAction } from '../../actions/layoutActions.js';
+import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { addDisposableListener, append, EventType, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { getMenuBarVisibility } from '../../../../platform/window/common/window.js';
+import { getMenuBarVisibility, MenuSettings } from '../../../../platform/window/common/window.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -129,7 +129,7 @@ export class ActivitybarPart extends Part {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		const container = assertIsDefined(this.getContainer());
+		const container = assertReturnsDefined(this.getContainer());
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND) || '';
 		container.style.backgroundColor = background;
 
@@ -194,7 +194,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 	private element: HTMLElement | undefined;
 
-	private menuBar: CustomMenubarControl | undefined;
+	private readonly menuBar = this._register(new MutableDisposable<CustomMenubarControl>());
 	private menuBarContainer: HTMLElement | undefined;
 	private compositeBarContainer: HTMLElement | undefined;
 	private readonly globalCompositeBar: GlobalCompositeBar | undefined;
@@ -231,7 +231,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 		// Register for configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.menuBarVisibility')) {
+			if (e.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 				if (getMenuBarVisibility(this.configurationService) === 'compact') {
 					this.installMenubar();
 				} else {
@@ -245,12 +245,12 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		// Menu
 		const menuBarVisibility = getMenuBarVisibility(this.configurationService);
 		if (menuBarVisibility === 'compact' || menuBarVisibility === 'hidden' || menuBarVisibility === 'toggle') {
-			actions.unshift(...[toAction({ id: 'toggleMenuVisibility', label: localize('menu', "Menu"), checked: menuBarVisibility === 'compact', run: () => this.configurationService.updateValue('window.menuBarVisibility', menuBarVisibility === 'compact' ? 'toggle' : 'compact') }), new Separator()]);
+			actions.unshift(...[toAction({ id: 'toggleMenuVisibility', label: localize('menu', "Menu"), checked: menuBarVisibility === 'compact', run: () => this.configurationService.updateValue(MenuSettings.MenuBarVisibility, menuBarVisibility === 'compact' ? 'toggle' : 'compact') }), new Separator()]);
 		}
 
 		if (menuBarVisibility === 'compact' && this.menuBarContainer && e?.target) {
 			if (isAncestor(e.target as Node, this.menuBarContainer)) {
-				actions.unshift(...[toAction({ id: 'hideCompactMenu', label: localize('hideMenu', "Hide Menu"), run: () => this.configurationService.updateValue('window.menuBarVisibility', 'toggle') }), new Separator()]);
+				actions.unshift(...[toAction({ id: 'hideCompactMenu', label: localize('hideMenu', "Hide Menu"), run: () => this.configurationService.updateValue(MenuSettings.MenuBarVisibility, 'toggle') }), new Separator()]);
 			}
 		}
 
@@ -264,9 +264,8 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	}
 
 	private uninstallMenubar() {
-		if (this.menuBar) {
-			this.menuBar.dispose();
-			this.menuBar = undefined;
+		if (this.menuBar.value) {
+			this.menuBar.value = undefined;
 		}
 
 		if (this.menuBarContainer) {
@@ -276,19 +275,18 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	}
 
 	private installMenubar() {
-		if (this.menuBar) {
+		if (this.menuBar.value) {
 			return; // prevent menu bar from installing twice #110720
 		}
 
-		this.menuBarContainer = document.createElement('div');
-		this.menuBarContainer.classList.add('menubar');
+		this.menuBarContainer = $('.menubar');
 
-		const content = assertIsDefined(this.element);
+		const content = assertReturnsDefined(this.element);
 		content.prepend(this.menuBarContainer);
 
 		// Menubar: install a custom menu bar depending on configuration
-		this.menuBar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
-		this.menuBar.create(this.menuBarContainer);
+		this.menuBar.value = this._register(this.instantiationService.createInstance(CustomMenubarControl));
+		this.menuBar.value.create(this.menuBarContainer);
 
 	}
 
@@ -312,7 +310,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
 					this.globalCompositeBar?.focus();
 				} else if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
-					this.menuBar?.toggleFocus();
+					this.menuBar.value?.toggleFocus();
 				}
 			}));
 		}
@@ -371,10 +369,16 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	getActivityBarContextMenuActions(): IAction[] {
 		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
 		const positionActions = getContextMenuActions(activityBarPositionMenu).secondary;
-		return [
+		const actions = [
 			new SubmenuAction('workbench.action.panel.position', localize('activity bar position', "Activity Bar Position"), positionActions),
-			toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) })
+			toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) }),
 		];
+
+		if (this.part === Parts.SIDEBAR_PART) {
+			actions.push(toAction({ id: ToggleSidebarVisibilityAction.ID, label: ToggleSidebarVisibilityAction.LABEL, run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarVisibilityAction().run(accessor)) }));
+		}
+
+		return actions;
 	}
 
 }
@@ -493,15 +497,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitleContext, {
 	submenu: MenuId.ActivityBarPositionMenu,
 	title: localize('positionActivituBar', "Activity Bar Position"),
-	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
-	group: '3_workbench_layout_move',
-	order: 1
-});
-
-MenuRegistry.appendMenuItem(MenuId.ViewTitleContext, {
-	submenu: MenuId.ActivityBarPositionMenu,
-	title: localize('positionActivituBar', "Activity Bar Position"),
-	when: ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+		ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))
+	),
 	group: '3_workbench_layout_move',
 	order: 1
 });

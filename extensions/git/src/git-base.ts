@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extensions } from 'vscode';
-import { API as GitBaseAPI, GitBaseExtension } from './api/git-base';
+import { API as GitBaseAPI, GitBaseExtension } from './typings/git-base';
 
 export class GitBaseApi {
 

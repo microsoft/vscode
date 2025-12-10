@@ -15,7 +15,6 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IRequestService, asJson } from '../../../../platform/request/common/request.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { isEmptyWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
@@ -24,16 +23,6 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
 import { DidChangeUserDataProfileEvent, IProfileTemplateInfo, IUserDataProfileManagementService, IUserDataProfileService } from '../common/userDataProfile.js';
-
-export type ProfileManagementActionExecutedClassification = {
-	owner: 'sandy081';
-	comment: 'Logged when profile management action is excuted';
-	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run.' };
-};
-
-export type ProfileManagementActionExecutedEvent = {
-	id: string;
-};
 
 export class UserDataProfileManagementService extends Disposable implements IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
@@ -46,7 +35,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -122,14 +110,12 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	async createAndEnterProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile> {
 		const profile = await this.userDataProfilesService.createNamedProfile(name, options, toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
 		await this.changeCurrentProfile(profile);
-		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'createAndEnterProfile' });
 		return profile;
 	}
 
 	async createAndEnterTransientProfile(): Promise<IUserDataProfile> {
 		const profile = await this.userDataProfilesService.createTransientProfile(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
 		await this.changeCurrentProfile(profile);
-		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'createAndEnterTransientProfile' });
 		return profile;
 	}
 
@@ -141,7 +127,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			throw new Error(localize('cannotRenameDefaultProfile', "Cannot rename the default profile"));
 		}
 		const updatedProfile = await this.userDataProfilesService.updateProfile(profile, updateOptions);
-		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'updateProfile' });
 		return updatedProfile;
 	}
 
@@ -153,7 +138,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			throw new Error(localize('cannotDeleteDefaultProfile', "Cannot delete the default profile"));
 		}
 		await this.userDataProfilesService.removeProfile(profile);
-		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'removeProfile' });
 	}
 
 	async switchProfile(profile: IUserDataProfile): Promise<void> {
@@ -169,7 +153,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		}
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace());
 		await this.userDataProfilesService.setProfileForWorkspace(workspaceIdentifier, profile);
-		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'switchProfile' });
 		if (isEmptyWorkspaceIdentifier(workspaceIdentifier)) {
 			await this.changeCurrentProfile(profile);
 		}
@@ -198,7 +181,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 
 		if (shouldRestartExtensionHosts) {
 			if (!isRemoteWindow) {
-				if (!(await this.extensionService.stopExtensionHosts(localize('switch profile', "Switching to a profile.")))) {
+				if (!(await this.extensionService.stopExtensionHosts(localize('switch profile', "Switching to a profile")))) {
 					// If extension host did not stop, do not switch profile
 					if (this.userDataProfilesService.profiles.some(p => p.id === this.userDataProfileService.currentProfile.id)) {
 						await this.userDataProfilesService.setProfileForWorkspace(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()), this.userDataProfileService.currentProfile);

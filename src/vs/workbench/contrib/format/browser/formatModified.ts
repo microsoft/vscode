@@ -17,8 +17,8 @@ import * as nls from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
-import { getOriginalResource } from '../../scm/browser/dirtydiffDecorator.js';
 import { IQuickDiffService } from '../../scm/common/quickDiff.js';
+import { getOriginalResource } from '../../scm/common/quickDiffService.js';
 
 registerEditorAction(class FormatModifiedAction extends EditorAction {
 
@@ -47,7 +47,6 @@ registerEditorAction(class FormatModifiedAction extends EditorAction {
 		}
 	}
 });
-
 
 export async function getModifiedRanges(accessor: ServicesAccessor, modified: ITextModel): Promise<Range[] | undefined | null> {
 	const quickDiffService = accessor.get(IQuickDiffService);
