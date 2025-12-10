@@ -91,6 +91,8 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	) {
 		super();
 
+		this.applicationStorage = this._register(this.createApplicationStorage());
+
 		this.registerListeners();
 	}
 
@@ -163,7 +165,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	//#region Application Storage
 
-	readonly applicationStorage = this._register(this.createApplicationStorage());
+	readonly applicationStorage: IStorageMain;
 
 	private createApplicationStorage(): IStorageMain {
 		this.logService.trace(`StorageMainService: creating application storage`);
@@ -332,13 +334,15 @@ export class ApplicationStorageMainService extends AbstractStorageService implem
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly whenReady = this.storageMainService.applicationStorage.whenInit;
+	readonly whenReady: Promise<void>;
 
 	constructor(
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService
 	) {
 		super();
+
+		this.whenReady = this.storageMainService.applicationStorage.whenInit;
 	}
 
 	protected doInitialize(): Promise<void> {

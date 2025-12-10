@@ -74,7 +74,7 @@ class RecommendationsNotification extends Disposable {
 
 	show(): void {
 		if (!this.notificationHandle) {
-			this.updateNotificationHandle(this.notificationService.prompt(this.severity, this.message, this.choices, { sticky: true, onCancel: () => this.cancelled = true }));
+			this.updateNotificationHandle(this.notificationService.prompt(this.severity, this.message, this.choices, { sticky: true, priority: NotificationPriority.OPTIONAL, onCancel: () => this.cancelled = true }));
 		}
 	}
 

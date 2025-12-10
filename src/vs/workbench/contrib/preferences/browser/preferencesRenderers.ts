@@ -40,12 +40,14 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { RangeHighlightDecorations } from '../../../browser/codeeditor.js';
 import { settingsEditIcon } from './preferencesIcons.js';
 import { EditPreferenceWidget } from './preferencesWidgets.js';
-import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { EXPERIMENTAL_INDICATOR_DESCRIPTION, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
+import { mcpConfigurationSection } from '../../mcp/common/mcpConfiguration.js';
+import { McpCommandIds } from '../../mcp/common/mcpCommandIds.js';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -63,6 +65,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	private associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 
 	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
+	private mcpSettingsRenderer: McpSettingsRenderer;
 
 	constructor(protected editor: ICodeEditor, readonly preferencesModel: SettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
@@ -75,11 +78,13 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this.updatePreference(key, value, source)));
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
+		this.mcpSettingsRenderer = this._register(instantiationService.createInstance(McpSettingsRenderer, editor, preferencesModel));
 	}
 
 	render(): void {
 		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this.associatedPreferencesModel);
 		this.unsupportedSettingsRenderer.render();
+		this.mcpSettingsRenderer.render();
 	}
 
 	updatePreference(key: string, value: any, source: IIndexedSetting): void {
@@ -176,7 +181,7 @@ class EditSettingRenderer extends Disposable {
 	associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
-	private readonly _onUpdateSetting: Emitter<{ key: string; value: any; source: IIndexedSetting }> = new Emitter<{ key: string; value: any; source: IIndexedSetting }>();
+	private readonly _onUpdateSetting: Emitter<{ key: string; value: any; source: IIndexedSetting }> = this._register(new Emitter<{ key: string; value: any; source: IIndexedSetting }>());
 	readonly onUpdateSetting: Event<{ key: string; value: any; source: IIndexedSetting }> = this._onUpdateSetting.event;
 
 	constructor(private editor: ICodeEditor, private primarySettingsModel: ISettingsEditorModel,
@@ -623,7 +628,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 					message: nls.localize('defaultProfileSettingWhileNonDefaultActive', "This setting cannot be applied while a non-default profile is active. It will be applied when the default profile is active.")
 				});
 			} else if (isEqual(this.userDataProfileService.currentProfile.settingsResource, this.settingsEditorModel.uri)) {
-				if (configuration.scope === ConfigurationScope.APPLICATION) {
+				if (configuration.scope && APPLICATION_SCOPES.includes(configuration.scope)) {
 					// If we're in a profile setting file, and the setting is application-scoped, fade it out.
 					markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 				} else if (this.configurationService.isSettingAppliedForAllProfiles(setting.key)) {
@@ -637,7 +642,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 				}
 			}
 		}
-		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
+		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.APPLICATION_MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
@@ -654,7 +659,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	}
 
 	private handleWorkspaceConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (configuration.scope === ConfigurationScope.APPLICATION) {
+		if (configuration.scope && APPLICATION_SCOPES.includes(configuration.scope)) {
 			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 		}
 
@@ -671,7 +676,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	}
 
 	private handleWorkspaceFolderConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (configuration.scope === ConfigurationScope.APPLICATION) {
+		if (configuration.scope && APPLICATION_SCOPES.includes(configuration.scope)) {
 			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 		}
 
@@ -709,7 +714,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
 			...setting.range,
-			message: nls.localize('unsupportedApplicationSetting', "This setting has an application scope and can be set only in the user settings file.")
+			message: nls.localize('unsupportedApplicationSetting', "This setting has an application scope and can only be set in the settings file from the Default profile.")
 		};
 	}
 
@@ -784,10 +789,130 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 
 }
 
+class McpSettingsRenderer extends Disposable implements languages.CodeActionProvider {
+
+	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+	private readonly codeActions = new ResourceMap<[Range, languages.CodeAction[]][]>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+
+	constructor(
+		private readonly editor: ICodeEditor,
+		private readonly settingsEditorModel: SettingsEditorModel,
+		@IMarkerService private readonly markerService: IMarkerService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+	) {
+		super();
+		this._register(this.editor.getModel()!.onDidChangeContent(() => this.delayedRender()));
+		this._register(languageFeaturesService.codeActionProvider.register({ pattern: settingsEditorModel.uri.path }, this));
+	}
+
+	private delayedRender(): void {
+		this.renderingDelayer.trigger(() => this.render());
+	}
+
+	public render(): void {
+		this.codeActions.clear();
+		const markerData: IMarkerData[] = this.generateMarkerData();
+		if (markerData.length) {
+			this.markerService.changeOne('McpSettingsRenderer', this.settingsEditorModel.uri, markerData);
+		} else {
+			this.markerService.remove('McpSettingsRenderer', [this.settingsEditorModel.uri]);
+		}
+	}
+
+	async provideCodeActions(model: ITextModel, range: Range | Selection, context: languages.CodeActionContext, token: CancellationToken): Promise<languages.CodeActionList> {
+		const actions: languages.CodeAction[] = [];
+		const codeActionsByRange = this.codeActions.get(model.uri);
+		if (codeActionsByRange) {
+			for (const [codeActionsRange, codeActions] of codeActionsByRange) {
+				if (codeActionsRange.containsRange(range)) {
+					actions.push(...codeActions);
+				}
+			}
+		}
+		return {
+			actions,
+			dispose: () => { }
+		};
+	}
+
+	private generateMarkerData(): IMarkerData[] {
+		const markerData: IMarkerData[] = [];
+
+		// Only check for MCP configuration in user local and user remote settings
+		if (this.settingsEditorModel.configurationTarget !== ConfigurationTarget.USER_LOCAL &&
+			this.settingsEditorModel.configurationTarget !== ConfigurationTarget.USER_REMOTE) {
+			return markerData;
+		}
+
+		for (const settingsGroup of this.settingsEditorModel.settingsGroups) {
+			for (const section of settingsGroup.sections) {
+				for (const setting of section.settings) {
+					if (setting.key === mcpConfigurationSection) {
+						const marker = this.generateMcpConfigurationMarker(setting);
+						markerData.push(marker);
+						const codeActions = this.generateMcpConfigurationCodeActions([marker]);
+						this.addCodeActions(setting.range, codeActions);
+					}
+				}
+			}
+		}
+		return markerData;
+	}
+
+	private generateMcpConfigurationMarker(setting: ISetting): IMarkerData {
+		const isRemote = this.settingsEditorModel.configurationTarget === ConfigurationTarget.USER_REMOTE;
+		const message = isRemote
+			? nls.localize('mcp.renderer.remoteConfigFound', 'MCP servers should not be configured in remote user settings. Use the dedicated MCP configuration instead.')
+			: nls.localize('mcp.renderer.userConfigFound', 'MCP servers should not be configured in user settings. Use the dedicated MCP configuration instead.');
+
+		return {
+			severity: MarkerSeverity.Warning,
+			...setting.range,
+			message
+		};
+	}
+
+	private generateMcpConfigurationCodeActions(diagnostics: IMarkerData[]): languages.CodeAction[] {
+		const isRemote = this.settingsEditorModel.configurationTarget === ConfigurationTarget.USER_REMOTE;
+		const openConfigLabel = isRemote
+			? nls.localize('mcp.renderer.openRemoteConfig', 'Open Remote User MCP Configuration')
+			: nls.localize('mcp.renderer.openUserConfig', 'Open User MCP Configuration');
+
+		const commandId = isRemote ? McpCommandIds.OpenRemoteUserMcp : McpCommandIds.OpenUserMcp;
+
+		return [{
+			title: openConfigLabel,
+			command: {
+				id: commandId,
+				title: openConfigLabel
+			},
+			diagnostics,
+			kind: CodeActionKind.QuickFix.value
+		}];
+	}
+
+	private addCodeActions(range: IRange, codeActions: languages.CodeAction[]): void {
+		let actions = this.codeActions.get(this.settingsEditorModel.uri);
+		if (!actions) {
+			actions = [];
+			this.codeActions.set(this.settingsEditorModel.uri, actions);
+		}
+		actions.push([Range.lift(range), codeActions]);
+	}
+
+	public override dispose(): void {
+		this.markerService.remove('McpSettingsRenderer', [this.settingsEditorModel.uri]);
+		this.codeActions.clear();
+		super.dispose();
+	}
+
+}
+
 class WorkspaceConfigurationRenderer extends Disposable {
 	private static readonly supportedKeys = ['folders', 'tasks', 'launch', 'extensions', 'settings', 'remoteAuthority', 'transient'];
 
-	private readonly decorations = this.editor.createDecorationsCollection();
+	private readonly decorations: editorCommon.IEditorDecorationsCollection;
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
@@ -795,6 +920,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 		@IMarkerService private readonly markerService: IMarkerService
 	) {
 		super();
+		this.decorations = this.editor.createDecorationsCollection();
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
 	}
 

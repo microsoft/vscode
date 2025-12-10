@@ -5,7 +5,7 @@
 import { MessagePoster } from './messaging';
 
 export class StyleLoadingMonitor {
-	private _unloadedStyles: string[] = [];
+	private readonly _unloadedStyles: string[] = [];
 	private _finishedLoading: boolean = false;
 
 	private _poster?: MessagePoster;

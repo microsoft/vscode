@@ -58,8 +58,9 @@ export const Extensions = {
 	ConfigurationMigration: 'base.contributions.configuration.migration'
 };
 
-export type ConfigurationValue = { value: any | undefined /* Remove */ };
+type ConfigurationValue = { value: unknown | undefined /* Remove */ };
 export type ConfigurationKeyValuePairs = [string, ConfigurationValue][];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ConfigurationMigrationFn = (value: any, valueAccessor: (key: string) => any) => ConfigurationValue | ConfigurationKeyValuePairs | Promise<ConfigurationValue | ConfigurationKeyValuePairs>;
 export type ConfigurationMigration = { key: string; migrateFn: ConfigurationMigrationFn };
 
@@ -115,7 +116,7 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 	private async migrateConfigurationsForFolderAndOverride(migration: ConfigurationMigration, resource?: URI): Promise<void> {
 		const inspectData = this.configurationService.inspect(migration.key, { resource });
 
-		const targetPairs: [keyof IConfigurationValue<any>, ConfigurationTarget][] = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? [
+		const targetPairs: [keyof IConfigurationValue<unknown>, ConfigurationTarget][] = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? [
 			['user', ConfigurationTarget.USER],
 			['userLocal', ConfigurationTarget.USER_LOCAL],
 			['userRemote', ConfigurationTarget.USER_REMOTE],
@@ -128,7 +129,7 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 			['workspace', ConfigurationTarget.WORKSPACE],
 		];
 		for (const [dataKey, target] of targetPairs) {
-			const inspectValue = inspectData[dataKey] as IInspectValue<any> | undefined;
+			const inspectValue = inspectData[dataKey] as IInspectValue<unknown> | undefined;
 			if (!inspectValue) {
 				continue;
 			}
@@ -159,10 +160,10 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 		}
 	}
 
-	private async runMigration(migration: ConfigurationMigration, dataKey: keyof IConfigurationValue<any>, value: any, resource: URI | undefined, overrideIdentifiers: string[] | undefined): Promise<ConfigurationKeyValuePairs | undefined> {
+	private async runMigration(migration: ConfigurationMigration, dataKey: keyof IConfigurationValue<unknown>, value: unknown, resource: URI | undefined, overrideIdentifiers: string[] | undefined): Promise<ConfigurationKeyValuePairs | undefined> {
 		const valueAccessor = (key: string) => {
 			const inspectData = this.configurationService.inspect(key, { resource });
-			const inspectValue = inspectData[dataKey] as IInspectValue<any> | undefined;
+			const inspectValue = inspectData[dataKey] as IInspectValue<unknown> | undefined;
 			if (!inspectValue) {
 				return undefined;
 			}
@@ -221,13 +222,13 @@ export class DynamicWorkbenchSecurityConfiguration extends Disposable implements
 					},
 					'default': [],
 					'markdownDescription': localize('security.allowedUNCHosts', 'A set of UNC host names (without leading or trailing backslash, for example `192.168.0.1` or `my-server`) to allow without user confirmation. If a UNC host is being accessed that is not allowed via this setting or has not been acknowledged via user confirmation, an error will occur and the operation stopped. A restart is required when changing this setting. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
-					'scope': ConfigurationScope.MACHINE
+					'scope': ConfigurationScope.APPLICATION_MACHINE
 				},
 				'security.restrictUNCAccess': {
 					'type': 'boolean',
 					'default': true,
 					'markdownDescription': localize('security.restrictUNCAccess', 'If enabled, only allows access to UNC host names that are allowed by the `#security.allowedUNCHosts#` setting or after user confirmation. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
-					'scope': ConfigurationScope.MACHINE
+					'scope': ConfigurationScope.APPLICATION_MACHINE
 				}
 			}
 		});
@@ -271,7 +272,7 @@ export class DynamicWindowConfiguration extends Disposable implements IWorkbench
 					'type': ['string', 'null'],
 					'default': null,
 					'enum': [...this.userDataProfilesService.profiles.map(profile => profile.name), null],
-					'enumItemLabels': [...this.userDataProfilesService.profiles.map(p => ''), localize('active window', "Active Window")],
+					'enumItemLabels': [...this.userDataProfilesService.profiles.map(() => ''), localize('active window', "Active Window")],
 					'description': localize('newWindowProfile', "Specifies the profile to use when opening a new window. If a profile name is provided, the new window will use that profile. If no profile name is provided, the new window will use the profile of the active window or the Default profile if no active window exists."),
 					'scope': ConfigurationScope.APPLICATION,
 				}

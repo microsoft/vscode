@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from '../list/list.js';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListTouchEvent, IListVirtualDelegate } from '../list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
 import { IListStyles } from '../list/listWidget.js';
-import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent } from './abstractTree.js';
+import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent, IFindControllerOptions, IStickyScrollDelegate, AbstractTree } from './abstractTree.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
-import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
+import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElementRenderDetails, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
 import { CancelablePromise, createCancelablePromise, Promises, ThrottledDelayer, timeout } from '../../../common/async.js';
 import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
@@ -24,15 +24,15 @@ import { isIterable } from '../../../common/types.js';
 import { CancellationToken, CancellationTokenSource } from '../../../common/cancellation.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { FuzzyScore } from '../../../common/filters.js';
-import { splice } from '../../../common/arrays.js';
+import { insertInto, splice } from '../../../common/arrays.js';
 import { localize } from '../../../../nls.js';
 
-interface IAsyncDataTreeNode<TInput, T> {
+export interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
 	readonly parent: IAsyncDataTreeNode<TInput, T> | null;
 	readonly children: IAsyncDataTreeNode<TInput, T>[];
 	readonly id?: string | null;
-	refreshPromise: Promise<void> | undefined;
+	refreshPromise: CancelablePromise<void> | undefined;
 	hasChildren: boolean;
 	stale: boolean;
 	slow: boolean;
@@ -111,8 +111,8 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 		return { templateData };
 	}
 
-	renderElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		this.renderer.renderElement(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
+	renderElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, details?: ITreeElementRenderDetails): void {
+		this.renderer.renderElement(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, details);
 	}
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
@@ -125,8 +125,8 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 		}
 	}
 
-	disposeElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		this.renderer.disposeElement?.(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
+	disposeElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, details?: ITreeElementRenderDetails): void {
+		this.renderer.disposeElement?.(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, details);
 	}
 
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {
@@ -302,7 +302,7 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 		contextViewProvider: IContextViewProvider,
 		options: IAbstractTreeOptions<IAsyncDataTreeNode<TInput, T>, TFilterData>,
 	) {
-		super(tree as any, filter, contextViewProvider, options);
+		super(tree as unknown as AbstractTree<T, TFilterData, unknown>, filter, contextViewProvider, options);
 		// Always make sure to end the session before disposing
 		this.disposables.add(toDisposable(async () => {
 			if (this.activeSession) {
@@ -413,7 +413,7 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 			return true;
 		}
 
-		return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
+		return !FuzzyScore.isDefault(node.filterData as unknown as FuzzyScore);
 	}
 }
 
@@ -429,10 +429,12 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		dnd: options.dnd && new AsyncDataTreeNodeListDragAndDrop(options.dnd),
 		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
-				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as IListMouseEvent<T> | IListTouchEvent<T>);
 			},
 			isSelectionRangeChangeEvent(e) {
-				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element } as IListMouseEvent<T> | IListTouchEvent<T>);
 			}
 		},
 		accessibilityProvider: options.accessibilityProvider && {
@@ -473,10 +475,13 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		sorter: undefined,
 		expandOnlyOnTwistieClick: typeof options.expandOnlyOnTwistieClick === 'undefined' ? undefined : (
 			typeof options.expandOnlyOnTwistieClick !== 'function' ? options.expandOnlyOnTwistieClick : (
-				e => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)
+				((e: IAsyncDataTreeNode<TInput, T>) => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)) as ((e: unknown) => boolean)
 			)
 		),
-		defaultFindVisibility: e => {
+		twistieAdditionalCssClass: typeof options.twistieAdditionalCssClass === 'undefined' ? undefined : (
+			((e: IAsyncDataTreeNode<TInput, T>) => (options.twistieAdditionalCssClass as ((e: T) => string | undefined))(e.element as T)) as ((e: unknown) => string | undefined)
+		),
+		defaultFindVisibility: (e: IAsyncDataTreeNode<TInput, T>) => {
 			if (e.hasChildren && e.stale) {
 				return TreeVisibility.Visible;
 			} else if (typeof options.defaultFindVisibility === 'number') {
@@ -486,14 +491,14 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			} else {
 				return (options.defaultFindVisibility as ((e: T) => TreeVisibility))(e.element as T);
 			}
-		}
+		},
+		stickyScrollDelegate: options.stickyScrollDelegate as IStickyScrollDelegate<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined
 	};
 }
-
-export interface IAsyncDataTreeOptionsUpdate extends IAbstractTreeOptionsUpdate { }
+export interface IAsyncDataTreeOptionsUpdate<T> extends IAbstractTreeOptionsUpdate<T> { }
 export interface IAsyncDataTreeUpdateChildrenOptions<T> extends IObjectTreeSetChildrenOptions<T> { }
 
-export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncDataTreeOptionsUpdate, Pick<IAbstractTreeOptions<T, TFilterData>, Exclude<keyof IAbstractTreeOptions<T, TFilterData>, 'collapseByDefault'>> {
+export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncDataTreeOptionsUpdate<T>, Pick<IAbstractTreeOptions<T, TFilterData>, Exclude<keyof IAbstractTreeOptions<T, TFilterData>, 'collapseByDefault'>> {
 	readonly collapseByDefault?: { (e: T): boolean };
 	readonly identityProvider?: IIdentityProvider<T>;
 	readonly sorter?: ITreeSorter<T>;
@@ -528,7 +533,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly findController?: AsyncFindController<TInput, T, TFilterData>;
 	private readonly getDefaultCollapseState: { (e: T): undefined | ObjectTreeElementCollapseState.PreserveOrCollapsed | ObjectTreeElementCollapseState.PreserveOrExpanded };
 
-	private readonly subTreeRefreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, Promise<void>>();
+	private readonly subTreeRefreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<void>>();
 	private readonly refreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<Iterable<T>>>();
 
 	protected readonly identityProvider?: IIdentityProvider<T>;
@@ -562,7 +567,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidChangeModel(): Event<void> { return this.tree.onDidChangeModel; }
 	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T> | null, TFilterData>> { return this.tree.onDidChangeCollapseState; }
 
-	get onDidUpdateOptions(): Event<IAsyncDataTreeOptionsUpdate> { return this.tree.onDidUpdateOptions; }
+	get onDidUpdateOptions(): Event<IAsyncDataTreeOptionsUpdate<IAsyncDataTreeNode<TInput, T>>> { return this.tree.onDidUpdateOptions; }
 
 	private focusNavigationFilter: ((node: ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>) => boolean) | undefined;
 
@@ -592,7 +597,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		protected user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, unknown>[],
 		private dataSource: IAsyncDataSource<TInput, T>,
 		options: IAsyncDataTreeOptions<T, TFilterData> = {}
 	) {
@@ -629,13 +634,18 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.onDidChangeCollapseState(this._onDidChangeCollapseState, this, this.disposables);
 
 		if (asyncFindEnabled) {
-			const findOptions = { styles: options.findWidgetStyles, showNotFoundMessage: options.showNotFoundMessage };
+			const findOptions: IFindControllerOptions = {
+				styles: options.findWidgetStyles,
+				showNotFoundMessage: options.showNotFoundMessage,
+				defaultFindMatchType: options.defaultFindMatchType,
+				defaultFindMode: options.defaultFindMode,
+			};
 			this.findController = this.disposables.add(new AsyncFindController(this.tree, options.findProvider!, findFilter!, this.tree.options.contextViewProvider!, findOptions));
 
 			this.focusNavigationFilter = node => this.findController!.shouldFocusWhenNavigating(node);
-			this.onDidChangeFindOpenState = this.findController!.onDidChangeOpenState;
-			this.onDidChangeFindMode = this.findController!.onDidChangeMode;
-			this.onDidChangeFindMatchType = this.findController!.onDidChangeMatchType;
+			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
+			this.onDidChangeFindMode = this.findController.onDidChangeMode;
+			this.onDidChangeFindMatchType = this.findController.onDidChangeMatchType;
 		} else {
 			this.onDidChangeFindOpenState = this.tree.onDidChangeFindOpenState;
 			this.onDidChangeFindMode = this.tree.onDidChangeFindMode;
@@ -647,7 +657,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, unknown>[],
 		options: IAsyncDataTreeOptions<T, TFilterData>
 	): ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData> {
 		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
@@ -657,8 +667,18 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return new ObjectTree(user, container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
 	}
 
-	updateOptions(options: IAsyncDataTreeOptionsUpdate = {}): void {
-		this.tree.updateOptions(options);
+	updateOptions(optionsUpdate: IAsyncDataTreeOptionsUpdate<IAsyncDataTreeNode<TInput, T> | null> = {}): void {
+		if (this.findController) {
+			if (optionsUpdate.defaultFindMode !== undefined) {
+				this.findController.mode = optionsUpdate.defaultFindMode;
+			}
+
+			if (optionsUpdate.defaultFindMatchType !== undefined) {
+				this.findController.matchType = optionsUpdate.defaultFindMatchType;
+			}
+		}
+
+		this.tree.updateOptions(optionsUpdate);
 	}
 
 	get options(): IAsyncDataTreeOptions<T, TFilterData> {
@@ -754,8 +774,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	async setInput(input: TInput, viewState?: IAsyncDataTreeViewState): Promise<void> {
-		this.refreshPromises.forEach(promise => promise.cancel());
-		this.refreshPromises.clear();
+		this.cancelAllRefreshPromises();
 
 		this.root.element = input!;
 
@@ -775,6 +794,16 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	async updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, options?: IAsyncDataTreeUpdateChildrenOptions<T>): Promise<void> {
 		await this._updateChildren(element, recursive, rerender, undefined, options);
+	}
+
+	cancelAllRefreshPromises(includeSubTrees: boolean = false): void {
+		this.refreshPromises.forEach(promise => promise.cancel());
+		this.refreshPromises.clear();
+
+		if (includeSubTrees) {
+			this.subTreeRefreshPromises.forEach(promise => promise.cancel());
+			this.subTreeRefreshPromises.clear();
+		}
 	}
 
 	private async _updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T>): Promise<void> {
@@ -860,7 +889,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 
 		if (node.refreshPromise) {
-			await this.root.refreshPromise;
+			await node.refreshPromise;
 			await Event.toPromise(this._onDidRender.event);
 		}
 
@@ -871,7 +900,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		const result = this.tree.expand(node === this.root ? null : node, recursive);
 
 		if (node.refreshPromise) {
-			await this.root.refreshPromise;
+			await node.refreshPromise;
 			await Event.toPromise(this._onDidRender.event);
 		}
 
@@ -1073,28 +1102,26 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				return;
 			}
 		}
-
 		return this.doRefreshSubTree(node, recursive, viewStateContext);
 	}
 
 	private async doRefreshSubTree(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
-		let done: () => void;
-		node.refreshPromise = new Promise(c => done = c);
-		this.subTreeRefreshPromises.set(node, node.refreshPromise);
-
-		node.refreshPromise.finally(() => {
-			node.refreshPromise = undefined;
-			this.subTreeRefreshPromises.delete(node);
-		});
-
-		try {
+		const cancelablePromise = createCancelablePromise(async () => {
 			const childrenToRefresh = await this.doRefreshNode(node, recursive, viewStateContext);
 			node.stale = false;
 
 			await Promises.settled(childrenToRefresh.map(child => this.doRefreshSubTree(child, recursive, viewStateContext)));
-		} finally {
-			done!();
-		}
+		});
+
+		node.refreshPromise = cancelablePromise;
+		this.subTreeRefreshPromises.set(node, cancelablePromise);
+
+		cancelablePromise.finally(() => {
+			node.refreshPromise = undefined;
+			this.subTreeRefreshPromises.delete(node);
+		});
+
+		return cancelablePromise;
 	}
 
 	private async doRefreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<IAsyncDataTreeNode<TInput, T>[]> {
@@ -1157,7 +1184,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	private _onDidChangeCollapseState({ node, deep }: ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T> | null, any>): void {
+	private _onDidChangeCollapseState({ node, deep }: ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T> | null, TFilterData>): void {
 		if (node.element === null) {
 			return;
 		}
@@ -1350,7 +1377,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				expanded.push(getId(node.element!.element as T));
 			}
 
-			stack.push(...node.children);
+			insertInto(stack, stack.length, node.children);
 		}
 
 		return { focus, selection, expanded, scrollTop: this.scrollTop };
@@ -1405,12 +1432,12 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 		return { templateData };
 	}
 
-	renderElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		this.renderer.renderElement(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
+	renderElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, details?: ITreeElementRenderDetails): void {
+		this.renderer.renderElement(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, details);
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T>>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		this.renderer.renderCompressedElements(this.compressibleNodeMapperProvider().map(node) as ITreeNode<ICompressedTreeNode<T>, TFilterData>, index, templateData.templateData, height);
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T>>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, details?: ITreeElementRenderDetails): void {
+		this.renderer.renderCompressedElements(this.compressibleNodeMapperProvider().map(node) as ITreeNode<ICompressedTreeNode<T>, TFilterData>, index, templateData.templateData, details);
 	}
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
@@ -1423,12 +1450,12 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 		}
 	}
 
-	disposeElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		this.renderer.disposeElement?.(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
+	disposeElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, details?: ITreeElementRenderDetails): void {
+		this.renderer.disposeElement?.(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, details);
 	}
 
-	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T>>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		this.renderer.disposeCompressedElements?.(this.compressibleNodeMapperProvider().map(node) as ITreeNode<ICompressedTreeNode<T>, TFilterData>, index, templateData.templateData, height);
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T>>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, details?: ITreeElementRenderDetails): void {
+		this.renderer.disposeCompressedElements?.(this.compressibleNodeMapperProvider().map(node) as ITreeNode<ICompressedTreeNode<T>, TFilterData>, index, templateData.templateData, details);
 	}
 
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {
@@ -1455,7 +1482,8 @@ function asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options?: IComp
 			getCompressedNodeKeyboardNavigationLabel(els) {
 				return options.keyboardNavigationLabelProvider!.getCompressedNodeKeyboardNavigationLabel(els.map(e => e.element as T));
 			}
-		}
+		},
+		stickyScrollDelegate: objectTreeOptions.stickyScrollDelegate as IStickyScrollDelegate<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined
 	};
 }
 
@@ -1464,7 +1492,7 @@ export interface ICompressibleAsyncDataTreeOptions<T, TFilterData = void> extend
 	readonly keyboardNavigationLabelProvider?: ICompressibleKeyboardNavigationLabelProvider<T>;
 }
 
-export interface ICompressibleAsyncDataTreeOptionsUpdate extends IAsyncDataTreeOptionsUpdate {
+export interface ICompressibleAsyncDataTreeOptionsUpdate<T> extends IAsyncDataTreeOptionsUpdate<T> {
 	readonly compressionEnabled?: boolean;
 }
 
@@ -1479,7 +1507,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 		container: HTMLElement,
 		virtualDelegate: IListVirtualDelegate<T>,
 		private compressionDelegate: ITreeCompressionDelegate<T>,
-		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
+		renderers: ICompressibleTreeRenderer<T, TFilterData, unknown>[],
 		dataSource: IAsyncDataSource<TInput, T>,
 		options: ICompressibleAsyncDataTreeOptions<T, TFilterData> = {}
 	) {
@@ -1496,7 +1524,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 		user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
+		renderers: ICompressibleTreeRenderer<T, TFilterData, unknown>[],
 		options: ICompressibleAsyncDataTreeOptions<T, TFilterData>
 	): ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData> {
 		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
@@ -1511,10 +1539,6 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 			incompressible: this.compressionDelegate.isIncompressible(node.element as T),
 			...super.asTreeElement(node, viewStateContext)
 		};
-	}
-
-	override updateOptions(options: ICompressibleAsyncDataTreeOptionsUpdate = {}): void {
-		this.tree.updateOptions(options);
 	}
 
 	override getViewState(): IAsyncDataTreeViewState {

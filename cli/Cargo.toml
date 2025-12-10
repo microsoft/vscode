@@ -16,7 +16,7 @@ futures = "0.3.28"
 clap = { version = "4.3.0", features = ["derive", "env"] }
 open = "4.1.0"
 reqwest = { version = "0.11.22", default-features = false, features = ["json", "stream", "native-tls"] }
-tokio = { version = "1.28.2", features = ["full"] }
+tokio = { version = "1.38.2", features = ["full"] }
 tokio-util = { version = "0.7.8", features = ["compat", "codec"] }
 flate2 = { version = "1.0.26", default-features = false, features = ["zlib"] }
 zip = { version = "0.6.6", default-features = false, features = ["time", "deflate-zlib"] }
@@ -41,7 +41,7 @@ hyper = { version = "0.14.26", features = ["server", "http1", "runtime"] }
 indicatif = "0.17.4"
 tempfile = "3.5.0"
 clap_lex = "0.7.0"
-url = "2.3.1"
+url = "2.5.4"
 async-trait = "0.1.68"
 log = "0.4.18"
 const_format = "0.2.31"
@@ -77,7 +77,6 @@ russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main
 [profile.release]
 strip = true
 lto = true
-codegen-units = 1
 
 [features]
 default = []

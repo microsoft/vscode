@@ -43,34 +43,41 @@
 	position: relative;
 }
 
-.test-explorer .test-item .label,
-.test-output-peek-tree .test-peek-item .name,
-.test-coverage-list-item .name,
-.test-coverage-list-item-label {
-	flex-grow: 1;
-	width: 0;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-
-	.monaco-list.horizontal-scrolling & {
-		width: auto;
-		overflow: visible;
-	}
-}
-
-.test-output-peek-tree .test-peek-item .name .codicon,
-.test-explorer .test-item .label .codicon {
-	vertical-align: middle;
-	font-size: 1em;
-	transform: scale(1.25);
-	margin: 0 0.125em;
-}
-
-.test-explorer .test-item,
-.test-output-peek-tree .test-peek-item {
+.testing-stdtree-container {
 	display: flex;
 	align-items: center;
+
+	.label {
+		flex-grow: 1;
+		width: 0;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+
+		.codicon {
+			vertical-align: middle;
+			font-size: 1em;
+			transform: scale(1.25);
+			margin: 0 0.125em;
+		}
+
+		.monaco-list.horizontal-scrolling & {
+			width: auto;
+			overflow: visible;
+		}
+	}
+
+	.monaco-action-bar {
+		display: none;
+		flex-shrink: 0;
+		margin-right: 0.8em;
+	}
+
+	&:hover, &.focused {
+		.monaco-action-bar {
+			display: initial;
+		}
+	}
 }
 
 .test-output-peek-tree {
@@ -78,12 +85,14 @@
 	border-left: 1px solid var(--vscode-panelSection-border);
 }
 
-.test-output-peek-tree .monaco-list-row .monaco-action-bar,
-.test-explorer .monaco-list-row .monaco-action-bar,
 .test-explorer .monaco-list-row .codicon-testing-hidden {
 	display: none;
 	flex-shrink: 0;
 	margin-right: 0.8em;
+}
+
+.test-explorer .monaco-list-row .monaco-action-bar.testing-is-continuous-run {
+	display: initial;
 }
 
 .test-explorer .monaco-list-row .monaco-action-bar .codicon-testing-continuous-is-on {
@@ -100,14 +109,6 @@
 
 .test-explorer .monaco-list-row .monaco-action-bar.testing-is-continuous-run .action-item:last-child {
 	display: block !important;
-}
-
-.test-explorer .monaco-list-row:hover .monaco-action-bar,
-.test-explorer .monaco-list-row.focused .monaco-action-bar,
-.test-explorer .monaco-list-row .monaco-action-bar.testing-is-continuous-run,
-.test-output-peek-tree .monaco-list-row:hover .monaco-action-bar,
-.test-output-peek-tree .monaco-list-row.focused .monaco-action-bar {
-	display: initial;
 }
 
 .test-explorer .monaco-list-row .test-is-hidden .codicon-testing-hidden {
@@ -467,21 +468,12 @@
 
 /** -- coverage  */
 
-.coverage-view-is-filtered > .pane-header > .actions {
-	display: block !important;
-}
-
-.test-coverage-list-item {
-	display: flex;
-	align-items: center;
-}
-
 .test-coverage-bars {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 	font-size: 11px;
-	margin-right: 0.8em;
+	margin-right: 12px;
 }
 
 .test-coverage-bars .bar {

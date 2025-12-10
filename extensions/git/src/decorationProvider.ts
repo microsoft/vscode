@@ -8,7 +8,7 @@ import * as path from 'path';
 import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
-import { filterEvent, dispose, anyEvent, fireEvent, PromiseSource, combinedDisposable, runAndSubscribeEvent } from './util';
+import { filterEvent, dispose, anyEvent, PromiseSource, combinedDisposable, runAndSubscribeEvent } from './util';
 import { Change, GitErrorCodes, Status } from './api/git';
 
 function equalSourceControlHistoryItemRefs(ref1?: SourceControlHistoryItemRef, ref2?: SourceControlHistoryItemRef): boolean {
@@ -25,17 +25,19 @@ class GitIgnoreDecorationProvider implements FileDecorationProvider {
 
 	private static Decoration: FileDecoration = { color: new ThemeColor('gitDecoration.ignoredResourceForeground') };
 
-	readonly onDidChangeFileDecorations: Event<Uri[]>;
+	private readonly _onDidChangeDecorations = new EventEmitter<undefined | Uri | Uri[]>();
+	readonly onDidChangeFileDecorations: Event<undefined | Uri | Uri[]> = this._onDidChangeDecorations.event;
+
 	private queue = new Map<string, { repository: Repository; queue: Map<string, PromiseSource<FileDecoration | undefined>> }>();
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
-		this.onDidChangeFileDecorations = fireEvent(anyEvent<any>(
+		const onDidChangeRepository = anyEvent<unknown>(
 			filterEvent(workspace.onDidSaveTextDocument, e => /\.gitignore$|\.git\/info\/exclude$/.test(e.uri.path)),
 			model.onDidOpenRepository,
 			model.onDidCloseRepository
-		));
-
+		);
+		this.disposables.push(onDidChangeRepository(() => this._onDidChangeDecorations.fire(undefined)));
 		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
@@ -118,11 +120,11 @@ class GitDecorationProvider implements FileDecorationProvider {
 	private onDidRunGitStatus(): void {
 		const newDecorations = new Map<string, FileDecoration>();
 
-		this.collectSubmoduleDecorationData(newDecorations);
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);
 		this.collectDecorationData(this.repository.untrackedGroup, newDecorations);
 		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);
 		this.collectDecorationData(this.repository.mergeGroup, newDecorations);
+		this.collectSubmoduleDecorationData(newDecorations);
 
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
 		this.decorations = newDecorations;
@@ -255,7 +257,7 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 				return [];
 			}
 
-			const changes = await this.repository.diffBetween(ancestor, currentHistoryItemRemoteRef.id);
+			const changes = await this.repository.diffBetween2(ancestor, currentHistoryItemRemoteRef.id);
 			return changes;
 		} catch (err) {
 			return [];

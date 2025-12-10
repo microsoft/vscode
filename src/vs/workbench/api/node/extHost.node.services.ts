@@ -26,6 +26,11 @@ import { ExtHostLogService } from '../common/extHostLogService.js';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
 import { ISignService } from '../../../platform/sign/common/sign.js';
 import { SignService } from '../../../platform/sign/node/signService.js';
+import { ExtHostTelemetry, IExtHostTelemetry } from '../common/extHostTelemetry.js';
+import { IExtHostMpcService } from '../common/extHostMcp.js';
+import { NodeExtHostMpcService } from './extHostMcpNode.js';
+import { IExtHostAuthentication } from '../common/extHostAuthentication.js';
+import { NodeExtHostAuthentication } from './extHostAuthentication.js';
 
 // #########################################################################
 // ###                                                                   ###
@@ -38,10 +43,13 @@ registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delaye
 registerSingleton(ILogService, new SyncDescriptor(ExtHostLogService, [false], true));
 registerSingleton(ISignService, SignService, InstantiationType.Delayed);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
+registerSingleton(IExtHostTelemetry, new SyncDescriptor(ExtHostTelemetry, [false], true));
 
+registerSingleton(IExtHostAuthentication, NodeExtHostAuthentication, InstantiationType.Eager);
 registerSingleton(IExtHostDebugService, ExtHostDebugService, InstantiationType.Eager);
 registerSingleton(IExtHostSearch, NativeExtHostSearch, InstantiationType.Eager);
 registerSingleton(IExtHostTask, ExtHostTask, InstantiationType.Eager);
 registerSingleton(IExtHostTerminalService, ExtHostTerminalService, InstantiationType.Eager);
 registerSingleton(IExtHostTunnelService, NodeExtHostTunnelService, InstantiationType.Eager);
 registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService, InstantiationType.Eager);
+registerSingleton(IExtHostMpcService, NodeExtHostMpcService, InstantiationType.Eager);

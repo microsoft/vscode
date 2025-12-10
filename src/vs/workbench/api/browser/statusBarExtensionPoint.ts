@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../base/common/jsonSchema.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
@@ -13,7 +13,7 @@ import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, 
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Command } from '../../../editor/common/languages.js';
 import { IAccessibilityInformation, isAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
-import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString } from '../../../base/common/htmlContent.js';
 import { getCodiconAriaLabel } from '../../../base/common/iconLabels.js';
 import { hash } from '../../../base/common/hash.js';
 import { Event, Emitter } from '../../../base/common/event.js';
@@ -22,6 +22,7 @@ import { Iterable } from '../../../base/common/iterator.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { asStatusBarItemIdentifier } from '../common/extHostTypes.js';
 import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND } from '../../common/theme.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
 
 
 // --- service
@@ -47,9 +48,9 @@ export const enum StatusBarUpdateKind {
 export interface IExtensionStatusBarItemService {
 	readonly _serviceBrand: undefined;
 
-	onDidChange: Event<IExtensionStatusBarItemChangeEvent>;
+	readonly onDidChange: Event<IExtensionStatusBarItemChangeEvent>;
 
-	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): StatusBarUpdateKind;
+	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined | IManagedHoverTooltipMarkdownString, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): StatusBarUpdateKind;
 
 	unsetEntry(id: string): void;
 
@@ -75,7 +76,8 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 	}
 
 	setOrUpdateEntry(entryId: string,
-		id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined,
+		id: string, extensionId: string | undefined, name: string, text: string,
+		tooltip: IMarkdownString | string | undefined | IManagedHoverTooltipMarkdownString,
 		command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined,
 		alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined
 	): StatusBarUpdateKind {
@@ -87,7 +89,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 			role = accessibilityInformation.role;
 		} else {
 			ariaLabel = getCodiconAriaLabel(text);
-			if (tooltip) {
+			if (typeof tooltip === 'string' || isMarkdownString(tooltip)) {
 				const tooltipString = typeof tooltip === 'string' ? tooltip : tooltip.value;
 				ariaLabel += `, ${tooltipString}`;
 			}
@@ -101,7 +103,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 				color = undefined;
 				backgroundColor = undefined;
 		}
-		const entry: IStatusbarEntry = { name, text, tooltip, command, color, backgroundColor, ariaLabel, role, kind };
+		const entry: IStatusbarEntry = { name, text, tooltip, command, color, backgroundColor, ariaLabel, role, kind, extensionId };
 
 		if (typeof priority === 'undefined') {
 			priority = 0;
@@ -168,18 +170,9 @@ registerSingleton(IExtensionStatusBarItemService, ExtensionStatusBarItemService,
 
 // --- extension point and reading of it
 
-interface IUserFriendlyStatusItemEntry {
-	id: string;
-	name: string;
-	text: string;
-	alignment: 'left' | 'right';
-	command?: string;
-	priority?: number;
-	tooltip?: string;
-	accessibilityInformation?: IAccessibilityInformation;
-}
+type IUserFriendlyStatusItemEntry = TypeFromJsonSchema<typeof statusBarItemSchema>;
 
-function isUserFriendlyStatusItemEntry(candidate: any): candidate is IUserFriendlyStatusItemEntry {
+function isUserFriendlyStatusItemEntry(candidate: unknown): candidate is IUserFriendlyStatusItemEntry {
 	const obj = candidate as IUserFriendlyStatusItemEntry;
 	return (typeof obj.id === 'string' && obj.id.length > 0)
 		&& typeof obj.name === 'string'
@@ -192,7 +185,7 @@ function isUserFriendlyStatusItemEntry(candidate: any): candidate is IUserFriend
 		;
 }
 
-const statusBarItemSchema: IJSONSchema = {
+const statusBarItemSchema = {
 	type: 'object',
 	required: ['id', 'text', 'alignment', 'name'],
 	properties: {
@@ -228,6 +221,7 @@ const statusBarItemSchema: IJSONSchema = {
 		accessibilityInformation: {
 			type: 'object',
 			description: localize('accessibilityInformation', 'Defines the role and aria label to be used when the status bar entry is focused.'),
+			required: ['label'],
 			properties: {
 				role: {
 					type: 'string',
@@ -240,7 +234,7 @@ const statusBarItemSchema: IJSONSchema = {
 			}
 		}
 	}
-};
+} as const satisfies IJSONSchema;
 
 const statusBarItemsSchema: IJSONSchema = {
 	description: localize('vscode.extension.contributes.statusBarItems', "Contributes items to the status bar."),

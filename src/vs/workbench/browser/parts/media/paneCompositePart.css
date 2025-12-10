@@ -148,12 +148,12 @@
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.right + .action-item::before,
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.left::before,
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:last-of-type.right::after,
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container.dragged-over-head  > .composite-bar > .monaco-action-bar .action-item:first-of-type::before,
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container.dragged-over-head > .composite-bar > .monaco-action-bar .action-item:first-of-type::before,
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container.dragged-over-tail > .composite-bar > .monaco-action-bar .action-item:last-of-type::after,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.right + .action-item::before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.left::before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:last-of-type.right::after,
-.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container.dragged-over-head  > .composite-bar > .monaco-action-bar .action-item:first-of-type::before,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container.dragged-over-head > .composite-bar > .monaco-action-bar .action-item:first-of-type::before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container.dragged-over-tail > .composite-bar > .monaco-action-bar .action-item:last-of-type::after {
 	opacity: 1;
 }
@@ -183,7 +183,7 @@
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .badge {
-	margin-left: 8px;
+	margin-left: 2px;
 	display: flex;
 	align-items: center;
 }
@@ -196,11 +196,11 @@
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content {
 	padding: 3px 5px;
-	border-radius: 11px;
-	font-size: 11px;
-	min-width: 18px;
-	height: 18px;
-	line-height: 11px;
+	border-radius: 10px;
+	font-size: 10px;
+	min-width: 16px;
+	height: 16px;
+	line-height: 10px;
 	font-weight: normal;
 	text-align: center;
 	display: inline-block;
@@ -248,10 +248,8 @@
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before {
-	mask-size: 11px;
-	-webkit-mask-size: 11px;
-	top: 3px;
-	left: 1px;
+	mask-size: 13px;
+	-webkit-mask-size: 13px;
 }
 
 /* active item indicator */
@@ -279,8 +277,8 @@
 	width: calc(100% - 4px);
 }
 
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon.checked,
-.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon.checked {
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked {
 	background-color: var(--vscode-activityBarTop-activeBackground);
 }
 

@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - release/*
+permissions: {}
 
 jobs:
   main:
@@ -18,15 +19,17 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
+        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.ts)" >> $GITHUB_OUTPUT
       - name: Cache node modules
         id: cacheNodeModules
         uses: actions/cache@v4
@@ -45,11 +48,11 @@ jobs:
           path: ${{ steps.npmCacheDirPath.outputs.dir }}
           key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-npmCacheDir-
-      - name: Install libkrb5-dev
+      - name: Install system dependencies
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: |
           sudo apt update
-          sudo apt install -y libkrb5-dev
+          sudo apt install -y libxkbfile-dev pkg-config libkrb5-dev libxss1
       - name: Execute npm
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
@@ -65,7 +68,7 @@ jobs:
         run: npm run monaco-compile-check
 
       - name: Editor Distro & ESM
-        run: npm run gulp editor-esm
+        run: npm run gulp editor-distro
 
       - name: Editor ESM sources check
         working-directory: ./test/monaco

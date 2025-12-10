@@ -14,14 +14,15 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType, TextSearchCompleteMessageType } from '../common/search.js';
 import { SearchService } from '../common/searchService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkerClient, logOnceWebWorkerWarning } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerClient, logOnceWebWorkerWarning } from '../../../../base/common/worker/webWorker.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
+import { WebWorkerDescriptor } from '../../../../platform/webWorker/browser/webWorkerDescriptor.js';
+import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost } from '../common/localFileSearchWorkerTypes.js';
+import { ILocalFileSearchWorker, LocalFileSearchWorkerHost } from '../common/localFileSearchWorkerTypes.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { HTMLFileSystemProvider } from '../../../../platform/files/browser/htmlFileSystemProvider.js';
-import { Schemas } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
@@ -48,7 +49,7 @@ export class RemoteSearchService extends SearchService {
 
 export class LocalFileSearchWorkerClient extends Disposable implements ISearchResultProvider {
 
-	protected _worker: IWorkerClient<ILocalFileSearchSimpleWorker> | null;
+	protected _worker: IWebWorkerClient<ILocalFileSearchWorker> | null;
 
 	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>();
 	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>; queryId: number }> = this._onDidReceiveTextSearchMatch.event;
@@ -60,6 +61,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	constructor(
 		@IFileService private fileService: IFileService,
 		@IUriIdentityService private uriIdentityService: IUriIdentityService,
+		@IWebWorkerService private webWorkerService: IWebWorkerService,
 	) {
 		super();
 		this._worker = null;
@@ -184,14 +186,16 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 		if (this.cache?.key === cacheKey) { this.cache = undefined; }
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<ILocalFileSearchSimpleWorker> {
+	private _getOrCreateWorker(): IWebWorkerClient<ILocalFileSearchWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(createWebWorker<ILocalFileSearchSimpleWorker>(
-					'vs/workbench/services/search/worker/localFileSearch',
-					'LocalFileSearchWorker'
+				this._worker = this._register(this.webWorkerService.createWorkerClient<ILocalFileSearchWorker>(
+					new WebWorkerDescriptor({
+						esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/services/search/worker/localFileSearchMain.js'),
+						label: 'LocalFileSearchWorker'
+					})
 				));
-				LocalFileSearchSimpleWorkerHost.setChannel(this._worker, {
+				LocalFileSearchWorkerHost.setChannel(this._worker, {
 					$sendTextSearchMatch: (match, queryId) => {
 						return this.sendTextSearchMatch(match, queryId);
 					}

@@ -233,7 +233,7 @@ class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
 		super({
 			id: AccessibilityCommandId.AccessibilityHelpConfigureKeybindings,
 			precondition: ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewHasUnassignedKeybindings),
-			icon: Codicon.key,
+			icon: Codicon.recordKeys,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.KeyK,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -260,7 +260,7 @@ class AccessibilityHelpConfigureAssignedKeybindingsAction extends Action2 {
 		super({
 			id: AccessibilityCommandId.AccessibilityHelpConfigureAssignedKeybindings,
 			precondition: ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewHasAssignedKeybindings),
-			icon: Codicon.key,
+			icon: Codicon.recordKeys,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.KeyA,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -330,7 +330,7 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 			return;
 		}
 		const model = InlineCompletionsController.get(editor)?.model.get();
-		const state = model?.inlineCompletionState.get();
+		const state = model?.state.get();
 		if (!model || !state) {
 			return;
 		}

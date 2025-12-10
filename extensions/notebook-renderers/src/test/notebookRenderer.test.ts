@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { activate } from '..';
 import { RendererApi } from 'vscode-notebook-renderer';
 import { IDisposable, IRichRenderContext, OutputWithAppend, RenderOptions } from '../rendererTypes';
-import { JSDOM } from "jsdom";
+import { JSDOM } from 'jsdom';
 import { LinkDetector } from '../linkify';
 
 const dom = new JSDOM();
@@ -16,12 +16,12 @@ global.document = dom.window.document;
 suite('Notebook builtin output renderer', () => {
 
 	const error = {
-		name: "TypeError",
-		message: "Expected type `str`, but received type `<class \'int\'>`",
-		stack: "\u001b[1;31m---------------------------------------------------------------------------\u001b[0m" +
-			"\u001b[1;31mTypeError\u001b[0m                                 Traceback (most recent call last)" +
-			"\u001b[1;32mc:\\src\\test\\ws1\\testing.py\u001b[0m in \u001b[0;36mline 2\n\u001b[0;32m      <a href='file:///c%3A/src/test/ws1/testing.py?line=34'>35</a>\u001b[0m \u001b[39m# %%\u001b[39;00m\n\u001b[1;32m----> <a href='file:///c%3A/src/test/ws1/testing.py?line=35'>36</a>\u001b[0m \u001b[39mraise\u001b[39;00m \u001b[39mTypeError\u001b[39;00m(\u001b[39m'\u001b[39m\u001b[39merror = f\u001b[39m\u001b[39m\"\u001b[39m\u001b[39mExpected type `str`, but received type `\u001b[39m\u001b[39m{\u001b[39m\u001b[39mtype(name)}`\u001b[39m\u001b[39m\"\u001b[39m\u001b[39m'\u001b[39m)\n" +
-			"\u001b[1;31mTypeError\u001b[0m: Expected type `str`, but received type `<class \'int\'>`\""
+		name: 'TypeError',
+		message: 'Expected type `str`, but received type `<class \'int\'>`',
+		stack: '\u001b[1;31m---------------------------------------------------------------------------\u001b[0m' +
+			'\u001b[1;31mTypeError\u001b[0m                                 Traceback (most recent call last)' +
+			'\u001b[1;32mc:\\src\\test\\ws1\\testing.py\u001b[0m in \u001b[0;36mline 2\n\u001b[0;32m      <a href=\'file:///c%3A/src/test/ws1/testing.py?line=34\'>35</a>\u001b[0m \u001b[39m# %%\u001b[39;00m\n\u001b[1;32m----> <a href=\'file:///c%3A/src/test/ws1/testing.py?line=35\'>36</a>\u001b[0m \u001b[39mraise\u001b[39;00m \u001b[39mTypeError\u001b[39;00m(\u001b[39m\'\u001b[39m\u001b[39merror = f\u001b[39m\u001b[39m"\u001b[39m\u001b[39mExpected type `str`, but received type `\u001b[39m\u001b[39m{\u001b[39m\u001b[39mtype(name)}`\u001b[39m\u001b[39m"\u001b[39m\u001b[39m\'\u001b[39m)\n' +
+			'\u001b[1;31mTypeError\u001b[0m: Expected type `str`, but received type `<class \'int\'>`"'
 	};
 
 	const errorMimeType = 'application/vnd.code.notebook.error';
@@ -127,13 +127,13 @@ suite('Notebook builtin output renderer', () => {
 				return text;
 			},
 			blob() {
-				return [] as any;
+				return new Blob([text], { type: mime });
 			},
 			json() {
 				return '{ }';
 			},
 			data() {
-				return [] as any;
+				return new Uint8Array();
 			},
 			metadata: {}
 		};
@@ -152,8 +152,12 @@ suite('Notebook builtin output renderer', () => {
 			const inserted = outputElement.firstChild as HTMLElement;
 			assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
 			assert.ok(outputElement.classList.contains('remove-padding'), `Padding should be removed for scrollable outputs ${outputElement.classList}`);
-			assert.ok(outputElement.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
-				`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
+			if (mimeType === 'text/plain') {
+				assert.ok(inserted.classList.contains('word-wrap'), `Word wrap should be enabled for text/plain ${outputElement.classList}`);
+			} else {
+				assert.ok(outputElement.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
+					`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
+			}
 			assert.ok(inserted.innerHTML.indexOf('>content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		});
 
@@ -483,13 +487,13 @@ suite('Notebook builtin output renderer', () => {
 	});
 
 	const rawIPythonError = {
-		name: "NameError",
-		message: "name 'x' is not defined",
-		stack: "\u001b[1;31m---------------------------------------------------------------------------\u001b[0m" +
-			"\u001b[1;31mNameError\u001b[0m                                 Traceback (most recent call last)" +
-			"Cell \u001b[1;32mIn[2], line 1\u001b[0m\n\u001b[1;32m----> 1\u001b[0m \u001b[43mmyfunc\u001b[49m\u001b[43m(\u001b[49m\u001b[43m)\u001b[49m\n" +
-			"Cell \u001b[1;32mIn[1], line 2\u001b[0m, in \u001b[0;36mmyfunc\u001b[1;34m()\u001b[0m\n\u001b[0;32m      1\u001b[0m \u001b[38;5;28;01mdef\u001b[39;00m \u001b[38;5;21mmyfunc\u001b[39m():\n\u001b[1;32m----> 2\u001b[0m     \u001b[38;5;28mprint\u001b[39m(\u001b[43mx\u001b[49m)\n" +
-			"\u001b[1;31mNameError\u001b[0m: name 'x' is not defined"
+		name: 'NameError',
+		message: `name 'x' is not defined`,
+		stack: '\u001b[1;31m---------------------------------------------------------------------------\u001b[0m' +
+			'\u001b[1;31mNameError\u001b[0m                                 Traceback (most recent call last)' +
+			'Cell \u001b[1;32mIn[2], line 1\u001b[0m\n\u001b[1;32m----> 1\u001b[0m \u001b[43mmyfunc\u001b[49m\u001b[43m(\u001b[49m\u001b[43m)\u001b[49m\n' +
+			'Cell \u001b[1;32mIn[1], line 2\u001b[0m, in \u001b[0;36mmyfunc\u001b[1;34m()\u001b[0m\n\u001b[0;32m      1\u001b[0m \u001b[38;5;28;01mdef\u001b[39;00m \u001b[38;5;21mmyfunc\u001b[39m():\n\u001b[1;32m----> 2\u001b[0m     \u001b[38;5;28mprint\u001b[39m(\u001b[43mx\u001b[49m)\n' +
+			`\u001b[1;31mNameError\u001b[0m: name 'x' is not defined`
 	};
 
 	test(`Should clean up raw IPython error stack traces`, async () => {

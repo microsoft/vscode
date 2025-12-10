@@ -13,7 +13,7 @@ import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { fontCharacterRegex, fontColorRegex, fontSizeRegex } from '../../../../platform/theme/common/iconRegistry.js';
+import { fontColorRegex, fontSizeRegex } from '../../../../platform/theme/common/iconRegistry.js';
 import * as css from '../../../../base/browser/cssValue.js';
 import { fileIconSelectorEscape } from '../../../../editor/common/services/getIconClasses.js';
 
@@ -119,6 +119,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 					case 'hidesExplorerArrows':
 					case 'hasFolderIcons':
 					case 'watch':
+						// eslint-disable-next-line local/code-no-any-casts
 						(theme as any)[key] = data[key];
 						break;
 					case 'location':
@@ -424,7 +425,7 @@ export class FileIconThemeLoader {
 					if (definition.fontColor && definition.fontColor.match(fontColorRegex)) {
 						body.push(css.inline`color: ${css.hexColorValue(definition.fontColor)};`);
 					}
-					if (definition.fontCharacter && definition.fontCharacter.match(fontCharacterRegex)) {
+					if (definition.fontCharacter) {
 						body.push(css.inline`content: ${css.stringValue(definition.fontCharacter)};`);
 					}
 					const fontSize = definition.fontSize ?? (definition.fontId ? fontSizes.get(definition.fontId) : undefined);

@@ -56,7 +56,6 @@ class MoreFiltersActionViewItem extends SubmenuEntryActionViewItem {
 		super.render(container);
 		this.updateChecked();
 	}
-
 }
 
 export interface IFilterWidgetOptions {
@@ -79,13 +78,16 @@ export class FilterWidget extends Widget {
 	private readonly _onDidChangeFilterText = this._register(new Emitter<string>());
 	readonly onDidChangeFilterText = this._onDidChangeFilterText.event;
 
+	private readonly _onDidAcceptFilterText = this._register(new Emitter<void>());
+	readonly onDidAcceptFilterText = this._onDidAcceptFilterText.event;
+
 	private moreFiltersActionViewItem: MoreFiltersActionViewItem | undefined;
 	private isMoreFiltersChecked: boolean = false;
 	private lastWidth?: number;
 
-	private focusTracker: DOM.IFocusTracker;
-	public get onDidFocus() { return this.focusTracker.onDidFocus; }
-	public get onDidBlur() { return this.focusTracker.onDidBlur; }
+	private readonly focusTracker: DOM.IFocusTracker;
+	get onDidFocus() { return this.focusTracker.onDidFocus; }
+	get onDidBlur() { return this.focusTracker.onDidBlur; }
 
 	constructor(
 		private readonly options: IFilterWidgetOptions,
@@ -95,7 +97,7 @@ export class FilterWidget extends Widget {
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
-		this.delayedFilterUpdate = new Delayer<void>(400);
+		this.delayedFilterUpdate = new Delayer<void>(300);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 
 		if (options.focusContextKey) {
@@ -177,9 +179,9 @@ export class FilterWidget extends Widget {
 			inputBox.value = this.options.text;
 		}
 		this._register(inputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(inputBox))));
-		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, inputBox)));
-		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
-		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
+		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => this.onInputKeyDown(e)));
+		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => this.handleKeyboardEvent(e)));
+		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, (e: StandardKeyboardEvent) => this.handleKeyboardEvent(e)));
 		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.CLICK, (e) => {
 			e.stopPropagation();
 			e.preventDefault();
@@ -238,10 +240,14 @@ export class FilterWidget extends Widget {
 		}
 	}
 
-	private onInputKeyDown(event: StandardKeyboardEvent, filterInputBox: HistoryInputBox) {
+	private onInputKeyDown(event: StandardKeyboardEvent) {
 		let handled = false;
 		if (event.equals(KeyCode.Tab) && !this.toolbar.isEmpty()) {
 			this.toolbar.focus();
+			handled = true;
+		}
+		if (event.equals(KeyCode.Enter)) {
+			this._onDidAcceptFilterText.fire();
 			handled = true;
 		}
 		if (handled) {
@@ -249,5 +255,4 @@ export class FilterWidget extends Widget {
 			event.preventDefault();
 		}
 	}
-
 }

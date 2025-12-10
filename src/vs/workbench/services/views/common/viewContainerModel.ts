@@ -9,7 +9,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { coalesce, move } from '../../../../base/common/arrays.js';
 import { isUndefined, isUndefinedOrNull } from '../../../../base/common/types.js';
@@ -17,29 +17,9 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { IOutputService } from '../../output/common/output.js';
 import { CounterSet } from '../../../../base/common/map.js';
-import { localize2 } from '../../../../nls.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: '_workbench.output.showViewsLog',
-			title: localize2('showViewsLog', "Show Views Log"),
-			category: Categories.Developer,
-			f1: true
-		});
-	}
-	async run(servicesAccessor: ServicesAccessor): Promise<void> {
-		const loggerService = servicesAccessor.get(ILoggerService);
-		const outputService = servicesAccessor.get(IOutputService);
-		loggerService.setVisibility(VIEWS_LOG_ID, true);
-		outputService.showChannel(VIEWS_LOG_ID);
-	}
-});
+import { windowLogGroup } from '../../log/common/logConstants.js';
 
 export function getViewsStateStorageId(viewContainerStorageId: string): string { return `${viewContainerStorageId}.hidden`; }
 
@@ -84,7 +64,7 @@ class ViewDescriptorsState extends Disposable {
 	) {
 		super();
 
-		this.logger = new Lazy(() => loggerService.createLogger(VIEWS_LOG_ID, { name: VIEWS_LOG_NAME, hidden: true }));
+		this.logger = new Lazy(() => loggerService.createLogger(VIEWS_LOG_ID, { name: VIEWS_LOG_NAME, group: windowLogGroup }));
 
 		this.globalViewsStateStorageId = getViewsStateStorageId(viewContainerStorageId);
 		this.workspaceViewsStateStorageId = viewContainerStorageId;
@@ -152,7 +132,7 @@ class ViewDescriptorsState extends Disposable {
 				if (state) {
 					if (state.visibleGlobal !== !storedState.isHidden) {
 						if (!storedState.isHidden) {
-							this.logger.value.info(`View visibility state changed: ${id} is now visible`, this.viewContainerName);
+							this.logger.value.trace(`View visibility state changed: ${id} is now visible`, this.viewContainerName);
 						}
 						changedStates.push({ id, visible: !storedState.isHidden });
 					}
@@ -354,7 +334,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	) {
 		super();
 
-		this.logger = new Lazy(() => loggerService.createLogger(VIEWS_LOG_ID, { name: VIEWS_LOG_NAME, hidden: true }));
+		this.logger = new Lazy(() => loggerService.createLogger(VIEWS_LOG_ID, { name: VIEWS_LOG_NAME, group: windowLogGroup }));
 
 		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(() => this.onDidChangeContext()));
 		this.viewDescriptorsState = this._register(instantiationService.createInstance(ViewDescriptorsState, viewContainer.storageId || `${viewContainer.id}.state`, typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.original));
@@ -461,7 +441,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		} else {
 			viewDescriptorItem.state.visibleGlobal = visible;
 			if (visible) {
-				this.logger.value.info(`Showing view ${viewDescriptorItem.viewDescriptor.id} in the container ${this.viewContainer.id}`);
+				this.logger.value.trace(`Showing view ${viewDescriptorItem.viewDescriptor.id} in the container ${this.viewContainer.id}`);
 			}
 		}
 
@@ -531,7 +511,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 					const isVisible = state.visibleGlobal;
 					state.visibleGlobal = isUndefinedOrNull(addedViewDescriptorState.visible) ? (isUndefinedOrNull(state.visibleGlobal) ? !viewDescriptor.hideByDefault : state.visibleGlobal) : addedViewDescriptorState.visible;
 					if (state.visibleGlobal && !isVisible) {
-						this.logger.value.info(`Added view ${viewDescriptor.id} in the container ${this.viewContainer.id} and showing it.`, `${isVisible}`, `${viewDescriptor.hideByDefault}`, `${addedViewDescriptorState.visible}`);
+						this.logger.value.trace(`Added view ${viewDescriptor.id} in the container ${this.viewContainer.id} and showing it.`, `${isVisible}`, `${viewDescriptor.hideByDefault}`, `${addedViewDescriptorState.visible}`);
 					}
 				}
 				state.collapsed = isUndefinedOrNull(addedViewDescriptorState.collapsed) ? (isUndefinedOrNull(state.collapsed) ? !!viewDescriptor.collapsed : state.collapsed) : addedViewDescriptorState.collapsed;
@@ -674,7 +654,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	private updateState(reason: string): void {
-		this.logger.value.info(reason);
+		this.logger.value.trace(reason);
 		this.viewDescriptorsState.updateState(this.allViewDescriptors);
 		this.updateContainerInfo();
 	}

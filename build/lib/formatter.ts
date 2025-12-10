@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as fs from 'fs';
-import * as path from 'path';
-import * as ts from 'typescript';
+import fs from 'fs';
+import path from 'path';
+import ts from 'typescript';
 
 
 class LanguageServiceHost implements ts.LanguageServiceHost {
@@ -59,7 +59,7 @@ const defaults: ts.FormatCodeSettings = {
 const getOverrides = (() => {
 	let value: ts.FormatCodeSettings | undefined;
 	return () => {
-		value ??= JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'tsfmt.json'), 'utf8'));
+		value ??= JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'tsfmt.json'), 'utf8'));
 		return value;
 	};
 })();

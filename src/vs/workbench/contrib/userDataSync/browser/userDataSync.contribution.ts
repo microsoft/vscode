@@ -13,7 +13,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { UserDataSyncTrigger } from './userDataSyncTrigger.js';
-import { Action } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -42,8 +42,16 @@ class UserDataSyncReportIssueContribution extends Disposable implements IWorkben
 					message,
 					actions: {
 						primary: [
-							new Action('Show Sync Logs', localize('show sync logs', "Show Log"), undefined, true, () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
-							new Action('Restart', isWeb ? localize('reload', "Reload") : localize('restart', "Restart"), undefined, true, () => this.hostService.restart())
+							toAction({
+								id: 'Show Sync Logs',
+								label: localize('show sync logs', "Show Log"),
+								run: () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)
+							}),
+							toAction({
+								id: 'Restart',
+								label: isWeb ? localize('reload', "Reload") : localize('restart', "Restart"),
+								run: () => this.hostService.restart()
+							})
 						]
 					}
 				});
@@ -58,7 +66,11 @@ class UserDataSyncReportIssueContribution extends Disposable implements IWorkben
 					source: error.operationId ? localize('settings sync', "Settings Sync. Operation Id: {0}", error.operationId) : undefined,
 					actions: {
 						primary: [
-							new Action('Show Sync Logs', localize('show sync logs', "Show Log"), undefined, true, () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
+							toAction({
+								id: 'Show Sync Logs',
+								label: localize('show sync logs', "Show Log"),
+								run: () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)
+							})
 						]
 					}
 				});

@@ -18,7 +18,7 @@ const enum DisplayProtocolType {
 	Unknown = 'unknown'
 }
 
-export async function getDisplayProtocol(errorLogger: (error: any) => void): Promise<DisplayProtocolType> {
+export async function getDisplayProtocol(errorLogger: (error: string | Error) => void): Promise<DisplayProtocolType> {
 	const xdgSessionType = env[XDG_SESSION_TYPE];
 
 	if (xdgSessionType) {

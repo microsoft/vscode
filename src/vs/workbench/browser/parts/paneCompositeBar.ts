@@ -29,7 +29,6 @@ import { IAction, Separator, SubmenuAction, toAction } from '../../../base/commo
 import { StringSHA1 } from '../../../base/common/hash.js';
 import { GestureEvent } from '../../../base/browser/touch.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
 
@@ -99,7 +98,7 @@ export class PaneCompositeBar extends Disposable {
 
 	constructor(
 		protected readonly options: IPaneCompositeBarOptions,
-		private readonly part: Parts,
+		protected readonly part: Parts,
 		private readonly paneCompositePart: IPaneCompositePart,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -111,6 +110,7 @@ export class PaneCompositeBar extends Disposable {
 		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+
 		this.location = paneCompositePart.partId === Parts.PANEL_PART
 			? ViewContainerLocation.Panel : paneCompositePart.partId === Parts.AUXILIARYBAR_PART
 				? ViewContainerLocation.AuxiliaryBar : ViewContainerLocation.Sidebar;
@@ -220,6 +220,7 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private registerListeners(): void {
+
 		// View Container Changes
 		this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => this.onDidChangeViewContainers(added, removed)));
 		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeViewContainerLocation(viewContainer, from, to)));
@@ -777,7 +778,6 @@ class ViewContainerActivityAction extends CompositeBarAction {
 		private readonly part: Parts,
 		private readonly paneCompositePart: IPaneCompositePart,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IActivityService private readonly activityService: IActivityService,
 	) {
@@ -820,35 +820,21 @@ class ViewContainerActivityAction extends CompositeBarAction {
 			if (sideBarVisible && activeViewlet?.getId() === this.compositeBarActionItem.id) {
 				switch (focusBehavior) {
 					case 'focus':
-						this.logAction('refocus');
 						this.paneCompositePart.openPaneComposite(this.compositeBarActionItem.id, focus);
 						break;
 					case 'toggle':
 					default:
 						// Hide sidebar if selected viewlet already visible
-						this.logAction('hide');
 						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 						break;
 				}
 
 				return;
 			}
-
-			this.logAction('show');
 		}
 
 		await this.paneCompositePart.openPaneComposite(this.compositeBarActionItem.id, focus);
 		return this.activate();
-	}
-
-	private logAction(action: string) {
-		type ActivityBarActionClassification = {
-			owner: 'sbatten';
-			comment: 'Event logged when an activity bar action is triggered.';
-			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view in the activity bar for which the action was performed.' };
-			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was performed. e.g. "hide", "show", or "refocus"' };
-		};
-		this.telemetryService.publicLog2<{ viewletId: String; action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.compositeBarActionItem.id, action });
 	}
 }
 

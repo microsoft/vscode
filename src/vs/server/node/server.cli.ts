@@ -184,10 +184,11 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	parsedArgs['_'] = [];
 
 	let readFromStdinPromise: Promise<void> | undefined;
+	let stdinFilePath: string | undefined;
 
 	if (hasReadStdinArg && hasStdinWithoutTty()) {
 		try {
-			let stdinFilePath = cliStdInFilePath;
+			stdinFilePath = cliStdInFilePath;
 			if (!stdinFilePath) {
 				stdinFilePath = getStdinFilePath();
 				const readFromStdinDone = new DeferredPromise<void>();
@@ -278,7 +279,12 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		} else {
 			const cliCwd = dirname(cliCommand);
 			const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
-			newCommandline.unshift('resources/app/out/cli.js');
+			const versionFolder = desc.commit.substring(0, 10);
+			if (fs.existsSync(join(cliCwd, versionFolder))) {
+				newCommandline.unshift(`${versionFolder}/resources/app/out/cli.js`);
+			} else {
+				newCommandline.unshift('resources/app/out/cli.js');
+			}
 			if (verbose) {
 				console.log(`Invoking: cd "${cliCwd}" && ELECTRON_RUN_AS_NODE=1 "${cliCommand}" "${newCommandline.join('" "')}"`);
 			}
@@ -336,6 +342,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			diffMode: parsedArgs.diff,
 			mergeMode: parsedArgs.merge,
 			addMode: parsedArgs.add,
+			removeMode: parsedArgs.remove,
 			gotoLineMode: parsedArgs.goto,
 			forceReuseWindow: parsedArgs['reuse-window'],
 			forceNewWindow: parsedArgs['new-window'],
@@ -351,8 +358,18 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 
 		if (readFromStdinPromise) {
 			await readFromStdinPromise;
+
+		}
+
+		if (waitMarkerFilePath && stdinFilePath) {
+			try {
+				fs.unlinkSync(stdinFilePath);
+			} catch (e) {
+				//ignore
+			}
 		}
 	}
+
 }
 
 function runningInWSL2(): boolean {
@@ -454,7 +471,7 @@ function asExtensionIdOrVSIX(inputs: string[] | undefined) {
 	return inputs?.map(input => /\.vsix$/i.test(input) ? pathToURI(input).href : input);
 }
 
-function fatal(message: string, err: any): void {
+function fatal(message: string, err: unknown): void {
 	console.error('Unable to connect to VS Code server: ' + message);
 	console.error(err);
 	process.exit(1);

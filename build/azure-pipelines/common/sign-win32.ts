@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { main } from './sign';
-import * as path from 'path';
+import { main } from './sign.ts';
+import path from 'path';
 
 main([
 	process.env['EsrpCliDllPath']!,

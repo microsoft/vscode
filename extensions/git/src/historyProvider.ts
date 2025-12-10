@@ -4,46 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent, Command, commands } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent } from './util';
-import { toGitUri } from './uri';
-import { Branch, LogOptions, Ref, RefType } from './api/git';
+import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, subject, truncate } from './util';
+import { toMultiFileDiffEditorUris } from './uri';
+import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 import { OperationKind, OperationResult } from './operation';
-
-function toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {
-	switch (ref.type) {
-		case RefType.RemoteHead:
-			return {
-				id: `refs/remotes/${ref.name}`,
-				name: ref.name ?? '',
-				description: ref.commit ? l10n.t('Remote branch at {0}', ref.commit.substring(0, 8)) : undefined,
-				revision: ref.commit,
-				icon: new ThemeIcon('cloud'),
-				category: l10n.t('remote branches')
-			};
-		case RefType.Tag:
-			return {
-				id: `refs/tags/${ref.name}`,
-				name: ref.name ?? '',
-				description: ref.commit ? l10n.t('Tag at {0}', ref.commit.substring(0, 8)) : undefined,
-				revision: ref.commit,
-				icon: new ThemeIcon('tag'),
-				category: l10n.t('tags')
-			};
-		default:
-			return {
-				id: `refs/heads/${ref.name}`,
-				name: ref.name ?? '',
-				description: ref.commit ? ref.commit.substring(0, 8) : undefined,
-				revision: ref.commit,
-				icon: new ThemeIcon('git-branch'),
-				category: l10n.t('branches')
-			};
-	}
-}
+import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
+import { throttle } from './decorators';
+import { getHistoryItemHover, getHoverCommitHashCommands, processHoverRemoteCommands } from './hover';
 
 function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRef, ref2: SourceControlHistoryItemRef): number {
 	const getOrder = (ref: SourceControlHistoryItemRef): number => {
@@ -88,19 +59,37 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	readonly onDidChangeHistoryItemRefs: Event<SourceControlHistoryItemRefsChangeEvent> = this._onDidChangeHistoryItemRefs.event;
 
 	private _HEAD: Branch | undefined;
-	private historyItemRefs: SourceControlHistoryItemRef[] = [];
+	private _historyItemRefs: SourceControlHistoryItemRef[] = [];
 
+	private commitShortHashLength = 7;
 	private historyItemDecorations = new Map<string, FileDecoration>();
 
 	private disposables: Disposable[] = [];
 
-	constructor(protected readonly repository: Repository, private readonly logger: LogOutputChannel) {
+	constructor(
+		private historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailsProviderRegistry,
+		private readonly repository: Repository,
+		private readonly logger: LogOutputChannel
+	) {
+		this.disposables.push(workspace.onDidChangeConfiguration(this.onDidChangeConfiguration));
+		this.onDidChangeConfiguration();
+
 		const onDidRunWriteOperation = filterEvent(repository.onDidRunOperation, e => !e.operation.readOnly);
 		this.disposables.push(onDidRunWriteOperation(this.onDidRunWriteOperation, this));
 
 		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
+	private onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e && !e.affectsConfiguration('git.commitShortHashLength')) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		this.commitShortHashLength = config.get<number>('commitShortHashLength', 7);
+	}
+
+	@throttle
 	private async onDidRunWriteOperation(result: OperationResult): Promise<void> {
 		if (!this.repository.HEAD) {
 			this.logger.trace('[GitHistoryProvider][onDidRunWriteOperation] repository.HEAD is undefined');
@@ -109,6 +98,14 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 			return;
 		}
+
+		// Refs (alphabetically)
+		const historyItemRefs = this.repository.refs
+			.map(ref => this.toSourceControlHistoryItemRef(ref))
+			.sort((a, b) => a.id.localeCompare(b.id));
+
+		const delta = deltaHistoryItemRefs(this._historyItemRefs, historyItemRefs);
+		this._historyItemRefs = historyItemRefs;
 
 		let historyItemRefId = '';
 		let historyItemRefName = '';
@@ -121,18 +118,34 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					historyItemRefName = this.repository.HEAD.name;
 
 					// Remote
-					this._currentHistoryItemRemoteRef = this.repository.HEAD.upstream ? {
-						id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-						name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-						revision: this.repository.HEAD.upstream.commit,
-						icon: new ThemeIcon('cloud')
-					} : undefined;
+					if (this.repository.HEAD.upstream) {
+						if (this.repository.HEAD.upstream.remote === '.') {
+							// Local branch
+							this._currentHistoryItemRemoteRef = {
+								id: `refs/heads/${this.repository.HEAD.upstream.name}`,
+								name: this.repository.HEAD.upstream.name,
+								revision: this.repository.HEAD.upstream.commit,
+								icon: new ThemeIcon('git-branch')
+							};
+						} else {
+							// Remote branch
+							this._currentHistoryItemRemoteRef = {
+								id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+								name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+								revision: this.repository.HEAD.upstream.commit,
+								icon: new ThemeIcon('cloud')
+							};
+						}
+					} else {
+						this._currentHistoryItemRemoteRef = undefined;
+					}
 
-					// Base - compute only if the branch has changed
+					// Base
 					if (this._HEAD?.name !== this.repository.HEAD.name) {
+						// Compute base if the branch has changed
 						const mergeBase = await this.resolveHEADMergeBase();
 
-						this._currentHistoryItemBaseRef = mergeBase &&
+						this._currentHistoryItemBaseRef = mergeBase && mergeBase.name && mergeBase.remote &&
 							(mergeBase.remote !== this.repository.HEAD.upstream?.remote ||
 								mergeBase.name !== this.repository.HEAD.upstream?.name) ? {
 							id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
@@ -140,6 +153,17 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 							revision: mergeBase.commit,
 							icon: new ThemeIcon('cloud')
 						} : undefined;
+					} else {
+						// Update base revision if it has changed
+						const mergeBaseModified = delta.modified
+							.find(ref => ref.id === this._currentHistoryItemBaseRef?.id);
+
+						if (this._currentHistoryItemBaseRef && mergeBaseModified) {
+							this._currentHistoryItemBaseRef = {
+								...this._currentHistoryItemBaseRef,
+								revision: mergeBaseModified.revision
+							};
+						}
 					}
 				} else {
 					// Detached commit
@@ -162,6 +186,14 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			}
 		}
 
+		// Update context keys for HEAD
+		if (this._HEAD?.ahead !== this.repository.HEAD?.ahead) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsAhead', (this.repository.HEAD?.ahead ?? 0) > 0);
+		}
+		if (this._HEAD?.behind !== this.repository.HEAD?.behind) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsBehind', (this.repository.HEAD?.behind ?? 0) > 0);
+		}
+
 		this._HEAD = this.repository.HEAD;
 
 		this._currentHistoryItemRef = {
@@ -176,17 +208,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace(`[GitHistoryProvider][onDidRunWriteOperation] currentHistoryItemRemoteRef: ${JSON.stringify(this._currentHistoryItemRemoteRef)}`);
 		this.logger.trace(`[GitHistoryProvider][onDidRunWriteOperation] currentHistoryItemBaseRef: ${JSON.stringify(this._currentHistoryItemBaseRef)}`);
 
-		// Refs (alphabetically)
-		const historyItemRefs = this.repository.refs
-			.map(ref => toSourceControlHistoryItemRef(ref))
-			.sort((a, b) => a.id.localeCompare(b.id));
-
 		// Auto-fetch
 		const silent = result.operation.kind === OperationKind.Fetch && result.operation.showProgress === false;
-		const delta = deltaHistoryItemRefs(this.historyItemRefs, historyItemRefs);
 		this._onDidChangeHistoryItemRefs.fire({ ...delta, silent });
-
-		this.historyItemRefs = historyItemRefs;
 
 		const deltaLog = {
 			added: delta.added.map(ref => ref.id),
@@ -207,13 +231,13 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		for (const ref of refs) {
 			switch (ref.type) {
 				case RefType.RemoteHead:
-					remoteBranches.push(toSourceControlHistoryItemRef(ref));
+					remoteBranches.push(this.toSourceControlHistoryItemRef(ref));
 					break;
 				case RefType.Tag:
-					tags.push(toSourceControlHistoryItemRef(ref));
+					tags.push(this.toSourceControlHistoryItemRef(ref));
 					break;
 				default:
-					branches.push(toSourceControlHistoryItemRef(ref));
+					branches.push(this.toSourceControlHistoryItemRef(ref));
 					break;
 			}
 		}
@@ -221,7 +245,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return [...branches, ...remoteBranches, ...tags];
 	}
 
-	async provideHistoryItems(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
+	async provideHistoryItems(options: SourceControlHistoryOptions, token: CancellationToken): Promise<SourceControlHistoryItem[]> {
 		if (!this.currentHistoryItemRef || !options.historyItemRefs) {
 			return [];
 		}
@@ -246,25 +270,64 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				logOptions = { ...logOptions, skip: options.skip };
 			}
 
-			const commits = await this.repository.log({ ...logOptions, silent: true });
+			const commits = typeof options.filterText === 'string' && options.filterText !== ''
+				? await this._searchHistoryItems(options.filterText.trim(), logOptions, token)
+				: await this.repository.log({ ...logOptions, silent: true }, token);
+
+			if (token.isCancellationRequested) {
+				return [];
+			}
+
+			// Avatars
+			const avatarQuery = {
+				commits: commits.map(c => ({
+					hash: c.hash,
+					authorName: c.authorName,
+					authorEmail: c.authorEmail
+				} satisfies AvatarQueryCommit)),
+				size: 20
+			} satisfies AvatarQuery;
+
+			const commitAvatars = await provideSourceControlHistoryItemAvatar(
+				this.historyItemDetailProviderRegistry, this.repository, avatarQuery);
+
+			const remoteHoverCommands = await provideSourceControlHistoryItemHoverCommands(this.historyItemDetailProviderRegistry, this.repository) ?? [];
 
 			await ensureEmojis();
 
-			return commits.map(commit => {
+			const historyItems: SourceControlHistoryItem[] = [];
+			for (const commit of commits) {
+				const message = emojify(commit.message);
+				const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(
+					this.historyItemDetailProviderRegistry, this.repository, message) ?? message;
+
+				const avatarUrl = commitAvatars?.get(commit.hash);
 				const references = this._resolveHistoryItemRefs(commit);
 
-				return {
+				const commands: Command[][] = [
+					getHoverCommitHashCommands(Uri.file(this.repository.root), commit.hash),
+					processHoverRemoteCommands(remoteHoverCommands, commit.hash)
+				];
+
+				const tooltip = getHistoryItemHover(avatarUrl, commit.authorName, commit.authorEmail, commit.authorDate ?? commit.commitDate, messageWithLinks, commit.shortStat, commands);
+
+				historyItems.push({
 					id: commit.hash,
 					parentIds: commit.parents,
-					message: emojify(commit.message),
+					subject: subject(message),
+					message: messageWithLinks,
 					author: commit.authorName,
-					icon: new ThemeIcon('git-commit'),
-					displayId: commit.hash.substring(0, 8),
+					authorEmail: commit.authorEmail,
+					authorIcon: avatarUrl ? Uri.parse(avatarUrl) : new ThemeIcon('account'),
+					displayId: truncate(commit.hash, this.commitShortHashLength, false),
 					timestamp: commit.authorDate?.getTime(),
 					statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
-					references: references.length !== 0 ? references : undefined
-				};
-			});
+					references: references.length !== 0 ? references : undefined,
+					tooltip
+				} satisfies SourceControlHistoryItem);
+			}
+
+			return historyItems;
 		} catch (err) {
 			this.logger.error(`[GitHistoryProvider][provideHistoryItems] Failed to get history items with options '${JSON.stringify(options)}': ${err}`);
 			return [];
@@ -276,7 +339,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		const historyItemChangesUri: Uri[] = [];
 		const historyItemChanges: SourceControlHistoryItemChange[] = [];
-		const changes = await this.repository.diffTrees(historyItemParentId, historyItemId);
+		const changes = await this.repository.diffBetween2(historyItemParentId, historyItemId);
 
 		for (const change of changes) {
 			const historyItemUri = change.uri.with({
@@ -286,10 +349,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			// History item change
 			historyItemChanges.push({
 				uri: historyItemUri,
-				originalUri: toGitUri(change.originalUri, historyItemParentId),
-				modifiedUri: toGitUri(change.uri, historyItemId),
-				renameUri: change.renameUri,
-			});
+				...toMultiFileDiffEditorUris(change, historyItemParentId, historyItemId)
+			} satisfies SourceControlHistoryItemChange);
 
 			// History item change decoration
 			const letter = Resource.getStatusLetter(change.status);
@@ -303,6 +364,87 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		this._onDidChangeDecorations.fire(historyItemChangesUri);
 		return historyItemChanges;
+	}
+
+	async resolveHistoryItem(historyItemId: string, token: CancellationToken): Promise<SourceControlHistoryItem | undefined> {
+		try {
+			const commit = await this.repository.getCommit(historyItemId);
+
+			if (!commit || token.isCancellationRequested) {
+				return undefined;
+			}
+
+			// Avatars
+			const avatarQuery = {
+				commits: [{
+					hash: commit.hash,
+					authorName: commit.authorName,
+					authorEmail: commit.authorEmail
+				} satisfies AvatarQueryCommit],
+				size: 20
+			} satisfies AvatarQuery;
+
+			const commitAvatars = await provideSourceControlHistoryItemAvatar(
+				this.historyItemDetailProviderRegistry, this.repository, avatarQuery);
+
+			await ensureEmojis();
+
+			const message = emojify(commit.message);
+			const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(
+				this.historyItemDetailProviderRegistry, this.repository, message) ?? message;
+
+			const newLineIndex = message.indexOf('\n');
+			const subject = newLineIndex !== -1
+				? `${truncate(message, newLineIndex, false)}`
+				: message;
+
+			const avatarUrl = commitAvatars?.get(commit.hash);
+			const references = this._resolveHistoryItemRefs(commit);
+
+			return {
+				id: commit.hash,
+				parentIds: commit.parents,
+				subject,
+				message: messageWithLinks,
+				author: commit.authorName,
+				authorEmail: commit.authorEmail,
+				authorIcon: avatarUrl ? Uri.parse(avatarUrl) : new ThemeIcon('account'),
+				displayId: truncate(commit.hash, this.commitShortHashLength, false),
+				timestamp: commit.authorDate?.getTime(),
+				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
+				references: references.length !== 0 ? references : undefined
+			} satisfies SourceControlHistoryItem;
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItem] Failed to resolve history item '${historyItemId}': ${err}`);
+			return undefined;
+		}
+	}
+
+	async resolveHistoryItemChatContext(historyItemId: string): Promise<string | undefined> {
+		try {
+			const changes = await this.repository.showChanges(historyItemId);
+			return changes;
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItemChatContext] Failed to resolve history item '${historyItemId}': ${err}`);
+		}
+
+		return undefined;
+	}
+
+	async resolveHistoryItemChangeRangeChatContext(historyItemId: string, historyItemParentId: string, path: string, token: CancellationToken): Promise<string | undefined> {
+		try {
+			const changes = await this.repository.showChangesBetween(historyItemParentId, historyItemId, path);
+
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			return `Output of git log -p ${historyItemParentId}..${historyItemId} -- ${path}:\n\n${changes}`;
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItemChangeRangeChatContext] Failed to resolve history item change range '${historyItemId}' for '${path}': ${err}`);
+		}
+
+		return undefined;
 	}
 
 	async resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined> {
@@ -348,12 +490,17 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const references: SourceControlHistoryItemRef[] = [];
 
 		for (const ref of commit.refNames) {
+			if (ref === 'refs/remotes/origin/HEAD') {
+				continue;
+			}
+
 			switch (true) {
 				case ref.startsWith('HEAD -> refs/heads/'):
 					references.push({
 						id: ref.substring('HEAD -> '.length),
 						name: ref.substring('HEAD -> refs/heads/'.length),
 						revision: commit.hash,
+						category: l10n.t('branches'),
 						icon: new ThemeIcon('target')
 					});
 					break;
@@ -362,6 +509,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						id: ref,
 						name: ref.substring('refs/heads/'.length),
 						revision: commit.hash,
+						category: l10n.t('branches'),
 						icon: new ThemeIcon('git-branch')
 					});
 					break;
@@ -370,6 +518,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						id: ref,
 						name: ref.substring('refs/remotes/'.length),
 						revision: commit.hash,
+						category: l10n.t('remote branches'),
 						icon: new ThemeIcon('cloud')
 					});
 					break;
@@ -378,6 +527,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						id: ref.substring('tag: '.length),
 						name: ref.substring('tag: refs/tags/'.length),
 						revision: commit.hash,
+						category: l10n.t('tags'),
 						icon: new ThemeIcon('tag')
 					});
 					break;
@@ -398,6 +548,60 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		} catch (err) {
 			this.logger.error(`[GitHistoryProvider][resolveHEADMergeBase] Failed to resolve merge base for ${this.repository.HEAD?.name}: ${err}`);
 			return undefined;
+		}
+	}
+
+	private async _searchHistoryItems(filterText: string, options: LogOptions, token: CancellationToken): Promise<Commit[]> {
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		const commits = new Map<string, Commit>();
+
+		// Search by author and commit message in parallel
+		const [authorResults, grepResults] = await Promise.all([
+			this.repository.log({ ...options, refNames: undefined, author: filterText, silent: true }, token),
+			this.repository.log({ ...options, refNames: undefined, grep: filterText, silent: true }, token)
+		]);
+
+		for (const commit of [...authorResults, ...grepResults]) {
+			if (!commits.has(commit.hash)) {
+				commits.set(commit.hash, commit);
+			}
+		}
+
+		return Array.from(commits.values()).slice(0, options.maxEntries ?? 50);
+	}
+
+	private toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {
+		switch (ref.type) {
+			case RefType.RemoteHead:
+				return {
+					id: `refs/remotes/${ref.name}`,
+					name: ref.name ?? '',
+					description: ref.commit ? l10n.t('Remote branch at {0}', truncate(ref.commit, this.commitShortHashLength, false)) : undefined,
+					revision: ref.commit,
+					icon: new ThemeIcon('cloud'),
+					category: l10n.t('remote branches')
+				};
+			case RefType.Tag:
+				return {
+					id: `refs/tags/${ref.name}`,
+					name: ref.name ?? '',
+					description: ref.commit ? l10n.t('Tag at {0}', truncate(ref.commit, this.commitShortHashLength, false)) : undefined,
+					revision: ref.commit,
+					icon: new ThemeIcon('tag'),
+					category: l10n.t('tags')
+				};
+			default:
+				return {
+					id: `refs/heads/${ref.name}`,
+					name: ref.name ?? '',
+					description: ref.commit ? truncate(ref.commit, this.commitShortHashLength, false) : undefined,
+					revision: ref.commit,
+					icon: new ThemeIcon('git-branch'),
+					category: l10n.t('branches')
+				};
 		}
 	}
 

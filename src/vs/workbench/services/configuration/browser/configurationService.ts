@@ -8,16 +8,16 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { equals } from '../../../../base/common/objects.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Queue, Barrier, Promises, Delayer } from '../../../../base/common/async.js';
+import { Queue, Barrier, Promises, Delayer, Throttler } from '../../../../base/common/async.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../../../../platform/configuration/common/configurationModels.js';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from '../../../../platform/configuration/common/configuration.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { Configuration } from '../common/configurationModels.js';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING } from '../common/configuration.js';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ConfigurationEditing, EditableConfigurationTarget } from '../common/configurationEditing.js';
@@ -49,9 +49,11 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
-	return (userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings)
-		? hasRemote ? LOCAL_MACHINE_SCOPES : undefined
-		: hasRemote ? LOCAL_MACHINE_PROFILE_SCOPES : PROFILE_SCOPES;
+	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
+	if (isDefaultProfile) {
+		return hasRemote ? LOCAL_MACHINE_SCOPES : undefined;
+	}
+	return hasRemote ? LOCAL_MACHINE_PROFILE_SCOPES : PROFILE_SCOPES;
 }
 
 class Workspace extends BaseWorkspace {
@@ -128,7 +130,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, ConfigurationModel.createEmptyModel(logService), ConfigurationModel.createEmptyModel(logService), ConfigurationModel.createEmptyModel(logService), ConfigurationModel.createEmptyModel(logService), new ResourceMap(), ConfigurationModel.createEmptyModel(logService), new ResourceMap<ConfigurationModel>(), this.workspace, logService);
 		this.applicationConfigurationDisposables = this._register(new DisposableStore());
 		this.createApplicationConfiguration();
-		this.localUserConfiguration = this._register(new UserConfiguration(userDataProfileService.currentProfile.settingsResource, userDataProfileService.currentProfile.tasksResource, { scopes: getLocalUserConfigurationScopes(userDataProfileService.currentProfile, !!remoteAuthority) }, fileService, uriIdentityService, logService));
+		this.localUserConfiguration = this._register(new UserConfiguration(userDataProfileService.currentProfile.settingsResource, userDataProfileService.currentProfile.tasksResource, userDataProfileService.currentProfile.mcpResource, { scopes: getLocalUserConfigurationScopes(userDataProfileService.currentProfile, !!remoteAuthority) }, fileService, uriIdentityService, logService));
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
 		this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
 		if (remoteAuthority) {
@@ -323,20 +325,20 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	getValue<T>(section: string): T;
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
-	getValue(arg1?: any, arg2?: any): any {
+	getValue(arg1?: unknown, arg2?: unknown): unknown {
 		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : undefined;
 		return this._configuration.getValue(section, overrides);
 	}
 
-	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
-	async updateValue(key: string, value: any, arg3?: any, arg4?: any, options?: any): Promise<void> {
+	updateValue(key: string, value: unknown): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
+	updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
+	async updateValue(key: string, value: unknown, arg3?: unknown, arg4?: unknown, options?: IConfigurationUpdateOptions): Promise<void> {
 		const overrides: IConfigurationUpdateOverrides | undefined = isConfigurationUpdateOverrides(arg3) ? arg3
 			: isConfigurationOverrides(arg3) ? { resource: arg3.resource, overrideIdentifiers: arg3.overrideIdentifier ? [arg3.overrideIdentifier] : undefined } : undefined;
-		const target: ConfigurationTarget | undefined = overrides ? arg4 : arg3;
+		const target: ConfigurationTarget | undefined = (overrides ? arg4 : arg3) as ConfigurationTarget | undefined;
 		const targets: ConfigurationTarget[] = target ? [target] : [];
 
 		if (overrides?.overrideIdentifiers) {
@@ -410,6 +412,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	keys(): {
 		default: string[];
+		policy: string[];
 		user: string[];
 		workspace: string[];
 		workspaceFolder: string[];
@@ -492,7 +495,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	isSettingAppliedForAllProfiles(key: string): boolean {
-		if (this.configurationRegistry.getConfigurationProperties()[key]?.scope === ConfigurationScope.APPLICATION) {
+		const scope = this.configurationRegistry.getConfigurationProperties()[key]?.scope;
+		if (scope && APPLICATION_SCOPES.includes(scope)) {
 			return true;
 		}
 		const allProfilesSettings = this.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
@@ -718,7 +722,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private onUserDataProfileChanged(e: DidChangeUserDataProfileEvent): void {
 		e.join((async () => {
 			const promises: Promise<ConfigurationModel>[] = [];
-			promises.push(this.localUserConfiguration.reset(e.profile.settingsResource, e.profile.tasksResource, { scopes: getLocalUserConfigurationScopes(e.profile, !!this.remoteUserConfiguration) }));
+			promises.push(this.localUserConfiguration.reset(e.profile.settingsResource, e.profile.tasksResource, e.profile.mcpResource, { scopes: getLocalUserConfigurationScopes(e.profile, !!this.remoteUserConfiguration) }));
 			if (e.previous.isDefault !== e.profile.isDefault
 				|| !!e.previous.useDefaultFlags?.settings !== !!e.profile.useDefaultFlags?.settings) {
 				this.createApplicationConfiguration();
@@ -780,7 +784,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const changedKeys: string[] = [];
 		for (const changedKey of change.keys) {
-			if (configurationProperties[changedKey]?.scope === ConfigurationScope.APPLICATION) {
+			const scope = configurationProperties[changedKey]?.scope;
+			if (scope && APPLICATION_SCOPES.includes(scope)) {
 				changedKeys.push(changedKey);
 				if (changedKey === APPLY_ALL_PROFILES_SETTING) {
 					for (const previousAllProfileSetting of previousAllProfilesSettings) {
@@ -992,7 +997,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return validWorkspaceFolders;
 	}
 
-	private async writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options?: IConfigurationUpdateOverrides): Promise<void> {
+	private async writeConfigurationValue(key: string, value: unknown, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options?: IConfigurationUpdateOptions): Promise<void> {
 		if (!this.instantiationService) {
 			throw new Error('Cannot write configuration because the configuration service is not yet ready to accept writes.');
 		}
@@ -1076,7 +1081,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 	}
 
-	private deriveConfigurationTargets(key: string, value: any, inspect: IConfigurationValue<any>): ConfigurationTarget[] {
+	private deriveConfigurationTargets(key: string, value: unknown, inspect: IConfigurationValue<unknown>): ConfigurationTarget[] {
 		if (equals(value, inspect.value)) {
 			return [];
 		}
@@ -1124,7 +1129,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (target === ConfigurationTarget.USER) {
 			if (this.remoteUserConfiguration) {
 				const scope = this.configurationRegistry.getConfigurationProperties()[key]?.scope;
-				if (scope === ConfigurationScope.MACHINE || scope === ConfigurationScope.MACHINE_OVERRIDABLE) {
+				if (scope === ConfigurationScope.MACHINE || scope === ConfigurationScope.MACHINE_OVERRIDABLE || scope === ConfigurationScope.APPLICATION_MACHINE) {
 					return EditableConfigurationTarget.USER_REMOTE;
 				}
 				if (this.inspect(key).userRemoteValue !== undefined) {
@@ -1207,6 +1212,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 
 		const machineSettingsSchema: IJSONSchema = {
 			properties: Object.assign({},
+				applicationMachineSettings.properties,
 				machineSettings.properties,
 				machineOverridableSettings.properties,
 				windowSettings.properties,
@@ -1328,51 +1334,62 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 }
 
-class ResetConfigurationDefaultsOverridesCache extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IConfigurationService configurationService: WorkspaceService,
-		@IExtensionService extensionService: IExtensionService,
-	) {
-		super();
-		if (configurationService.hasCachedConfigurationDefaultsOverrides()) {
-			extensionService.whenInstalledExtensionsRegistered().then(() => configurationService.reloadConfiguration(ConfigurationTarget.DEFAULT));
-		}
-	}
-}
+class ConfigurationDefaultOverridesContribution extends Disposable implements IWorkbenchContribution {
 
-class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.updateExperimentalSettingsDefaults';
+	static readonly ID = 'workbench.contrib.configurationDefaultOverridesContribution';
 
 	private readonly processedExperimentalSettings = new Set<string>();
+	private readonly autoExperimentalSettings = new Set<string>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	private readonly throttler = this._register(new Throttler());
 
 	constructor(
-		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService
+		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IConfigurationService private readonly configurationService: WorkspaceService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
-		this.processExperimentalSettings(Object.keys(this.configurationRegistry.getConfigurationProperties()));
-		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties)));
+
+		this.throttler.queue(() => this.updateDefaults());
+		this._register(workbenchAssignmentService.onDidRefetchAssignments(() => this.throttler.queue(() => this.processExperimentalSettings(this.autoExperimentalSettings, true))));
+
+		// When configuration is updated make sure to apply experimental configuration overrides
+		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties, false)));
 	}
 
-	private async processExperimentalSettings(properties: Iterable<string>): Promise<void> {
-		const overrides: IStringDictionary<any> = {};
+	private async updateDefaults(): Promise<void> {
+		this.logService.trace('ConfigurationService#updateDefaults: begin');
+		try {
+			// Check for experiments
+			await this.processExperimentalSettings(Object.keys(this.configurationRegistry.getConfigurationProperties()), false);
+		} finally {
+			// Invalidate defaults cache after extensions have registered
+			// and after the experiments have been resolved to prevent
+			// resetting the overrides too early.
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			this.logService.trace('ConfigurationService#updateDefaults: resetting the defaults');
+			this.configurationService.reloadConfiguration(ConfigurationTarget.DEFAULT);
+		}
+	}
+
+	private async processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void> {
+		const overrides: IStringDictionary<unknown> = {};
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
 		for (const property of properties) {
 			const schema = allProperties[property];
-			const tags = schema?.tags;
-			// Many experimental settings refer to in-development or unstable settings.
-			// onExP more clearly indicates that the setting could be
-			// part of an experiment.
-			if (!tags || !tags.some(tag => tag.toLowerCase() === 'onexp')) {
+			if (!schema?.experiment) {
 				continue;
 			}
-			if (this.processedExperimentalSettings.has(property)) {
+			if (!autoRefetch && this.processedExperimentalSettings.has(property)) {
 				continue;
 			}
 			this.processedExperimentalSettings.add(property);
+			if (schema.experiment.mode === 'auto') {
+				this.autoExperimentalSettings.add(property);
+			}
 			try {
-				const value = await this.workbenchAssignmentService.getTreatment(`config.${property}`);
+				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
 				if (!isUndefined(value) && !equals(value, schema.default)) {
 					overrides[property] = value;
 				}
@@ -1386,8 +1403,7 @@ class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenc
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterConfigurationSchemasContribution, LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(ResetConfigurationDefaultsOverridesCache, LifecyclePhase.Eventually);
-registerWorkbenchContribution2(UpdateExperimentalSettingsDefaults.ID, UpdateExperimentalSettingsDefaults, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ConfigurationDefaultOverridesContribution.ID, ConfigurationDefaultOverridesContribution, WorkbenchPhase.BlockRestore);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

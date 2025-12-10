@@ -18,6 +18,7 @@ import { CopyImageCommand } from './copyImage';
 import { ShowPreviewSecuritySelectorCommand } from './showPreviewSecuritySelector';
 import { ShowSourceCommand } from './showSource';
 import { ToggleLockCommand } from './toggleLock';
+import { OpenImageCommand } from './openImage';
 
 export function registerMarkdownCommands(
 	commandManager: CommandManager,
@@ -28,6 +29,7 @@ export function registerMarkdownCommands(
 ): vscode.Disposable {
 	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
 
+	commandManager.register(new OpenImageCommand(previewManager));
 	commandManager.register(new CopyImageCommand(previewManager));
 	commandManager.register(new ShowPreviewCommand(previewManager, telemetryReporter));
 	commandManager.register(new ShowPreviewToSideCommand(previewManager, telemetryReporter));

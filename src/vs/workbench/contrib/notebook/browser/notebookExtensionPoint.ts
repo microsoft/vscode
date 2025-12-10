@@ -245,10 +245,10 @@ const notebookPreloadContribution: IJSONSchema = {
 export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>({
 	extensionPoint: 'notebooks',
 	jsonSchema: notebookProviderContribution,
-	activationEventsGenerator: (contribs: INotebookEditorContribution[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly INotebookEditorContribution[]) {
 		for (const contrib of contribs) {
 			if (contrib.type) {
-				result.push(`onNotebookSerializer:${contrib.type}`);
+				yield `onNotebookSerializer:${contrib.type}`;
 			}
 		}
 	}
@@ -257,10 +257,10 @@ export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint
 export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookRendererContribution[]>({
 	extensionPoint: 'notebookRenderer',
 	jsonSchema: notebookRendererContribution,
-	activationEventsGenerator: (contribs: INotebookRendererContribution[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly INotebookRendererContribution[]) {
 		for (const contrib of contribs) {
 			if (contrib.id) {
-				result.push(`onRenderer:${contrib.id}`);
+				yield `onRenderer:${contrib.id}`;
 			}
 		}
 	}

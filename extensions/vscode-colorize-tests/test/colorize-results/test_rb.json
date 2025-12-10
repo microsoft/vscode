@@ -113,7 +113,7 @@
 	},
 	{
 		"c": "module",
-		"t": "source.ruby keyword.control.ruby",
+		"t": "source.ruby meta.module.ruby keyword.control.module.ruby",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -127,7 +127,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ruby",
+		"t": "source.ruby meta.module.ruby",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -140,50 +140,22 @@
 		}
 	},
 	{
-		"c": "Azure",
-		"t": "source.ruby support.class.ruby",
+		"c": "Azure::ARM",
+		"t": "source.ruby meta.module.ruby entity.name.type.module.ruby",
 		"r": {
-			"dark_plus": "support.class: #4EC9B0",
-			"light_plus": "support.class: #267F99",
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.class: #4EC9B0",
-			"dark_modern": "support.class: #4EC9B0",
-			"hc_light": "support.class: #185E73",
-			"light_modern": "support.class: #267F99"
+			"hc_black": "entity.name.type: #4EC9B0",
+			"dark_modern": "entity.name.type: #4EC9B0",
+			"hc_light": "entity.name.type: #185E73",
+			"light_modern": "entity.name.type: #267F99"
 		}
 	},
 	{
 		"c": "::",
-		"t": "source.ruby punctuation.separator.namespace.ruby",
-		"r": {
-			"dark_plus": "punctuation.separator.namespace.ruby: #4EC9B0",
-			"light_plus": "punctuation.separator.namespace.ruby: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "punctuation.separator.namespace.ruby: #4EC9B0",
-			"dark_modern": "punctuation.separator.namespace.ruby: #4EC9B0",
-			"hc_light": "punctuation.separator.namespace.ruby: #185E73",
-			"light_modern": "punctuation.separator.namespace.ruby: #267F99"
-		}
-	},
-	{
-		"c": "ARM",
-		"t": "source.ruby support.class.ruby",
-		"r": {
-			"dark_plus": "support.class: #4EC9B0",
-			"light_plus": "support.class: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.class: #4EC9B0",
-			"dark_modern": "support.class: #4EC9B0",
-			"hc_light": "support.class: #185E73",
-			"light_modern": "support.class: #267F99"
-		}
-	},
-	{
-		"c": "::",
-		"t": "source.ruby punctuation.separator.namespace.ruby",
+		"t": "source.ruby meta.module.ruby entity.name.type.module.ruby punctuation.separator.namespace.ruby",
 		"r": {
 			"dark_plus": "punctuation.separator.namespace.ruby: #4EC9B0",
 			"light_plus": "punctuation.separator.namespace.ruby: #267F99",
@@ -197,16 +169,16 @@
 	},
 	{
 		"c": "Scheduler",
-		"t": "source.ruby variable.other.constant.ruby",
+		"t": "source.ruby meta.module.ruby entity.name.type.module.ruby",
 		"r": {
-			"dark_plus": "variable.other.constant: #4FC1FF",
-			"light_plus": "variable.other.constant: #0070C1",
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable.other.constant: #4FC1FF",
-			"hc_light": "variable.other.constant: #02715D",
-			"light_modern": "variable.other.constant: #0070C1"
+			"hc_black": "entity.name.type: #4EC9B0",
+			"dark_modern": "entity.name.type: #4EC9B0",
+			"hc_light": "entity.name.type: #185E73",
+			"light_modern": "entity.name.type: #267F99"
 		}
 	},
 	{
@@ -323,7 +295,7 @@
 	},
 	{
 		"c": "class",
-		"t": "source.ruby keyword.control.ruby",
+		"t": "source.ruby meta.class.ruby keyword.control.class.ruby",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -337,7 +309,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ruby",
+		"t": "source.ruby meta.class.ruby",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -351,21 +323,21 @@
 	},
 	{
 		"c": "SchedulerManagementClient",
-		"t": "source.ruby variable.other.constant.ruby",
+		"t": "source.ruby meta.class.ruby entity.name.type.class.ruby",
 		"r": {
-			"dark_plus": "variable.other.constant: #4FC1FF",
-			"light_plus": "variable.other.constant: #0070C1",
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable.other.constant: #4FC1FF",
-			"hc_light": "variable.other.constant: #02715D",
-			"light_modern": "variable.other.constant: #0070C1"
+			"hc_black": "entity.name.type: #4EC9B0",
+			"dark_modern": "entity.name.type: #4EC9B0",
+			"hc_light": "entity.name.type: #185E73",
+			"light_modern": "entity.name.type: #267F99"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.ruby",
+		"t": "source.ruby meta.class.ruby",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -379,21 +351,21 @@
 	},
 	{
 		"c": "<",
-		"t": "source.ruby keyword.operator.comparison.ruby",
+		"t": "source.ruby meta.class.ruby punctuation.separator.inheritance.ruby",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.ruby",
+		"t": "source.ruby meta.class.ruby",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -407,21 +379,21 @@
 	},
 	{
 		"c": "MsRestAzure",
-		"t": "source.ruby support.class.ruby",
+		"t": "source.ruby meta.class.ruby entity.other.inherited-class.ruby",
 		"r": {
-			"dark_plus": "support.class: #4EC9B0",
-			"light_plus": "support.class: #267F99",
+			"dark_plus": "entity.other.inherited-class: #4EC9B0",
+			"light_plus": "entity.other.inherited-class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.class: #4EC9B0",
-			"dark_modern": "support.class: #4EC9B0",
-			"hc_light": "support.class: #185E73",
-			"light_modern": "support.class: #267F99"
+			"hc_black": "entity.other.inherited-class: #4EC9B0",
+			"dark_modern": "entity.other.inherited-class: #4EC9B0",
+			"hc_light": "entity.other.inherited-class: #185E73",
+			"light_modern": "entity.other.inherited-class: #267F99"
 		}
 	},
 	{
 		"c": "::",
-		"t": "source.ruby punctuation.separator.namespace.ruby",
+		"t": "source.ruby meta.class.ruby entity.other.inherited-class.ruby punctuation.separator.namespace.ruby",
 		"r": {
 			"dark_plus": "punctuation.separator.namespace.ruby: #4EC9B0",
 			"light_plus": "punctuation.separator.namespace.ruby: #267F99",
@@ -435,16 +407,16 @@
 	},
 	{
 		"c": "AzureServiceClient",
-		"t": "source.ruby variable.other.constant.ruby",
+		"t": "source.ruby meta.class.ruby entity.other.inherited-class.ruby",
 		"r": {
-			"dark_plus": "variable.other.constant: #4FC1FF",
-			"light_plus": "variable.other.constant: #0070C1",
+			"dark_plus": "entity.other.inherited-class: #4EC9B0",
+			"light_plus": "entity.other.inherited-class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable.other.constant: #4FC1FF",
-			"hc_light": "variable.other.constant: #02715D",
-			"light_modern": "variable.other.constant: #0070C1"
+			"hc_black": "entity.other.inherited-class: #4EC9B0",
+			"dark_modern": "entity.other.inherited-class: #4EC9B0",
+			"hc_light": "entity.other.inherited-class: #185E73",
+			"light_modern": "entity.other.inherited-class: #267F99"
 		}
 	},
 	{
@@ -3318,7 +3290,35 @@
 		}
 	},
 	{
-		"c": " = ",
+		"c": " ",
+		"t": "source.ruby",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.ruby keyword.operator.assignment.ruby",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.ruby",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -3472,7 +3472,35 @@
 		}
 	},
 	{
-		"c": " = ",
+		"c": " ",
+		"t": "source.ruby",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.ruby keyword.operator.assignment.ruby",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.ruby",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -3584,7 +3612,35 @@
 		}
 	},
 	{
-		"c": " = version",
+		"c": " ",
+		"t": "source.ruby",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.ruby keyword.operator.assignment.ruby",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " version",
 		"t": "source.ruby",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

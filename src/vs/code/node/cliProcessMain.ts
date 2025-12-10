@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { setDefaultResultOrder } from 'dns';
 import * as fs from 'fs';
 import { hostname, release } from 'os';
 import { raceTimeout } from '../../base/common/async.js';
@@ -11,7 +12,7 @@ import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '..
 import { Disposable } from '../../base/common/lifecycle.js';
 import { Schemas } from '../../base/common/network.js';
 import { isAbsolute, join } from '../../base/common/path.js';
-import { isWindows } from '../../base/common/platform.js';
+import { isWindows, isMacintosh, isLinux } from '../../base/common/platform.js';
 import { cwd } from '../../base/common/process.js';
 import { URI } from '../../base/common/uri.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -57,7 +58,7 @@ import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdenti
 import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfilesReadonlyService } from '../../platform/userDataProfile/node/userDataProfile.js';
-import { resolveMachineId, resolveSqmId, resolvedevDeviceId } from '../../platform/telemetry/node/telemetryUtils.js';
+import { resolveMachineId, resolveSqmId, resolveDevDeviceId } from '../../platform/telemetry/node/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LogService } from '../../platform/log/common/logService.js';
 import { LoggerService } from '../../platform/log/node/loggerService.js';
@@ -65,6 +66,17 @@ import { localize } from '../../nls.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
+import { McpManagementCli } from '../../platform/mcp/common/mcpManagementCli.js';
+import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifestService.js';
+import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
+import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
+import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
+import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
+import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
+import { IMcpGalleryManifestService } from '../../platform/mcp/common/mcpGalleryManifest.js';
+import { McpGalleryManifestService } from '../../platform/mcp/common/mcpGalleryManifestService.js';
+import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
 
 class CliMain extends Disposable {
 
@@ -98,6 +110,10 @@ class CliMain extends Disposable {
 
 			// Error handler
 			this.registerErrorHandler(logService);
+
+			// DNS result order
+			// Refs https://github.com/microsoft/vscode/issues/264136
+			setDefaultResultOrder('ipv4first');
 
 			// Run based on argv
 			await this.doRun(environmentService, fileService, userDataProfilesService, instantiationService);
@@ -162,9 +178,18 @@ class CliMain extends Disposable {
 		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService));
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? this._register(new NativePolicyService(logService, productService.win32RegValueName))
-			: environmentService.policyFile ? this._register(new FilePolicyService(environmentService.policyFile, fileService, logService))
-				: new NullPolicyService();
+		let policyService: IPolicyService | undefined;
+		if (isWindows && productService.win32RegValueName) {
+			policyService = this._register(new NativePolicyService(logService, productService.win32RegValueName));
+		} else if (isMacintosh && productService.darwinBundleIdentifier) {
+			policyService = this._register(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		} else if (isLinux) {
+			policyService = this._register(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService));
+		} else if (environmentService.policyFile) {
+			policyService = this._register(new FilePolicyService(environmentService.policyFile, fileService, logService));
+		} else {
+			policyService = new NullPolicyService();
+		}
 		services.set(IPolicyService, policyService);
 
 		// Configuration
@@ -187,7 +212,7 @@ class CliMain extends Disposable {
 			}
 		}
 		const sqmId = await resolveSqmId(stateService, logService);
-		const devDeviceId = await resolvedevDeviceId(stateService, logService);
+		const devDeviceId = await resolveDevDeviceId(stateService, logService);
 
 		// Initialize user data profiles after initializing the state
 		userDataProfilesService.init();
@@ -196,7 +221,7 @@ class CliMain extends Disposable {
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		const requestService = new RequestService(configurationService, environmentService, logService);
+		const requestService = new RequestService('local', configurationService, environmentService, logService);
 		services.set(IRequestService, requestService);
 
 		// Download Service
@@ -208,23 +233,31 @@ class CliMain extends Disposable {
 		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
 		services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService, undefined, true));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
+		services.set(IExtensionGalleryManifestService, new SyncDescriptor(ExtensionGalleryManifestService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService, undefined, true));
 
 		// Localizations
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService, undefined, false));
 
+		// MCP
+		services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService, undefined, true));
+		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService, undefined, true));
+		services.set(IMcpGalleryManifestService, new SyncDescriptor(McpGalleryManifestService, undefined, true));
+		services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService, undefined, true));
+		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
+
 		// Telemetry
 		const appenders: ITelemetryAppender[] = [];
 		const isInternal = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
-			if (productService.aiConfig && productService.aiConfig.ariaKey) {
+			if (productService.aiConfig?.ariaKey) {
 				appenders.push(new OneDataSystemAppender(requestService, isInternal, 'monacoworkbench', null, productService.aiConfig.ariaKey));
 			}
 
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, isInternal),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, isInternal, productService.date),
 				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 
@@ -302,6 +335,11 @@ class CliMain extends Disposable {
 		// Locate Extension
 		else if (this.argv['locate-extension']) {
 			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).locateExtension(this.argv['locate-extension']);
+		}
+
+		// Install MCP server
+		else if (this.argv['add-mcp']) {
+			return instantiationService.createInstance(McpManagementCli, new ConsoleLogger(LogLevel.Info, false)).addMcpDefinitions(this.argv['add-mcp']);
 		}
 
 		// Telemetry

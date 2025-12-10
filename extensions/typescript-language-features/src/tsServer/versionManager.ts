@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
+import { tsNativeExtensionId } from '../commands/useTsgo';
 import { setImmediate } from '../utils/async';
 import { Disposable } from '../utils/dispose';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
@@ -77,16 +78,26 @@ export class TypeScriptVersionManager extends Disposable {
 	}
 
 	public async promptUserForVersion(): Promise<void> {
-		const selected = await vscode.window.showQuickPick<QuickPickItem>([
+		const nativePreviewItem = this.getNativePreviewPickItem();
+		const items: QuickPickItem[] = [
 			this.getBundledPickItem(),
 			...this.getLocalPickItems(),
+		];
+
+		if (nativePreviewItem) {
+			items.push(nativePreviewItem);
+		}
+
+		items.push(
 			{
 				kind: vscode.QuickPickItemKind.Separator,
 				label: '',
 				run: () => { /* noop */ },
 			},
 			LearnMorePickItem,
-		], {
+		);
+
+		const selected = await vscode.window.showQuickPick<QuickPickItem>(items, {
 			placeHolder: vscode.l10n.t("Select the TypeScript version used for JavaScript and TypeScript language features"),
 		});
 
@@ -127,6 +138,24 @@ export class TypeScriptVersionManager extends Disposable {
 				},
 			};
 		});
+	}
+
+	private getNativePreviewPickItem(): QuickPickItem | undefined {
+		const nativePreviewExtension = vscode.extensions.getExtension(tsNativeExtensionId);
+		if (!nativePreviewExtension) {
+			return undefined;
+		}
+
+		const tsConfig = vscode.workspace.getConfiguration('typescript');
+		const isUsingTsgo = tsConfig.get<boolean>('experimental.useTsgo', false);
+
+		return {
+			label: (isUsingTsgo ? '• ' : '') + vscode.l10n.t("Use TypeScript Native Preview (Experimental)"),
+			description: nativePreviewExtension.packageJSON.version,
+			run: async () => {
+				await vscode.commands.executeCommand('typescript.native-preview.enable');
+			},
+		};
 	}
 
 	private async promptUseWorkspaceTsdk(): Promise<void> {

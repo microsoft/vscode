@@ -39,6 +39,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 		picks.push({ type: 'separator', label: 'launch.json' });
 
 		const configManager = this.debugService.getConfigurationManager();
+		const selectedConfiguration = configManager.selectedConfiguration;
 
 		// Entries: configs
 		let lastGroup: string | undefined;
@@ -46,14 +47,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 			const highlights = matchesFuzzy(filter, config.name, true);
 			if (highlights) {
 
-				// Separator
-				if (lastGroup !== config.presentation?.group) {
-					picks.push({ type: 'separator' });
-					lastGroup = config.presentation?.group;
-				}
-
-				// Launch entry
-				picks.push({
+				const pick = {
 					label: config.name,
 					description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? config.launch.name : '',
 					highlights: { label: highlights },
@@ -74,7 +68,24 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 							this.notificationService.error(error);
 						}
 					}
-				});
+				};
+
+				// Most recently used configuration
+				if (selectedConfiguration.name === config.name && selectedConfiguration.launch === config.launch) {
+					const separator: IQuickPickSeparator = { type: 'separator', label: localize('mostRecent', 'Most Recent') };
+					picks.unshift(separator, pick);
+					continue;
+				}
+
+				// Separator
+				if (lastGroup !== config.presentation?.group) {
+					picks.push({ type: 'separator' });
+					lastGroup = config.presentation?.group;
+				}
+
+				// Launch entry
+
+				picks.push(pick);
 			}
 		}
 

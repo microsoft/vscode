@@ -138,7 +138,7 @@ export class LaunchMainService implements ILaunchMainService {
 		};
 
 		// Special case extension development
-		if (!!args.extensionDevelopmentPath) {
+		if (args.extensionDevelopmentPath) {
 			await this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
 		}
 
@@ -207,6 +207,7 @@ export class LaunchMainService implements ILaunchMainService {
 				diffMode: args.diff,
 				mergeMode: args.merge,
 				addMode: args.add,
+				removeMode: args.remove,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
 				gotoLineMode: args.goto
 			});

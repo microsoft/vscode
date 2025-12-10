@@ -71,14 +71,14 @@
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left {
+.monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-left {
 	order: 0;
 	width: 20%;
 	flex-grow: 2;
 	justify-content: flex-start;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center {
+.monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-center {
 	order: 1;
 	width: 60%;
 	max-width: fit-content;
@@ -88,7 +88,7 @@
 	justify-content: center;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right {
+.monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-right {
 	order: 2;
 	width: 20%;
 	min-width: min-content;
@@ -96,7 +96,19 @@
 	justify-content: flex-end;
 }
 
+.monaco-workbench .part.titlebar > .titlebar-container:not(.has-center) > .titlebar-left {
+	flex: 1 1 0%;
+	min-width: 0;
+}
 
+.monaco-workbench .part.titlebar > .titlebar-container:not(.has-center) > .titlebar-center {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container:not(.has-center) > .titlebar-right {
+	flex: 0 0 auto;
+	padding-left: 16px; /* ensure there is some space between title and controls */
+}
 
 /* Window title text */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title {
@@ -271,23 +283,6 @@
 	display: none;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container .window-appicon > .home-bar-icon-badge {
-	position: absolute;
-	right: 9px;
-	bottom: 6px;
-	width: 8px;
-	height: 8px;
-	z-index: 1;
-	/* on top of home indicator */
-	background-image: url('../../../media/code-icon.svg');
-	background-repeat: no-repeat;
-	background-position: center center;
-	background-size: 8px;
-	pointer-events: none;
-	border-top: 1px solid transparent;
-	border-left: 1px solid transparent;
-}
-
 /* Window Controls Container */
 .monaco-workbench .part.titlebar .window-controls-container {
 	display: flex;
@@ -334,10 +329,6 @@
 }
 
 .monaco-workbench.linux:not(.web) .part.titlebar .window-controls-container.wco-enabled {
-	width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
-}
-
-.monaco-workbench.linux:not(.web) .part.titlebar .titlebar-container.counter-zoom .window-controls-container.wco-enabled {
 	width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
 }
 

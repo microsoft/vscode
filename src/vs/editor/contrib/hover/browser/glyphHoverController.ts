@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { isModifierKey } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from '../../../browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
@@ -12,7 +12,7 @@ import { IEditorContribution, IScrollEvent } from '../../../common/editorCommon.
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverWidget } from './hoverTypes.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { isMousePositionWithinElement } from './hoverUtils.js';
+import { isMousePositionWithinElement, shouldShowHover } from './hoverUtils.js';
 import './hover.css';
 import { GlyphHoverWidget } from './glyphHoverWidget.js';
 
@@ -22,7 +22,7 @@ const _sticky = false
 	;
 
 interface IHoverSettings {
-	readonly enabled: boolean;
+	readonly enabled: 'on' | 'off' | 'onKeyboardModifier';
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
 }
@@ -80,7 +80,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 			hidingDelay: hoverOpts.hidingDelay
 		};
 
-		if (hoverOpts.enabled) {
+		if (hoverOpts.enabled !== 'off') {
 			this._listenersStore.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 			this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
@@ -93,7 +93,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => {
 			this._cancelScheduler();
-			this._hideWidgets();
+			this.hideGlyphHover();
 		}));
 		this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
 		this._listenersStore.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
@@ -110,7 +110,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 
 	private _onEditorScrollChanged(e: IScrollEvent): void {
 		if (e.scrollTopChanged || e.scrollLeftChanged) {
-			this._hideWidgets();
+			this.hideGlyphHover();
 		}
 	}
 
@@ -120,7 +120,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (shouldNotHideCurrentHoverWidget) {
 			return;
 		}
-		this._hideWidgets();
+		this.hideGlyphHover();
 	}
 
 	private _isMouseOnGlyphHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
@@ -148,7 +148,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (_sticky) {
 			return;
 		}
-		this._hideWidgets();
+		this.hideGlyphHover();
 	}
 
 	private _shouldNotRecomputeCurrentHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
@@ -176,6 +176,17 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (!mouseEvent) {
 			return;
 		}
+		if (!shouldShowHover(
+			this._hoverSettings.enabled,
+			this._editor.getOption(EditorOption.multiCursorModifier),
+			mouseEvent
+		)) {
+			if (_sticky) {
+				return;
+			}
+			this.hideGlyphHover();
+			return;
+		}
 		const glyphWidgetShowsOrWillShow = this._tryShowHoverWidget(mouseEvent);
 		if (glyphWidgetShowsOrWillShow) {
 			return;
@@ -183,7 +194,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (_sticky) {
 			return;
 		}
-		this._hideWidgets();
+		this.hideGlyphHover();
 	}
 
 	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
@@ -195,17 +206,14 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (!this._editor.hasModel()) {
 			return;
 		}
-		if (e.keyCode === KeyCode.Ctrl
-			|| e.keyCode === KeyCode.Alt
-			|| e.keyCode === KeyCode.Meta
-			|| e.keyCode === KeyCode.Shift) {
+		if (isModifierKey(e.keyCode)) {
 			// Do not hide hover when a modifier key is pressed
 			return;
 		}
-		this._hideWidgets();
+		this.hideGlyphHover();
 	}
 
-	private _hideWidgets(): void {
+	public hideGlyphHover(): void {
 		if (_sticky) {
 			return;
 		}
@@ -217,10 +225,6 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 			this._glyphWidget = this._instantiationService.createInstance(GlyphHoverWidget, this._editor);
 		}
 		return this._glyphWidget;
-	}
-
-	public hideContentHover(): void {
-		this._hideWidgets();
 	}
 
 	public override dispose(): void {

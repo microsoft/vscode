@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable no-restricted-syntax */
+
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
@@ -31,7 +33,7 @@ suite('Debug - Base Debug View', () => {
 	let renderer: DebugExpressionRenderer;
 	let configurationService: TestConfigurationService;
 
-	function assertVariable(session: MockSession, scope: Scope, disposables: Pick<DisposableStore, "add">, displayType: boolean) {
+	function assertVariable(session: MockSession, scope: Scope, disposables: Pick<DisposableStore, 'add'>, displayType: boolean) {
 		let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined, 0, 0, undefined, {}, 'string');
 		let expression = $('.');
 		let name = $('.');
@@ -106,7 +108,7 @@ suite('Debug - Base Debug View', () => {
 		const container = $('.container');
 		const treeContainer = renderViewTree(container);
 
-		assert.strictEqual(treeContainer.className, 'debug-view-content');
+		assert.strictEqual(treeContainer.className, 'debug-view-content file-icon-themable-tree');
 		assert.strictEqual(container.childElementCount, 1);
 		assert.strictEqual(container.firstChild, treeContainer);
 		assert.strictEqual(dom.isHTMLDivElement(treeContainer), true);
