@@ -31,8 +31,8 @@ suite('notebookBrowser', () => {
 		const timeString = testDate.toLocaleTimeString('en-US', { hour12: false });
 
 		// Verify the time string contains 22 (not 10) and doesn't contain PM
-		assert.ok(!timeString.includes('PM'), 'Timestamp should not contain PM/AM');
-		assert.ok(!timeString.includes('AM'), 'Timestamp should not contain PM/AM');
+		assert.ok(!timeString.includes('PM'), 'Timestamp should not contain PM');
+		assert.ok(!timeString.includes('AM'), 'Timestamp should not contain AM');
 		assert.ok(timeString.includes('22'), 'Timestamp should use 24-hour format (22 instead of 10)');
 	});
 });
