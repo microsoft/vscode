@@ -399,6 +399,7 @@ export class ChatService extends Disposable implements IChatService {
 					sessionResource: session.sessionResource,
 					title,
 					lastMessageDate: session.lastMessageDate,
+					timing: session.timing,
 					isActive: true,
 					stats: await awaitStatsForSession(session),
 				};
@@ -418,6 +419,8 @@ export class ChatService extends Disposable implements IChatService {
 				return ({
 					...entry,
 					sessionResource,
+					// TODO@roblourens- missing for old data- normalize inside the store
+					timing: entry.timing ?? { startTime: entry.lastMessageDate },
 					isActive: this._sessionModels.has(sessionResource),
 				});
 			});
@@ -430,6 +433,8 @@ export class ChatService extends Disposable implements IChatService {
 			return {
 				...metadata,
 				sessionResource,
+				// TODO@roblourens- missing for old data- normalize inside the store
+				timing: metadata.timing ?? { startTime: metadata.lastMessageDate },
 				isActive: this._sessionModels.has(sessionResource),
 			};
 		}
