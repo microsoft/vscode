@@ -92,4 +92,57 @@ suite('NotebookProviderInfoStore', function () {
 		assert.strictEqual(providers[0] === barInfo, true);
 	});
 
+	test('Git URIs should be supported for notebook diffs in timeline view', function () {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		// Mock file service that returns false for git: scheme URIs (they don't have a file provider)
+		const fileService = new class extends mock<IFileService>() {
+			override hasProvider(resource: URI) {
+				return resource.scheme === 'file' || resource.scheme === 'untitled';
+			}
+		};
+
+		const store = new NotebookProviderInfoStore(
+			new class extends mock<IStorageService>() {
+				override get() { return ''; }
+				override store() { }
+				override getObject() { return {}; }
+			},
+			new class extends mock<IExtensionService>() {
+				override onDidRegisterExtensions = Event.None;
+			},
+			disposables.add(instantiationService.createInstance(EditorResolverService)),
+			new TestConfigurationService(),
+			new class extends mock<IAccessibilityService>() {
+				override onDidChangeScreenReaderOptimized: Event<void> = Event.None;
+			},
+			instantiationService,
+			fileService,
+			new class extends mock<INotebookEditorModelResolverService>() { },
+			new class extends mock<IUriIdentityService>() { }
+		);
+		disposables.add(store);
+
+		const ipynbInfo = new NotebookProviderInfo({
+			extension: nullExtensionDescription.identifier,
+			id: 'jupyter-notebook',
+			displayName: 'Jupyter Notebook',
+			selectors: [{ filenamePattern: '*.ipynb' }],
+			priority: RegisteredEditorPriority.default,
+			providerDisplayName: 'Jupyter',
+		});
+
+		store.add(ipynbInfo);
+
+		// Test that git: scheme URIs with .ipynb extension are recognized
+		const gitNotebookUri = URI.parse('git:///test/notebook.ipynb?ref=HEAD');
+		let providers = store.getContributedNotebook(gitNotebookUri);
+		assert.strictEqual(providers.length, 1, 'Should find notebook provider for git: scheme URI with .ipynb extension');
+		assert.strictEqual(providers[0] === ipynbInfo, true);
+
+		// Test that git: scheme URIs with other extensions are not recognized
+		const gitOtherUri = URI.parse('git:///test/file.txt?ref=HEAD');
+		providers = store.getContributedNotebook(gitOtherUri);
+		assert.strictEqual(providers.length, 0, 'Should not find notebook provider for git: scheme URI with .txt extension');
+	});
+
 });
