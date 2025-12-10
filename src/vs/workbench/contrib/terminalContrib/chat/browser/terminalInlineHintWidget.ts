@@ -31,6 +31,20 @@ export const enum TerminalInitialHintConstants {
 	InitialHintHideStorageKey = 'terminal.initialHint.hide'
 }
 
+/**
+ * A lightweight inline hint widget that displays a suggestion to open terminal chat.
+ * 
+ * This widget can be used as a presentation mechanism for initial hints or inline chat suggestions.
+ * It creates a DOM node that can be appended to the terminal decoration and shows a hint with
+ * the keybinding to open the chat interface.
+ * 
+ * Features:
+ * - Displays keybinding for opening terminal chat
+ * - Accessible with screen reader support
+ * - Dismisses automatically when user starts typing
+ * - Can be disabled via context menu
+ * - Tracks telemetry for user interactions
+ */
 export class TerminalInlineHintWidget extends Disposable {
 
 	private _domNode: HTMLElement | undefined;
@@ -141,6 +155,13 @@ export class TerminalInlineHintWidget extends Disposable {
 		return { ariaLabel, hintHandler, hintElement };
 	}
 
+	/**
+	 * Creates and returns the DOM node for the hint widget.
+	 * This should be appended to a terminal decoration or other parent element.
+	 * 
+	 * @param agents Array of available chat agents to determine if hint should be shown
+	 * @returns The DOM element containing the hint widget
+	 */
 	getDomNode(agents: IChatAgent[]): HTMLElement {
 		if (!this._domNode) {
 			this._domNode = $('.terminal-initial-hint');
