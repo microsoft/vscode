@@ -32,7 +32,7 @@ import { IChatRequestDisablement } from '../../common/chatModel.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
 import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IReconstructedFileExistsState, IReconstructedFileNotExistsState, IReconstructedFileState } from './chatEditingOperations.js';
 import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
-import { createSnapshot as createNotebookSnapshot, restoreSnapshot as restoreNotebookSnapshot } from './notebook/chatEditingModifiedNotebookSnapshot.js';
+import { createSnapshot as createNotebookSnapshot, deserializeSnapshot, restoreSnapshot as restoreNotebookSnapshot } from './notebook/chatEditingModifiedNotebookSnapshot.js';
 
 const START_REQUEST_EPOCH = '$$start';
 const STOP_ID_EPOCH_PREFIX = '__epoch_';
@@ -353,7 +353,49 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 
 		const operations = this._getFileOperationsInRange(fileURI, baseline.epoch, toEpoch);
 		const replayed = await this._replayOperations(baseline, operations);
-		return replayed.exists ? replayed.content : undefined;
+		if (!replayed.exists) {
+			return undefined;
+		}
+
+		// For notebooks, convert the internal snapshot format to notebook JSON format
+		// that the notebook serializer expects
+		if (replayed.notebookViewType) {
+			return this._convertNotebookSnapshotToSerializedFormat(replayed.content, replayed.notebookViewType);
+		}
+
+		return replayed.content;
+	}
+
+	/**
+	 * Converts the internal notebook snapshot format to the serialized format
+	 * expected by the notebook serializer
+	 */
+	private async _convertNotebookSnapshotToSerializedFormat(snapshotContent: string, notebookViewType: string): Promise<string> {
+		try {
+			// Deserialize the internal snapshot format
+			const { data } = deserializeSnapshot(snapshotContent);
+
+			// Create a temporary notebook model to use the notebook's serializer
+			const notebook = await this._notebookEditorModelResolverService.createUntitledNotebookTextModel(notebookViewType);
+			try {
+				// Restore the notebook data into the model
+				notebook.restoreSnapshot(data, undefined);
+
+				// Get the notebook serializer and serialize the notebook
+				const info = await this._notebookService.withNotebookDataProvider(notebookViewType);
+				const serialized = await info.serializer.notebookToData(notebook);
+
+				// Convert to bytes and back to string (this is what the serializer expects)
+				const bytes = await info.serializer.dataToNotebook(serialized);
+				return new TextDecoder().decode(bytes);
+			} finally {
+				notebook.dispose();
+			}
+		} catch (error) {
+			console.error('Error converting notebook snapshot to serialized format:', error);
+			// Return the original content if conversion fails
+			return snapshotContent;
+		}
 	}
 
 	private _getTimelineCanonicalUriForPath(contentURI: URI) {
