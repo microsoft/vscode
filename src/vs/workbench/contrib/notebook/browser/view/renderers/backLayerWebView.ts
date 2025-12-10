@@ -275,8 +275,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			'notebook-cell-output-max-height': `${this.options.outputLineHeight * this.options.outputLineLimit + 2}px`,
 			'notebook-cell-output-font-family': this.options.outputFontFamily || this.options.fontFamily,
 			'notebook-cell-markup-empty-content': this.notebookEditor.creationOptions.isReadOnly
-			? nls.localize('notebook.emptyMarkdownPlaceholderReadonly', "Empty markdown cell")
-			: nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double-click or press enter to edit."),
+				? nls.localize('notebook.emptyMarkdownPlaceholderReadonly', "Empty markdown cell")
+				: nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double-click or press enter to edit."),
 			'notebook-cell-renderer-not-found-error': nls.localize({
 				key: 'notebook.error.rendererNotFound',
 				comment: ['$0 is a placeholder for the mime type']
