@@ -167,21 +167,23 @@ suite('fetching', () => {
 			}
 		});
 
-		const res = await createFetch()(`http://localhost:${port}/rate-limited`, {
-			logger,
-			retryFallbacks: true,
-			expectJSON: false,
-		});
+		try {
+			const res = await createFetch()(`http://localhost:${port}/rate-limited`, {
+				logger,
+				retryFallbacks: true,
+				expectJSON: false,
+			});
 
-		// Verify only one request was made (no fallback attempts)
-		assert.strictEqual(requestCount, 1, 'Should only make one request for 429 status');
-		assert.strictEqual(res.status, 429);
-		// Note: We only check that we got a response, not which fetcher was used,
-		// as the fetcher order may vary by configuration
-		assert.strictEqual(await res.text(), 'Too Many Requests');
-
-		// Restore original listener
-		server.removeAllListeners('request');
-		server.on('request', oldListener);
+			// Verify only one request was made (no fallback attempts)
+			assert.strictEqual(requestCount, 1, 'Should only make one request for 429 status');
+			assert.strictEqual(res.status, 429);
+			// Note: We only check that we got a response, not which fetcher was used,
+			// as the fetcher order may vary by configuration
+			assert.strictEqual(await res.text(), 'Too Many Requests');
+		} finally {
+			// Restore original listener
+			server.removeAllListeners('request');
+			server.on('request', oldListener);
+		}
 	});
 });
