@@ -28,7 +28,7 @@ import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/ed
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { getTelemetryLevel, supportsTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SimpleSettingRenderer } from '../../markdown/browser/markdownSettingRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -58,6 +58,7 @@ export class ReleaseNotesManager extends Disposable {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IProductService private readonly _productService: IProductService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -90,12 +91,28 @@ export class ReleaseNotesManager extends Disposable {
 		return URI.parse('https://code.visualstudio.com/raw');
 	}
 
-	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
+	public async show(version: string, useCurrentFile: boolean, source: 'update' | 'commandPalette' | 'fromFile' = 'commandPalette'): Promise<boolean> {
 		const releaseNoteText = await this.loadReleaseNotes(version, useCurrentFile);
 		const base = await this.getBase(useCurrentFile);
 		this._lastMeta = { text: releaseNoteText, base };
 		const html = await this.renderBody(this._lastMeta);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
+
+		// Log telemetry for release notes being opened
+		type ReleaseNotesOpenedClassification = {
+			owner: 'rebornix';
+			comment: 'Track when release notes are opened and from what source';
+			version: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the release notes being opened' };
+			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the release notes were opened: update (automatic on update), commandPalette (manual via command), or fromFile (from current file)' };
+		};
+		type ReleaseNotesOpened = {
+			version: string;
+			source: string;
+		};
+		this._telemetryService.publicLog2<ReleaseNotesOpened, ReleaseNotesOpenedClassification>('releaseNotesOpened', {
+			version,
+			source
+		});
 
 		const activeEditorPane = this._editorService.activeEditorPane;
 		if (this._currentReleaseNotes) {
@@ -133,6 +150,40 @@ export class ReleaseNotesManager extends Disposable {
 					const x = this._currentReleaseNotes?.webview.container.offsetLeft + e.message.value.x;
 					const y = this._currentReleaseNotes?.webview.container.offsetTop + e.message.value.y;
 					this._simpleSettingRenderer.updateSetting(URI.parse(e.message.value.uri), x, y);
+				} else if (e.message.type === 'tocNavigation') {
+					// Log telemetry for TOC navigation
+					type ReleaseNotesTocNavigationClassification = {
+						owner: 'rebornix';
+						comment: 'Track when users navigate to different sections via TOC';
+						section: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The section heading that was clicked in the TOC' };
+					};
+					type ReleaseNotesTocNavigation = {
+						section: string;
+					};
+					this._telemetryService.publicLog2<ReleaseNotesTocNavigation, ReleaseNotesTocNavigationClassification>('releaseNotes.tocNavigation', {
+						section: e.message.value.section
+					});
+				} else if (e.message.type === 'videoInteraction') {
+					// Log telemetry for video interactions
+					type ReleaseNotesVideoInteractionClassification = {
+						owner: 'rebornix';
+						comment: 'Track when users interact with embedded videos in release notes';
+						action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action performed on the video: play, pause, or other interactions' };
+					};
+					type ReleaseNotesVideoInteraction = {
+						action: string;
+					};
+					this._telemetryService.publicLog2<ReleaseNotesVideoInteraction, ReleaseNotesVideoInteractionClassification>('releaseNotes.videoInteraction', {
+						action: e.message.value.action
+					});
+				} else if (e.message.type === 'scrollToTop') {
+					// Log telemetry for scroll to top button
+					type ReleaseNotesScrollToTopClassification = {
+						owner: 'rebornix';
+						comment: 'Track when users click the scroll to top button';
+					};
+					type ReleaseNotesScrollToTop = Record<string, never>;
+					this._telemetryService.publicLog2<ReleaseNotesScrollToTop, ReleaseNotesScrollToTopClassification>('releaseNotes.scrollToTop', {});
 				}
 			}));
 
@@ -570,6 +621,19 @@ export class ReleaseNotesManager extends Disposable {
 						if (href && (href.startsWith('${Schemas.codeSetting}'))) {
 							vscode.postMessage({ type: 'clickSetting', value: { uri: href, x: event.clientX, y: event.clientY }});
 						}
+						
+						// Track TOC navigation clicks
+						const target = event.target;
+						if (target.closest && target.closest('#toc-nav a')) {
+							const tocLink = target.closest('#toc-nav a');
+							const section = tocLink.textContent || 'unknown';
+							vscode.postMessage({ type: 'tocNavigation', value: { section }});
+						}
+						
+						// Track scroll to top button clicks
+						if (target.id === 'scroll-to-top' || target.closest('#scroll-to-top')) {
+							vscode.postMessage({ type: 'scrollToTop' });
+						}
 					});
 
 					window.addEventListener('keypress', event => {
@@ -584,6 +648,19 @@ export class ReleaseNotesManager extends Disposable {
 					input.addEventListener('change', event => {
 						vscode.postMessage({ type: 'showReleaseNotes', value: input.checked }, '*');
 					});
+					
+					// Track video interactions
+					document.addEventListener('play', event => {
+						if (event.target.tagName === 'VIDEO') {
+							vscode.postMessage({ type: 'videoInteraction', value: { action: 'play' }});
+						}
+					}, true);
+					
+					document.addEventListener('pause', event => {
+						if (event.target.tagName === 'VIDEO') {
+							vscode.postMessage({ type: 'videoInteraction', value: { action: 'pause' }});
+						}
+					}, true);
 				</script>
 			</body>
 		</html>`;

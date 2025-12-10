@@ -38,12 +38,12 @@ export const DOWNLOAD_URL = new RawContextKey<string>('downloadUrl', '');
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
-export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean) {
+export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean, source?: 'update' | 'commandPalette' | 'fromFile') {
 	if (!releaseNotesManager) {
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
 
-	return releaseNotesManager.show(version, useCurrentFile);
+	return releaseNotesManager.show(version, useCurrentFile, source || 'commandPalette');
 }
 
 async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
@@ -135,7 +135,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 			// was there a major/minor update? if so, open release notes
 			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
-				showReleaseNotesInEditor(instantiationService, productService.version, false)
+				showReleaseNotesInEditor(instantiationService, productService.version, false, 'update')
 					.then(undefined, () => {
 						notificationService.prompt(
 							severity.Info,
