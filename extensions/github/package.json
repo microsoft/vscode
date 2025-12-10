@@ -39,10 +39,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "github.cloneFilteredRepos",
-        "title": "GitHub: Clone (Filtered)"
-      },
-      {
         "command": "github.publish",
         "title": "%command.publish%"
       },
