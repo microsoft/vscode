@@ -7,6 +7,7 @@ import assert from 'assert';
 import { FoldingModel, updateFoldingStateAtIndex } from '../../browser/viewModel/foldingModel.js';
 import { changeCellToKind, computeCellLinesContents, copyCellRange, insertCell, joinNotebookCells, moveCellRange, runDeleteAction } from '../../browser/controller/cellOperations.js';
 import { CellEditType, CellKind, SelectionStateType } from '../../common/notebookCommon.js';
+import { CellEditState } from '../../browser/notebookBrowser.js';
 import { withTestNotebook } from './testNotebookEditor.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
@@ -187,6 +188,62 @@ suite('CellOperations', () => {
 					new ValidAnnotatedEditOperation(null, new Range(1, 1, 1, 4), '', false, false, false)
 				], false, true);
 				assert.notStrictEqual(cell1.getText(), cell2.getText());
+			});
+	});
+
+	test('Copy/duplicate cells - should preserve edit state', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, viewModel) => {
+				const markdownCell = viewModel.cellAt(0)!;
+				
+				// Set the markdown cell to editing mode
+				markdownCell.updateEditState(CellEditState.Editing, 'test');
+				assert.strictEqual(markdownCell.getEditState(), CellEditState.Editing);
+
+				// Copy the cell down
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
+				await copyCellRange({ notebookEditor: editor, cell: markdownCell }, 'down');
+
+				// Check that we have a new cell
+				assert.strictEqual(viewModel.length, 3);
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header a');
+				assert.strictEqual(viewModel.cellAt(1)?.getText(), '# header a');
+
+				// Verify the copied cell has the same edit state
+				const copiedCell = viewModel.cellAt(1)!;
+				assert.strictEqual(copiedCell.getEditState(), CellEditState.Editing, 'Copied cell should preserve edit state');
+			});
+	});
+
+	test('Copy/duplicate cells - should preserve edit state when copying up', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, viewModel) => {
+				const markdownCell = viewModel.cellAt(0)!;
+				
+				// Set the markdown cell to editing mode
+				markdownCell.updateEditState(CellEditState.Editing, 'test');
+				assert.strictEqual(markdownCell.getEditState(), CellEditState.Editing);
+
+				// Copy the cell up
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
+				await copyCellRange({ notebookEditor: editor, cell: markdownCell }, 'up');
+
+				// Check that we have a new cell
+				assert.strictEqual(viewModel.length, 3);
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header a');
+				assert.strictEqual(viewModel.cellAt(1)?.getText(), '# header a');
+
+				// Verify the copied cell (inserted after the original) has the same edit state
+				const copiedCell = viewModel.cellAt(1)!;
+				assert.strictEqual(copiedCell.getEditState(), CellEditState.Editing, 'Copied cell should preserve edit state');
 			});
 	});
 
