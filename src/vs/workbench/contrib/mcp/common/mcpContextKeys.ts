@@ -7,7 +7,9 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IMcpService, LazyCollectionState, McpConnectionState, McpServerCacheState } from './mcpTypes.js';
@@ -26,6 +28,7 @@ export namespace McpContextKeys {
 	 */
 	export const hasServersWithErrors = new RawContextKey<boolean>('mcp.hasServersWithErrors', undefined, { type: 'boolean', description: localize('mcp.hasServersWithErrors.description', "Indicates whether there are any MCP servers with errors.") });
 	export const toolsCount = new RawContextKey<number>('mcp.toolsCount', undefined, { type: 'number', description: localize('mcp.toolsCount.description', "Context key that has the number of registered MCP tools") });
+	export const mcpDisabledByPolicy = new RawContextKey<boolean>('mcp.disabledByPolicy', false, { type: 'boolean', description: localize('mcp.disabledByPolicy.description', "Indicates whether MCP is disabled by policy") });
 }
 
 
@@ -36,12 +39,17 @@ export class McpContextKeysController extends Disposable implements IWorkbenchCo
 	constructor(
 		@IMcpService mcpService: IMcpService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
 		const ctxServerCount = McpContextKeys.serverCount.bindTo(contextKeyService);
 		const ctxToolsCount = McpContextKeys.toolsCount.bindTo(contextKeyService);
 		const ctxHasUnknownTools = McpContextKeys.hasUnknownTools.bindTo(contextKeyService);
+		const ctxMcpDisabledByPolicy = McpContextKeys.mcpDisabledByPolicy.bindTo(contextKeyService);
+
+		// Set the policy context key
+		ctxMcpDisabledByPolicy.set(configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None);
 
 		this._store.add(bindContextKey(McpContextKeys.hasServersWithErrors, contextKeyService, r => mcpService.servers.read(r).some(c => c.connectionState.read(r).state === McpConnectionState.Kind.Error)));
 
