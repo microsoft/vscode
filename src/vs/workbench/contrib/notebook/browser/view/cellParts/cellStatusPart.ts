@@ -401,11 +401,8 @@ class CellStatusBarItem extends Disposable {
 			return command;
 		}
 
-		if (typeof command.id === 'string') {
-			return command.id;
-		}
-
+		const resolvedId = command.id ?? command.command;
 		// Extensions provide command objects with the identifier on `command`.
-		return typeof command.command === 'string' ? command.command : undefined;
+		return typeof resolvedId === 'string' ? resolvedId : undefined;
 	}
 }
