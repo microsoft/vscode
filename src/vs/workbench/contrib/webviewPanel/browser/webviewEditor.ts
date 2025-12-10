@@ -25,7 +25,6 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
  * Tracks the id of the actively focused webview.
@@ -71,7 +70,7 @@ export class WebviewEditor extends EditorPane {
 				this.synchronizeWebviewContainerDimensions(this.webview);
 			}
 		}));
-		const mainContainer = this._workbenchLayoutService.getContainer(mainWindow);
+		const mainContainer = this._workbenchLayoutService.getContainer(this.window);
 		this._register(DOM.addDisposableListener(mainContainer, 'scroll', () => {
 			if (this.webview && this._visible) {
 				this.synchronizeWebviewContainerDimensions(this.webview);
