@@ -402,7 +402,6 @@ class CellStatusBarItem extends Disposable {
 		}
 
 		const resolvedId = command.id ?? command.command;
-		// Workbench providers use `id`; extensions surface the identifier on `command`, so prefer `id` when available.
 		return typeof resolvedId === 'string' ? resolvedId : undefined;
 	}
 }
