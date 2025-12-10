@@ -12,7 +12,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatModel } from '../../common/chatModel.js';
-import { IChatDetail, IChatService } from '../../common/chatService.js';
+import { IChatDetail, IChatService, ResponseModelState } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/chatUri.js';
 import { ChatSessionItemWithProvider } from '../chatSessions/common.js';
@@ -155,7 +155,9 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			provider: this,
 			label: chat.title,
 			description,
-			status: model ? this.modelToStatus(model) : undefined,
+			status: model ?
+				this.modelToStatus(model) :
+				chatResponseStateToSessionStatus(chat.lastResponseState),
 			iconPath: Codicon.chatSparkle,
 			timing: {
 				startTime,
@@ -167,5 +169,17 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 				files: chat.stats.fileCount,
 			} : undefined
 		};
+	}
+}
+
+function chatResponseStateToSessionStatus(state: ResponseModelState): ChatSessionStatus {
+	switch (state) {
+		case ResponseModelState.Cancelled:
+		case ResponseModelState.Complete:
+			return ChatSessionStatus.Completed;
+		case ResponseModelState.Failed:
+			return ChatSessionStatus.Failed;
+		case ResponseModelState.Pending:
+			return ChatSessionStatus.InProgress;
 	}
 }

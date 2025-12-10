@@ -61,7 +61,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel, IChatResponseModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { IChatDetail, IChatService } from '../../common/chatService.js';
+import { IChatDetail, IChatService, ResponseModelState } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -766,6 +766,7 @@ export function registerChatActions() {
 											title: session.label,
 											isActive: false,
 											lastMessageDate: 0,
+											lastResponseState: ResponseModelState.Complete
 										},
 										buttons,
 									};
