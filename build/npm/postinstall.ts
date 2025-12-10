@@ -125,10 +125,24 @@ function removeParcelWatcherPrebuild(dir: string) {
 	}
 }
 
-for (const dir of dirs) {
+function removeNodePtyPrebuild(dir: string) {
+	const nodePtyModuleFolder = path.join(root, dir, 'node_modules', 'node-pty', 'prebuilds');
+	if (!fs.existsSync(nodePtyModuleFolder)) {
+		return;
+	}
 
+	const prebuilds = fs.readdirSync(nodePtyModuleFolder);
+	for (const prebuild of prebuilds) {
+		const prebuildPath = path.join(nodePtyModuleFolder, prebuild);
+		fs.rmSync(prebuildPath, { recursive: true, force: true });
+		log(dir, `Removed node-pty prebuilt module ${prebuildPath}`);
+	}
+}
+
+for (const dir of dirs) {
 	if (dir === '') {
 		removeParcelWatcherPrebuild(dir);
+		removeNodePtyPrebuild(dir);
 		continue; // already executed in root
 	}
 
@@ -152,6 +166,7 @@ for (const dir of dirs) {
 
 	if (/^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		// node modules used by vscode server
+		removeNodePtyPrebuild(dir);
 		opts = {
 			env: {
 				...process.env

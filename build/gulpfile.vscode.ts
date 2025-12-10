@@ -478,29 +478,19 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 		await Promise.all(deps.map(async dep => {
 			const basename = path.basename(dep);
 
-			try {
-				await rcedit(path.join(cwd, dep), {
-					'file-version': baseVersion,
-					'version-string': {
-						'CompanyName': 'Microsoft Corporation',
-						'FileDescription': product.nameLong,
-						'FileVersion': packageJson.version,
-						'InternalName': basename,
-						'LegalCopyright': 'Copyright (C) 2022 Microsoft. All rights reserved',
-						'OriginalFilename': basename,
-						'ProductName': product.nameLong,
-						'ProductVersion': packageJson.version,
-					}
-				});
-			} catch (err) {
-				if (dep.includes('node-pty')) {
-					// TODO: @rzhao271 switch node-pty to use optionalDependencies
-					console.warn(`Warning: could not patch ${dep} - deleting`);
-					await util.rimraf(path.join(cwd, dep))();
-				} else {
-					throw err;
+			await rcedit(path.join(cwd, dep), {
+				'file-version': baseVersion,
+				'version-string': {
+					'CompanyName': 'Microsoft Corporation',
+					'FileDescription': product.nameLong,
+					'FileVersion': packageJson.version,
+					'InternalName': basename,
+					'LegalCopyright': 'Copyright (C) 2022 Microsoft. All rights reserved',
+					'OriginalFilename': basename,
+					'ProductName': product.nameLong,
+					'ProductVersion': packageJson.version,
 				}
-			}
+			});
 		}));
 	};
 }
