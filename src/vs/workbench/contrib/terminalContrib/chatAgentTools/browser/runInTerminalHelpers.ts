@@ -106,6 +106,9 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		const commandsWithSubSubCommands = new Set(['npm run', 'yarn run']);
 
 		// Helper function to find the first non-flag argument after a given index
+		// Note: This considers any argument starting with '-' as a flag, which is the
+		// standard convention for CLI tools. Subcommands in tools like mvn, gradle, npm
+		// never start with '-'.
 		const findNextNonFlagArg = (parts: string[], startIndex: number): string | undefined => {
 			for (let i = startIndex; i < parts.length; i++) {
 				if (!parts[i].startsWith('-')) {
