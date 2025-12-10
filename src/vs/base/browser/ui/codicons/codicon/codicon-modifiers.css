@@ -19,6 +19,7 @@
 .codicon-notebook-state-executing.codicon-modifier-spin {
 	/* Use steps to throttle FPS to reduce CPU usage */
 	animation: codicon-spin 1.5s steps(30) infinite;
+	transform-origin: 50% 45%;
 }
 
 .codicon-modifier-disabled {
