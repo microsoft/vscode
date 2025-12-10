@@ -2332,6 +2332,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	//#region Overlay
 	changeCellOverlays(callback: (accessor: INotebookCellOverlayChangeAccessor) => void): void {
+		if (!this._list) {
+			throw new Error('Cannot create notebook cell overlays before the list view is initialized. Consider deferring the overlay creation until after the notebook editor is fully initialized (e.g., after the view model is attached).');
+		}
 		this._list.changeCellOverlays(callback);
 	}
 	//#endregion
