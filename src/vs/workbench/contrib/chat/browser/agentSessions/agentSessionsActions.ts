@@ -384,8 +384,8 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 
 		if (configuredSessionsViewerOrientation !== 'auto') {
 			if (
-				(orientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) || // already wide enough to show side by side
-				(orientation === AgentSessionsViewerOrientation.Stacked)													// always wide enough to show stacked
+				(orientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||	// already wide enough to show side by side
+				orientation === AgentSessionsViewerOrientation.Stacked														// always wide enough to show stacked
 			) {
 				return; // if the orientation is not set to `auto`, we try to avoid resizing if not needed
 			}
