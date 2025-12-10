@@ -61,7 +61,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel, IChatResponseModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { IChatDetail, IChatService } from '../../common/chatService.js';
+import { IChatDetail, IChatService, ResponseModelState } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -514,7 +514,7 @@ export function registerChatActions() {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.and(
 							ContextKeyExpr.equals('view', ChatViewId),
-							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, false)
+							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, false)
 						),
 						group: 'navigation',
 						order: 2
@@ -523,7 +523,7 @@ export function registerChatActions() {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.and(
 							ContextKeyExpr.equals('view', ChatViewId),
-							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, true)
+							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 						),
 						group: '2_history',
 						order: 1
@@ -767,6 +767,8 @@ export function registerChatActions() {
 											title: session.label,
 											isActive: false,
 											lastMessageDate: 0,
+											timing: { startTime: 0 },
+											lastResponseState: ResponseModelState.Complete
 										},
 										buttons,
 									};
@@ -1766,6 +1768,7 @@ export async function handleModeSwitch(
 export interface IClearEditingSessionConfirmationOptions {
 	titleOverride?: string;
 	messageOverride?: string;
+	isArchiveAction?: boolean;
 }
 
 
@@ -1832,29 +1835,6 @@ registerAction2(class EditToolApproval extends Action2 {
 	}
 });
 
-registerAction2(class ToggleChatViewRecentSessionsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.toggleChatViewRecentSessions',
-			title: localize2('chat.toggleChatViewRecentSessions.label', "Show Recent Sessions"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, true),
-			menu: {
-				id: MenuId.ChatWelcomeContext,
-				group: '1_modify',
-				order: 1,
-				when: ChatContextKeys.inChatEditor.negate()
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-
-		const chatViewRecentSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewRecentSessionsEnabled);
-		await configurationService.updateValue(ChatConfiguration.ChatViewRecentSessionsEnabled, !chatViewRecentSessionsEnabled);
-	}
-});
-
 registerAction2(class ToggleChatViewTitleAction extends Action2 {
 	constructor() {
 		super({
@@ -1875,5 +1855,129 @@ registerAction2(class ToggleChatViewTitleAction extends Action2 {
 
 		const chatViewTitleEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled);
 		await configurationService.updateValue(ChatConfiguration.ChatViewTitleEnabled, !chatViewTitleEnabled);
+	}
+});
+
+// --- Agent Sessions
+
+registerAction2(class ToggleChatViewSessionsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleChatViewSessions',
+			title: localize2('chat.toggleChatViewSessions.label', "Show Sessions"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			menu: {
+				id: MenuId.ChatWelcomeContext,
+				group: '0_sessions',
+				order: 1,
+				when: ChatContextKeys.inChatEditor.negate()
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const chatViewSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, !chatViewSessionsEnabled);
+	}
+});
+
+const agentSessionsOrientationSubmenu = new MenuId('chatAgentSessionsOrientationSubmenu');
+MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
+	submenu: agentSessionsOrientationSubmenu,
+	title: localize('chat.sessionsOrientation', "Sessions Orientation"),
+	group: '0_sessions',
+	order: 2,
+	when: ChatContextKeys.inChatEditor.negate()
+});
+
+registerAction2(class SetAgentSessionsOrientationAutoAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.setAgentSessionsOrientationAuto',
+			title: localize2('chat.sessionsOrientation.auto', "Auto"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'auto'),
+			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			menu: {
+				id: agentSessionsOrientationSubmenu,
+				group: 'navigation',
+				order: 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'auto');
+	}
+});
+
+registerAction2(class SetAgentSessionsOrientationStackedAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.setAgentSessionsOrientationStacked',
+			title: localize2('chat.sessionsOrientation.stacked', "Stacked"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
+			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			menu: {
+				id: agentSessionsOrientationSubmenu,
+				group: 'navigation',
+				order: 2
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked');
+	}
+});
+
+registerAction2(class SetAgentSessionsOrientationSideBySideAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
+			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'sideBySide'),
+			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			menu: {
+				id: agentSessionsOrientationSubmenu,
+				group: 'navigation',
+				order: 3
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
+	}
+});
+
+// --- Welcome View
+
+registerAction2(class ToggleChatViewWelcomeAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleChatViewWelcome',
+			title: localize2('chat.toggleChatViewWelcome.label', "Show Welcome"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeEnabled}`, true),
+			menu: {
+				id: MenuId.ChatWelcomeContext,
+				group: '1_modify',
+				order: 3,
+				when: ChatContextKeys.inChatEditor.negate()
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const chatViewWelcomeEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeEnabled, !chatViewWelcomeEnabled);
 	}
 });

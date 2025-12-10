@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IEditableData } from '../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
 import { IChatEditingSession } from './chatEditingService.js';
-import { IChatModel, IChatRequestVariableData } from './chatModel.js';
+import { IChatModel, IChatRequestVariableData, ISerializableChatModelInputState } from './chatModel.js';
 import { IChatProgress, IChatService } from './chatService.js';
 
 export const enum ChatSessionStatus {
@@ -73,15 +73,22 @@ export interface IChatSessionItem {
 		startTime: number;
 		endTime?: number;
 	};
-	statistics?: {
+	changes?: {
 		files: number;
 		insertions: number;
 		deletions: number;
-	};
+	} | readonly IChatSessionFileChange[];
 	archived?: boolean;
 	// TODO:@osortega remove once the single-view is default
 	/** @deprecated */
 	history?: boolean;
+}
+
+export interface IChatSessionFileChange {
+	modifiedUri: URI;
+	originalUri?: URI;
+	insertions: number;
+	deletions: number;
 }
 
 export type IChatSessionHistoryItem = {
@@ -122,7 +129,10 @@ export interface IChatSession extends IDisposable {
 	/**
 	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.
 	 */
-	initialEditingSession?: IChatEditingSession;
+	transferredState?: {
+		editingSession: IChatEditingSession | undefined;
+		inputState: ISerializableChatModelInputState | undefined;
+	};
 
 	requestHandler?: (
 		request: IChatAgentRequest,
@@ -150,7 +160,7 @@ export interface IChatSessionContentProvider {
 
 export type SessionOptionsChangedCallback = (sessionResource: URI, updates: ReadonlyArray<{
 	optionId: string;
-	value: string;
+	value: string | IChatSessionProviderOptionItem;
 }>) => Promise<void>;
 
 export interface IChatSessionsService {
@@ -203,7 +213,7 @@ export interface IChatSessionsService {
 	/**
 	 * Fired when options for a chat session change.
 	 */
-	onDidChangeSessionOptions: Event<{ readonly resource: URI; readonly updates: ReadonlyArray<{ optionId: string; value: string }> }>;
+	onDidChangeSessionOptions: Event<URI>;
 
 	/**
 	 * Get the capabilities for a specific session type
@@ -213,7 +223,7 @@ export interface IChatSessionsService {
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
 	setOptionsChangeCallback(callback: SessionOptionsChangedCallback): void;
-	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void>;
+	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void>;
 
 	// Editable session support
 	setEditableSession(sessionResource: URI, data: IEditableData | null): Promise<void>;
@@ -221,7 +231,7 @@ export interface IChatSessionsService {
 	isEditable(sessionResource: URI): boolean;
 	// #endregion
 	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
-	getSessionDescription(chatModel: IChatModel): string | undefined;
+	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

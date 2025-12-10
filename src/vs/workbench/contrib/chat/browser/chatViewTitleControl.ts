@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from '../../../../base/browser/dom.js';
+import './media/chatViewTitleControl.css';
+import { addDisposableListener, EventType, h } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
+import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -30,15 +33,16 @@ import { IAgentSession } from './agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { AgentSessionsSorter } from './agentSessions/agentSessionsViewer.js';
 import { ChatViewId } from './chat.js';
-import './media/chatViewTitleControl.css';
+import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions/agentSessions.js';
 
 export interface IChatViewTitleDelegate {
 	updateTitle(title: string): void;
+	focusChat(): void;
 }
 
 export class ChatViewTitleControl extends Disposable {
 
-	private static readonly DEFAULT_TITLE = localize('chat', "Chat Session");
+	private static readonly DEFAULT_TITLE = localize('chat', "Chat");
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -55,6 +59,7 @@ export class ChatViewTitleControl extends Disposable {
 	private title: string | undefined = undefined;
 
 	private titleContainer: HTMLElement | undefined;
+	private titleIcon: HTMLElement | undefined;
 
 	private model: IChatModel | undefined;
 	private modelDisposables = this._register(new MutableDisposable());
@@ -99,9 +104,12 @@ export class ChatViewTitleControl extends Disposable {
 
 	private render(parent: HTMLElement): void {
 		const elements = h('div.chat-view-title-container', [
-			h('div.chat-view-title-toolbar@toolbar')
+			h('div.chat-view-title-toolbar@toolbar'),
+			h('span.chat-view-title-label@label'),
+			h('span.chat-view-title-icon@icon'),
 		]);
 
+		// Toolbar on the left
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.ChatViewSessionTitleToolbar, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === ACTION_ID_PICK_AGENT_SESSION) {
@@ -115,7 +123,21 @@ export class ChatViewTitleControl extends Disposable {
 			menuOptions: { shouldForwardArgs: true }
 		}));
 
+		// Title controls
 		this.titleContainer = elements.root;
+		this.titleIcon = elements.icon;
+		this._register(getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.titleIcon, () => ({
+			content: this.getIconHoverContent() ?? '',
+			appearance: { compact: true }
+		})));
+
+		// Click to focus chat
+		this._register(Gesture.addTarget(this.titleContainer));
+		for (const eventType of [TouchEventType.Tap, EventType.CLICK]) {
+			this._register(addDisposableListener(this.titleContainer, eventType, () => {
+				this.delegate.focusChat();
+			}));
+		}
 
 		parent.appendChild(this.titleContainer);
 	}
@@ -139,6 +161,7 @@ export class ChatViewTitleControl extends Disposable {
 		this.delegate.updateTitle(this.getTitleWithPrefix());
 
 		this.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
+		this.updateIcon();
 
 		if (this.toolbar) {
 			this.toolbar.context = this.model && {
@@ -146,6 +169,41 @@ export class ChatViewTitleControl extends Disposable {
 				sessionResource: this.model.sessionResource
 			} satisfies IChatViewTitleActionContext;
 		}
+	}
+
+	private updateIcon(): void {
+		if (!this.titleIcon) {
+			return;
+		}
+
+		const icon = this.getIcon();
+		if (icon) {
+			this.titleIcon.className = `chat-view-title-icon ${ThemeIcon.asClassName(icon)}`;
+		} else {
+			this.titleIcon.className = 'chat-view-title-icon';
+		}
+	}
+
+	private getIcon(): ThemeIcon | undefined {
+		const sessionType = this.model?.contributedChatSession?.chatSessionType;
+		switch (sessionType) {
+			case AgentSessionProviders.Background:
+			case AgentSessionProviders.Cloud:
+				return getAgentSessionProviderIcon(sessionType);
+		}
+
+		return undefined;
+	}
+
+	private getIconHoverContent(): string | undefined {
+		const sessionType = this.model?.contributedChatSession?.chatSessionType;
+		switch (sessionType) {
+			case AgentSessionProviders.Background:
+			case AgentSessionProviders.Cloud:
+				return localize('backgroundSession', "{0} Agent Session", getAgentSessionProviderName(sessionType));
+		}
+
+		return undefined;
 	}
 
 	private updateTitle(title: string): void {

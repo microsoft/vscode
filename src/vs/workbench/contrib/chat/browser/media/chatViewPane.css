@@ -3,63 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Sessions control: side by side */
-.chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
+/* Overall styles */
+.chat-viewpane {
 
-	display: flex;
-
-	&.sessions-control-position-left {
-		flex-direction: row;
-	}
-	&:not(.sessions-control-position-left) {
-		flex-direction: row-reverse;
-	}
-
-	/* Chat view title control is hidden */
-	.chat-view-title-container {
-		display: none;
-	}
-}
-
-/* Sessions control: compact */
-.chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
-
-	display: flex;
-	flex-direction: column;
-
-	.agent-sessions-container {
-		margin: 12px 16px 32px 16px;
-		border-radius: 4px;
-	}
-
-	.agent-sessions-viewer .monaco-list:not(.element-focused):focus:before,
-	.agent-sessions-viewer .monaco-list-rows,
-	.agent-sessions-viewer .monaco-list-row:last-of-type {
-		/* Ensure the sessions list finishes with round borders at the bottom */
-		border-bottom-left-radius: 4px;
-		border-bottom-right-radius: 4px;
-	}
-
-	.interactive-session {
-
-		/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
-		.chat-welcome-view .chat-welcome-view-icon,
-		.chat-welcome-view .chat-welcome-view-title,
-		.chat-welcome-view .chat-welcome-view-message,
-		.chat-welcome-view .chat-welcome-view-disclaimer,
-		.chat-welcome-view .chat-welcome-view-tips {
-			visibility: hidden;
-		}
+	.chat-controls-container {
+		height: 100%;
+		min-height: 0;
+		min-width: 0;
 	}
 }
 
 /* Sessions control: either sidebar or compact */
 .chat-viewpane.has-sessions-control {
 
+	display: flex;
+
+	.chat-controls-container {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+	}
+
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
-		background-color: var(--vscode-editorWidget-background);
 
 		.agent-sessions-title-container {
 			display: flex;
@@ -71,14 +38,43 @@
 			color: var(--vscode-descriptionForeground);
 			padding: 8px;
 
-			.agent-sessions-toolbar {
-				visibility: hidden;
+			.agent-sessions-title {
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
 			}
 		}
-	}
 
-	.agent-sessions-container:hover .agent-sessions-title-container .agent-sessions-toolbar {
-		visibility: visible;
+		.agent-sessions-toolbar {
+
+			.action-item {
+				/* align with the title actions*/
+				margin-right: 4px;
+			}
+
+			&.filtered .action-label.codicon.codicon-filter {
+				/* indicate when sessions filter is enabled */
+				border-color: var(--vscode-inputOption-activeBorder);
+				color: var(--vscode-inputOption-activeForeground);
+				background-color: var(--vscode-inputOption-activeBackground);
+			}
+		}
+
+		.agent-sessions-link-container {
+			padding: 8px 0;
+			font-size: 12px;
+			text-align: center;
+		}
+
+		.agent-sessions-link-container a {
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.agent-sessions-link-container a:hover,
+		.agent-sessions-link-container a:active {
+			text-decoration: none;
+			color: var(--vscode-textLink-foreground);
+		}
 	}
 
 	.interactive-session {
@@ -87,5 +83,60 @@
 		width: 100%;
 		min-height: 0;
 		min-width: 0;
+	}
+}
+
+/* Sessions control: side by side */
+.chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
+
+	&.sessions-control-position-left {
+		flex-direction: row;
+
+		.agent-sessions-container {
+			border-right: 1px solid var(--vscode-panel-border);
+		}
+	}
+
+	&:not(.sessions-control-position-left) {
+		flex-direction: row-reverse;
+
+		.agent-sessions-container {
+			border-left: 1px solid var(--vscode-panel-border);
+		}
+	}
+
+	.agent-sessions-link-container {
+		/* hide link to show more when side by side */
+		display: none;
+	}
+}
+
+/* Sessions control: compact */
+.chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
+
+	flex-direction: column;
+
+	.agent-sessions-title-container {
+		padding: 8px 8px 8px 18px; /* align with container title */
+	}
+
+	.agent-sessions-container {
+		border-bottom: 1px solid var(--vscode-panel-border);
+	}
+}
+
+/* Welcome disabled */
+.chat-viewpane:not(.chat-view-welcome-enabled) {
+
+	.interactive-session {
+
+		/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
+		.chat-welcome-view .chat-welcome-view-icon,
+		.chat-welcome-view .chat-welcome-view-title,
+		.chat-welcome-view .chat-welcome-view-message,
+		.chat-welcome-view .chat-welcome-view-disclaimer,
+		.chat-welcome-view .chat-welcome-view-tips {
+			visibility: hidden;
+		}
 	}
 }

@@ -151,6 +151,9 @@
 	width: 100%;
 	background: inherit;
 }
+.chat-terminal-output-container.chat-terminal-output-container-no-output .chat-terminal-output-body {
+	padding-bottom: 5px;
+}
 .chat-terminal-output-container:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;

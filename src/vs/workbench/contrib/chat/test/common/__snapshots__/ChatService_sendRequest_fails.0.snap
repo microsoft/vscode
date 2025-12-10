@@ -83,7 +83,7 @@
       responseMarkdownInfo: undefined,
       followups: undefined,
       modelState: {
-        value: 1,
+        value: 3,
         completedAt: undefined
       },
       vote: undefined,

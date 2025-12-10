@@ -37,6 +37,7 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IChatWidgetService } from '../chat.js';
+import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
@@ -59,12 +60,16 @@ export class ContinueChatInSessionAction extends Action2 {
 				ChatContextKeys.enabled,
 				ChatContextKeys.requestInProgress.negate(),
 				ChatContextKeys.remoteJobCreating.negate(),
+				ChatContextKeys.hasCanDelegateProviders,
 			),
 			menu: [{
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 3.4,
-				when: ChatContextKeys.lockedToCodingAgent.negate(),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.hasCanDelegateProviders,
+				),
 			},
 			{
 				id: MenuId.EditorContent,
@@ -73,6 +78,8 @@ export class ContinueChatInSessionAction extends Action2 {
 					ContextKeyExpr.equals(ResourceContextKey.Scheme.key, Schemas.untitled),
 					ContextKeyExpr.equals(ResourceContextKey.LangId.key, PROMPT_LANGUAGE_ID),
 					ContextKeyExpr.notEquals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
+					ctxHasEditorModification.negate(),
+					ChatContextKeys.hasCanDelegateProviders,
 				),
 			}
 			]
@@ -152,7 +159,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 			description: `@${contrib.name}`,
 			label: getAgentSessionProviderName(provider),
 			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
-			category: { label: localize('continueIn', "Continue In"), order: 0 },
+			category: { label: localize('continueIn', "Continue In"), order: 0, showHeader: true },
 			run: () => instantiationService.invokeFunction(accessor => {
 				if (location === ActionLocation.Editor) {
 					return new CreateRemoteAgentJobFromEditorAction().run(accessor, contrib);
@@ -170,7 +177,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 			class: undefined,
 			label: getAgentSessionProviderName(provider),
 			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
-			category: { label: localize('continueIn', "Continue In"), order: 0 },
+			category: { label: localize('continueIn', "Continue In"), order: 0, showHeader: true },
 			run: () => instantiationService.invokeFunction(accessor => {
 				const commandService = accessor.get(ICommandService);
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);

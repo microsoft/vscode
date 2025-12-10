@@ -136,6 +136,7 @@ export class ChatInputPartWidgetController extends Disposable {
 
 	override dispose(): void {
 		for (const rendered of this.renderedWidgets.values()) {
+			rendered.widget.domNode.remove();
 			rendered.disposables.dispose();
 		}
 		this.renderedWidgets.clear();

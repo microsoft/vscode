@@ -83,6 +83,7 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './chatIn
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
+import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 
 const $ = dom.$;
 
@@ -374,6 +375,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService
@@ -1364,6 +1366,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		const parentSessionResource = viewModel.sessionResource;
+
 		// Check if response is complete, not pending confirmation, and has no error
 		const checkIfShouldClear = (): boolean => {
 			const items = viewModel.getItems();
@@ -1377,6 +1381,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (checkIfShouldClear()) {
 			await this.clear();
+			this.archiveLocalParentSession(parentSessionResource);
 			return;
 		}
 
@@ -1400,7 +1405,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (shouldClear) {
 			await this.clear();
+			this.archiveLocalParentSession(parentSessionResource);
 		}
+	}
+
+	private async archiveLocalParentSession(sessionResource: URI): Promise<void> {
+		if (sessionResource.scheme !== Schemas.vscodeLocalChatSession) {
+			return;
+		}
+
+		// Implicitly keep parent session's changes as they've now been delegated to the new agent.
+		await this.chatService.getSession(sessionResource)?.editingSession?.accept();
+
+		const session = this.agentSessionsService.getSession(sessionResource);
+		session?.setArchived(true);
 	}
 
 	setVisible(visible: boolean): void {
@@ -1954,6 +1972,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!model) {
 			this.viewModel = undefined;
+			this.onDidChangeItems();
 			return;
 		}
 
