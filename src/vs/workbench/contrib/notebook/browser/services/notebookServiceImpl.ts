@@ -34,7 +34,7 @@ import { INotebookEditorModelResolverService } from '../../common/notebookEditor
 import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo as NotebookStaticPreloadInfo } from '../../common/notebookOutputRenderer.js';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from '../../common/notebookProvider.js';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from '../../common/notebookService.js';
-import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorInfo, RegisteredEditorPriority, UntitledEditorInputFactoryFunction, type MergeEditorInputFactoryFunction } from '../../../../services/editor/common/editorResolverService.js';
+import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, globMatchesResource, IEditorResolverService, IEditorType, RegisteredEditorInfo, RegisteredEditorPriority, UntitledEditorInputFactoryFunction, type MergeEditorInputFactoryFunction } from '../../../../services/editor/common/editorResolverService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { IExtensionPointUser } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { InstallRecommendedExtensionAction } from '../../../extensions/browser/extensionsActions.js';
@@ -190,7 +190,13 @@ export class NotebookProviderInfoStore extends Disposable {
 						const params = new URLSearchParams(resource.query);
 						return params.get('openIn') === 'notebook';
 					}
-					return resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource);
+					if (resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource)) {
+						return true;
+					}
+					// For URIs with schemes like 'git' that don't have a file service provider,
+					// check if the resource path matches this notebook's glob pattern.
+					// This enables notebook diff editors to work with timeline/SCM URIs.
+					return globMatchesResource(globPattern, resource);
 				}
 			};
 			const notebookEditorInputFactory: EditorInputFactoryFunction = async ({ resource, options }) => {
