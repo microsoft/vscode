@@ -142,6 +142,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 					data.contents = Buffer.from(newContents.out);
 					data.sourceMap = newContents.sourceMap && JSON.parse(newContents.sourceMap);
 				}
+				// Always push the file through, even if it's not TypeScript
 				this.push(data);
 			}, async function end() {
 				// free resources
@@ -149,6 +150,11 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 
 				this.push(null);
 				ts2tsMangler = undefined;
+			});
+		} else {
+			// If not mangling, just pass files through
+			mangleStream = es.through(function (data: File) {
+				this.push(data);
 			});
 		}
 

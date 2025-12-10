@@ -261,15 +261,20 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					}
 				});
 
+				// First try to find an AI action, then fall back to preferred action
 				const aiCodeAction = actions.validActions.find(action => action.action.isAI);
-				if (aiCodeAction) {
+				const preferredAction = actions.validActions.find(action => action.action.isPreferred);
+				const quickFixAction = aiCodeAction || preferredAction;
+
+				if (quickFixAction) {
 					context.statusBar.addAction({
-						label: aiCodeAction.action.title,
-						commandId: aiCodeAction.action.command?.id ?? '',
+						label: quickFixAction.action.title,
+						commandId: quickFixAction.action.command?.id ?? '',
+						// Always use sparkle icon for AI-powered fixes
 						iconClass: ThemeIcon.asClassName(Codicon.sparkle),
 						run: () => {
 							const controller = CodeActionController.get(this._editor);
-							controller?.applyCodeAction(aiCodeAction, false, false, ApplyCodeActionReason.FromProblemsHover);
+							controller?.applyCodeAction(quickFixAction, false, false, ApplyCodeActionReason.FromProblemsHover);
 						}
 					});
 				}

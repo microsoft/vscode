@@ -1,0 +1,784 @@
+{
+  "name": "latex-language-features",
+  "description": "%description%",
+  "displayName": "%displayName%",
+  "version": "1.0.0",
+  "author": "vscode",
+  "publisher": "vscode",
+  "license": "MIT",
+  "enabledApiProposals": [
+    "codeActionAI"
+  ],
+  "engines": {
+    "vscode": "^1.30.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:latex",
+    "onLanguage:tex",
+    "onCommand:latex.build",
+    "onCommand:latex.preview",
+    "onCommand:latex.clean"
+  ],
+  "main": "./out/extension",
+  "browser": "./dist/browser/extension",
+  "scripts": {
+    "vscode:prepublish": "npx tsc -p .",
+    "compile": "npx tsc -p .",
+    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
+    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch",
+    "watch": "npx tsc -p . --watch"
+  },
+  "contributes": {
+    "configuration": [
+      {
+        "type": "object",
+        "title": "%configuration.compilation%",
+        "order": 20,
+        "properties": {
+          "latex.compilation.mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "wasm",
+              "server"
+            ],
+            "enumDescriptions": [
+              "%latex.compilation.mode.auto%",
+              "%latex.compilation.mode.wasm%",
+              "%latex.compilation.mode.server%"
+            ],
+            "default": "auto",
+            "description": "%latex.compilation.mode.description%",
+            "scope": "window"
+          },
+          "latex.compilation.recipe": {
+            "type": "string",
+            "enum": [
+              "pdflatex",
+              "latexmk",
+              "xelatex",
+              "lualatex"
+            ],
+            "default": "pdflatex",
+            "description": "%latex.compilation.recipe.description%",
+            "scope": "window"
+          },
+          "latex.compilation.cleanSubFiles": {
+            "type": "boolean",
+            "default": false,
+            "description": "%latex.compilation.cleanSubFiles.description%",
+            "scope": "window"
+          },
+          "latex.compilation.autoBuild": {
+            "type": "string",
+            "enum": [
+              "never",
+              "onSave",
+              "onFileChange"
+            ],
+            "default": "onSave",
+            "description": "%latex.compilation.autoBuild.description%",
+            "scope": "window"
+          },
+          "latex.preview.viewer": {
+            "type": "string",
+            "enum": [
+              "tab",
+              "external"
+            ],
+            "default": "tab",
+            "description": "%latex.preview.viewer.description%",
+            "scope": "window"
+          },
+          "latex.preview.sync": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.preview.sync.description%",
+            "scope": "window"
+          },
+          "latex.outline.sections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "part",
+              "chapter",
+              "section",
+              "subsection",
+              "subsubsection",
+              "paragraph",
+              "subparagraph"
+            ],
+            "description": "%latex.outline.sections.description%",
+            "scope": "window"
+          },
+          "latex.outline.commands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "label"
+            ],
+            "description": "%latex.outline.commands.description%",
+            "scope": "window"
+          },
+          "latex.outline.floats.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.outline.floats.enabled.description%",
+            "scope": "window"
+          },
+          "latex.outline.floats.caption.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.outline.floats.caption.enabled.description%",
+            "scope": "window"
+          },
+          "latex.outline.floats.number.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%latex.outline.floats.number.enabled.description%",
+            "scope": "window"
+          },
+          "latex.outline.numbers.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%latex.outline.numbers.enabled.description%",
+            "scope": "window"
+          },
+          "latex.texDirs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "%latex.texDirs.description%",
+            "scope": "window"
+          },
+          "latex.watch.files.ignore": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "%latex.watch.files.ignore.description%",
+            "scope": "window"
+          },
+          "latex.hover.preview.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.hover.preview.enabled.description%",
+            "scope": "window"
+          },
+          "latex.hover.preview.scale": {
+            "type": "number",
+            "default": 1,
+            "description": "%latex.hover.preview.scale.description%",
+            "scope": "window"
+          },
+          "latex.hover.preview.cursor.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.hover.preview.cursor.enabled.description%",
+            "scope": "window"
+          },
+          "latex.hover.preview.cursor.symbol": {
+            "type": "string",
+            "default": "\\!|\\!",
+            "description": "%latex.hover.preview.cursor.symbol.description%",
+            "scope": "window"
+          },
+          "latex.hover.preview.cursor.color": {
+            "type": "string",
+            "default": "auto",
+            "enum": [
+              "auto",
+              "black",
+              "blue",
+              "brown",
+              "cyan",
+              "darkgray",
+              "gray",
+              "green",
+              "lightgray",
+              "lime",
+              "magenta",
+              "olive",
+              "orange",
+              "pink",
+              "purple",
+              "red",
+              "teal",
+              "violet",
+              "white",
+              "yellow"
+            ],
+            "description": "%latex.hover.preview.cursor.color.description%",
+            "scope": "window"
+          },
+          "latex.hover.preview.mathjax.extensions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ams",
+                "autoload",
+                "base",
+                "boldsymbol",
+                "braket",
+                "bussproofs",
+                "cancel",
+                "centernot",
+                "color",
+                "colortbl",
+                "configmacros",
+                "enclose",
+                "extpfeil",
+                "gensymb",
+                "html",
+                "mathtools",
+                "mhchem",
+                "newcommand",
+                "noerrors",
+                "noundefined",
+                "physics",
+                "setoptions",
+                "tagformat",
+                "textcomp",
+                "textmacros",
+                "unicode",
+                "upgreek",
+                "verb"
+              ]
+            },
+            "default": [],
+            "description": "%latex.hover.preview.mathjax.extensions.description%",
+            "scope": "window"
+          },
+          "latex.hover.ref.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.hover.ref.enabled.description%",
+            "scope": "window"
+          },
+          "latex.hover.ref.preview.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.hover.ref.preview.enabled.description%",
+            "scope": "window"
+          },
+          "latex.hover.graphics.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.hover.graphics.enabled.description%",
+            "scope": "window"
+          },
+          "latex.hover.graphics.maxHeight": {
+            "type": "number",
+            "default": 300,
+            "description": "%latex.hover.graphics.maxHeight.description%",
+            "scope": "window"
+          },
+          "latex.check.duplicatedLabels.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.check.duplicatedLabels.enabled.description%",
+            "scope": "window"
+          },
+          "latex.check.citations.automatic": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.check.citations.automatic.description%",
+            "scope": "window"
+          },
+          "latex.wordCount.showInStatusBar": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.wordCount.showInStatusBar.description%",
+            "scope": "window"
+          },
+          "latex.smartEnter.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.smartEnter.enabled.description%",
+            "scope": "window"
+          },
+          "latex.bibtex.format.tab": {
+            "type": "string",
+            "default": "  ",
+            "description": "%latex.bibtex.format.tab.description%",
+            "scope": "window"
+          },
+          "latex.bibtex.format.alignOnEqual": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.bibtex.format.alignOnEqual.description%",
+            "scope": "window"
+          },
+          "latex.bibtex.format.sortFields": {
+            "type": "boolean",
+            "default": false,
+            "description": "%latex.bibtex.format.sortFields.description%",
+            "scope": "window"
+          },
+          "latex.bibtex.format.sortBy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": ["key"],
+            "description": "%latex.bibtex.format.sortBy.description%",
+            "scope": "window"
+          },
+          "latex.bibtex.format.trailingComma": {
+            "type": "boolean",
+            "default": false,
+            "description": "%latex.bibtex.format.trailingComma.description%",
+            "scope": "window"
+          },
+          "latex.format.indentEnvironments": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.format.indentEnvironments.description%",
+            "scope": "window"
+          },
+          "latex.format.alignTableColumns": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.format.alignTableColumns.description%",
+            "scope": "window"
+          },
+          "latex.format.wrapLongLines": {
+            "type": "boolean",
+            "default": false,
+            "description": "%latex.format.wrapLongLines.description%",
+            "scope": "window"
+          },
+          "latex.format.lineWidth": {
+            "type": "number",
+            "default": 80,
+            "description": "%latex.format.lineWidth.description%",
+            "scope": "window"
+          },
+          "latex.format.trimTrailingWhitespace": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.format.trimTrailingWhitespace.description%",
+            "scope": "window"
+          },
+          "latex.format.insertFinalNewline": {
+            "type": "boolean",
+            "default": true,
+            "description": "%latex.format.insertFinalNewline.description%",
+            "scope": "window"
+          },
+          "latex.format.alignEquationEnvironments": {
+            "type": "boolean",
+            "default": false,
+            "description": "%latex.format.alignEquationEnvironments.description%",
+            "scope": "window"
+          }
+        }
+      }
+    ],
+    "commands": [
+      {
+        "command": "latex.build",
+        "title": "%latex.build.title%",
+        "category": "LaTeX",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "latex.preview",
+        "title": "%latex.preview.title%",
+        "category": "LaTeX",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "latex.clean",
+        "title": "%latex.clean.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.sync",
+        "title": "%latex.sync.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.gotoMatchingPair",
+        "title": "%latex.gotoMatchingPair.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.selectEnvContent",
+        "title": "%latex.selectEnvContent.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.selectEnvWhole",
+        "title": "%latex.selectEnvWhole.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.closeEnv",
+        "title": "%latex.closeEnv.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.selectEnvName",
+        "title": "%latex.selectEnvName.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.multiCursorEnvName",
+        "title": "%latex.multiCursorEnvName.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.checkDuplicateLabels",
+        "title": "%latex.checkDuplicateLabels.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.promoteSection",
+        "title": "%latex.promoteSection.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.demoteSection",
+        "title": "%latex.demoteSection.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.selectSection",
+        "title": "%latex.selectSection.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.fixQuotes",
+        "title": "%latex.fixQuotes.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.wrapEnvironment",
+        "title": "%latex.wrapEnvironment.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.surroundWithCommand",
+        "title": "%latex.surroundWithCommand.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.toggleEquationEnv",
+        "title": "%latex.toggleEquationEnv.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.shortcut.textbf",
+        "title": "%latex.shortcut.textbf.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.shortcut.textit",
+        "title": "%latex.shortcut.textit.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.shortcut.underline",
+        "title": "%latex.shortcut.underline.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.shortcut.emph",
+        "title": "%latex.shortcut.emph.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.shortcut.mathbf",
+        "title": "%latex.shortcut.mathbf.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.shortcut.mathit",
+        "title": "%latex.shortcut.mathit.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.shortcut.mathbb",
+        "title": "%latex.shortcut.mathbb.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.shortcut.mathcal",
+        "title": "%latex.shortcut.mathcal.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.wordCount",
+        "title": "%latex.wordCount.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.onEnterKey",
+        "title": "%latex.onEnterKey.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.bibSort",
+        "title": "%latex.bibSort.title%",
+        "category": "BibTeX"
+      },
+      {
+        "command": "latex.bibAlign",
+        "title": "%latex.bibAlign.title%",
+        "category": "BibTeX"
+      },
+      {
+        "command": "latex.bibSortAlign",
+        "title": "%latex.bibSortAlign.title%",
+        "category": "BibTeX"
+      },
+      {
+        "command": "latex.checkCitations",
+        "title": "%latex.checkCitations.title%",
+        "category": "LaTeX"
+      },
+      {
+        "command": "latex.showUnusedCitations",
+        "title": "%latex.showUnusedCitations.title%",
+        "category": "LaTeX"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "latex.build",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.preview",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.clean",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.sync",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.gotoMatchingPair",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.selectEnvContent",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.selectEnvWhole",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.closeEnv",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.selectEnvName",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.multiCursorEnvName",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.checkDuplicateLabels",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.promoteSection",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.demoteSection",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.selectSection",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.fixQuotes",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.wrapEnvironment",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.surroundWithCommand",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.toggleEquationEnv",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.shortcut.textbf",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.shortcut.textit",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.shortcut.underline",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.shortcut.emph",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.shortcut.mathbf",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.shortcut.mathit",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.shortcut.mathbb",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.shortcut.mathcal",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.wordCount",
+          "when": "editorLangId == latex || editorLangId == tex"
+        },
+        {
+          "command": "latex.bibSort",
+          "when": "editorLangId == bibtex"
+        },
+        {
+          "command": "latex.bibAlign",
+          "when": "editorLangId == bibtex"
+        },
+        {
+          "command": "latex.bibSortAlign",
+          "when": "editorLangId == bibtex"
+        },
+        {
+          "command": "latex.checkCitations",
+          "when": "editorLangId == latex || editorLangId == tex || editorLangId == bibtex"
+        },
+        {
+          "command": "latex.showUnusedCitations",
+          "when": "editorLangId == latex || editorLangId == tex || editorLangId == bibtex"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "latex.build",
+          "when": "editorLangId == latex || editorLangId == tex",
+          "group": "navigation"
+        },
+        {
+          "command": "latex.preview",
+          "when": "editorLangId == latex || editorLangId == tex",
+          "group": "navigation"
+        }
+      ]
+    },
+    "snippets": [
+      {
+        "language": "latex",
+        "path": "./snippets/latex.json"
+      },
+      {
+        "language": "tex",
+        "path": "./snippets/latex.json"
+      },
+      {
+        "language": "bibtex",
+        "path": "./snippets/bibtex.json"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "latex.shortcut.textbf",
+        "key": "ctrl+b",
+        "mac": "cmd+b",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "latex.shortcut.textit",
+        "key": "ctrl+i",
+        "mac": "cmd+i",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "latex.shortcut.underline",
+        "key": "ctrl+u",
+        "mac": "cmd+u",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "latex.wrapEnvironment",
+        "key": "ctrl+l ctrl+e",
+        "mac": "cmd+l cmd+e",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "latex.surroundWithCommand",
+        "key": "ctrl+l ctrl+w",
+        "mac": "cmd+l cmd+w",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "latex.onEnterKey",
+        "key": "enter",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex) && !suggestWidgetVisible && !editorHasMultipleSelections"
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "latex",
+        "owner": "latex",
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(.+):(\\d+):\\s*(.+)$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+        }
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  },
+  "dependencies": {
+    "@unified-latex/unified-latex-types": "^1.8.0",
+    "@unified-latex/unified-latex-util-arguments": "^1.8.1",
+    "@unified-latex/unified-latex-util-parse": "^1.8.1",
+    "@unified-latex/unified-latex-util-to-string": "^1.8.1",
+    "mathjax-full": "^3.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.10"
+  }
+}

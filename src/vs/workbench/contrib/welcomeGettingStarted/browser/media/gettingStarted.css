@@ -39,6 +39,17 @@
 	height: 100%;
 }
 
+/* DSpace: Logo styling for Welcome page */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .header .welcome-logo {
+	width: 80px;
+	height: 80px;
+	margin-bottom: 16px;
+	background-image: url('./galaxy.png');
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer h1 {
 	padding: 5px 0 0;
 	margin: 0;
@@ -704,6 +715,11 @@
 	padding: 0px 0 20px 44px;
 	min-width: 400px;
 	max-width: 800px;
+}
+
+/* DSpace: Hide the Walkthroughs section from the welcome page */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .index-list.getting-started {
+	display: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .index-list.getting-started .button-link {

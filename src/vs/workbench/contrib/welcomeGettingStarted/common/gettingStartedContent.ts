@@ -180,7 +180,8 @@ export const startEntries: GettingStartedStartEntryContent = [
 		id: 'topLevelGitOpen',
 		title: localize('gettingStarted.topLevelGitOpen.title', "Open Repository..."),
 		description: localize('gettingStarted.topLevelGitOpen.description', "Connect to a remote repository or pull request to browse, search, edit, and commit"),
-		when: 'workspacePlatform == \'webworker\'',
+		// DSpace: Hide "Open Repository..." from welcome page (original: 'workspacePlatform == \'webworker\'')
+		when: 'false',
 		icon: Codicon.sourceControl,
 		content: {
 			type: 'startEntry',
@@ -287,13 +288,15 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 
 	{
 		id: 'SetupWeb',
-		title: localize('gettingStarted.setupWeb.title', "Get Started with VS Code for the Web"),
+		// DSpace: Changed title from "Get Started with VS Code for the Web"
+		title: localize('gettingStarted.setupWeb.title', "Get Started with DSpace"),
 		description: localize('gettingStarted.setupWeb.description', "Customize your editor, learn the basics, and start coding"),
 		isFeatured: true,
 		icon: setupIcon,
 		when: 'isWeb',
 		next: 'Beginner',
-		walkthroughPageTitle: localize('gettingStarted.setupWeb.walkthroughPageTitle', 'Setup VS Code Web'),
+		// DSpace: Changed from 'Setup VS Code Web'
+		walkthroughPageTitle: localize('gettingStarted.setupWeb.walkthroughPageTitle', 'Setup DSpace'),
 		content: {
 			type: 'steps',
 			steps: [
@@ -320,7 +323,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'extensionsWebWeb',
 					title: localize('gettingStarted.extensions.title', "Code with extensions"),
 					description: localize('gettingStarted.extensionsWeb.description.interpolated', "Extensions are VS Code's power-ups. A growing number are becoming available in the web.\n{0}", Button(localize('browsePopularWeb', "Browse Popular Web Extensions"), 'command:workbench.extensions.action.showPopularExtensions')),
-					when: 'workspacePlatform == \'webworker\'',
+					// DSpace: Hide "Code with extensions" step (original: 'workspacePlatform == \'webworker\'')
+					when: 'false',
 					media: {
 						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
 					},
@@ -354,7 +358,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'pickAFolderTask-WebWeb',
 					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
 					description: localize('gettingStarted.setup.OpenFolderWeb.description.interpolated', "You're all set to start coding. You can open a local project or a remote repository to get your files into VS Code.\n{0}\n{1}", Button(localize('openFolder', "Open Folder"), 'command:workbench.action.addRootFolder'), Button(localize('openRepository', "Open Repository"), 'command:remoteHub.openRepository')),
-					when: 'workspaceFolderCount == 0',
+					// DSpace: Hide "Open up your code" step (original: 'workspaceFolderCount == 0')
+					when: 'false',
 					media: {
 						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
 					}

@@ -60,6 +60,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/**/out/**',
 	'!extensions/**/snippets/**',
 	'!extensions/**/colorize-fixtures/**',
+	'!extensions/**/vendors/**',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 
 	'!src/vs/base/browser/dompurify/**',
@@ -124,6 +125,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
 	'!extensions/**/colorize-fixtures/**',
+	'!extensions/**/vendors/**',
 
 	// except specific file types
 	'!src/vs/*/**/*.d.ts',
@@ -189,6 +191,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!extensions/typescript-language-features/node-maintainer/**',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
+	'!extensions/**/vendors/**',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 ]);
 

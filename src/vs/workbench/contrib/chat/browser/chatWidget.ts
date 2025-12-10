@@ -20,7 +20,7 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
-import { Schemas } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { filter } from '../../../../base/common/objects.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
@@ -1021,8 +1021,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return {
 			title,
 			message: new MarkdownString(DISCLAIMER),
-			icon: Codicon.chatSparkle,
+			icon: FileAccess.asFileUri('vs/workbench/contrib/chat/browser/media/galaxy.png'),
 			additionalMessage,
+			useLargeIcon: true,
 			suggestedPrompts: this.getPromptFileSuggestions()
 		};
 	}

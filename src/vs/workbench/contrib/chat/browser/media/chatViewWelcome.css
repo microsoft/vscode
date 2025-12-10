@@ -51,6 +51,8 @@ div.chat-welcome-view {
 	& > .chat-welcome-view-icon.custom-icon {
 		mask-size: 40px;
 		-webkit-mask-size: 40px;
+		width: 40px;
+		height: 40px;
 	}
 
 	& > .chat-welcome-view-icon.large-icon {

@@ -1,0 +1,28 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": [
+			"ES2022",
+			"DOM"
+		],
+		"types": [],
+		"skipLibCheck": true,
+		"typeRoots": [
+			"./node_modules/@types",
+			"./src/typings"
+		]
+	},
+	"include": [
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts",
+		"src/typings/**/*",
+		"../types/lib.textEncoder.d.ts",
+		"src/typings/path.d.ts"
+	],
+	"exclude": [
+		"./src/test/**",
+		"./src/extension.ts"
+	]
+}
+

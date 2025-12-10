@@ -75,6 +75,9 @@ const vscodeResourceIncludes = [
 	'out-build/vs/workbench/browser/parts/editor/media/*.png',
 	'out-build/vs/workbench/contrib/debug/browser/media/*.png',
 
+	// Chat
+	'out-build/vs/workbench/contrib/chat/browser/media/*.png',
+
 	// External Terminal
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 

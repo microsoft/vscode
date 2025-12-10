@@ -170,7 +170,7 @@ async function processFileAttachment(
 			};
 
 			// Add selected text prominently at the beginning
-			selectedTextPart = `\n\n**SELECTED TEXT IN ${fileName} (lines ${range.startLineNumber}-${range.endLineNumber}):**\n\`\`\`\n${selectedText}\n\`\`\`\n**IMPORTANT: Focus edits on this selected text area!**`;
+			selectedTextPart = `\n\n**SELECTED TEXT IN ${fileName} (lines ${range.startLineNumber}-${range.endLineNumber}):**\n\`\`\`\n${selectedText}\n\`\`\`\n**IMPORTANT: This is the area of interest. For structural errors (like mismatched LaTeX environments), you may need to edit code outside this selection to properly fix the issue.**`;
 
 			logService.info(
 				`[DSpaceAgent] Attached file with selection: ${fileName} (lines ${range.startLineNumber}-${range.endLineNumber})`
@@ -285,7 +285,7 @@ export async function buildMessages(
 			selectionsForRequest.set(documentUri.toString(), selectionRange);
 
 			// Add selected text prominently at the beginning
-			const selectedTextPart = `\n\n**SELECTED TEXT IN ${fileName} (lines ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}):**\n\`\`\`\n${selectedText}\n\`\`\`\n**IMPORTANT: Focus edits on this selected text area!**`;
+			const selectedTextPart = `\n\n**SELECTED TEXT IN ${fileName} (lines ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}):**\n\`\`\`\n${selectedText}\n\`\`\`\n**IMPORTANT: This is the area of interest. For structural errors (like mismatched LaTeX environments), you may need to edit code outside this selection to properly fix the issue.**`;
 
 			// Add full file content as context
 			const fileContextPart = `\n\n--- Current File: ${fileName} (selection: lines ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}) ---\n${fileContent}\n--- End of ${fileName} ---`;

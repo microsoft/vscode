@@ -1,0 +1,217 @@
+{
+	"Article": {
+		"prefix": ["article", "@article"],
+		"body": [
+			"@article{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Title}},",
+			"\tjournal = {${4:Journal Name}},",
+			"\tyear = {${5:2024}},",
+			"\tvolume = {${6:1}},",
+			"\tnumber = {${7:1}},",
+			"\tpages = {${8:1--10}},",
+			"\tdoi = {${9:10.xxxx/xxxxx}}",
+			"}"
+		],
+		"description": "Journal article entry"
+	},
+	"Book": {
+		"prefix": ["book", "@book"],
+		"body": [
+			"@book{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Title}},",
+			"\tpublisher = {${4:Publisher}},",
+			"\tyear = {${5:2024}},",
+			"\taddress = {${6:City}},",
+			"\tedition = {${7:1st}},",
+			"\tisbn = {${8:978-x-xxxx-xxxx-x}}",
+			"}"
+		],
+		"description": "Book entry"
+	},
+	"InProceedings": {
+		"prefix": ["inproceedings", "@inproceedings", "conference"],
+		"body": [
+			"@inproceedings{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Title}},",
+			"\tbooktitle = {${4:Conference Name}},",
+			"\tyear = {${5:2024}},",
+			"\tpages = {${6:1--10}},",
+			"\torganization = {${7:Organization}},",
+			"\taddress = {${8:City}}",
+			"}"
+		],
+		"description": "Conference paper entry"
+	},
+	"InCollection": {
+		"prefix": ["incollection", "@incollection"],
+		"body": [
+			"@incollection{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Chapter Title}},",
+			"\tbooktitle = {${4:Book Title}},",
+			"\tpublisher = {${5:Publisher}},",
+			"\tyear = {${6:2024}},",
+			"\teditor = {${7:Editor Name}},",
+			"\tpages = {${8:1--20}},",
+			"\taddress = {${9:City}}",
+			"}"
+		],
+		"description": "Book chapter entry"
+	},
+	"PhD Thesis": {
+		"prefix": ["phdthesis", "@phdthesis", "phd"],
+		"body": [
+			"@phdthesis{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Title}},",
+			"\tschool = {${4:University}},",
+			"\tyear = {${5:2024}},",
+			"\taddress = {${6:City}}",
+			"}"
+		],
+		"description": "PhD thesis entry"
+	},
+	"Master's Thesis": {
+		"prefix": ["mastersthesis", "@mastersthesis", "masters"],
+		"body": [
+			"@mastersthesis{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Title}},",
+			"\tschool = {${4:University}},",
+			"\tyear = {${5:2024}},",
+			"\taddress = {${6:City}}",
+			"}"
+		],
+		"description": "Master's thesis entry"
+	},
+	"Technical Report": {
+		"prefix": ["techreport", "@techreport", "report"],
+		"body": [
+			"@techreport{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Title}},",
+			"\tinstitution = {${4:Institution}},",
+			"\tyear = {${5:2024}},",
+			"\tnumber = {${6:TR-001}},",
+			"\taddress = {${7:City}}",
+			"}"
+		],
+		"description": "Technical report entry"
+	},
+	"Misc": {
+		"prefix": ["misc", "@misc"],
+		"body": [
+			"@misc{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Title}},",
+			"\tyear = {${4:2024}},",
+			"\thowpublished = {${5:\\url{https://example.com}}},",
+			"\tnote = {${6:Accessed: 2024-01-01}}",
+			"}"
+		],
+		"description": "Miscellaneous entry (web pages, etc.)"
+	},
+	"Online": {
+		"prefix": ["online", "@online", "web"],
+		"body": [
+			"@online{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Title}},",
+			"\tyear = {${4:2024}},",
+			"\turl = {${5:https://example.com}},",
+			"\turldate = {${6:2024-01-01}}",
+			"}"
+		],
+		"description": "Online resource (BibLaTeX)"
+	},
+	"Unpublished": {
+		"prefix": ["unpublished", "@unpublished"],
+		"body": [
+			"@unpublished{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Title}},",
+			"\tyear = {${4:2024}},",
+			"\tnote = {${5:Manuscript in preparation}}",
+			"}"
+		],
+		"description": "Unpublished work"
+	},
+	"Manual": {
+		"prefix": ["manual", "@manual"],
+		"body": [
+			"@manual{${1:key},",
+			"\ttitle = {${2:Title}},",
+			"\torganization = {${3:Organization}},",
+			"\tyear = {${4:2024}},",
+			"\taddress = {${5:City}}",
+			"}"
+		],
+		"description": "Technical manual"
+	},
+	"Software": {
+		"prefix": ["software", "@software"],
+		"body": [
+			"@software{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Software Name}},",
+			"\tversion = {${4:1.0}},",
+			"\tyear = {${5:2024}},",
+			"\turl = {${6:https://github.com/user/repo}}",
+			"}"
+		],
+		"description": "Software entry (BibLaTeX)"
+	},
+	"Dataset": {
+		"prefix": ["dataset", "@dataset"],
+		"body": [
+			"@dataset{${1:key},",
+			"\tauthor = {${2:Author Name}},",
+			"\ttitle = {${3:Dataset Name}},",
+			"\tyear = {${4:2024}},",
+			"\tpublisher = {${5:Repository}},",
+			"\tdoi = {${6:10.xxxx/xxxxx}}",
+			"}"
+		],
+		"description": "Dataset entry (BibLaTeX)"
+	},
+	"Patent": {
+		"prefix": ["patent", "@patent"],
+		"body": [
+			"@patent{${1:key},",
+			"\tauthor = {${2:Inventor Name}},",
+			"\ttitle = {${3:Patent Title}},",
+			"\tnumber = {${4:US12345678}},",
+			"\tyear = {${5:2024}},",
+			"\tholder = {${6:Patent Holder}}",
+			"}"
+		],
+		"description": "Patent entry"
+	},
+	"Proceedings": {
+		"prefix": ["proceedings", "@proceedings"],
+		"body": [
+			"@proceedings{${1:key},",
+			"\ttitle = {${2:Conference Proceedings Title}},",
+			"\tyear = {${3:2024}},",
+			"\teditor = {${4:Editor Name}},",
+			"\tpublisher = {${5:Publisher}},",
+			"\taddress = {${6:City}}",
+			"}"
+		],
+		"description": "Conference proceedings"
+	},
+	"String": {
+		"prefix": ["string", "@string"],
+		"body": "@string{${1:abbrev} = {${2:Full Name}}}",
+		"description": "String abbreviation"
+	},
+	"Comment": {
+		"prefix": ["comment", "@comment"],
+		"body": "@comment{${1:comment text}}",
+		"description": "BibTeX comment"
+	}
+}
+
