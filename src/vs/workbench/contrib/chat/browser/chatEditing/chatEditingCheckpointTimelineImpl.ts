@@ -382,9 +382,14 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			// Convert bytes to string (this is what the notebook serializer expects)
 			return new TextDecoder().decode(bytes);
 		} catch (error) {
-			console.error(`Error converting notebook snapshot to serialized format for viewType '${notebookViewType}':`, error);
-			// Return the original content if conversion fails
-			return snapshotContent;
+			console.error(`Error converting notebook snapshot to serialized format for viewType '${notebookViewType}' (snapshot length: ${snapshotContent.length}):`, error);
+			// Return an empty notebook structure if conversion fails to avoid parsing errors
+			return JSON.stringify({
+				cells: [],
+				metadata: {},
+				nbformat: 4,
+				nbformat_minor: 2
+			});
 		}
 	}
 
