@@ -362,12 +362,6 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 
 		const orientation = this.getOrientation();
-		let newWidth: number;
-		if (orientation === AgentSessionsViewerOrientation.SideBySide) {
-			newWidth = Math.max(600 + 1 /* account for possible theme border */, Math.round(layoutService.mainContainerDimension.width / 2));
-		} else {
-			newWidth = 300 + 1 /* account for possible theme border */;
-		}
 
 		// Update configuration if needed
 		const configuredSessionsViewerOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
@@ -385,13 +379,28 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const part = getPartByLocation(chatLocation);
 		let currentSize = layoutService.getSize(part);
 
-		if (orientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= newWidth) {
-			return; // Already wide enough
+		const sideBySideMinWidth = 600 + 1; // account for possible theme border
+		const stackedMaxWidth = 300 + 1; 	// account for possible theme border
+
+		if (configuredSessionsViewerOrientation !== 'auto') {
+			if (
+				orientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth || // already wide enough to show side by side
+				orientation === AgentSessionsViewerOrientation.Stacked													// always wide enough to show stacked
+			) {
+				return; // if the orientation is not set to `auto`, we try to avoid resizing if not needed
+			}
 		}
 
 		if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
 			layoutService.setAuxiliaryBarMaximized(false); // Leave maximized state if applicable
 			currentSize = layoutService.getSize(part);
+		}
+
+		let newWidth: number;
+		if (orientation === AgentSessionsViewerOrientation.SideBySide) {
+			newWidth = Math.max(sideBySideMinWidth, Math.round(layoutService.mainContainerDimension.width / 2));
+		} else {
+			newWidth = stackedMaxWidth;
 		}
 
 		layoutService.setSize(part, {
