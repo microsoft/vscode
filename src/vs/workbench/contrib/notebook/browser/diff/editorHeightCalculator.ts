@@ -12,7 +12,7 @@ import { getEditorPadding } from './diffCellEditorOptions.js';
 import { HeightOfHiddenLinesRegionInDiffEditor } from './diffElementViewModel.js';
 
 export interface IDiffEditorHeightCalculatorService {
-	diffAndComputeHeight(original: URI, modified: URI): Promise<number>;
+	diffAndComputeHeight(original: URI, modified: URI, editorWidth?: number): Promise<number>;
 	computeHeightFromLines(lineCount: number): number;
 }
 
@@ -24,7 +24,7 @@ export class DiffEditorHeightCalculatorService {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	public async diffAndComputeHeight(original: URI, modified: URI): Promise<number> {
+	public async diffAndComputeHeight(original: URI, modified: URI, editorWidth?: number): Promise<number> {
 		const [originalModel, modifiedModel] = await Promise.all([this.textModelResolverService.createModelReference(original), this.textModelResolverService.createModelReference(modified)]);
 		try {
 			const diffChanges = await this.editorWorkerService.computeDiff(original, modified, {
@@ -59,9 +59,12 @@ export class DiffEditorHeightCalculatorService {
 			const unchangeRegionsHeight = numberOfHiddenSections * HeightOfHiddenLinesRegionInDiffEditor;
 			const visibleLineCount = orginalNumberOfLines + numberOfNewLines - numberOfHiddenLines;
 
-			// TODO: When we have a horizontal scrollbar, we need to add 12 to the height.
-			// Right now there's no way to determine if a horizontal scrollbar is visible in the editor.
-			return (visibleLineCount * this.lineHeight) + getEditorPadding(visibleLineCount).top + getEditorPadding(visibleLineCount).bottom + unchangeRegionsHeight;
+			// Always reserve space for the horizontal scrollbar to prevent layout shifts
+			// This ensures consistent height whether or not a scrollbar is displayed
+			const scrollbarSize = this.configurationService.getValue<number>('editor.scrollbar.horizontalScrollbarSize');
+			const horizontalScrollbarHeight = scrollbarSize ?? 12; // Default to 12px if not configured
+
+			return (visibleLineCount * this.lineHeight) + getEditorPadding(visibleLineCount).top + getEditorPadding(visibleLineCount).bottom + unchangeRegionsHeight + horizontalScrollbarHeight;
 		} finally {
 			originalModel.dispose();
 			modifiedModel.dispose();
