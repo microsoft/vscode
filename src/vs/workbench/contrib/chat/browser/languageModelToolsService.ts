@@ -93,11 +93,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private readonly _callsByRequestId = new Map<string, ITrackedCall[]>();
 
-	private readonly _isAgentModeEnabled = observableFromEventOpts(
-		{ owner: this, equalsFn: () => false },
-		Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.AgentEnabled)),
-		() => this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled)
-	);
+	private readonly _isAgentModeEnabled: IObservable<boolean | undefined>;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -114,6 +110,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		@ILanguageModelToolsConfirmationService private readonly _confirmationService: ILanguageModelToolsConfirmationService,
 	) {
 		super();
+
+		this._isAgentModeEnabled = observableFromEventOpts(
+			{ owner: this, equalsFn: () => false },
+			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.AgentEnabled)),
+			() => this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled)
+		);
 
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
