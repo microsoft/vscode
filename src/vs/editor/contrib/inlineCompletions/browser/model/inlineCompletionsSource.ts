@@ -476,6 +476,7 @@ export class InlineCompletionsSource extends Disposable {
 			preceeded: undefined,
 			superseded: undefined,
 			reason: undefined,
+			acceptedAlternativeAction: undefined,
 			correlationId: undefined,
 			shownDuration: undefined,
 			shownDurationUncollapsed: undefined,
