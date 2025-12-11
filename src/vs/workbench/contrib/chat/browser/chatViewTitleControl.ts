@@ -16,7 +16,6 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -113,21 +112,21 @@ export class ChatViewTitleControl extends Disposable {
 		// Toolbar on the left
 		this.navigationToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.navigationToolbar, MenuId.ChatViewSessionTitleNavigationToolbar, {
 			menuOptions: { shouldForwardArgs: true },
-			hiddenItemStrategy: HiddenItemStrategy.NoHide
-		}));
-
-		// Actions toolbar on the right
-		this.actionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.actionsToolbar, MenuId.ChatViewSessionTitleToolbar, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === ACTION_ID_PICK_AGENT_SESSION) {
 					this.agentPickerActionViewItem = this._register(new ChatViewTitleAgentPickerActionViewItem(action));
 					return this.agentPickerActionViewItem;
 				}
 
-				return createActionViewItem(this.instantiationService, action, undefined);
+				return undefined;
 			},
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			menuOptions: { shouldForwardArgs: true }
+			hiddenItemStrategy: HiddenItemStrategy.NoHide
+		}));
+
+		// Actions toolbar on the right
+		this.actionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.actionsToolbar, MenuId.ChatViewSessionTitleToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+			hiddenItemStrategy: HiddenItemStrategy.NoHide
 		}));
 
 		// Title controls
@@ -224,8 +223,8 @@ export class ChatViewTitleControl extends Disposable {
 			return;
 		}
 
-		this.agentPickerActionViewItem?.updateTitle(title);
 		this.titleContainer.classList.toggle('visible', this.shouldRender());
+		this.agentPickerActionViewItem?.updateTitle(title);
 
 		const currentHeight = this.getHeight();
 		if (currentHeight !== this.lastKnownHeight) {

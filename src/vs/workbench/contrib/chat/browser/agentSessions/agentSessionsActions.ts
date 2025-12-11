@@ -318,7 +318,7 @@ export class PickAgentSessionAction extends ViewAction<ChatViewPane> {
 			viewId: ChatViewId,
 			f1: false,
 			menu: [{
-				id: MenuId.ChatViewSessionTitleToolbar,
+				id: MenuId.ChatViewSessionTitleNavigationToolbar,
 				group: 'navigation',
 				order: 2
 			}]
