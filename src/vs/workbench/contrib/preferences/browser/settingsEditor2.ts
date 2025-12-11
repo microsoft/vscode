@@ -1629,16 +1629,6 @@ export class SettingsEditor2 extends EditorPane {
 			return;
 		}
 
-		// If the context view is focused, delay rendering settings
-		if (this.contextViewFocused()) {
-			// eslint-disable-next-line no-restricted-syntax
-			const element = this.window.document.querySelector('.context-view');
-			if (element) {
-				this.scheduleRefresh(element as HTMLElement, key);
-			}
-			return;
-		}
-
 		// If a setting control is currently focused, schedule a refresh for later
 		const activeElement = this.getActiveControlInSettingsTree();
 		const focusedSetting = activeElement && this.settingRenderers.getSettingDOMElementForDOMElement(activeElement);
@@ -1679,10 +1669,6 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		return;
-	}
-
-	private contextViewFocused(): boolean {
-		return !!DOM.findParentWithClass(<HTMLElement>this.rootElement.ownerDocument.activeElement, 'context-view');
 	}
 
 	private refreshSingleElement(element: SettingsTreeSettingElement): void {
