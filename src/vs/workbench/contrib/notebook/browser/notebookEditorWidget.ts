@@ -243,6 +243,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._isDisposed;
 	}
 
+	// Cache the last valid editor view state to handle the case where cells are disposed
+	// before the final getEditorViewState() call during shutdown
+	private _lastEditorViewState: INotebookEditorViewState | undefined;
+
 	set viewModel(newModel: NotebookViewModel | undefined) {
 		this._onWillChangeModel.fire(this._notebookViewModel?.notebookDocument);
 		this._notebookViewModel = newModel;
@@ -1376,6 +1380,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._webview?.element.remove();
 		this._webview = null;
 		this._list.clear();
+		// Clear the cached view state when detaching model
+		this._lastEditorViewState = undefined;
 	}
 
 
@@ -1823,6 +1829,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	getEditorViewState(): INotebookEditorViewState {
 		const state = this.viewModel?.getEditorViewState();
 		if (!state) {
+			// If we can't get state from the view model (e.g., it's disposed),
+			// return the last cached state if available
+			if (this._lastEditorViewState) {
+				return this._lastEditorViewState;
+			}
 			return {
 				editingCells: {},
 				cellLineNumberStates: {},
@@ -1866,6 +1877,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		if (this.textModel?.uri.scheme === Schemas.untitled) {
 			state.selectedKernelId = this.activeKernel?.id;
 		}
+
+		// Cache the state for use if the view model gets disposed before the next call
+		this._lastEditorViewState = state;
 
 		return state;
 	}
