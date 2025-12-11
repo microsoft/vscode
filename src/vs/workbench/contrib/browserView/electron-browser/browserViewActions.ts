@@ -172,7 +172,7 @@ class StopLoadingAction extends Action2 {
 				// Show stop button only when loading AND not in cooldown period
 				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_LOADING, ContextKeyExpr.not(CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD.key))
 			},
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_LOADING, ContextKeyExpr.not(CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD.key)),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_LOADING),
 			keybinding: {
 				when: ContextKeyExpr.and(CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_LOADING), // Keybinding is only active when focus is within the browser editor and loading
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over debug
