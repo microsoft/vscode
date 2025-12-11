@@ -270,8 +270,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// Iterate backwards through commands to find the right one
 		for (let i = this.commands.length - 1; i >= 0; i--) {
 			const commandMarker = this.commands[i].promptStartMarker ?? this.commands[i].marker!;
-			// Skip commands with disposed/invalid markers (line === -1 indicates the marker was
-			// disposed, typically after clearBuffer is called)
+			// Skip commands with disposed/invalid markers (line === -1 after clearBuffer)
 			if (commandMarker.line !== -1 && commandMarker.line <= line) {
 				return this.commands[i];
 			}
