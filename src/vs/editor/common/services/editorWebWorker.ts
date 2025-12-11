@@ -408,12 +408,12 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 
 	// --- BEGIN default document colors -----------------------------------------------------------
 
-	public async $computeDefaultDocumentColors(modelUrl: string): Promise<IColorInformation[] | null> {
+	public async $computeDefaultDocumentColors(modelUrl: string, colorFormat: 'rgba' | 'argb' = 'rgba'): Promise<IColorInformation[] | null> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
 		}
-		return computeDefaultDocumentColors(model);
+		return computeDefaultDocumentColors(model, colorFormat);
 	}
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------
