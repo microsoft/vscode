@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { fromNow } from '../../../../../base/common/date.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
@@ -114,11 +115,15 @@ export class AgentSessionsPicker {
 	}
 
 	private toPickItem(session: IAgentSession): ISessionPickItem {
+		const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
+		const timeAgo = fromNow(session.timing.endTime || session.timing.startTime);
+		const description = descriptionText ? `${descriptionText} • ${timeAgo}` : timeAgo;
+
 		return {
 			id: session.resource.toString(),
 			label: session.label,
 			tooltip: session.tooltip,
-			description: typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined,
+			description,
 			iconClass: ThemeIcon.asClassName(session.icon),
 			session
 		};
