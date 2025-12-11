@@ -11,7 +11,6 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IEditableData } from '../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
 import { IChatEditingSession } from './chatEditingService.js';
 import { IChatModel, IChatRequestVariableData, ISerializableChatModelInputState } from './chatModel.js';
@@ -225,11 +224,6 @@ export interface IChatSessionsService {
 	setOptionsChangeCallback(callback: SessionOptionsChangedCallback): void;
 	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void>;
 
-	// Editable session support
-	setEditableSession(sessionResource: URI, data: IEditableData | null): Promise<void>;
-	getEditableData(sessionResource: URI): IEditableData | undefined;
-	isEditable(sessionResource: URI): boolean;
-	// #endregion
 	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
 }
