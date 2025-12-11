@@ -40,13 +40,13 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { openAgentSessionsView } from '../agentSessions/agentSessions.js';
 import { isNewUser, isCompletionsEnabled } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import product from '../../../../../platform/product/common/product.js';
 import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Color } from '../../../../../base/common/color.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatViewId } from '../chat.js';
 
 const defaultChat = product.defaultChatAgent;
 
@@ -141,7 +141,7 @@ export class ChatStatusDashboard extends DomWidget {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IViewsService private readonly viewService: IViewsService,
 	) {
 		super();
 
@@ -227,7 +227,7 @@ export class ChatStatusDashboard extends DomWidget {
 					tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
 					class: ThemeIcon.asClassName(Codicon.eye),
 					run: () => {
-						this.instantiationService.invokeFunction(openAgentSessionsView);
+						this.viewService.openView(ChatViewId, true);
 						this.hoverService.hideHover(true);
 					}
 				}));

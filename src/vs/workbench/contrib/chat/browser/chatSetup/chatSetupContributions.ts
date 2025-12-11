@@ -43,7 +43,6 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatModeService } from '../../common/chatModes.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
-import { AGENT_SESSIONS_VIEW_CONTAINER_ID } from '../agentSessions/agentSessions.js';
 import { ChatViewContainerId, IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { ChatSetupAnonymous } from './chatSetup.js';
@@ -707,12 +706,9 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar).filter(
 			container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0
 		);
-		const hasChatView = activeContainers.some(container => container.id === ChatViewContainerId);
-		const hasAgentSessionsView = activeContainers.some(container => container.id === AGENT_SESSIONS_VIEW_CONTAINER_ID);
 		if (
-			(activeContainers.length === 0) ||  										// chat view is already gone but we know it was there before
-			(activeContainers.length === 1 && (hasChatView || hasAgentSessionsView)) || // chat view or agent sessions is the only view which is going to go away
-			(activeContainers.length === 2 && hasChatView && hasAgentSessionsView) 		// both chat and agent sessions view are going to go away
+			(activeContainers.length === 0) ||  													// chat view is already gone but we know it was there before
+			(activeContainers.length === 1 && activeContainers.at(0)?.id === ChatViewContainerId) 	// chat view is the only view which is going to go away
 		) {
 			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
 		}

@@ -24,8 +24,11 @@
 		}
 
 		.chat-view-title-icon {
-			margin-left: auto;
 			color: var(--vscode-descriptionForeground);
+		}
+
+		.chat-view-title-actions-toolbar {
+			margin-left: auto;
 		}
 	}
 
