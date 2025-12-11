@@ -420,6 +420,20 @@
 	display: none;
 }
 
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-inputbox {
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
+	height: 22px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-inputbox > .ibwrapper > .input {
+	padding: 0 6px;
+	height: 100%;
+	line-height: 22px;
+	box-sizing: border-box;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .actions .action-label {
 	padding: 2px;
 }
