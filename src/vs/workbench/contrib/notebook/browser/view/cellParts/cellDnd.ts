@@ -310,12 +310,12 @@ export class CellDragAndDropController extends Disposable {
 
 	registerDragHandle(templateData: BaseCellRenderTemplate, cellRoot: HTMLElement, dragHandles: HTMLElement[], dragImageProvider: DragImageProvider): void {
 		const container = templateData.container;
-		
+
 		// Track drag handles so we can update them when drag-and-drop setting changes
 		for (const dragHandle of dragHandles) {
 			this.registeredDragHandles.add(dragHandle);
 		}
-		
+
 		// Set initial draggable state based on current setting
 		this.updateDragHandlesState(dragHandles);
 
@@ -367,7 +367,7 @@ export class CellDragAndDropController extends Disposable {
 	private updateDragHandlesState(dragHandles?: HTMLElement[]): void {
 		const isDragAndDropEnabled = this.notebookEditor.notebookOptions.getDisplayOptions().dragAndDropEnabled && !this.notebookEditor.isReadOnly;
 		const handlesToUpdate = dragHandles ?? Array.from(this.registeredDragHandles);
-		
+
 		for (const dragHandle of handlesToUpdate) {
 			if (isDragAndDropEnabled) {
 				dragHandle.setAttribute('draggable', 'true');
