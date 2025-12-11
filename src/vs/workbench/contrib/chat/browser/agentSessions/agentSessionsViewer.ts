@@ -30,10 +30,7 @@ import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { ChatSessionStatus } from '../../common/chatSessionsService.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -68,6 +65,10 @@ interface IAgentSessionItemTemplate {
 	readonly disposables: IDisposable;
 }
 
+export interface IAgentSessionRendererOptions {
+	getHoverPosition(): HoverPosition;
+}
+
 export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session';
@@ -75,10 +76,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
 	constructor(
+		private readonly options: IAgentSessionRendererOptions,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -299,18 +299,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 					content: tooltip,
 					style: HoverStyle.Pointer,
 					position: {
-						hoverPosition: (() => {
-							const sideBarPosition = this.layoutService.getSideBarPosition();
-							const viewLocation = this.viewDescriptorService.getViewLocationById(AGENT_SESSIONS_VIEW_ID);
-							switch (viewLocation) {
-								case ViewContainerLocation.Sidebar:
-									return sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
-								case ViewContainerLocation.AuxiliaryBar:
-									return sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
-								default:
-									return HoverPosition.RIGHT;
-							}
-						})()
+						hoverPosition: this.options.getHoverPosition()
 					}
 				}), { groupId: 'agent.sessions' })
 			);

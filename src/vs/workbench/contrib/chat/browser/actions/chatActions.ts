@@ -47,7 +47,7 @@ import { ActiveEditorContext, IsCompactTitleBarContext } from '../../../../commo
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -66,7 +66,7 @@ import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '..
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/languageModelToolsConfirmationService.js';
@@ -77,7 +77,6 @@ import { ChatEditorInput, showClearEditingSessionConfirmation } from '../chatEdi
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
-import { IMarshalledChatSessionContext } from './chatSessionActions.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -922,7 +921,7 @@ export function registerChatActions() {
 							commandService.executeCommand(buttonItem.id, {
 								session: contextItem.session,
 								$mid: MarshalledId.ChatSessionContext
-							} satisfies IMarshalledChatSessionContext);
+							});
 						}
 
 						// dismiss quick picker
@@ -1095,97 +1094,6 @@ export function registerChatActions() {
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
 			await widgetService.openSession(ChatEditorInput.getNewEditorUri(), AUX_WINDOW_GROUP, { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } satisfies IChatEditorOptions);
-		}
-	});
-
-	registerAction2(class OpenChatEditorInNewWindowAction extends Action2 {
-		constructor() {
-			super({
-				id: `workbench.action.chat.newChatInNewWindow`,
-				title: localize2('chatSessions.openNewChatInNewWindow', 'Open New Chat in New Window'),
-				f1: false,
-				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled,
-				menu: {
-					id: MenuId.ViewTitle,
-					group: 'submenu',
-					order: 1,
-					when: ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.local`),
-				}
-			});
-		}
-
-		async run(accessor: ServicesAccessor) {
-			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(ChatEditorInput.getNewEditorUri(), AUX_WINDOW_GROUP, {
-				pinned: true,
-				auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
-			});
-		}
-	});
-
-	registerAction2(class NewChatInSideBarAction extends Action2 {
-		constructor() {
-			super({
-				id: `workbench.action.chat.newChatInSideBar`,
-				title: localize2('chatSessions.newChatInSideBar', 'Open New Chat in Side Bar'),
-				f1: false,
-				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled,
-				menu: {
-					id: MenuId.ViewTitle,
-					group: 'submenu',
-					order: 1,
-					when: ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.local`),
-				}
-			});
-		}
-
-		async run(accessor: ServicesAccessor) {
-			const widgetService = accessor.get(IChatWidgetService);
-
-			// Open the chat view in the sidebar and get the widget
-			const chatWidget = await widgetService.revealWidget();
-
-			if (chatWidget) {
-				// Clear the current chat to start a new one
-				await chatWidget.clear();
-				chatWidget.attachmentModel.clear(true);
-				chatWidget.input.relatedFiles?.clear();
-
-				// Focus the input area
-				chatWidget.focusInput();
-			}
-		}
-	});
-
-	registerAction2(class OpenChatInNewEditorGroupAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.openNewChatToTheSide',
-				title: localize2('chat.openNewChatToTheSide.label', "Open New Chat Editor to the Side"),
-				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled,
-				f1: false,
-				menu: {
-					id: MenuId.ViewTitle,
-					group: 'submenu',
-					order: 1,
-					when: ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.local`),
-				}
-			});
-		}
-
-		async run(accessor: ServicesAccessor, ...args: unknown[]) {
-			const widgetService = accessor.get(IChatWidgetService);
-			const editorGroupService = accessor.get(IEditorGroupsService);
-
-			// Create a new editor group to the right
-			const newGroup = editorGroupService.addGroup(editorGroupService.activeGroup, GroupDirection.RIGHT);
-			editorGroupService.activateGroup(newGroup);
-
-			// Open a new chat editor in the new group
-			await widgetService.openSession(ChatEditorInput.getNewEditorUri(), newGroup.id, { pinned: true });
 		}
 	});
 

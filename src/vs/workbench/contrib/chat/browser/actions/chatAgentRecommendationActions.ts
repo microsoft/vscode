@@ -73,16 +73,6 @@ export class ChatAgentRecommendation extends Disposable implements IWorkbenchCon
 					precondition: ContextKeyExpr.equals(availabilityContextId, true),
 					menu: [
 						{
-							id: MenuId.AgentSessionsInstallMenu,
-							group: '0_install',
-							when: ContextKeyExpr.equals(availabilityContextId, true)
-						},
-						{
-							id: MenuId.AgentSessionsViewTitle,
-							group: 'navigation@98',
-							when: ContextKeyExpr.equals(availabilityContextId, true)
-						},
-						{
 							id: MenuId.ChatNewMenu,
 							group: '4_recommendations',
 							when: ContextKeyExpr.equals(availabilityContextId, true)

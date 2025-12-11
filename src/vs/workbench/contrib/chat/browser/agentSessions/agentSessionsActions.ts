@@ -8,12 +8,9 @@ import { IAgentSession } from './agentSessionsModel.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
+import { AgentSessionsViewerOrientation, IAgentSessionsControl, IMarshalledChatSessionContext, isMarshalledChatSessionContext } from './agentSessions.js';
 import { IChatService } from '../../common/chatService.js';
-import { AgentSessionsView } from './agentSessionsView.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IMarshalledChatSessionContext, isMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -302,52 +299,6 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 
 	runWithSession(session: IAgentSession): void {
 		session.setRead(true);
-	}
-}
-
-//#endregion
-
-//#region View Actions
-
-export class RefreshAgentSessionsViewAction extends ViewAction<AgentSessionsView> {
-
-	constructor() {
-		super({
-			id: 'agentSessionsView.refresh',
-			title: localize2('refresh', "Refresh Agent Sessions"),
-			icon: Codicon.refresh,
-			menu: {
-				id: MenuId.AgentSessionsViewTitle,
-				group: 'navigation',
-				order: 1
-			},
-			viewId: AGENT_SESSIONS_VIEW_ID
-		});
-	}
-
-	runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-		view.refresh();
-	}
-}
-
-export class FindAgentSessionAction extends ViewAction<AgentSessionsView> {
-
-	constructor() {
-		super({
-			id: 'agentSessionsView.find',
-			title: localize2('find', "Find Agent Session"),
-			icon: Codicon.search,
-			menu: {
-				id: MenuId.AgentSessionsViewTitle,
-				group: 'navigation',
-				order: 2
-			},
-			viewId: AGENT_SESSIONS_VIEW_ID
-		});
-	}
-
-	runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-		view.openFind();
 	}
 }
 
