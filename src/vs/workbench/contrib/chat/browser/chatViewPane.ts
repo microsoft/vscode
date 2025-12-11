@@ -96,6 +96,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsViewerPositionContext: IContextKey<AgentSessionsViewerPosition>;
 
 	private titleControl: ChatViewTitleControl | undefined;
+	get titleControlAgentPickerElement(): HTMLElement | undefined {
+		return this.titleControl?.agentPickerElement;
+	}
 
 	private welcomeController: ChatViewWelcomeController | undefined;
 
@@ -592,13 +595,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Update the toolbar context with new sessionId
 		this.updateActions();
-	}
-
-	async pickSession(): Promise<void> {
-		const sessionId = await this.titleControl?.pickSession();
-		if (sessionId) {
-			await this.loadSession(sessionId);
-		}
 	}
 
 	async loadSession(sessionResource: URI): Promise<IChatModel | undefined> {

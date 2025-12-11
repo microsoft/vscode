@@ -26,6 +26,10 @@ import { showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { ACTION_ID_PICK_AGENT_SESSION } from '../actions/chatActions.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AgentSessionsPicker } from './agentSessionsPicker.js';
 
 abstract class BaseAgentSessionAction extends Action2 {
 
@@ -265,6 +269,28 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 //#endregion
 
 //#region View Actions
+
+export class PickAgentSessionAction extends ViewAction<ChatViewPane> {
+	constructor() {
+		super({
+			id: ACTION_ID_PICK_AGENT_SESSION,
+			title: localize2('chat.pickAgentSession', "Pick Agent Session"),
+			viewId: ChatViewId,
+			f1: false,
+			menu: [{
+				id: MenuId.ChatViewSessionTitleToolbar,
+				group: 'navigation',
+				order: 2
+			}]
+		});
+	}
+
+	override async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
+		const instantiationService = accessor.get(IInstantiationService);
+		const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, view.titleControlAgentPickerElement);
+		await agentSessionsPicker.pickAgentSession();
+	}
+}
 
 export class RefreshAgentSessionsViewAction extends ViewAction<AgentSessionsView> {
 

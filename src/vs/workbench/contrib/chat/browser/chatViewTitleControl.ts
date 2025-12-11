@@ -67,6 +67,10 @@ export class ChatViewTitleControl extends Disposable {
 	private toolbar?: MenuWorkbenchToolBar;
 	private agentPickerActionViewItem?: ChatViewTitleAgentPickerActionViewItem;
 
+	get agentPickerElement(): HTMLElement | undefined {
+		return this.agentPickerActionViewItem?.element;
+	}
+
 	private lastKnownHeight = 0;
 
 	constructor(
@@ -267,12 +271,6 @@ export class ChatViewTitleControl extends Disposable {
 		}
 
 		return this.titleContainer.offsetHeight;
-	}
-
-	async pickSession(): Promise<URI | undefined> {
-		const anchor = this.agentPickerActionViewItem?.element;
-		const picker = this.instantiationService.createInstance(ChatViewTitleAgentPicker, anchor);
-		return await picker.pickAgentSession();
 	}
 }
 

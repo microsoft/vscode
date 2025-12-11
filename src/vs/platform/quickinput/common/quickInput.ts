@@ -197,6 +197,9 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 */
 	activeItem?: Promise<T> | T;
 
+	/**
+	 * an optional anchor for the picker
+	 */
 	anchor?: HTMLElement | { x: number; y: number };
 
 	onKeyMods?: (keyMods: IKeyMods) => void;
@@ -361,6 +364,9 @@ export interface IQuickInput extends IDisposable {
 	 */
 	ignoreFocusOut: boolean;
 
+	/**
+	 * An optional anchor for the quick input.
+	 */
 	anchor?: HTMLElement | { x: number; y: number };
 
 	/**
