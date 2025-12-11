@@ -402,7 +402,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
 		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
-		this.sessionsControl?.setVisible(newSessionsContainerVisible);
 
 		return {
 			changed: sessionsContainerVisible !== newSessionsContainerVisible,
@@ -647,11 +646,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	focusSessions(): boolean {
-		if (!this.sessionsControl?.isVisible()) {
-			return false;
+		if (this.sessionsContainer?.style.display === 'none') {
+			return false; // not visible
 		}
 
-		this.sessionsControl.focus();
+		this.sessionsControl?.focus();
 
 		return true;
 	}
