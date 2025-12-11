@@ -12,6 +12,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
+import { McpTaskManager } from './mcpTaskManager.js';
 import { IMcpClientMethods, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 export class McpServerConnection extends Disposable implements IMcpServerConnection {
@@ -29,6 +30,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		public readonly launchDefinition: McpServerLaunch,
 		private readonly _logger: ILogger,
 		private readonly _errorOnUserInteraction: boolean | undefined,
+		private readonly _taskManager: McpTaskManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -78,10 +80,11 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 			if (state.state === McpConnectionState.Kind.Running && !didStart) {
 				didStart = true;
 				McpServerRequestHandler.create(this._instantiationService, {
+					...methods,
 					launch,
 					logger: this._logger,
 					requestLogLevel: this.definition.devMode ? LogLevel.Info : LogLevel.Debug,
-					...methods,
+					taskManager: this._taskManager,
 				}, cts.token).then(
 					handler => {
 						if (!store.isDisposed) {

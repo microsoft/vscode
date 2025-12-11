@@ -812,8 +812,8 @@ export class QuickInputController extends Disposable {
 		this.onDidTriggerButtonEmitter.fire(this.backButton);
 	}
 
-	async cancel() {
-		this.hide();
+	async cancel(reason?: QuickInputHideReason) {
+		this.hide(reason);
 	}
 
 	layout(dimension: dom.IDimension, titleBarOffset: number): void {

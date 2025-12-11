@@ -5,7 +5,7 @@
 
 import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { DebugLocation, IObservable, IObservableWithChange, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../base/common/observable.js';
+import { DebugLocation, IObservable, IObservableWithChange, IReader, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
 import { LineRange } from '../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../common/core/ranges/offsetRange.js';
@@ -367,6 +367,23 @@ export class ObservableCodeEditor extends Disposable {
 		});
 	}
 
+	/**
+	 * Uses an approximation if the exact position cannot be determined.
+	 */
+	getLeftOfPosition(position: Position, reader: IReader | undefined): number {
+		this.layoutInfo.read(reader);
+		this.value.read(reader);
+
+		let offset = this.editor.getOffsetForColumn(position.lineNumber, position.column);
+		if (offset === -1) {
+			// approximation
+			const typicalHalfwidthCharacterWidth = this.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+			const approximation = position.column * typicalHalfwidthCharacterWidth;
+			offset = approximation;
+		}
+		return offset;
+	}
+
 	public observePosition(position: IObservable<Position | null>, store: DisposableStore): IObservable<Point | null> {
 		let pos = position.get();
 		const result = observableValueOpts<Point | null>({ owner: this, debugName: () => `topLeftOfPosition${pos?.toString()}`, equalsFn: equalsIfDefined(Point.equals) }, new Point(0, 0));
@@ -379,6 +396,7 @@ export class ObservableCodeEditor extends Disposable {
 			},
 			getId: () => contentWidgetId,
 			allowEditorOverflow: false,
+			useDisplayNone: true,
 			afterRender: (position, coordinate) => {
 				const model = this._model.get();
 				if (model && pos && pos.lineNumber > model.getLineCount()) {

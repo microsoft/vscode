@@ -16,6 +16,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
+import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
@@ -127,15 +128,15 @@ export function registerNewChatActions() {
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const dialogService = accessor.get(IDialogService);
 
-			if (editingSession && !(await handleCurrentEditingSession(editingSession, undefined, dialogService))) {
+			const model = widget.viewModel?.model;
+			if (model && !(await handleCurrentEditingSession(model, undefined, dialogService))) {
 				return;
 			}
 
 			accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 
 			await editingSession?.stop();
-			widget.clear();
-			await widget.waitForReady();
+			await widget.clear();
 			widget.attachmentModel.clear(true);
 			widget.input.relatedFiles?.clear();
 			widget.focusInput();
@@ -158,6 +159,15 @@ export function registerNewChatActions() {
 		}
 	});
 	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
+
+	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
+		command: {
+			id: ACTION_ID_NEW_CHAT,
+			title: localize2('chat.goBack', "Go Back"),
+			icon: Codicon.arrowLeft,
+		},
+		group: 'navigation'
+	});
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
 		constructor() {
@@ -205,9 +215,9 @@ export function registerNewChatActions() {
 		}
 
 		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
-			const widget = accessor.get(IChatWidgetService);
+			const chatService = accessor.get(IChatService);
 			await editingSession.redoInteraction();
-			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
+			chatService.getSession(editingSession.chatSessionResource)?.setCheckpoint(undefined);
 		}
 	});
 
@@ -236,7 +246,7 @@ export function registerNewChatActions() {
 				await editingSession.redoInteraction();
 			}
 
-			const currentWidget = widget.lastFocusedWidget;
+			const currentWidget = widget.getWidgetBySessionResource(editingSession.chatSessionResource);
 			const requestText = currentWidget?.viewModel?.model.checkpoint?.message.text;
 
 			// if the input has the same text that we just restored, clear it.

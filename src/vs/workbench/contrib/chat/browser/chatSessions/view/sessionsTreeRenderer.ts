@@ -21,7 +21,6 @@ import { createSingleCallFunction } from '../../../../../../base/common/function
 import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -41,13 +40,13 @@ import { IEditorGroupsService } from '../../../../../services/editor/common/edit
 import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 import { IChatService } from '../../../common/chatService.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../../common/chatUri.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IChatWidgetService } from '../../chat.js';
+import { IMarshalledChatSessionContext } from '../../actions/chatSessionActions.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import '../../media/chatSessions.css';
-import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
+import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, processSessionsWithTimeGrouping } from '../common.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -85,6 +84,7 @@ export interface IGettingStartedItem {
 	label: string;
 	commandId: string;
 	icon?: ThemeIcon;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	args?: any[];
 }
 
@@ -139,7 +139,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -230,7 +229,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		const session = element.element as ChatSessionItemWithProvider;
 		// Add CSS class for local sessions
 		let editableData: IEditableData | undefined;
-		if (isLocalChatSessionItem(session)) {
+		if (LocalChatSessionUri.parseLocalSessionId(session.resource)) {
 			templateData.container.classList.add('local-session');
 			editableData = this.chatSessionsService.getEditableData(session.resource);
 		} else {
@@ -257,7 +256,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			iconTheme = session.iconPath;
 		}
 
-		const renderDescriptionOnSecondRow = this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== localChatSessionType;
+		const renderDescriptionOnSecondRow = this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription);
 
 		if (renderDescriptionOnSecondRow && session.description) {
 			templateData.container.classList.toggle('multiline', true);
@@ -280,10 +279,23 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			}
 
 			DOM.clearNode(templateData.statisticsLabel);
+
+			let insertions = 0;
+			let deletions = 0;
+			if (session.changes instanceof Array) {
+				for (const change of session.changes) {
+					insertions += change.insertions;
+					deletions += change.deletions;
+				}
+			} else if (session.changes) {
+				insertions = session.changes.insertions;
+				deletions = session.changes.deletions;
+			}
+
 			const insertionNode = append(templateData.statisticsLabel, $('span.insertions'));
-			insertionNode.textContent = session.statistics ? `+${session.statistics.insertions}` : '';
+			insertionNode.textContent = session.changes ? `+${insertions}` : '';
 			const deletionNode = append(templateData.statisticsLabel, $('span.deletions'));
-			deletionNode.textContent = session.statistics ? `-${session.statistics.deletions}` : '';
+			deletionNode.textContent = session.changes ? `-${deletions}` : '';
 		} else {
 			templateData.container.classList.toggle('multiline', false);
 		}
@@ -358,7 +370,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		const contextOverlay = getSessionItemContextOverlay(
 			session,
 			session.provider,
-			this.chatWidgetService,
 			this.chatService,
 			this.editorGroupsService
 		);
@@ -367,7 +378,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 		// Create menu for this session item
 		const menu = templateData.elementDisposable.add(
-			this.menuService.createMenu(MenuId.ChatSessionsMenu, contextKeyService)
+			this.menuService.createMenu(MenuId.AgentSessionsContext, contextKeyService)
 		);
 
 		// Setup action bar with contributed actions
@@ -375,7 +386,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			templateData.actionBar.clear();
 
 			// Create marshalled context for command execution
-			const marshalledSession = {
+			const marshalledSession: IMarshalledChatSessionContext = {
 				session: session,
 				$mid: MarshalledId.ChatSessionContext
 			};
@@ -546,7 +557,6 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 	private archivedItems = new ArchivedSessionItems(nls.localize('chat.sessions.archivedSessions', 'History'));
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
-		private readonly sessionTracker: ChatSessionTracker,
 	) {
 	}
 
@@ -569,36 +579,18 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 				const items = await this.provider.provideChatSessionItems(CancellationToken.None);
 				// Clear archived items from previous calls
 				this.archivedItems.clear();
-				let ungroupedItems = items.map(item => {
+				const result: (ChatSessionItemWithProvider | ArchivedSessionItems)[] = items.map(item => {
 					const itemWithProvider = { ...item, provider: this.provider, timing: { startTime: extractTimestamp(item) ?? 0 } };
-					if (itemWithProvider.archived) {
+					if (itemWithProvider.history) {
 						this.archivedItems.pushItem(itemWithProvider);
 						return;
 					}
 					return itemWithProvider;
 				}).filter(item => item !== undefined);
 
-				// Add hybrid local editor sessions for this provider
-				if (this.provider.chatSessionType !== localChatSessionType) {
-					const hybridSessions = await this.sessionTracker.getHybridSessionsForProvider(this.provider);
-					const existingSessions = new ResourceSet();
-					// Iterate only over the ungrouped items, the only group we support for now is history
-					ungroupedItems.forEach(s => existingSessions.add(s.resource));
-					hybridSessions.forEach(session => {
-						if (!existingSessions.has(session.resource)) {
-							ungroupedItems.push(session as ChatSessionItemWithProvider);
-							existingSessions.add(session.resource);
-						}
-					});
-					ungroupedItems = processSessionsWithTimeGrouping(ungroupedItems);
-				}
-
-				const result = [];
-				result.push(...ungroupedItems);
 				if (this.archivedItems.getItems().length > 0) {
 					result.push(this.archivedItems);
 				}
-
 				return result;
 			} catch (error) {
 				return [];
@@ -621,9 +613,9 @@ export class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWit
 
 	constructor(private readonly configurationService: IConfigurationService) { }
 
-	getHeight(element: ChatSessionItemWithProvider): number {
+	getHeight(element: ChatSessionItemWithProvider | ArchivedSessionItems): number {
 		// Return consistent height for all items (single-line layout)
-		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && element.provider.chatSessionType !== localChatSessionType) {
+		if (this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && !(element instanceof ArchivedSessionItems) && element.description) {
 			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
 		} else {
 			return SessionsDelegate.ITEM_HEIGHT;

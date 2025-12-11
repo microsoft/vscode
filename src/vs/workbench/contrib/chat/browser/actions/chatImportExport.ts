@@ -17,8 +17,8 @@ import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { isExportableSessionData } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { revive } from '../../../../../base/common/marshalling.js';
 
 const defaultFileName = 'chat.json';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
@@ -81,7 +81,7 @@ export function registerChatExportActions() {
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
-			const editorService = accessor.get(IEditorService);
+			const widgetService = accessor.get(IChatWidgetService);
 
 			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
 			const result = await fileDialogService.showOpenDialog({
@@ -95,13 +95,13 @@ export function registerChatExportActions() {
 
 			const content = await fileService.readFile(result[0]);
 			try {
-				const data = JSON.parse(content.value.toString());
+				const data = revive(JSON.parse(content.value.toString()));
 				if (!isExportableSessionData(data)) {
 					throw new Error('Invalid chat session data');
 				}
 
 				const options: IChatEditorOptions = { target: { data }, pinned: true };
-				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
+				await widgetService.openSession(ChatEditorInput.getNewEditorUri(), undefined, options);
 			} catch (err) {
 				throw err;
 			}

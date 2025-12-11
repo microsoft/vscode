@@ -8,7 +8,7 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, autorunWithStore, constObservable, derived, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, autorunWithStore, constObservable, derived, derivedOpts, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IViewZoneChangeAccessor, MouseTargetType } from '../../../../../browser/editorBrowser.js';
@@ -34,11 +34,8 @@ import { CodeEditorWidget } from '../../../../../browser/widget/codeEditor/codeE
 import { TokenWithTextArray } from '../../../../../common/tokens/tokenWithTextArray.js';
 import { InlineCompletionViewData } from '../inlineEdits/inlineEditsViewInterface.js';
 import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
-import { sum } from '../../../../../../base/common/arrays.js';
-
-export interface IGhostTextWidgetModel {
-
-}
+import { equals, sum } from '../../../../../../base/common/arrays.js';
+import { equalsIfDefined, IEquatable, itemEquals } from '../../../../../../base/common/equals.js';
 
 export interface IGhostTextWidgetData {
 	readonly ghostText: GhostText | GhostTextReplacement;
@@ -106,14 +103,14 @@ export class GhostTextView extends Disposable {
 		this._additionalLinesWidget = this._register(
 			new AdditionalLinesWidget(
 				this._editor,
-				derived(reader => {
+				derivedOpts({ owner: this, equalsFn: equalsIfDefined(itemEquals()) }, reader => {
 					/** @description lines */
 					const uiState = this._state.read(reader);
-					return uiState ? {
-						lineNumber: uiState.lineNumber,
-						additionalLines: uiState.additionalLines,
-						minReservedLineCount: uiState.additionalReservedLineCount,
-					} : undefined;
+					return uiState ? new AdditionalLinesData(
+						uiState.lineNumber,
+						uiState.additionalLines,
+						uiState.additionalReservedLineCount,
+					) : undefined;
 				}),
 				this._shouldKeepCursorStable,
 				this._isClickable
@@ -247,25 +244,25 @@ export class GhostTextView extends Disposable {
 				const existingContent = t.slice(additionalLinesOriginalSuffix.columnRange.toZeroBasedOffsetRange());
 				content = TokenWithTextArray.fromLineTokens(content).append(existingContent).toLineTokens(content.languageIdCodec);
 			}
-			return {
+			return new LineData(
 				content,
-				decorations: l.decorations,
-			};
+				l.decorations,
+			);
 		});
 
 		const cursorColumn = this._editor.getSelection()?.getStartPosition().column!;
 		const disjointInlineTexts = inlineTextsWithTokens.filter(inline => inline.text !== '');
 		const hasInsertionOnCurrentLine = disjointInlineTexts.length !== 0;
-		const telemetryViewData: InlineCompletionViewData = {
-			cursorColumnDistance: (hasInsertionOnCurrentLine ? disjointInlineTexts[0].column : 1) - cursorColumn,
-			cursorLineDistance: hasInsertionOnCurrentLine ? 0 : (additionalLines.findIndex(line => line.content !== '') + 1),
-			lineCountOriginal: hasInsertionOnCurrentLine ? 1 : 0,
-			lineCountModified: additionalLines.length + (hasInsertionOnCurrentLine ? 1 : 0),
-			characterCountOriginal: 0,
-			characterCountModified: sum(disjointInlineTexts.map(inline => inline.text.length)) + sum(tokenizedAdditionalLines.map(line => line.content.getTextLength())),
-			disjointReplacements: disjointInlineTexts.length + (additionalLines.length > 0 ? 1 : 0),
-			sameShapeReplacements: disjointInlineTexts.length > 1 && tokenizedAdditionalLines.length === 0 ? disjointInlineTexts.every(inline => inline.text === disjointInlineTexts[0].text) : undefined,
-		};
+		const telemetryViewData = new InlineCompletionViewData(
+			(hasInsertionOnCurrentLine ? disjointInlineTexts[0].column : 1) - cursorColumn,
+			hasInsertionOnCurrentLine ? 0 : (additionalLines.findIndex(line => line.content !== '') + 1),
+			hasInsertionOnCurrentLine ? 1 : 0,
+			additionalLines.length + (hasInsertionOnCurrentLine ? 1 : 0),
+			0,
+			sum(disjointInlineTexts.map(inline => inline.text.length)) + sum(tokenizedAdditionalLines.map(line => line.content.getTextLength())),
+			disjointInlineTexts.length + (additionalLines.length > 0 ? 1 : 0),
+			disjointInlineTexts.length > 1 && tokenizedAdditionalLines.length === 0 ? disjointInlineTexts.every(inline => inline.text === disjointInlineTexts[0].text) : undefined
+		);
 
 		return {
 			replacedRange,
@@ -424,6 +421,24 @@ function computeGhostTextViewData(ghostText: GhostText | GhostTextReplacement, t
 	};
 }
 
+class AdditionalLinesData implements IEquatable<AdditionalLinesData> {
+	constructor(
+		public readonly lineNumber: number,
+		public readonly additionalLines: readonly LineData[],
+		public readonly minReservedLineCount: number,
+	) { }
+
+	equals(other: AdditionalLinesData): boolean {
+		if (this.lineNumber !== other.lineNumber) {
+			return false;
+		}
+		if (this.minReservedLineCount !== other.minReservedLineCount) {
+			return false;
+		}
+		return equals(this.additionalLines, other.additionalLines, itemEquals());
+	}
+}
+
 export class AdditionalLinesWidget extends Disposable {
 	private _viewZoneInfo: { viewZoneId: string; heightInLines: number; lineNumber: number } | undefined;
 	public get viewZoneId(): string | undefined { return this._viewZoneInfo?.viewZoneId; }
@@ -444,11 +459,7 @@ export class AdditionalLinesWidget extends Disposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _lines: IObservable<{
-			lineNumber: number;
-			additionalLines: LineData[];
-			minReservedLineCount: number;
-		} | undefined>,
+		private readonly _lines: IObservable<AdditionalLinesData | undefined>,
 		private readonly _shouldKeepCursorStable: boolean,
 		private readonly _isClickable: boolean,
 	) {
@@ -504,7 +515,7 @@ export class AdditionalLinesWidget extends Disposable {
 		});
 	}
 
-	private updateLines(lineNumber: number, additionalLines: LineData[], minReservedLineCount: number): void {
+	private updateLines(lineNumber: number, additionalLines: readonly LineData[], minReservedLineCount: number): void {
 		const textModel = this._editor.getModel();
 		if (!textModel) {
 			return;
@@ -585,12 +596,21 @@ function isTargetGhostText(target: EventTarget | null): boolean {
 	return isHTMLElement(target) && target.classList.contains(GHOST_TEXT_CLASS_NAME);
 }
 
-export interface LineData {
-	content: LineTokens; // Must not contain a linebreak!
-	decorations: LineDecoration[];
+export class LineData implements IEquatable<LineData> {
+	constructor(
+		public readonly content: LineTokens, // Must not contain a linebreak!
+		public readonly decorations: readonly LineDecoration[]
+	) { }
+
+	equals(other: LineData): boolean {
+		if (!this.content.equals(other.content)) {
+			return false;
+		}
+		return LineDecoration.equalsArr(this.decorations, other.decorations);
+	}
 }
 
-function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], opts: IComputedEditorOptions, isClickable: boolean): void {
+function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly LineData[], opts: IComputedEditorOptions, isClickable: boolean): void {
 	const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
 	const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
 	// To avoid visual confusion, we don't want to render visible whitespace
@@ -629,7 +649,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 			containsRTL,
 			0,
 			lineTokens,
-			lineData.decorations,
+			lineData.decorations.slice(),
 			tabSize,
 			0,
 			fontInfo.spaceWidth,

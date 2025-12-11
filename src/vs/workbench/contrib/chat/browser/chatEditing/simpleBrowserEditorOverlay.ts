@@ -20,8 +20,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IChatWidgetService, showChatView } from '../chat.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IChatWidgetService } from '../chat.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
@@ -37,7 +36,6 @@ import { IBrowserElementsService } from '../../../../services/browserElements/br
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { BrowserType } from '../../../../../platform/browserElements/common/browserElements.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 class SimpleBrowserOverlayWidget {
 
@@ -56,7 +54,6 @@ class SimpleBrowserOverlayWidget {
 		private readonly _container: HTMLElement,
 		@IHostService private readonly _hostService: IHostService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IViewsService private readonly _viewService: IViewsService,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
@@ -64,7 +61,6 @@ class SimpleBrowserOverlayWidget {
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.sendElementsToChat.enabled')) {
@@ -260,7 +256,7 @@ class SimpleBrowserOverlayWidget {
 		const bounds = elementData.bounds;
 		const toAttach: IChatRequestVariableEntry[] = [];
 
-		const widget = await showChatView(this._viewService, this._layoutService) ?? this._chatWidgetService.lastFocusedWidget;
+		const widget = await this._chatWidgetService.revealWidget() ?? this._chatWidgetService.lastFocusedWidget;
 		let value = 'Attached HTML and CSS Context\n\n' + elementData.outerHTML;
 		if (this.configurationService.getValue('chat.sendElementsToChat.attachCSS')) {
 			value += '\n\n' + elementData.computedStyle;

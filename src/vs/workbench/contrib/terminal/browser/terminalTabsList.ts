@@ -76,7 +76,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 	constructor(
 		container: HTMLElement,
-		disposableStore: DisposableStore,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -95,7 +94,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				getHeight: () => TerminalTabsListSizes.TabHeight,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[disposableStore.add(instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements()))],
+			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements())],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -149,19 +148,21 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		}));
 
 		this.disposables.add(this.onMouseDblClick(async e => {
-			const focus = this.getFocus();
-			if (focus.length === 0) {
+			if (!e.element) {
+				e.browserEvent.preventDefault();
+				e.browserEvent.stopPropagation();
 				const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
+				return;
 			}
 
-			if (this._terminalEditingService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+			if (this._terminalEditingService.getEditingTerminal()?.instanceId === e.element.instanceId) {
 				return;
 			}
 
 			if (this._getFocusMode() === 'doubleClick' && this.getFocus().length === 1) {
-				e.element?.focus(true);
+				e.element.focus(true);
 			}
 		}));
 
@@ -249,7 +250,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	}
 }
 
-class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminalInstance, ITerminalTabEntryTemplate> {
+class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminalTabEntryTemplate> {
 	templateId = 'terminal.tabs';
 
 	constructor(
@@ -269,13 +270,14 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
-		super();
 	}
 
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
 		const element = DOM.append(container, $('.terminal-tabs-entry'));
 		const context: { hoverActions?: IHoverAction[] } = {};
-		const label = this._labels.create(element, {
+		const templateDisposables = new DisposableStore();
+
+		const label = templateDisposables.add(this._labels.create(element, {
 			supportHighlights: true,
 			supportDescriptionHighlights: true,
 			supportIcons: true,
@@ -295,15 +297,17 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 					}, { groupId: 'terminal-tabs-list' });
 				}
 			}
-		});
+		}));
 
 		const actionsContainer = DOM.append(label.element, $('.actions'));
 
-		const actionBar = this._register(new ActionBar(actionsContainer, {
-			actionRunner: this._register(new TerminalContextActionRunner()),
+
+
+		const actionBar = templateDisposables.add(new ActionBar(actionsContainer, {
+			actionRunner: templateDisposables.add(new TerminalContextActionRunner()),
 			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
-					? this._register(this._instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate }))
+					? templateDisposables.add(this._instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate }))
 					: undefined
 		}));
 
@@ -313,6 +317,7 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 			actionBar,
 			context,
 			elementDisposables: new DisposableStore(),
+			templateDisposables
 		};
 	}
 
@@ -509,14 +514,13 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
 		templateData.elementDisposables.dispose();
-		templateData.label.dispose();
-		templateData.actionBar.dispose();
+		templateData.templateDisposables.dispose();
 	}
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		// If the instance is within the selection, split all selected
 		const actions = [
-			this._register(new Action(TerminalCommandId.SplitActiveTab, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+			template.elementDisposables.add(new Action(TerminalCommandId.SplitActiveTab, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
 				this._runForSelectionOrInstance(instance, async e => {
 					this._terminalService.createTerminal({ location: { parentTerminal: e } });
 				});
@@ -524,12 +528,12 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 		];
 		if (instance.shellLaunchConfig.tabActions) {
 			for (const action of instance.shellLaunchConfig.tabActions) {
-				actions.push(this._register(new Action(action.id, action.label, action.icon ? ThemeIcon.asClassName(action.icon) : undefined, true, async () => {
+				actions.push(template.elementDisposables.add(new Action(action.id, action.label, action.icon ? ThemeIcon.asClassName(action.icon) : undefined, true, async () => {
 					this._runForSelectionOrInstance(instance, e => this._commandService.executeCommand(action.id, instance));
 				})));
 			}
 		}
-		actions.push(this._register(new Action(TerminalCommandId.KillActiveTab, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+		actions.push(template.elementDisposables.add(new Action(TerminalCommandId.KillActiveTab, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
 			this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
 		})));
 		// TODO: Cache these in a way that will use the correct instance
@@ -563,6 +567,7 @@ interface ITerminalTabEntryTemplate {
 		hoverActions?: IHoverAction[];
 	};
 	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 }
 
 

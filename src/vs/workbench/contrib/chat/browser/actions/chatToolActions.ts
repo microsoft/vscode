@@ -140,8 +140,8 @@ class ConfigureToolsAction extends Action2 {
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
 			type ChatActionContext = { widget: IChatWidget };
-			function isChatActionContext(obj: any): obj is ChatActionContext {
-				return obj && typeof obj === 'object' && (obj as ChatActionContext).widget;
+			function isChatActionContext(obj: unknown): obj is ChatActionContext {
+				return !!obj && typeof obj === 'object' && !!(obj as ChatActionContext).widget;
 			}
 			const context = args[0];
 			if (isChatActionContext(context)) {

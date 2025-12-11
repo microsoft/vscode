@@ -143,14 +143,16 @@ export function ltrim(haystack: string, needle: string): string {
 	}
 
 	const needleLen = needle.length;
-	if (needleLen === 0 || haystack.length === 0) {
-		return haystack;
-	}
-
 	let offset = 0;
-
-	while (haystack.indexOf(needle, offset) === offset) {
-		offset = offset + needleLen;
+	if (needleLen === 1) {
+		const ch = needle.charCodeAt(0);
+		while (offset < haystack.length && haystack.charCodeAt(offset) === ch) {
+			offset++;
+		}
+	} else {
+		while (haystack.startsWith(needle, offset)) {
+			offset += needleLen;
+		}
 	}
 	return haystack.substring(offset);
 }
@@ -168,22 +170,18 @@ export function rtrim(haystack: string, needle: string): string {
 	const needleLen = needle.length,
 		haystackLen = haystack.length;
 
-	if (needleLen === 0 || haystackLen === 0) {
-		return haystack;
+	if (needleLen === 1) {
+		let end = haystackLen;
+		const ch = needle.charCodeAt(0);
+		while (end > 0 && haystack.charCodeAt(end - 1) === ch) {
+			end--;
+		}
+		return haystack.substring(0, end);
 	}
 
-	let offset = haystackLen,
-		idx = -1;
-
-	while (true) {
-		idx = haystack.lastIndexOf(needle, offset - 1);
-		if (idx === -1 || idx + needleLen !== offset) {
-			break;
-		}
-		if (idx === 0) {
-			return '';
-		}
-		offset = idx;
+	let offset = haystackLen;
+	while (offset > 0 && haystack.endsWith(needle, offset)) {
+		offset -= needleLen;
 	}
 
 	return haystack.substring(0, offset);
@@ -1197,10 +1195,9 @@ export class AmbiguousCharacters {
 		);
 	});
 
-	private static readonly cache = new LRUCachedFunction<
-		string[],
-		AmbiguousCharacters
-	>({ getCacheKey: JSON.stringify }, (locales) => {
+	private static readonly cache = new LRUCachedFunction<string, AmbiguousCharacters>((localesStr) => {
+		const locales = localesStr.split(',');
+
 		function arrayToMap(arr: number[]): Map<number, number> {
 			const result = new Map<number, number>();
 			for (let i = 0; i < arr.length; i += 2) {
@@ -1257,8 +1254,8 @@ export class AmbiguousCharacters {
 		return new AmbiguousCharacters(map);
 	});
 
-	public static getInstance(locales: Set<string>): AmbiguousCharacters {
-		return AmbiguousCharacters.cache.get(Array.from(locales));
+	public static getInstance(locales: Iterable<string>): AmbiguousCharacters {
+		return AmbiguousCharacters.cache.get(Array.from(locales).join(','));
 	}
 
 	private static _locales = new Lazy<string[]>(() =>

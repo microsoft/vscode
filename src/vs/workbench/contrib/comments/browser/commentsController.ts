@@ -557,7 +557,7 @@ export class CommentController implements IEditorContribution {
 		}));
 
 		this.onModelChanged();
-		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
+		this.globalToDispose.add(this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {}));
 		this.globalToDispose.add(
 			this.commentService.registerContinueOnCommentProvider({
 				provideContinueOnComments: () => {

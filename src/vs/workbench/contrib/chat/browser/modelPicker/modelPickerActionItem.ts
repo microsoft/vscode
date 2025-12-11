@@ -18,7 +18,6 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
-import { ManageModelsAction } from '../actions/manageModelsActions.js';
 import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -48,7 +47,21 @@ type ChatModelChangeEvent = {
 function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService): IActionWidgetDropdownActionProvider {
 	return {
 		getActions: () => {
-			return delegate.getModels().map(model => {
+			const models = delegate.getModels();
+			if (models.length === 0) {
+				// Show a fake "Auto" entry when no models are available
+				return [{
+					id: 'auto',
+					enabled: true,
+					checked: true,
+					category: DEFAULT_MODEL_PICKER_CATEGORY,
+					class: undefined,
+					tooltip: localize('chat.modelPicker.auto', "Auto"),
+					label: localize('chat.modelPicker.auto', "Auto"),
+					run: () => { }
+				} satisfies IActionWidgetDropdownAction];
+			}
+			return models.map(model => {
 				return {
 					id: model.metadata.id,
 					enabled: true,
@@ -91,8 +104,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
 					class: undefined,
 					run: () => {
-						const commandId = ManageModelsAction.ID;
-						commandService.executeCommand(productService.quality === 'stable' ? commandId : MANAGE_CHAT_COMMAND_ID);
+						commandService.executeCommand(MANAGE_CHAT_COMMAND_ID);
 					}
 				});
 			}
@@ -142,7 +154,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
 			...action,
-			label: currentModel?.metadata.name ?? localize('chat.modelPicker.label', "Pick Model"),
+			label: currentModel?.metadata.name ?? localize('chat.modelPicker.auto', "Auto"),
 			tooltip: localize('chat.modelPicker.label', "Pick Model"),
 			run: () => { }
 		};
@@ -168,7 +180,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		if (this.currentModel?.metadata.statusIcon) {
 			domChildren.push(...renderLabelWithIcons(`\$(${this.currentModel.metadata.statusIcon.id})`));
 		}
-		domChildren.push(dom.$('span.chat-model-label', undefined, this.currentModel?.metadata.name ?? localize('chat.modelPicker.label', "Pick Model")));
+		domChildren.push(dom.$('span.chat-model-label', undefined, this.currentModel?.metadata.name ?? localize('chat.modelPicker.auto', "Auto")));
 		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...domChildren);

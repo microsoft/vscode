@@ -14,14 +14,12 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
 import { ChatMode, CustomChatMode, IChatModeService } from '../../../common/chatModes.js';
-import { IChatService } from '../../../common/chatService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { PromptHoverProvider } from '../../../common/promptSyntax/languageProviders/promptHovers.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
-import { MockChatService } from '../../common/mockChatService.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
@@ -44,9 +42,6 @@ suite('PromptHoverProvider', () => {
 			configurationService: () => testConfigService
 		}, disposables);
 
-		const chatService = new MockChatService();
-		instaService.stub(IChatService, chatService);
-
 		const toolService = disposables.add(instaService.createInstance(LanguageModelToolsService));
 
 		const testTool1 = { id: 'testTool1', displayName: 'tool1', canBeReferencedInPrompt: true, modelDescription: 'Test Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
@@ -54,9 +49,6 @@ suite('PromptHoverProvider', () => {
 
 		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(testTool2));
-
-		const runCommandsTool = { id: 'runCommands', displayName: 'runCommands', canBeReferencedInPrompt: true, toolReferenceName: 'runCommands', modelDescription: 'Run Commands Tool', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
-		disposables.add(toolService.registerToolData(runCommandsTool));
 
 		instaService.set(ILanguageModelToolsService, toolService);
 
@@ -92,7 +84,8 @@ suite('PromptHoverProvider', () => {
 
 	async function getHover(content: string, line: number, column: number, promptType: PromptsType): Promise<string | undefined> {
 		const languageId = getLanguageIdForPromptsType(promptType);
-		const model = disposables.add(createTextModel(content, languageId, undefined, URI.parse('test://test' + getPromptFileExtension(promptType))));
+		const uri = URI.parse('test:///test' + getPromptFileExtension(promptType));
+		const model = disposables.add(createTextModel(content, languageId, undefined, uri));
 		const position = new Position(line, column);
 		const hover = await hoverProvider.provideHover(model, position, CancellationToken.None);
 		if (!hover || hover.contents.length === 0) {
@@ -194,20 +187,16 @@ suite('PromptHoverProvider', () => {
 				'---',
 				'description: "Test"',
 				'target: github-copilot',
-				`tools: ['shell', 'edit', 'search']`,
+				`tools: ['execute', 'read']`,
 				'---',
 			].join('\n');
 			// Hover on 'shell' tool
 			const hoverShell = await getHover(content, 4, 10, PromptsType.agent);
-			assert.strictEqual(hoverShell, 'Execute shell commands');
+			assert.strictEqual(hoverShell, 'ToolSet: execute\n\n\nExecute code and applications on your machine');
 
-			// Hover on 'edit' tool
+			// Hover on 'read' tool
 			const hoverEdit = await getHover(content, 4, 20, PromptsType.agent);
-			assert.strictEqual(hoverEdit, 'Edit files');
-
-			// Hover on 'search' tool
-			const hoverSearch = await getHover(content, 4, 28, PromptsType.agent);
-			assert.strictEqual(hoverSearch, 'Search in files');
+			assert.strictEqual(hoverEdit, 'ToolSet: read\n\n\nRead files in your workspace');
 		});
 
 		test('hover on github-copilot tool with target undefined', async () => {
@@ -215,20 +204,16 @@ suite('PromptHoverProvider', () => {
 				'---',
 				'name: "Test"',
 				'description: "Test"',
-				`tools: ['shell', 'edit', 'search']`,
+				`tools: ['shell', 'read']`,
 				'---',
 			].join('\n');
 			// Hover on 'shell' tool
 			const hoverShell = await getHover(content, 4, 10, PromptsType.agent);
-			assert.strictEqual(hoverShell, 'Run Commands Tool');
+			assert.strictEqual(hoverShell, 'ToolSet: execute\n\n\nExecute code and applications on your machine');
 
-			// Hover on 'edit' tool
+			// Hover on 'read' tool
 			const hoverEdit = await getHover(content, 4, 20, PromptsType.agent);
-			assert.strictEqual(hoverEdit, 'Edit files');
-
-			// Hover on 'search' tool
-			const hoverSearch = await getHover(content, 4, 28, PromptsType.agent);
-			assert.strictEqual(hoverSearch, 'Search in files');
+			assert.strictEqual(hoverEdit, 'ToolSet: read\n\n\nRead files in your workspace');
 		});
 
 		test('hover on vscode tool shows detailed description', async () => {
@@ -276,6 +261,18 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 2, 1, PromptsType.agent);
 			assert.strictEqual(hover, 'The name of the agent as shown in the UI.');
+		});
+
+		test('hover on infer attribute shows description', async () => {
+			const content = [
+				'---',
+				'name: "Test Agent"',
+				'description: "Test agent"',
+				'infer: true',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+			assert.strictEqual(hover, 'Whether the agent can be used as a subagent.');
 		});
 	});
 
