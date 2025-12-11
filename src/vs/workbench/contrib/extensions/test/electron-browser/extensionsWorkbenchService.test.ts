@@ -1618,10 +1618,11 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('Test queryGallery filters extensions by minimum release age', async () => {
+		const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
 		const now = Date.now();
-		const oneDayAgo = now - (1 * 24 * 60 * 60 * 1000);
-		const threeDaysAgo = now - (3 * 24 * 60 * 60 * 1000);
-		const fiveDaysAgo = now - (5 * 24 * 60 * 60 * 1000);
+		const oneDayAgo = now - (1 * MILLISECONDS_PER_DAY);
+		const threeDaysAgo = now - (3 * MILLISECONDS_PER_DAY);
+		const fiveDaysAgo = now - (5 * MILLISECONDS_PER_DAY);
 
 		const recentExtension = aGalleryExtension('recent', { version: '1.0.0', releaseDate: oneDayAgo });
 		const mediumExtension = aGalleryExtension('medium', { version: '1.0.0', releaseDate: threeDaysAgo });
@@ -1640,8 +1641,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('Test outdated extension respects minimum release age', async () => {
+		const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
 		const now = Date.now();
-		const oneDayAgo = now - (1 * 24 * 60 * 60 * 1000);
+		const oneDayAgo = now - (1 * MILLISECONDS_PER_DAY);
 
 		const local = aLocalExtension('myext', { version: '1.0.0' });
 		const gallery = aGalleryExtension('myext', { version: '2.0.0', releaseDate: oneDayAgo });
@@ -1658,8 +1660,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('Test outdated extension is marked outdated when meeting minimum release age', async () => {
+		const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
 		const now = Date.now();
-		const threeDaysAgo = now - (3 * 24 * 60 * 60 * 1000);
+		const threeDaysAgo = now - (3 * MILLISECONDS_PER_DAY);
 
 		const local = aLocalExtension('myext', { version: '1.0.0' });
 		const gallery = aGalleryExtension('myext', { version: '2.0.0', releaseDate: threeDaysAgo });

@@ -604,6 +604,10 @@ function checkMinimumReleaseAge(releaseDate: number, minimumReleaseAgeDays: numb
 	if (!minimumReleaseAgeDays || minimumReleaseAgeDays <= 0) {
 		return true;
 	}
+	if (!releaseDate || releaseDate <= 0) {
+		// If release date is invalid, allow the extension (fail open)
+		return true;
+	}
 	const now = Date.now();
 	const daysSinceRelease = (now - releaseDate) / MILLISECONDS_PER_DAY;
 	return daysSinceRelease >= minimumReleaseAgeDays;
