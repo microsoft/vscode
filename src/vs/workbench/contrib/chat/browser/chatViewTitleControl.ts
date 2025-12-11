@@ -37,7 +37,7 @@ export interface IChatViewTitleDelegate {
 export class ChatViewTitleControl extends Disposable {
 
 	private static readonly DEFAULT_TITLE = localize('chat', "Chat");
-	private static readonly ACTION_ID_PICK_AGENT_SESSION = 'workbench.action.chat.pickAgentSession';
+	private static readonly PICK_AGENT_SESSION_ACTION_ID = 'workbench.action.chat.pickAgentSession';
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -54,6 +54,7 @@ export class ChatViewTitleControl extends Disposable {
 	private title: string | undefined = undefined;
 
 	private titleContainer: HTMLElement | undefined;
+	private titleLabel: ChatViewTitleLabel | undefined;
 	private titleIcon: HTMLElement | undefined;
 
 	private model: IChatModel | undefined;
@@ -61,7 +62,6 @@ export class ChatViewTitleControl extends Disposable {
 
 	private navigationToolbar?: MenuWorkbenchToolBar;
 	private actionsToolbar?: MenuWorkbenchToolBar;
-	private agentPickerActionViewItem?: ChatViewTitleAgentPickerActionViewItem;
 
 	private lastKnownHeight = 0;
 
@@ -105,7 +105,7 @@ export class ChatViewTitleControl extends Disposable {
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: ChatViewTitleControl.ACTION_ID_PICK_AGENT_SESSION,
+					id: ChatViewTitleControl.PICK_AGENT_SESSION_ACTION_ID,
 					title: localize('chat.pickAgentSession', "Pick Agent Session"),
 					f1: false,
 					menu: [{
@@ -119,7 +119,7 @@ export class ChatViewTitleControl extends Disposable {
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const instantiationService = accessor.get(IInstantiationService);
 
-				const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, that.agentPickerActionViewItem?.element);
+				const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, that.titleLabel?.element);
 				await agentSessionsPicker.pickAgentSession();
 			}
 		}));
@@ -136,9 +136,11 @@ export class ChatViewTitleControl extends Disposable {
 		this.navigationToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.navigationToolbar, MenuId.ChatViewSessionTitleNavigationToolbar, {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action: IAction) => {
-				if (action.id === ChatViewTitleControl.ACTION_ID_PICK_AGENT_SESSION) {
-					this.agentPickerActionViewItem = this._register(new ChatViewTitleAgentPickerActionViewItem(action));
-					return this.agentPickerActionViewItem;
+				if (action.id === ChatViewTitleControl.PICK_AGENT_SESSION_ACTION_ID) {
+					this.titleLabel?.dispose();
+					this.titleLabel = this._register(new ChatViewTitleLabel(action));
+
+					return this.titleLabel;
 				}
 
 				return undefined;
@@ -242,12 +244,12 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private updateTitle(title: string): void {
-		if (!this.titleContainer || !this.agentPickerActionViewItem) {
+		if (!this.titleContainer || !this.titleLabel) {
 			return;
 		}
 
 		this.titleContainer.classList.toggle('visible', this.shouldRender());
-		this.agentPickerActionViewItem?.updateTitle(title);
+		this.titleLabel?.updateTitle(title);
 
 		const currentHeight = this.getHeight();
 		if (currentHeight !== this.lastKnownHeight) {
@@ -305,8 +307,9 @@ export class ChatViewTitleControl extends Disposable {
 	}
 }
 
-class ChatViewTitleAgentPickerActionViewItem extends ActionViewItem {
-	private _title: string | undefined;
+class ChatViewTitleLabel extends ActionViewItem {
+
+	private title: string | undefined;
 
 	constructor(action: IAction, options?: IActionViewItemOptions) {
 		super(null, action, { ...options, icon: false, label: true });
@@ -314,17 +317,18 @@ class ChatViewTitleAgentPickerActionViewItem extends ActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+
 		this.label?.classList.add('chat-view-title-label');
 	}
 
 	protected override updateLabel(): void {
-		if (this.options.label && this.label && this._title) {
-			this.label.textContent = this._title;
+		if (this.options.label && this.label && this.title) {
+			this.label.textContent = this.title;
 		}
 	}
 
 	updateTitle(title: string): void {
-		this._title = title;
+		this.title = title;
 		this.updateLabel();
 	}
 }
