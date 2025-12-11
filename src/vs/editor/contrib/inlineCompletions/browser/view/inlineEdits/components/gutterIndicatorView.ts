@@ -559,6 +559,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 					opacity: layout.map(l => l.iconVisible ? '1' : '0'),
 					marginRight: layout.map(l => l.pillRect.width - l.iconRect.width - (l.lineNumberRect?.width ?? 0)),
 					width: layout.map(l => l.iconRect.width),
+					position: 'relative',
+					right: layout.map(l => l.iconDirection === 'top' ? '1px' : '0'),
 				}
 			}, [
 				layout.map((l, reader) => withStyles(renderIcon(l.icon.read(reader)), { fontSize: toPx(Math.min(l.iconRect.width - CODICON_PADDING_PX, CODICON_SIZE_PX)) })),
