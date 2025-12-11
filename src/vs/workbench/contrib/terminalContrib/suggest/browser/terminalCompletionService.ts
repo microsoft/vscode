@@ -321,8 +321,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				const home = this._getHomeDir(useWindowsStylePath, capabilities);
 				if (home) {
 					// Use the scheme and authority from cwd to handle remote scenarios correctly
-					// For file-like schemes (file, vscode-remote, etc.), ensure path starts with /
-					const homePath = (cwd.scheme === 'file' || cwd.scheme.startsWith('vscode-')) && !home.startsWith('/') ? '/' + home : home;
+					const homePath = this._normalizePathForScheme(home, cwd.scheme);
 					const homeUri = cwd.with({ path: homePath });
 					lastWordFolderResource = URI.joinPath(homeUri, lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 				}
@@ -338,14 +337,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			case 'absolute': {
 				// Use the scheme and authority from cwd to handle remote scenarios correctly
 				// (e.g., Remote SSH where cwd has vscode-remote:// scheme)
-				// For file-like schemes (file, vscode-remote, etc.), ensure path starts with /
 				if (shellType === WindowsShellType.GitBash) {
 					const windowsPath = gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive);
-					const normalizedPath = (cwd.scheme === 'file' || cwd.scheme.startsWith('vscode-')) && !windowsPath.startsWith('/') ? '/' + windowsPath : windowsPath;
+					const normalizedPath = this._normalizePathForScheme(windowsPath, cwd.scheme);
 					lastWordFolderResource = cwd.with({ path: normalizedPath });
 				} else {
 					const cleanPath = lastWordFolder.replaceAll('\\ ', ' ');
-					const normalizedPath = (cwd.scheme === 'file' || cwd.scheme.startsWith('vscode-')) && !cleanPath.startsWith('/') ? '/' + cleanPath : cleanPath;
+					const normalizedPath = this._normalizePathForScheme(cleanPath, cwd.scheme);
 					lastWordFolderResource = cwd.with({ path: normalizedPath });
 				}
 				break;
@@ -504,8 +502,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 						for (const cdPathEntry of cdPathEntries) {
 							try {
 								// Use the scheme and authority from cwd to handle remote scenarios correctly
-								// For file-like schemes (file, vscode-remote, etc.), ensure path starts with /
-								const normalizedPath = (cwd.scheme === 'file' || cwd.scheme.startsWith('vscode-')) && !cdPathEntry.startsWith('/') ? '/' + cdPathEntry : cdPathEntry;
+								const normalizedPath = this._normalizePathForScheme(cdPathEntry, cwd.scheme);
 								const cdPathUri = cwd.with({ path: normalizedPath });
 								const fileStat = await this._fileService.resolve(cdPathUri, { resolveSingleChildDescendants: true });
 								if (fileStat?.children) {
@@ -569,8 +566,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			const home = this._getHomeDir(useWindowsStylePath, capabilities);
 			if (home) {
 				// Use the scheme and authority from cwd to handle remote scenarios correctly
-				// For file-like schemes (file, vscode-remote, etc.), ensure path starts with /
-				const normalizedPath = (cwd.scheme === 'file' || cwd.scheme.startsWith('vscode-')) && !home.startsWith('/') ? '/' + home : home;
+				const normalizedPath = this._normalizePathForScheme(home, cwd.scheme);
 				homeResource = cwd.with({ path: normalizedPath });
 			}
 			if (!homeResource) {
@@ -589,6 +585,19 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		this._logService.trace(`TerminalCompletionService#resolveResources done`);
 		return resourceCompletions;
+	}
+
+	/**
+	 * Normalizes a path for use with URI.with(). For file-like schemes (file, vscode-remote),
+	 * paths must start with / in the URI path component. This is normally handled by _referenceResolution
+	 * in the URI constructor, but URI.with() bypasses that logic.
+	 */
+	private _normalizePathForScheme(path: string, scheme: string): string {
+		// For file-like schemes, ensure the path starts with /
+		if ((scheme === 'file' || scheme.startsWith('vscode-')) && !path.startsWith('/')) {
+			return '/' + path;
+		}
+		return path;
 	}
 
 	private _getEnvVar(key: string, capabilities: ITerminalCapabilityStore): string | undefined {
