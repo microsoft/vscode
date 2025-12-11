@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { escapeMarkdownSyntaxTokens, markdownCommandLink, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, createMarkdownCommandLink, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -109,7 +109,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 	}
 
 	private createServerCommandLinks(servers: Array<{ id: string; label: string }>): string {
-		return servers.map(s => markdownCommandLink({
+		return servers.map(s => createMarkdownCommandLink({
 			title: '`' + escapeMarkdownSyntaxTokens(s.label) + '`',
 			id: McpCommandIds.ServerOptions,
 			arguments: [s.id],
@@ -117,7 +117,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 	}
 
 	private updateDetailedProgress(state: IAutostartResult): void {
-		const skipText = markdownCommandLink({
+		const skipText = createMarkdownCommandLink({
 			title: localize('mcp.skip.link', 'Skip?'),
 			id: McpCommandIds.SkipCurrentAutostart,
 		});

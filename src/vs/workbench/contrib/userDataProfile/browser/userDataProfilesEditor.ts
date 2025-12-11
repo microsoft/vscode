@@ -41,7 +41,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverWidget, IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
-import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { ISelectOptionItem, SelectBox, SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { isString, isUndefined } from '../../../../base/common/types.js';
@@ -1309,7 +1309,6 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 	}
 
 	private getCopyFromOptions(profileElement: NewProfileElement): (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] {
-		const separator = { text: '\u2500\u2500\u2500\u2500\u2500\u2500', isDisabled: true };
 		const copyFromOptions: (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] = [];
 
 		copyFromOptions.push({ text: localize('empty profile', "None") });
@@ -1320,12 +1319,12 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 		}
 
 		if (this.templates.length) {
-			copyFromOptions.push({ ...separator, decoratorRight: localize('from templates', "Profile Templates") });
+			copyFromOptions.push({ ...SeparatorSelectOption, decoratorRight: localize('from templates', "Profile Templates") });
 			for (const template of this.templates) {
 				copyFromOptions.push({ text: template.name, id: template.url, source: URI.parse(template.url) });
 			}
 		}
-		copyFromOptions.push({ ...separator, decoratorRight: localize('from existing profiles', "Existing Profiles") });
+		copyFromOptions.push({ ...SeparatorSelectOption, decoratorRight: localize('from existing profiles', "Existing Profiles") });
 		for (const profile of this.userDataProfilesService.profiles) {
 			if (!profile.isTransient) {
 				copyFromOptions.push({ text: profile.name, id: profile.id, source: profile });

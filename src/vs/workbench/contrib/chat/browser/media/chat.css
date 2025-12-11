@@ -4,6 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
+	display: flex;
+	flex-direction: column;
+	max-width: 950px;
+	height: 100%;
+	margin: auto;
+	position: relative; /* Enable absolute positioning for child elements */
+
 	/* 11px when base font is 13px */
 	--vscode-chat-font-size-body-xs: 0.846em;
 	/* 12px when base font is 13px */
@@ -16,13 +23,6 @@
 	--vscode-chat-font-size-body-xl: 1.231em;
 	/* 20px when base font is 13px */
 	--vscode-chat-font-size-body-xxl: 1.538em;
-}
-
-.interactive-session {
-	max-width: 950px;
-	margin: auto;
-	position: relative;
-	/* For chat dnd */
 }
 
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
@@ -78,7 +78,6 @@
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
-	margin-left: 4px;
 }
 
 .interactive-item-container .detail-container .detail .agentOrSlashCommandDetected A {
@@ -756,12 +755,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 4px;
 	padding: 0 6px 6px 6px;
 	/* top padding is inside the editor widget */
-	max-width: 100%;
+	width: 100%;
 }
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
-.interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container {
-	/* Remove top border radius when editing session or todo list is present */
+.interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
+.interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container {
+	/* Remove top border radius when editing session, todo list, or status widget is present */
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
 }
@@ -1089,6 +1089,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.interactive-session .interactive-input-part > .chat-input-widgets-container {
+	margin-bottom: -4px;
+	width: 100%;
+	position: relative;
+}
+
 /* Chat Todo List Widget Container - mirrors chat-editing-session styling */
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container {
 	margin-bottom: -4px;
@@ -1333,6 +1339,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-input-toolbars > .chat-input-toolbar {
+	overflow: hidden;
 	min-width: 0px;
 
 	.chat-modelPicker-item {
@@ -1361,9 +1368,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.interactive-session .chat-input-toolbars.scroll-top-decoration {
+	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
+}
 
-
-.interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
+.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label,
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
 	padding: 3px 0px 3px 6px;
 	display: flex;
@@ -1371,7 +1381,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-.interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label .codicon-chevron-down {
+.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label .codicon-chevron-down,
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
 	font-size: 12px;
 	margin-left: 2px;
 }
@@ -1383,6 +1394,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars .chat-sessionPicker-container {
 	display: flex;
+	max-width: 100%;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
@@ -2097,6 +2109,41 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+.interactive-session .chat-list-divider {
+	display: flex;
+	align-items: center;
+	padding: 4px 3px 2px 3px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	gap: 8px;
+	pointer-events: none;
+	user-select: none;
+}
+
+.interactive-session .monaco-list .monaco-list-row:has(.chat-list-divider) {
+	background-color: transparent !important;
+	cursor: default;
+}
+
+.interactive-session .chat-list-divider .chat-list-divider-label {
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	flex-shrink: 0;
+}
+
+.interactive-session .chat-list-divider .chat-list-divider-line {
+	flex: 1;
+	height: 1px;
+	background-color: var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	opacity: 0.5;
+}
+
+.interactive-session .chat-list-divider .chat-list-divider-toolbar {
+	display: flex;
+	align-items: center;
+	pointer-events: auto;
+}
+
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {
 	border-radius: 4px;
 }
@@ -2176,6 +2223,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-file-changes-label .monaco-button .codicon,
 .interactive-session .chat-used-context-label .monaco-button .codicon {
 	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-icon-foreground) !important;
 }
 
 .interactive-item-container .progress-container {
@@ -2493,6 +2541,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		display: none;
 	}
 
+	.interactive-request .header.partially-disabled .detail-container {
+		margin-left: 4px;
+	}
+
 	.interactive-item-container .header .detail .codicon-check {
 		margin-right: 7px;
 		vertical-align: middle;
@@ -2755,332 +2807,55 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 8px;
 }
 
-.interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
-	color: var(--vscode-descriptionForeground);
-	padding-top: 0;
+.chat-welcome-view-suggested-prompt.chat-suggest-next-has-dropdown {
+	padding-right: 12px;
 }
 
-.interactive-session .interactive-response .value .chat-thinking-box:not(.chat-thinking-no-outer-header) {
-	outline: none;
-	position: relative;
-	color: var(--vscode-descriptionForeground);
-
-	.chat-used-context {
-		margin: 0px;
-	}
-
-	.monaco-button.hidden,
-	.chat-pinned-preview.hidden {
-		display: none;
-	}
-
-	.chat-thinking-item {
-		padding: 6px 12px;
-		position: relative;
-
-		.progress-container {
-			margin-bottom: 0px;
-			padding-top: 0px;
-		}
-
-		&::before,
-		&::after {
-			position: absolute;
-			content: '';
-			display: block;
-			border-radius: 50%;
-			pointer-events: none;
-		}
-
-		&::before {
-			background: var(--vscode-sideBar-background);
-			top: 8px;
-			left: -10px;
-			width: 13px;
-			height: 16px;
-			z-index: 2;
-		}
-
-		&::after {
-			top: 12px;
-			left: -7px;
-			width: 7px;
-			height: 7px;
-			background: var(--vscode-chat-requestBorder);
-			z-index: 3;
-		}
-	}
-
-	.chat-thinking-text {
-		font-size: var(--vscode-chat-font-size-body-s);
-		padding: 0 10px;
-		display: block;
-	}
-
-	.rendered-markdown > p {
-		margin: 0;
-	}
+/* Dropdown container for chevron in suggested prompt buttons - provides larger hit area */
+.chat-welcome-view-suggested-prompt > .chat-suggest-next-dropdown {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	margin: -1px -8px -1px 0; /* Extend to button edge, accounting for button padding */
+	padding: 0 4px 0 2px;
+	gap: 4px;
+	cursor: pointer;
+	border-top-right-radius: 4px;
+	border-bottom-right-radius: 4px;
+	box-sizing: border-box;
 }
 
-.interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-no-outer-header {
-	margin-bottom: 0px;
-
-	.chat-thinking-item {
-		padding: 6px 12px;
-		position: relative;
-
-		.progress-container {
-			margin-bottom: 0px;
-			padding-top: 0px;
-		}
-	}
-
-	.chat-thinking-item.hidden {
-		display: none;
-	}
-
-	.chat-thinking-item-header {
-		margin-left: 5px;
-		font-weight: 600;
-		outline: none;
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
-
-	.chat-thinking-item-header .codicon {
-		font-size: 12px;
-		line-height: 1;
-		margin-left: auto;
-	}
-
-	.chat-thinking-item-header .monaco-button {
-		display: flex;
-		align-items: center;
-	}
-
-	.chat-thinking-item-header .monaco-button > .monaco-button-label,
-	.chat-thinking-item-header .monaco-button > .monaco-button-mdlabel {
-		order: 1;
-	}
-
-	.chat-thinking-item-header .monaco-button > .codicon {
-		order: 2;
-		margin-left: auto;
-	}
-
-	.chat-thinking-item-wrapper::before,
-	.chat-thinking-item-wrapper::after {
-		position: absolute;
-		content: '';
-		display: block;
-		border-radius: 50%;
-		pointer-events: none;
-	}
-
-	.chat-thinking-item-wrapper::before {
-		background: var(--vscode-sideBar-background);
-		top: 5px;
-		left: -10px;
-		width: 13px;
-		height: 16px;
-		z-index: 2;
-	}
-
-	.chat-thinking-item-wrapper::after {
-		top: 9px;
-		left: -7px;
-		width: 7px;
-		height: 7px;
-		background: var(--vscode-chat-requestBorder);
-		z-index: 3;
-	}
-
-	.chat-thinking-item-wrapper {
-		position: relative;
-
-		.chat-thinking-item.markdown-content {
-			padding-top: 2px;
-		}
-	}
-
-	.chat-thinking-text {
-		font-size: var(--vscode-chat-font-size-body-s);
-		padding: 0 10px;
-		display: block;
-	}
-
-	.rendered-markdown > p {
-		margin: 0;
-	}
-
-	.monaco-button {
-		display: flex;
-		align-items: center;
-		width: 100%;
-
-		&:hover {
-			background: var(--vscode-toolbar-hoverBackground);
-		}
-
-		&:focus {
-			outline: none;
-		}
-
-		&:focus-visible {
-			outline: 1px solid var(--vscode-focusBorder);
-			outline-offset: -1px;
-		}
-	}
+.chat-welcome-view-suggested-prompt > .chat-suggest-next-dropdown:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.interactive-session .interactive-response .value .chat-thinking-fixed-mode {
-	outline: none;
-
-	.chat-thinking-fixed-header {
-		display: flex;
-		align-items: center;
-		gap: 7px;
-		font-size: var(--vscode-chat-font-size-body-s);
-		font-family: var(--vscode-chat-font-family, inherit);
-		color: var(--vscode-descriptionForeground);
-		outline: none;
-		padding-top: 2px;
-
-		&:focus-visible {
-			outline: 1px solid var(--vscode-focusBorder);
-			outline-offset: -1px;
-		}
-
-		.monaco-button {
-			display: inline-flex;
-			align-items: center;
-			width: fit-content;
-			border: none;
-			border-radius: 4px;
-			outline: none;
-			padding: 2px 6px 2px 2px;
-			text-align: initial;
-			justify-content: initial;
-			gap: 4px;
-
-			&:hover {
-				background-color: var(--vscode-list-hoverBackground);
-				color: var(--vscode-foreground);
-			}
-		}
-
-		.monaco-button .codicon {
-			font-size: var(--vscode-chat-font-size-body-s);
-		}
-
-		.monaco-button-label,
-		.monaco-button-mdlabel {
-			text-align: left;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-		}
-	}
-
-	.chat-thinking-fixed-height-controller {
-		display: flex;
-		flex-direction: column;
-		margin-bottom: 8px;
-
-		&.collapsed {
-			max-height: 200px;
-			overflow: hidden;
-		}
-
-		&:not(.collapsed) {
-			max-height: none;
-		}
-
-		&.finished.collapsed .chat-used-context-list.chat-thinking-collapsible {
-			display: none;
-		}
-
-		&.finished:not(.collapsed) .chat-used-context-list.chat-thinking-collapsible {
-			display: block;
-		}
-
-	}
-
-	/* item and dot rendering */
-	.chat-used-context-list.chat-thinking-collapsible {
-		border: 1px solid var(--vscode-chat-requestBorder);
-		border-radius: 4px;
-		margin-bottom: 0;
-		position: relative;
-		overflow: hidden;
-
-		.chat-tool-invocation-part {
-			.chat-used-context {
-				margin-bottom: 0px;
-				margin-left: 2px;
-			}
-
-			.progress-container {
-				margin-left: 6px;
-			}
-		}
-
-		.chat-thinking-item.markdown-content {
-			padding: 3px 12px 3px 24px;
-			position: relative;
-
-			.progress-container {
-				margin-bottom: 0px;
-				padding-top: 0px;
-			}
-
-			/* chain of thought lines */
-			&::before {
-				content: '';
-				position: absolute;
-				left: 10.5px;
-				top: 0px;
-				bottom: 0px;
-				width: 1px;
-				background-color: var(--vscode-chat-requestBorder);
-				mask-image: linear-gradient(to bottom, #000 0 7px, transparent 7px 19px, #000 19px 100%);
-			}
-
-			&:first-child::before {
-				mask-image: linear-gradient(to bottom, transparent 0 19px, #000 19px 100%);
-			}
-
-			&:last-child::before {
-				mask-image: linear-gradient(to bottom, #000 0 7px, transparent 7px 100%);
-			}
-
-			&:only-child::before,
-			&:only-child::after {
-				background: none;
-				mask-image: none;
-			}
-
-			&:only-child {
-				padding-inline-start: 10px;
-			}
-
-			&::after {
-				content: '';
-				position: absolute;
-				left: 8px;
-				top: 10px;
-				width: 6px;
-				height: 6px;
-				border-radius: 50%;
-				background-color: var(--vscode-chat-requestBorder);
-			}
-		}
-	}
+.chat-welcome-view-suggested-prompt > .chat-suggest-next-dropdown:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
-.editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
-	background: var(--vscode-editor-background);
+/* Chevron icon in dropdown container */
+.chat-welcome-view-suggested-prompt .codicon-chevron-down.dropdown-chevron {
+	font-size: 12px;
+	opacity: 0.7;
+	flex-shrink: 0;
+}
+
+.chat-welcome-view-suggested-prompt > .chat-suggest-next-dropdown:hover .dropdown-chevron,
+.chat-welcome-view-suggested-prompt > .chat-suggest-next-dropdown:focus .dropdown-chevron {
+	opacity: 1;
+}
+
+/* Vertical separator between label and chevron in suggested next actions */
+.chat-suggest-next-dropdown > .chat-suggest-next-separator {
+	width: 1px;
+	height: 16px;
+	background-color: currentColor;
+	opacity: 0.5;
+	border-radius: 1px;
+	align-self: center;
+	flex-shrink: 0;
 }
 
 /* Show more attachments button styling */

@@ -90,6 +90,13 @@ export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariabl
 	readonly uri: URI;
 }
 
+export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'workspace';
+	readonly value: string;
+	readonly modelDescription?: string;
+}
+
+
 export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'paste';
 	readonly code: string;
@@ -254,13 +261,20 @@ export interface ITerminalVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly exitCode?: number;
 }
 
+export interface IDebugVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'debugVariable';
+	readonly value: string;
+	readonly expression: string;
+	readonly type?: string;
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
-	| IChatRequestStringVariableEntry;
+	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -289,8 +303,16 @@ export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is 
 	return obj.kind === 'terminalCommand';
 }
 
+export function isDebugVariableEntry(obj: IChatRequestVariableEntry): obj is IDebugVariableEntry {
+	return obj.kind === 'debugVariable';
+}
+
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
+}
+
+export function isWorkspaceVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestWorkspaceVariableEntry {
+	return obj.kind === 'workspace';
 }
 
 export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {

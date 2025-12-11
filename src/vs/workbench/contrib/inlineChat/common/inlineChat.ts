@@ -17,7 +17,7 @@ export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
 	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
-	AccessibleDiffView = 'inlineChat.accessibleDiffView',
+	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
 }
@@ -34,17 +34,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('holdToSpeech', "Whether holding the inline chat keybinding will automatically enable speech recognition."),
 			default: true,
 			type: 'boolean'
-		},
-		[InlineChatConfigKeys.AccessibleDiffView]: {
-			description: localize('accessibleDiffView', "Whether the inline chat also renders an accessible diff viewer for its changes."),
-			default: 'auto',
-			type: 'string',
-			enum: ['auto', 'on', 'off'],
-			markdownEnumDescriptions: [
-				localize('accessibleDiffView.auto', "The accessible diff viewer is based on screen reader mode being enabled."),
-				localize('accessibleDiffView.on', "The accessible diff viewer is always enabled."),
-				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
-			],
 		},
 		[InlineChatConfigKeys.EnableV2]: {
 			description: localize('enableV2', "Whether to use the next version of inline chat."),
@@ -80,7 +69,8 @@ export const enum InlineChatResponseType {
 }
 
 export const CTX_INLINE_CHAT_POSSIBLE = new RawContextKey<boolean>('inlineChatPossible', false, localize('inlineChatHasPossible', "Whether a provider for inline chat exists and whether an editor for inline chat is open"));
-export const CTX_INLINE_CHAT_HAS_AGENT = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
+/** @deprecated */
+const CTX_INLINE_CHAT_HAS_AGENT = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INLINE_CHAT_HAS_AGENT2 = new RawContextKey<boolean>('inlineChatHasEditsAgent', false, localize('inlineChatHasEditsAgent', "Whether an agent for inline for interactive editors exists"));
 export const CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE = new RawContextKey<boolean>('inlineChatHasNotebookInline', false, localize('inlineChatHasNotebookInline', "Whether an agent for notebook cells exists"));
 export const CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT = new RawContextKey<boolean>('inlineChatHasNotebookAgent', false, localize('inlineChatHasNotebookAgent', "Whether an agent for notebook cells exists"));

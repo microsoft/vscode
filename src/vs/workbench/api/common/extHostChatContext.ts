@@ -10,18 +10,20 @@ import { ExtHostChatContextShape, MainContext, MainThreadChatContextShape } from
 import { DocumentSelector } from './extHostTypeConverters.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { IChatContextItem } from '../../contrib/chat/common/chatContext.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 
-export class ExtHostChatContext implements ExtHostChatContextShape {
+export class ExtHostChatContext extends Disposable implements ExtHostChatContextShape {
 	declare _serviceBrand: undefined;
 
 	private _proxy: MainThreadChatContextShape;
 	private _handlePool: number = 0;
-	private _providers: Map<number, vscode.ChatContextProvider> = new Map();
+	private _providers: Map<number, { provider: vscode.ChatContextProvider; disposables: DisposableStore }> = new Map();
 	private _itemPool: number = 0;
 	private _items: Map<number, Map<number, vscode.ChatContextItem>> = new Map(); // handle -> itemHandle -> item
 
 	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService,
 	) {
+		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadChatContext);
 	}
 
@@ -83,16 +85,7 @@ export class ExtHostChatContext implements ExtHostChatContextShape {
 		return item;
 	}
 
-	async $resolveChatContext(handle: number, context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem> {
-		const provider = this._getProvider(handle);
-
-		if (!provider.resolveChatContext) {
-			throw new Error('resolveChatContext not implemented');
-		}
-		const extItem = this._items.get(handle)?.get(context.handle);
-		if (!extItem) {
-			throw new Error('Chat context item not found');
-		}
+	private async _doResolve(provider: vscode.ChatContextProvider, context: IChatContextItem, extItem: vscode.ChatContextItem, token: CancellationToken): Promise<IChatContextItem> {
 		const extResult = await provider.resolveChatContext(extItem, token);
 		const result = extResult ?? context;
 		return {
@@ -104,23 +97,69 @@ export class ExtHostChatContext implements ExtHostChatContextShape {
 		};
 	}
 
-	registerChatContextProvider(selector: vscode.DocumentSelector, id: string, provider: vscode.ChatContextProvider): vscode.Disposable {
+	async $resolveChatContext(handle: number, context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem> {
+		const provider = this._getProvider(handle);
+
+		if (!provider.resolveChatContext) {
+			throw new Error('resolveChatContext not implemented');
+		}
+		const extItem = this._items.get(handle)?.get(context.handle);
+		if (!extItem) {
+			throw new Error('Chat context item not found');
+		}
+		return this._doResolve(provider, context, extItem, token);
+	}
+
+	registerChatContextProvider(selector: vscode.DocumentSelector | undefined, id: string, provider: vscode.ChatContextProvider): vscode.Disposable {
 		const handle = this._handlePool++;
-		this._providers.set(handle, provider);
-		this._proxy.$registerChatContextProvider(handle, `${id}`, DocumentSelector.from(selector), {}, { supportsResource: !!provider.provideChatContextForResource, supportsResolve: !!provider.resolveChatContext });
+		const disposables = new DisposableStore();
+		this._listenForWorkspaceContextChanges(handle, provider, disposables);
+		this._providers.set(handle, { provider, disposables });
+		this._proxy.$registerChatContextProvider(handle, `${id}`, selector ? DocumentSelector.from(selector) : undefined, {}, { supportsResource: !!provider.provideChatContextForResource, supportsResolve: !!provider.resolveChatContext });
 
 		return {
 			dispose: () => {
 				this._providers.delete(handle);
 				this._proxy.$unregisterChatContextProvider(handle);
+				disposables.dispose();
 			}
 		};
+	}
+
+	private _listenForWorkspaceContextChanges(handle: number, provider: vscode.ChatContextProvider, disposables: DisposableStore): void {
+		if (!provider.onDidChangeWorkspaceChatContext || !provider.provideWorkspaceChatContext) {
+			return;
+		}
+		disposables.add(provider.onDidChangeWorkspaceChatContext(async () => {
+			const workspaceContexts = await provider.provideWorkspaceChatContext!(CancellationToken.None);
+			const resolvedContexts: IChatContextItem[] = [];
+			for (const item of workspaceContexts ?? []) {
+				const contextItem: IChatContextItem = {
+					icon: item.icon,
+					label: item.label,
+					modelDescription: item.modelDescription,
+					value: item.value,
+					handle: this._itemPool++
+				};
+				const resolved = await this._doResolve(provider, contextItem, item, CancellationToken.None);
+				resolvedContexts.push(resolved);
+			}
+
+			this._proxy.$updateWorkspaceContextItems(handle, resolvedContexts);
+		}));
 	}
 
 	private _getProvider(handle: number): vscode.ChatContextProvider {
 		if (!this._providers.has(handle)) {
 			throw new Error('Chat context provider not found');
 		}
-		return this._providers.get(handle)!;
+		return this._providers.get(handle)!.provider;
+	}
+
+	public override dispose(): void {
+		super.dispose();
+		for (const { disposables } of this._providers.values()) {
+			disposables.dispose();
+		}
 	}
 }

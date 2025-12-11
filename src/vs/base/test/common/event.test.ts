@@ -464,6 +464,111 @@ suite('Event', function () {
 		});
 	});
 
+	suite('Event.toPromise', () => {
+		class DisposableStoreWithSize extends DisposableStore {
+			public size = 0;
+			public override add<T extends IDisposable>(o: T): T {
+				this.size++;
+				return super.add(o);
+			}
+
+			public override delete<T extends IDisposable>(o: T): void {
+				this.size--;
+				return super.delete(o);
+			}
+		}
+		test('resolves on first event', async () => {
+			const emitter = ds.add(new Emitter<number>());
+			const promise = Event.toPromise(emitter.event);
+
+			emitter.fire(42);
+			const result = await promise;
+
+			assert.strictEqual(result, 42);
+		});
+
+		test('disposes listener after resolution', async () => {
+			const emitter = ds.add(new Emitter<number>());
+			const promise = Event.toPromise(emitter.event);
+
+			emitter.fire(1);
+			await promise;
+
+			// Listener should be disposed, firing again should not affect anything
+			emitter.fire(2);
+			assert.ok(true); // No errors
+		});
+
+		test('adds to DisposableStore', async () => {
+			const emitter = ds.add(new Emitter<number>());
+			const store = ds.add(new DisposableStoreWithSize());
+			const promise = Event.toPromise(emitter.event, store);
+
+			assert.strictEqual(store.size, 1);
+
+			emitter.fire(42);
+			await promise;
+
+			// Should be removed from store after resolution
+			assert.strictEqual(store.size, 0);
+		});
+
+		test('adds to disposables array', async () => {
+			const emitter = ds.add(new Emitter<number>());
+			const disposables: IDisposable[] = [];
+			const promise = Event.toPromise(emitter.event, disposables);
+
+			assert.strictEqual(disposables.length, 1);
+
+			emitter.fire(42);
+			await promise;
+
+			// Should be removed from array after resolution
+			assert.strictEqual(disposables.length, 0);
+		});
+
+		test('cancel removes from DisposableStore', () => {
+			const emitter = ds.add(new Emitter<number>());
+			const store = ds.add(new DisposableStoreWithSize());
+			const promise = Event.toPromise(emitter.event, store);
+
+			assert.strictEqual(store.size, 1);
+
+			promise.cancel();
+
+			// Should be removed from store after cancellation
+			assert.strictEqual(store.size, 0);
+		});
+
+		test('cancel removes from disposables array', () => {
+			const emitter = ds.add(new Emitter<number>());
+			const disposables: IDisposable[] = [];
+			const promise = Event.toPromise(emitter.event, disposables);
+
+			assert.strictEqual(disposables.length, 1);
+
+			promise.cancel();
+
+			// Should be removed from array after cancellation
+			assert.strictEqual(disposables.length, 0);
+		});
+
+		test('cancel does not resolve promise', async () => {
+			const emitter = ds.add(new Emitter<number>());
+			const promise = Event.toPromise(emitter.event);
+
+			promise.cancel();
+			emitter.fire(42);
+
+			// Promise should not resolve after cancellation
+			let resolved = false;
+			promise.then(() => resolved = true);
+
+			await timeout(10);
+			assert.strictEqual(resolved, false);
+		});
+	});
+
 	test('Microtask Emitter', (done) => {
 		let count = 0;
 		assert.strictEqual(count, 0);

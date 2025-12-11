@@ -36,7 +36,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
@@ -46,7 +45,7 @@ import { SearchContext } from '../../../search/common/constants.js';
 import { TextToSpeechInProgress as GlobalTextToSpeechInProgress, HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus } from '../../../speech/common/speechService.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
-import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService } from '../../browser/chat.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -103,7 +102,6 @@ class VoiceChatSessionControllerFactory {
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorService = accessor.get(IEditorService);
-		const viewsService = accessor.get(IViewsService);
 
 		switch (context) {
 			case 'focused': {
@@ -111,7 +109,7 @@ class VoiceChatSessionControllerFactory {
 				return controller ?? VoiceChatSessionControllerFactory.create(accessor, 'view'); // fallback to 'view'
 			}
 			case 'view': {
-				const chatWidget = await showChatView(viewsService, layoutService);
+				const chatWidget = await chatWidgetService.revealWidget();
 				if (chatWidget) {
 					return VoiceChatSessionControllerFactory.doCreateForChatWidget('view', chatWidget);
 				}
@@ -475,8 +473,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 
 		const instantiationService = accessor.get(IInstantiationService);
 		const keybindingService = accessor.get(IKeybindingService);
-		const viewsService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const widgetService = accessor.get(IChatWidgetService);
 
 		const holdMode = keybindingService.enableKeybindingHoldMode(HoldToVoiceChatInChatViewAction.ID);
 
@@ -489,7 +486,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 			}
 		}, VOICE_KEY_HOLD_THRESHOLD);
 
-		(await showChatView(viewsService, layoutService))?.focusInput();
+		(await widgetService.revealWidget())?.focusInput();
 
 		await holdMode;
 		handle.dispose();

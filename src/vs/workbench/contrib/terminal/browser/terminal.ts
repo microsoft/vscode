@@ -332,6 +332,7 @@ export interface IDetachedXTermOptions {
 	capabilities?: ITerminalCapabilityStore;
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
+	disableOverviewRuler?: boolean;
 }
 
 /**
@@ -1342,6 +1343,14 @@ export interface IXtermTerminal extends IDisposable {
 	 * Gets the font metrics of this xterm.js instance.
 	 */
 	getFont(): ITerminalFont;
+
+	/**
+	 * Gets the content between two markers as VT sequences.
+	 * @param startMarker The marker to start from.
+	 * @param endMarker The marker to end at.
+	 * @param skipLastLine Whether the last line should be skipped (e.g. when it's the prompt line)
+	 */
+	getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string>;
 
 	/**
 	 * Gets whether there's any terminal selection.
