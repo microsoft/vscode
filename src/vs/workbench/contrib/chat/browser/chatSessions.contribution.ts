@@ -17,7 +17,7 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,7 +25,6 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IEditableData } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
@@ -33,10 +32,9 @@ import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
-import { LEGACY_AGENT_SESSIONS_VIEW_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
-import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../common/chatService.js';
 import { autorun, autorunIterableDelta, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -277,7 +275,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessionTypeInputPlaceholders: Map<string, string> = new Map();
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
-	private readonly _editableSessions = new ResourceMap<IEditableData>();
+
+	private readonly _hasCanDelegateProvidersKey: IContextKey<boolean>;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -289,6 +288,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super();
+
+		this._hasCanDelegateProvidersKey = ChatContextKeys.hasCanDelegateProviders.bindTo(this._contextKeyService);
 
 		this._register(extensionPoint.setHandler(extensions => {
 			for (const ext of extensions) {
@@ -435,6 +436,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._sessionTypeWelcomeTips.delete(contribution.type);
 				this._sessionTypeInputPlaceholders.delete(contribution.type);
 				this._contributionDisposables.deleteAndDispose(contribution.type);
+				this._updateHasCanDelegateProvidersContextKey();
 			}
 		};
 	}
@@ -468,7 +470,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (primaryType) {
 			const altContribution = this._contributions.get(primaryType)?.contribution;
 			if (altContribution && this._isContributionAvailable(altContribution)) {
-				this._logService.trace(`Resolving chat session type '${sessionType}' to alternative type '${primaryType}'`);
 				return primaryType;
 			}
 		}
@@ -485,56 +486,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const rawMenuActions = this._menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, contextKeyService);
 		const menuActions = rawMenuActions.map(value => value[1]).flat();
 
-		const whenClause = ContextKeyExpr.and(
-			ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.${contribution.type}`)
-		);
-
 		const disposables = new DisposableStore();
 
-		// If there's exactly one action, inline it
-		if (menuActions.length === 1) {
-			const first = menuActions[0];
-			if (first instanceof MenuItemAction) {
-				disposables.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-					group: 'navigation',
-					title: first.label,
-					icon: Codicon.plus,
-					order: 1,
-					when: whenClause,
-					command: first.item,
-				}));
-			}
-		}
-
-		if (menuActions.length) {
-			disposables.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-				group: 'navigation',
-				title: localize('interactiveSession.chatSessionSubMenuTitle', "Create chat session"),
-				icon: Codicon.plus,
-				order: 1,
-				when: whenClause,
-				submenu: MenuId.AgentSessionsCreateSubMenu,
-				isSplitButton: menuActions.length > 1
-			}));
-		} else {
-			// We control creation instead
-			disposables.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-				command: {
-					id: `${NEW_CHAT_SESSION_ACTION_ID}.${contribution.type}`,
-					title: localize('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
-					icon: Codicon.plus,
-					source: {
-						id: extensionDescription.identifier.value,
-						title: extensionDescription.displayName || extensionDescription.name,
-					}
-				},
-				group: 'navigation',
-				order: 1,
-				when: whenClause,
-			}));
-		}
-
-		// Also mirror all create submenu actions into the global Chat New menu
+		// Mirror all create submenu actions into the global Chat New menu
 		for (const action of menuActions) {
 			if (action instanceof MenuItemAction) {
 				disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
@@ -684,6 +638,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._onDidChangeSessionItems.fire(contribution.type);
 			}
 		}
+		this._updateHasCanDelegateProvidersContextKey();
 	}
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
@@ -755,6 +710,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[] {
 		return Array.from(this._contributions.values(), x => x.contribution)
 			.filter(contribution => this._isContributionAvailable(contribution));
+	}
+
+	private _updateHasCanDelegateProvidersContextKey(): void {
+		const hasCanDelegate = this.getAllChatSessionContributions().filter(c => c.canDelegate);
+		const canDelegateEnabled = hasCanDelegate.length > 0;
+		this._logService.trace(`[ChatSessionsService] hasCanDelegateProvidersAvailable=${canDelegateEnabled} (${hasCanDelegate.map(c => c.type).join(', ')})`);
+		this._hasCanDelegateProvidersKey.set(canDelegateEnabled);
 	}
 
 	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined {
@@ -929,7 +891,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 
-	public getSessionDescription(chatModel: IChatModel): string | undefined {
+	public getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
 		const requests = chatModel.getRequests();
 		if (requests.length === 0) {
 			return undefined;
@@ -1023,25 +985,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean {
 		const session = this._sessions.get(sessionResource);
 		return !!session?.setOption(optionId, value);
-	}
-
-	// Implementation of editable session methods
-	public async setEditableSession(sessionResource: URI, data: IEditableData | null): Promise<void> {
-		if (!data) {
-			this._editableSessions.delete(sessionResource);
-		} else {
-			this._editableSessions.set(sessionResource, data);
-		}
-		// Trigger refresh of the session views that might need to update their rendering
-		this._onDidChangeSessionItems.fire(localChatSessionType);
-	}
-
-	public getEditableData(sessionResource: URI): IEditableData | undefined {
-		return this._editableSessions.get(sessionResource);
-	}
-
-	public isEditable(sessionResource: URI): boolean {
-		return this._editableSessions.has(sessionResource);
 	}
 
 	public notifySessionItemsChanged(chatSessionType: string): void {

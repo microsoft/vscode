@@ -21,6 +21,21 @@
 				color: unset;
 			}
 		}
+
+		.agent-session-diff-container {
+			background-color: unset;
+			outline: 1px solid var(--vscode-agentSessionSelectedBadge-border);
+
+			.agent-session-diff-files,
+			.agent-session-diff-added,
+			.agent-session-diff-removed {
+				color: unset;
+			}
+		}
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row .agent-session-diff-container {
+		outline: 1px solid var(--vscode-agentSessionSelectedUnfocusedBadge-border);
 	}
 
 	.monaco-list-row .agent-session-title-toolbar {
@@ -47,7 +62,9 @@
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 8px 12px /* to offset from possible scrollbar */ 8px 8px;
+		padding: 8px 12px
+			/* to offset from possible scrollbar */
+			8px 8px;
 
 		&.archived {
 			color: var(--vscode-descriptionForeground);
@@ -78,6 +95,10 @@
 
 				&.codicon.codicon-circle-filled {
 					color: var(--vscode-textLink-foreground);
+				}
+
+				&.codicon.codicon-circle-small-filled {
+					color: var(--vscode-agentSessionReadIndicator-foreground);
 				}
 			}
 		}
@@ -114,6 +135,32 @@
 
 				a {
 					color: var(--vscode-descriptionForeground);
+				}
+			}
+
+			.agent-session-diff-container {
+				background-color: var(--vscode-toolbar-hoverBackground);
+				font-weight: 500;
+				display: flex;
+				gap: 4px;
+				padding: 0 4px;
+				font-variant-numeric: tabular-nums;
+				border-radius: 5px;
+
+				&:not(.has-diff) {
+					display: none;
+				}
+
+				.agent-session-diff-files {
+					color: var(--vscode-descriptionForeground);
+				}
+
+				.agent-session-diff-added {
+					color: var(--vscode-chat-linesAddedForeground);
+				}
+
+				.agent-session-diff-removed {
+					color: var(--vscode-chat-linesRemovedForeground);
 				}
 			}
 		}

@@ -7677,6 +7677,7 @@ declare namespace monaco.languages {
 
 	export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
 		kind: InlineCompletionEndOfLifeReasonKind.Accepted;
+		alternativeAction: boolean;
 	} | {
 		kind: InlineCompletionEndOfLifeReasonKind.Rejected;
 	} | {
