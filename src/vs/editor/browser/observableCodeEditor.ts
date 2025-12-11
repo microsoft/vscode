@@ -5,7 +5,7 @@
 
 import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { DebugLocation, IObservable, IObservableWithChange, IReader, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../base/common/observable.js';
+import { DebugLocation, IObservable, IObservableWithChange, IReader, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableFromEventOpts, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
 import { LineRange } from '../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../common/core/ranges/offsetRange.js';
@@ -74,7 +74,7 @@ export class ObservableCodeEditor extends Disposable {
 		this._currentTransaction = undefined;
 		this._model = observableValue(this, this.editor.getModel());
 		this.model = this._model;
-		this.isReadonly = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.readOnly));
+		this.isReadonly = observableFromEventOpts({ owner: this, getTransaction: () => this._currentTransaction }, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.readOnly));
 		this._versionId = observableValueOpts<number | null, IModelContentChangedEvent | undefined>({ owner: this, lazy: true }, this.editor.getModel()?.getVersionId() ?? null);
 		this.versionId = this._versionId;
 		this._selections = observableValueOpts<Selection[] | null, ICursorSelectionChangedEvent | undefined>(
@@ -86,7 +86,7 @@ export class ObservableCodeEditor extends Disposable {
 			{ owner: this, equalsFn: equalsIfDefined(itemsEquals(Position.equals)) },
 			reader => this.selections.read(reader)?.map(s => s.getStartPosition()) ?? null
 		);
-		this.isFocused = observableFromEvent(this, e => {
+		this.isFocused = observableFromEventOpts({ owner: this, getTransaction: () => this._currentTransaction }, e => {
 			const d1 = this.editor.onDidFocusEditorWidget(e);
 			const d2 = this.editor.onDidBlurEditorWidget(e);
 			return {
@@ -96,7 +96,7 @@ export class ObservableCodeEditor extends Disposable {
 				}
 			};
 		}, () => this.editor.hasWidgetFocus());
-		this.isTextFocused = observableFromEvent(this, e => {
+		this.isTextFocused = observableFromEventOpts({ owner: this, getTransaction: () => this._currentTransaction }, e => {
 			const d1 = this.editor.onDidFocusEditorText(e);
 			const d2 = this.editor.onDidBlurEditorText(e);
 			return {
@@ -106,7 +106,7 @@ export class ObservableCodeEditor extends Disposable {
 				}
 			};
 		}, () => this.editor.hasTextFocus());
-		this.inComposition = observableFromEvent(this, e => {
+		this.inComposition = observableFromEventOpts({ owner: this, getTransaction: () => this._currentTransaction }, e => {
 			const d1 = this.editor.onDidCompositionStart(() => {
 				e(undefined);
 			});
@@ -137,17 +137,17 @@ export class ObservableCodeEditor extends Disposable {
 		this.cursorLineNumber = derived<number | null>(this, reader => this.cursorPosition.read(reader)?.lineNumber ?? null);
 		this.onDidType = observableSignal<string>(this);
 		this.onDidPaste = observableSignal<IPasteEvent>(this);
-		this.scrollTop = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollTop());
-		this.scrollLeft = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollLeft());
-		this.layoutInfo = observableFromEvent(this.editor.onDidLayoutChange, () => this.editor.getLayoutInfo());
+		this.scrollTop = observableFromEventOpts({ owner: this, getTransaction: () => this._currentTransaction }, this.editor.onDidScrollChange, () => this.editor.getScrollTop());
+		this.scrollLeft = observableFromEventOpts({ owner: this, getTransaction: () => this._currentTransaction }, this.editor.onDidScrollChange, () => this.editor.getScrollLeft());
+		this.layoutInfo = observableFromEventOpts({ owner: this, getTransaction: () => this._currentTransaction }, this.editor.onDidLayoutChange, () => this.editor.getLayoutInfo());
 		this.layoutInfoContentLeft = this.layoutInfo.map(l => l.contentLeft);
 		this.layoutInfoDecorationsLeft = this.layoutInfo.map(l => l.decorationsLeft);
 		this.layoutInfoWidth = this.layoutInfo.map(l => l.width);
 		this.layoutInfoHeight = this.layoutInfo.map(l => l.height);
 		this.layoutInfoMinimap = this.layoutInfo.map(l => l.minimap);
 		this.layoutInfoVerticalScrollbarWidth = this.layoutInfo.map(l => l.verticalScrollbarWidth);
-		this.contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
-		this.contentHeight = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentHeight());
+		this.contentWidth = observableFromEventOpts({ owner: this, getTransaction: () => this._currentTransaction }, this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
+		this.contentHeight = observableFromEventOpts({ owner: this, getTransaction: () => this._currentTransaction }, this.editor.onDidContentSizeChange, () => this.editor.getContentHeight());
 		this._onDidChangeViewZones = observableSignalFromEvent(this, this.editor.onDidChangeViewZones);
 		this._onDidHiddenAreasChanged = observableSignalFromEvent(this, this.editor.onDidChangeHiddenAreas);
 		this._onDidLineHeightChanged = observableSignalFromEvent(this, this.editor.onDidChangeLineHeight);
@@ -212,6 +212,22 @@ export class ObservableCodeEditor extends Disposable {
 			this.model.read(reader);
 			return this.editor.getDomNode();
 		});
+	}
+
+	/**
+	 * Batches the transactions started by observableFromEvent.
+	 *
+	 * If the callback causes the editor to fire an event that updates
+	 * an observable value backed by observableFromEvent (such as scrollTop etc.),
+	 * then all such updates will be part of the same transaction.
+	*/
+	public transaction<T>(cb: (tx: ITransaction) => T): T {
+		this._beginUpdate();
+		try {
+			return cb(this._currentTransaction!);
+		} finally {
+			this._endUpdate();
+		}
 	}
 
 	public forceUpdate(): void;
