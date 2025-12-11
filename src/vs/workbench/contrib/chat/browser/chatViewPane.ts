@@ -128,14 +128,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private updateContextKeys(fromEvent: boolean): void {
 		const viewLocation = this.viewDescriptorService.getViewLocationById(this.id);
 		const sideBarPosition = this.layoutService.getSideBarPosition();
+		const panelPosition = this.layoutService.getPanelPosition();
 
 		let sideSessionsOnRightPosition: boolean;
-		if (viewLocation === ViewContainerLocation.AuxiliaryBar) {
-			sideSessionsOnRightPosition = sideBarPosition === Position.LEFT;
-		} else if (viewLocation === ViewContainerLocation.Sidebar) {
-			sideSessionsOnRightPosition = sideBarPosition === Position.RIGHT;
-		} else {
-			sideSessionsOnRightPosition = true;
+		switch (viewLocation) {
+			case ViewContainerLocation.Sidebar:
+				sideSessionsOnRightPosition = sideBarPosition === Position.RIGHT;
+				break;
+			case ViewContainerLocation.Panel:
+				sideSessionsOnRightPosition = panelPosition !== Position.LEFT;
+				break;
+			default:
+				sideSessionsOnRightPosition = sideBarPosition === Position.LEFT;
+				break;
 		}
 
 		this.sessionsViewerPosition = sideSessionsOnRightPosition ? AgentSessionsViewerPosition.Right : AgentSessionsViewerPosition.Left;
@@ -166,6 +171,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Layout changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sideBar.location'))(() => this.updateContextKeys(true)));
+		this._register(this.layoutService.onDidChangePanelPosition(() => this.updateContextKeys(true)));
 		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))(() => this.updateContextKeys(true)));
 
 		// Settings changes
