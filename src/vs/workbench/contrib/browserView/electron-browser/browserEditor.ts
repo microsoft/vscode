@@ -38,6 +38,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
 export const CONTEXT_BROWSER_LOADING = new RawContextKey<boolean>('browserLoading', false, localize('browser.loading', "Whether the browser is currently loading a page"));
+export const CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD = new RawContextKey<boolean>('browserInReloadCooldownPeriod', false, localize('browser.inReloadCooldownPeriod', "Whether the browser is in the cooldown period after reload button was clicked"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
@@ -150,6 +151,8 @@ export class BrowserEditor extends EditorPane {
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _loadingContext!: IContextKey<boolean>;
+	private _inReloadCooldownPeriodContext!: IContextKey<boolean>;
+	private _reloadCooldownPeriodTimeout: ReturnType<typeof setTimeout> | undefined = undefined;
 	private _storageScopeContext!: IContextKey<string>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
 
@@ -179,6 +182,7 @@ export class BrowserEditor extends EditorPane {
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
 		this._loadingContext = CONTEXT_BROWSER_LOADING.bindTo(contextKeyService);
+		this._inReloadCooldownPeriodContext = CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD.bindTo(contextKeyService);
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 
@@ -437,6 +441,17 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	public async reload(): Promise<void> {
+		// Reset cooldown timer and set it to end after 500ms
+		const cooldownPeriodMs = 500;
+		if (this._reloadCooldownPeriodTimeout) {
+			clearTimeout(this._reloadCooldownPeriodTimeout);
+		}
+		this._inReloadCooldownPeriodContext.set(true);
+		this._reloadCooldownPeriodTimeout = setTimeout(() => {
+			this._inReloadCooldownPeriodContext.set(false);
+			this._reloadCooldownPeriodTimeout = undefined;
+		}, cooldownPeriodMs);
+
 		return this._model?.reload();
 	}
 
@@ -531,9 +546,16 @@ export class BrowserEditor extends EditorPane {
 		void this._model?.setVisible(false);
 		this._model = undefined;
 
+		// Clean up cooldown timeout used for reload actions
+		if (this._reloadCooldownPeriodTimeout) {
+			clearTimeout(this._reloadCooldownPeriodTimeout);
+			this._reloadCooldownPeriodTimeout = undefined;
+		}
+
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
 		this._loadingContext.reset();
+		this._inReloadCooldownPeriodContext.reset();
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
 

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize2 } from '../../../../nls.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_LOADING, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE } from './browserEditor.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_LOADING, CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
@@ -124,7 +124,8 @@ class ReloadAction extends Action2 {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, ContextKeyExpr.not(CONTEXT_BROWSER_LOADING.key))
+				// Show reload button when not loading, OR during the cooldown period after reload was clicked
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, ContextKeyExpr.or(ContextKeyExpr.not(CONTEXT_BROWSER_LOADING.key), CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD))
 			},
 			precondition: BROWSER_EDITOR_ACTIVE,
 			keybinding: {
@@ -138,6 +139,14 @@ class ReloadAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const inCooldownPeriod = contextKeyService.getContextKeyValue(CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD.key);
+
+		// No-op if we're in the cooldown period (prevents accidental double-click stop)
+		if (inCooldownPeriod) {
+			return;
+		}
+
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
 		if (activeEditorPane instanceof BrowserEditor) {
@@ -160,9 +169,10 @@ class StopLoadingAction extends Action2 {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_LOADING)
+				// Show stop button only when loading AND not in cooldown period
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_LOADING, ContextKeyExpr.not(CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD.key))
 			},
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_LOADING),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_LOADING, ContextKeyExpr.not(CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD.key)),
 			keybinding: {
 				when: ContextKeyExpr.and(CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_LOADING), // Keybinding is only active when focus is within the browser editor and loading
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over debug
