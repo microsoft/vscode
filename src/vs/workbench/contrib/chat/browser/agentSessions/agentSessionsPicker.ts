@@ -33,15 +33,24 @@ export class AgentSessionsPicker {
 		const picker = disposables.add(this.quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true }));
 
 		picker.items = this.createPickerItems();
+		picker.canAcceptInBackground = true;
 		picker.placeholder = localize('chatAgentPickerPlaceholder', "Search agent sessions by name");
 
 		disposables.add(picker.onDidAccept(e => {
 			const pick = picker.selectedItems[0];
 			if (pick) {
-				this.instantiationService.invokeFunction(openSession, pick.session, { sideBySide: e.inBackground });
+				this.instantiationService.invokeFunction(openSession, pick.session, {
+					sideBySide: e.inBackground,
+					editorOptions: {
+						preserveFocus: e.inBackground,
+						pinned: false
+					}
+				});
 			}
 
-			picker.hide();
+			if (!e.inBackground) {
+				picker.hide();
+			}
 		}));
 
 		disposables.add(picker.onDidHide(() => disposables.dispose()));
