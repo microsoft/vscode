@@ -160,7 +160,7 @@ export function registerNewChatActions() {
 	});
 	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
 
-	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
+	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleNavigationToolbar, {
 		command: {
 			id: ACTION_ID_NEW_CHAT,
 			title: localize2('chat.goBack', "Go Back"),
