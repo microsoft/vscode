@@ -339,7 +339,7 @@ interface ActionBarCell {
 	editId: TunnelEditId;
 }
 
-class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCell, IActionBarTemplateData> {
+class ActionBarRenderer implements ITableRenderer<ActionBarCell, IActionBarTemplateData> {
 	readonly templateId = 'actionbar';
 	private inputDone?: (success: boolean, finishEditing: boolean) => void;
 	private _actionRunner: ActionRunner | undefined;
@@ -354,8 +354,6 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super();
-
 		this._hoverDelegate = getDefaultHoverDelegate('mouse');
 	}
 
