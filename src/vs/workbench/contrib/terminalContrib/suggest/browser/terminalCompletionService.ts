@@ -321,11 +321,15 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			const refersToCwd = lastWordFolderBasename.length > 0 && basename(cwd.path) === lastWordFolderBasename;
 			const folderToResolve = (useWindowsStylePath ? lastWordFolder.replaceAll('/', '\\') : lastWordFolder).replaceAll('\\ ', ' ');
 			try {
-				const resolved = refersToCwd ? cwd : URI.joinPath(cwd, folderToResolve);
+				const resolved = URI.joinPath(cwd, folderToResolve);
 				await this._fileService.stat(resolved);
 				lastWordFolderResource = resolved;
 			} catch {
-				return undefined;
+				if (refersToCwd) {
+					lastWordFolderResource = cwd;
+				} else {
+					return undefined;
+				}
 			}
 		}
 
