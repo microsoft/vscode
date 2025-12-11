@@ -16,15 +16,10 @@ suite('EditTool', () => {
 
 	let editTool: EditTool;
 	let mockTextFileService: ITextFileService;
-	let mockTextFileModel: ITextFileEditorModel;
+	let mockTextFileModel: ITextFileEditorModel | undefined;
+	let isDirtyFlag: boolean;
 
-	setup(() => {
-		// Create a mock text file model
-		mockTextFileModel = {
-			isDirty: () => false,
-		} as ITextFileEditorModel;
-
-		// Create a mock text file service
+	function createEditTool() {
 		mockTextFileService = {
 			files: {
 				get: (uri: URI) => mockTextFileModel,
@@ -32,13 +27,22 @@ suite('EditTool', () => {
 			save: async (uri: URI) => uri,
 		} as unknown as ITextFileService;
 
-		// Create EditTool with mocked dependencies
-		editTool = new EditTool(
+		return new EditTool(
 			null as any, // IChatService - not needed for prepareToolInvocation tests
 			null as any, // ICodeMapperService - not needed for prepareToolInvocation tests
 			null as any, // INotebookService - not needed for prepareToolInvocation tests
 			mockTextFileService
 		);
+	}
+
+	setup(() => {
+		isDirtyFlag = false;
+		// Create a mock text file model
+		mockTextFileModel = {
+			isDirty: () => isDirtyFlag,
+		} as ITextFileEditorModel;
+
+		editTool = createEditTool();
 	});
 
 	test('prepareToolInvocation should return Hidden presentation when file is not dirty', async () => {
@@ -60,23 +64,7 @@ suite('EditTool', () => {
 
 	test('prepareToolInvocation should request confirmation when file is dirty', async () => {
 		// Make the model dirty
-		mockTextFileModel = {
-			isDirty: () => true,
-		} as ITextFileEditorModel;
-
-		mockTextFileService = {
-			files: {
-				get: (uri: URI) => mockTextFileModel,
-			},
-			save: async (uri: URI) => uri,
-		} as unknown as ITextFileService;
-
-		editTool = new EditTool(
-			null as any,
-			null as any,
-			null as any,
-			mockTextFileService
-		);
+		isDirtyFlag = true;
 
 		const uri = URI.parse('file:///test/file.txt');
 		const context: IToolInvocationPreparationContext = {
@@ -98,19 +86,9 @@ suite('EditTool', () => {
 	});
 
 	test('prepareToolInvocation should not request confirmation when file model does not exist', async () => {
-		mockTextFileService = {
-			files: {
-				get: (uri: URI) => undefined,
-			},
-			save: async (uri: URI) => uri,
-		} as unknown as ITextFileService;
-
-		editTool = new EditTool(
-			null as any,
-			null as any,
-			null as any,
-			mockTextFileService
-		);
+		// Set model to undefined to simulate file not being open
+		mockTextFileModel = undefined;
+		editTool = createEditTool();
 
 		const uri = URI.parse('file:///test/file.txt');
 		const context: IToolInvocationPreparationContext = {
