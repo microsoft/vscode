@@ -6,16 +6,9 @@
 import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
-import { ChatViewId } from '../chat.js';
+import { IChatSessionItem, localChatSessionType } from '../../common/chatSessionsService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
-
-export const AGENT_SESSIONS_VIEW_CONTAINER_ID = 'workbench.viewContainer.agentSessions';
-export const AGENT_SESSIONS_VIEW_ID = 'workbench.view.agentSessions';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 
 export enum AgentSessionProviders {
 	Local = localChatSessionType,
@@ -45,20 +38,6 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 	}
 }
 
-export function openAgentSessionsView(accessor: ServicesAccessor): void {
-	const viewService = accessor.get(IViewsService);
-	const configurationService = accessor.get(IConfigurationService);
-
-	const viewLocation = configurationService.getValue('chat.agentSessionsViewLocation');
-	if (viewLocation === 'single-view') {
-		viewService.openView(AGENT_SESSIONS_VIEW_ID, true);
-	} else if (viewLocation === 'view') {
-		viewService.openViewContainer(LEGACY_AGENT_SESSIONS_VIEW_ID, true);
-	} else {
-		viewService.openView(ChatViewId, true);
-	}
-}
-
 export enum AgentSessionsViewerOrientation {
 	Stacked = 1,
 	SideBySide,
@@ -85,3 +64,23 @@ export const agentSessionSelectedBadgeBorder = registerColor(
 	{ dark: transparent(listActiveSelectionForeground, 0.3), light: transparent(listActiveSelectionForeground, 0.3), hcDark: foreground, hcLight: foreground },
 	localize('agentSessionSelectedBadgeBorder', "Border color for the badges in selected agent session items.")
 );
+
+export const agentSessionSelectedUnfocusedBadgeBorder = registerColor(
+	'agentSessionSelectedUnfocusedBadge.border',
+	{ dark: transparent(foreground, 0.3), light: transparent(foreground, 0.3), hcDark: foreground, hcLight: foreground },
+	localize('agentSessionSelectedUnfocusedBadgeBorder', "Border color for the badges in selected agent session items when the view is unfocused.")
+);
+
+export interface IMarshalledChatSessionContext {
+	readonly $mid: MarshalledId.ChatSessionContext;
+	readonly session: IChatSessionItem;
+}
+
+export function isMarshalledChatSessionContext(thing: unknown): thing is IMarshalledChatSessionContext {
+	if (typeof thing === 'object' && thing !== null) {
+		const candidate = thing as IMarshalledChatSessionContext;
+		return candidate.$mid === MarshalledId.ChatSessionContext && typeof candidate.session === 'object' && candidate.session !== null;
+	}
+
+	return false;
+}

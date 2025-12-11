@@ -64,7 +64,8 @@ export class ChatViewTitleControl extends Disposable {
 	private model: IChatModel | undefined;
 	private modelDisposables = this._register(new MutableDisposable());
 
-	private toolbar?: MenuWorkbenchToolBar;
+	private navigationToolbar?: MenuWorkbenchToolBar;
+	private actionsToolbar?: MenuWorkbenchToolBar;
 	private agentPickerActionViewItem?: ChatViewTitleAgentPickerActionViewItem;
 
 	get agentPickerElement(): HTMLElement | undefined {
@@ -108,13 +109,20 @@ export class ChatViewTitleControl extends Disposable {
 
 	private render(parent: HTMLElement): void {
 		const elements = h('div.chat-view-title-container', [
-			h('div.chat-view-title-toolbar@toolbar'),
-			h('span.chat-view-title-label@label'),
+			h('div.chat-view-title-navigation-toolbar@navigationToolbar'),
 			h('span.chat-view-title-icon@icon'),
+			h('span.chat-view-title-label@label'),
+			h('div.chat-view-title-actions-toolbar@actionsToolbar'),
 		]);
 
 		// Toolbar on the left
-		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.ChatViewSessionTitleToolbar, {
+		this.navigationToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.navigationToolbar, MenuId.ChatViewSessionTitleNavigationToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+			hiddenItemStrategy: HiddenItemStrategy.NoHide
+		}));
+
+		// Actions toolbar on the right
+		this.actionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.actionsToolbar, MenuId.ChatViewSessionTitleToolbar, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === ACTION_ID_PICK_AGENT_SESSION) {
 					this.agentPickerActionViewItem = this._register(new ChatViewTitleAgentPickerActionViewItem(action));
@@ -167,11 +175,17 @@ export class ChatViewTitleControl extends Disposable {
 		this.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
 		this.updateIcon();
 
-		if (this.toolbar) {
-			this.toolbar.context = this.model && {
-				$mid: MarshalledId.ChatViewContext,
-				sessionResource: this.model.sessionResource
-			} satisfies IChatViewTitleActionContext;
+		const context = this.model && {
+			$mid: MarshalledId.ChatViewContext,
+			sessionResource: this.model.sessionResource
+		} satisfies IChatViewTitleActionContext;
+
+		if (this.navigationToolbar) {
+			this.navigationToolbar.context = context;
+		}
+
+		if (this.actionsToolbar) {
+			this.actionsToolbar.context = context;
 		}
 	}
 

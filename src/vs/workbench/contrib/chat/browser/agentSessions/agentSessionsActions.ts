@@ -8,28 +8,66 @@ import { IAgentSession } from './agentSessionsModel.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
+import { AgentSessionsViewerOrientation, IAgentSessionsControl, IMarshalledChatSessionContext, isMarshalledChatSessionContext } from './agentSessions.js';
 import { IChatService } from '../../common/chatService.js';
-import { AgentSessionsView } from './agentSessionsView.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IMarshalledChatSessionContext, isMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { ACTION_ID_PICK_AGENT_SESSION } from '../actions/chatActions.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_PICK_AGENT_SESSION, CHAT_CATEGORY } from '../actions/chatActions.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewPane } from '../chatViewPane.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AgentSessionsPicker } from './agentSessionsPicker.js';
+
+export class FocusAgentSessionsAction extends Action2 {
+
+	static readonly id = 'workbench.action.chat.focusAgentSessionsViewer';
+
+	constructor() {
+		super({
+			id: FocusAgentSessionsAction.id,
+			title: {
+				value: localize('chat.focusAgentSessionsViewer.label', "Focus Agent Sessions"),
+				original: 'Focus Agent Sessions'
+			},
+			precondition: ChatContextKeys.enabled,
+			category: CHAT_CATEGORY,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const configurationService = accessor.get(IConfigurationService);
+		const commandService = accessor.get(ICommandService);
+
+		const chatView = await viewsService.openView<ChatViewPane>(ChatViewId, true);
+		const focused = chatView?.focusSessions();
+		if (focused) {
+			return;
+		}
+
+		const configuredSessionsViewerOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		if (configuredSessionsViewerOrientation === 'auto' || configuredSessionsViewerOrientation === 'stacked') {
+			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		} else {
+			await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
+		}
+
+		chatView?.focusSessions();
+	}
+}
 
 abstract class BaseAgentSessionAction extends Action2 {
 
@@ -292,48 +330,6 @@ export class PickAgentSessionAction extends ViewAction<ChatViewPane> {
 	}
 }
 
-export class RefreshAgentSessionsViewAction extends ViewAction<AgentSessionsView> {
-
-	constructor() {
-		super({
-			id: 'agentSessionsView.refresh',
-			title: localize2('refresh', "Refresh Agent Sessions"),
-			icon: Codicon.refresh,
-			menu: {
-				id: MenuId.AgentSessionsViewTitle,
-				group: 'navigation',
-				order: 1
-			},
-			viewId: AGENT_SESSIONS_VIEW_ID
-		});
-	}
-
-	runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-		view.refresh();
-	}
-}
-
-export class FindAgentSessionAction extends ViewAction<AgentSessionsView> {
-
-	constructor() {
-		super({
-			id: 'agentSessionsView.find',
-			title: localize2('find', "Find Agent Session"),
-			icon: Codicon.search,
-			menu: {
-				id: MenuId.AgentSessionsViewTitle,
-				group: 'navigation',
-				order: 2
-			},
-			viewId: AGENT_SESSIONS_VIEW_ID
-		});
-	}
-
-	runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-		view.openFind();
-	}
-}
-
 //#endregion
 
 //#region Sessions Control Toolbar
@@ -388,36 +384,54 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 
 		const orientation = this.getOrientation();
-		let newWidth: number;
-		if (orientation === AgentSessionsViewerOrientation.SideBySide) {
-			newWidth = Math.max(600 + 1 /* account for possible theme border */, Math.round(layoutService.mainContainerDimension.width / 2));
-		} else {
-			newWidth = 300 + 1 /* account for possible theme border */;
+
+		const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
+		if (typeof chatLocation !== 'number') {
+			return; // we need a view location
 		}
+
+		// Determine if we can resize the view: this is not possible
+		// for when the chat view is in the panel at the top or bottom
+		const panelPosition = layoutService.getPanelPosition();
+		const canResizeView = chatLocation !== ViewContainerLocation.Panel || (panelPosition === Position.LEFT || panelPosition === Position.RIGHT);
 
 		// Update configuration if needed
 		const configuredSessionsViewerOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
-		if (configuredSessionsViewerOrientation === 'sideBySide' && orientation === AgentSessionsViewerOrientation.Stacked) {
+		if ((!canResizeView || configuredSessionsViewerOrientation === 'sideBySide') && orientation === AgentSessionsViewerOrientation.Stacked) {
 			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked');
-		} else if (configuredSessionsViewerOrientation === 'stacked' && orientation === AgentSessionsViewerOrientation.SideBySide) {
+		} else if ((!canResizeView || configuredSessionsViewerOrientation === 'stacked') && orientation === AgentSessionsViewerOrientation.SideBySide) {
 			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
-		}
-
-		const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
-		if (typeof chatLocation !== 'number' || chatLocation === ViewContainerLocation.Panel) {
-			return; // only applicable for sidebar or auxiliary bar
 		}
 
 		const part = getPartByLocation(chatLocation);
 		let currentSize = layoutService.getSize(part);
 
-		if (orientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= newWidth) {
-			return; // Already wide enough
+		const sideBySideMinWidth = 600 + 1;	// account for possible theme border
+		const stackedMaxWidth = 300 + 1;	// account for possible theme border
+
+		if (configuredSessionsViewerOrientation !== 'auto') {
+			if (
+				(orientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||	// already wide enough to show side by side
+				orientation === AgentSessionsViewerOrientation.Stacked														// always wide enough to show stacked
+			) {
+				return; // if the orientation is not set to `auto`, we try to avoid resizing if not needed
+			}
+		}
+
+		if (!canResizeView) {
+			return; // location does not allow for resize (panel top or bottom)
 		}
 
 		if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
 			layoutService.setAuxiliaryBarMaximized(false); // Leave maximized state if applicable
 			currentSize = layoutService.getSize(part);
+		}
+
+		let newWidth: number;
+		if (orientation === AgentSessionsViewerOrientation.SideBySide) {
+			newWidth = Math.max(sideBySideMinWidth, Math.round(layoutService.mainContainerDimension.width / 2));
+		} else {
+			newWidth = stackedMaxWidth;
 		}
 
 		layoutService.setSize(part, {
@@ -428,8 +442,6 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 
 	abstract getOrientation(): AgentSessionsViewerOrientation;
 }
-
-// TODO@bpasero these need to be revisited to work in all layouts
 
 export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 
