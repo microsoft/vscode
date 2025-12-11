@@ -309,12 +309,25 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 
 		// Determine the current folder being shown
-		let lastWordFolderResource: URI | string | undefined;
 		const lastWordFolderHasDotPrefix = !!lastWordFolder.match(/^\.\.?[\\\/]/);
 		const lastWordFolderHasTildePrefix = !!lastWordFolder.match(/^~[\\\/]?/);
 		const isAbsolutePath = getIsAbsolutePath(shellType, resourceOptions.pathSeparator, lastWordFolder, useWindowsStylePath);
 		const type = lastWordFolderHasTildePrefix ? 'tilde' : isAbsolutePath ? 'absolute' : 'relative';
 		const cwd = URI.revive(resourceOptions.cwd);
+		let lastWordFolderResource: URI | string | undefined;
+		if (type === 'relative' && lastWordFolder.length > 0) {
+			const lastWordFolderNoPrefix = lastWordFolder.replace(/^[.][\\\/]/, '');
+			const lastWordFolderBasename = lastWordFolderNoPrefix.replace(/[\\\/]$/, '');
+			const refersToCwd = lastWordFolderBasename.length > 0 && basename(cwd.path) === lastWordFolderBasename;
+			const folderToResolve = (useWindowsStylePath ? lastWordFolder.replaceAll('/', '\\') : lastWordFolder).replaceAll('\\ ', ' ');
+			try {
+				const resolved = refersToCwd ? cwd : URI.joinPath(cwd, folderToResolve);
+				await this._fileService.stat(resolved);
+				lastWordFolderResource = resolved;
+			} catch {
+				return undefined;
+			}
+		}
 
 		switch (type) {
 			case 'tilde': {
@@ -340,7 +353,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				break;
 			}
 			case 'relative': {
-				lastWordFolderResource = cwd;
+				lastWordFolderResource ??= cwd;
 				break;
 			}
 		}

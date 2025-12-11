@@ -104,17 +104,22 @@ suite('TerminalCompletionService', () => {
 		instantiationService = workbenchInstantiationService({
 			pathService: () => new TestPathService(URI.file(homeDir ?? '/')),
 		}, store);
+		const normalizePath = (path: string) => path === '/' ? path : path.replace(/\/+$/, '');
+		const doesResourceExist = (resource: URI) => validResources.some(e => normalizePath(e.path) === normalizePath(resource.path)) || childResources.some(e => normalizePath(e.resource.path) === normalizePath(resource.path));
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
 			async stat(resource) {
-				if (!validResources.map(e => e.path).includes(resource.path)) {
+				if (!doesResourceExist(resource)) {
 					throw new Error('Doesn\'t exist');
 				}
 				return createFileStat(resource);
 			},
 			async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata> {
+				if (!doesResourceExist(resource)) {
+					throw new Error('Doesn\'t exist');
+				}
 				const children = childResources.filter(child => {
 					const childFsPath = child.resource.path.replace(/\/$/, '');
 					const parentFsPath = resource.path.replace(/\/$/, '');
@@ -484,6 +489,22 @@ suite('TerminalCompletionService', () => {
 			], { replacementRange: [0, 2] });
 		});
 
+		test('should not return completions when relative folder prefix does not exist', async () => {
+			const resourceOptions: TerminalCompletionResourceOptions = {
+				cwd: URI.parse('file:///test'),
+				showDirectories: true,
+				pathSeparator
+			};
+			validResources = [URI.parse('file:///test')];
+			childResources = [
+				{ resource: URI.parse('file:///test/src/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/vs/'), isDirectory: true }
+			];
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 's/', 2, provider, capabilities);
+
+			assert.strictEqual(result, undefined);
+		});
+
 		test('./| should handle large directories with many results gracefully', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
@@ -554,7 +575,10 @@ suite('TerminalCompletionService', () => {
 		let shellEnvDetection: ShellEnvDetectionCapability;
 
 		setup(() => {
-			validResources = [URI.parse('file:///test')];
+			validResources = [
+				URI.parse('file:///test'),
+				URI.parse('file:///cdpath_value')
+			];
 			childResources = [
 				{ resource: URI.parse('file:///cdpath_value/folder1/'), isDirectory: true },
 				{ resource: URI.parse('file:///cdpath_value/file1.txt'), isFile: true },
