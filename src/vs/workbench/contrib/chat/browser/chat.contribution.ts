@@ -807,11 +807,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW
 		},
-		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
-			type: 'boolean',
-			description: nls.localize('chat.showAgentSessionsViewDescription', "Controls whether session descriptions are displayed on a second row in the Chat Sessions view."),
-			default: true,
-		},
 		'chat.allowAnonymousAccess': { // TODO@bpasero remove me eventually
 			type: 'boolean',
 			description: nls.localize('chat.allowAnonymousAccess', "Controls whether anonymous access is allowed in chat."),
