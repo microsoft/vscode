@@ -15,6 +15,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { editorBackground, editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { contrastBorder } from '../../../../../../../platform/theme/common/colors/baseColors.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -182,22 +183,28 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 				const alternativeAction = layout.map(l => l.alternativeAction);
 				const alternativeActionActive = derived(reader => (alternativeAction.read(reader)?.active.read(reader) ?? false) || secondaryElementHovered.read(reader));
 
+				const isHighContrast = observableFromEvent(this._themeService.onDidColorThemeChange, () => {
+					const theme = this._themeService.getColorTheme();
+					return theme.type === 'hcDark' || theme.type === 'hcLight';
+				}).read(reader);
+				const hcBorderColor = isHighContrast ? observeColor(contrastBorder, this._themeService).read(reader) : null;
+
 				const primaryActiveStyles = {
-					borderColor: modifiedBorderColor,
+					borderColor: hcBorderColor ? hcBorderColor.toString() : modifiedBorderColor,
 					backgroundColor: asCssVariable(modifiedChangedTextOverlayColor),
 					color: '',
 					opacity: '1',
 				};
 
 				const secondaryActiveStyles = {
-					borderColor: asCssVariable(inlineEditIndicatorPrimaryBorder),
+					borderColor: hcBorderColor ? hcBorderColor.toString() : asCssVariable(inlineEditIndicatorPrimaryBorder),
 					backgroundColor: asCssVariable(inlineEditIndicatorPrimaryBackground),
 					color: asCssVariable(inlineEditIndicatorPrimaryForeground),
 					opacity: '1',
 				};
 
 				const passiveStyles = {
-					borderColor: observeColor(editorHoverForeground, this._themeService).map(c => c.transparent(0.2).toString()).read(reader),
+					borderColor: hcBorderColor ? hcBorderColor.toString() : observeColor(editorHoverForeground, this._themeService).map(c => c.transparent(0.2).toString()).read(reader),
 					backgroundColor: asCssVariable(editorBackground),
 					color: '',
 					opacity: '0.7',
