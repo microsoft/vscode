@@ -6,6 +6,7 @@
 import { $, ModifierKeyEmitter, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { IEquatable } from '../../../../../../../base/common/equals.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableFromEvent, observableFromPromise, observableValue } from '../../../../../../../base/common/observable.js';
@@ -32,7 +33,7 @@ import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../
 import { getModifiedBorderColor, getOriginalBorderColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
 import { getEditorValidOverlayRect, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
-export class WordReplacementsViewData {
+export class WordReplacementsViewData implements IEquatable<WordReplacementsViewData> {
 	constructor(
 		public readonly edit: TextReplacement,
 		public readonly alternativeAction: InlineSuggestAlternativeAction | undefined,
