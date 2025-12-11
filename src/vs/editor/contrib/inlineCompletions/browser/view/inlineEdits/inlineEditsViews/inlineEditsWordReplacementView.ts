@@ -178,7 +178,6 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 				const alternativeAction = layout.map(l => l.alternativeAction);
 				const alternativeActionActive = derived(reader => (alternativeAction.read(reader)?.active.read(reader) ?? false) || secondaryElementHovered.read(reader));
 
-				// const theme = this._themeService.getColorTheme();
 				const isHighContrast = observableFromEvent(this._themeService.onDidColorThemeChange, () => {
 					const theme = this._themeService.getColorTheme();
 					return theme.type === 'hcDark' || theme.type === 'hcLight';

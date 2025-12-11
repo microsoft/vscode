@@ -5,7 +5,7 @@
 import { ChildNode, n, ObserverNode, ObserverNodeWithElement } from '../../../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable } from '../../../../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable, observableFromEvent } from '../../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../../browser/observableCodeEditor.js';
@@ -64,8 +64,10 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 			// Check theme type by observing a color - this ensures we react to theme changes
 			const widgetBorderColor = observeColor(editorWidgetBorder, this._themeService).read(reader);
-			const theme = this._themeService.getColorTheme();
-			const isHighContrast = theme.type === 'hcDark' || theme.type === 'hcLight';
+			const isHighContrast = observableFromEvent(this._themeService.onDidColorThemeChange, () => {
+				const theme = this._themeService.getColorTheme();
+				return theme.type === 'hcDark' || theme.type === 'hcLight';
+			}).read(reader);
 
 			let borderColor;
 			if (isHighContrast) {
