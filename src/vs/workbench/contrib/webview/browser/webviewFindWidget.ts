@@ -26,7 +26,8 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		return undefined;
 	}
 
-	protected readonly _findWidgetFocused: IContextKey<boolean>;
+	protected _findWidgetFocused: IContextKey<boolean>;
+	private _contextKeyService: IContextKeyService;
 
 	constructor(
 		private readonly _delegate: WebviewFindDelegate,
@@ -40,6 +41,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 			checkImeCompletionState: _delegate.checkImeCompletionState,
 			enableSash: true,
 		}, contextViewService, contextKeyService, hoverService, keybindingService);
+		this._contextKeyService = contextKeyService;
 		this._findWidgetFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 
 		this._register(_delegate.hasFindResult(hasResult => {
@@ -50,6 +52,12 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		this._register(_delegate.onDidStopFind(() => {
 			this.updateButtons(false);
 		}));
+	}
+
+	public updateContextKeyService(contextKeyService: IContextKeyService): void {
+		this._findWidgetFocused.reset();
+		this._contextKeyService = contextKeyService;
+		this._findWidgetFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 	}
 
 	public find(previous: boolean) {
