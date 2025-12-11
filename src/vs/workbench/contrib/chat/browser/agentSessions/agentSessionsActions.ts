@@ -19,7 +19,7 @@ import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { showClearEditingSessionConfirmation } from '../chatEditorInput.js';
@@ -406,17 +406,22 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 
 		const orientation = this.getOrientation();
 
-		// Update configuration if needed
-		const configuredSessionsViewerOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
-		if (configuredSessionsViewerOrientation === 'sideBySide' && orientation === AgentSessionsViewerOrientation.Stacked) {
-			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked');
-		} else if (configuredSessionsViewerOrientation === 'stacked' && orientation === AgentSessionsViewerOrientation.SideBySide) {
-			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
+		const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
+		if (typeof chatLocation !== 'number') {
+			return; // we need a view location
 		}
 
-		const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
-		if (typeof chatLocation !== 'number' || chatLocation === ViewContainerLocation.Panel) {
-			return; // only applicable for sidebar or auxiliary bar
+		// Determine if we can resize the view: this is not possible
+		// for when the chat view is in the panel at the top or bottom
+		const panelPosition = layoutService.getPanelPosition();
+		const canResizeView = chatLocation !== ViewContainerLocation.Panel || (panelPosition === Position.LEFT || panelPosition === Position.RIGHT);
+
+		// Update configuration if needed
+		const configuredSessionsViewerOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		if ((!canResizeView || configuredSessionsViewerOrientation === 'sideBySide') && orientation === AgentSessionsViewerOrientation.Stacked) {
+			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked');
+		} else if ((!canResizeView || configuredSessionsViewerOrientation === 'stacked') && orientation === AgentSessionsViewerOrientation.SideBySide) {
+			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
 		}
 
 		const part = getPartByLocation(chatLocation);
@@ -432,6 +437,10 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			) {
 				return; // if the orientation is not set to `auto`, we try to avoid resizing if not needed
 			}
+		}
+
+		if (!canResizeView) {
+			return; // location does not allow for resize (panel top or bottom)
 		}
 
 		if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
