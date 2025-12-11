@@ -473,7 +473,10 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.23.251008001) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
 		tags: ['preview'],
-		default: false
+		default: false,
+		experiment: {
+			mode: 'auto'
+		},
 	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
