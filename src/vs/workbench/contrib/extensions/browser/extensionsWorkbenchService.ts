@@ -366,13 +366,7 @@ export class Extension implements IExtension {
 			return true;
 		}
 		const minimumReleaseAge = this.configurationService.getValue<number>(MinimumReleaseAgeConfigurationKey);
-		if (!minimumReleaseAge || minimumReleaseAge <= 0) {
-			return true;
-		}
-		const releaseDate = this.gallery.releaseDate;
-		const now = Date.now();
-		const daysSinceRelease = (now - releaseDate) / (1000 * 60 * 60 * 24);
-		return daysSinceRelease >= minimumReleaseAge;
+		return checkMinimumReleaseAge(this.gallery.releaseDate, minimumReleaseAge);
 	}
 
 	get outdatedTargetPlatform(): boolean {
@@ -602,6 +596,15 @@ ${this.description}
 		}
 		return null;
 	}
+}
+
+function checkMinimumReleaseAge(releaseDate: number, minimumReleaseAgeDays: number): boolean {
+	if (!minimumReleaseAgeDays || minimumReleaseAgeDays <= 0) {
+		return true;
+	}
+	const now = Date.now();
+	const daysSinceRelease = (now - releaseDate) / (1000 * 60 * 60 * 24);
+	return daysSinceRelease >= minimumReleaseAgeDays;
 }
 
 const EXTENSIONS_AUTO_UPDATE_KEY = 'extensions.autoUpdate';
@@ -1549,13 +1552,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private meetsMinimumReleaseAge(gallery: IGalleryExtension, minimumReleaseAge: number): boolean {
-		if (!minimumReleaseAge || minimumReleaseAge <= 0) {
-			return true;
-		}
-		const releaseDate = gallery.releaseDate;
-		const now = Date.now();
-		const daysSinceRelease = (now - releaseDate) / (1000 * 60 * 60 * 24);
-		return daysSinceRelease >= minimumReleaseAge;
+		return checkMinimumReleaseAge(gallery.releaseDate, minimumReleaseAge);
 	}
 
 	private filterGalleryExtensionsByMinimumAge(galleries: IGalleryExtension[]): IGalleryExtension[] {
