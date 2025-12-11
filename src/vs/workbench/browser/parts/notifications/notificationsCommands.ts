@@ -13,12 +13,13 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
-import { INotificationService, INotificationSourceFilter, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, INotificationSourceFilter, NotificationsFilter, Severity } from '../../../../platform/notification/common/notification.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -375,3 +376,51 @@ CommandsRegistry.registerCommand('_workbench.showSpecialFormattingNotificationDe
 		sticky: true
 	});
 });
+
+// Workbench contribution to show special formatting notification on startup
+class SpecialFormattingNotificationDemoContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.specialFormattingNotificationDemo';
+
+	constructor(
+		@INotificationService private readonly notificationService: INotificationService
+	) {
+		super();
+
+		// Show the special formatting notification on startup
+		this.showDemoNotification();
+	}
+
+	private showDemoNotification(): void {
+		this.notificationService.notify({
+			severity: Severity.Info,
+			message: 'Special Formatting Notification',
+			source: 'Demo',
+			specialFormattingContent: {
+				type: 'specialFormatting',
+				heading: 'Welcome to Special Formatting Notifications',
+				sections: [
+					{
+						title: 'Key Features',
+						content: 'This notification type supports multiple sections with custom formatting. Each section can have an optional title and detailed content.'
+					},
+					{
+						title: 'Use Cases',
+						content: 'Perfect for:\n• Release notes with multiple sections\n• Error messages with detailed explanations\n• Feature announcements with multiple points\n• System updates with changelog details'
+					},
+					{
+						content: 'Sections can also be displayed without a title, like this one. The content automatically wraps and maintains proper formatting.'
+					}
+				]
+			},
+			sticky: true
+		});
+	}
+}
+
+// Register the contribution to run at workbench restoration phase
+registerWorkbenchContribution2(
+	SpecialFormattingNotificationDemoContribution.ID,
+	SpecialFormattingNotificationDemoContribution,
+	WorkbenchPhase.AfterRestored
+);
