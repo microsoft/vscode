@@ -25,7 +25,6 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IEditableData } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
@@ -276,7 +275,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessionTypeInputPlaceholders: Map<string, string> = new Map();
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
-	private readonly _editableSessions = new ResourceMap<IEditableData>();
 
 	private readonly _hasCanDelegateProvidersKey: IContextKey<boolean>;
 
@@ -987,25 +985,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean {
 		const session = this._sessions.get(sessionResource);
 		return !!session?.setOption(optionId, value);
-	}
-
-	// Implementation of editable session methods
-	public async setEditableSession(sessionResource: URI, data: IEditableData | null): Promise<void> {
-		if (!data) {
-			this._editableSessions.delete(sessionResource);
-		} else {
-			this._editableSessions.set(sessionResource, data);
-		}
-		// Trigger refresh of the session views that might need to update their rendering
-		this._onDidChangeSessionItems.fire(localChatSessionType);
-	}
-
-	public getEditableData(sessionResource: URI): IEditableData | undefined {
-		return this._editableSessions.get(sessionResource);
-	}
-
-	public isEditable(sessionResource: URI): boolean {
-		return this._editableSessions.has(sessionResource);
 	}
 
 	public notifySessionItemsChanged(chatSessionType: string): void {

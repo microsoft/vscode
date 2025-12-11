@@ -273,7 +273,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingSessionStorage.ts',
 			'src/vs/workbench/contrib/chat/browser/chatInlineAnchorWidget.ts',
 			'src/vs/workbench/contrib/chat/browser/chatResponseAccessibleView.ts',
-			'src/vs/workbench/contrib/chat/browser/chatSessions/common.ts',
 			'src/vs/workbench/contrib/chat/browser/contrib/chatInputCompletions.ts',
 			'src/vs/workbench/contrib/chat/common/annotations.ts',
 			'src/vs/workbench/contrib/chat/common/chat.ts',
