@@ -299,7 +299,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}));
 
 		this._register(this.loggerService.onDidChangeLogLevel(() => {
-			this.resetLogLevelFilters();
 			this.setLevelContext();
 			this.setLevelIsDefaultContext();
 		}));
@@ -518,18 +517,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			this.outputFolderCreationPromise = this.fileService.createFolder(this.outputLocation).then(() => undefined);
 		}
 		return this.instantiationService.createInstance(OutputChannel, channelData, this.outputLocation, this.outputFolderCreationPromise);
-	}
-
-	private resetLogLevelFilters(): void {
-		const descriptor = this.activeChannel?.outputChannelDescriptor;
-		const channelLogLevel = descriptor ? this.getLogLevel(descriptor) : undefined;
-		if (channelLogLevel !== undefined) {
-			this.filters.error = channelLogLevel <= LogLevel.Error;
-			this.filters.warning = channelLogLevel <= LogLevel.Warning;
-			this.filters.info = channelLogLevel <= LogLevel.Info;
-			this.filters.debug = channelLogLevel <= LogLevel.Debug;
-			this.filters.trace = channelLogLevel <= LogLevel.Trace;
-		}
 	}
 
 	private setLevelContext(): void {

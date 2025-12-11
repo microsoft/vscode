@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
 import { IChatChangeEvent, IChatModel, IChatRequestModel, IExportableChatData, IInputModel, ISerializableChatData } from '../../common/chatModel.js';
@@ -16,6 +16,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly onDidChange = this._register(new Emitter<IChatChangeEvent>()).event;
 	readonly sessionId = '';
 	readonly timestamp = 0;
+	readonly timing = { startTime: 0 };
 	readonly initialLocation = ChatAgentLocation.Chat;
 	readonly title = '';
 	readonly hasCustomTitle = false;
@@ -24,16 +25,21 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly inputPlaceholder = undefined;
 	readonly editingSession = undefined;
 	readonly checkpoint = undefined;
+	readonly willKeepAlive = true;
 	readonly inputModel: IInputModel = {
 		state: observableValue('inputModelState', undefined),
 		setState: () => { },
-		clearState: () => { }
+		clearState: () => { },
+		toJSON: () => undefined
 	};
 	readonly contributedChatSession = undefined;
 	isDisposed = false;
+	lastRequestObs: IObservable<IChatRequestModel | undefined>;
 
 	constructor(readonly sessionResource: URI) {
 		super();
+		this.lastRequest = undefined;
+		this.lastRequestObs = observableValue('lastRequest', undefined);
 	}
 
 	readonly hasRequests = false;
@@ -60,7 +66,6 @@ export class MockChatModel extends Disposable implements IChatModel {
 			version: 3,
 			sessionId: this.sessionId,
 			creationDate: this.timestamp,
-			isImported: false,
 			lastMessageDate: this.timestamp,
 			customTitle: undefined,
 			initialLocation: this.initialLocation,

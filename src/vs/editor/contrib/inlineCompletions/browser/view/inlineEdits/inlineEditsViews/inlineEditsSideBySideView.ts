@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, getWindow, n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Color } from '../../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
@@ -22,10 +21,10 @@ import { Range } from '../../../../../../common/core/range.js';
 import { ITextModel } from '../../../../../../common/model.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineCompletionContextKeys } from '../../../controller/inlineCompletionContextKeys.js';
-import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
 import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from '../theme.js';
-import { PathBuilder, getContentRenderWidth, getOffsetForPos, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
+import { PathBuilder, getContentRenderWidth, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, observeEditorBoundingClientRect } from '../utils/utils.js';
 
 const HORIZONTAL_PADDING = 0;
 const VERTICAL_PADDING = 0;
@@ -58,8 +57,8 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 
 	private readonly _editorObs;
 
-	private readonly _onDidClick;
-	readonly onDidClick;
+	private readonly _onDidClick = this._register(new Emitter<InlineEditClickEvent>());
+	readonly onDidClick = this._onDidClick.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -75,8 +74,6 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 	) {
 		super();
 		this._editorObs = observableCodeEditor(this._editor);
-		this._onDidClick = this._register(new Emitter<IMouseEvent>());
-		this.onDidClick = this._onDidClick.event;
 		this._display = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
 		this.previewRef = n.ref<HTMLDivElement>();
 		const separatorWidthObs = this._uiState.map(s => s?.isInDiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH);
@@ -87,7 +84,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 				e.preventDefault(); // This prevents that the editor loses focus
 			},
 			onclick: (e) => {
-				this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
+				this._onDidClick.fire(InlineEditClickEvent.create(e));
 			}
 		}, [
 			n.div({ class: 'preview', style: { pointerEvents: 'none' }, ref: this.previewRef }),
@@ -106,6 +103,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 					bracketPairsHorizontal: false,
 					highlightActiveIndentation: false,
 				},
+				editContext: false, // is a bit faster
 				rulers: [],
 				padding: { top: 0, bottom: 0 },
 				folding: false,
@@ -226,6 +224,9 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 				return Math.max(maxWidth, lastValue ?? 0);
 			});
 		}).map((v, r) => v.read(r));
+
+		const editorDomContentRect = observeEditorBoundingClientRect(this._editor, this._store);
+
 		this._previewEditorLayoutInfo = derived(this, (reader) => {
 			const inlineEdit = this._edit.read(reader);
 			if (!inlineEdit) {
@@ -244,7 +245,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 			const editorLayout = this._editorObs.layoutInfo.read(reader);
 			const previewContentWidth = this._previewEditorWidth.read(reader);
 			const editorContentAreaWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
-			const editorBoundingClientRect = this._editor.getContainerDomNode().getBoundingClientRect();
+			const editorBoundingClientRect = editorDomContentRect.read(reader);
 			const clientContentAreaRight = editorLayout.contentLeft + editorLayout.contentWidth + editorBoundingClientRect.left;
 			const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).innerWidth - clientContentAreaRight;
 			const remainingWidthRightOfEditor = getWindow(this._editor.getContainerDomNode()).innerWidth - editorBoundingClientRect.right;

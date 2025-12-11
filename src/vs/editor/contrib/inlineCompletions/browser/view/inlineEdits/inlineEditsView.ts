@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../../../base/browser/dom.js';
-import { itemEquals, itemsEquals } from '../../../../../../base/common/equals.js';
+import { equals } from '../../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -22,7 +22,7 @@ import { TextLength } from '../../../../../common/core/text/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { ITextModel } from '../../../../../common/model.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
-import { InlineEditItem, InlineSuggestionIdentity } from '../../model/inlineSuggestionItem.js';
+import { InlineSuggestionIdentity } from '../../model/inlineSuggestionItem.js';
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from './components/gutterIndicatorView.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 import { ModelPerInlineEdit } from './inlineEditsModel.js';
@@ -34,10 +34,14 @@ import { InlineEditsInsertionView } from './inlineEditsViews/inlineEditsInsertio
 import { InlineEditsLineReplacementView } from './inlineEditsViews/inlineEditsLineReplacementView.js';
 import { ILongDistanceHint, ILongDistanceViewState, InlineEditsLongDistanceHint } from './inlineEditsViews/longDistanceHint/inlineEditsLongDistanceHint.js';
 import { InlineEditsSideBySideView } from './inlineEditsViews/inlineEditsSideBySideView.js';
-import { InlineEditsWordReplacementView } from './inlineEditsViews/inlineEditsWordReplacementView.js';
+import { InlineEditsWordReplacementView, WordReplacementsViewData } from './inlineEditsViews/inlineEditsWordReplacementView.js';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineEditsViews/originalEditorInlineDiffView.js';
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils/utils.js';
 import './view.css';
+import { JumpToView } from './inlineEditsViews/jumpToView.js';
+import { StringEdit } from '../../../../../common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../../../../common/core/ranges/offsetRange.js';
+import { getPositionOffsetTransformerFromTextModel } from '../../../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
 
 export class InlineEditsView extends Disposable {
 	private readonly _editorObs: ObservableCodeEditor;
@@ -58,7 +62,7 @@ export class InlineEditsView extends Disposable {
 		private readonly _editor: ICodeEditor,
 		private readonly _model: IObservable<ModelPerInlineEdit | undefined>,
 		private readonly _simpleModel: IObservable<SimpleInlineSuggestModel | undefined>,
-		private readonly _suggestInfo: IObservable<InlineSuggestionGutterMenuData | undefined>,
+		private readonly _inlineSuggestInfo: IObservable<InlineSuggestionGutterMenuData | undefined>,
 		private readonly _showCollapsed: IObservable<boolean>,
 
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
@@ -108,11 +112,11 @@ export class InlineEditsView extends Disposable {
 
 		this._inlineCollapsedView = this._register(this._instantiationService.createInstance(InlineEditsCollapsedView,
 			this._editor,
-			this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === 'collapsed' ? m?.inlineEdit : undefined)
+			this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === InlineCompletionViewKind.Collapsed ? m?.inlineEdit : undefined)
 		));
 		this._customView = this._register(this._instantiationService.createInstance(InlineEditsCustomView,
 			this._editor,
-			this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === 'custom' ? m?.displayLocation : undefined),
+			this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === InlineCompletionViewKind.Custom ? m?.displayLocation : undefined),
 			this._tabAction,
 		));
 
@@ -129,7 +133,8 @@ export class InlineEditsView extends Disposable {
 					edit: s.edit,
 					diff: s.diff,
 					model: this._simpleModel.read(reader)!,
-					suggestInfo: this._suggestInfo.read(reader)!,
+					inlineSuggestInfo: this._inlineSuggestInfo.read(reader)!,
+					nextCursorPosition: s.nextCursorPosition,
 				}) : undefined),
 				this._previewTextModel,
 				this._tabAction,
@@ -140,7 +145,7 @@ export class InlineEditsView extends Disposable {
 		this._inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
 			const e = this._uiState.read(reader);
 			if (!e || !e.state) { return undefined; }
-			if (e.state.kind === 'wordReplacements' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'collapsed' || e.state.kind === 'custom') {
+			if (e.state.kind === 'wordReplacements' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'collapsed' || e.state.kind === 'custom' || e.state.kind === 'jumpTo') {
 				return undefined;
 			}
 			return {
@@ -152,14 +157,21 @@ export class InlineEditsView extends Disposable {
 			};
 		});
 		this._inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
+		this._jumpToView = this._register(this._instantiationService.createInstance(JumpToView, this._editorObs, { style: 'label' }, derived(reader => {
+			const s = this._uiState.read(reader);
+			if (s?.state?.kind === InlineCompletionViewKind.JumpTo) {
+				return { jumpToPosition: s.state.position };
+			}
+			return undefined;
+		})));
 		const wordReplacements = derivedOpts({
-			equalsFn: itemsEquals(itemEquals())
+			equalsFn: equals.arrayC(equals.thisC())
 		}, reader => {
 			const s = this._uiState.read(reader);
-			return s?.state?.kind === 'wordReplacements' ? s.state.replacements : [];
+			return s?.state?.kind === InlineCompletionViewKind.WordReplacements ? s.state.replacements.map(replacement => new WordReplacementsViewData(replacement, s.state?.alternativeAction)) : [];
 		});
-		this._wordReplacementViews = mapObservableArrayCached(this, wordReplacements, (e, store) => {
-			return store.add(this._instantiationService.createInstance(InlineEditsWordReplacementView, this._editorObs, e, this._tabAction));
+		this._wordReplacementViews = mapObservableArrayCached(this, wordReplacements, (viewData, store) => {
+			return store.add(this._instantiationService.createInstance(InlineEditsWordReplacementView, this._editorObs, viewData, this._tabAction));
 		});
 		this._lineReplacementView = this._register(this._instantiationService.createInstance(InlineEditsLineReplacementView,
 			this._editorObs,
@@ -184,16 +196,15 @@ export class InlineEditsView extends Disposable {
 			reader.store.add(
 				Event.any(
 					this._sideBySide.onDidClick,
-					this._deletion.onDidClick,
 					this._lineReplacementView.onDidClick,
 					this._insertion.onDidClick,
 					...this._wordReplacementViews.read(reader).map(w => w.onDidClick),
 					this._inlineDiffView.onDidClick,
 					this._customView.onDidClick,
-				)(e => {
+				)(clickEvent => {
 					if (this._viewHasBeenShownLongerThan(350)) {
-						e.preventDefault();
-						model.accept();
+						clickEvent.event.preventDefault();
+						model.accept(clickEvent.alternativeAction);
 					}
 				})
 			);
@@ -267,6 +278,9 @@ export class InlineEditsView extends Disposable {
 		if (model.inlineEdit.inlineCompletion.identity.jumpedTo.read(reader)) {
 			return undefined;
 		}
+		if (model.inlineEdit.action === undefined) {
+			return undefined;
+		}
 		if (this._currentInlineEditCache?.inlineSuggestionIdentity !== model.inlineEdit.inlineCompletion.identity) {
 			this._currentInlineEditCache = {
 				inlineSuggestionIdentity: model.inlineEdit.inlineCompletion.identity,
@@ -289,6 +303,7 @@ export class InlineEditsView extends Disposable {
 		newTextLineCount: number;
 		isInDiffEditor: boolean;
 		longDistanceHint: ILongDistanceHint | undefined;
+		nextCursorPosition: Position | null;
 	} | undefined>(this, reader => {
 		const model = this._model.read(reader);
 		const textModel = this._editorObs.model.read(reader);
@@ -297,11 +312,23 @@ export class InlineEditsView extends Disposable {
 		}
 
 		const inlineEdit = model.inlineEdit;
-		let mappings = RangeMapping.fromEdit(inlineEdit.edit);
-		let newText = inlineEdit.edit.apply(inlineEdit.originalText);
-		let diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, new StringText(newText));
+		let diff: DetailedLineRangeMapping[];
+		let mappings: RangeMapping[];
 
-		let state = this._determineRenderState(model, reader, diff, new StringText(newText));
+		let newText: AbstractText | undefined = undefined;
+
+		if (inlineEdit.edit) {
+			mappings = RangeMapping.fromEdit(inlineEdit.edit);
+			newText = new StringText(inlineEdit.edit.apply(inlineEdit.originalText));
+			diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, newText);
+		} else {
+			mappings = [];
+			diff = [];
+			newText = inlineEdit.originalText;
+		}
+
+
+		let state = this._determineRenderState(model, reader, diff, newText);
 		if (!state) {
 			onUnexpectedError(new Error(`unable to determine view: tried to render ${this._previousView?.view}`));
 			return undefined;
@@ -309,36 +336,51 @@ export class InlineEditsView extends Disposable {
 
 		const longDistanceHint = this._getLongDistanceHintState(model, reader);
 
-		if (state.kind === InlineCompletionViewKind.SideBySide) {
-			const indentationAdjustmentEdit = createReindentEdit(newText, inlineEdit.modifiedLineRange, textModel.getOptions().tabSize);
-			newText = indentationAdjustmentEdit.applyToString(newText);
-
-			mappings = applyEditToModifiedRangeMappings(mappings, indentationAdjustmentEdit);
-			diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, new StringText(newText));
+		if (longDistanceHint && longDistanceHint.isVisible) {
+			state.viewData.setLongDistanceViewData(longDistanceHint.lineNumber, inlineEdit.lineEdit.lineRange.startLineNumber);
 		}
 
-		this._previewTextModel.setLanguage(this._editor.getModel()!.getLanguageId());
+		if (state.kind === InlineCompletionViewKind.SideBySide) {
+			const indentationAdjustmentEdit = createReindentEdit(newText.getValue(), inlineEdit.modifiedLineRange, textModel.getOptions().tabSize);
+			newText = new StringText(indentationAdjustmentEdit.applyToString(newText.getValue()));
+
+			mappings = applyEditToModifiedRangeMappings(mappings, indentationAdjustmentEdit);
+			diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, newText);
+		}
+
+		const tm = this._editorObs.model.read(reader);
+		if (!tm) {
+			return undefined;
+		}
+		this._previewTextModel.setLanguage(tm.getLanguageId());
 
 		const previousNewText = this._previewTextModel.getValue();
-		if (previousNewText !== newText) {
-			// Only update the model if the text has changed to avoid flickering
-			this._previewTextModel.setValue(newText);
+		if (previousNewText !== newText.getValue()) {
+			this._previewTextModel.setEOL(tm.getEndOfLineSequence());
+			const updateOldValueEdit = StringEdit.replace(new OffsetRange(0, previousNewText.length), newText.getValue());
+			const updateOldValueEditSmall = updateOldValueEdit.removeCommonSuffixPrefix(previousNewText);
+
+			const textEdit = getPositionOffsetTransformerFromTextModel(this._previewTextModel).getTextEdit(updateOldValueEditSmall);
+			this._previewTextModel.edit(textEdit);
 		}
 
 		if (this._showCollapsed.read(reader)) {
 			state = { kind: InlineCompletionViewKind.Collapsed as const, viewData: state.viewData };
 		}
 
-		model.handleInlineEditShown(state.kind, state.viewData);
+		model.handleInlineEditShownNextFrame(state.kind, state.viewData);
+
+		const nextCursorPosition = inlineEdit.action?.kind === 'jumpTo' ? inlineEdit.action.position : null;
 
 		return {
 			state,
 			diff,
 			edit: inlineEdit,
-			newText,
+			newText: newText.getValue(),
 			newTextLineCount: inlineEdit.modifiedLineRange.length,
 			isInDiffEditor: model.isInDiffEditor,
 			longDistanceHint,
+			nextCursorPosition: nextCursorPosition,
 		};
 	});
 
@@ -375,6 +417,8 @@ export class InlineEditsView extends Disposable {
 
 	protected readonly _lineReplacementView;
 
+	protected readonly _jumpToView;
+
 	public readonly gutterIndicatorOffset = derived<number>(this, reader => {
 		// TODO: have a better way to tell the gutter indicator view where the edit is inside a viewzone
 		if (this._uiState.read(reader)?.state?.kind === 'insertionMultiLine') {
@@ -387,7 +431,7 @@ export class InlineEditsView extends Disposable {
 		return model.inlineEdit.inlineCompletion.identity.id;
 	}
 
-	private _determineView(model: ModelPerInlineEdit, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText): InlineCompletionViewKind {
+	private _determineView(model: ModelPerInlineEdit, reader: IReader, diff: DetailedLineRangeMapping[], newText: AbstractText): InlineCompletionViewKind {
 		// Check if we can use the previous view if it is the same InlineCompletion as previously shown
 		const inlineEdit = model.inlineEdit;
 		const canUseCache = this._previousView?.id === this._getCacheId(model);
@@ -401,7 +445,13 @@ export class InlineEditsView extends Disposable {
 			return this._previousView!.view;
 		}
 
-		if (model.inlineEdit.inlineCompletion instanceof InlineEditItem && model.inlineEdit.inlineCompletion.uri) {
+		const action = model.inlineEdit.inlineCompletion.action;
+		if (action?.kind === 'edit' && action.alternativeAction) {
+			return InlineCompletionViewKind.WordReplacements;
+		}
+
+		const uri = action?.kind === 'edit' ? action.uri : undefined;
+		if (uri !== undefined) {
 			return InlineCompletionViewKind.Custom;
 		}
 
@@ -481,7 +531,15 @@ export class InlineEditsView extends Disposable {
 		return InlineCompletionViewKind.SideBySide;
 	}
 
-	private _determineRenderState(model: ModelPerInlineEdit, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText) {
+	private _determineRenderState(model: ModelPerInlineEdit, reader: IReader, diff: DetailedLineRangeMapping[], newText: AbstractText) {
+		if (model.inlineEdit.action?.kind === 'jumpTo') {
+			return {
+				kind: InlineCompletionViewKind.JumpTo as const,
+				position: model.inlineEdit.action.position,
+				viewData: emptyViewData,
+			};
+		}
+
 		const inlineEdit = model.inlineEdit;
 
 		let view = this._determineView(model, reader, diff, newText);
@@ -547,6 +605,7 @@ export class InlineEditsView extends Disposable {
 			return {
 				kind: InlineCompletionViewKind.WordReplacements as const,
 				replacements: grownEdits,
+				alternativeAction: model.inlineEdit.action?.alternativeAction,
 				viewData,
 			};
 		}
@@ -600,19 +659,24 @@ export class InlineEditsView extends Disposable {
 	}
 }
 
+const emptyViewData = new InlineCompletionViewData(-1, -1, -1, -1, -1, -1, -1, true);
 function getViewData(inlineEdit: InlineEditWithChanges, stringChanges: { originalRange: Range; modifiedRange: Range; original: string; modified: string }[], textModel: ITextModel) {
+	if (!inlineEdit.edit) {
+		return emptyViewData;
+	}
+
 	const cursorPosition = inlineEdit.cursorPosition;
 	const startsWithEOL = stringChanges.length === 0 ? false : stringChanges[0].modified.startsWith(textModel.getEOL());
-	const viewData: InlineCompletionViewData = {
-		cursorColumnDistance: inlineEdit.edit.replacements.length === 0 ? 0 : inlineEdit.edit.replacements[0].range.getStartPosition().column - cursorPosition.column,
-		cursorLineDistance: inlineEdit.lineEdit.lineRange.startLineNumber - cursorPosition.lineNumber + (startsWithEOL && inlineEdit.lineEdit.lineRange.startLineNumber >= cursorPosition.lineNumber ? 1 : 0),
-		lineCountOriginal: inlineEdit.lineEdit.lineRange.length,
-		lineCountModified: inlineEdit.lineEdit.newLines.length,
-		characterCountOriginal: stringChanges.reduce((acc, r) => acc + r.original.length, 0),
-		characterCountModified: stringChanges.reduce((acc, r) => acc + r.modified.length, 0),
-		disjointReplacements: stringChanges.length,
-		sameShapeReplacements: stringChanges.every(r => r.original === stringChanges[0].original && r.modified === stringChanges[0].modified),
-	};
+	const viewData = new InlineCompletionViewData(
+		inlineEdit.edit.replacements.length === 0 ? 0 : inlineEdit.edit.replacements[0].range.getStartPosition().column - cursorPosition.column,
+		inlineEdit.lineEdit.lineRange.startLineNumber - cursorPosition.lineNumber + (startsWithEOL && inlineEdit.lineEdit.lineRange.startLineNumber >= cursorPosition.lineNumber ? 1 : 0),
+		inlineEdit.lineEdit.lineRange.length,
+		inlineEdit.lineEdit.newLines.length,
+		stringChanges.reduce((acc, r) => acc + r.original.length, 0),
+		stringChanges.reduce((acc, r) => acc + r.modified.length, 0),
+		stringChanges.length,
+		stringChanges.every(r => r.original === stringChanges[0].original && r.modified === stringChanges[0].modified)
+	);
 	return viewData;
 }
 
@@ -674,7 +738,7 @@ function isSingleMultiLineInsertion(diff: DetailedLineRangeMapping[]) {
 	return true;
 }
 
-function isDeletion(inner: RangeMapping[], inlineEdit: InlineEditWithChanges, newText: StringText) {
+function isDeletion(inner: RangeMapping[], inlineEdit: InlineEditWithChanges, newText: AbstractText) {
 	const innerValues = inner.map(m => ({ original: inlineEdit.originalText.getValueOfRange(m.originalRange), modified: newText.getValueOfRange(m.modifiedRange) }));
 	return innerValues.every(({ original, modified }) => modified.trim() === '' && original.length > 0 && (original.length > modified.length || original.trim() !== ''));
 }

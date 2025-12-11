@@ -5,7 +5,7 @@
 import { ChildNode, n, ObserverNode, ObserverNodeWithElement } from '../../../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable } from '../../../../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable, observableFromEvent } from '../../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../../browser/observableCodeEditor.js';
@@ -29,8 +29,9 @@ import { Size2D } from '../../../../../../../common/core/2d/size.js';
 import { getMaxTowerHeightInAvailableArea } from '../../utils/towersLayout.js';
 import { IThemeService } from '../../../../../../../../platform/theme/common/themeService.js';
 import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
-import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../../theme.js';
+import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground, observeColor } from '../../theme.js';
 import { asCssVariable, descriptionForeground, editorBackground, editorWidgetBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
+import { editorWidgetBorder } from '../../../../../../../../platform/theme/common/colors/editorColors.js';
 import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
 import { jumpToNextInlineEditId } from '../../../../controller/commandIds.js';
@@ -58,15 +59,32 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 	) {
 		super();
 
-		this._styles = this._tabAction.map((v, reader) => {
-			let border;
-			switch (v) {
-				case InlineEditTabAction.Inactive: border = inlineEditIndicatorSecondaryBackground; break;
-				case InlineEditTabAction.Jump: border = inlineEditIndicatorPrimaryBackground; break;
-				case InlineEditTabAction.Accept: border = inlineEditIndicatorsuccessfulBackground; break;
+		this._styles = derived(reader => {
+			const v = this._tabAction.read(reader);
+
+			// Check theme type by observing a color - this ensures we react to theme changes
+			const widgetBorderColor = observeColor(editorWidgetBorder, this._themeService).read(reader);
+			const isHighContrast = observableFromEvent(this._themeService.onDidColorThemeChange, () => {
+				const theme = this._themeService.getColorTheme();
+				return theme.type === 'hcDark' || theme.type === 'hcLight';
+			}).read(reader);
+
+			let borderColor;
+			if (isHighContrast) {
+				// Use editorWidgetBorder in high contrast mode for better visibility
+				borderColor = widgetBorderColor;
+			} else {
+				let border;
+				switch (v) {
+					case InlineEditTabAction.Inactive: border = inlineEditIndicatorSecondaryBackground; break;
+					case InlineEditTabAction.Jump: border = inlineEditIndicatorPrimaryBackground; break;
+					case InlineEditTabAction.Accept: border = inlineEditIndicatorSuccessfulBackground; break;
+				}
+				borderColor = getEditorBlendedColor(border, this._themeService).read(reader);
 			}
+
 			return {
-				border: getEditorBlendedColor(border, this._themeService).read(reader).toString(),
+				border: borderColor.toString(),
 				background: asCssVariable(editorBackground)
 			};
 		});
@@ -85,7 +103,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 					return {
 						diff: viewState.diff,
 						model: viewState.model,
-						suggestInfo: viewState.suggestInfo,
+						inlineSuggestInfo: viewState.inlineSuggestInfo,
+						nextCursorPosition: viewState.nextCursorPosition,
 					} satisfies ILongDistancePreviewProps;
 				}),
 				this._editor,
@@ -371,7 +390,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 					// Outline Element
 					const source = this._originalOutlineSource.read(reader);
-					const outlineItems = source?.getAt(viewState.edit.lineEdit.lineRange.startLineNumber, reader).slice(0, 1) ?? [];
+					const originalTargetLineNumber = this._originalTargetLineNumber.read(reader);
+					const outlineItems = source?.getAt(originalTargetLineNumber, reader).slice(0, 1) ?? [];
 					const outlineElements: ChildNode[] = [];
 					if (outlineItems.length > 0) {
 						for (let i = 0; i < outlineItems.length; i++) {
@@ -394,11 +414,11 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 					children.push(n.div({ class: 'outline-elements', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, outlineElements));
 
 					// Show Edit Direction
-					const arrowIcon = isEditBelowHint(viewState) ? Codicon.arrowDown : Codicon.arrowUp;
+					const arrowIcon = viewState.hint.lineNumber < originalTargetLineNumber ? Codicon.arrowDown : Codicon.arrowUp;
 					const keybinding = this._keybindingService.lookupKeybinding(jumpToNextInlineEditId);
 					let label = 'Go to suggestion';
 					if (keybinding && keybinding.getLabel() === 'Tab') {
-						label = 'Tab to suggestion';
+						label = 'Tab to jump';
 					}
 					children.push(n.div({
 						class: 'go-to-label',
@@ -414,6 +434,20 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			]),
 		])
 	);
+
+	// Drives breadcrumbs and symbol icon
+	private readonly _originalTargetLineNumber = derived(this, (reader) => {
+		const viewState = this._viewState.read(reader);
+		if (!viewState) {
+			return -1;
+		}
+
+		if (viewState.edit.action?.kind === 'jumpTo') {
+			return viewState.edit.action.position.lineNumber;
+		}
+
+		return viewState.diff[0]?.original.startLineNumber ?? -1;
+	});
 
 	private readonly _originalOutlineSource = derivedDisposable(this, (reader) => {
 		const m = this._editorObs.model.read(reader);
@@ -432,9 +466,10 @@ export interface ILongDistanceViewState {
 	newTextLineCount: number;
 	edit: InlineEditWithChanges;
 	diff: DetailedLineRangeMapping[];
+	nextCursorPosition: Position | null;
 
 	model: SimpleInlineSuggestModel;
-	suggestInfo: InlineSuggestionGutterMenuData;
+	inlineSuggestInfo: InlineSuggestionGutterMenuData;
 }
 
 function lengthsToOffsetRanges(lengths: number[], initialOffset = 0): OffsetRange[] {
@@ -494,12 +529,6 @@ function getSums<T>(array: T[], fn: (item: T) => number): number[] {
 		result.push(sum);
 	}
 	return result;
-}
-
-function isEditBelowHint(viewState: ILongDistanceViewState): boolean {
-	const hintLineNumber = viewState.hint.lineNumber;
-	const editStartLineNumber = viewState.diff[0]?.original.startLineNumber;
-	return hintLineNumber < editStartLineNumber;
 }
 
 export function drawEditorWidths(e: ICodeEditor, reader: IReader) {

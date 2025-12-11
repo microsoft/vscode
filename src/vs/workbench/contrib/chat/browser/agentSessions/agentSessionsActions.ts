@@ -3,260 +3,490 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentsessionsactions.css';
 import { localize, localize2 } from '../../../../../nls.js';
-import { IAgentSession } from './agentSessionsModel.js';
-import { Action, IAction } from '../../../../../base/common/actions.js';
-import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { EventHelper, h, hide, show } from '../../../../../base/browser/dom.js';
-import { assertReturnsDefined } from '../../../../../base/common/types.js';
-import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders } from './agentSessions.js';
-import { AgentSessionsView } from './agentSessionsView.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { AgentSessionsViewerOrientation, IAgentSessionsControl, IMarshalledChatSessionContext, isMarshalledChatSessionContext } from './agentSessions.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
+import { IChatEditorOptions } from '../chatEditor.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
+import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../common/constants.js';
+import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
-//#region New Chat Session Actions
+export class FocusAgentSessionsAction extends Action2 {
 
-registerAction2(class NewBackgroundChatAction extends Action2 {
+	static readonly id = 'workbench.action.chat.focusAgentSessionsViewer';
+
 	constructor() {
 		super({
-			id: `workbench.action.newBackgroundChat`,
-			title: localize2('interactiveSession.newBackgroundChatEditor', "New Background Chat"),
-			f1: true,
-			category: CHAT_CATEGORY,
+			id: FocusAgentSessionsAction.id,
+			title: {
+				value: localize('chat.focusAgentSessionsViewer.label', "Focus Agent Sessions"),
+				original: 'Focus Agent Sessions'
+			},
 			precondition: ChatContextKeys.enabled,
-			menu: {
-				id: MenuId.ChatNewMenu,
-				group: '3_new_special',
-				order: 1
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const commandService = accessor.get(ICommandService);
-		return commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Background}`);
-	}
-});
-
-registerAction2(class NewCloudChatAction extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.action.newCloudChat`,
-			title: localize2('interactiveSession.newCloudChat', "New Cloud Chat"),
-			f1: true,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
-			menu: {
-				id: MenuId.ChatNewMenu,
-				group: '3_new_special',
-				order: 2
-			}
+			f1: true,
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const configurationService = accessor.get(IConfigurationService);
 		const commandService = accessor.get(ICommandService);
-		return commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Cloud}`);
-	}
-});
 
-//#endregion
-
-//#region Item Title Actions
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'agentSession.archive',
-			title: localize('archive', "Archive"),
-			icon: Codicon.archive,
-			menu: {
-				id: MenuId.AgentSessionItemToolbar,
-				group: 'navigation',
-				order: 1,
-				when: ChatContextKeys.isArchivedItem.negate(),
-			}
-		});
-	}
-	run(accessor: ServicesAccessor, session: IAgentSession): void {
-		session.setArchived(true);
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'agentSession.unarchive',
-			title: localize('unarchive', "Unarchive"),
-			icon: Codicon.discard,
-			menu: {
-				id: MenuId.AgentSessionItemToolbar,
-				group: 'navigation',
-				order: 1,
-				when: ChatContextKeys.isArchivedItem,
-			}
-		});
-	}
-	run(accessor: ServicesAccessor, session: IAgentSession): void {
-		session.setArchived(false);
-	}
-});
-
-//#endregion
-
-//#region Item Detail Actions
-
-export class AgentSessionShowDiffAction extends Action {
-
-	static ID = 'agentSession.showDiff';
-
-	constructor(
-		private readonly session: IAgentSession
-	) {
-		super(AgentSessionShowDiffAction.ID, localize('showDiff', "Open Changes"), undefined, true);
-	}
-
-	override async run(): Promise<void> {
-		// This will be handled by the action view item
-	}
-
-	getSession(): IAgentSession {
-		return this.session;
-	}
-}
-
-export class AgentSessionDiffActionViewItem extends ActionViewItem {
-
-	override get action(): AgentSessionShowDiffAction {
-		return super.action as AgentSessionShowDiffAction;
-	}
-
-	constructor(
-		action: IAction,
-		options: IActionViewItemOptions,
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super(null, action, options);
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-
-		const label = assertReturnsDefined(this.label);
-		label.textContent = '';
-
-		const session = this.action.getSession();
-		const diff = session.statistics;
-		if (!diff) {
+		const chatView = await viewsService.openView<ChatViewPane>(ChatViewId, true);
+		const focused = chatView?.focusSessions();
+		if (focused) {
 			return;
 		}
 
-		const elements = h(
-			'div.agent-session-diff-container@diffContainer',
-			[
-				h('span.agent-session-diff-files@filesSpan'),
-				h('span.agent-session-diff-added@addedSpan'),
-				h('span.agent-session-diff-removed@removedSpan')
-			]
-		);
-
-		if (diff.files > 0) {
-			elements.filesSpan.textContent = diff.files === 1 ? localize('diffFile', "1 file") : localize('diffFiles', "{0} files", diff.files);
-			show(elements.filesSpan);
+		const configuredSessionsViewerOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		if (configuredSessionsViewerOrientation === 'auto' || configuredSessionsViewerOrientation === 'stacked') {
+			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		} else {
-			hide(elements.filesSpan);
+			await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
 		}
 
-		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
-			elements.addedSpan.textContent = `+${diff.insertions}`;
-			show(elements.addedSpan);
-		} else {
-			hide(elements.addedSpan);
-		}
-
-		if (diff.deletions >= 0 /* render even `0` for more homogeneity */) {
-			elements.removedSpan.textContent = `-${diff.deletions}`;
-			show(elements.removedSpan);
-		} else {
-			hide(elements.removedSpan);
-		}
-
-		label.appendChild(elements.diffContainer);
-	}
-
-	override onClick(event: MouseEvent): void {
-		EventHelper.stop(event, true);
-
-		const session = this.action.getSession();
-
-		this.commandService.executeCommand(`agentSession.${session.providerType}.openChanges`, this.action.getSession().resource);
+		chatView?.focusSessions();
 	}
 }
 
-CommandsRegistry.registerCommand(`agentSession.${AgentSessionProviders.Local}.openChanges`, async (accessor: ServicesAccessor, resource: URI) => {
-	const chatService = accessor.get(IChatService);
+abstract class BaseAgentSessionAction extends Action2 {
 
-	const session = chatService.getSession(resource);
-	session?.editingSession?.show();
-});
+	run(accessor: ServicesAccessor, context: IAgentSession | IMarshalledChatSessionContext): void {
+		const agentSessionsService = accessor.get(IAgentSessionsService);
+
+		let session: IAgentSession | undefined;
+		if (isMarshalledChatSessionContext(context)) {
+			session = agentSessionsService.getSession(context.session.resource);
+		} else {
+			session = context;
+		}
+
+		if (session) {
+			this.runWithSession(session, accessor);
+		}
+	}
+
+	abstract runWithSession(session: IAgentSession, accessor: ServicesAccessor): void;
+}
+
+//#region Session Title Actions
+
+export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.archive',
+			title: localize2('archive', "Archive"),
+			icon: Codicon.archive,
+			menu: [{
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.isArchivedAgentSession.negate(),
+			}, {
+				id: MenuId.AgentSessionsContext,
+				group: 'edit',
+				order: 2,
+				when: ChatContextKeys.isArchivedAgentSession.negate()
+			}]
+		});
+	}
+
+	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
+		const chatService = accessor.get(IChatService);
+		const chatModel = chatService.getSession(session.resource);
+		const dialogService = accessor.get(IDialogService);
+
+		if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
+			isArchiveAction: true,
+			titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
+			messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
+		})) {
+			return;
+		}
+
+		session.setArchived(true);
+	}
+}
+
+export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.unarchive',
+			title: localize2('unarchive', "Unarchive"),
+			icon: Codicon.unarchive,
+			menu: [{
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.isArchivedAgentSession,
+			}, {
+				id: MenuId.AgentSessionsContext,
+				group: 'edit',
+				order: 2,
+				when: ChatContextKeys.isArchivedAgentSession,
+			}]
+		});
+	}
+
+	runWithSession(session: IAgentSession): void {
+		session.setArchived(false);
+	}
+}
 
 //#endregion
 
-//#region View Actions
+//#region Session Context Actions
 
-registerAction2(class extends ViewAction<AgentSessionsView> {
+abstract class BaseOpenAgentSessionAction extends Action2 {
+
+	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
+		if (!context) {
+			return;
+		}
+
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const uri = context.session.resource;
+
+		await chatWidgetService.openSession(uri, this.getTargetGroup(), {
+			...this.getOptions(),
+			pinned: true
+		});
+	}
+
+	protected abstract getTargetGroup(): PreferredGroup;
+
+	protected abstract getOptions(): IChatEditorOptions;
+}
+
+export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAction {
+
+	static readonly id = 'workbench.action.chat.openSessionInEditorGroup';
+
 	constructor() {
 		super({
-			id: 'agentSessionsView.refresh',
+			id: OpenAgentSessionInEditorGroupAction.id,
+			title: localize('chat.openSessionInEditorGroup.label', "Open as Editor"),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				order: 1,
+				group: 'navigation'
+			}
+		});
+	}
+
+	protected getTargetGroup(): PreferredGroup {
+		return ACTIVE_GROUP;
+	}
+
+	protected getOptions(): IChatEditorOptions {
+		return {};
+	}
+}
+
+export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSessionAction {
+
+	static readonly id = 'workbench.action.chat.openSessionInNewEditorGroup';
+
+	constructor() {
+		super({
+			id: OpenAgentSessionInNewEditorGroupAction.id,
+			title: localize('chat.openSessionInNewEditorGroup.label', "Open to the Side"),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				order: 2,
+				group: 'navigation'
+			}
+		});
+	}
+
+	protected getTargetGroup(): PreferredGroup {
+		return SIDE_GROUP;
+	}
+
+	protected getOptions(): IChatEditorOptions {
+		return {};
+	}
+}
+
+export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionAction {
+
+	static readonly id = 'workbench.action.chat.openSessionInNewWindow';
+
+	constructor() {
+		super({
+			id: OpenAgentSessionInNewWindowAction.id,
+			title: localize('chat.openSessionInNewWindow.label', "Open in New Window"),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				order: 3,
+				group: 'navigation'
+			}
+		});
+	}
+
+	protected getTargetGroup(): PreferredGroup {
+		return AUX_WINDOW_GROUP;
+	}
+
+	protected getOptions(): IChatEditorOptions {
+		return {
+			auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
+		};
+	}
+}
+
+export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.markUnread',
+			title: localize2('markUnread', "Mark as Unread"),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				group: 'edit',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isReadAgentSession,
+					ChatContextKeys.isArchivedAgentSession.negate() // no read state for archived sessions
+				),
+			}
+		});
+	}
+
+	runWithSession(session: IAgentSession): void {
+		session.setRead(false);
+	}
+}
+
+export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.markRead',
+			title: localize2('markRead', "Mark as Read"),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				group: 'edit',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isReadAgentSession.negate(),
+					ChatContextKeys.isArchivedAgentSession.negate() // no read state for archived sessions
+				),
+			}
+		});
+	}
+
+	runWithSession(session: IAgentSession): void {
+		session.setRead(true);
+	}
+}
+
+//#endregion
+
+//#region Sessions Control Toolbar
+
+export class RefreshAgentSessionsViewerAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionsViewer.refresh',
 			title: localize2('refresh', "Refresh Agent Sessions"),
 			icon: Codicon.refresh,
 			menu: {
-				id: MenuId.AgentSessionsTitle,
+				id: MenuId.AgentSessionsToolbar,
 				group: 'navigation',
-				order: 1
+				order: 1,
+				when: ChatContextKeys.agentSessionsViewerLimited.negate()
 			},
-			viewId: AGENT_SESSIONS_VIEW_ID
 		});
 	}
-	runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-		view.refresh();
-	}
-});
 
-registerAction2(class extends ViewAction<AgentSessionsView> {
+	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
+		agentSessionsControl.refresh();
+	}
+}
+
+export class FindAgentSessionInViewerAction extends Action2 {
+
 	constructor() {
 		super({
-			id: 'agentSessionsView.find',
+			id: 'agentSessionsViewer.find',
 			title: localize2('find', "Find Agent Session"),
 			icon: Codicon.search,
 			menu: {
-				id: MenuId.AgentSessionsTitle,
+				id: MenuId.AgentSessionsToolbar,
 				group: 'navigation',
-				order: 2
-			},
-			viewId: AGENT_SESSIONS_VIEW_ID
+				order: 2,
+				when: ChatContextKeys.agentSessionsViewerLimited.negate()
+			}
 		});
 	}
-	runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-		view.openFind();
-	}
-});
 
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
-	submenu: MenuId.AgentSessionsFilterSubMenu,
-	title: localize('filterAgentSessions', "Filter Agent Sessions"),
-	group: 'navigation',
-	order: 100,
-	icon: Codicon.filter
-} satisfies ISubmenuItem);
+	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
+		return agentSessionsControl.openFind();
+	}
+}
+
+abstract class UpdateChatViewWidthAction extends Action2 {
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const viewDescriptorService = accessor.get(IViewDescriptorService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const orientation = this.getOrientation();
+
+		const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
+		if (typeof chatLocation !== 'number') {
+			return; // we need a view location
+		}
+
+		// Determine if we can resize the view: this is not possible
+		// for when the chat view is in the panel at the top or bottom
+		const panelPosition = layoutService.getPanelPosition();
+		const canResizeView = chatLocation !== ViewContainerLocation.Panel || (panelPosition === Position.LEFT || panelPosition === Position.RIGHT);
+
+		// Update configuration if needed
+		const configuredSessionsViewerOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		if ((!canResizeView || configuredSessionsViewerOrientation === 'sideBySide') && orientation === AgentSessionsViewerOrientation.Stacked) {
+			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked');
+		} else if ((!canResizeView || configuredSessionsViewerOrientation === 'stacked') && orientation === AgentSessionsViewerOrientation.SideBySide) {
+			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
+		}
+
+		const part = getPartByLocation(chatLocation);
+		let currentSize = layoutService.getSize(part);
+
+		const sideBySideMinWidth = 600 + 1;	// account for possible theme border
+		const stackedMaxWidth = 300 + 1;	// account for possible theme border
+
+		if (configuredSessionsViewerOrientation !== 'auto') {
+			if (
+				(orientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||	// already wide enough to show side by side
+				orientation === AgentSessionsViewerOrientation.Stacked														// always wide enough to show stacked
+			) {
+				return; // if the orientation is not set to `auto`, we try to avoid resizing if not needed
+			}
+		}
+
+		if (!canResizeView) {
+			return; // location does not allow for resize (panel top or bottom)
+		}
+
+		if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
+			layoutService.setAuxiliaryBarMaximized(false); // Leave maximized state if applicable
+			currentSize = layoutService.getSize(part);
+		}
+
+		let newWidth: number;
+		if (orientation === AgentSessionsViewerOrientation.SideBySide) {
+			newWidth = Math.max(sideBySideMinWidth, Math.round(layoutService.mainContainerDimension.width / 2));
+		} else {
+			newWidth = stackedMaxWidth;
+		}
+
+		layoutService.setSize(part, {
+			width: newWidth,
+			height: currentSize.height
+		});
+	}
+
+	abstract getOrientation(): AgentSessionsViewerOrientation;
+}
+
+export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
+
+	static readonly ID = 'agentSessions.showAgentSessionsSidebar';
+	static readonly TITLE = localize2('showAgentSessionsSidebar', "Show Agent Sessions Sidebar");
+
+	constructor() {
+		super({
+			id: ShowAgentSessionsSidebar.ID,
+			title: ShowAgentSessionsSidebar.TITLE,
+		});
+	}
+
+	override getOrientation(): AgentSessionsViewerOrientation {
+		return AgentSessionsViewerOrientation.SideBySide;
+	}
+}
+
+export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
+
+	static readonly ID = 'agentSessions.hideAgentSessionsSidebar';
+	static readonly TITLE = localize2('hideAgentSessionsSidebar', "Hide Agent Sessions Sidebar");
+
+	constructor() {
+		super({
+			id: HideAgentSessionsSidebar.ID,
+			title: HideAgentSessionsSidebar.TITLE,
+			icon: Codicon.layoutSidebarRightOff,
+		});
+	}
+
+	override getOrientation(): AgentSessionsViewerOrientation {
+		return AgentSessionsViewerOrientation.Stacked;
+	}
+}
 
 //#endregion
+
+export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions }): Promise<void> {
+	const chatSessionsService = accessor.get(IChatSessionsService);
+	const chatWidgetService = accessor.get(IChatWidgetService);
+
+	session.setRead(true); // mark as read when opened
+
+	let sessionOptions: IChatEditorOptions;
+	if (isLocalAgentSessionItem(session)) {
+		sessionOptions = {};
+	} else {
+		sessionOptions = { title: { preferred: session.label } };
+	}
+
+	let options: IChatEditorOptions = {
+		...sessionOptions,
+		...openOptions?.editorOptions,
+		revealIfOpened: true // always try to reveal if already opened
+	};
+
+	await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
+
+	let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
+	if (openOptions?.sideBySide) {
+		target = ACTIVE_GROUP;
+	} else {
+		target = ChatViewPaneTarget;
+	}
+
+	const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || session.resource.scheme === Schemas.vscodeLocalChatSession;
+	if (!isLocalChatSession && !(await chatSessionsService.canResolveChatSession(session.resource))) {
+		target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP; // force to open in editor if session cannot be resolved in panel
+		options = { ...options, revealIfOpened: true };
+	}
+
+	await chatWidgetService.openSession(session.resource, target, options);
+}

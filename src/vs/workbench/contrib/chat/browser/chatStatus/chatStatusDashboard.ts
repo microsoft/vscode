@@ -23,6 +23,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import * as languages from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -37,13 +40,13 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
-import { AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
 import { isNewUser, isCompletionsEnabled } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import product from '../../../../../platform/product/common/product.js';
 import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Color } from '../../../../../base/common/color.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatViewId } from '../chat.js';
 
 const defaultChat = product.defaultChatAgent;
 
@@ -135,7 +138,10 @@ export class ChatStatusDashboard extends DomWidget {
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInlineCompletionsService private readonly inlineCompletionsService: IInlineCompletionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IViewsService private readonly viewService: IViewsService,
 	) {
 		super();
 
@@ -202,7 +208,6 @@ export class ChatStatusDashboard extends DomWidget {
 			})();
 		}
 
-
 		// Anonymous Indicator
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
@@ -213,42 +218,29 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Chat sessions
 		{
-			let chatSessionsElement: HTMLElement | undefined;
+			const inProgress = this.chatSessionsService.getInProgress();
+			if (inProgress.some(item => item.count > 0)) {
 
-			const updateStatus = () => {
-				const inProgress = this.chatSessionsService.getInProgress();
-				if (inProgress.some(item => item.count > 0)) {
-
-					addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
-						id: 'workbench.view.chat.status.sessions',
-						label: localize('viewChatSessionsLabel', "View Agent Sessions"),
-						tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
-						class: ThemeIcon.asClassName(Codicon.eye),
-						run: () => {
-							// TODO@bpasero remove this check once settled
-							if (this.configurationService.getValue('chat.agentSessionsViewLocation') === 'single-view') {
-								this.runCommandAndClose(AGENT_SESSIONS_VIEW_ID);
-							} else {
-								this.runCommandAndClose(LEGACY_AGENT_SESSIONS_VIEW_ID);
-							}
-						}
-					}));
-
-					for (const { displayName, count } of inProgress) {
-						if (count > 0) {
-							const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
-							chatSessionsElement = this.element.appendChild($('div.description'));
-							const parts = renderLabelWithIcons(text);
-							chatSessionsElement.append(...parts);
-						}
+				addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
+					id: 'workbench.view.chat.status.sessions',
+					label: localize('viewChatSessionsLabel', "View Agent Sessions"),
+					tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
+					class: ThemeIcon.asClassName(Codicon.eye),
+					run: () => {
+						this.viewService.openView(ChatViewId, true);
+						this.hoverService.hideHover(true);
 					}
-				} else {
-					chatSessionsElement?.remove();
-				}
-			};
+				}));
 
-			updateStatus();
-			this._store.add(this.chatSessionsService.onDidChangeInProgress(updateStatus));
+				for (const { displayName, count } of inProgress) {
+					if (count > 0) {
+						const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
+						const chatSessionsElement = this.element.appendChild($('div.description'));
+						const parts = renderLabelWithIcons(text);
+						chatSessionsElement.append(...parts);
+					}
+				}
+			}
 		}
 
 		// Contributions
@@ -287,6 +279,35 @@ export class ChatStatusDashboard extends DomWidget {
 			}) : undefined);
 
 			this.createSettings(this.element, this._store);
+		}
+
+		// Model Selection
+		{
+			const providers = this.languageFeaturesService.inlineCompletionsProvider.allNoModel();
+			const provider = providers.find(p => p.modelInfo && p.modelInfo.models.length > 0);
+
+			if (provider) {
+				const modelInfo = provider.modelInfo!;
+				const currentModel = modelInfo.models.find(m => m.id === modelInfo.currentModelId);
+
+				if (currentModel) {
+					const modelContainer = this.element.appendChild($('div.model-selection'));
+
+					modelContainer.appendChild($('span.model-text', undefined, localize('modelLabel', "Model: {0}", currentModel.name)));
+
+					const actionBar = modelContainer.appendChild($('div.model-action-bar'));
+					const toolbar = this._store.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
+					toolbar.push([toAction({
+						id: 'workbench.action.selectInlineCompletionsModel',
+						label: localize('selectModel', "Select Model"),
+						tooltip: localize('selectModel', "Select Model"),
+						class: ThemeIcon.asClassName(Codicon.gear),
+						run: async () => {
+							await this.showModelPicker(provider);
+						}
+					})], { icon: true, label: false });
+				}
+			}
 		}
 
 		// Completions Snooze
@@ -697,5 +718,30 @@ export class ChatStatusDashboard extends DomWidget {
 		disposables.add(this.inlineCompletionsService.onDidChangeIsSnoozing(e => {
 			updateIntervalTimer();
 		}));
+	}
+
+	private async showModelPicker(provider: languages.InlineCompletionsProvider): Promise<void> {
+		if (!provider.modelInfo || !provider.setModelId) {
+			return;
+		}
+
+		const modelInfo = provider.modelInfo;
+		const items: IQuickPickItem[] = modelInfo.models.map(model => ({
+			id: model.id,
+			label: model.name,
+			description: model.id === modelInfo.currentModelId ? localize('currentModel.description', "Currently selected") : undefined,
+			picked: model.id === modelInfo.currentModelId
+		}));
+
+		const selected = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectModelFor', "Select a model for {0}", provider.displayName || 'inline completions'),
+			canPickMany: false
+		});
+
+		if (selected && selected.id && selected.id !== modelInfo.currentModelId) {
+			await provider.setModelId(selected.id);
+		}
+
+		this.hoverService.hideHover(true);
 	}
 }
