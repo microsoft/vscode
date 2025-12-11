@@ -1878,8 +1878,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			state.selectedKernelId = this.activeKernel?.id;
 		}
 
-		// Cache the state for use if the view model gets disposed before the next call
-		this._lastEditorViewState = state;
+		// Cache the state for use if the view model gets disposed before the next call.
+		// Only cache if we have a valid viewModel with cells to avoid caching empty state
+		// when cells have been disposed but viewModel still exists.
+		if (this.viewModel && this.viewModel.length > 0) {
+			this._lastEditorViewState = state;
+		}
 
 		return state;
 	}
