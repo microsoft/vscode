@@ -35,7 +35,9 @@ https://experimentation.visualstudio.com/Analysis%20and%20Experimentation/_git/A
 "X-VSCode-ExtensionName": "extensionname",
 "X-VSCode-ExtensionVersion": "extensionversion",
 "X-VSCode-TargetPopulation": "targetpopulation",
-"X-VSCode-Language": "language"
+"X-VSCode-Language": "language",
+"X-VSCode-Platform": "platform",
+"X-VSCode-ReleaseDate": "releasedate"
 */
 export enum Filters {
 	/**
@@ -88,6 +90,16 @@ export enum Filters {
 	 * This is used to separate internal, early preview, GA, etc.
 	 */
 	TargetPopulation = 'X-VSCode-TargetPopulation',
+
+	/**
+	 * The platform (OS) on which VS Code is running.
+	 */
+	Platform = 'X-VSCode-Platform',
+
+	/**
+	 * The release/build date of VS Code (UTC) in the format yyyymmddHH.
+	 */
+	ReleaseDate = 'X-VSCode-ReleaseDate',
 }
 
 export class AssignmentFilterProvider implements IExperimentationFilterProvider {
@@ -96,7 +108,8 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 		private appName: string,
 		private machineId: string,
 		private devDeviceId: string,
-		private targetPopulation: TargetPopulation
+		private targetPopulation: TargetPopulation,
+		private releaseDate: string
 	) { }
 
 	/**
@@ -131,9 +144,27 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 				return '999999.0'; // always return a very large number for cross-extension experimentation
 			case Filters.TargetPopulation:
 				return this.targetPopulation;
+			case Filters.Platform:
+				return platform.PlatformToString(platform.platform);
+			case Filters.ReleaseDate:
+				return AssignmentFilterProvider.formatReleaseDate(this.releaseDate);
 			default:
 				return '';
 		}
+	}
+
+	private static formatReleaseDate(iso: string): string {
+		// Expect ISO format, fall back to empty string if not provided
+		if (!iso) {
+			return '';
+		}
+		// Remove separators and milliseconds: YYYY-MM-DDTHH:MM:SS.sssZ -> YYYYMMDDHH
+		// Trimmed to 10 digits to fit within int32 bounds (ExP requirement)
+		const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2})/.exec(iso);
+		if (!match) {
+			return '';
+		}
+		return match.slice(1, 5).join('');
 	}
 
 	getFilters(): Map<string, unknown> {

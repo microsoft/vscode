@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableFromEvent, ObservableMap } from '../../../../base/common/observable.js';
+import { derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -99,8 +99,6 @@ export class ChatSelectedTools extends Disposable {
 
 	private readonly _sessionStates = new ObservableMap<string, ToolEnablementStates | undefined>();
 
-	private readonly _allTools: IObservable<Readonly<IToolData>[]>;
-
 	constructor(
 		private readonly _mode: IObservable<IChatMode>,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
@@ -117,7 +115,6 @@ export class ChatSelectedTools extends Disposable {
 		});
 
 		this._globalState = this._store.add(globalStateMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
-		this._allTools = observableFromEvent(_toolsService.onDidChangeTools, () => Array.from(_toolsService.getTools()));
 	}
 
 	/**
@@ -139,7 +136,7 @@ export class ChatSelectedTools extends Disposable {
 		if (!currentMap) {
 			currentMap = this._globalState.read(r);
 		}
-		for (const tool of this._allTools.read(r)) {
+		for (const tool of this._toolsService.toolsObservable.read(r)) {
 			if (tool.canBeReferencedInPrompt) {
 				map.set(tool, currentMap.tools.get(tool.id) !== false); // if unknown, it's enabled
 			}

@@ -153,6 +153,7 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
+	min-width: 48px;
 }
 
 .models-widget .models-table-container .monaco-table-td .model-token-limits .codicon {
@@ -161,7 +162,7 @@
 
 /** Capabilities column styling **/
 
-.models-widget .models-table-container .monaco-table-td .model-metadata {
+.models-widget .models-table-container .monaco-table-td .model-capabilities {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -179,7 +180,8 @@
 }
 
 .models-widget .models-table-container .monaco-table-td .model-capability.active {
-	border-color: var(--vscode-radio-activeBorder, transparent);
+	background-color: var(--vscode-toolbar-hoverBackground);
+	opacity: 0.8;
 }
 
 /** Vendor row styling **/
@@ -208,4 +210,12 @@
 .models-widget .models-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
 .models-widget .models-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row) {
 	background-color: var(--vscode-editor-background);
+}
+
+/** Provider column styling **/
+
+.models-widget .models-table-container .monaco-table-td .model-provider {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }

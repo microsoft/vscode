@@ -188,6 +188,17 @@
 	.inlineCompletions-original-lines {
 		background: var(--vscode-editor-background);
 	}
+
+	.inline-edit-jump-to-widget {
+
+
+		.monaco-keybinding {
+			.monaco-keybinding-key {
+				font-size: 11px;
+				padding: 1px 2px 2px 2px;
+			}
+		}
+	}
 }
 
 .monaco-menu-option {
@@ -217,3 +228,27 @@
 		}
 	}
 }
+
+.inline-edits-long-distance-hint-widget .go-to-label::before {
+	content: '';
+	position: absolute;
+	left: -12px;
+	top: 0;
+	width: 12px;
+	height: 100%;
+	background: linear-gradient(to left, var(--vscode-editorWidget-background) 0, transparent 12px);
+}
+
+.inline-edit-alternative-action-label .codicon {
+	font-size: 12px !important;
+	padding-right: 4px;
+}
+
+.inline-edit-alternative-action-label .monaco-keybinding-key {
+	padding: 2px 3px;
+}
+
+.inline-edit-alternative-action-label .inline-edit-alternative-action-label-separator {
+	width: 4px;
+}
+

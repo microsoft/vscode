@@ -5,7 +5,8 @@
 
 import { compareBy, numberComparator } from './arrays.js';
 import { groupBy } from './collections.js';
-import { SetMap } from './map.js';
+import { SetMap, ResourceMap } from './map.js';
+import { URI } from './uri.js';
 import { createSingleCallFunction } from './functional.js';
 import { Iterable } from './iterator.js';
 import { BugIndicatingError, onUnexpectedError } from './errors.js';
@@ -505,8 +506,7 @@ export class DisposableStore implements IDisposable {
 		if (!o) {
 			return;
 		}
-		if (this._toDispose.has(o)) {
-			this._toDispose.delete(o);
+		if (this._toDispose.delete(o)) {
 			setParentOfDisposable(o, null);
 		}
 	}
@@ -756,10 +756,11 @@ export function disposeOnReturn(fn: (store: DisposableStore) => void): void {
  */
 export class DisposableMap<K, V extends IDisposable = IDisposable> implements IDisposable {
 
-	private readonly _store = new Map<K, V>();
+	private readonly _store: Map<K, V>;
 	private _isDisposed = false;
 
-	constructor() {
+	constructor(store: Map<K, V> = new Map<K, V>()) {
+		this._store = store;
 		trackDisposable(this);
 	}
 
@@ -878,4 +879,10 @@ export function thenRegisterOrDispose<T extends IDisposable>(promise: Promise<T>
 		}
 		return disposable;
 	});
+}
+
+export class DisposableResourceMap<V extends IDisposable = IDisposable> extends DisposableMap<URI, V> {
+	constructor() {
+		super(new ResourceMap());
+	}
 }

@@ -195,3 +195,10 @@
 	opacity: 0.7;
 	margin-left: 0.5em;
 }
+
+.action-widget-delegate-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 12px;
+}

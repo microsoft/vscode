@@ -11,7 +11,7 @@ import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, ITo
 import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
 import { TaskRunSource } from '../../../../../tasks/common/tasks.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { collectTerminalResults, IConfiguredTask, resolveDependencyTasks } from '../../taskHelpers.js';
+import { collectTerminalResults, IConfiguredTask, resolveDependencyTasks, tasksMatch } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -116,7 +116,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			token,
 			store,
 			(terminalTask) => this._isTaskActive(terminalTask),
-			dependencyTasks
+			dependencyTasks,
+			this._tasksService
 		);
 		store.dispose();
 		for (const r of terminalResults) {
@@ -136,7 +137,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
-		const toolResultMessage = toolResultMessageFromResponse(result, args.task.label, toolResultDetails, terminalResults);
+		const toolResultMessage = toolResultMessageFromResponse(result, args.task.label, toolResultDetails, terminalResults, undefined, task.configurationProperties.isBackground);
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
 			toolResultMessage,
@@ -145,8 +146,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 	}
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
-		const activeTasks = await this._tasksService.getActiveTasks();
-		return activeTasks?.some((t) => t._id === task._id);
+		const busyTasks = await this._tasksService.getBusyTasks();
+		return busyTasks?.some(t => tasksMatch(t, task)) ?? false;
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -193,8 +194,9 @@ export class CreateAndRunTaskTool implements IToolImpl {
 export const CreateAndRunTaskToolData: IToolData = {
 	id: 'create_and_run_task',
 	toolReferenceName: 'createAndRunTask',
+	legacyToolReferenceFullNames: ['runTasks/createAndRunTask'],
 	displayName: localize('createAndRunTask.displayName', 'Create and run Task'),
-	modelDescription: localize('createAndRunTask.modelDescription', 'Creates and runs a build, run, or custom task for the workspace by generating or adding to a tasks.json file based on the project structure (such as package.json or README.md). If the user asks to build, run, launch and they have no tasks.json file, use this tool. If they ask to create or add a task, use this tool.'),
+	modelDescription: 'Creates and runs a build, run, or custom task for the workspace by generating or adding to a tasks.json file based on the project structure (such as package.json or README.md). If the user asks to build, run, launch and they have no tasks.json file, use this tool. If they ask to create or add a task, use this tool.',
 	userDescription: localize('createAndRunTask.userDescription', "Create and run a task in the workspace"),
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -259,5 +261,3 @@ export const CreateAndRunTaskToolData: IToolData = {
 		]
 	},
 };
-
-

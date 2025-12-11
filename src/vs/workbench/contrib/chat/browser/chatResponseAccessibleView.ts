@@ -70,7 +70,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			responseContent = item.errorDetails.message;
 		}
 		if (isResponseVM(item)) {
-			item.response.value.filter(item => item.kind === 'elicitation').forEach(elicitation => {
+			item.response.value.filter(item => item.kind === 'elicitation2' || item.kind === 'elicitationSerialized').forEach(elicitation => {
 				const title = elicitation.title;
 				if (typeof title === 'string') {
 					responseContent += `${title}\n`;
