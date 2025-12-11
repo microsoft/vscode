@@ -453,7 +453,7 @@ export class BrowserEditor extends EditorPane {
 
 	public async reload(): Promise<void> {
 		// Reset cooldown timer and set it to end after 500ms
-		const cooldownPeriodMs = 5000;
+		const cooldownPeriodMs = 500;
 		if (this._reloadCooldownPeriodTimeout) {
 			clearTimeout(this._reloadCooldownPeriodTimeout);
 		}
