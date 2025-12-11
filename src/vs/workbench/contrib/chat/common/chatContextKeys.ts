@@ -9,7 +9,7 @@ import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys
 import { RemoteNameContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 export namespace ChatContextKeys {
 	export const responseVote = new RawContextKey<string>('chatSessionResponseVote', '', { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
@@ -117,9 +117,4 @@ export namespace ChatContextKeyExprs {
 		ChatContextKeys.Setup.installed.negate(),
 		ChatContextKeys.Entitlement.canSignUp
 	);
-
-	export const agentViewWhen = ContextKeyExpr.and(
-		ChatEntitlementContextKeys.Setup.hidden.negate(),
-		ChatEntitlementContextKeys.Setup.disabled.negate(),
-		ContextKeyExpr.equals(`config.${ChatConfiguration.AgentSessionsViewLocation}`, 'view'));
 }

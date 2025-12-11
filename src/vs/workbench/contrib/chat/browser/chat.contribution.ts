@@ -570,16 +570,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.AgentSessionsViewLocation]: {
-			type: 'string',
-			enum: ['disabled', 'view', 'single-view'], // TODO@bpasero remove this setting eventually
-			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
-			default: 'disabled',
-			tags: ['preview', 'experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[mcpDiscoverySection]: {
 			type: 'object',
 			properties: Object.fromEntries(allDiscoverySources.map(k => [k, { type: 'boolean', description: discoverySourceSettingsLabel[k] }])),

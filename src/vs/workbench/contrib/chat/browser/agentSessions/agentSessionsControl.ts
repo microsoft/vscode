@@ -40,19 +40,16 @@ import { Schemas } from '../../../../../base/common/network.js';
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly filter?: IAgentSessionsFilter;
-	readonly allowOpenSessionsInPanel?: boolean; // TODO@bpasero retire this option eventually
 	readonly trackActiveEditor?: boolean;
 }
 
 type AgentSessionOpenedClassification = {
 	owner: 'bpasero';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'From where the session was opened.' };
 	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider type of the opened agent session.' };
 	comment: 'Event fired when a agent session is opened from the agent sessions control.';
 };
 
 type AgentSessionOpenedEvent = {
-	source: 'agentsView' | 'chatView';
 	providerType: string;
 };
 
@@ -176,7 +173,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		this.telemetryService.publicLog2<AgentSessionOpenedEvent, AgentSessionOpenedClassification>('agentSessionOpened', {
-			source: this.options?.allowOpenSessionsInPanel ? 'chatView' : 'agentsView',
 			providerType: session.providerType
 		});
 
@@ -194,18 +190,16 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		let options: IChatEditorOptions = {
 			...sessionOptions,
 			...e.editorOptions,
-			revealIfOpened: this.options?.allowOpenSessionsInPanel // always try to reveal if already opened
+			revealIfOpened: true // always try to reveal if already opened
 		};
 
 		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
 		if (e.sideBySide) {
-			target = this.options?.allowOpenSessionsInPanel ? ACTIVE_GROUP : SIDE_GROUP;
-		} else if (this.options?.allowOpenSessionsInPanel) {
-			target = ChatViewPaneTarget;
-		} else {
 			target = ACTIVE_GROUP;
+		} else {
+			target = ChatViewPaneTarget;
 		}
 
 		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || session.resource.scheme === Schemas.vscodeLocalChatSession;
