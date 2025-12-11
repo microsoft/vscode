@@ -16,7 +16,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableFromEventOpts, ObservableSet } from '../../../../base/common/observable.js';
+import { derived, IObservable, IReader, observableFromEventOpts, ObservableSet } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -93,6 +93,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private readonly _callsByRequestId = new Map<string, ITrackedCall[]>();
 
+	private readonly _isAgentModeEnabled = observableFromEventOpts(
+		{ owner: this, equalsFn: () => false },
+		Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.AgentEnabled)),
+		() => this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled)
+	);
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -117,7 +123,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled) || e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
 				this._onDidChangeToolsScheduler.schedule();
 			}
 		}));
@@ -166,6 +172,24 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		));
 	}
+
+	/**
+	 * Returns true if the given tool or toolset is permitted in the current mode.
+	 * When agent mode is enabled, all tools are permitted.
+	 * When agent mode is disabled only a subset of read-only tools are permitted in agentic-loop contexts.
+	 * Note that this does not evaluate against extension
+	 */
+	private isPermitted(toolOrToolSet: IToolData | ToolSet, reader?: IReader): boolean {
+		const agentModeEnabled = reader ? this._isAgentModeEnabled.read(reader) : this._isAgentModeEnabled.get();
+		if (agentModeEnabled !== false) {
+			return true;
+		}
+		if (toolOrToolSet instanceof ToolSet) {
+			return toolOrToolSet === this.readToolSet;
+		}
+		return Iterable.some(this.readToolSet.getTools(), t => t === toolOrToolSet);
+	}
+
 	override dispose(): void {
 		super.dispose();
 
@@ -243,7 +267,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolData => {
 				const satisfiesWhenClause = includeDisabled || !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
-				return satisfiesWhenClause && satisfiesExternalToolCheck;
+				return satisfiesWhenClause && satisfiesExternalToolCheck && this.isPermitted(toolData);
 			});
 	}
 
@@ -853,7 +877,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private readonly _toolSets = new ObservableSet<ToolSet>();
 
-	readonly toolSets: IObservable<Iterable<ToolSet>> = this._toolSets.observable;
+	readonly toolSets: IObservable<Iterable<ToolSet>> = derived(this, reader => {
+		const allToolSets = Array.from(this._toolSets.observable.read(reader));
+		return allToolSets.filter(toolSet => this.isPermitted(toolSet, reader));
+	});
 
 	getToolSet(id: string): ToolSet | undefined {
 		for (const toolSet of this._toolSets) {
@@ -916,7 +943,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 		for (const tool of this.toolsObservable.read(reader)) {
-			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool)) {
+			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool) && this.isPermitted(tool, reader)) {
 				result.push([tool, getToolFullReferenceName(tool)]);
 			}
 		}
