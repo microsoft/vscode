@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, env, l10n, workspace, window } from 'vscode';
+import { Uri, env, l10n, workspace } from 'vscode';
 import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base.js';
 import { getOctokit } from './auth.js';
 import { Octokit } from '@octokit/rest';
 import { getRepositoryFromQuery, getRepositoryFromUrl } from './util.js';
 import { getBranchLink, getVscodeDevHost } from './links.js';
-import { getSelectedCategory, setSelectedCategory } from './categoryState.js';
+import { getSelectedCategory } from './categoryState.js';
 
 
 type RemoteSourceResponse = {
@@ -57,30 +57,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		}
 
 		// ---------------------------------------------------------------
-		// 2. No query → show filter picker if not already selected
-		// ---------------------------------------------------------------
-		if (!getSelectedCategory()) {
-			const pick = await window.showQuickPick(
-				[
-					{ label: 'Show my repositories', value: 'user' },
-					{ label: 'Show organization repositories', value: 'orgs' },
-					{ label: 'Show all repositories', value: 'all' }
-				],
-				{
-					title: 'Select which GitHub repositories to display',
-					placeHolder: 'Choose a category'
-				}
-			);
-
-			if (!pick) {
-				// User cancelled - return empty array
-				return [];
-			}
-
-			// Save the selected filter category
-			setSelectedCategory(pick.value as 'user' | 'orgs' | 'all');
-		}		// ---------------------------------------------------------------
-		// 3. Use filtered repositories (user/org/all)
+		// 2. No query → use filtered repositories (user/org/all)
 		// ---------------------------------------------------------------
 		return this.getUserRemoteSources(octokit);
 	}
