@@ -624,8 +624,8 @@ export class ReleaseNotesManager extends Disposable {
 						
 						// Track TOC navigation clicks
 						const target = event.target;
-						if (target.closest && target.closest('#toc-nav a')) {
-							const tocLink = target.closest('#toc-nav a');
+						const tocLink = target.closest('#toc-nav a');
+						if (tocLink) {
 							const section = tocLink.textContent || 'unknown';
 							vscode.postMessage({ type: 'tocNavigation', value: { section }});
 						}
@@ -651,13 +651,13 @@ export class ReleaseNotesManager extends Disposable {
 					
 					// Track video interactions
 					document.addEventListener('play', event => {
-						if (event.target.tagName === 'VIDEO') {
+						if (event.target.tagName && event.target.tagName.toLowerCase() === 'video') {
 							vscode.postMessage({ type: 'videoInteraction', value: { action: 'play' }});
 						}
 					}, true);
 					
 					document.addEventListener('pause', event => {
-						if (event.target.tagName === 'VIDEO') {
+						if (event.target.tagName && event.target.tagName.toLowerCase() === 'video') {
 							vscode.postMessage({ type: 'videoInteraction', value: { action: 'pause' }});
 						}
 					}, true);
