@@ -7,3 +7,4 @@ This folder contains the various test runners for VSCode. Please refer to the do
 * `unit`: our suite of unit tests ([README](unit/README.md))
 * `integration`: our suite of API tests ([README](integration/browser/README.md))
 * `smoke`: our suite of automated UI tests ([README](smoke/README.md))
+	
