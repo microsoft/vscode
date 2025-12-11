@@ -75,7 +75,7 @@ import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService } from 
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
+import { convertBufferToScreenshotVariable } from '../contrib/chatScreenshotContext.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
@@ -1764,105 +1764,6 @@ registerAction2(class ToggleChatViewTitleAction extends Action2 {
 		await configurationService.updateValue(ChatConfiguration.ChatViewTitleEnabled, !chatViewTitleEnabled);
 	}
 });
-
-// --- Agent Sessions
-
-registerAction2(class ToggleChatViewSessionsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.toggleChatViewSessions',
-			title: localize2('chat.toggleChatViewSessions.label', "Show Sessions"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-			menu: {
-				id: MenuId.ChatWelcomeContext,
-				group: '0_sessions',
-				order: 1,
-				when: ChatContextKeys.inChatEditor.negate()
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-
-		const chatViewSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, !chatViewSessionsEnabled);
-	}
-});
-
-const agentSessionsOrientationSubmenu = new MenuId('chatAgentSessionsOrientationSubmenu');
-MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
-	submenu: agentSessionsOrientationSubmenu,
-	title: localize('chat.sessionsOrientation', "Sessions Orientation"),
-	group: '0_sessions',
-	order: 2,
-	when: ChatContextKeys.inChatEditor.negate()
-});
-
-registerAction2(class SetAgentSessionsOrientationAutoAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.setAgentSessionsOrientationAuto',
-			title: localize2('chat.sessionsOrientation.auto', "Auto"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'auto'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-			menu: {
-				id: agentSessionsOrientationSubmenu,
-				group: 'navigation',
-				order: 1
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'auto');
-	}
-});
-
-registerAction2(class SetAgentSessionsOrientationStackedAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.setAgentSessionsOrientationStacked',
-			title: localize2('chat.sessionsOrientation.stacked', "Stacked"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-			menu: {
-				id: agentSessionsOrientationSubmenu,
-				group: 'navigation',
-				order: 2
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked');
-	}
-});
-
-registerAction2(class SetAgentSessionsOrientationSideBySideAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
-			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'sideBySide'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-			menu: {
-				id: agentSessionsOrientationSubmenu,
-				group: 'navigation',
-				order: 3
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
-	}
-});
-
-// --- Welcome View
 
 registerAction2(class ToggleChatViewWelcomeAction extends Action2 {
 	constructor() {
