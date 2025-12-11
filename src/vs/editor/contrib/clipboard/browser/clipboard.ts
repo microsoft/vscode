@@ -223,7 +223,12 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 		const logService = accessor.get(ILogService);
 		const clipboardService = accessor.get(IClipboardService);
 		logService.trace('registerExecCommandImpl (addImplementation code-editor for : ', browserCommand, ')');
-		performance.mark('code/registerExecCommandImpl/cutOrCopy', { detail: { command: browserCommand } });
+		performance.mark(
+			browserCommand === 'cut'
+				? 'code/registerExecCommandImpl/cut'
+				: 'code/registerExecCommandImpl/copy',
+			{ detail: { command: browserCommand } }
+		);
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus() && focusedEditor.hasModel()) {
