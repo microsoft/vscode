@@ -155,8 +155,7 @@
 }
 
 .chat-sessions-tree-container .chat-session-item:hover .actions .monaco-action-bar .action-label,
-.chat-sessions-tree-container .monaco-list-row.focused .chat-session-item .actions .monaco-action-bar .action-label,
-.chat-sessions-tree-container .monaco-list-row.selected .chat-session-item .actions .monaco-action-bar .action-label {
+.chat-sessions-tree-container .monaco-list-row.focused .chat-session-item .actions .monaco-action-bar .action-label {
 	opacity: 1;
 }
 

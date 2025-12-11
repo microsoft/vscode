@@ -136,7 +136,6 @@
 }
 
 .markers-panel .monaco-list-row:hover .monaco-tl-contents .actions .monaco-action-bar,
-.markers-panel .monaco-list-row.selected .monaco-tl-contents .actions .monaco-action-bar,
 .markers-panel .monaco-list-row.focused .monaco-tl-contents .actions .monaco-action-bar {
 	display: block;
 }
@@ -205,7 +204,6 @@
 	display: none;
 }
 
-.markers-panel .markers-table-container .monaco-table .monaco-list-row.selected .monaco-table-tr > .monaco-table-td.quickFix > .actions > .monaco-action-bar .action-item,
 .markers-panel .markers-table-container .monaco-table .monaco-list-row.focused .monaco-table-tr > .monaco-table-td.quickFix > .actions > .monaco-action-bar .action-item,
 .markers-panel .markers-table-container .monaco-table .monaco-list-row:hover .monaco-table-tr > .monaco-table-td.quickFix > .actions > .monaco-action-bar .action-item {
 	display: flex;

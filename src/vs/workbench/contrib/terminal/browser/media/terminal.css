@@ -425,7 +425,6 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .monaco-list-row:hover .actions,
-.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus-within .monaco-list-row.selected .actions,
 .monaco-workbench .pane-body.integrated-terminal .tabs-list:focus-within .monaco-list-row.focused .actions {
 	display: block;
 }
