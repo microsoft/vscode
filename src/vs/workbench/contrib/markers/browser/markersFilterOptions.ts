@@ -49,6 +49,7 @@ export class FilterOptions {
 	readonly showErrors: boolean = false;
 	readonly showInfos: boolean = false;
 	readonly textFilter: { readonly text: string; readonly negate: boolean };
+	readonly sourceFilter: string | undefined;
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
 
@@ -79,12 +80,21 @@ export class FilterOptions {
 			}
 		}
 
-		const negate = filter.startsWith('!');
-		this.textFilter = { text: (negate ? strings.ltrim(filter, '!') : filter).trim(), negate };
+		// Extract source filter if present (e.g., "source:ts" or "@ts")
+		let effectiveFilter = filter;
+		const sourceMatch = filter.match(/(?:^|,\s*)(?:source:|@)([^\s,]+)/i);
+		if (sourceMatch) {
+			this.sourceFilter = sourceMatch[1];
+			// Remove the source filter from the main filter text
+			effectiveFilter = filter.replace(/(?:^|,\s*)(?:source:|@)([^\s,]+)/gi, '').replace(/^,\s*|,\s*$/g, '').trim();
+		}
+
+		const negate = effectiveFilter.startsWith('!');
+		this.textFilter = { text: (negate ? strings.ltrim(effectiveFilter, '!') : effectiveFilter).trim(), negate };
 		const includeExpression: IExpression = getEmptyExpression();
 
-		if (filter) {
-			const filters = splitGlobAware(filter, ',').map(s => s.trim()).filter(s => !!s.length);
+		if (effectiveFilter) {
+			const filters = splitGlobAware(effectiveFilter, ',').map(s => s.trim()).filter(s => !!s.length);
 			for (const f of filters) {
 				if (f.startsWith('!')) {
 					const filterText = strings.ltrim(f, '!');

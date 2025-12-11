@@ -506,6 +506,23 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return false;
 		}
 
+		// Check source filter if present
+		if (this.options.sourceFilter) {
+			if (!marker.marker.source) {
+				return false;
+			}
+			// Match source filter (case-insensitive, allows brackets like [ts] to match "ts")
+			const sourceToMatch = marker.marker.source.toLowerCase();
+			let filterValue = this.options.sourceFilter.toLowerCase();
+			// Strip brackets if present (e.g., "[ts]" becomes "ts")
+			if (filterValue.startsWith('[') && filterValue.endsWith(']')) {
+				filterValue = filterValue.slice(1, -1);
+			}
+			if (!sourceToMatch.includes(filterValue)) {
+				return false;
+			}
+		}
+
 		if (!this.options.textFilter.text) {
 			return true;
 		}
