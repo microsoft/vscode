@@ -203,6 +203,7 @@ export interface IChatAcceptInputOptions {
 	noCommandDetection?: boolean;
 	isVoiceInput?: boolean;
 	enableImplicitContext?: boolean; // defaults to true
+	forceStoreToHistory?: boolean;
 }
 
 export interface IChatWidget {

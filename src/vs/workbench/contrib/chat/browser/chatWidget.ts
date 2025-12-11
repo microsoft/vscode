@@ -2337,7 +2337,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		this.input.acceptInput(isUserQuery);
+		this.input.acceptInput(isUserQuery || options?.forceStoreToHistory);
 		this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
 		this.handleDelegationExitIfNeeded(this._lockedAgent, result.agent);
 		this.currentRequest = result.responseCompletePromise.then(() => {
