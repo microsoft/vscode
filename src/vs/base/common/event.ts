@@ -70,6 +70,9 @@ export namespace Event {
 	 * returned event causes this utility to leak a listener on the original event.
 	 *
 	 * @param event The event source for the new event.
+	 * @param flushOnListenerRemove Whether to fire all debounced events when a listener is removed. If this is not
+	 * specified, some events could go missing. Use this if it's important that all events are processed, even if the
+	 * listener gets disposed before the debounced event fires.
 	 * @param disposable A disposable store to add the new EventEmitter to.
 	 */
 	export function defer(event: Event<unknown>, flushOnListenerRemove?: boolean, disposable?: DisposableStore): Event<void> {
@@ -324,6 +327,13 @@ export namespace Event {
 	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
+	 *
+	 * @param event The event source for the new event.
+	 * @param delay The number of milliseconds to debounce.
+	 * @param flushOnListenerRemove Whether to fire all debounced events when a listener is removed. If this is not
+	 * specified, some events could go missing. Use this if it's important that all events are processed, even if the
+	 * listener gets disposed before the debounced event fires.
+	 * @param disposable A disposable store to add the new EventEmitter to.
 	 */
 	export function accumulate<T>(event: Event<T>, delay: number | typeof MicrotaskDelay = 0, flushOnListenerRemove?: boolean, disposable?: DisposableStore): Event<T[]> {
 		return Event.debounce<T, T[]>(event, (last, e) => {
