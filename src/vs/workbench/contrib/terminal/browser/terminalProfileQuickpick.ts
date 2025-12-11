@@ -198,18 +198,18 @@ export class TerminalProfileQuickpick {
 		// Inspect workspace configuration to separate user and workspace profiles
 		const workspaceProfilesConfig = this._configurationService.inspect(profilesKey);
 		const userProfilesConfig = this._configurationService.inspect(profilesKey);
-		
+
 		const workspaceProfileNames = workspaceProfilesConfig.workspaceValue && typeof workspaceProfilesConfig.workspaceValue === 'object'
 			? Object.keys(workspaceProfilesConfig.workspaceValue as { [key: string]: unknown })
 			: [];
-		
+
 		const userProfileNames = userProfilesConfig.userValue && typeof userProfilesConfig.userValue === 'object'
 			? Object.keys(userProfilesConfig.userValue as { [key: string]: unknown })
 			: [];
 
 		// Filter profiles: only show workspace profiles if they're NOT already in user profiles
 		const workspaceOnlyProfileNames = workspaceProfileNames.filter(name => !userProfileNames.includes(name));
-		
+
 		// User profiles section includes profiles from user config + profiles in both user and workspace
 		const userConfigProfiles = configProfiles.filter(e => !workspaceOnlyProfileNames.includes(e.profileName));
 		// Workspace section only includes profiles that are ONLY in workspace, not in user
