@@ -29,6 +29,7 @@ import { ChatViewPane } from '../chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AgentSessionsPicker } from './agentSessionsPicker.js';
 
 export class FocusAgentSessionsAction extends Action2 {
 
