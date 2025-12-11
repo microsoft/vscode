@@ -47,6 +47,9 @@ class BrowserNavigationBar extends Disposable {
 	private readonly _onDidNavigate = this._register(new Emitter<string>());
 	readonly onDidNavigate: Event<string> = this._onDidNavigate.event;
 
+	private readonly _onDidMouseLeaveToolbar = this._register(new Emitter<void>());
+	readonly onDidMouseLeaveToolbar: Event<void> = this._onDidMouseLeaveToolbar.event;
+
 	private readonly _urlInput: HTMLInputElement;
 
 	constructor(
@@ -82,6 +85,11 @@ class BrowserNavigationBar extends Disposable {
 				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 			}
 		));
+
+		// Listen for mouse leaving the navigation toolbar to reset reload cooldown
+		this._register(addDisposableListener(navContainer, EventType.MOUSE_LEAVE, () => {
+			this._onDidMouseLeaveToolbar.fire();
+		}));
 
 		// URL input
 		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
@@ -201,6 +209,9 @@ export class BrowserEditor extends EditorPane {
 
 		// Listen for navigation from URL input
 		this._register(this._navigationBar.onDidNavigate(url => this.navigateToUrl(url)));
+
+		// Reset reload cooldown when mouse leaves the toolbar
+		this._register(this._navigationBar.onDidMouseLeaveToolbar(() => this.resetReloadCooldown()));
 
 		root.appendChild(toolbar);
 
@@ -442,7 +453,7 @@ export class BrowserEditor extends EditorPane {
 
 	public async reload(): Promise<void> {
 		// Reset cooldown timer and set it to end after 500ms
-		const cooldownPeriodMs = 500;
+		const cooldownPeriodMs = 5000;
 		if (this._reloadCooldownPeriodTimeout) {
 			clearTimeout(this._reloadCooldownPeriodTimeout);
 		}
@@ -453,6 +464,15 @@ export class BrowserEditor extends EditorPane {
 		}, cooldownPeriodMs);
 
 		return this._model?.reload();
+	}
+
+	private resetReloadCooldown(): void {
+		// Clear the cooldown timeout and reset the context
+		if (this._reloadCooldownPeriodTimeout) {
+			clearTimeout(this._reloadCooldownPeriodTimeout);
+			this._reloadCooldownPeriodTimeout = undefined;
+			this._inReloadCooldownPeriodContext.set(false);
+		}
 	}
 
 	public async stopLoading(): Promise<void> {
