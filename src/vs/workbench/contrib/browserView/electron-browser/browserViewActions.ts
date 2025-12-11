@@ -142,7 +142,7 @@ class ReloadAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const inCooldownPeriod = contextKeyService.getContextKeyValue(CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD.key);
 
-		// No-op if we're in the cooldown period (prevents accidental double-click stop)
+		// No-op if we're in the cooldown period (prevents accidental double-click double reload)
 		if (inCooldownPeriod) {
 			return;
 		}
