@@ -355,6 +355,56 @@ suite('NotebookExecutionStateService', () => {
 			assert.strictEqual(exe2, undefined);
 		});
 	});
+
+	test('last failed cell is cleared when cell metadata is cleared', async function () {
+		return withTestNotebook([], async (viewModel, _document, disposables) => {
+			testNotebookModel = viewModel.notebookDocument;
+
+			const kernel = new TestNotebookKernel();
+			disposables.add(kernelService.registerKernel(kernel));
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+			const cell = disposables.add(insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true));
+			
+			// Create and complete execution with failure
+			const exe = executionStateService.createCellExecution(viewModel.uri, cell.handle);
+			exe.confirm();
+			exe.update([{ editType: CellExecutionUpdateType.ExecutionState, executionOrder: 1 }]);
+			exe.complete({ lastRunSuccess: false });
+
+			// Verify last failed cell is set
+			let lastFailedCell = executionStateService.getLastFailedCellForNotebook(viewModel.uri);
+			assert.strictEqual(lastFailedCell, cell.handle);
+
+			// Listen for the last run fail state change
+			const deferred = new DeferredPromise<void>();
+			disposables.add(executionStateService.onDidChangeLastRunFailState(e => {
+				if (e.notebook.toString() === viewModel.uri.toString() && !e.visible) {
+					deferred.complete();
+				}
+			}));
+
+			// Clear the cell metadata (simulating output clearing or kernel restart)
+			viewModel.notebookDocument.applyEdits([{
+				editType: CellEditType.PartialInternalMetadata,
+				index: 0,
+				internalMetadata: {
+					runStartTime: null,
+					runEndTime: null,
+					executionOrder: null,
+					lastRunSuccess: null
+				}
+			}], true, undefined, () => undefined, undefined, false);
+
+			// Wait for the event to fire
+			await deferred.p;
+
+			// Verify last failed cell is now cleared
+			lastFailedCell = executionStateService.getLastFailedCellForNotebook(viewModel.uri);
+			assert.strictEqual(lastFailedCell, undefined);
+		});
+	});
 });
 
 class TestNotebookKernel implements INotebookKernel {
