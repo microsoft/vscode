@@ -22,7 +22,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
 	private _lspTerminalModelContentProvider: LspTerminalModelContentProvider;
-	shellTypes: TerminalShellType[] = [GeneralShellType.Python];
+	readonly shellTypes: TerminalShellType[] = [GeneralShellType.Python];
 
 	constructor(
 		provider: CompletionItemProvider,
