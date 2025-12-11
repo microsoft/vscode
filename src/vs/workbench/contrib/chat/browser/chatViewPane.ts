@@ -74,9 +74,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private viewPaneContainer: HTMLElement | undefined;
 	private readonly chatViewLocationContext: IContextKey<ViewContainerLocation>;
 	private lastDimensions: { height: number; width: number } | undefined;
-	get titleControlAgentPickerElement(): HTMLElement | undefined {
-		return this.titleControl?.agentPickerElement;
-	}
 
 	private welcomeController: ChatViewWelcomeController | undefined;
 
@@ -427,6 +424,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	get widget(): ChatWidget { return this._widget; }
 
 	private titleControl: ChatViewTitleControl | undefined;
+
+	get titleControlAgentPickerElement(): HTMLElement | undefined {
+		return this.titleControl?.agentPickerElement;
+	}
 
 	private createChatControl(parent: HTMLElement): ChatWidget {
 		const chatControlsContainer = append(parent, $('.chat-controls-container'));

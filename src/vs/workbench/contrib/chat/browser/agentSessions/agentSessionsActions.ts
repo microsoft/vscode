@@ -307,9 +307,10 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 
 //#endregion
 
-//#region View Actions
+//#region Chat View Title Actions
 
 export class PickAgentSessionAction extends ViewAction<ChatViewPane> {
+
 	constructor() {
 		super({
 			id: ACTION_ID_PICK_AGENT_SESSION,
@@ -326,6 +327,7 @@ export class PickAgentSessionAction extends ViewAction<ChatViewPane> {
 
 	override async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
 		const instantiationService = accessor.get(IInstantiationService);
+
 		const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, view.titleControlAgentPickerElement);
 		await agentSessionsPicker.pickAgentSession();
 	}

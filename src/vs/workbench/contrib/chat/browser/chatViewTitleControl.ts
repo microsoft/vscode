@@ -15,23 +15,18 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IViewContainerModel, IViewDescriptorService } from '../../../common/views.js';
 import { ActivityBarPosition, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatModel } from '../common/chatModel.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ACTION_ID_PICK_AGENT_SESSION } from './actions/chatActions.js';
-import { IAgentSession } from './agentSessions/agentSessionsModel.js';
-import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
-import { AgentSessionsSorter } from './agentSessions/agentSessionsViewer.js';
 import { ChatViewId } from './chat.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions/agentSessions.js';
 
@@ -309,36 +304,5 @@ class ChatViewTitleAgentPickerActionViewItem extends ActionViewItem {
 	updateTitle(title: string): void {
 		this._title = title;
 		this.updateLabel();
-	}
-}
-
-export class ChatViewTitleAgentPicker {
-	private readonly sorter = new AgentSessionsSorter();
-
-	constructor(
-		private readonly anchor: HTMLElement | undefined,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) { }
-
-	async pickAgentSession(): Promise<URI | undefined> {
-		const picks = this.agentSessionsService.model.sessions
-			.filter(session => !session.isArchived())
-			.sort(this.sorter.compare.bind(this.sorter))
-			.map(session => ({
-				label: session.label,
-				description: typeof session.description === 'string'
-					? session.description
-					: undefined,
-				iconClass: ThemeIcon.asClassName(session.icon),
-				session
-			} satisfies IQuickPickItem & { session: IAgentSession }));
-
-		const session = await this.quickInputService.pick(picks, {
-			anchor: this.anchor,
-			placeHolder: localize('chatAgentPickerPlaceholder', "Select the agent session to view, type to filter all sessions")
-		});
-
-		return session?.session.resource;
 	}
 }
