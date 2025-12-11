@@ -688,13 +688,13 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 		// If disabled, only open on explicit actions (Enter key or mouse click)
 		// Mouse events should always open
-		if (options.browserEvent instanceof MouseEvent) {
+		if (dom.isMouseEvent(options.browserEvent)) {
 			return true;
 		}
 
 		// For keyboard events, check if it's an explicit selection (Enter key)
 		// Enter key sets __forceEvent to true via getSelectionKeyboardEvent
-		if (options.browserEvent instanceof KeyboardEvent) {
+		if (dom.isKeyboardEvent(options.browserEvent)) {
 			const selectionEvent = options.browserEvent as SelectionKeyboardEvent;
 			// Only open if it's a forced event (Enter key) or if the setting is enabled
 			return selectionEvent.__forceEvent === true;
