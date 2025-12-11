@@ -132,4 +132,50 @@ suite('CommandDetectionCapability', () => {
 			]);
 		});
 	});
+
+	suite('getCommandForLine', () => {
+		test('should return undefined for a line with no command', async () => {
+			deepStrictEqual(capability.getCommandForLine(0), undefined);
+		});
+
+		test('should return the correct command for a line', async () => {
+			await printStandardCommand('$ ', 'echo foo', 'foo', '/home', 0);
+			await printCommandStart('$ ');
+			assertCommands([
+				{ command: 'echo foo', exitCode: 0, cwd: '/home', marker: { line: 0 } }
+			]);
+
+			const command = capability.getCommandForLine(0);
+			deepStrictEqual(command?.command, 'echo foo');
+		});
+
+		test('should not return commands with invalid markers after buffer clear', async () => {
+			// First command
+			await printStandardCommand('$ ', 'echo foo', 'foo', '/home', 0);
+			const firstCommand = capability.commands[0];
+			ok(firstCommand, 'Expected first command to exist');
+			ok(firstCommand.marker, 'Expected first command marker to exist');
+			deepStrictEqual(firstCommand.marker.line, 0, 'Expected first command marker at line 0');
+
+			// Clear the buffer - this disposes markers (sets line to -1)
+			xterm.clear();
+
+			// Verify the old marker is now invalid
+			deepStrictEqual(firstCommand.marker.line, -1, 'Expected marker to be disposed after clear');
+
+			// Start a new prompt/command at line 0 after clear
+			capability.handlePromptStart();
+			await writeP(xterm, '\r$ ');
+			capability.handleCommandStart();
+
+			// getCommandForLine should not return the old command with invalid marker
+			const commandAtLine0 = capability.getCommandForLine(0);
+			// Should return the current partial command, not the old disposed one
+			if (commandAtLine0) {
+				deepStrictEqual(commandAtLine0.command, undefined, 'Expected current command to not have command text yet');
+				ok(commandAtLine0.promptStartMarker, 'Expected current command to have prompt start marker');
+				deepStrictEqual(commandAtLine0.promptStartMarker.line, 0, 'Expected current command marker at line 0');
+			}
+		});
+	});
 });
