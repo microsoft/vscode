@@ -32,6 +32,9 @@ import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mai
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { MockChatService } from '../../../contrib/chat/test/common/mockChatService.js';
+import { IPromptsService } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { MockPromptsService } from '../../../contrib/chat/test/common/mockPromptsService.js';
+import { IChatSessionProviderOptionGroup } from '../../../contrib/chat/common/chatSessionsService.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -516,5 +519,90 @@ suite('MainThreadChatSessions', function () {
 		assert.strictEqual(session.isCompleteObs.get(), true);
 
 		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('filters out custom agents with target vscode from option groups', async function () {
+		// Setup mock prompts service with custom agents
+		const mockPromptsService = new MockPromptsService();
+		mockPromptsService.setCustomModes([
+			{
+				uri: URI.parse('file:///agents/data.md'),
+				name: 'Data',
+				description: 'Data agent',
+				agentInstructions: { content: '', toolReferences: [] },
+				source: { storage: 'local' as any },
+				target: 'vscode' // This agent should be filtered out
+			},
+			{
+				uri: URI.parse('file:///agents/engineering.md'),
+				name: 'Engineering',
+				description: 'Engineering agent',
+				agentInstructions: { content: '', toolReferences: [] },
+				source: { storage: 'local' as any },
+				target: 'github-copilot' // This agent should NOT be filtered out
+			},
+			{
+				uri: URI.parse('file:///agents/demonstrate.md'),
+				name: 'Demonstrate',
+				description: 'Demonstrate agent',
+				agentInstructions: { content: '', toolReferences: [] },
+				source: { storage: 'local' as any }
+				// No target specified, should NOT be filtered out
+			}
+		]);
+
+		instantiationService.stub(IPromptsService, mockPromptsService);
+
+		// Create a new mainThread instance with the mock prompts service
+		const mainThreadWithPrompts = disposables.add(instantiationService.createInstance(MainThreadChatSessions, new class implements IExtHostContext {
+			remoteAuthority = '';
+			extensionHostKind = ExtensionHostKind.LocalProcess;
+			dispose() { }
+			assertRegistered() { }
+			set(v: any): any { return null; }
+			getProxy(): any { return proxy; }
+			drain(): any { return null; }
+		}));
+
+		// Mock the provider options response with agents
+		const mockOptionGroups: IChatSessionProviderOptionGroup[] = [
+			{
+				id: 'subagents',
+				name: 'Agents',
+				description: 'Select an agent',
+				items: [
+					{ id: 'Data', name: 'Data' },
+					{ id: 'Engineering', name: 'Engineering' },
+					{ id: 'Demonstrate', name: 'Demonstrate' }
+				]
+			}
+		];
+
+		(proxy.$provideChatSessionProviderOptions as sinon.SinonStub).resolves({
+			optionGroups: mockOptionGroups
+		});
+
+		// Register the content provider which should trigger the filtering
+		const sessionScheme = 'test-background-agent';
+		mainThreadWithPrompts.$registerChatSessionContentProvider(1, sessionScheme);
+
+		// Wait for async filtering to complete
+		await new Promise(resolve => setTimeout(resolve, 10));
+
+		// Get the filtered option groups
+		const filteredGroups = chatSessionsService.getOptionGroupsForSessionType(sessionScheme);
+
+		// Verify that only 2 agents remain (Data should be filtered out)
+		assert.ok(filteredGroups, 'Option groups should be set');
+		assert.strictEqual(filteredGroups.length, 1, 'Should have 1 option group');
+		assert.strictEqual(filteredGroups[0].items.length, 2, 'Should have 2 agents after filtering');
+
+		// Verify that Data (target: vscode) was filtered out
+		const agentIds = filteredGroups[0].items.map(item => item.id);
+		assert.ok(agentIds.includes('Engineering'), 'Engineering should be present');
+		assert.ok(agentIds.includes('Demonstrate'), 'Demonstrate should be present');
+		assert.ok(!agentIds.includes('Data'), 'Data should be filtered out');
+
+		mainThreadWithPrompts.$unregisterChatSessionContentProvider(1);
 	});
 });
