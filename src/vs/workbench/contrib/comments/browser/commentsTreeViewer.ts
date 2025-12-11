@@ -384,7 +384,7 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 	constructor(public options: FilterOptions) { }
 
 	filter(element: ResourceWithCommentThreads | CommentNode, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		if (this.options.filter === '' && this.options.showResolved && this.options.showUnresolved) {
+		if (this.options.filter === '' && this.options.showResolved && this.options.showUnresolved && this.options.showOutdated) {
 			return TreeVisibility.Visible;
 		}
 
@@ -412,6 +412,13 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 			(this.options.showUnresolved && CommentThreadState.Unresolved === comment.threadState);
 
 		if (!matchesResolvedState) {
+			return false;
+		}
+
+		const matchesOutdatedState = (comment.threadRelevance === undefined) || (comment.threadRelevance === CommentThreadApplicability.Current) ||
+			(this.options.showOutdated && comment.threadRelevance === CommentThreadApplicability.Outdated);
+
+		if (!matchesOutdatedState) {
 			return false;
 		}
 
