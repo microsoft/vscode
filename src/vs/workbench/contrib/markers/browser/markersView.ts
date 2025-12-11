@@ -33,7 +33,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
-import { IListService, IOpenEvent, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
+import { IListService, IOpenEvent, IWorkbenchObjectTreeOptions, WorkbenchObjectTree, SelectionKeyboardEvent } from '../../../../platform/list/browser/listService.js';
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService, withSelection } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -445,7 +445,10 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		}));
 
 		this.widgetDisposables.add(Event.debounce(this.widget.onDidOpen, (last, event) => event, 75, true)(options => {
-			this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
+			// Check if we should open based on the event type and configuration
+			if (this.shouldOpenOnEvent(options)) {
+				this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
+			}
 		}));
 
 		this.widgetDisposables.add(Event.any<any>(this.widget.onDidChangeSelection, this.widget.onDidChangeFocus)(() => {
@@ -672,6 +675,33 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		if (selection && selection.length > 0) {
 			this.lastSelectedRelativeTop = this.widget.getRelativeTop(selection[0]) || 0;
 		}
+	}
+
+	private shouldOpenOnEvent(options: IOpenEvent<MarkerElement | MarkerTableItem | undefined>): boolean {
+		// Check the configuration setting
+		const followLocationOnNavigate = this.configurationService.getValue<boolean>('problems.followLocationOnNavigate');
+
+		// If the setting is enabled (default), always open
+		if (followLocationOnNavigate !== false) {
+			return true;
+		}
+
+		// If disabled, only open on explicit actions (Enter key or mouse click)
+		// Mouse events should always open
+		if (options.browserEvent instanceof MouseEvent) {
+			return true;
+		}
+
+		// For keyboard events, check if it's an explicit selection (Enter key)
+		// Enter key sets __forceEvent to true via getSelectionKeyboardEvent
+		if (options.browserEvent instanceof KeyboardEvent) {
+			const selectionEvent = options.browserEvent as SelectionKeyboardEvent;
+			// Only open if it's a forced event (Enter key) or if the setting is enabled
+			return selectionEvent.__forceEvent === true;
+		}
+
+		// Default: don't open (shouldn't reach here normally)
+		return false;
 	}
 
 	private hasNoProblems(): boolean {
