@@ -416,8 +416,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		if (other.kind !== 'markdownContent') {
 			return false;
 		}
-
-		if (other.content.value === this.markdown.content.value) {
+		const allCodeblocksComplete = this._codeblocks.every(cb => cb.codemapperUri !== undefined && !cb.isStreamingEdit);
+		if (other.content.value === this.markdown.content.value && allCodeblocksComplete) {
 			return true;
 		}
 
