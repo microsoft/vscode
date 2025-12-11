@@ -13,7 +13,7 @@ import { hasKey, isObject, isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import * as pfs from '../../../base/node/pfs.js';
 import { enumeratePowerShellInstallations } from '../../../base/node/powershell.js';
-import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from '../common/terminal.js';
 import { getWindowsBuildNumber } from './terminalEnvironment.js';
@@ -41,14 +41,6 @@ export function detectAvailableProfiles(
 		existsFile: pfs.SymlinkSupport.existsFile,
 		readFile: fs.promises.readFile
 	};
-
-	// Determine profile scope by inspecting configuration
-	const profilesSettingId = isWindows ? TerminalSettingId.ProfilesWindows : (isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs);
-	const profilesInspect = configurationService.inspect<{ [key: string]: IUnresolvedTerminalProfile }>(profilesSettingId);
-	const userProfiles = profilesInspect.userValue && isObject(profilesInspect.userValue) ? Object.keys(profilesInspect.userValue) : [];
-	const workspaceProfiles = profilesInspect.workspaceValue && isObject(profilesInspect.workspaceValue) ? Object.keys(profilesInspect.workspaceValue) : [];
-
-
 	if (isWindows) {
 		return detectAvailableWindowsProfiles(
 			includeDetectedProfiles,
@@ -59,9 +51,7 @@ export function detectAvailableProfiles(
 			profiles && isObject(profiles) ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(TerminalSettingId.ProfilesWindows),
 			isString(defaultProfile) ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
 			testPwshSourcePaths,
-			variableResolver,
-			userProfiles,
-			workspaceProfiles
+			variableResolver
 		);
 	}
 	return detectAvailableUnixProfiles(
@@ -72,9 +62,7 @@ export function detectAvailableProfiles(
 		isString(defaultProfile) ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
 		testPwshSourcePaths,
 		variableResolver,
-		shellEnv,
-		userProfiles,
-		workspaceProfiles
+		shellEnv
 	);
 }
 
@@ -87,9 +75,7 @@ async function detectAvailableWindowsProfiles(
 	configProfiles?: { [key: string]: IUnresolvedTerminalProfile },
 	defaultProfileName?: string,
 	testPwshSourcePaths?: string[],
-	variableResolver?: (text: string[]) => Promise<string[]>,
-	userProfiles?: string[],
-	workspaceProfiles?: string[]
+	variableResolver?: (text: string[]) => Promise<string[]>
 ): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
@@ -158,7 +144,7 @@ async function detectAvailableWindowsProfiles(
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
-	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver, userProfiles, workspaceProfiles);
+	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver);
 
 	if (includeDetectedProfiles && useWslProfiles && allowWslDiscovery) {
 		try {
@@ -186,12 +172,10 @@ async function transformToTerminalProfiles(
 	shellEnv: typeof process.env = process.env,
 	logService?: ILogService,
 	variableResolver?: (text: string[]) => Promise<string[]>,
-	userProfiles?: string[],
-	workspaceProfiles?: string[]
 ): Promise<ITerminalProfile[]> {
 	const promises: Promise<ITerminalProfile | undefined>[] = [];
 	for (const [profileName, profile] of entries) {
-		promises.push(getValidatedProfile(profileName, profile, defaultProfileName, fsProvider, shellEnv, logService, variableResolver, userProfiles, workspaceProfiles));
+		promises.push(getValidatedProfile(profileName, profile, defaultProfileName, fsProvider, shellEnv, logService, variableResolver));
 	}
 	return (await Promise.all(promises)).filter(e => !!e);
 }
@@ -203,9 +187,7 @@ async function getValidatedProfile(
 	fsProvider: IFsProvider,
 	shellEnv: typeof process.env = process.env,
 	logService?: ILogService,
-	variableResolver?: (text: string[]) => Promise<string[]>,
-	userProfiles?: string[],
-	workspaceProfiles?: string[]
+	variableResolver?: (text: string[]) => Promise<string[]>
 ): Promise<ITerminalProfile | undefined> {
 	if (profile === null) {
 		return undefined;
@@ -283,16 +265,6 @@ async function getValidatedProfile(
 	validatedProfile.isAutoDetected = profile.isAutoDetected;
 	validatedProfile.icon = icon;
 	validatedProfile.color = profile.color;
-	
-	// Set configScope based on where the profile is defined
-	if (workspaceProfiles && workspaceProfiles.includes(profileName)) {
-		// Workspace takes precedence if defined in both
-		validatedProfile.configScope = ConfigurationTarget.WORKSPACE;
-	} else if (userProfiles && userProfiles.includes(profileName)) {
-		validatedProfile.configScope = ConfigurationTarget.USER;
-	}
-	// If undefined, it's an auto-detected profile
-
 	return validatedProfile;
 }
 
@@ -435,9 +407,7 @@ async function detectAvailableUnixProfiles(
 	defaultProfileName?: string,
 	testPaths?: string[],
 	variableResolver?: (text: string[]) => Promise<string[]>,
-	shellEnv?: typeof process.env,
-	userProfiles?: string[],
-	workspaceProfiles?: string[]
+	shellEnv?: typeof process.env
 ): Promise<ITerminalProfile[]> {
 	const detectedProfiles: Map<string, IUnresolvedTerminalProfile> = new Map();
 
@@ -467,7 +437,7 @@ async function detectAvailableUnixProfiles(
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
-	return await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver, userProfiles, workspaceProfiles);
+	return await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver);
 }
 
 function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTerminalProfile } | undefined, profilesMap: Map<string, IUnresolvedTerminalProfile>) {
