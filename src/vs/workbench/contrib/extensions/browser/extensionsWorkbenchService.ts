@@ -34,7 +34,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, MinimumReleaseAgeConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
@@ -109,7 +109,8 @@ export class Extension implements IExtension {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 	}
 
@@ -344,6 +345,10 @@ export class Extension implements IExtension {
 			if (!this.local.preRelease && this.gallery.properties.isPreReleaseVersion) {
 				return false;
 			}
+			// Check if the extension meets the minimum release age requirement
+			if (!this.meetsMinimumReleaseAge()) {
+				return false;
+			}
 			if (semver.gt(this.latestVersion, this.version)) {
 				return true;
 			}
@@ -354,6 +359,20 @@ export class Extension implements IExtension {
 			/* Ignore */
 		}
 		return false;
+	}
+
+	private meetsMinimumReleaseAge(): boolean {
+		if (!this.gallery) {
+			return true;
+		}
+		const minimumReleaseAge = this.configurationService.getValue<number>(MinimumReleaseAgeConfigurationKey);
+		if (!minimumReleaseAge || minimumReleaseAge <= 0) {
+			return true;
+		}
+		const releaseDate = this.gallery.releaseDate;
+		const now = Date.now();
+		const daysSinceRelease = (now - releaseDate) / (1000 * 60 * 60 * 24);
+		return daysSinceRelease >= minimumReleaseAge;
 	}
 
 	get outdatedTargetPlatform(): boolean {
@@ -1376,15 +1395,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const pager = await this.galleryService.query(options, token);
-		this.syncInstalledExtensionsWithGallery(pager.firstPage);
+		const filteredFirstPage = this.filterGalleryExtensionsByMinimumAge(pager.firstPage);
+		this.syncInstalledExtensionsWithGallery(filteredFirstPage);
 		return {
-			firstPage: pager.firstPage.map(gallery => this.fromGallery(gallery, extensionsControlManifest)),
+			firstPage: filteredFirstPage.map(gallery => this.fromGallery(gallery, extensionsControlManifest)),
 			total: pager.total,
 			pageSize: pager.pageSize,
 			getPage: async (pageIndex, token) => {
 				const page = await pager.getPage(pageIndex, token);
-				this.syncInstalledExtensionsWithGallery(page);
-				return page.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
+				const filteredPage = this.filterGalleryExtensionsByMinimumAge(page);
+				this.syncInstalledExtensionsWithGallery(filteredPage);
+				return filteredPage.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
 			}
 		};
 	}
@@ -1525,6 +1546,25 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			});
 		}
 		return text.substr(0, 350);
+	}
+
+	private meetsMinimumReleaseAge(gallery: IGalleryExtension): boolean {
+		const minimumReleaseAge = this.configurationService.getValue<number>(MinimumReleaseAgeConfigurationKey);
+		if (!minimumReleaseAge || minimumReleaseAge <= 0) {
+			return true;
+		}
+		const releaseDate = gallery.releaseDate;
+		const now = Date.now();
+		const daysSinceRelease = (now - releaseDate) / (1000 * 60 * 60 * 24);
+		return daysSinceRelease >= minimumReleaseAge;
+	}
+
+	private filterGalleryExtensionsByMinimumAge(galleries: IGalleryExtension[]): IGalleryExtension[] {
+		const minimumReleaseAge = this.configurationService.getValue<number>(MinimumReleaseAgeConfigurationKey);
+		if (!minimumReleaseAge || minimumReleaseAge <= 0) {
+			return galleries;
+		}
+		return galleries.filter(gallery => this.meetsMinimumReleaseAge(gallery));
 	}
 
 	private fromGallery(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): IExtension {
