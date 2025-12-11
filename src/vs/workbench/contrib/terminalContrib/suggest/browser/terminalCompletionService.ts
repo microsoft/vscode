@@ -615,8 +615,15 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 function getFriendlyPath(labelService: ILabelService, uri: URI, pathSeparator: string, kind: TerminalCompletionItemKind, shellType?: TerminalShellType): string {
 	let path = labelService.getUriLabel(uri, { noPrefix: true });
-	// Normalize line endings for folders
+	// Normalize path separators to match the requested separator
+	// This is important for remote scenarios where the terminal uses different separators than the host OS
 	const sep = shellType === WindowsShellType.GitBash ? '\\' : pathSeparator;
+	if (sep === '/') {
+		path = path.replace(/\\/g, '/');
+	} else if (sep === '\\') {
+		path = path.replace(/\//g, '\\');
+	}
+	// Add trailing separator for folders
 	if (kind === TerminalCompletionItemKind.Folder && !path.endsWith(sep)) {
 		path += sep;
 	}
