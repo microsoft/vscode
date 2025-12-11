@@ -139,6 +139,7 @@ export class ChatViewTitleControl extends Disposable {
 				if (action.id === ChatViewTitleControl.PICK_AGENT_SESSION_ACTION_ID) {
 					this.titleLabel?.dispose();
 					this.titleLabel = this._register(new ChatViewTitleLabel(action));
+					this.titleLabel?.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
 
 					return this.titleLabel;
 				}
@@ -244,7 +245,7 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private updateTitle(title: string): void {
-		if (!this.titleContainer || !this.titleLabel) {
+		if (!this.titleContainer) {
 			return;
 		}
 
