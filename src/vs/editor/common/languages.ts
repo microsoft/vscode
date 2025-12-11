@@ -1033,6 +1033,7 @@ export enum InlineCompletionEndOfLifeReasonKind {
 
 export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
 	kind: InlineCompletionEndOfLifeReasonKind.Accepted; // User did an explicit action to accept
+	alternativeAction: boolean; // Whether the user performed an alternative action.
 } | {
 	kind: InlineCompletionEndOfLifeReasonKind.Rejected; // User did an explicit action to reject
 } | {
