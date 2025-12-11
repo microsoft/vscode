@@ -77,7 +77,6 @@ import { ChatEditorInput, showClearEditingSessionConfirmation } from '../chatEdi
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
-import { IMarshalledChatSessionContext } from './chatSessionActions.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -922,7 +921,7 @@ export function registerChatActions() {
 							commandService.executeCommand(buttonItem.id, {
 								session: contextItem.session,
 								$mid: MarshalledId.ChatSessionContext
-							} satisfies IMarshalledChatSessionContext);
+							});
 						}
 
 						// dismiss quick picker

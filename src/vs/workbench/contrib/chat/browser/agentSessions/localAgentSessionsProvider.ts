@@ -15,7 +15,10 @@ import { IChatModel } from '../../common/chatModel.js';
 import { IChatDetail, IChatService, ResponseModelState } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/chatUri.js';
-import { ChatSessionItemWithProvider } from '../chatSessions/common.js';
+
+interface IChatSessionItemWithProvider extends IChatSessionItem {
+	readonly provider: IChatSessionItemProvider;
+}
 
 export class LocalAgentsSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
 
@@ -62,7 +65,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	}
 
 	async provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]> {
-		const sessions: ChatSessionItemWithProvider[] = [];
+		const sessions: IChatSessionItemWithProvider[] = [];
 		const sessionsByResource = new ResourceSet();
 
 		for (const sessionDetail of await this.chatService.getLiveSessionItems()) {
@@ -83,7 +86,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		return sessions;
 	}
 
-	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
+	private async getHistoryItems(): Promise<IChatSessionItemWithProvider[]> {
 		try {
 			const historyItems = await this.chatService.getHistorySessionItems();
 
@@ -93,7 +96,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		}
 	}
 
-	private toChatSessionItem(chat: IChatDetail): ChatSessionItemWithProvider | undefined {
+	private toChatSessionItem(chat: IChatDetail): IChatSessionItemWithProvider | undefined {
 		const model = this.chatService.getSession(chat.sessionResource);
 
 		let description: string | undefined;

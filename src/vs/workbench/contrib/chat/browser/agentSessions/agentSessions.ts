@@ -6,8 +6,9 @@
 import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
+import { IChatSessionItem, localChatSessionType } from '../../common/chatSessionsService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 
 export const AGENT_SESSIONS_VIEW_CONTAINER_ID = 'workbench.viewContainer.agentSessions';
 export const AGENT_SESSIONS_VIEW_ID = 'workbench.view.agentSessions';
@@ -72,3 +73,17 @@ export const agentSessionSelectedUnfocusedBadgeBorder = registerColor(
 	{ dark: transparent(foreground, 0.3), light: transparent(foreground, 0.3), hcDark: foreground, hcLight: foreground },
 	localize('agentSessionSelectedUnfocusedBadgeBorder', "Border color for the badges in selected agent session items when the view is unfocused.")
 );
+
+export interface IMarshalledChatSessionContext {
+	readonly $mid: MarshalledId.ChatSessionContext;
+	readonly session: IChatSessionItem;
+}
+
+export function isMarshalledChatSessionContext(thing: unknown): thing is IMarshalledChatSessionContext {
+	if (typeof thing === 'object' && thing !== null) {
+		const candidate = thing as IMarshalledChatSessionContext;
+		return candidate.$mid === MarshalledId.ChatSessionContext && typeof candidate.session === 'object' && candidate.session !== null;
+	}
+
+	return false;
+}

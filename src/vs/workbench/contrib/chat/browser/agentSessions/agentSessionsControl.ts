@@ -15,26 +15,22 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { getSessionItemContextOverlay } from '../chatSessions/common.js';
 import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Separator } from '../../../../../base/common/actions.js';
-import { IChatService } from '../../common/chatService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
-import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { IAgentSessionsControl } from './agentSessions.js';
+import { IAgentSessionsControl, IMarshalledChatSessionContext } from './agentSessions.js';
 import { Schemas } from '../../../../../base/common/network.js';
 
 export interface IAgentSessionsControlOptions {
@@ -68,8 +64,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IChatService private readonly chatService: IChatService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
@@ -218,10 +212,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		EventHelper.stop(browserEvent, true);
 
-		const provider = await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
-		const contextOverlay = getSessionItemContextOverlay(session, provider, this.chatService, this.editorGroupsService);
+		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
+
+		const contextOverlay: Array<[string, boolean | string]> = [];
 		contextOverlay.push([ChatContextKeys.isReadAgentSession.key, session.isRead()]);
 		contextOverlay.push([ChatContextKeys.isArchivedAgentSession.key, session.isArchived()]);
+		contextOverlay.push([ChatContextKeys.agentSessionType.key, session.providerType]);
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
 		const marshalledSession: IMarshalledChatSessionContext = { session, $mid: MarshalledId.ChatSessionContext };
