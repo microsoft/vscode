@@ -30,6 +30,8 @@ registerAction2(FindAgentSessionInViewerAction);
 registerAction2(ShowAgentSessionsSidebar);
 registerAction2(HideAgentSessionsSidebar);
 
+// --- Agent Sessions Toolbar
+
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	submenu: MenuId.AgentSessionsViewerFilterSubMenu,
 	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
@@ -92,6 +94,36 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+	)
+});
+
+// --- Sessions Title Toolbar
+
+MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
+	command: {
+		id: ShowAgentSessionsSidebar.ID,
+		title: ShowAgentSessionsSidebar.TITLE,
+		icon: Codicon.layoutSidebarLeftOff,
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+	)
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
+	command: {
+		id: ShowAgentSessionsSidebar.ID,
+		title: ShowAgentSessionsSidebar.TITLE,
+		icon: Codicon.layoutSidebarRightOff,
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
 	)
 });
 
