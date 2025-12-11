@@ -9,7 +9,7 @@ import { getOctokit } from './auth.js';
 import { Octokit } from '@octokit/rest';
 import { getRepositoryFromQuery, getRepositoryFromUrl } from './util.js';
 import { getBranchLink, getVscodeDevHost } from './links.js';
-import { getSelectedCategory } from './categoryState.js';
+import { getSelectedCategory, setSelectedCategory } from './categoryState.js';
 
 
 type RemoteSourceResponse = {
@@ -38,6 +38,10 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 	readonly supportsQuery = true;
 
 	private userReposCache: RemoteSource[] = [];
+
+	async setRepoFilter(filter: 'user' | 'orgs' | 'all'): Promise<void> {
+		setSelectedCategory(filter);
+	}
 
 	async getRemoteSources(query?: string): Promise<RemoteSource[]> {
 		const octokit = await getOctokit();

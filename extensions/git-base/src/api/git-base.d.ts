@@ -83,4 +83,5 @@ export interface RemoteSourceProvider {
 	getRemoteSourceActions?(url: string): ProviderResult<RemoteSourceAction[]>;
 	getRecentRemoteSources?(query?: string): ProviderResult<RecentRemoteSource[]>;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
+	setRepoFilter?(filter: 'user' | 'orgs' | 'all'): ProviderResult<void>;
 }

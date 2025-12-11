@@ -127,6 +127,29 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch?: false | undefined }): Promise<string | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch: true }): Promise<PickRemoteSourceResult | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {
+	// Show GitHub repository filter picker if GitHub provider is available
+	const githubProvider = model.getRemoteProviders().find(provider => provider.name === 'GitHub');
+	if (githubProvider && !options.providerName) {
+		const filterPick = await window.showQuickPick(
+			[
+				{ label: 'Show my repositories', value: 'user' },
+				{ label: 'Show organization repositories', value: 'orgs' },
+				{ label: 'Show all repositories', value: 'all' }
+			],
+			{
+				title: 'Select which GitHub repositories to display',
+				placeHolder: 'Choose a category'
+			}
+		);
+
+		if (!filterPick) {
+			return undefined;
+		}
+
+		// Set the filter for GitHub provider to use
+		await githubProvider.setRepoFilter?.(filterPick.value as 'user' | 'orgs' | 'all');
+	}
+
 	const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider; url?: string })>();
 	quickpick.title = options.title;
 
