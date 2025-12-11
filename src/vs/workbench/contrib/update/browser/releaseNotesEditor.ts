@@ -147,9 +147,22 @@ export class ReleaseNotesManager extends Disposable {
 				if (e.message.type === 'showReleaseNotes') {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
 				} else if (e.message.type === 'clickSetting') {
+					// Log telemetry for setting clicks in release notes
+					const settingUri = URI.parse(e.message.value.uri);
+					type ReleaseNotesSettingClickClassification = {
+						owner: 'rebornix';
+						comment: 'Track when users click on setting links within release notes';
+						settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the setting that was clicked in the release notes' };
+					};
+					type ReleaseNotesSettingClick = {
+						settingId: string;
+					};
+					this._telemetryService.publicLog2<ReleaseNotesSettingClick, ReleaseNotesSettingClickClassification>('releaseNotes.settingClick', {
+						settingId: settingUri.authority
+					});
 					const x = this._currentReleaseNotes?.webview.container.offsetLeft + e.message.value.x;
 					const y = this._currentReleaseNotes?.webview.container.offsetTop + e.message.value.y;
-					this._simpleSettingRenderer.updateSetting(URI.parse(e.message.value.uri), x, y);
+					this._simpleSettingRenderer.updateSetting(settingUri, x, y);
 				} else if (e.message.type === 'tocNavigation') {
 					// Log telemetry for TOC navigation
 					type ReleaseNotesTocNavigationClassification = {
