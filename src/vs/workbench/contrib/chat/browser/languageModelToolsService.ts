@@ -174,20 +174,23 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	/**
-	 * Returns true if the given tool or toolset is permitted in the current mode.
-	 * When agent mode is enabled, all tools are permitted.
+	 * Returns if the given tool or toolset is permitted in the current context.
+	 * When agent mode is enabled, all tools are permitted (no restriction)
 	 * When agent mode is disabled only a subset of read-only tools are permitted in agentic-loop contexts.
-	 * Note that this does not evaluate against extension
 	 */
 	private isPermitted(toolOrToolSet: IToolData | ToolSet, reader?: IReader): boolean {
 		const agentModeEnabled = reader ? this._isAgentModeEnabled.read(reader) : this._isAgentModeEnabled.get();
 		if (agentModeEnabled !== false) {
 			return true;
 		}
+		const permittedInternalToolSetIds = [SpecedToolAliases.read, SpecedToolAliases.search, SpecedToolAliases.web];
 		if (toolOrToolSet instanceof ToolSet) {
-			return toolOrToolSet === this.readToolSet;
+			const permitted = toolOrToolSet.source.type === 'internal' && permittedInternalToolSetIds.includes(toolOrToolSet.referenceName);
+			this._logService.trace(`LanguageModelToolsService#isPermitted: ToolSet ${toolOrToolSet.id} (${toolOrToolSet.referenceName}) permitted=${permitted}`);
+			return permitted;
 		}
-		return Iterable.some(this.readToolSet.getTools(), t => t === toolOrToolSet);
+		this._logService.trace(`LanguageModelToolsService#isPermitted: Tool ${toolOrToolSet.id} (${toolOrToolSet.toolReferenceName}) permitted=false`);
+		return false;
 	}
 
 	override dispose(): void {
