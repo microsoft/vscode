@@ -321,7 +321,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				const home = this._getHomeDir(useWindowsStylePath, capabilities);
 				if (home) {
 					// Use the scheme and authority from cwd to handle remote scenarios correctly
-					const homeUri = cwd.with({ path: home });
+					// For file-like schemes (file, vscode-remote, etc.), ensure path starts with /
+					const homePath = (cwd.scheme === 'file' || cwd.scheme.startsWith('vscode-')) && !home.startsWith('/') ? '/' + home : home;
+					const homeUri = cwd.with({ path: homePath });
 					lastWordFolderResource = URI.joinPath(homeUri, lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 				}
 				if (!lastWordFolderResource) {
@@ -336,11 +338,15 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			case 'absolute': {
 				// Use the scheme and authority from cwd to handle remote scenarios correctly
 				// (e.g., Remote SSH where cwd has vscode-remote:// scheme)
+				// For file-like schemes (file, vscode-remote, etc.), ensure path starts with /
 				if (shellType === WindowsShellType.GitBash) {
 					const windowsPath = gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive);
-					lastWordFolderResource = cwd.with({ path: windowsPath });
+					const normalizedPath = (cwd.scheme === 'file' || cwd.scheme.startsWith('vscode-')) && !windowsPath.startsWith('/') ? '/' + windowsPath : windowsPath;
+					lastWordFolderResource = cwd.with({ path: normalizedPath });
 				} else {
-					lastWordFolderResource = cwd.with({ path: lastWordFolder.replaceAll('\\ ', ' ') });
+					const cleanPath = lastWordFolder.replaceAll('\\ ', ' ');
+					const normalizedPath = (cwd.scheme === 'file' || cwd.scheme.startsWith('vscode-')) && !cleanPath.startsWith('/') ? '/' + cleanPath : cleanPath;
+					lastWordFolderResource = cwd.with({ path: normalizedPath });
 				}
 				break;
 			}
@@ -498,7 +504,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 						for (const cdPathEntry of cdPathEntries) {
 							try {
 								// Use the scheme and authority from cwd to handle remote scenarios correctly
-								const cdPathUri = cwd.with({ path: cdPathEntry });
+								// For file-like schemes (file, vscode-remote, etc.), ensure path starts with /
+								const normalizedPath = (cwd.scheme === 'file' || cwd.scheme.startsWith('vscode-')) && !cdPathEntry.startsWith('/') ? '/' + cdPathEntry : cdPathEntry;
+								const cdPathUri = cwd.with({ path: normalizedPath });
 								const fileStat = await this._fileService.resolve(cdPathUri, { resolveSingleChildDescendants: true });
 								if (fileStat?.children) {
 									for (const child of fileStat.children) {
@@ -561,7 +569,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			const home = this._getHomeDir(useWindowsStylePath, capabilities);
 			if (home) {
 				// Use the scheme and authority from cwd to handle remote scenarios correctly
-				homeResource = cwd.with({ path: home });
+				// For file-like schemes (file, vscode-remote, etc.), ensure path starts with /
+				const normalizedPath = (cwd.scheme === 'file' || cwd.scheme.startsWith('vscode-')) && !home.startsWith('/') ? '/' + home : home;
+				homeResource = cwd.with({ path: normalizedPath });
 			}
 			if (!homeResource) {
 				// Use less strong wording here as it's not as strong of a concept on Windows
