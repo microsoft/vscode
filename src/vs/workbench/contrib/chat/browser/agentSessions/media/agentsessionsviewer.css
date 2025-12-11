@@ -34,6 +34,10 @@
 		}
 	}
 
+	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row .agent-session-diff-container {
+		outline: 1px solid var(--vscode-agentSessionSelectedUnfocusedBadge-border);
+	}
+
 	.monaco-list-row .agent-session-title-toolbar {
 		position: relative; /* for the absolute positioning of the toolbar below */
 

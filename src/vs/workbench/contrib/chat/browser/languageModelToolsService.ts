@@ -16,7 +16,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableFromEventOpts, ObservableSet } from '../../../../base/common/observable.js';
+import { derived, IObservable, IReader, observableFromEventOpts, ObservableSet } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -93,6 +93,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private readonly _callsByRequestId = new Map<string, ITrackedCall[]>();
 
+	private readonly _isAgentModeEnabled: IObservable<boolean | undefined>;
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -109,6 +111,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	) {
 		super();
 
+		this._isAgentModeEnabled = observableFromEventOpts(
+			{ owner: this, equalsFn: () => false },
+			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.AgentEnabled)),
+			() => this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled)
+		);
+
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
 				// Not worth it to compute a delta here unless we have many tools changing often
@@ -117,7 +125,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled) || e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
 				this._onDidChangeToolsScheduler.schedule();
 			}
 		}));
@@ -166,6 +174,27 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		));
 	}
+
+	/**
+	 * Returns if the given tool or toolset is permitted in the current context.
+	 * When agent mode is enabled, all tools are permitted (no restriction)
+	 * When agent mode is disabled only a subset of read-only tools are permitted in agentic-loop contexts.
+	 */
+	private isPermitted(toolOrToolSet: IToolData | ToolSet, reader?: IReader): boolean {
+		const agentModeEnabled = reader ? this._isAgentModeEnabled.read(reader) : this._isAgentModeEnabled.get();
+		if (agentModeEnabled !== false) {
+			return true;
+		}
+		const permittedInternalToolSetIds = [SpecedToolAliases.read, SpecedToolAliases.search, SpecedToolAliases.web];
+		if (toolOrToolSet instanceof ToolSet) {
+			const permitted = toolOrToolSet.source.type === 'internal' && permittedInternalToolSetIds.includes(toolOrToolSet.referenceName);
+			this._logService.trace(`LanguageModelToolsService#isPermitted: ToolSet ${toolOrToolSet.id} (${toolOrToolSet.referenceName}) permitted=${permitted}`);
+			return permitted;
+		}
+		this._logService.trace(`LanguageModelToolsService#isPermitted: Tool ${toolOrToolSet.id} (${toolOrToolSet.toolReferenceName}) permitted=false`);
+		return false;
+	}
+
 	override dispose(): void {
 		super.dispose();
 
@@ -243,7 +272,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolData => {
 				const satisfiesWhenClause = includeDisabled || !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
-				return satisfiesWhenClause && satisfiesExternalToolCheck;
+				return satisfiesWhenClause && satisfiesExternalToolCheck && this.isPermitted(toolData);
 			});
 	}
 
@@ -853,7 +882,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private readonly _toolSets = new ObservableSet<ToolSet>();
 
-	readonly toolSets: IObservable<Iterable<ToolSet>> = this._toolSets.observable;
+	readonly toolSets: IObservable<Iterable<ToolSet>> = derived(this, reader => {
+		const allToolSets = Array.from(this._toolSets.observable.read(reader));
+		return allToolSets.filter(toolSet => this.isPermitted(toolSet, reader));
+	});
 
 	getToolSet(id: string): ToolSet | undefined {
 		for (const toolSet of this._toolSets) {
@@ -916,7 +948,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 		for (const tool of this.toolsObservable.read(reader)) {
-			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool)) {
+			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool) && this.isPermitted(tool, reader)) {
 				result.push([tool, getToolFullReferenceName(tool)]);
 			}
 		}
