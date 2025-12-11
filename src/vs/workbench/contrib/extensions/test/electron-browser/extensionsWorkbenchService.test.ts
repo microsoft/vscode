@@ -59,6 +59,8 @@ import { IUserDataProfileService } from '../../../../services/userDataProfile/co
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
+const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
+
 suite('ExtensionsWorkbenchServiceTest', () => {
 
 	let instantiationService: TestInstantiationService;
@@ -1618,7 +1620,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('Test queryGallery filters extensions by minimum release age', async () => {
-		const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
 		const now = Date.now();
 		const oneDayAgo = now - (1 * MILLISECONDS_PER_DAY);
 		const threeDaysAgo = now - (3 * MILLISECONDS_PER_DAY);
@@ -1641,7 +1642,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('Test outdated extension respects minimum release age', async () => {
-		const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
 		const now = Date.now();
 		const oneDayAgo = now - (1 * MILLISECONDS_PER_DAY);
 
@@ -1660,7 +1660,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('Test outdated extension is marked outdated when meeting minimum release age', async () => {
-		const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
 		const now = Date.now();
 		const threeDaysAgo = now - (3 * MILLISECONDS_PER_DAY);
 
