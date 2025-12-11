@@ -169,7 +169,6 @@ abstract class BaseOpenAgentSessionAction extends Action2 {
 
 		await chatWidgetService.openSession(uri, this.getTargetGroup(), {
 			...this.getOptions(),
-			ignoreInView: true,
 			pinned: true
 		});
 	}
