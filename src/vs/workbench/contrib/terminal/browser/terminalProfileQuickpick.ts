@@ -197,20 +197,30 @@ export class TerminalProfileQuickpick {
 
 		// Inspect workspace configuration to separate user and workspace profiles
 		const workspaceProfilesConfig = this._configurationService.inspect(profilesKey);
+		const userProfilesConfig = this._configurationService.inspect(profilesKey);
+		
 		const workspaceProfileNames = workspaceProfilesConfig.workspaceValue && typeof workspaceProfilesConfig.workspaceValue === 'object'
 			? Object.keys(workspaceProfilesConfig.workspaceValue as { [key: string]: unknown })
 			: [];
+		
+		const userProfileNames = userProfilesConfig.userValue && typeof userProfilesConfig.userValue === 'object'
+			? Object.keys(userProfilesConfig.userValue as { [key: string]: unknown })
+			: [];
 
-		// Filter profiles: workspace profiles go to workspace section, others to profiles section
-		const userConfigProfiles = configProfiles.filter(e => !workspaceProfileNames.includes(e.profileName));
-		const workspaceConfigProfiles = configProfiles.filter(e => workspaceProfileNames.includes(e.profileName));
+		// Filter profiles: only show workspace profiles if they're NOT already in user profiles
+		const workspaceOnlyProfileNames = workspaceProfileNames.filter(name => !userProfileNames.includes(name));
+		
+		// User profiles section includes profiles from user config + profiles in both user and workspace
+		const userConfigProfiles = configProfiles.filter(e => !workspaceOnlyProfileNames.includes(e.profileName));
+		// Workspace section only includes profiles that are ONLY in workspace, not in user
+		const workspaceConfigProfiles = configProfiles.filter(e => workspaceOnlyProfileNames.includes(e.profileName));
 
 		if (userConfigProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
 			quickPickItems.push(...this._sortProfileQuickPickItems(userConfigProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
 		}
 
-		// Add workspace profiles section if any exist
+		// Add workspace profiles section if any exist (only workspace-only profiles)
 		if (workspaceConfigProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.workspace', "workspace") });
 			quickPickItems.push(...this._sortProfileQuickPickItems(workspaceConfigProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
