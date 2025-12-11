@@ -506,6 +506,15 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return false;
 		}
 
+		// Check extension filter if present (filters by marker.owner which is the extension ID)
+		if (this.options.extensionFilter) {
+			const ownerToMatch = marker.marker.owner.toLowerCase();
+			const filterValue = this.options.extensionFilter.toLowerCase();
+			if (!ownerToMatch.includes(filterValue)) {
+				return false;
+			}
+		}
+
 		// Check source filter if present
 		if (this.options.sourceFilter) {
 			if (!marker.marker.source) {

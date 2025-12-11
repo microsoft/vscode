@@ -449,6 +449,15 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					continue;
 				}
 
+				// Extension filter (filters by marker.owner which is the extension ID)
+				if (this.filterOptions.extensionFilter) {
+					const ownerToMatch = marker.marker.owner.toLowerCase();
+					const filterValue = this.filterOptions.extensionFilter.toLowerCase();
+					if (!ownerToMatch.includes(filterValue)) {
+						continue;
+					}
+				}
+
 				// Source filter
 				if (this.filterOptions.sourceFilter) {
 					if (!marker.marker.source) {

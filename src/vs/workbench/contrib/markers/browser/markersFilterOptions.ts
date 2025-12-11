@@ -50,6 +50,7 @@ export class FilterOptions {
 	readonly showInfos: boolean = false;
 	readonly textFilter: { readonly text: string; readonly negate: boolean };
 	readonly sourceFilter: string | undefined;
+	readonly extensionFilter: string | undefined;
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
 
@@ -80,13 +81,22 @@ export class FilterOptions {
 			}
 		}
 
-		// Extract source filter if present (e.g., "source:ts" or "@ts")
+		// Extract extension filter if present (e.g., "@ext:extensionId")
 		let effectiveFilter = filter;
-		const sourceMatch = filter.match(/(?:^|,\s*)(?:source:|@)([^\s,]+)/i);
+		const extensionMatch = filter.match(/(?:^|,\s*)@ext:([^\s,]+)/i);
+		if (extensionMatch) {
+			this.extensionFilter = extensionMatch[1];
+			// Remove the extension filter from the main filter text
+			effectiveFilter = filter.replace(/(?:^|,\s*)@ext:([^\s,]+)/gi, '').replace(/^,\s*|,\s*$/g, '').trim();
+		}
+
+		// Extract source filter if present (e.g., "source:ts" or "@ts")
+		// Note: @ext: is handled above, so this will only match @ without "ext:"
+		const sourceMatch = effectiveFilter.match(/(?:^|,\s*)(?:source:|@)([^\s,]+)/i);
 		if (sourceMatch) {
 			this.sourceFilter = sourceMatch[1];
 			// Remove the source filter from the main filter text
-			effectiveFilter = filter.replace(/(?:^|,\s*)(?:source:|@)([^\s,]+)/gi, '').replace(/^,\s*|,\s*$/g, '').trim();
+			effectiveFilter = effectiveFilter.replace(/(?:^|,\s*)(?:source:|@)([^\s,]+)/gi, '').replace(/^,\s*|,\s*$/g, '').trim();
 		}
 
 		const negate = effectiveFilter.startsWith('!');
