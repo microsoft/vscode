@@ -366,7 +366,7 @@ suite('NotebookExecutionStateService', () => {
 
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 			const cell = disposables.add(insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true));
-			
+
 			// Create and complete execution with failure
 			const exe = executionStateService.createCellExecution(viewModel.uri, cell.handle);
 			exe.confirm();

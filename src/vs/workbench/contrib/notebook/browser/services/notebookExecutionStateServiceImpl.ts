@@ -282,7 +282,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 			if (e.lastRunSuccessChanged && cell.internalMetadata.lastRunSuccess === null) {
 				this._clearLastFailedCell(notebook.uri);
 			}
-		}) : { dispose: () => { } };
+		}) : Disposable.None;
 
 		return combinedDisposable(onWillAddRemoveCells, cellMetadataListener);
 	}
