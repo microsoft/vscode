@@ -589,13 +589,18 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 	/**
 	 * Normalizes a path for use with URI.with(). For file-like schemes (file, vscode-remote),
-	 * paths must start with / in the URI path component. This is normally handled by _referenceResolution
-	 * in the URI constructor, but URI.with() bypasses that logic.
+	 * paths must start with / in the URI path component and use forward slashes as separators.
+	 * This is normally handled by _referenceResolution in the URI constructor, but URI.with() bypasses that logic.
 	 */
 	private _normalizePathForScheme(path: string, scheme: string): string {
-		// For file-like schemes, ensure the path starts with /
-		if ((scheme === 'file' || scheme.startsWith('vscode-')) && !path.startsWith('/')) {
-			return '/' + path;
+		// For file-like schemes, ensure the path starts with / and uses forward slashes
+		if (scheme === 'file' || scheme.startsWith('vscode-')) {
+			// First, normalize backslashes to forward slashes
+			path = path.replace(/\\/g, '/');
+			// Then ensure it starts with /
+			if (!path.startsWith('/')) {
+				path = '/' + path;
+			}
 		}
 		return path;
 	}

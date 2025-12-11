@@ -345,7 +345,7 @@ suite('TerminalCompletionService', () => {
 			assertCompletions(await terminalCompletionService.resolveResources(remoteResourceOptions, '~/', 2, provider, capabilities), [
 				{ label: '~/', detail: '/home/' },
 				{ label: '~/vscode/', detail: '/home/vscode/' },
-			], { replacementRange: [0, 2] });
+			], { replacementRange: [0, 2] }, '/');
 		});
 	});
 
@@ -429,7 +429,7 @@ suite('TerminalCompletionService', () => {
 				assertCompletions(result, [
 					{ label: '/foo/', detail: '/foo/' },
 					{ label: '/foo/Bar/', detail: '/foo/Bar/' },
-				], { replacementRange: [0, 5] });
+				], { replacementRange: [0, 5] }, '/');
 			});
 		}
 
