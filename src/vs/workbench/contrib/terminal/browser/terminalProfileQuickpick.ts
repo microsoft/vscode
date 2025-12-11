@@ -195,9 +195,25 @@ export class TerminalProfileQuickpick {
 		const configProfiles = profiles.filter(e => !e.isAutoDetected);
 		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
 
-		// Separate user and workspace profiles based on configScope set by the backend
-		const userConfigProfiles = configProfiles.filter(e => e.configScope !== ConfigurationTarget.WORKSPACE);
-		const workspaceConfigProfiles = configProfiles.filter(e => e.configScope === ConfigurationTarget.WORKSPACE);
+		// Separate user and workspace profiles
+		// First, try using configScope set by the backend
+		let userConfigProfiles = configProfiles.filter(e => e.configScope !== ConfigurationTarget.WORKSPACE);
+		let workspaceConfigProfiles = configProfiles.filter(e => e.configScope === ConfigurationTarget.WORKSPACE);
+
+		// Fallback: if configScope wasn't set by backend (e.g., backend doesn't have workspace context),
+		// inspect configuration here in the frontend
+		if (workspaceConfigProfiles.length === 0 && configProfiles.length > 0) {
+			const workspaceProfilesConfig = this._configurationService.inspect(profilesKey);
+			const workspaceProfileNames = workspaceProfilesConfig.workspaceValue && typeof workspaceProfilesConfig.workspaceValue === 'object'
+				? Object.keys(workspaceProfilesConfig.workspaceValue as { [key: string]: unknown })
+				: [];
+
+			if (workspaceProfileNames.length > 0) {
+				// Re-filter based on workspace profile names
+				userConfigProfiles = configProfiles.filter(e => !workspaceProfileNames.includes(e.profileName));
+				workspaceConfigProfiles = configProfiles.filter(e => workspaceProfileNames.includes(e.profileName));
+			}
+		}
 
 		if (userConfigProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
