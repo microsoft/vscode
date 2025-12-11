@@ -472,3 +472,42 @@ Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFea
 	},
 	renderer: new SyncDescriptor(SettingsTableRenderer),
 });
+
+class ConfigurationDefaultsTableRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.configurationDefaults;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const configurationDefaults = manifest.contributes?.configurationDefaults ?? {};
+
+		const headers = [nls.localize('override identifier', "Override Identifier"), nls.localize('configuration defaults', "Configuration Defaults")];
+		const rows: IRowData[][] = Object.keys(configurationDefaults).sort((a, b) => a.localeCompare(b))
+			.map(key => {
+				return [
+					new MarkdownString().appendMarkdown(`\`${key}\``),
+					new MarkdownString().appendCodeblock('json', JSON.stringify(configurationDefaults[key], null, 2)),
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'configurationDefaults',
+	label: nls.localize('configuration defaults', "Configuration Defaults"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ConfigurationDefaultsTableRenderer),
+});
