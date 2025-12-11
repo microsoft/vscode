@@ -126,9 +126,9 @@ class ReloadAction extends Action2 {
 				order: 3,
 				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, ContextKeyExpr.not(CONTEXT_BROWSER_LOADING.key))
 			},
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, ContextKeyExpr.not(CONTEXT_BROWSER_LOADING.key)),
+			precondition: BROWSER_EDITOR_ACTIVE,
 			keybinding: {
-				when: ContextKeyExpr.and(CONTEXT_BROWSER_FOCUSED, ContextKeyExpr.not(CONTEXT_BROWSER_LOADING.key)), // Keybinding is only active when focus is within the browser editor and not loading
+				when: CONTEXT_BROWSER_FOCUSED, // Keybinding is only active when focus is within the browser editor
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over debug
 				primary: KeyCode.F5,
 				secondary: [KeyMod.CtrlCmd | KeyCode.KeyR],
