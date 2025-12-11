@@ -226,7 +226,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const provider = await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
 		const contextOverlay = getSessionItemContextOverlay(session, provider, this.chatService, this.editorGroupsService);
-		contextOverlay.push([ChatContextKeys.isCombinedAgentSessionsViewer.key, true]);
 		contextOverlay.push([ChatContextKeys.isReadAgentSession.key, session.isRead()]);
 		contextOverlay.push([ChatContextKeys.isArchivedAgentSession.key, session.isArchived()]);
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));

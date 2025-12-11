@@ -33,10 +33,9 @@ import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
-import { LEGACY_AGENT_SESSIONS_VIEW_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
-import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../common/chatService.js';
 import { autorun, autorunIterableDelta, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -489,56 +488,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const rawMenuActions = this._menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, contextKeyService);
 		const menuActions = rawMenuActions.map(value => value[1]).flat();
 
-		const whenClause = ContextKeyExpr.and(
-			ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.${contribution.type}`)
-		);
-
 		const disposables = new DisposableStore();
 
-		// If there's exactly one action, inline it
-		if (menuActions.length === 1) {
-			const first = menuActions[0];
-			if (first instanceof MenuItemAction) {
-				disposables.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-					group: 'navigation',
-					title: first.label,
-					icon: Codicon.plus,
-					order: 1,
-					when: whenClause,
-					command: first.item,
-				}));
-			}
-		}
-
-		if (menuActions.length) {
-			disposables.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-				group: 'navigation',
-				title: localize('interactiveSession.chatSessionSubMenuTitle', "Create chat session"),
-				icon: Codicon.plus,
-				order: 1,
-				when: whenClause,
-				submenu: MenuId.AgentSessionsCreateSubMenu,
-				isSplitButton: menuActions.length > 1
-			}));
-		} else {
-			// We control creation instead
-			disposables.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-				command: {
-					id: `${NEW_CHAT_SESSION_ACTION_ID}.${contribution.type}`,
-					title: localize('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
-					icon: Codicon.plus,
-					source: {
-						id: extensionDescription.identifier.value,
-						title: extensionDescription.displayName || extensionDescription.name,
-					}
-				},
-				group: 'navigation',
-				order: 1,
-				when: whenClause,
-			}));
-		}
-
-		// Also mirror all create submenu actions into the global Chat New menu
+		// Mirror all create submenu actions into the global Chat New menu
 		for (const action of menuActions) {
 			if (action instanceof MenuItemAction) {
 				disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {

@@ -23,7 +23,6 @@ import { ViewPaneContainer } from '../../browser/parts/views/viewPaneContainer.j
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
 import { ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../common/views.js';
 import { ChatContextKeyExprs } from '../../contrib/chat/common/chatContextKeys.js';
-import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../contrib/chat/common/constants.js';
 import { VIEWLET_ID as DEBUG } from '../../contrib/debug/common/debug.js';
 import { VIEWLET_ID as EXPLORER } from '../../contrib/files/common/files.js';
 import { VIEWLET_ID as REMOTE } from '../../contrib/remote/browser/remoteExplorer.js';
@@ -643,7 +642,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			case 'debug': return this.viewContainersRegistry.get(DEBUG);
 			case 'scm': return this.viewContainersRegistry.get(SCM);
 			case 'remote': return this.viewContainersRegistry.get(REMOTE);
-			case 'agentSessions': return this.viewContainersRegistry.get(LEGACY_AGENT_SESSIONS_VIEW_ID);
 			default: return this.viewContainersRegistry.get(`workbench.view.extension.${value}`);
 		}
 	}
