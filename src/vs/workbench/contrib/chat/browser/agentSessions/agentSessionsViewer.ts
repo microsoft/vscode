@@ -350,7 +350,19 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 	}
 
 	getAriaLabel(element: IAgentSession): string | null {
-		return element.label;
+		let statusLabel: string;
+		switch (element.status) {
+			case ChatSessionStatus.InProgress:
+				statusLabel = localize('agentSessionInProgress', "in progress");
+				break;
+			case ChatSessionStatus.Failed:
+				statusLabel = localize('agentSessionFailed', "failed");
+				break;
+			default:
+				statusLabel = localize('agentSessionCompleted', "completed");
+		}
+
+		return localize('agentSessionItemAriaLabel', "Agent session {0} ({1}), created {2}", element.label, statusLabel, new Date(element.timing.startTime).toLocaleString());
 	}
 }
 
