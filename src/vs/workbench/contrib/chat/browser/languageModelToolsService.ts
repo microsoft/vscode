@@ -269,7 +269,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolData => {
 				const satisfiesWhenClause = includeDisabled || !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
-				return satisfiesWhenClause && satisfiesExternalToolCheck && this.isPermitted(toolData);
+				const satisfiesPermittedCheck = includeDisabled || this.isPermitted(toolData);
+				return satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesPermittedCheck;
 			});
 	}
 
