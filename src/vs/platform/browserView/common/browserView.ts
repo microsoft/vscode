@@ -165,6 +165,12 @@ export interface IBrowserViewService {
 	reload(id: string): Promise<void>;
 
 	/**
+	 * Stop loading the current page
+	 * @param id The browser view identifier
+	 */
+	stop(id: string): Promise<void>;
+
+	/**
 	 * Toggle developer tools for the browser view.
 	 * @param id The browser view identifier
 	 */

@@ -37,6 +37,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
+export const CONTEXT_BROWSER_LOADING = new RawContextKey<boolean>('browserLoading', false, localize('browser.loading', "Whether the browser is currently loading a page"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
@@ -148,6 +149,7 @@ export class BrowserEditor extends EditorPane {
 	private _errorContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
+	private _loadingContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
 
@@ -176,6 +178,7 @@ export class BrowserEditor extends EditorPane {
 		// Bind navigation capability context keys
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
+		this._loadingContext = CONTEXT_BROWSER_LOADING.bindTo(contextKeyService);
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 
@@ -238,6 +241,7 @@ export class BrowserEditor extends EditorPane {
 			return;
 		}
 
+		this._loadingContext.set(this._model.loading);
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
 
@@ -271,7 +275,8 @@ export class BrowserEditor extends EditorPane {
 			this.updateNavigationState(navEvent);
 		}));
 
-		this._inputDisposables.add(this._model.onDidChangeLoadingState(() => {
+		this._inputDisposables.add(this._model.onDidChangeLoadingState((e) => {
+			this._loadingContext.set(e.loading);
 			this.updateErrorDisplay();
 		}));
 
@@ -435,6 +440,10 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.reload();
 	}
 
+	public async stopLoading(): Promise<void> {
+		return this._model?.stop();
+	}
+
 	public async toggleDevTools(): Promise<void> {
 		return this._model?.toggleDevTools();
 	}
@@ -524,6 +533,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
+		this._loadingContext.reset();
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
 

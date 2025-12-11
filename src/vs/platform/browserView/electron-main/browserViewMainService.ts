@@ -176,6 +176,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).reload();
 	}
 
+	async stop(id: string): Promise<void> {
+		return this._getBrowserView(id).stop();
+	}
+
 	async toggleDevTools(id: string): Promise<void> {
 		return this._getBrowserView(id).toggleDevTools();
 	}
