@@ -35,7 +35,7 @@ export class StandaloneWebWorkerService extends WebWorkerService {
 		}
 
 		if (!descriptor.esmModuleLocationBundler) {
-			throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
+			throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker for the worker label: ${descriptor.label}`);
 		}
 
 		const url = typeof descriptor.esmModuleLocationBundler === 'function' ? descriptor.esmModuleLocationBundler() : descriptor.esmModuleLocationBundler;

@@ -37,6 +37,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 				id: tool.id,
 				displayName: tool.displayName,
 				toolReferenceName: tool.toolReferenceName,
+				legacyToolReferenceFullNames: tool.legacyToolReferenceFullNames,
 				tags: tool.tags,
 				userDescription: tool.userDescription,
 				modelDescription: tool.modelDescription,

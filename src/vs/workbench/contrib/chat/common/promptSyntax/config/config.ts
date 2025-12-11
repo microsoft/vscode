@@ -79,6 +79,11 @@ export namespace PromptsConfig {
 	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
 
 	/**
+	 * Configuration key for claude skills usage.
+	 */
+	export const USE_CLAUDE_SKILLS = 'chat.useClaudeSkills';
+
+	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
 	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}.
 	 */

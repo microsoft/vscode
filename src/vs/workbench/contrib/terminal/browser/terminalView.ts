@@ -13,7 +13,7 @@ import { IContextMenuService, IContextViewService } from '../../../../platform/c
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from './terminalActions.js';
+import { switchTerminalShowTabsTitle } from './terminalActions.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
 import { ICreateTerminalOptions, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from './terminal.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
@@ -26,7 +26,7 @@ import { ITerminalProfileResolverService, ITerminalProfileService, TerminalComma
 import { TerminalSettingId, ITerminalProfile, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { ActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { asCssVariable, selectBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { ISelectOptionItem } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { ISelectOptionItem, SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { TerminalTabbedView } from './terminalTabbedView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -398,7 +398,7 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, terminalG
 	} else {
 		items = [{ text: nls.localize('terminalConnectingLabel', "Starting...") }];
 	}
-	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
+	items.push(SeparatorSelectOption);
 	items.push({ text: switchTerminalShowTabsTitle });
 	return items;
 }

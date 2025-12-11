@@ -229,26 +229,3 @@ export function getStatusBarCommandGenericName(command: Command): string | undef
 
 	return genericName;
 }
-
-/**
- * This helper function adds a CSS class to the twistie element as there is
- * no tree API to do this. The method will throw if the DOM structure of the
- * tree is not as expected. The expected DOM structure is as follows:
- * <div class="monaco-tl-row">
- *   <div class="monaco-tl-indent">
- *   <div class="monaco-tl-twistie"></div>
- *   <div class="monaco-tl-contents"></div>
- * </div>
- * @param container - the element with class 'monaco-tl-contents' class
- * @param className - the CSS class to add to the twistie element
- */
-export function addClassToTwistieElement(container: HTMLElement, className: string): void {
-	if (container.classList.contains('monaco-tl-contents')) {
-		const twistieElement = container.previousElementSibling;
-		if (twistieElement && twistieElement.classList.contains('monaco-tl-twistie')) {
-			twistieElement.classList.add(className);
-		} else {
-			throw new Error('Source control tree twistie element not found');
-		}
-	}
-}

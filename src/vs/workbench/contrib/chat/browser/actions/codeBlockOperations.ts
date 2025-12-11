@@ -36,7 +36,6 @@ import { CellKind, ICellEditOperation, NOTEBOOK_EDITOR_ID } from '../../../noteb
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatUserAction, IChatService } from '../../common/chatService.js';
-import { chatSessionResourceToId } from '../../common/chatUri.js';
 import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ICodeBlockActionContext } from '../codeBlockPart.js';
 
@@ -342,7 +341,7 @@ export class ApplyCodeBlockOperation {
 		return new AsyncIterableObject<TextEdit[]>(async executor => {
 			const request: ICodeMapperRequest = {
 				codeBlocks: [codeBlock],
-				chatSessionId: chatSessionResource && chatSessionResourceToId(chatSessionResource),
+				chatSessionResource,
 			};
 			const response: ICodeMapperResponse = {
 				textEdit: (target: URI, edit: TextEdit[]) => {
@@ -363,7 +362,7 @@ export class ApplyCodeBlockOperation {
 		return new AsyncIterableObject<[URI, TextEdit[]] | ICellEditOperation[]>(async executor => {
 			const request: ICodeMapperRequest = {
 				codeBlocks: [codeBlock],
-				chatSessionId: chatSessionResource && chatSessionResourceToId(chatSessionResource),
+				chatSessionResource,
 				location: 'panel'
 			};
 			const response: ICodeMapperResponse = {

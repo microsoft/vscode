@@ -32,14 +32,6 @@ export class TestInstantiationService extends InstantiationService implements ID
 		return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
 	}
 
-	public getIfExists<T>(service: ServiceIdentifier<T>): T | undefined {
-		try {
-			return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
-		} catch (e) {
-			return undefined;
-		}
-	}
-
 	public set<T>(service: ServiceIdentifier<T>, instance: T): T {
 		return <T>this._serviceCollection.set(service, instance);
 	}
@@ -61,10 +53,8 @@ export class TestInstantiationService extends InstantiationService implements ID
 		return super.createInstance(ctorOrDescriptor, ...rest);
 	}
 
-	public stub<T>(service: ServiceIdentifier<T>, ctor: Function): T;
-	public stub<T>(service: ServiceIdentifier<T>, obj: Partial<T>): T;
-	public stub<T, V>(service: ServiceIdentifier<T>, ctor: Function, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
-	public stub<T, V>(service: ServiceIdentifier<T>, obj: Partial<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	public stub<T>(service: ServiceIdentifier<T>, obj: Partial<NoInfer<T>> | Function): T;
+	public stub<T, V>(service: ServiceIdentifier<T>, obj: Partial<NoInfer<T>> | Function, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
 	public stub<T, V>(service: ServiceIdentifier<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
 	public stub<T>(serviceIdentifier: ServiceIdentifier<T>, arg2: any, arg3?: string, arg4?: any): sinon.SinonStub | sinon.SinonSpy {
 		const service = typeof arg2 !== 'string' ? arg2 : undefined;

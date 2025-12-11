@@ -365,11 +365,11 @@ export function normalizeWatcherPattern(path: string, pattern: string | IRelativ
 	return pattern;
 }
 
-export function parseWatcherPatterns(path: string, patterns: Array<string | IRelativePattern>): ParsedPattern[] {
+export function parseWatcherPatterns(path: string, patterns: Array<string | IRelativePattern>, ignoreCase: boolean): ParsedPattern[] {
 	const parsedPatterns: ParsedPattern[] = [];
 
 	for (const pattern of patterns) {
-		parsedPatterns.push(parse(normalizeWatcherPattern(path, pattern)));
+		parsedPatterns.push(parse(normalizeWatcherPattern(path, pattern), { ignoreCase }));
 	}
 
 	return parsedPatterns;

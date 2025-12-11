@@ -18,7 +18,7 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -26,11 +26,12 @@ import { EditorActivation } from '../../../../../platform/editor/common/editor.j
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
-import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -53,12 +54,14 @@ export abstract class EditingSessionAction extends Action2 {
 		return this.runEditingSessionAction(accessor, context.editingSession, context.chatWidget, ...args);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): any;
 }
 
 /**
  * Resolve view title toolbar context. If none, return context from the lastFocusedWidget.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): { editingSession?: IChatEditingSession; chatWidget: IChatWidget } | undefined {
 	const arg0 = args.at(0);
 	const context = isChatViewTitleActionContext(arg0) ? arg0 : undefined;
@@ -96,6 +99,7 @@ abstract class WorkingSetAction extends EditingSessionAction {
 		return this.runWorkingSetAction(accessor, editingSession, chatWidget, ...uris);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	abstract runWorkingSetAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
 }
 
@@ -301,11 +305,60 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 }
 registerAction2(ChatEditingShowChangesAction);
 
+export class ViewAllSessionChangesAction extends Action2 {
+	static readonly ID = 'chatEditing.viewAllSessionChanges';
+
+	constructor() {
+		super({
+			id: ViewAllSessionChangesAction.ID,
+			title: localize2('chatEditing.viewAllSessionChanges', 'View All Changes'),
+			icon: Codicon.diffMultiple,
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.hasAgentSessionChanges,
+			menu: [
+				{
+					id: MenuId.ChatEditingSessionChangesToolbar,
+					group: 'navigation',
+					order: 10,
+					when: ChatContextKeys.hasAgentSessionChanges
+				}
+			],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
+		const agentSessionsService = accessor.get(IAgentSessionsService);
+		const commandService = accessor.get(ICommandService);
+		if (!URI.isUri(sessionResource)) {
+			return;
+		}
+
+		const session = agentSessionsService.getSession(sessionResource);
+		const changes = session?.changes;
+		if (!(changes instanceof Array)) {
+			return;
+		}
+
+		const resources = changes
+			.filter(d => d.originalUri)
+			.map(d => ({ originalUri: d.originalUri!, modifiedUri: d.modifiedUri }));
+
+		if (resources.length > 0) {
+			await commandService.executeCommand('_workbench.openMultiDiffEditor', {
+				multiDiffSourceUri: sessionResource.with({ scheme: sessionResource.scheme + '-worktree-changes' }),
+				title: localize('chatEditing.allChanges.title', 'All Session Changes'),
+				resources,
+			});
+		}
+	}
+}
+registerAction2(ViewAllSessionChangesAction);
+
 async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<void> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
-	const widget = chatWidgetService.lastFocusedWidget;
+	const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
 	const chatService = accessor.get(IChatService);
 	const chatModel = chatService.getSession(item.sessionResource);
 	if (!chatModel) {
@@ -403,7 +456,7 @@ registerAction2(class RemoveAction extends Action2 {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const configurationService = accessor.get(IConfigurationService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
@@ -451,7 +504,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
@@ -493,7 +546,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const chatService = accessor.get(IChatService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
@@ -552,7 +605,7 @@ registerAction2(class EditAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}

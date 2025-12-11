@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 
-export = new class ApiInterfaceNaming implements eslint.Rule.RuleModule {
+export default new class ApiInterfaceNaming implements eslint.Rule.RuleModule {
 
 	private static _nameRegExp = /^I[A-Z]/;
 
@@ -23,7 +23,7 @@ export = new class ApiInterfaceNaming implements eslint.Rule.RuleModule {
 		return {
 			['TSInterfaceDeclaration Identifier']: (node: ESTree.Identifier) => {
 
-				const name = (<TSESTree.Identifier>node).name;
+				const name = (node as TSESTree.Identifier).name;
 				if (ApiInterfaceNaming._nameRegExp.test(name)) {
 					context.report({
 						node,

@@ -1171,16 +1171,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 	}
 
-	disposeRepository(repository: Repository): void {
-		const openRepository = this.getOpenRepository(repository);
-		if (!openRepository) {
-			return;
-		}
-
-		this.logger.info(`[Model][disposeRepository] Repository: ${repository.root}`);
-		openRepository.dispose();
-	}
-
 	dispose(): void {
 		const openRepositories = [...this.openRepositories];
 		openRepositories.forEach(r => r.dispose());

@@ -19,13 +19,13 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { extractSCMHistoryItemDropData } from '../../scm/browser/scmHistoryChatContext.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
-import { IChatWidgetService } from './chat.js';
-import { IChatAttachmentResolveService, ImageTransferData } from './chatAttachmentResolveService.js';
+import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
+import { IChatAttachmentResolveService, ImageTransferData } from './chatAttachmentResolveService.js';
 import { IChatInputStyles } from './chatInputPart.js';
 import { convertStringToUInt8Array } from './imageUtils.js';
-import { extractSCMHistoryItemDropData } from '../../scm/browser/scmHistoryChatContext.js';
 
 enum ChatDragAndDropType {
 	FILE_INTERNAL,
@@ -50,12 +50,12 @@ export class ChatDragAndDrop extends Themable {
 	private disableOverlay: boolean = false;
 
 	constructor(
+		private readonly widgetRef: () => IChatWidget | undefined,
 		private readonly attachmentModel: ChatAttachmentModel,
 		private readonly styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ILogService private readonly logService: ILogService,
 		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService
 	) {
@@ -299,9 +299,10 @@ export class ChatDragAndDrop extends Themable {
 		}
 
 		// TODO: use dnd provider to insert text @justschen
-		const selection = this.chatWidgetService.lastFocusedWidget?.inputEditor.getSelection();
-		if (selection && this.chatWidgetService.lastFocusedWidget) {
-			this.chatWidgetService.lastFocusedWidget.inputEditor.executeEdits('chatInsertUrl', [{ range: selection, text: url }]);
+		const widget = this.widgetRef();
+		const selection = widget?.inputEditor.getSelection();
+		if (selection && widget) {
+			widget.inputEditor.executeEdits('chatInsertUrl', [{ range: selection, text: url }]);
 		}
 
 		this.logService.warn(`Image URLs must end in .jpg, .png, .gif, .webp, or .bmp. Failed to fetch image from this URL: ${url}`);

@@ -14,6 +14,7 @@ import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, 
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { TerminalLocation, TerminalLocationConfigValue } from '../../../../platform/terminal/common/terminal.js';
 import { isString } from '../../../../base/common/types.js';
+import { clamp } from '../../../../base/common/numbers.js';
 
 // #region TerminalConfigurationService
 
@@ -249,17 +250,10 @@ function clampInt<T>(source: string | number, minimum: number, maximum: number, 
 	if (source === null || source === undefined) {
 		return fallback;
 	}
-	let r = isString(source) ? parseInt(source, 10) : source;
+	const r = isString(source) ? parseInt(source, 10) : source;
 	if (isNaN(r)) {
 		return fallback;
 	}
-	if (typeof minimum === 'number') {
-		r = Math.max(minimum, r);
-	}
-	if (typeof maximum === 'number') {
-		r = Math.min(maximum, r);
-	}
-	return r;
+	return clamp(r, minimum, maximum);
 }
-
 // #endregion Utils

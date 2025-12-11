@@ -179,7 +179,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 		const options: vscode.LanguageModelToolInvocationOptions<Object> = {
 			input: dto.parameters,
-			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
+			toolInvocationToken: revive(dto.context) as unknown as vscode.ChatParticipantToolToken | undefined,
 		};
 		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate')) {
 			options.chatRequestId = dto.chatRequestId;

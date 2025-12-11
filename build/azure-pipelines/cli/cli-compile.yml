@@ -35,7 +35,7 @@ steps:
           set -e
           if [ -n "$SYSROOT_ARCH" ]; then
             export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
-            node -e '(async () => { const { getVSCodeSysroot } = require("../build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"], process.env["IS_MUSL"] === "1"); })()'
+            node -e 'import { getVSCodeSysroot } from "../build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"], process.env["IS_MUSL"] === "1"); })()'
             if [ "$SYSROOT_ARCH" == "arm64" ]; then
               if [ -n "$IS_MUSL" ]; then
                 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$VSCODE_SYSROOT_DIR/output/bin/aarch64-linux-musl-gcc"

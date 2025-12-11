@@ -259,7 +259,8 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.productService.nameLong,
 			this.telemetryService.machineId,
 			this.telemetryService.devDeviceId,
-			targetPopulation
+			targetPopulation,
+			this.productService.date ?? ''
 		);
 
 		const extensionsFilterProvider = this.instantiationService.createInstance(CopilotAssignmentFilterProvider);

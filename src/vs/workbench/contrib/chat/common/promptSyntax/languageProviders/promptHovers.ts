@@ -15,8 +15,8 @@ import { ILanguageModelToolsService, ToolSet } from '../../languageModelToolsSer
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { IHeaderAttribute, PromptBody, PromptHeader, PromptHeaderAttributes, Target } from '../promptFileParser.js';
-import { isGithubTarget, knownGithubCopilotTools } from './promptValidator.js';
+import { IHeaderAttribute, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
+import { isGithubTarget } from './promptValidator.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**
@@ -95,11 +95,13 @@ export class PromptHoverProvider implements HoverProvider {
 						case PromptHeaderAttributes.model:
 							return this.getModelHover(attribute, attribute.range, localize('promptHeader.agent.model', 'Specify the model that runs this custom agent.'), isGitHubTarget);
 						case PromptHeaderAttributes.tools:
-							return this.getToolHover(attribute, position, localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'), header.target);
+							return this.getToolHover(attribute, position, localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'));
 						case PromptHeaderAttributes.handOffs:
 							return this.getHandsOffHover(attribute, position, isGitHubTarget);
 						case PromptHeaderAttributes.target:
 							return this.createHover(localize('promptHeader.agent.target', 'The target to which the header attributes like tools apply to. Possible values are `github-copilot` and `vscode`.'), attribute.range);
+						case PromptHeaderAttributes.infer:
+							return this.createHover(localize('promptHeader.agent.infer', 'Whether the agent can be used as a subagent.'), attribute.range);
 					}
 				}
 			}
@@ -116,7 +118,7 @@ export class PromptHoverProvider implements HoverProvider {
 						case PromptHeaderAttributes.model:
 							return this.getModelHover(attribute, attribute.range, localize('promptHeader.prompt.model', 'The model to use in this prompt.'), false);
 						case PromptHeaderAttributes.tools:
-							return this.getToolHover(attribute, position, localize('promptHeader.prompt.tools', 'The tools to use in this prompt.'), Target.VSCode);
+							return this.getToolHover(attribute, position, localize('promptHeader.prompt.tools', 'The tools to use in this prompt.'));
 						case PromptHeaderAttributes.agent:
 						case PromptHeaderAttributes.mode:
 							return this.getAgentHover(attribute, position);
@@ -127,25 +129,13 @@ export class PromptHoverProvider implements HoverProvider {
 		return undefined;
 	}
 
-	private getToolHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: string | undefined): Hover | undefined {
+	private getToolHover(node: IHeaderAttribute, position: Position, baseMessage: string): Hover | undefined {
 		if (node.value.type === 'array') {
 			for (const toolName of node.value.items) {
 				if (toolName.type === 'string' && toolName.range.containsPosition(position)) {
-					let toolNameValue = toolName.value;
-					if (target === undefined) {
-						toolNameValue = this.languageModelToolsService.mapGithubToolName(toolNameValue);
-					}
-					if (target === Target.VSCode || target === undefined) {
-						const description = this.getToolHoverByName(toolNameValue, toolName.range);
-						if (description) {
-							return description;
-						}
-					}
-					if (target === Target.GitHubCopilot || target === undefined) {
-						const description = knownGithubCopilotTools[toolNameValue];
-						if (description) {
-							return this.createHover(description, toolName.range);
-						}
+					const description = this.getToolHoverByName(toolName.value, toolName.range);
+					if (description) {
+						return description;
 					}
 				}
 			}
@@ -154,7 +144,7 @@ export class PromptHoverProvider implements HoverProvider {
 	}
 
 	private getToolHoverByName(toolName: string, range: Range): Hover | undefined {
-		const tool = this.languageModelToolsService.getToolByQualifiedName(toolName);
+		const tool = this.languageModelToolsService.getToolByFullReferenceName(toolName);
 		if (tool !== undefined) {
 			if (tool instanceof ToolSet) {
 				return this.getToolsetHover(tool, range);

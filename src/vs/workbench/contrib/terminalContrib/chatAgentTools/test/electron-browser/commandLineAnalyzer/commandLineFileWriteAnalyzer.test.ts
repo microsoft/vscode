@@ -79,7 +79,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -108,10 +109,11 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('absolute path - /etc - block', () => t('echo hello > /etc/config.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - /home - block', () => t('echo hello > /home/user/file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - root - block', () => t('echo hello > /file.txt', 'outsideWorkspace', false, 1));
-			test('absolute path - /dev/null - block', () => t('echo hello > /dev/null', 'outsideWorkspace', false, 1));
+			test('absolute path - /dev/null - allow (null device)', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1));
 
 			// Special cases
 			test('no workspace folders - block', () => t('echo hello > file.txt', 'outsideWorkspace', false, 1, []));
+			test('no workspace folders - /dev/null allowed', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1, []));
 			test('no redirections - allow', () => t('echo hello', 'outsideWorkspace', true, 0));
 			test('variable in filename - block', () => t('echo hello > $HOME/file.txt', 'outsideWorkspace', false, 1));
 			test('command substitution - block', () => t('echo hello > $(pwd)/file.txt', 'outsideWorkspace', false, 1));
@@ -129,6 +131,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('pipeline with redirection inside workspace', () => t('cat file.txt | grep "test" > output.txt', 'outsideWorkspace', true, 1));
 			test('multiple redirections mixed inside/outside', () => t('echo hello > file.txt && echo world > /tmp/file.txt', 'outsideWorkspace', false, 1));
 			test('here-document', () => t('cat > file.txt << EOF\nhello\nEOF', 'outsideWorkspace', true, 1));
+			test('error output to /dev/null - allow', () => t('cat missing.txt 2> /dev/null', 'outsideWorkspace', true, 1));
 		});
 
 		suite('no cwd provided', () => {
@@ -144,7 +147,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 					shell: 'bash',
 					os: OperatingSystem.Linux,
 					treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-					terminalToolSessionId: 'test'
+					terminalToolSessionId: 'test',
+					chatSessionId: 'test',
 				};
 
 				const result = await analyzer.analyze(options);
@@ -180,7 +184,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				shell: 'pwsh',
 				os: OperatingSystem.Windows,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -233,7 +238,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		});
 
 		suite('edge cases', () => {
-			test('redirection to $null (variable) - block', () => t('Write-Host "hello" > $null', 'outsideWorkspace', false, 1));
+			test('redirection to $null (PowerShell null device) - allow', () => t('Write-Host "hello" > $null', 'outsideWorkspace', true, 1));
 			test('relative path with backslashes - allow', () => t('Write-Host "hello" > server\\share\\file.txt', 'outsideWorkspace', true, 1));
 			test('quoted filename inside workspace - allow', () => t('Write-Host "hello" > "file with spaces.txt"', 'outsideWorkspace', true, 1));
 			test('forward slashes on Windows (relative) - allow', () => t('Write-Host "hello" > subdir/file.txt', 'outsideWorkspace', true, 1));
@@ -255,7 +260,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -286,7 +292,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -314,7 +321,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);

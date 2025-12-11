@@ -13,13 +13,13 @@
 
 import { TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 
 //------------------------------------------------------------------------------
 // Rule Definition
 //------------------------------------------------------------------------------
 
-module.exports = {
+export default {
 	meta: {
 		type: 'suggestion',
 
@@ -141,8 +141,8 @@ module.exports = {
 
 		return {
 			ExpressionStatement(node: TSESTree.ExpressionStatement) {
-				if (!isValidExpression(node.expression) && !isDirective(node, <TSESTree.Node[]>context.sourceCode.getAncestors(node as ESTree.Node))) {
-					context.report({ node: <ESTree.Node>node, message: `Expected an assignment or function call and instead saw an expression. ${node.expression}` });
+				if (!isValidExpression(node.expression) && !isDirective(node, context.sourceCode.getAncestors(node as ESTree.Node) as TSESTree.Node[])) {
+					context.report({ node: node as ESTree.Node, message: `Expected an assignment or function call and instead saw an expression. ${node.expression}` });
 				}
 			}
 		};

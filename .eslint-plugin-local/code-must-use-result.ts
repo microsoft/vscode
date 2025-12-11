@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 
 const VALID_USES = new Set<TSESTree.AST_NODE_TYPES | undefined>([
@@ -12,14 +12,14 @@ const VALID_USES = new Set<TSESTree.AST_NODE_TYPES | undefined>([
 	TSESTree.AST_NODE_TYPES.VariableDeclarator,
 ]);
 
-export = new class MustUseResults implements eslint.Rule.RuleModule {
+export default new class MustUseResults implements eslint.Rule.RuleModule {
 	readonly meta: eslint.Rule.RuleMetaData = {
 		schema: false
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const config = <{ message: string; functions: string[] }[]>context.options[0];
+		const config = context.options[0] as { message: string; functions: string[] }[];
 		const listener: eslint.Rule.RuleListener = {};
 
 		for (const { message, functions } of config) {

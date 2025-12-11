@@ -350,7 +350,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.swipeToNavigate': {
 				'type': 'boolean',
-				'description': localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally. Note that System Preferences > Trackpad > More Gestures must be set to 'Swipe with two or three fingers'."),
+				'description': localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally. Note that System Preferences > Trackpad > More Gestures > 'Swipe between pages' must be set to 'Swipe with two or three fingers'."),
 				'default': false,
 				'included': isMacintosh && !isWeb
 			},
@@ -573,15 +573,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.secondarySideBar.defaultVisibility.maximizedInWorkspace', "The secondary side bar is visible and maximized by default if a workspace is opened."),
 					localize('workbench.secondarySideBar.defaultVisibility.maximized', "The secondary side bar is visible and maximized by default.")
 				]
-			},
-			'workbench.secondarySideBar.enableDefaultVisibilityInOldWorkspace': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('enableDefaultVisibilityInOldWorkspace', "Enables the default secondary sidebar visibility in older workspaces before we had default visibility support."),
-				'tags': ['advanced'],
-				'experiment': {
-					'mode': 'auto'
-				}
 			},
 			'workbench.secondarySideBar.showLabels': {
 				'type': 'boolean',

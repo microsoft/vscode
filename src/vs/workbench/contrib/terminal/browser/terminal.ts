@@ -34,7 +34,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
-import type { SingleOrMany } from '../../../../base/common/types.js';
+import { isNumber, type SingleOrMany } from '../../../../base/common/types.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -165,13 +165,58 @@ export interface ITerminalChatService {
 	 */
 	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
+	/**
+	 * Check if a terminal is a background terminal (tool-driven terminal that may be hidden from
+	 * normal UI).
+	 * @param terminalToolSessionId The tool session ID to check, if provided
+	 * @returns True if the terminal is a background terminal, false otherwise
+	 */
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 
-	registerChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): IDisposable;
-	setFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void;
-	clearFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void;
-	getFocusedChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined;
-	getMostRecentChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined;
+	/**
+	 * Register a chat terminal tool progress part for tracking and focus management.
+	 * @param part The progress part to register
+	 * @returns A disposable that unregisters the progress part when disposed
+	 */
+	registerProgressPart(part: IChatTerminalToolProgressPart): IDisposable;
+
+	/**
+	 * Set the currently focused progress part.
+	 * @param part The progress part to focus
+	 */
+	setFocusedProgressPart(part: IChatTerminalToolProgressPart): void;
+
+	/**
+	 * Clear the focused state from a progress part.
+	 * @param part The progress part to clear focus from
+	 */
+	clearFocusedProgressPart(part: IChatTerminalToolProgressPart): void;
+
+	/**
+	 * Get the currently focused progress part, if any.
+	 * @returns The focused progress part or undefined if none is focused
+	 */
+	getFocusedProgressPart(): IChatTerminalToolProgressPart | undefined;
+
+	/**
+	 * Get the most recently registered progress part, if any.
+	 * @returns The most recent progress part or undefined if none exist
+	 */
+	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined;
+
+	/**
+	 * Enable or disable auto approval for all commands in a specific session.
+	 * @param chatSessionId The chat session ID
+	 * @param enabled Whether to enable or disable session auto approval
+	 */
+	setChatSessionAutoApproval(chatSessionId: string, enabled: boolean): void;
+
+	/**
+	 * Check if a session has auto approval enabled for all commands.
+	 * @param chatSessionId The chat session ID
+	 * @returns True if the session has auto approval enabled
+	 */
+	hasChatSessionAutoApproval(chatSessionId: string): boolean;
 }
 
 /**
@@ -287,6 +332,7 @@ export interface IDetachedXTermOptions {
 	capabilities?: ITerminalCapabilityStore;
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
+	disableOverviewRuler?: boolean;
 }
 
 /**
@@ -361,7 +407,7 @@ export interface IDetachedTerminalInstance extends IDisposable, IBaseTerminalIns
 	attachToElement(container: HTMLElement, options?: Partial<IXtermAttachToElementOptions>): void;
 }
 
-export const isDetachedTerminalInstance = (t: ITerminalInstance | IDetachedTerminalInstance): t is IDetachedTerminalInstance => typeof (t as ITerminalInstance).instanceId !== 'number';
+export const isDetachedTerminalInstance = (t: ITerminalInstance | IDetachedTerminalInstance): t is IDetachedTerminalInstance => !isNumber((t as ITerminalInstance).instanceId);
 
 export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
@@ -1297,6 +1343,14 @@ export interface IXtermTerminal extends IDisposable {
 	 * Gets the font metrics of this xterm.js instance.
 	 */
 	getFont(): ITerminalFont;
+
+	/**
+	 * Gets the content between two markers as VT sequences.
+	 * @param startMarker The marker to start from.
+	 * @param endMarker The marker to end at.
+	 * @param skipLastLine Whether the last line should be skipped (e.g. when it's the prompt line)
+	 */
+	getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string>;
 
 	/**
 	 * Gets whether there's any terminal selection.

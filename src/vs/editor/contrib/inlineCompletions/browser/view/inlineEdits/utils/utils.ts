@@ -30,6 +30,9 @@ import { CharCode } from '../../../../../../../base/common/charCode.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { Size2D } from '../../../../../../common/core/2d/size.js';
 
+/**
+ * Warning: might return 0.
+*/
 export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): number {
 	editor.layoutInfo.read(reader);
 	editor.value.read(reader);
@@ -40,14 +43,7 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 
 	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
-		const column = model.getLineMaxColumn(i);
-		let lineContentWidth = editor.editor.getOffsetForColumn(i, column);
-		if (lineContentWidth === -1) {
-			// approximation
-			const typicalHalfwidthCharacterWidth = editor.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-			const approximation = column * typicalHalfwidthCharacterWidth;
-			lineContentWidth = approximation;
-		}
+		const lineContentWidth = editor.editor.getWidthOfLine(i);
 		maxContentWidth = Math.max(maxContentWidth, lineContentWidth);
 	}
 	const lines = range.mapToLineArray(l => model.getLineContent(l));
@@ -70,10 +66,10 @@ export function getContentSizeOfLines(editor: ObservableCodeEditor, range: LineR
 
 	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
-		const column = model.getLineMaxColumn(i);
-		let lineContentWidth = editor.editor.getOffsetForColumn(i, column);
+		let lineContentWidth = editor.editor.getWidthOfLine(i);
 		if (lineContentWidth === -1) {
 			// approximation
+			const column = model.getLineMaxColumn(i);
 			const typicalHalfwidthCharacterWidth = editor.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 			const approximation = column * typicalHalfwidthCharacterWidth;
 			lineContentWidth = approximation;
@@ -433,7 +429,7 @@ export function rectToProps(fn: (reader: IReader) => Rect | undefined, debugLoca
 			if (!val) {
 				return undefined;
 			}
-			return val.right - val.left;
+			return val.width;
 		}, debugLocation),
 		height: derived({ name: 'editor.validOverlay.height' }, reader => {
 			/** @description height */
@@ -441,9 +437,19 @@ export function rectToProps(fn: (reader: IReader) => Rect | undefined, debugLoca
 			if (!val) {
 				return undefined;
 			}
-			return val.bottom - val.top;
+			return val.height;
 		}, debugLocation),
 	};
 }
 
 export type FirstFnArg<T> = T extends (arg: infer U) => any ? U : never;
+
+
+export function observeEditorBoundingClientRect(editor: ICodeEditor, store: DisposableStore): IObservable<DOMRectReadOnly> {
+	const dom = editor.getContainerDomNode()!;
+	const initialDomRect = observableValue('domRect', dom.getBoundingClientRect());
+	store.add(editor.onDidLayoutChange(e => {
+		initialDomRect.set(dom.getBoundingClientRect(), undefined);
+	}));
+	return initialDomRect;
+}

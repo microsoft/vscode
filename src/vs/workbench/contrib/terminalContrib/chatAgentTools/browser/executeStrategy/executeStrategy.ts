@@ -165,6 +165,17 @@ export async function trackIdleOnPrompt(
 	const scheduler = store.add(new RunOnceScheduler(() => {
 		idleOnPrompt.complete();
 	}, idleDurationMs));
+	let state: TerminalState = TerminalState.Initial;
+
+	// Fallback in case prompt sequences are not seen but the terminal goes idle.
+	const promptFallbackScheduler = store.add(new RunOnceScheduler(() => {
+		if (state === TerminalState.Executing || state === TerminalState.PromptAfterExecuting) {
+			promptFallbackScheduler.cancel();
+			return;
+		}
+		state = TerminalState.PromptAfterExecuting;
+		scheduler.schedule();
+	}, 1000));
 	// Only schedule when a prompt sequence (A) is seen after an execute sequence (C). This prevents
 	// cases where the command is executed before the prompt is written. While not perfect, sitting
 	// on an A without a C following shortly after is a very good indicator that the command is done
@@ -177,7 +188,6 @@ export async function trackIdleOnPrompt(
 		Executing,
 		PromptAfterExecuting,
 	}
-	let state: TerminalState = TerminalState.Initial;
 	store.add(onData(e => {
 		// Update state
 		// p10k fires C as `133;C;`
@@ -195,9 +205,15 @@ export async function trackIdleOnPrompt(
 		}
 		// Re-schedule on every data event as we're tracking data idle
 		if (state === TerminalState.PromptAfterExecuting) {
+			promptFallbackScheduler.cancel();
 			scheduler.schedule();
 		} else {
 			scheduler.cancel();
+			if (state === TerminalState.Initial || state === TerminalState.Prompt) {
+				promptFallbackScheduler.schedule();
+			} else {
+				promptFallbackScheduler.cancel();
+			}
 		}
 	}));
 	return idleOnPrompt.p;
