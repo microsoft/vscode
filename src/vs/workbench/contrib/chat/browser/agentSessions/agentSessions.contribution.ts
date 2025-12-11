@@ -21,6 +21,7 @@ import { LocalAgentsSessionsProvider } from './localAgentSessionsProvider.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ArchiveAgentSessionAction, UnarchiveAgentSessionAction, RefreshAgentSessionsViewAction, FindAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction } from './agentSessionsActions.js';
+import { ChatViewId } from '../chat.js';
 
 //#region View Container and View Registration
 
@@ -95,57 +96,61 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	when: ChatContextKeys.agentSessionsViewerLimited.negate()
 } satisfies ISubmenuItem);
 
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
 		id: ShowAgentSessionsSidebar.ID,
 		title: ShowAgentSessionsSidebar.TITLE,
 		icon: Codicon.layoutSidebarRightOff,
 	},
 	group: 'navigation',
-	order: 5,
+	order: 10,
 	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals('view', ChatViewId),
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
 		id: ShowAgentSessionsSidebar.ID,
 		title: ShowAgentSessionsSidebar.TITLE,
 		icon: Codicon.layoutSidebarLeftOff,
 	},
 	group: 'navigation',
-	order: 5,
+	order: 10,
 	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals('view', ChatViewId),
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
 		id: HideAgentSessionsSidebar.ID,
 		title: HideAgentSessionsSidebar.TITLE,
 		icon: Codicon.layoutSidebarRight,
 	},
 	group: 'navigation',
-	order: 5,
+	order: 10,
 	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals('view', ChatViewId),
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
 		id: HideAgentSessionsSidebar.ID,
 		title: HideAgentSessionsSidebar.TITLE,
 		icon: Codicon.layoutSidebarLeft,
 	},
 	group: 'navigation',
-	order: 5,
+	order: 10,
 	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals('view', ChatViewId),
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
 	)
