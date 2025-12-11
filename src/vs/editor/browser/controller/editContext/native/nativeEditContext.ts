@@ -113,10 +113,12 @@ export class NativeEditContext extends AbstractEditContext {
 		this._screenReaderSupport = this._register(instantiationService.createInstance(ScreenReaderSupport, this.domNode, context, this._viewController));
 
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => {
+			performance.mark('code/nativeEditContext/copy');
 			this.logService.trace('NativeEditContext#copy');
 			ensureClipboardGetsEditorSelection(e, this._context, this.logService, isFirefox);
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			performance.mark('code/nativeEditContext/cut');
 			this.logService.trace('NativeEditContext#cut');
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
@@ -147,6 +149,7 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
 			this.logService.trace('NativeEditContext#paste with id : ', metadata?.id, ' with text.length: ', text.length);
+			performance.mark('code/nativeEditContext/paste', { detail: { id: metadata?.id, length: text.length } });
 			if (!text) {
 				return;
 			}

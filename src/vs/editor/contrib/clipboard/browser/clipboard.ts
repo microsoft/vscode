@@ -201,12 +201,14 @@ function executeClipboardCopyWithWorkaround(editor: IActiveCodeEditor, clipboard
 	// We will use this as a signal that we have executed a copy command
 	// !!!!!
 	CopyOptions.electronBugWorkaroundCopyEventHasFired = false;
+	performance.mark('code/registerExecCommandImpl/beforeExecCopy');
 	editor.getContainerDomNode().ownerDocument.execCommand('copy');
 	if (platform.isNative && CopyOptions.electronBugWorkaroundCopyEventHasFired === false) {
 		// We have encountered the Electron bug!
 		// As a workaround, we will write (only the plaintext data) to the clipboard in a different way
 		// We will use the clipboard service (which in the native case will go to electron's clipboard API)
 		const { dataToCopy } = generateDataToCopyAndStoreInMemory(editor._getViewModel(), editor.getOptions(), undefined, browser.isFirefox);
+		performance.mark('code/registerExecCommandImpl/fallback');
 		clipboardService.writeText(dataToCopy.text);
 	}
 }
@@ -221,6 +223,7 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 		const logService = accessor.get(ILogService);
 		const clipboardService = accessor.get(IClipboardService);
 		logService.trace('registerExecCommandImpl (addImplementation code-editor for : ', browserCommand, ')');
+		performance.mark('code/registerExecCommandImpl/cutOrCopy', { detail: { command: browserCommand } });
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus() && focusedEditor.hasModel()) {
@@ -282,6 +285,7 @@ if (PasteAction) {
 	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: unknown) => {
 		const logService = accessor.get(ILogService);
 		logService.trace('registerExecCommandImpl (addImplementation code-editor for : paste)');
+		performance.mark('code/registerExecCommandImpl/paste');
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
 		const telemetryService = accessor.get(ITelemetryService);

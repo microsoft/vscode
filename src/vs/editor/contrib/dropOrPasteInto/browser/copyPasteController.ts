@@ -178,8 +178,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			const storedMetadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 			id = storedMetadata?.id || null;
 			this._logService.trace('CopyPasteController#handleCopy for id : ', id, ' with text.length : ', text.length);
+			performance.mark('code/CopyPasteController/handleCopy', { detail: { id, length: text.length } });
 		} else {
 			this._logService.trace('CopyPasteController#handleCopy');
+			performance.mark('code/CopyPasteController/handleCopy');
 		}
 		if (!this._editor.hasTextFocus()) {
 			return;
@@ -261,8 +263,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			const [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
 			const metadataComputed = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 			this._logService.trace('CopyPasteController#handlePaste for id : ', metadataComputed?.id);
+			performance.mark('code/CopyPasteController/handlePaste', { detail: { id: metadataComputed?.id } });
 		} else {
 			this._logService.trace('CopyPasteController#handlePaste');
+			performance.mark('code/CopyPasteController/handlePaste');
 		}
 		if (!e.clipboardData || !this._editor.hasTextFocus()) {
 			return;

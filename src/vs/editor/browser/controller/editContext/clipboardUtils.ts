@@ -33,6 +33,7 @@ export function ensureClipboardGetsEditorSelection(e: ClipboardEvent, context: V
 		ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
 	}
 	logService.trace('ensureClipboardGetsEditorSelection with id : ', id, ' with text.length: ', dataToCopy.text.length);
+	performance.mark('code/nativeEditContext/ensureClipboardGetsEditorSelection', { detail: { id, length: dataToCopy.text.length } });
 }
 
 export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, options: IComputedEditorOptions, id: string | undefined, isFirefox: boolean) {
