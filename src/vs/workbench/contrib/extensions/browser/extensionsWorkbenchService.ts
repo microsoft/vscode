@@ -598,12 +598,14 @@ ${this.description}
 	}
 }
 
+const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
+
 function checkMinimumReleaseAge(releaseDate: number, minimumReleaseAgeDays: number): boolean {
 	if (!minimumReleaseAgeDays || minimumReleaseAgeDays <= 0) {
 		return true;
 	}
 	const now = Date.now();
-	const daysSinceRelease = (now - releaseDate) / (1000 * 60 * 60 * 24);
+	const daysSinceRelease = (now - releaseDate) / MILLISECONDS_PER_DAY;
 	return daysSinceRelease >= minimumReleaseAgeDays;
 }
 
@@ -1551,16 +1553,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return text.substr(0, 350);
 	}
 
-	private meetsMinimumReleaseAge(gallery: IGalleryExtension, minimumReleaseAge: number): boolean {
-		return checkMinimumReleaseAge(gallery.releaseDate, minimumReleaseAge);
-	}
-
 	private filterGalleryExtensionsByMinimumAge(galleries: IGalleryExtension[]): IGalleryExtension[] {
 		const minimumReleaseAge = this.configurationService.getValue<number>(MinimumReleaseAgeConfigurationKey);
 		if (!minimumReleaseAge || minimumReleaseAge <= 0) {
 			return galleries;
 		}
-		return galleries.filter(gallery => this.meetsMinimumReleaseAge(gallery, minimumReleaseAge));
+		return galleries.filter(gallery => checkMinimumReleaseAge(gallery.releaseDate, minimumReleaseAge));
 	}
 
 	private fromGallery(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): IExtension {
