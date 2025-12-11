@@ -54,7 +54,7 @@ export class ChatViewTitleControl extends Disposable {
 	private title: string | undefined = undefined;
 
 	private titleContainer: HTMLElement | undefined;
-	private titleLabel: ChatViewTitleLabel | undefined;
+	private titleLabel = this._register(new MutableDisposable<ChatViewTitleLabel>());
 	private titleIcon: HTMLElement | undefined;
 
 	private model: IChatModel | undefined;
@@ -134,11 +134,10 @@ export class ChatViewTitleControl extends Disposable {
 		this.navigationToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.navigationToolbar, MenuId.ChatViewSessionTitleNavigationToolbar, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === ChatViewTitleControl.PICK_AGENT_SESSION_ACTION_ID) {
-					this.titleLabel?.dispose();
-					this.titleLabel = this._register(new ChatViewTitleLabel(action));
-					this.titleLabel?.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
+					this.titleLabel.value = new ChatViewTitleLabel(action);
+					this.titleLabel.value.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
 
-					return this.titleLabel;
+					return this.titleLabel.value;
 				}
 
 				return undefined;
@@ -248,7 +247,7 @@ export class ChatViewTitleControl extends Disposable {
 		}
 
 		this.titleContainer.classList.toggle('visible', this.shouldRender());
-		this.titleLabel?.updateTitle(title);
+		this.titleLabel.value?.updateTitle(title);
 
 		const currentHeight = this.getHeight();
 		if (currentHeight !== this.lastKnownHeight) {
