@@ -67,6 +67,8 @@ export class CellDragAndDropController extends Disposable {
 
 	private readonly listOnWillScrollListener = this._register(new MutableDisposable());
 
+	private readonly registeredDragHandles = new Set<HTMLElement>();
+
 	constructor(
 		private notebookEditor: INotebookEditorDelegate,
 		private readonly notebookListContainer: HTMLElement
@@ -110,6 +112,12 @@ export class CellDragAndDropController extends Disposable {
 		});
 
 		this.scrollingDelayer = this._register(new Delayer(200));
+
+		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions(e => {
+			if (e.dragAndDropEnabled) {
+				this.updateDragHandlesState();
+			}
+		}));
 	}
 
 	setList(value: INotebookCellList) {
@@ -302,9 +310,23 @@ export class CellDragAndDropController extends Disposable {
 
 	registerDragHandle(templateData: BaseCellRenderTemplate, cellRoot: HTMLElement, dragHandles: HTMLElement[], dragImageProvider: DragImageProvider): void {
 		const container = templateData.container;
+		
+		// Track drag handles so we can update them when drag-and-drop setting changes
 		for (const dragHandle of dragHandles) {
-			dragHandle.setAttribute('draggable', 'true');
+			this.registeredDragHandles.add(dragHandle);
 		}
+		
+		// Set initial draggable state based on current setting
+		this.updateDragHandlesState(dragHandles);
+
+		// Clean up drag handles from tracking when template is disposed
+		templateData.templateDisposables.add({
+			dispose: () => {
+				for (const dragHandle of dragHandles) {
+					this.registeredDragHandles.delete(dragHandle);
+				}
+			}
+		});
 
 		const onDragEnd = () => {
 			if (!this.notebookEditor.notebookOptions.getDisplayOptions().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
@@ -339,6 +361,19 @@ export class CellDragAndDropController extends Disposable {
 		};
 		for (const dragHandle of dragHandles) {
 			templateData.templateDisposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, onDragStart));
+		}
+	}
+
+	private updateDragHandlesState(dragHandles?: HTMLElement[]): void {
+		const isDragAndDropEnabled = this.notebookEditor.notebookOptions.getDisplayOptions().dragAndDropEnabled && !this.notebookEditor.isReadOnly;
+		const handlesToUpdate = dragHandles ?? Array.from(this.registeredDragHandles);
+		
+		for (const dragHandle of handlesToUpdate) {
+			if (isDragAndDropEnabled) {
+				dragHandle.setAttribute('draggable', 'true');
+			} else {
+				dragHandle.removeAttribute('draggable');
+			}
 		}
 	}
 
