@@ -545,6 +545,28 @@ suite('TerminalCompletionService', () => {
 				{ label: './../', detail: '/' }
 			], { replacementRange: [1, 10] });
 		});
+		test('should resolve nested folder when name matches cwd basename', async () => {
+			const resourceOptions: TerminalCompletionResourceOptions = {
+				cwd: URI.parse('file:///test'),
+				showDirectories: true,
+				pathSeparator
+			};
+			validResources = [
+				URI.parse('file:///test'),
+				URI.parse('file:///test/test'),
+			];
+			childResources = [
+				{ resource: URI.parse('file:///test/test/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/test/inner/'), isDirectory: true }
+			];
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'test/', 5, provider, capabilities);
+
+			assertCompletions(result, [
+				{ label: './test/', detail: '/test/test/' },
+				{ label: './test/inner/', detail: '/test/test/inner/' },
+				{ label: './test/../', detail: '/' }
+			], { replacementRange: [0, 5] });
+		});
 		test('test/| should normalize current and parent folders', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
