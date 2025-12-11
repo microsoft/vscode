@@ -2337,6 +2337,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// visibility sync before we accept input to hide the welcome view
+		this.updateChatViewVisibility();
+
 		this.input.acceptInput(isUserQuery);
 		this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
 		this.handleDelegationExitIfNeeded(this._lockedAgent, result.agent);
