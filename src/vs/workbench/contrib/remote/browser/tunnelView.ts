@@ -18,7 +18,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../
 import { ICommandService, ICommandHandler, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { Event } from '../../../../base/common/event.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
