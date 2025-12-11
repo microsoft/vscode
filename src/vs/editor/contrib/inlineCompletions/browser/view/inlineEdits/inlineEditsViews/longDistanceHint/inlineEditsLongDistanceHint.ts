@@ -29,8 +29,9 @@ import { Size2D } from '../../../../../../../common/core/2d/size.js';
 import { getMaxTowerHeightInAvailableArea } from '../../utils/towersLayout.js';
 import { IThemeService } from '../../../../../../../../platform/theme/common/themeService.js';
 import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
-import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground } from '../../theme.js';
+import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground, observeColor } from '../../theme.js';
 import { asCssVariable, descriptionForeground, editorBackground, editorWidgetBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
+import { editorWidgetBorder } from '../../../../../../../../platform/theme/common/colors/editorColors.js';
 import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
 import { jumpToNextInlineEditId } from '../../../../controller/commandIds.js';
@@ -58,15 +59,30 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 	) {
 		super();
 
-		this._styles = this._tabAction.map((v, reader) => {
-			let border;
-			switch (v) {
-				case InlineEditTabAction.Inactive: border = inlineEditIndicatorSecondaryBackground; break;
-				case InlineEditTabAction.Jump: border = inlineEditIndicatorPrimaryBackground; break;
-				case InlineEditTabAction.Accept: border = inlineEditIndicatorSuccessfulBackground; break;
+		this._styles = derived(reader => {
+			const v = this._tabAction.read(reader);
+
+			// Check theme type by observing a color - this ensures we react to theme changes
+			const widgetBorderColor = observeColor(editorWidgetBorder, this._themeService).read(reader);
+			const theme = this._themeService.getColorTheme();
+			const isHighContrast = theme.type === 'hcDark' || theme.type === 'hcLight';
+
+			let borderColor;
+			if (isHighContrast) {
+				// Use editorWidgetBorder in high contrast mode for better visibility
+				borderColor = widgetBorderColor;
+			} else {
+				let border;
+				switch (v) {
+					case InlineEditTabAction.Inactive: border = inlineEditIndicatorSecondaryBackground; break;
+					case InlineEditTabAction.Jump: border = inlineEditIndicatorPrimaryBackground; break;
+					case InlineEditTabAction.Accept: border = inlineEditIndicatorSuccessfulBackground; break;
+				}
+				borderColor = getEditorBlendedColor(border, this._themeService).read(reader);
 			}
+
 			return {
-				border: getEditorBlendedColor(border, this._themeService).read(reader).toString(),
+				border: borderColor.toString(),
 				background: asCssVariable(editorBackground)
 			};
 		});
