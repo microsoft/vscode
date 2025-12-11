@@ -553,8 +553,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 // Chat sessions item data source for the tree
 export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, ChatSessionItemWithProvider | ArchivedSessionItems> {
-	// For now call it History until we support archive on all providers
-	private archivedItems = new ArchivedSessionItems(nls.localize('chat.sessions.archivedSessions', 'History'));
+	private archivedItems = new ArchivedSessionItems(nls.localize('chat.sessions.archivedSessions', 'Archived'));
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 	) {
