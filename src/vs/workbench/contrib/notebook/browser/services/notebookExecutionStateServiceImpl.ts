@@ -221,7 +221,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 
 		const newLastFailedCellInfo: IFailedCellInfo = {
 			cellHandle: cellHandle,
-			disposable: prevLastFailedCellInfo ? prevLastFailedCellInfo.disposable : this._getFailedCellListener(notebook),
+			disposable: prevLastFailedCellInfo ? prevLastFailedCellInfo.disposable : this._getFailedCellListener(notebook, cellHandle),
 			visible: true
 		};
 
@@ -255,8 +255,8 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		this._onDidChangeLastRunFailState.fire({ visible: false, notebook: notebookURI });
 	}
 
-	private _getFailedCellListener(notebook: NotebookTextModel): IDisposable {
-		return notebook.onWillAddRemoveCells((e: NotebookTextModelWillAddRemoveEvent) => {
+	private _getFailedCellListener(notebook: NotebookTextModel, cellHandle: number): IDisposable {
+		const onWillAddRemoveCells = notebook.onWillAddRemoveCells((e: NotebookTextModelWillAddRemoveEvent) => {
 			const lastFailedCell = this._lastFailedCells.get(notebook.uri)?.cellHandle;
 			if (lastFailedCell !== undefined) {
 				const lastFailedCellPos = notebook.cells.findIndex(c => c.handle === lastFailedCell);
@@ -274,6 +274,17 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 				});
 			}
 		});
+
+		// Find the specific cell and listen for its metadata changes
+		const cell = notebook.cells.find(c => c.handle === cellHandle);
+		const cellMetadataListener = cell ? cell.onDidChangeInternalMetadata(e => {
+			// If lastRunSuccess changed and is now null, the outputs were cleared
+			if (e.lastRunSuccessChanged && cell.internalMetadata.lastRunSuccess === null) {
+				this._clearLastFailedCell(notebook.uri);
+			}
+		}) : { dispose: () => { } };
+
+		return combinedDisposable(onWillAddRemoveCells, cellMetadataListener);
 	}
 
 	override dispose(): void {
