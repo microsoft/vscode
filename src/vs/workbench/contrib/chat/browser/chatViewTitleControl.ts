@@ -320,13 +320,14 @@ class ChatViewTitleLabel extends ActionViewItem {
 	}
 
 	protected override updateLabel(): void {
-		if (this.options.label && this.label && this.title) {
+		if (this.options.label && this.label && typeof this.title === 'string') {
 			this.label.textContent = this.title;
 		}
 	}
 
 	updateTitle(title: string): void {
 		this.title = title;
+
 		this.updateLabel();
 	}
 }

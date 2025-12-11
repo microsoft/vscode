@@ -13,6 +13,10 @@
 		align-items: center;
 		cursor: pointer;
 
+		.chat-view-title-navigation-toolbar {
+			overflow: hidden;
+		}
+
 		.chat-view-title-label {
 			text-transform: uppercase;
 			font-size: 11px;
