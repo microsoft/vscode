@@ -55,6 +55,7 @@ import { ChatViewId } from './chat.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { AgentSessionsFilter } from './agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -321,7 +322,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
-			filter: sessionsFilter
+			filter: sessionsFilter,
+			getHoverPosition: () => this.sessionsViewerPosition === AgentSessionsViewerPosition.Right ? HoverPosition.LEFT : HoverPosition.RIGHT
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 

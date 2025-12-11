@@ -10,9 +10,6 @@ import { IChatSessionItem, localChatSessionType } from '../../common/chatSession
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 
-export const AGENT_SESSIONS_VIEW_CONTAINER_ID = 'workbench.viewContainer.agentSessions';
-export const AGENT_SESSIONS_VIEW_ID = 'workbench.view.agentSessions';
-
 export enum AgentSessionProviders {
 	Local = localChatSessionType,
 	Background = 'copilotcli',

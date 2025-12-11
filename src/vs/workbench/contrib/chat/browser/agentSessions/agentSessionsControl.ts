@@ -24,19 +24,20 @@ import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Separator } from '../../../../../base/common/actions.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
 import { IAgentSessionsControl, IMarshalledChatSessionContext } from './agentSessions.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly filter?: IAgentSessionsFilter;
-	readonly trackActiveEditor?: boolean;
+
+	getHoverPosition(): HoverPosition;
 }
 
 type AgentSessionOpenedClassification = {
@@ -58,7 +59,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	constructor(
 		private readonly container: HTMLElement,
-		private readonly options: IAgentSessionsControlOptions | undefined,
+		private readonly options: IAgentSessionsControlOptions,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -68,45 +69,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
 		this.createList(this.container);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		if (this.options?.trackActiveEditor) {
-			this._register(this.editorService.onDidActiveEditorChange(() => this.revealAndFocusActiveEditorSession()));
-		}
-	}
-
-	private revealAndFocusActiveEditorSession(): void {
-		if (!this.visible) {
-			return;
-		}
-
-		const input = this.editorService.activeEditor;
-		if (!(input instanceof ChatEditorInput)) {
-			return;
-		}
-
-		const sessionResource = input.sessionResource;
-		if (!sessionResource) {
-			return;
-		}
-
-		const matchingSession = this.agentSessionsService.model.getSession(sessionResource);
-		if (matchingSession && this.sessionsList?.hasNode(matchingSession)) {
-			if (this.sessionsList.getRelativeTop(matchingSession) === null) {
-				this.sessionsList.reveal(matchingSession, 0.5); // only reveal when not already visible
-			}
-
-			this.sessionsList.setFocus([matchingSession]);
-			this.sessionsList.setSelection([matchingSession]);
-		}
 	}
 
 	private createList(container: HTMLElement): void {
@@ -119,7 +85,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			new AgentSessionsListDelegate(),
 			new AgentSessionsCompressionDelegate(),
 			[
-				this.instantiationService.createInstance(AgentSessionRenderer)
+				this.instantiationService.createInstance(AgentSessionRenderer, this.options),
 			],
 			new AgentSessionsDataSource(this.options?.filter, sorter),
 			{
