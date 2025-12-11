@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -254,6 +254,8 @@ const telemetryIgnoredSequences = [
 	'\x1b[I', // Focus in
 	'\x1b[O', // Focus out
 ];
+
+const altBufferMessage = localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
 
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
@@ -637,6 +639,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			let outputLineCount = -1;
 			let exitCode: number | undefined;
+			const executeCancellation = store.add(new CancellationTokenSource(token));
+			const alternateBufferPromise = this._createAltBufferPromise(xterm, store);
 			try {
 				let strategy: ITerminalExecuteStrategy;
 				switch (toolTerminal.shellIntegrationQuality) {
@@ -660,7 +664,38 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const executeResult = await strategy.execute(command, token, commandId);
+				const executePromise = strategy.execute(command, executeCancellation.token, commandId);
+				const executeResultOrAltBuffer = await Promise.race([
+					executePromise.then(result => ({ type: 'result' as const, result })),
+					alternateBufferPromise.then(() => ({ type: 'altBuffer' as const }))
+				]);
+				if (executeResultOrAltBuffer.type === 'altBuffer') {
+					error = 'alternateBuffer';
+					executeCancellation.cancel();
+					try {
+						await executePromise;
+					} catch (e) {
+						if (!(e instanceof CancellationError)) {
+							this._logService.debug('RunInTerminalTool: Ignoring execute promise rejection after alt buffer', e);
+						}
+					}
+					const state = toolSpecificData.terminalCommandState ?? {};
+					state.timestamp = state.timestamp ?? timingStart;
+					toolSpecificData.terminalCommandState = state;
+					toolResultMessage = altBufferMessage;
+					outputLineCount = 0;
+					return {
+						toolResultMessage,
+						toolMetadata: {
+							exitCode: undefined
+						},
+						content: [{
+							kind: 'text',
+							value: altBufferMessage,
+						}]
+					};
+				}
+				const executeResult = executeResultOrAltBuffer.result;
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
@@ -756,6 +791,27 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalService.setActiveInstance(toolTerminal.instance);
 			this._terminalService.revealTerminal(toolTerminal.instance, true);
 		}
+	}
+
+	private _createAltBufferPromise(xterm: XtermTerminal, store: DisposableStore): Promise<void> {
+		const deferred = new DeferredPromise<void>();
+		const complete = () => {
+			if (!deferred.isSettled) {
+				deferred.complete();
+			}
+		};
+
+		if (xterm.raw.buffer.active === xterm.raw.buffer.alternate) {
+			complete();
+		} else {
+			store.add(xterm.raw.buffer.onBufferChange(() => {
+				if (xterm.raw.buffer.active === xterm.raw.buffer.alternate) {
+					complete();
+				}
+			}));
+		}
+
+		return deferred.p;
 	}
 
 	// #region Terminal init
