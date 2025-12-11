@@ -425,10 +425,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private titleControl: ChatViewTitleControl | undefined;
 
-	get titleControlAgentPickerElement(): HTMLElement | undefined {
-		return this.titleControl?.agentPickerElement;
-	}
-
 	private createChatControl(parent: HTMLElement): ChatWidget {
 		const chatControlsContainer = append(parent, $('.chat-controls-container'));
 

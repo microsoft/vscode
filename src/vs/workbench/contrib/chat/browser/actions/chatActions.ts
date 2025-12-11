@@ -83,7 +83,6 @@ export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
 export const ACTION_ID_OPEN_CHAT = 'workbench.action.openChat';
-export const ACTION_ID_PICK_AGENT_SESSION = 'workbench.action.chat.pickAgentSession';
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 export const CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID = 'workbench.action.chat.triggerSetupSupportAnonymousAction';

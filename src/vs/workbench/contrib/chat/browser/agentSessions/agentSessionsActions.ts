@@ -23,13 +23,10 @@ import { showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { ACTION_ID_NEW_CHAT, ACTION_ID_PICK_AGENT_SESSION, CHAT_CATEGORY } from '../actions/chatActions.js';
+import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AgentSessionsPicker } from './agentSessionsPicker.js';
 
 export class FocusAgentSessionsAction extends Action2 {
 
@@ -302,34 +299,6 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 
 	runWithSession(session: IAgentSession): void {
 		session.setRead(true);
-	}
-}
-
-//#endregion
-
-//#region Chat View Title Actions
-
-export class PickAgentSessionAction extends ViewAction<ChatViewPane> {
-
-	constructor() {
-		super({
-			id: ACTION_ID_PICK_AGENT_SESSION,
-			title: localize2('chat.pickAgentSession', "Pick Agent Session"),
-			viewId: ChatViewId,
-			f1: false,
-			menu: [{
-				id: MenuId.ChatViewSessionTitleNavigationToolbar,
-				group: 'navigation',
-				order: 2
-			}]
-		});
-	}
-
-	override async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
-		const instantiationService = accessor.get(IInstantiationService);
-
-		const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, view.titleControlAgentPickerElement);
-		await agentSessionsPicker.pickAgentSession();
 	}
 }
 

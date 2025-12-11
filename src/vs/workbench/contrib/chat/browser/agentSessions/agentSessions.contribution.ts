@@ -13,11 +13,10 @@ import { IAgentSessionsService, AgentSessionsService } from './agentSessionsServ
 import { LocalAgentsSessionsProvider } from './localAgentSessionsProvider.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ArchiveAgentSessionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, PickAgentSessionAction } from './agentSessionsActions.js';
+import { ArchiveAgentSessionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction } from './agentSessionsActions.js';
 
 //#region Actions and Menus
 
-registerAction2(PickAgentSessionAction);
 registerAction2(FocusAgentSessionsAction);
 registerAction2(ArchiveAgentSessionAction);
 registerAction2(UnarchiveAgentSessionAction);

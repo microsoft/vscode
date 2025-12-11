@@ -17,17 +17,17 @@ import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IViewContainerModel, IViewDescriptorService } from '../../../common/views.js';
 import { ActivityBarPosition, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatModel } from '../common/chatModel.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { ACTION_ID_PICK_AGENT_SESSION } from './actions/chatActions.js';
 import { ChatViewId } from './chat.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions/agentSessions.js';
+import { AgentSessionsPicker } from './agentSessions/agentSessionsPicker.js';
 
 export interface IChatViewTitleDelegate {
 	updateTitle(title: string): void;
@@ -37,6 +37,7 @@ export interface IChatViewTitleDelegate {
 export class ChatViewTitleControl extends Disposable {
 
 	private static readonly DEFAULT_TITLE = localize('chat', "Chat");
+	private static readonly ACTION_ID_PICK_AGENT_SESSION = 'workbench.action.chat.pickAgentSession';
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -62,10 +63,6 @@ export class ChatViewTitleControl extends Disposable {
 	private actionsToolbar?: MenuWorkbenchToolBar;
 	private agentPickerActionViewItem?: ChatViewTitleAgentPickerActionViewItem;
 
-	get agentPickerElement(): HTMLElement | undefined {
-		return this.agentPickerActionViewItem?.element;
-	}
-
 	private lastKnownHeight = 0;
 
 	constructor(
@@ -80,6 +77,7 @@ export class ChatViewTitleControl extends Disposable {
 		this.render(this.container);
 
 		this.registerListeners();
+		this.registerActions();
 	}
 
 	private registerListeners(): void {
@@ -101,11 +99,36 @@ export class ChatViewTitleControl extends Disposable {
 		}));
 	}
 
+	private registerActions(): void {
+		const that = this;
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: ChatViewTitleControl.ACTION_ID_PICK_AGENT_SESSION,
+					title: localize('chat.pickAgentSession', "Pick Agent Session"),
+					f1: false,
+					menu: [{
+						id: MenuId.ChatViewSessionTitleNavigationToolbar,
+						group: 'navigation',
+						order: 2
+					}]
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const instantiationService = accessor.get(IInstantiationService);
+
+				const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, that.agentPickerActionViewItem?.element);
+				await agentSessionsPicker.pickAgentSession();
+			}
+		}));
+	}
+
 	private render(parent: HTMLElement): void {
 		const elements = h('div.chat-view-title-container', [
 			h('div.chat-view-title-navigation-toolbar@navigationToolbar'),
 			h('span.chat-view-title-icon@icon'),
-			h('span.chat-view-title-label@label'),
 			h('div.chat-view-title-actions-toolbar@actionsToolbar'),
 		]);
 
@@ -113,7 +136,7 @@ export class ChatViewTitleControl extends Disposable {
 		this.navigationToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.navigationToolbar, MenuId.ChatViewSessionTitleNavigationToolbar, {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action: IAction) => {
-				if (action.id === ACTION_ID_PICK_AGENT_SESSION) {
+				if (action.id === ChatViewTitleControl.ACTION_ID_PICK_AGENT_SESSION) {
 					this.agentPickerActionViewItem = this._register(new ChatViewTitleAgentPickerActionViewItem(action));
 					return this.agentPickerActionViewItem;
 				}
