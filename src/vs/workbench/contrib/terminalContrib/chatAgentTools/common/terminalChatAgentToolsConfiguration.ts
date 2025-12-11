@@ -260,6 +260,12 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			find: true,
 			'/^find\\b.*-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
 
+			// rg (ripgrep)
+			// - `--pre`: Executes arbitrary command as preprocessor for every file searched.
+			// - `--hostname-bin`: Executes arbitrary command to get hostname.
+			rg: true,
+			'/^rg\\b.*(--pre|--hostname-bin)\\b/': false,
+
 			// sort
 			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are
 			//   blocked currently
