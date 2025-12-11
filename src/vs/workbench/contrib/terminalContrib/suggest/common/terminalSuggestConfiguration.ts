@@ -66,7 +66,7 @@ export interface ITerminalSuggestConfiguration {
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSuggestSettingId.Enabled]: {
 		restricted: true,
-		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`'),
+		markdownDescription: localize('suggest.enabled', "Enables terminal IntelliSense suggestions (also known as autocomplete) for supported shells ({0}). This requires {1} to be enabled and working or [manually installed](https://code.visualstudio.com/docs/terminal/shell-integration#_manual-installation-install).", 'Windows PowerShell, PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`'),
 		type: 'boolean',
 		default: product.quality !== 'stable',
 		experiment: {
