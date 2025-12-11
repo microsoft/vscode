@@ -26,6 +26,7 @@ import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../../platf
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../../base/browser/ui/sash/sash.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import type { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import type { IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -140,9 +141,12 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			this.findFirst();
 		}));
 
+		const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: 'simple-find-widget' };
+
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + (options.previousMatchActionId ? this._getKeybinding(options.previousMatchActionId) : ''),
 			icon: findPreviousMatchIcon,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				this.find(true);
 			}
@@ -151,6 +155,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL + (options.nextMatchActionId ? this._getKeybinding(options.nextMatchActionId) : ''),
 			icon: findNextMatchIcon,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				this.find(false);
 			}
@@ -159,6 +164,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL + (options.closeWidgetActionId ? this._getKeybinding(options.closeWidgetActionId) : ''),
 			icon: widgetClose,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				this.hide();
 			}

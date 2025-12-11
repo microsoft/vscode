@@ -85,7 +85,7 @@ class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 export interface ExtensionsListViewOptions {
 	server?: IExtensionManagementServer;
 	flexibleHeight?: boolean;
-	onDidChangeTitle?: Event<string>;
+	readonly onDidChangeTitle?: Event<string>;
 	hideBadge?: boolean;
 }
 
@@ -1565,6 +1565,10 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 	}>;
 
 	public readonly length: number;
+
+	get onDidIncrementLength(): Event<number> {
+		return Event.None;
+	}
 
 	constructor(
 		private readonly preferredExtensions: IExtension[],

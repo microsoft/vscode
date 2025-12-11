@@ -7,7 +7,7 @@ import { Separator } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { posix as pathPosix, win32 as pathWin32 } from '../../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
+import { escapeRegExpCharacters, removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import type { ToolConfirmationAction } from '../../../chat/common/languageModelToolsService.js';
@@ -21,9 +21,40 @@ export function isPowerShell(envShell: string, os: OperatingSystem): boolean {
 	return /^(?:powershell|pwsh)(?:-preview)?$/.test(pathPosix.basename(envShell));
 }
 
+export function isWindowsPowerShell(envShell: string): boolean {
+	return envShell.endsWith('System32\\WindowsPowerShell\\v1.0\\powershell.exe');
+}
+
+export function isZsh(envShell: string, os: OperatingSystem): boolean {
+	if (os === OperatingSystem.Windows) {
+		return /^zsh(?:\.exe)?$/i.test(pathWin32.basename(envShell));
+	}
+	return /^zsh$/.test(pathPosix.basename(envShell));
+}
+
+export function isFish(envShell: string, os: OperatingSystem): boolean {
+	if (os === OperatingSystem.Windows) {
+		return /^fish(?:\.exe)?$/i.test(pathWin32.basename(envShell));
+	}
+	return /^fish$/.test(pathPosix.basename(envShell));
+}
+
 // Maximum output length to prevent context overflow
 const MAX_OUTPUT_LENGTH = 60000; // ~60KB limit to keep context manageable
-const TRUNCATION_MESSAGE = '\n\n[... MIDDLE OF OUTPUT TRUNCATED ...]\n\n';
+export const TRUNCATION_MESSAGE = '\n\n[... PREVIOUS OUTPUT TRUNCATED ...]\n\n';
+
+export function truncateOutputKeepingTail(output: string, maxLength: number): string {
+	if (output.length <= maxLength) {
+		return output;
+	}
+	const truncationMessageLength = TRUNCATION_MESSAGE.length;
+	if (truncationMessageLength >= maxLength) {
+		return TRUNCATION_MESSAGE.slice(TRUNCATION_MESSAGE.length - maxLength);
+	}
+	const availableLength = maxLength - truncationMessageLength;
+	const endPortion = output.slice(-availableLength);
+	return TRUNCATION_MESSAGE + endPortion;
+}
 
 export function sanitizeTerminalOutput(output: string): string {
 	let sanitized = removeAnsiEscapeCodes(output)
@@ -32,15 +63,7 @@ export function sanitizeTerminalOutput(output: string): string {
 
 	// Truncate if output is too long to prevent context overflow
 	if (sanitized.length > MAX_OUTPUT_LENGTH) {
-		const truncationMessageLength = TRUNCATION_MESSAGE.length;
-		const availableLength = MAX_OUTPUT_LENGTH - truncationMessageLength;
-		const startLength = Math.floor(availableLength * 0.4); // Keep 40% from start
-		const endLength = availableLength - startLength; // Keep 60% from end
-
-		const startPortion = sanitized.substring(0, startLength);
-		const endPortion = sanitized.substring(sanitized.length - endLength);
-
-		sanitized = startPortion + TRUNCATION_MESSAGE + endPortion;
+		sanitized = truncateOutputKeepingTail(sanitized, MAX_OUTPUT_LENGTH);
 	}
 
 	return sanitized;
@@ -51,7 +74,10 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 	// We shouldn't offer configuring rules for commands that are explicitly denied since it
 	// wouldn't get auto approved with a new rule
-	const canCreateAutoApproval = autoApproveResult.subCommandResults.some(e => e.result !== 'denied') || autoApproveResult.commandLineResult.result === 'denied';
+	const canCreateAutoApproval = (
+		autoApproveResult.subCommandResults.every(e => e.result !== 'denied') &&
+		autoApproveResult.commandLineResult.result !== 'denied'
+	);
 	if (canCreateAutoApproval) {
 		const unapprovedSubCommands = subCommands.filter((_, index) => {
 			return autoApproveResult.subCommandResults[index].result !== 'approved';
@@ -73,7 +99,7 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		]);
 
 		// Commands where we want to suggest the sub-command (eg. `foo bar` instead of `foo`)
-		const commandsWithSubcommands = new Set(['git', 'npm', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
+		const commandsWithSubcommands = new Set(['git', 'npm', 'npx', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
 
 		// Commands where we want to suggest the sub-command of a sub-command (eg. `foo bar baz`
 		// instead of `foo`)
@@ -141,7 +167,7 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 				data: {
 					type: 'newRule',
 					rule: {
-						key: commandLine,
+						key: `/^${escapeRegExpCharacters(commandLine)}$/`,
 						value: {
 							approve: true,
 							matchCommandLine: true
@@ -155,6 +181,18 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 	if (actions.length > 0) {
 		actions.push(new Separator());
 	}
+
+
+	// Allow all commands for this session
+	actions.push({
+		label: localize('allowSession', 'Allow All Commands in this Session'),
+		tooltip: localize('allowSessionTooltip', 'Allow this tool to run in this session without confirmation.'),
+		data: {
+			type: 'sessionApproval'
+		} satisfies TerminalNewAutoApproveButtonData
+	});
+
+	actions.push(new Separator());
 
 	// Always show configure option
 	actions.push({

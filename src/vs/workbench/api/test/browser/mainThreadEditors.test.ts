@@ -11,12 +11,12 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
-import { ITextSnapshot } from '../../../../editor/common/model.js';
+import { EndOfLineSequence, ITextSnapshot } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { LanguageService } from '../../../../editor/common/services/languageService.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -59,22 +59,35 @@ import { IWorkingCopyService } from '../../../services/workingCopy/common/workin
 import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestWorkingCopyService } from '../../../test/browser/workbenchTestServices.js';
 import { TestContextService, TestFileService, TestTextResourcePropertiesService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadBulkEdits } from '../../browser/mainThreadBulkEdits.js';
+import { MainThreadTextEditors, IMainThreadEditorLocator } from '../../browser/mainThreadEditors.js';
+import { MainThreadTextEditor } from '../../browser/mainThreadEditor.js';
+import { MainThreadDocuments } from '../../browser/mainThreadDocuments.js';
 import { IWorkspaceTextEditDto } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
+import { createTestCodeEditor } from '../../../../editor/test/browser/testCodeEditor.js';
 
 suite('MainThreadEditors', () => {
 
 	let disposables: DisposableStore;
+	const existingResource = URI.parse('foo:existing');
 	const resource = URI.parse('foo:bar');
 
 	let modelService: IModelService;
 
 	let bulkEdits: MainThreadBulkEdits;
+	let editors: MainThreadTextEditors;
+	let editorLocator: IMainThreadEditorLocator;
+	let testEditor: MainThreadTextEditor;
 
 	const movedResources = new Map<URI, URI>();
 	const copiedResources = new Map<URI, URI>();
 	const createdResources = new Set<URI>();
 	const deletedResources = new Set<URI>();
+
+	const editorId = 'testEditorId';
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -101,7 +114,8 @@ suite('MainThreadEditors', () => {
 		services.set(IDialogService, dialogService);
 		services.set(INotificationService, notificationService);
 		services.set(IUndoRedoService, undoRedoService);
-		services.set(IModelService, modelService);
+		services.set(ITextResourcePropertiesService, new SyncDescriptor(TestTextResourcePropertiesService));
+		services.set(IModelService, new SyncDescriptor(ModelService));
 		services.set(ICodeEditorService, new TestCodeEditorService(themeService));
 		services.set(IFileService, new TestFileService());
 		services.set(IUriIdentityService, new SyncDescriptor(UriIdentityService));
@@ -110,12 +124,19 @@ suite('MainThreadEditors', () => {
 		services.set(ILifecycleService, new TestLifecycleService());
 		services.set(IWorkingCopyService, new TestWorkingCopyService());
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
+		services.set(IClipboardService, new TestClipboardService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
+			// eslint-disable-next-line local/code-no-any-casts
 			override files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
-				onDidChangeDirty: Event.None
+				onDidChangeDirty: Event.None,
+				onDidChangeEncoding: Event.None
+			};
+			// eslint-disable-next-line local/code-no-any-casts
+			override untitled = <any>{
+				onDidChangeEncoding: Event.None
 			};
 			override create(operations: { resource: URI }[]) {
 				for (const o of operations) {
@@ -180,14 +201,33 @@ suite('MainThreadEditors', () => {
 
 		const instaService = new InstantiationService(services);
 
-		modelService = new ModelService(
-			configService,
-			new TestTextResourcePropertiesService(configService),
-			undoRedoService,
-			instaService
-		);
-
 		bulkEdits = instaService.createInstance(MainThreadBulkEdits, SingleProxyRPCProtocol(null));
+		const documents = instaService.createInstance(MainThreadDocuments, SingleProxyRPCProtocol(null));
+
+		// Create editor locator
+		editorLocator = {
+			getEditor(id: string): MainThreadTextEditor | undefined {
+				return id === editorId ? testEditor : undefined;
+			},
+			findTextEditorIdFor() { return undefined; },
+			getIdOfCodeEditor() { return undefined; }
+		};
+
+		editors = instaService.createInstance(MainThreadTextEditors, editorLocator, SingleProxyRPCProtocol(null));
+		modelService = instaService.invokeFunction(accessor => accessor.get(IModelService));
+
+		// Create a test code editor using the helper
+		const model = modelService.createModel('Hello world!', null, existingResource);
+		const testCodeEditor = disposables.add(createTestCodeEditor(model));
+
+		testEditor = disposables.add(instaService.createInstance(
+			MainThreadTextEditor,
+			editorId,
+			model,
+			testCodeEditor,
+			{ onGainedFocus() { }, onLostFocus() { } },
+			documents
+		));
 	});
 
 	teardown(() => {
@@ -249,6 +289,48 @@ suite('MainThreadEditors', () => {
 		return Promise.all([p1, p2]);
 	});
 
+	test('applyWorkspaceEdit: noop eol edit keeps undo stack clean', async () => {
+
+		const initialText = 'hello\nworld';
+		const model = disposables.add(modelService.createModel(initialText, null, resource));
+		const initialAlternativeVersionId = model.getAlternativeVersionId();
+
+		const insertEdit: IWorkspaceTextEditDto = {
+			resource: resource,
+			versionId: model.getVersionId(),
+			textEdit: {
+				range: new Range(1, 6, 1, 6),
+				text: '2'
+			}
+		};
+
+		const insertResult = await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [insertEdit] }));
+		assert.strictEqual(insertResult, true);
+		assert.strictEqual(model.getValue(), 'hello2\nworld');
+		assert.notStrictEqual(model.getAlternativeVersionId(), initialAlternativeVersionId);
+
+		const eolEdit: IWorkspaceTextEditDto = {
+			resource: resource,
+			versionId: model.getVersionId(),
+			textEdit: {
+				range: new Range(1, 1, 1, 1),
+				text: '',
+				eol: EndOfLineSequence.LF
+			}
+		};
+
+		const eolResult = await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [eolEdit] }));
+		assert.strictEqual(eolResult, true);
+		assert.strictEqual(model.getValue(), 'hello2\nworld');
+
+		const undoResult = model.undo();
+		if (undoResult) {
+			await undoResult;
+		}
+		assert.strictEqual(model.getValue(), initialText);
+		assert.strictEqual(model.getAlternativeVersionId(), initialAlternativeVersionId);
+	});
+
 	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({
 			edits: [
@@ -262,5 +344,59 @@ suite('MainThreadEditors', () => {
 			assert.strictEqual(createdResources.has(resource), true);
 			assert.strictEqual(deletedResources.has(resource), true);
 		});
+	});
+
+	test('applyWorkspaceEdit can control undo/redo stack 1', async () => {
+		const model = modelService.getModel(existingResource)!;
+
+		const edit1: ISingleEditOperation = {
+			range: new Range(1, 1, 1, 2),
+			text: 'h',
+			forceMoveMarkers: false
+		};
+
+		const applied1 = await editors.$tryApplyEdits(editorId, model.getVersionId(), [edit1], { undoStopBefore: false, undoStopAfter: false });
+		assert.strictEqual(applied1, true);
+		assert.strictEqual(model.getValue(), 'hello world!');
+
+		const edit2: ISingleEditOperation = {
+			range: new Range(1, 2, 1, 6),
+			text: 'ELLO',
+			forceMoveMarkers: false
+		};
+
+		const applied2 = await editors.$tryApplyEdits(editorId, model.getVersionId(), [edit2], { undoStopBefore: false, undoStopAfter: false });
+		assert.strictEqual(applied2, true);
+		assert.strictEqual(model.getValue(), 'hELLO world!');
+
+		await model.undo();
+		assert.strictEqual(model.getValue(), 'Hello world!');
+	});
+
+	test('applyWorkspaceEdit can control undo/redo stack 2', async () => {
+		const model = modelService.getModel(existingResource)!;
+
+		const edit1: ISingleEditOperation = {
+			range: new Range(1, 1, 1, 2),
+			text: 'h',
+			forceMoveMarkers: false
+		};
+
+		const applied1 = await editors.$tryApplyEdits(editorId, model.getVersionId(), [edit1], { undoStopBefore: false, undoStopAfter: false });
+		assert.strictEqual(applied1, true);
+		assert.strictEqual(model.getValue(), 'hello world!');
+
+		const edit2: ISingleEditOperation = {
+			range: new Range(1, 2, 1, 6),
+			text: 'ELLO',
+			forceMoveMarkers: false
+		};
+
+		const applied2 = await editors.$tryApplyEdits(editorId, model.getVersionId(), [edit2], { undoStopBefore: true, undoStopAfter: false });
+		assert.strictEqual(applied2, true);
+		assert.strictEqual(model.getValue(), 'hELLO world!');
+
+		await model.undo();
+		assert.strictEqual(model.getValue(), 'hello world!');
 	});
 });

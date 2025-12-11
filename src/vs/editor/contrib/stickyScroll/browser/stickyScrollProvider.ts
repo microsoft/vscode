@@ -50,7 +50,7 @@ export interface IStickyLineCandidateProvider {
 	/**
 	 * Event triggered when sticky scroll changes.
 	 */
-	onDidChangeStickyScroll: Event<void>;
+	readonly onDidChangeStickyScroll: Event<void>;
 }
 
 export class StickyLineCandidateProvider extends Disposable implements IStickyLineCandidateProvider {

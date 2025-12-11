@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import type { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -20,11 +20,15 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { showChatView } from '../chat.js';
+import { IChatWidgetService } from '../chat.js';
+import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
+import { IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { ChatMarkdownContentPart, IChatMarkdownContentPartOptions } from './chatMarkdownContentPart.js';
 import './media/chatConfirmationWidget.css';
 
 export interface IChatConfirmationButton<T> {
@@ -33,7 +37,7 @@ export interface IChatConfirmationButton<T> {
 	tooltip?: string;
 	data: T;
 	disabled?: boolean;
-	onDidChangeDisablement?: Event<boolean>;
+	readonly onDidChangeDisablement?: Event<boolean>;
 	moreActions?: (IChatConfirmationButton<T> | Separator)[];
 }
 
@@ -42,13 +46,14 @@ export interface IChatConfirmationWidgetOptions<T> {
 	message: string | IMarkdownString;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
-	toolbarData?: { arg: any; partType: string; partSource?: string };
+	toolbarData?: { arg: unknown; partType: string; partSource?: string };
+	silent?: boolean;
 }
 
 export class ChatQueryTitlePart extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-	private readonly _renderedTitle = this._register(new MutableDisposable<IMarkdownRenderResult>());
+	private readonly _renderedTitle = this._register(new MutableDisposable<IRenderedMarkdown>());
 
 	public get title() {
 		return this._title;
@@ -63,7 +68,7 @@ export class ChatQueryTitlePart extends Disposable {
 
 		const previousEl = this._renderedTitle.value?.element;
 		if (previousEl?.parentElement) {
-			previousEl.parentElement.replaceChild(next.element, previousEl);
+			previousEl.replaceWith(next.element);
 		} else {
 			this.element.appendChild(next.element); // unreachable?
 		}
@@ -75,7 +80,7 @@ export class ChatQueryTitlePart extends Disposable {
 		private readonly element: HTMLElement,
 		private _title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
-		private readonly _renderer: MarkdownRenderer,
+		@IMarkdownRendererService private readonly _renderer: IMarkdownRendererService,
 	) {
 		super();
 
@@ -105,6 +110,53 @@ export class ChatQueryTitlePart extends Disposable {
 	}
 }
 
+class ChatConfirmationNotifier extends Disposable {
+
+	private readonly disposables = this._register(new MutableDisposable<DisposableStore>());
+
+	constructor(
+		@IHostService private readonly _hostService: IHostService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+	) {
+		super();
+	}
+
+	async notify(targetWindow: Window, sessionResource: URI): Promise<void> {
+
+		// Focus Window
+		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
+
+		// Notify
+		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
+		const title = widget?.viewModel?.model.title ? localize('chatTitle', "Chat: {0}", widget.viewModel.model.title) : localize('chat.untitledChat', "Untitled Chat");
+		const notification = await dom.triggerNotification(title,
+			{
+				detail: localize('notificationDetail', "Approval needed to continue.")
+			}
+		);
+		if (notification) {
+			const disposables = this.disposables.value = new DisposableStore();
+			disposables.add(notification);
+
+			disposables.add(Event.once(notification.onClick)(async () => {
+				await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
+
+				if (widget) {
+					await this._chatWidgetService.reveal(widget);
+					widget.focusInput();
+				}
+				disposables.dispose();
+			}));
+
+			disposables.add(this._hostService.onDidChangeFocus(focus => {
+				if (focus) {
+					disposables.dispose();
+				}
+			}));
+		}
+	}
+}
+
 abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
 	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
@@ -126,46 +178,46 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
-	protected readonly markdownRenderer: MarkdownRenderer;
-	private readonly title: string | IMarkdownString;
 
-	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
+	private readonly silent: boolean;
+	private readonly notificationManager: ChatConfirmationNotifier;
 
 	constructor(
+		protected readonly context: IChatContentPartRenderContext,
 		options: IChatConfirmationWidgetOptions<T>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IMarkdownRendererService protected readonly _markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IHostService private readonly _hostService: IHostService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
-		const { title, subtitle, message, buttons } = options;
-		this.title = title;
+		const { title, subtitle, message, buttons, silent } = options;
+		this.silent = !!silent;
 
+		this.notificationManager = this._register(instantiationService.createInstance(ChatConfirmationNotifier));
 
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
 			dom.h('.chat-confirmation-widget@root', [
 				dom.h('.chat-confirmation-widget-title@title'),
-				dom.h('.chat-confirmation-widget-message@message'),
-				dom.h('.chat-buttons-container@buttonsContainer', [
-					dom.h('.chat-buttons@buttons'),
-					dom.h('.chat-toolbar@toolbar'),
+				dom.h('.chat-confirmation-widget-message-container', [
+					dom.h('.chat-confirmation-widget-message@message'),
+					dom.h('.chat-buttons-container@buttonsContainer', [
+						dom.h('.chat-buttons@buttons'),
+						dom.h('.chat-toolbar@toolbar'),
+					]),
 				]),
 			]),
 		]);
 		configureAccessibilityContainer(elements.container, title, message);
 		this._domNode = elements.root;
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
 			title,
-			subtitle,
-			this.markdownRenderer,
+			subtitle
 		));
 
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -235,40 +287,11 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
 		this.messageElement.append(element);
 
-		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
+		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation') && !this.silent) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
-				this.notifyConfirmationNeeded(targetWindow);
+				this.notificationManager.notify(targetWindow, this.context.element.sessionResource);
 			}
-		}
-	}
-
-	private async notifyConfirmationNeeded(targetWindow: Window): Promise<void> {
-
-		// Focus Window
-		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
-
-		// Notify
-		const title = renderAsPlaintext(this.title);
-		const notification = await dom.triggerNotification(title ? localize('notificationTitle', "Chat: {0}", title) : localize('defaultTitle', "Chat: Confirmation Required"),
-			{
-				detail: localize('notificationDetail', "The current chat session requires your confirmation to proceed.")
-			}
-		);
-		if (notification) {
-			const disposables = this.notification.value = new DisposableStore();
-			disposables.add(notification);
-
-			disposables.add(Event.once(notification.onClick)(() => {
-				this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-				showChatView(this._viewsService);
-			}));
-
-			disposables.add(this._hostService.onDidChangeFocus(focus => {
-				if (focus) {
-					disposables.dispose();
-				}
-			}));
 		}
 	}
 }
@@ -278,26 +301,25 @@ export class SimpleChatConfirmationWidget<T> extends BaseSimpleChatConfirmationW
 	private _renderedMessage: HTMLElement | undefined;
 
 	constructor(
-		private readonly _container: HTMLElement,
+		context: IChatContentPartRenderContext,
 		options: IChatConfirmationWidgetOptions<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IHostService hostService: IHostService,
-		@IViewsService viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(options, instantiationService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
+		super(context, options, instantiationService, markdownRendererService, contextMenuService, configurationService, contextKeyService);
 		this.updateMessage(options.message);
 	}
 
 	public updateMessage(message: string | IMarkdownString): void {
 		this._renderedMessage?.remove();
-		const renderedMessage = this._register(this.markdownRenderer.render(
+		const renderedMessage = this._register(this._markdownRendererService.render(
 			typeof message === 'string' ? new MarkdownString(message) : message,
 			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
 		));
-		this.renderMessage(renderedMessage.element, this._container);
+		this.renderMessage(renderedMessage.element, this.context.container);
 		this._renderedMessage = renderedMessage.element;
 	}
 }
@@ -308,7 +330,7 @@ export interface IChatConfirmationWidget2Options<T> {
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
-	toolbarData?: { arg: any; partType: string; partSource?: string };
+	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 }
 
 abstract class BaseChatConfirmationWidget<T> extends Disposable {
@@ -334,24 +356,32 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
-	protected readonly markdownRenderer: MarkdownRenderer;
-	private readonly title: string | IMarkdownString;
+	private readonly markdownContentPart = this._register(new MutableDisposable<ChatMarkdownContentPart>());
+	private readonly notificationManager: ChatConfirmationNotifier;
 
-	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
+	public get codeblocksPartId() {
+		return this.markdownContentPart.value?.codeblocksPartId;
+	}
+
+	public get codeblocks() {
+		return this.markdownContentPart.value?.codeblocks;
+	}
 
 	constructor(
+		protected readonly _context: IChatContentPartRenderContext,
 		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IMarkdownRendererService protected readonly markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IHostService private readonly _hostService: IHostService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super();
 
 		const { title, subtitle, message, buttons, icon } = options;
-		this.title = title;
+
+		this.notificationManager = this._register(instantiationService.createInstance(ChatConfirmationNotifier));
 
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
 			dom.h('.chat-confirmation-widget2@root', [
@@ -371,14 +401,11 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		this._domNode = elements.root;
 		this._buttonsDomNode = elements.buttons;
 
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
-
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
 			new MarkdownString(icon ? `$(${icon.id}) ${typeof title === 'string' ? title : title.value}` : typeof title === 'string' ? title : title.value),
 			subtitle,
-			this.markdownRenderer,
 		));
 
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -452,12 +479,32 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	protected renderMessage(element: HTMLElement | IMarkdownString | string, listContainer: HTMLElement): void {
+		this.markdownContentPart.clear();
+
 		if (!dom.isHTMLElement(element)) {
-			const messageElement = this._register(this.markdownRenderer.render(
-				typeof element === 'string' ? new MarkdownString(element) : element,
-				{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
+			const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart,
+				{
+					kind: 'markdownContent',
+					content: typeof element === 'string' ? new MarkdownString().appendMarkdown(element) : element
+				},
+				this._context,
+				this._context.editorPool,
+				false,
+				this._context.codeBlockStartIndex,
+				this.markdownRendererService,
+				undefined,
+				this._context.currentWidth(),
+				this._context.codeBlockModelCollection,
+				{
+					allowInlineDiffs: true,
+					horizontalPadding: 6,
+				} satisfies IChatMarkdownContentPartOptions,
 			));
-			element = messageElement.element;
+			renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+			this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
+			this.markdownContentPart.value = part;
+			element = part.domNode;
 		}
 
 		for (const child of this.messageElement.children) {
@@ -468,37 +515,8 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
-				this.notifyConfirmationNeeded(targetWindow);
+				this.notificationManager.notify(targetWindow, this._context.element.sessionResource);
 			}
-		}
-	}
-
-	private async notifyConfirmationNeeded(targetWindow: Window): Promise<void> {
-
-		// Focus Window
-		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
-
-		// Notify
-		const title = renderAsPlaintext(this.title);
-		const notification = await dom.triggerNotification(title ? localize('notificationTitle', "Chat: {0}", title) : localize('defaultTitle', "Chat: Confirmation Required"),
-			{
-				detail: localize('notificationDetail', "The current chat session requires your confirmation to proceed.")
-			}
-		);
-		if (notification) {
-			const disposables = this.notification.value = new DisposableStore();
-			disposables.add(notification);
-
-			disposables.add(Event.once(notification.onClick)(() => {
-				this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-				showChatView(this._viewsService);
-			}));
-
-			disposables.add(this._hostService.onDidChangeFocus(focus => {
-				if (focus) {
-					disposables.dispose();
-				}
-			}));
 		}
 	}
 }
@@ -506,42 +524,42 @@ export class ChatConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {
 	private _renderedMessage: HTMLElement | undefined;
 
 	constructor(
-		private readonly _container: HTMLElement,
+		context: IChatContentPartRenderContext,
 		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IHostService hostService: IHostService,
-		@IViewsService viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
-		super(options, instantiationService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
-		this.renderMessage(options.message, this._container);
+		super(context, options, instantiationService, markdownRendererService, contextMenuService, configurationService, contextKeyService, chatMarkdownAnchorService);
+		this.renderMessage(options.message, context.container);
 	}
 
 	public updateMessage(message: string | IMarkdownString): void {
 		this._renderedMessage?.remove();
-		const renderedMessage = this._register(this.markdownRenderer.render(
+		const renderedMessage = this._register(this.markdownRendererService.render(
 			typeof message === 'string' ? new MarkdownString(message) : message,
 			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
 		));
-		this.renderMessage(renderedMessage.element, this._container);
+		this.renderMessage(renderedMessage.element, this._context.container);
 		this._renderedMessage = renderedMessage.element;
 	}
 }
 export class ChatCustomConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {
 	constructor(
-		container: HTMLElement,
+		context: IChatContentPartRenderContext,
 		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IHostService hostService: IHostService,
-		@IViewsService viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
-		super(options, instantiationService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
-		this.renderMessage(options.message, container);
+		super(context, options, instantiationService, markdownRendererService, contextMenuService, configurationService, contextKeyService, chatMarkdownAnchorService);
+		this.renderMessage(options.message, context.container);
 	}
 }
 

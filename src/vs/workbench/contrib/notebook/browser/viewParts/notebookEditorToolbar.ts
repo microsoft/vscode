@@ -243,7 +243,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 		}
 	}
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	get useGlobalToolbar(): boolean {
 		return this._useGlobalToolbar;

@@ -120,7 +120,9 @@ function formatValue(value: unknown, level = 0, seen: unknown[] = []): string {
 			if (seen.includes(value)) {
 				return '[Circular]';
 			}
+			// eslint-disable-next-line local/code-no-any-casts
 			if (debugDescriptionSymbol in value && typeof (value as any)[debugDescriptionSymbol] === 'function') {
+				// eslint-disable-next-line local/code-no-any-casts
 				return (value as any)[debugDescriptionSymbol]();
 			}
 			const oi = '  '.repeat(level);

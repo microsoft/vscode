@@ -33,13 +33,14 @@ import * as callh from '../../contrib/callHierarchy/common/callHierarchy.js';
 import * as search from '../../contrib/search/common/search.js';
 import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, IInlineCompletionModelInfoDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
 import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../contrib/editTelemetry/browser/telemetry/forwardingTelemetryService.js';
+import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IAiEditTelemetryService } from '../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditDeltaInfo } from '../../../editor/common/textModelEditSource.js';
 import { IInlineCompletionsUnificationService } from '../../services/inlineCompletions/common/inlineCompletionsUnification.js';
+import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry } from '../../../editor/contrib/inlineCompletions/browser/telemetry.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -135,7 +136,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	private static _reviveWorkspaceSymbolDto(data: undefined): undefined;
 	private static _reviveWorkspaceSymbolDto(data: IWorkspaceSymbolDto | IWorkspaceSymbolDto[] | undefined): search.IWorkspaceSymbol | search.IWorkspaceSymbol[] | undefined {
 		if (!data) {
-			return <undefined>data;
+			return data;
 		} else if (Array.isArray(data)) {
 			data.forEach(MainThreadLanguageFeatures._reviveWorkspaceSymbolDto);
 			return <search.IWorkspaceSymbol[]>data;
@@ -221,7 +222,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.codeLensProvider.register(selector, provider));
 	}
 
-	$emitCodeLensEvent(eventHandle: number, event?: any): void {
+	$emitCodeLensEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -313,7 +314,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.inlineValuesProvider.register(selector, provider));
 	}
 
-	$emitInlineValuesEvent(eventHandle: number, event?: any): void {
+	$emitInlineValuesEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -548,8 +549,21 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}
 	}
 
-	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void {
-		this._registrations.set(handle, this._languageFeaturesService.documentRangeSemanticTokensProvider.register(selector, new MainThreadDocumentRangeSemanticTokensProvider(this._proxy, handle, legend)));
+	$emitDocumentRangeSemanticTokensEvent(eventHandle: number): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(undefined);
+		}
+	}
+
+	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined): void {
+		let event: Event<void> | undefined = undefined;
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			event = emitter.event;
+		}
+		this._registrations.set(handle, this._languageFeaturesService.documentRangeSemanticTokensProvider.register(selector, new MainThreadDocumentRangeSemanticTokensProvider(this._proxy, handle, legend, event)));
 	}
 
 	// --- suggest
@@ -630,146 +644,56 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, extensionVersion: string, groupId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, excludesExtensionIds: string[], eventHandle: number | undefined): void {
-		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
-			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
-				const result = await this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
-				return result;
-			},
-			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string): Promise<void> => {
-				this._instantiationService.invokeFunction(accessor => {
-					const aiEditTelemetryService = accessor.getIfExists(IAiEditTelemetryService);
-					item.suggestionId = aiEditTelemetryService?.createSuggestionId({
-						applyCodeBlockSuggestionId: undefined,
-						editDeltaInfo: new EditDeltaInfo(1, 1, -1, -1), // TODO@hediet, fix this approximation.
-						feature: 'inlineSuggestion',
-						languageId: completions.languageId,
-						modeId: undefined,
-						modelId: undefined,
-						presentation: 'inlineSuggestion',
-					});
-				});
+	$registerInlineCompletionsSupport(
+		handle: number,
+		selector: IDocumentFilterDto[],
+		supportsHandleEvents: boolean,
+		extensionId: string,
+		extensionVersion: string,
+		groupId: string | undefined,
+		yieldsToExtensionIds: string[],
+		displayName: string | undefined,
+		debounceDelayMs: number | undefined,
+		excludesExtensionIds: string[],
+		supportsOnDidChange: boolean,
+		supportsSetModelId: boolean,
+		initialModelInfo: IInlineCompletionModelInfoDto | undefined,
+		supportsOnDidChangeModelInfo: boolean,
+	): void {
+		const providerId = new languages.ProviderId(extensionId, extensionVersion, groupId);
 
-				if (supportsHandleEvents) {
-					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx, updatedInsertText);
-				}
-			},
-			handlePartialAccept: async (completions, item, acceptedCharacters, info: languages.PartialAcceptInfo): Promise<void> => {
-				if (supportsHandleEvents) {
-					await this._proxy.$handleInlineCompletionPartialAccept(handle, completions.pid, item.idx, acceptedCharacters, info);
-				}
-			},
-			handleEndOfLifetime: async (completions, item, reason, lifetimeSummary) => {
-
-				function mapReason<T1, T2>(reason: languages.InlineCompletionEndOfLifeReason<T1>, f: (reason: T1) => T2): languages.InlineCompletionEndOfLifeReason<T2> {
-					if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Ignored) {
-						return {
-							...reason,
-							supersededBy: reason.supersededBy ? f(reason.supersededBy) : undefined,
-						};
-					}
-					return reason;
-				}
-
-				if (supportsHandleEvents) {
-					await this._proxy.$handleInlineCompletionEndOfLifetime(handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
-				}
-
-				if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Accepted) {
-					this._instantiationService.invokeFunction(accessor => {
-						const aiEditTelemetryService = accessor.getIfExists(IAiEditTelemetryService);
-						aiEditTelemetryService?.handleCodeAccepted({
-							suggestionId: item.suggestionId,
-							editDeltaInfo: EditDeltaInfo.tryCreate(
-								lifetimeSummary.lineCountModified,
-								lifetimeSummary.lineCountOriginal,
-								lifetimeSummary.characterCountModified,
-								lifetimeSummary.characterCountOriginal,
-							),
-							feature: 'inlineSuggestion',
-							languageId: completions.languageId,
-							modeId: undefined,
-							modelId: undefined,
-							presentation: 'inlineSuggestion',
-							acceptanceMethod: 'accept',
-							applyCodeBlockSuggestionId: undefined,
-						});
-					});
-				}
-
-				const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
-					id: lifetimeSummary.requestUuid,
-					opportunityId: lifetimeSummary.requestUuid,
-					correlationId: lifetimeSummary.correlationId,
-					shown: lifetimeSummary.shown,
-					shownDuration: lifetimeSummary.shownDuration,
-					shownDurationUncollapsed: lifetimeSummary.shownDurationUncollapsed,
-					timeUntilShown: lifetimeSummary.timeUntilShown,
-					timeUntilProviderRequest: lifetimeSummary.timeUntilProviderRequest,
-					timeUntilProviderResponse: lifetimeSummary.timeUntilProviderResponse,
-					editorType: lifetimeSummary.editorType,
-					viewKind: lifetimeSummary.viewKind,
-					preceeded: lifetimeSummary.preceeded,
-					requestReason: lifetimeSummary.requestReason,
-					error: lifetimeSummary.error,
-					typingInterval: lifetimeSummary.typingInterval,
-					typingIntervalCharacterCount: lifetimeSummary.typingIntervalCharacterCount,
-					languageId: lifetimeSummary.languageId,
-					cursorColumnDistance: lifetimeSummary.cursorColumnDistance,
-					cursorLineDistance: lifetimeSummary.cursorLineDistance,
-					lineCountOriginal: lifetimeSummary.lineCountOriginal,
-					lineCountModified: lifetimeSummary.lineCountModified,
-					characterCountOriginal: lifetimeSummary.characterCountOriginal,
-					characterCountModified: lifetimeSummary.characterCountModified,
-					disjointReplacements: lifetimeSummary.disjointReplacements,
-					sameShapeReplacements: lifetimeSummary.sameShapeReplacements,
-					extensionId,
-					extensionVersion,
-					groupId,
-					partiallyAccepted: lifetimeSummary.partiallyAccepted,
-					partiallyAcceptedCountSinceOriginal: lifetimeSummary.partiallyAcceptedCountSinceOriginal,
-					partiallyAcceptedRatioSinceOriginal: lifetimeSummary.partiallyAcceptedRatioSinceOriginal,
-					partiallyAcceptedCharactersSinceOriginal: lifetimeSummary.partiallyAcceptedCharactersSinceOriginal,
-					superseded: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored && !!reason.supersededBy,
-					reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
-						: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
-							: 'ignored',
-					...forwardToChannelIf(isCopilotLikeExtension(extensionId)),
-				};
-
-				const telemetryService = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
-				telemetryService.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLifeSummary);
-			},
-			disposeInlineCompletions: (completions: IdentifiableInlineCompletions, reason: languages.InlineCompletionsDisposeReason): void => {
-				this._proxy.$freeInlineCompletionsList(handle, completions.pid, reason);
-			},
-			handleRejection: async (completions, item): Promise<void> => {
-				if (supportsHandleEvents) {
-					await this._proxy.$handleInlineCompletionRejection(handle, completions.pid, item.idx);
-				}
-			},
-			groupId: groupId ?? extensionId,
-			providerId: new languages.ProviderId(extensionId, extensionVersion, groupId),
-			yieldsToGroupIds: yieldsToExtensionIds,
-			excludesGroupIds: excludesExtensionIds,
+		const provider = this._instantiationService.createInstance(
+			ExtensionBackedInlineCompletionsProvider,
+			handle,
+			groupId ?? extensionId,
+			providerId,
+			yieldsToExtensionIds,
+			excludesExtensionIds,
 			debounceDelayMs,
 			displayName,
-			toString() {
-				return `InlineCompletionsProvider(${extensionId})`;
-			},
-		};
-		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<void>();
-			this._registrations.set(eventHandle, emitter);
-			provider.onDidChangeInlineCompletions = emitter.event;
-		}
-		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
+			initialModelInfo,
+			supportsHandleEvents,
+			supportsSetModelId,
+			supportsOnDidChange,
+			supportsOnDidChangeModelInfo,
+			selector,
+			this._proxy,
+		);
+
+		this._registrations.set(handle, provider);
 	}
 
 	$emitInlineCompletionsChange(handle: number): void {
 		const obj = this._registrations.get(handle);
-		if (obj instanceof Emitter) {
-			obj.fire(undefined);
+		if (obj instanceof ExtensionBackedInlineCompletionsProvider) {
+			obj._emitDidChange();
+		}
+	}
+
+	$emitInlineCompletionModelInfoChange(handle: number, data: IInlineCompletionModelInfoDto | undefined): void {
+		const obj = this._registrations.get(handle);
+		if (obj instanceof ExtensionBackedInlineCompletionsProvider) {
+			obj._setModelInfo(data);
 		}
 	}
 
@@ -940,7 +864,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.foldingRangeProvider.register(selector, provider));
 	}
 
-	$emitFoldingRangeEvent(eventHandle: number, event?: any): void {
+	$emitFoldingRangeEvent(eventHandle: number, event?: unknown): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -985,6 +909,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				outgoing.forEach(value => {
 					value.to = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.to);
 				});
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				return <any>outgoing;
 			},
 			provideIncomingCalls: async (item, token) => {
@@ -995,6 +920,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				incoming.forEach(value => {
 					value.from = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.from);
 				});
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				return <any>incoming;
 			}
 		}));
@@ -1335,6 +1261,7 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		private readonly _handle: number,
 		private readonly _legend: languages.SemanticTokensLegend,
+		public readonly onDidChange: Event<void> | undefined,
 	) {
 	}
 
@@ -1361,81 +1288,209 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 	}
 }
 
-type InlineCompletionEndOfLifeEvent = {
-	/**
-	 * @deprecated To be removed at one point in favor of opportunityId
-	 */
-	id: string;
-	opportunityId: string;
-	correlationId: string | undefined;
-	extensionId: string;
-	extensionVersion: string;
-	groupId: string | undefined;
-	shown: boolean;
-	shownDuration: number;
-	shownDurationUncollapsed: number;
-	timeUntilShown: number | undefined;
-	timeUntilProviderRequest: number;
-	timeUntilProviderResponse: number;
-	reason: 'accepted' | 'rejected' | 'ignored';
-	partiallyAccepted: number;
-	partiallyAcceptedCountSinceOriginal: number;
-	partiallyAcceptedRatioSinceOriginal: number;
-	partiallyAcceptedCharactersSinceOriginal: number;
-	preceeded: boolean;
-	requestReason: string;
-	languageId: string;
-	error: string | undefined;
-	typingInterval: number;
-	typingIntervalCharacterCount: number;
-	superseded: boolean;
-	editorType: string;
-	viewKind: string | undefined;
-	cursorColumnDistance: number | undefined;
-	cursorLineDistance: number | undefined;
-	lineCountOriginal: number | undefined;
-	lineCountModified: number | undefined;
-	characterCountOriginal: number | undefined;
-	characterCountModified: number | undefined;
-	disjointReplacements: number | undefined;
-	sameShapeReplacements: boolean | undefined;
-};
+class ExtensionBackedInlineCompletionsProvider extends Disposable implements languages.InlineCompletionsProvider<IdentifiableInlineCompletions> {
+	public readonly setModelId: ((modelId: string) => Promise<void>) | undefined;
+	public readonly _onDidChangeEmitter = new Emitter<void>();
+	public readonly onDidChangeInlineCompletions: Event<void> | undefined;
 
-type InlineCompletionsEndOfLifeClassification = {
-	owner: 'benibenj';
-	comment: 'Inline completions ended';
-	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the inline completion request' };
-	opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES' };
-	correlationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The correlation identifier for the inline completion' };
-	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the extension that contributed the inline completion' };
-	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
-	groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The group ID of the extension that contributed the inline completion' };
-	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
-	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
-	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
-	timeUntilShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
-	timeUntilProviderRequest: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be requested from the provider' };
-	timeUntilProviderResponse: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
-	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
-	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
-	partiallyAcceptedCountSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted since the original request' };
-	partiallyAcceptedRatioSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The percentage of characters accepted since the original request' };
-	partiallyAcceptedCharactersSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count accepted since the original request' };
-	preceeded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was preceeded by another one' };
-	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
-	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
-	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
-	typingInterval: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The average typing interval of the user at the moment the inline completion was requested' };
-	typingIntervalCharacterCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count involved in the typing interval calculation' };
-	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
-	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
-	viewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of the view where the inline completion was shown' };
-	cursorColumnDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The distance in columns from the cursor to the inline suggestion' };
-	cursorLineDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The distance in lines from the cursor to the inline suggestion' };
-	lineCountOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the original text' };
-	lineCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the modified text' };
-	characterCountOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the original text' };
-	characterCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the modified text' };
-	disjointReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inner replacements made by the inline completion' };
-	sameShapeReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether all inner replacements are the same shape' };
-};
+	public readonly _onDidChangeModelInfoEmitter = new Emitter<void>();
+	public readonly onDidChangeModelInfo: Event<void> | undefined;
+
+	constructor(
+		public readonly handle: number,
+		public readonly groupId: string,
+		public readonly providerId: languages.ProviderId,
+		public readonly yieldsToGroupIds: string[],
+		public readonly excludesGroupIds: string[],
+		public readonly debounceDelayMs: number | undefined,
+		public readonly displayName: string | undefined,
+		public modelInfo: languages.IInlineCompletionModelInfo | undefined,
+		private readonly _supportsHandleEvents: boolean,
+		private readonly _supportsSetModelId: boolean,
+		private readonly _supportsOnDidChange: boolean,
+		private readonly _supportsOnDidChangeModelInfo: boolean,
+		private readonly _selector: IDocumentFilterDto[],
+		private readonly _proxy: ExtHostLanguageFeaturesShape,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IAiEditTelemetryService private readonly _aiEditTelemetryService: IAiEditTelemetryService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) {
+		super();
+
+		this.setModelId = this._supportsSetModelId ? async (modelId: string) => {
+			await this._proxy.$handleInlineCompletionSetCurrentModelId(this.handle, modelId);
+		} : undefined;
+
+		this.onDidChangeInlineCompletions = this._supportsOnDidChange ? this._onDidChangeEmitter.event : undefined;
+		this.onDidChangeModelInfo = this._supportsOnDidChangeModelInfo ? this._onDidChangeModelInfoEmitter.event : undefined;
+
+		this._register(this._languageFeaturesService.inlineCompletionsProvider.register(this._selector, this));
+	}
+
+	public _setModelInfo(newModelInfo: languages.IInlineCompletionModelInfo | undefined) {
+		this.modelInfo = newModelInfo;
+		if (this._supportsOnDidChangeModelInfo) {
+			this._onDidChangeModelInfoEmitter.fire();
+		}
+	}
+
+	public _emitDidChange() {
+		if (this._supportsOnDidChange) {
+			this._onDidChangeEmitter.fire();
+		}
+	}
+
+	public async provideInlineCompletions(model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> {
+		const result = await this._proxy.$provideInlineCompletions(this.handle, model.uri, position, context, token);
+		return result;
+	}
+
+	public async handleItemDidShow(completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string, editDeltaInfo: EditDeltaInfo): Promise<void> {
+		if (item.suggestionId === undefined) {
+			item.suggestionId = this._aiEditTelemetryService.createSuggestionId({
+				applyCodeBlockSuggestionId: undefined,
+				feature: 'inlineSuggestion',
+				source: this.providerId,
+				languageId: completions.languageId,
+				editDeltaInfo: editDeltaInfo,
+				modeId: undefined,
+				modelId: undefined,
+				presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
+			});
+		}
+
+		if (this._supportsHandleEvents) {
+			await this._proxy.$handleInlineCompletionDidShow(this.handle, completions.pid, item.idx, updatedInsertText);
+		}
+	}
+
+	public async handlePartialAccept(completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, acceptedCharacters: number, info: languages.PartialAcceptInfo): Promise<void> {
+		if (this._supportsHandleEvents) {
+			await this._proxy.$handleInlineCompletionPartialAccept(this.handle, completions.pid, item.idx, acceptedCharacters, info);
+		}
+	}
+
+	public async handleEndOfLifetime(completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, reason: languages.InlineCompletionEndOfLifeReason<IdentifiableInlineCompletion>, lifetimeSummary: languages.LifetimeSummary): Promise<void> {
+		function mapReason<T1, T2>(reason: languages.InlineCompletionEndOfLifeReason<T1>, f: (reason: T1) => T2): languages.InlineCompletionEndOfLifeReason<T2> {
+			if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Ignored) {
+				return {
+					...reason,
+					supersededBy: reason.supersededBy ? f(reason.supersededBy) : undefined,
+				};
+			}
+			return reason;
+		}
+
+		if (this._supportsHandleEvents) {
+			await this._proxy.$handleInlineCompletionEndOfLifetime(this.handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
+		}
+
+		if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Accepted) {
+			if (item.suggestionId !== undefined) {
+				this._aiEditTelemetryService.handleCodeAccepted({
+					suggestionId: item.suggestionId,
+					feature: 'inlineSuggestion',
+					source: this.providerId,
+					languageId: completions.languageId,
+					editDeltaInfo: EditDeltaInfo.tryCreate(
+						lifetimeSummary.lineCountModified,
+						lifetimeSummary.lineCountOriginal,
+						lifetimeSummary.characterCountModified,
+						lifetimeSummary.characterCountOriginal,
+					),
+					modeId: undefined,
+					modelId: undefined,
+					presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
+					acceptanceMethod: 'accept',
+					applyCodeBlockSuggestionId: undefined,
+				});
+			}
+		}
+
+		const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
+			opportunityId: lifetimeSummary.requestUuid,
+			correlationId: lifetimeSummary.correlationId,
+			shown: lifetimeSummary.shown,
+			shownDuration: lifetimeSummary.shownDuration,
+			shownDurationUncollapsed: lifetimeSummary.shownDurationUncollapsed,
+			timeUntilShown: lifetimeSummary.timeUntilShown,
+			timeUntilProviderRequest: lifetimeSummary.timeUntilProviderRequest,
+			timeUntilProviderResponse: lifetimeSummary.timeUntilProviderResponse,
+			editorType: lifetimeSummary.editorType,
+			viewKind: lifetimeSummary.viewKind,
+			preceeded: lifetimeSummary.preceeded,
+			requestReason: lifetimeSummary.requestReason,
+			typingInterval: lifetimeSummary.typingInterval,
+			typingIntervalCharacterCount: lifetimeSummary.typingIntervalCharacterCount,
+			languageId: lifetimeSummary.languageId,
+			cursorColumnDistance: lifetimeSummary.cursorColumnDistance,
+			cursorLineDistance: lifetimeSummary.cursorLineDistance,
+			lineCountOriginal: lifetimeSummary.lineCountOriginal,
+			lineCountModified: lifetimeSummary.lineCountModified,
+			characterCountOriginal: lifetimeSummary.characterCountOriginal,
+			characterCountModified: lifetimeSummary.characterCountModified,
+			disjointReplacements: lifetimeSummary.disjointReplacements,
+			sameShapeReplacements: lifetimeSummary.sameShapeReplacements,
+			selectedSuggestionInfo: lifetimeSummary.selectedSuggestionInfo,
+			extensionId: this.providerId.extensionId!,
+			extensionVersion: this.providerId.extensionVersion!,
+			groupId: extractEngineFromCorrelationId(lifetimeSummary.correlationId) ?? this.groupId,
+			skuPlan: lifetimeSummary.skuPlan,
+			skuType: lifetimeSummary.skuType,
+			performanceMarkers: lifetimeSummary.performanceMarkers,
+			availableProviders: lifetimeSummary.availableProviders,
+			partiallyAccepted: lifetimeSummary.partiallyAccepted,
+			partiallyAcceptedCountSinceOriginal: lifetimeSummary.partiallyAcceptedCountSinceOriginal,
+			partiallyAcceptedRatioSinceOriginal: lifetimeSummary.partiallyAcceptedRatioSinceOriginal,
+			partiallyAcceptedCharactersSinceOriginal: lifetimeSummary.partiallyAcceptedCharactersSinceOriginal,
+			superseded: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored && !!reason.supersededBy,
+			reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
+				: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
+					: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored ? 'ignored' : undefined,
+			acceptedAlternativeAction: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted && reason.alternativeAction,
+			noSuggestionReason: undefined,
+			notShownReason: lifetimeSummary.notShownReason,
+			renameCreated: lifetimeSummary.renameCreated,
+			renameDuration: lifetimeSummary.renameDuration,
+			renameTimedOut: lifetimeSummary.renameTimedOut,
+			renameDroppedOtherEdits: lifetimeSummary.renameDroppedOtherEdits,
+			renameDroppedRenameEdits: lifetimeSummary.renameDroppedRenameEdits,
+			editKind: lifetimeSummary.editKind,
+			longDistanceHintVisible: lifetimeSummary.longDistanceHintVisible,
+			longDistanceHintDistance: lifetimeSummary.longDistanceHintDistance,
+			...forwardToChannelIf(isCopilotLikeExtension(this.providerId.extensionId!)),
+		};
+
+		const dataChannelForwardingTelemetryService = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
+		sendInlineCompletionsEndOfLifeTelemetry(dataChannelForwardingTelemetryService, endOfLifeSummary);
+	}
+
+	public disposeInlineCompletions(completions: IdentifiableInlineCompletions, reason: languages.InlineCompletionsDisposeReason): void {
+		this._proxy.$freeInlineCompletionsList(this.handle, completions.pid, reason);
+	}
+
+	public async handleRejection(completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion): Promise<void> {
+		if (this._supportsHandleEvents) {
+			await this._proxy.$handleInlineCompletionRejection(this.handle, completions.pid, item.idx);
+		}
+	}
+
+	override toString() {
+		return `InlineCompletionsProvider(${this.providerId.toString()})`;
+	}
+}
+
+function extractEngineFromCorrelationId(correlationId: string | undefined): string | undefined {
+	if (!correlationId) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(correlationId);
+		if (typeof parsed === 'object' && parsed !== null && typeof parsed.engine === 'string') {
+			return parsed.engine;
+		}
+		return undefined;
+	} catch {
+		return undefined;
+	}
+}

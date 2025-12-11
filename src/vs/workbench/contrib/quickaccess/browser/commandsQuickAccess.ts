@@ -98,6 +98,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 		return {
 			preserveInput: commandPaletteConfig.preserveInput,
+			showAskInChat: commandPaletteConfig.showAskInChat,
 			experimental: commandPaletteConfig.experimental
 		};
 	}
@@ -158,29 +159,39 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			return [];
 		}
 
-		let additionalPicks;
-
+		let additionalPicks: (ICommandQuickPick | IQuickPickSeparator)[] = [];
 		try {
 			// Wait a bit to see if the user is still typing
 			await timeout(CommandsQuickAccessProvider.AI_RELATED_INFORMATION_DEBOUNCE, token);
 			additionalPicks = await this.getRelatedInformationPicks(allPicks, picksSoFar, filter, token);
 		} catch (e) {
-			return [];
+			// Ignore and continue to add "Ask in Chat" option
 		}
 
-		if (picksSoFar.length || additionalPicks.length) {
-			additionalPicks.push({
-				type: 'separator'
-			});
-		}
+		// If enabled in settings, add "Ask in Chat" option after a separator (if needed).
+		if (this.configuration.showAskInChat) {
+			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
+			if (defaultAgent) {
+				if (picksSoFar.length || additionalPicks.length) {
+					additionalPicks.push({
+						type: 'separator'
+					});
+				}
 
-		const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
-		if (defaultAgent) {
-			additionalPicks.push({
-				label: localize('askXInChat', "Ask {0}: {1}", defaultAgent.fullName, filter),
-				commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
-				args: [filter]
-			});
+				additionalPicks.push({
+					label: localize('commandsQuickAccess.askInChat', "Ask in Chat: {0}", filter),
+					commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
+					args: [filter],
+					buttons: [{
+						iconClass: ThemeIcon.asClassName(Codicon.gear),
+						tooltip: localize('commandsQuickAccess.configureAskInChatSetting', "Configure visibility"),
+					}],
+					trigger: () => {
+						void this.preferencesService.openSettings({ jsonEditor: false, query: 'workbench.commandPalette.showAskInChat' });
+						return TriggerAction.CLOSE_PICKER;
+					},
+				});
+			}
 		}
 
 		return additionalPicks;
@@ -249,6 +260,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				commandAlias,
 				label: stripIcons(label),
 				commandDescription,
+				commandCategory: category,
 			});
 		}
 

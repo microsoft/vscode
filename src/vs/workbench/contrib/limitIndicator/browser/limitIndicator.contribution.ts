@@ -96,7 +96,7 @@ class FoldingRangeAccessor implements LanguageFeatureAccessor {
 	}
 }
 
-class LanguageStatusEntry {
+class LanguageStatusEntry implements IDisposable {
 
 	private _limitStatusItem: IDisposable | undefined;
 	private _indicatorChangeListener: IDisposable | undefined;
@@ -148,9 +148,9 @@ class LanguageStatusEntry {
 	}
 
 	public dispose() {
-		this._limitStatusItem?.dispose;
+		this._limitStatusItem?.dispose();
 		this._limitStatusItem = undefined;
-		this._indicatorChangeListener?.dispose;
+		this._indicatorChangeListener?.dispose();
 		this._indicatorChangeListener = undefined;
 	}
 }

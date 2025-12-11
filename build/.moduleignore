@@ -60,6 +60,8 @@ fsevents/test/**
 !@vscode/tree-sitter-wasm/wasm/tree-sitter-regex.wasm
 !@vscode/tree-sitter-wasm/wasm/tree-sitter-ini.wasm
 !@vscode/tree-sitter-wasm/wasm/tree-sitter-css.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-powershell.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-bash.wasm
 
 native-keymap/binding.gyp
 native-keymap/build/**

@@ -20,8 +20,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatWidget, showChatView } from '../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, picksWithPromiseFn } from '../../chat/browser/chatContextPickService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemVariableEntry } from '../../chat/common/chatVariableEntries.js';
@@ -79,7 +78,8 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 	private readonly _delayer = new ThrottledDelayer<IChatContextPickerPickItem[]>(200);
 
 	public static asAttachment(provider: ISCMProvider, historyItem: ISCMHistoryItem): ISCMHistoryItemVariableEntry {
-		const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem);
+		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+		const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem.id, historyItemParentId, historyItem.displayId);
 		const attachmentName = `$(${Codicon.repo.id})\u00A0${provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
 
 		return {
@@ -98,9 +98,10 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 		@ISCMViewService private readonly _scmViewService: ISCMViewService
 	) { }
 
-	isEnabled(_widget: IChatWidget): Promise<boolean> | boolean {
+	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
 		const activeRepository = this._scmViewService.activeRepository.get();
-		return activeRepository?.provider.historyProvider.get() !== undefined;
+		const supported = !!widget.attachmentCapabilities.supportsSourceControlAttachments;
+		return activeRepository?.repository.provider.historyProvider.get() !== undefined && supported;
 	}
 
 	asPicker(_widget: IChatWidget) {
@@ -109,7 +110,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 			picks: picksWithPromiseFn((query: string, token: CancellationToken) => {
 				const filterText = query.trim() !== '' ? query.trim() : undefined;
 				const activeRepository = this._scmViewService.activeRepository.get();
-				const historyProvider = activeRepository?.provider.historyProvider.get();
+				const historyProvider = activeRepository?.repository.provider.historyProvider.get();
 				if (!activeRepository || !historyProvider) {
 					return Promise.resolve([]);
 				}
@@ -143,7 +144,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 									iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
 									label: historyItem.subject,
 									detail: details.join(`$(${Codicon.circleSmallFilled.id})`),
-									asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.provider, historyItem)
+									asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.repository.provider, historyItem)
 								} satisfies IChatContextPickerPickItem;
 							});
 						});
@@ -266,8 +267,8 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, provider: ISCMProvider, historyItem: ISCMHistoryItem): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const widget = await showChatView(viewsService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = await chatWidgetService.revealWidget();
 		if (!provider || !historyItem || !widget) {
 			return;
 		}
@@ -292,8 +293,8 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, provider: ISCMProvider, historyItem: ISCMHistoryItem): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const widget = await showChatView(viewsService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = await chatWidgetService.revealWidget();
 		if (!provider || !historyItem || !widget) {
 			return;
 		}
@@ -319,8 +320,8 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, historyItem: ISCMHistoryItem, historyItemChange: ISCMHistoryItemChange): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const widget = await showChatView(viewsService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = await chatWidgetService.revealWidget();
 		if (!historyItem || !historyItemChange.modifiedUri || !widget) {
 			return;
 		}
@@ -334,4 +335,3 @@ registerAction2(class extends Action2 {
 		} satisfies ISCMHistoryItemChangeVariableEntry);
 	}
 });
-

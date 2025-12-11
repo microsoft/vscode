@@ -3,17 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env } from 'vscode';
-import { dirname, sep, relative } from 'path';
+import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env, SourceControlHistoryItem } from 'vscode';
+import { dirname, normalize, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
+import { Stash } from './git';
 
 export const isMacintosh = process.platform === 'darwin';
 export const isWindows = process.platform === 'win32';
 export const isRemote = env.remoteName !== undefined;
 export const isLinux = process.platform === 'linux';
 export const isLinuxSnap = isLinux && !!process.env['SNAP'] && !!process.env['SNAP_REVISION'];
+
+export type Mutable<T> = {
+	-readonly [P in keyof T]: T[P]
+};
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
@@ -37,10 +42,6 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 }
 
 export const EmptyDisposable = toDisposable(() => null);
-
-export function fireEvent<T>(event: Event<T>): Event<T> {
-	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(_ => (listener as any).call(thisArgs), null, disposables);
-}
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 	return (listener: (e: O) => any, thisArgs?: any, disposables?: Disposable[]) => event(i => listener.call(thisArgs, map(i)), null, disposables);
@@ -110,7 +111,8 @@ export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
 
 export function assign<T>(destination: T, ...sources: any[]): T {
 	for (const source of sources) {
-		Object.keys(source).forEach(key => (destination as any)[key] = source[key]);
+		Object.keys(source).forEach(key =>
+			(destination as Record<string, unknown>)[key] = source[key]);
 	}
 
 	return destination;
@@ -236,7 +238,7 @@ export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 			bytesRead += bytesToRead;
 
 			if (bytesRead === bytes) {
-				(stream as any).destroy(); // Will trigger the close event eventually
+				stream.destroy(); // Will trigger the close event eventually
 			}
 		});
 
@@ -295,14 +297,26 @@ export function truncate(value: string, maxLength = 20, ellipsis = true): string
 	return value.length <= maxLength ? value : `${value.substring(0, maxLength)}${ellipsis ? '\u2026' : ''}`;
 }
 
+export function subject(value: string): string {
+	const index = value.indexOf('\n');
+	return index === -1 ? value : truncate(value, index, false);
+}
+
 function normalizePath(path: string): string {
 	// Windows & Mac are currently being handled
 	// as case insensitive file systems in VS Code.
 	if (isWindows || isMacintosh) {
-		return path.toLowerCase();
+		path = path.toLowerCase();
 	}
 
-	return path;
+	// Trailing separator
+	if (/[/\\]$/.test(path)) {
+		// Remove trailing separator
+		path = path.substring(0, path.length - 1);
+	}
+
+	// Normalize the path
+	return normalize(path);
 }
 
 export function isDescendant(parent: string, descendant: string): boolean {
@@ -310,11 +324,16 @@ export function isDescendant(parent: string, descendant: string): boolean {
 		return true;
 	}
 
+	// Normalize the paths
+	parent = normalizePath(parent);
+	descendant = normalizePath(descendant);
+
+	// Ensure parent ends with separator
 	if (parent.charAt(parent.length - 1) !== sep) {
 		parent += sep;
 	}
 
-	return normalizePath(descendant).startsWith(normalizePath(parent));
+	return descendant.startsWith(parent);
 }
 
 export function pathEquals(a: string, b: string): boolean {
@@ -779,6 +798,12 @@ export function getCommitShortHash(scope: Uri, hash: string): string {
 	return hash.substring(0, shortHashLength);
 }
 
+export function getHistoryItemDisplayName(historyItem: SourceControlHistoryItem): string {
+	return historyItem.references?.length
+		? historyItem.references[0].name
+		: historyItem.displayId ?? historyItem.id;
+}
+
 export type DiagnosticSeverityConfig = 'error' | 'warning' | 'information' | 'hint' | 'none';
 
 export function toDiagnosticSeverity(value: DiagnosticSeverityConfig): DiagnosticSeverity {
@@ -821,4 +846,20 @@ export function extractFilePathFromArgs(argv: string[], startIndex: number): str
 	// If no closing quote was found, remove
 	// leading quote and return the path as-is
 	return path.slice(1);
+}
+
+export function getStashDescription(stash: Stash): string | undefined {
+	if (!stash.commitDate && !stash.branchName) {
+		return undefined;
+	}
+
+	const descriptionSegments: string[] = [];
+	if (stash.commitDate) {
+		descriptionSegments.push(fromNow(stash.commitDate));
+	}
+	if (stash.branchName) {
+		descriptionSegments.push(stash.branchName);
+	}
+
+	return descriptionSegments.join(' \u2022 ');
 }

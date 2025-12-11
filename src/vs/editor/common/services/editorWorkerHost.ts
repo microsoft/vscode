@@ -10,10 +10,10 @@ export abstract class EditorWorkerHost {
 	public static getChannel(workerServer: IWebWorkerServer): EditorWorkerHost {
 		return workerServer.getChannel<EditorWorkerHost>(EditorWorkerHost.CHANNEL_NAME);
 	}
-	public static setChannel(workerClient: IWebWorkerClient<any>, obj: EditorWorkerHost): void {
+	public static setChannel(workerClient: IWebWorkerClient<unknown>, obj: EditorWorkerHost): void {
 		workerClient.setChannel<EditorWorkerHost>(EditorWorkerHost.CHANNEL_NAME, obj);
 	}
 
 	// foreign host request
-	abstract $fhr(method: string, args: any[]): Promise<any>;
+	abstract $fhr(method: string, args: unknown[]): Promise<unknown>;
 }

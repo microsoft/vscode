@@ -10,7 +10,7 @@ import { Range } from './range.js';
 
 export class SnippetTextEdit implements vscode.SnippetTextEdit {
 
-	static isSnippetTextEdit(thing: any): thing is SnippetTextEdit {
+	static isSnippetTextEdit(thing: unknown): thing is SnippetTextEdit {
 		if (thing instanceof SnippetTextEdit) {
 			return true;
 		}

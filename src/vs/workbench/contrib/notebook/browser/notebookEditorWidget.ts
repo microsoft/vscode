@@ -37,7 +37,8 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { BareFontInfo, FontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../editor/common/config/fontInfoFromSettings.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
@@ -105,6 +106,7 @@ import { NotebookHorizontalTracker } from './viewParts/notebookHorizontalTracker
 import { NotebookCellEditorPool } from './view/notebookCellEditorPool.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { NotebookCellLayoutManager } from './notebookCellLayoutManager.js';
+import { FloatingEditorToolbar } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 
 const $ = DOM.$;
 
@@ -113,6 +115,7 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 	const skipContributions = [
 		'editor.contrib.review',
 		FloatingEditorClickMenu.ID,
+		FloatingEditorToolbar.ID,
 		'editor.contrib.dirtydiff',
 		'editor.contrib.testingOutputPeek',
 		'editor.contrib.testingDecorations',
@@ -474,7 +477,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _debugFlag: boolean = false;
 
-	private _debug(...args: any[]) {
+	private _debug(...args: unknown[]) {
 		if (!this._debugFlag) {
 			return;
 		}
@@ -605,7 +608,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _generateFontInfo(): void {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		const targetWindow = DOM.getWindow(this.getDomNode());
-		this._fontInfo = FontMeasurements.readFontInfo(targetWindow, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value));
+		this._fontInfo = FontMeasurements.readFontInfo(targetWindow, createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value));
 	}
 
 	private _createBody(parent: HTMLElement): void {
@@ -2127,7 +2130,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return false;
 		}
 
-		let container: any = activeSelection.commonAncestorContainer;
+		let container: Node | null = activeSelection.commonAncestorContainer;
 
 		if (!this._body.contains(container)) {
 			return false;
@@ -2990,7 +2993,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	//#region --- webview IPC ----
-	postMessage(message: any) {
+	postMessage(message: unknown) {
 		if (this._webview?.isResolved()) {
 			this._webview.postKernelMessage(message);
 		}

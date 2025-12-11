@@ -5,19 +5,16 @@
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
-import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IMcpServer, IMcpService, IAutostartResult, McpCollectionDefinition, McpConnectionState, McpServerCacheState, McpServerDefinition, McpStartServerInteraction, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
+import { IAutostartResult, IMcpServer, IMcpService, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, McpServerCacheState, McpServerDefinition, McpStartServerInteraction, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
 import { startServerAndWaitForLiveTools } from './mcpTypesUtils.js';
 
 type IMcpServerRec = { object: IMcpServer; toolPrefix: string };
@@ -26,6 +23,7 @@ export class McpService extends Disposable implements IMcpService {
 
 	declare _serviceBrand: undefined;
 
+	private readonly _currentAutoStarts = new Set<CancellationTokenSource>();
 	private readonly _servers = observableValue<readonly IMcpServerRec[]>(this, []);
 	public readonly servers: IObservable<readonly IMcpServer[]> = this._servers.map(servers => servers.map(s => s.object));
 
@@ -38,8 +36,6 @@ export class McpService extends Disposable implements IMcpService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@ILogService private readonly _logService: ILogService,
-		@IProgressService private readonly progressService: IProgressService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
@@ -59,72 +55,90 @@ export class McpService extends Disposable implements IMcpService {
 		}));
 	}
 
-	public async autostart(token?: CancellationToken): Promise<IAutostartResult> {
+	public cancelAutostart(): void {
+		for (const cts of this._currentAutoStarts) {
+			cts.cancel();
+		}
+	}
+
+	public autostart(_token?: CancellationToken): IObservable<IAutostartResult> {
 		const autoStartConfig = this.configurationService.getValue<McpAutoStartValue>(mcpAutoStartConfig);
+		if (autoStartConfig === McpAutoStartValue.Never) {
+			return observableValue<IAutostartResult>(this, IAutostartResult.Empty);
+		}
+
+		const state = observableValue<IAutostartResult>(this, { working: true, starting: [], serversRequiringInteraction: [] });
+		const store = new DisposableStore();
+
+		const cts = store.add(new CancellationTokenSource(_token));
+		this._currentAutoStarts.add(cts);
+		store.add(toDisposable(() => {
+			this._currentAutoStarts.delete(cts);
+		}));
+		store.add(cts.token.onCancellationRequested(() => {
+			state.set(IAutostartResult.Empty, undefined);
+		}));
+
+		this._autostart(autoStartConfig, state, cts.token)
+			.catch(err => {
+				this._logService.error('Error during MCP autostart:', err);
+				state.set(IAutostartResult.Empty, undefined);
+			})
+			.finally(() => store.dispose());
+
+		return state;
+	}
+
+	private async _autostart(autoStartConfig: McpAutoStartValue, state: ISettableObservable<IAutostartResult>, token: CancellationToken) {
+		await this._activateCollections();
+
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		// don't try re-running errored servers, let the user choose if they want that
 		const candidates = this.servers.get().filter(s => s.connectionState.get().state !== McpConnectionState.Kind.Error);
 
-		let todo: IMcpServer[] = [];
+		let todo = new Set<IMcpServer>();
 		if (autoStartConfig === McpAutoStartValue.OnlyNew) {
-			todo = candidates.filter(s => s.cacheState.get() === McpServerCacheState.Unknown);
+			todo = new Set(candidates.filter(s => s.cacheState.get() === McpServerCacheState.Unknown));
 		} else if (autoStartConfig === McpAutoStartValue.NewAndOutdated) {
-			todo = candidates.filter(s => {
+			todo = new Set(candidates.filter(s => {
 				const c = s.cacheState.get();
 				return c === McpServerCacheState.Unknown || c === McpServerCacheState.Outdated;
-			});
+			}));
 		}
 
-		if (!todo.length) {
-			return { serversRequiringInteraction: [] };
+		if (!todo.size) {
+			state.set(IAutostartResult.Empty, undefined);
+			return;
 		}
 
-		const serversRequiringInteraction: Array<{ serverId: string; serverLabel: string; errorMessage?: string }> = [];
 		const interaction = new McpStartServerInteraction();
-		const cts = new CancellationTokenSource(token);
+		const requiringInteraction: (McpDefinitionReference & { errorMessage?: string })[] = [];
 
-		await this.progressService.withProgress(
-			{
-				location: ProgressLocation.Notification,
-				cancellable: true,
-				delay: 5_000,
-				total: todo.length,
-				buttons: [
-					localize('mcp.autostart.send', 'Skip Waiting'),
-					localize('mcp.autostart.configure', 'Configure'),
-				]
-			},
-			report => {
-				const remaining = new Set(todo);
-				const doReport = () => report.report({ message: localize('mcp.autostart.progress', 'Waiting for MCP server "{0}" to start...', [...remaining].map(r => r.definition.label).join('", "')), total: todo.length, increment: 1 });
-				doReport();
-				return Promise.all(todo.map(async server => {
-					try {
-						await startServerAndWaitForLiveTools(server, { interaction, errorOnUserInteraction: true }, cts.token);
-					} catch (error) {
-						if (error instanceof UserInteractionRequiredError) {
-							serversRequiringInteraction.push({
-								serverId: server.definition.id,
-								serverLabel: server.definition.label,
-								errorMessage: error.message
-							});
-						}
-					}
-					remaining.delete(server);
-					doReport();
-				}));
-			},
-			btn => {
-				if (btn === 1) {
-					this.commandService.executeCommand('workbench.action.openSettings', mcpAutoStartConfig);
+		const update = () => state.set({
+			working: todo.size > 0,
+			starting: [...todo].map(t => t.definition),
+			serversRequiringInteraction: requiringInteraction,
+		}, undefined);
+
+		update();
+
+		await Promise.all([...todo].map(async (server, i) => {
+			try {
+				await startServerAndWaitForLiveTools(server, { interaction, errorOnUserInteraction: true }, token);
+			} catch (error) {
+				if (error instanceof UserInteractionRequiredError) {
+					requiringInteraction.push({ id: server.definition.id, label: server.definition.label, errorMessage: error.message });
 				}
-				cts.cancel();
-			},
-		);
-
-		cts.dispose();
-
-		return { serversRequiringInteraction };
+			} finally {
+				todo.delete(server);
+				if (!token.isCancellationRequested) {
+					update();
+				}
+			}
+		}));
 	}
 
 	public resetCaches(): void {
@@ -137,23 +151,13 @@ export class McpService extends Disposable implements IMcpService {
 	}
 
 	public async activateCollections(): Promise<void> {
+		await this._activateCollections();
+	}
+
+	private async _activateCollections() {
 		const collections = await this._mcpRegistry.discoverCollections();
-		const collectionIds = new Set(collections.map(c => c.id));
-
 		this.updateCollectedServers();
-
-		// Discover any newly-collected servers with unknown tools
-		const todo: Promise<unknown>[] = [];
-		for (const { object: server } of this._servers.get()) {
-			if (collectionIds.has(server.collection.id)) {
-				const state = server.cacheState.get();
-				if (state === McpServerCacheState.Unknown) {
-					todo.push(server.start());
-				}
-			}
-		}
-
-		await Promise.all(todo);
+		return new Set(collections.map(c => c.id));
 	}
 
 	public updateCollectedServers() {

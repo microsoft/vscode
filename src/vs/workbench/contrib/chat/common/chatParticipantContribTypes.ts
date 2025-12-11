@@ -11,7 +11,6 @@ export interface IRawChatCommandContribution {
 	sampleRequest?: string;
 	isSticky?: boolean;
 	when?: string;
-	defaultImplicitVariables?: string[];
 	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
 }
 

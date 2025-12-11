@@ -23,6 +23,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
@@ -68,7 +69,8 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@IMenuService private readonly menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -221,15 +223,14 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 
 		const selection = this.tree.getSelection();
 
-		const contextKeyService = element && await getContextForWatchExpressionMenuWithDataAccess(this.contextKeyService, element);
+		const contextKeyService = element && await getContextForWatchExpressionMenuWithDataAccess(this.contextKeyService, element, this.debugService, this.logService);
 		const menu = this.menuService.getMenuActions(MenuId.DebugWatchContext, contextKeyService, { arg: element, shouldForwardArgs: false });
 		const { secondary } = getContextMenuActions(menu, 'inline');
 
-		//		const actions = getFlatContextMenuActions(this.menu.getActions({ arg: element, shouldForwardArgs: true }));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => secondary,
-			getActionsContext: () => element && selection.includes(element) ? selection : element ? [element] : [],
+			getActionsContext: () => element && selection.includes(element) ? selection : element ? [element] : []
 		});
 	}
 }
@@ -266,7 +267,7 @@ class WatchExpressionsDataSource extends AbstractExpressionDataSource<IDebugServ
 
 	protected override doGetChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
 		if (isDebugService(element)) {
-			const debugService = element as IDebugService;
+			const debugService = element;
 			const watchExpressions = debugService.getModel().getWatchExpressions();
 			const viewModel = debugService.getViewModel();
 			return Promise.all(watchExpressions.map(we => !!we.name && !useCachedEvaluation
@@ -409,14 +410,48 @@ function getContextForWatchExpressionMenu(parentContext: IContextKeyService, exp
 /**
  * Gets a context key overlay that has context for the given expression, including data access info.
  */
-async function getContextForWatchExpressionMenuWithDataAccess(parentContext: IContextKeyService, expression: IExpression) {
+async function getContextForWatchExpressionMenuWithDataAccess(parentContext: IContextKeyService, expression: IExpression, debugService: IDebugService, logService: ILogService) {
 	const session = expression.getSession();
 	if (!session || !session.capabilities.supportsDataBreakpoints) {
 		return getContextForWatchExpressionMenu(parentContext, expression);
 	}
 
 	const contextKeys: [string, unknown][] = [];
-	const dataBreakpointInfoResponse = await session.dataBreakpointInfo('evaluateName' in expression ? expression.evaluateName as string : expression.name);
+	const stackFrame = debugService.getViewModel().focusedStackFrame;
+	let dataBreakpointInfoResponse;
+
+	try {
+		// Per DAP spec:
+		// - If evaluateName is available: use it as an expression (top-level evaluation)
+		// - Otherwise, check if it's a Variable: use name + parent reference (container-relative)
+		// - Otherwise: use name as an expression
+		if ('evaluateName' in expression && expression.evaluateName) {
+			// Use evaluateName if available (more precise for evaluation context)
+			dataBreakpointInfoResponse = await session.dataBreakpointInfo(
+				expression.evaluateName as string,
+				undefined,
+				stackFrame?.frameId
+			);
+		} else if (expression instanceof Variable) {
+			// Variable without evaluateName: use name relative to parent container
+			dataBreakpointInfoResponse = await session.dataBreakpointInfo(
+				expression.name,
+				expression.parent.reference,
+				stackFrame?.frameId
+			);
+		} else {
+			// Expression without evaluateName: use name as the expression to evaluate
+			dataBreakpointInfoResponse = await session.dataBreakpointInfo(
+				expression.name,
+				undefined,
+				stackFrame?.frameId
+			);
+		}
+	} catch (error) {
+		// silently continue without data breakpoint support for this item
+		logService.error('Failed to get data breakpoint info for watch expression:', error);
+	}
+
 	const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
 	const dataBreakpointAccessTypes = dataBreakpointInfoResponse?.accessTypes;
 	setDataBreakpointInfoResponse(dataBreakpointInfoResponse);
@@ -451,11 +486,11 @@ class WatchExpressionsAccessibilityProvider implements IListAccessibilityProvide
 
 	getAriaLabel(element: IExpression): string {
 		if (element instanceof Expression) {
-			return localize('watchExpressionAriaLabel', "{0}, value {1}", (<Expression>element).name, (<Expression>element).value);
+			return localize('watchExpressionAriaLabel', "{0}, value {1}", element.name, element.value);
 		}
 
 		// Variable
-		return localize('watchVariableAriaLabel', "{0}, value {1}", (<Variable>element).name, (<Variable>element).value);
+		return localize('watchVariableAriaLabel', "{0}, value {1}", element.name, element.value);
 	}
 }
 

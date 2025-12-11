@@ -81,6 +81,11 @@ call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITWORKSPACE% --extensionDevelopmentPat
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
+echo ### Git Base tests
+call npm run test-extension -- -l git-base
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
 echo ### Ipynb tests
 call npm run test-extension -- -l ipynb
 if %errorlevel% neq 0 exit /b %errorlevel%

@@ -10,11 +10,11 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { assertType } from '../../../base/common/types.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { Location } from '../../../editor/common/languages.js';
 import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -23,10 +23,11 @@ import { isChatViewTitleActionContext } from '../../contrib/chat/common/chatActi
 import { IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings, UserSelectedTools } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRelatedFile, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
+import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IChatSessionContextDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -34,6 +35,8 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { ICustomAgentQueryOptions, IExternalCustomAgent } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
 export class ChatAgentResponseStream {
 
@@ -82,7 +85,7 @@ export class ChatAgentResponseStream {
 
 
 			const sendQueue: (IChatProgressDto | [IChatProgressDto, number])[] = [];
-			const notify: Function[] = [];
+			let notify: Function[] = [];
 
 			function send(chunk: IChatProgressDto): void;
 			function send(chunk: IChatProgressDto, handle: number): Promise<void>;
@@ -92,9 +95,10 @@ export class ChatAgentResponseStream {
 				const newLen = sendQueue.push(handle !== undefined ? [chunk, handle] : chunk);
 				if (newLen === 1) {
 					queueMicrotask(() => {
+						const toNotify = notify;
+						notify = [];
 						that._proxy.$handleProgressChunk(that._request.requestId, sendQueue).finally(() => {
-							notify.forEach(f => f());
-							notify.length = 0;
+							toNotify.forEach(f => f());
 						});
 						sendQueue.length = 0;
 					});
@@ -274,6 +278,19 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				async externalEdit(target, callback) {
+					throwIfDone(this.externalEdit);
+					const resources = Array.isArray(target) ? target : [target];
+					const operationId = taskHandlePool++;
+					const undoStopId = generateUuid();
+					await send({ kind: 'externalEdits', start: true, resources, undoStopId }, operationId);
+					try {
+						await callback();
+						return undoStopId;
+					} finally {
+						await send({ kind: 'externalEdits', start: false, resources, undoStopId }, operationId);
+					}
+				},
 				confirmation(title, message, data, buttons) {
 					throwIfDone(this.confirmation);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -304,6 +321,7 @@ export class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
 						part instanceof extHostTypes.ChatResponseMovePart ||
 						part instanceof extHostTypes.ChatResponseExtensionsPart ||
+						part instanceof extHostTypes.ChatResponseExternalEditPart ||
 						part instanceof extHostTypes.ChatResponseThinkingProgressPart ||
 						part instanceof extHostTypes.ChatResponsePullRequestPart ||
 						part instanceof extHostTypes.ChatResponseProgressPart2
@@ -343,6 +361,10 @@ export class ChatAgentResponseStream {
 						const dto = typeConvert.ChatPrepareToolInvocationPart.from(part);
 						_report(dto);
 						return this;
+					} else if (part instanceof extHostTypes.ChatResponseExternalEditPart) {
+						const p = this.externalEdit(part.uris, part.callback);
+						p.then((value) => part.didGetApplied(value));
+						return this;
 					} else {
 						const dto = typeConvert.ChatResponsePart.from(part, that._commandsConverter, that._sessionDisposables);
 						_report(dto);
@@ -376,7 +398,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private static _relatedFilesProviderIdPool = 0;
 	private readonly _relatedFilesProviders = new Map<number, ExtHostRelatedFilesProvider>();
 
-	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
+	private static _customAgentsProviderIdPool = 0;
+	private readonly _customAgentsProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.CustomAgentsProvider }>();
+
+	private readonly _sessionDisposables: DisposableResourceMap<DisposableStore> = this._register(new DisposableResourceMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
 
 	private readonly _inFlightRequests = new Set<InFlightChatRequest>();
@@ -392,6 +417,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		private readonly _logService: ILogService,
 		private readonly _commands: ExtHostCommands,
 		private readonly _documents: ExtHostDocuments,
+		private readonly _editorsAndDocuments: ExtHostDocumentsAndEditors,
 		private readonly _languageModels: ExtHostLanguageModels,
 		private readonly _diagnostics: ExtHostDiagnostics,
 		private readonly _tools: ExtHostLanguageModelTools
@@ -453,6 +479,28 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		});
 	}
 
+	registerCustomAgentsProvider(extension: IExtensionDescription, provider: vscode.CustomAgentsProvider): vscode.Disposable {
+		const handle = ExtHostChatAgents2._customAgentsProviderIdPool++;
+		this._customAgentsProviders.set(handle, { extension, provider });
+		this._proxy.$registerCustomAgentsProvider(handle, extension.identifier);
+
+		const disposables = new DisposableStore();
+
+		// Listen to provider change events and notify main thread
+		if (provider.onDidChangeCustomAgents) {
+			disposables.add(provider.onDidChangeCustomAgents(() => {
+				this._proxy.$onDidChangeCustomAgents(handle);
+			}));
+		}
+
+		disposables.add(toDisposable(() => {
+			this._customAgentsProviders.delete(handle);
+			this._proxy.$unregisterCustomAgentsProvider(handle);
+		}));
+
+		return disposables;
+	}
+
 	async $provideRelatedFiles(handle: number, request: IChatRequestDraft, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined> {
 		const provider = this._relatedFilesProviders.get(handle);
 		if (!provider) {
@@ -461,6 +509,15 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		const extRequestDraft = typeConvert.ChatRequestDraft.to(request);
 		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
+	}
+
+	async $provideCustomAgents(handle: number, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<IExternalCustomAgent[] | undefined> {
+		const providerData = this._customAgentsProviders.get(handle);
+		if (!providerData) {
+			return Promise.resolve(undefined);
+		}
+
+		return await providerData.provider.provideCustomAgents(options, token) ?? undefined;
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
@@ -498,7 +555,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		if (request.locationData?.type === ChatAgentLocation.EditorInline) {
 			// editor data
 			const document = this._documents.getDocument(request.locationData.document);
-			location = new extHostTypes.ChatRequestEditorData(document, typeConvert.Selection.to(request.locationData.selection), typeConvert.Range.to(request.locationData.wholeRange));
+			const editor = this._editorsAndDocuments.getEditor(request.locationData.id)!;
+			location = new extHostTypes.ChatRequestEditorData(editor.value, document, typeConvert.Selection.to(request.locationData.selection), typeConvert.Range.to(request.locationData.wholeRange));
 
 		} else if (request.locationData?.type === ChatAgentLocation.Notebook) {
 			// notebook data
@@ -541,7 +599,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
 	}
 
-	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -554,10 +612,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			const { request, location, history } = await this._createRequest(requestDto, context, agent.extension);
 
 			// Init session disposables
-			let sessionDisposables = this._sessionDisposables.get(request.sessionId);
+			let sessionDisposables = this._sessionDisposables.get(request.sessionResource);
 			if (!sessionDisposables) {
 				sessionDisposables = new DisposableStore();
-				this._sessionDisposables.set(request.sessionId, sessionDisposables);
+				this._sessionDisposables.set(request.sessionResource, sessionDisposables);
 			}
 
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
@@ -575,9 +633,23 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			inFlightRequest = { requestId: requestDto.requestId, extRequest, extension: agent.extension };
 			this._inFlightRequests.add(inFlightRequest);
 
+
+			// If this request originates from a contributed chat session editor, attempt to resolve the ChatSession API object
+			let chatSessionContext: vscode.ChatSessionContext | undefined;
+			if (context.chatSessionContext) {
+				chatSessionContext = {
+					chatSessionItem: {
+						resource: URI.revive(context.chatSessionContext.chatSessionResource),
+						label: context.chatSessionContext.isUntitled ? 'Untitled Session' : 'Session',
+					},
+					isUntitled: context.chatSessionContext.isUntitled,
+				};
+			}
+
+			const chatContext: vscode.ChatContext = { history, chatSessionContext };
 			const task = agent.invoke(
 				extRequest,
-				{ history },
+				chatContext,
 				stream.apiObject,
 				token
 			);
@@ -599,7 +671,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 						responseIsIncomplete: true
 					};
 				}
-				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded || errorDetails?.confirmationButtons || errorDetails?.code) {
+				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded || errorDetails?.isRateLimited || errorDetails?.confirmationButtons || errorDetails?.code) {
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
@@ -613,7 +685,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			}
 
 			const isQuotaExceeded = e instanceof Error && e.name === 'ChatQuotaExceeded';
-			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded } };
+			const isRateLimited = e instanceof Error && e.name === 'ChatRateLimited';
+			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded, isRateLimited } };
 
 		} finally {
 			if (inFlightRequest) {
@@ -669,7 +742,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			}
 
 			const editedFileEvents = isProposedApiEnabled(extension, 'chatParticipantPrivate') ? h.request.editedFileEvents : undefined;
-			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences, editedFileEvents);
+			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences, editedFileEvents, h.request.requestId);
 			res.push(turn);
 
 			// RESPONSE turn
@@ -680,9 +753,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return res;
 	}
 
-	$releaseSession(sessionId: string): void {
-		this._sessionDisposables.deleteAndDispose(sessionId);
-		this._onDidDisposeChatSession.fire(sessionId);
+	$releaseSession(sessionResourceDto: UriComponents): void {
+		const sessionResource = URI.revive(sessionResourceDto);
+		this._sessionDisposables.deleteAndDispose(sessionResource);
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+		if (sessionId) {
+			this._onDidDisposeChatSession.fire(sessionId);
+		}
 	}
 
 	async $provideFollowups(requestDto: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]> {
@@ -818,7 +895,6 @@ class ExtHostChatAgent {
 	private _additionalWelcomeMessage?: string | vscode.MarkdownString | undefined;
 	private _titleProvider?: vscode.ChatTitleProvider | undefined;
 	private _summarizer?: vscode.ChatSummarizer | undefined;
-	private _requester: vscode.ChatRequesterInformation | undefined;
 	private _pauseStateEmitter = new Emitter<vscode.ChatParticipantPauseStateEvent>();
 
 	constructor(
@@ -906,7 +982,6 @@ class ExtHostChatAgent {
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					supportIssueReporting: this._supportIssueReporting,
-					requester: this._requester,
 					additionalWelcomeMessage: (!this._additionalWelcomeMessage || typeof this._additionalWelcomeMessage === 'string') ? this._additionalWelcomeMessage : typeConvert.MarkdownString.from(this._additionalWelcomeMessage),
 				});
 				updateScheduled = false;
@@ -1020,13 +1095,6 @@ class ExtHostChatAgent {
 				? undefined!
 				: this._onDidPerformAction.event
 			,
-			set requester(v) {
-				that._requester = v;
-				updateMetadataSoon();
-			},
-			get requester() {
-				return that._requester;
-			},
 			dispose() {
 				disposed = true;
 				that._followupProvider = undefined;

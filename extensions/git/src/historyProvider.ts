@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent, Command, commands } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, truncate } from './util';
+import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, subject, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
 import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 import { OperationKind, OperationResult } from './operation';
-import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
+import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { throttle } from './decorators';
+import { getHistoryItemHover, getHoverCommitHashCommands, processHoverRemoteCommands } from './hover';
 
 function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRef, ref2: SourceControlHistoryItemRef): number {
 	const getOrder = (ref: SourceControlHistoryItemRef): number => {
@@ -124,7 +125,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 								id: `refs/heads/${this.repository.HEAD.upstream.name}`,
 								name: this.repository.HEAD.upstream.name,
 								revision: this.repository.HEAD.upstream.commit,
-								icon: new ThemeIcon('gi-branch')
+								icon: new ThemeIcon('git-branch')
 							};
 						} else {
 							// Remote branch
@@ -183,6 +184,14 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				this._currentHistoryItemBaseRef = undefined;
 				break;
 			}
+		}
+
+		// Update context keys for HEAD
+		if (this._HEAD?.ahead !== this.repository.HEAD?.ahead) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsAhead', (this.repository.HEAD?.ahead ?? 0) > 0);
+		}
+		if (this._HEAD?.behind !== this.repository.HEAD?.behind) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsBehind', (this.repository.HEAD?.behind ?? 0) > 0);
 		}
 
 		this._HEAD = this.repository.HEAD;
@@ -282,6 +291,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			const commitAvatars = await provideSourceControlHistoryItemAvatar(
 				this.historyItemDetailProviderRegistry, this.repository, avatarQuery);
 
+			const remoteHoverCommands = await provideSourceControlHistoryItemHoverCommands(this.historyItemDetailProviderRegistry, this.repository) ?? [];
+
 			await ensureEmojis();
 
 			const historyItems: SourceControlHistoryItem[] = [];
@@ -290,18 +301,20 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(
 					this.historyItemDetailProviderRegistry, this.repository, message) ?? message;
 
-				const newLineIndex = message.indexOf('\n');
-				const subject = newLineIndex !== -1
-					? `${truncate(message, newLineIndex, false)}`
-					: message;
-
 				const avatarUrl = commitAvatars?.get(commit.hash);
 				const references = this._resolveHistoryItemRefs(commit);
+
+				const commands: Command[][] = [
+					getHoverCommitHashCommands(Uri.file(this.repository.root), commit.hash),
+					processHoverRemoteCommands(remoteHoverCommands, commit.hash)
+				];
+
+				const tooltip = getHistoryItemHover(avatarUrl, commit.authorName, commit.authorEmail, commit.authorDate ?? commit.commitDate, messageWithLinks, commit.shortStat, commands);
 
 				historyItems.push({
 					id: commit.hash,
 					parentIds: commit.parents,
-					subject,
+					subject: subject(message),
 					message: messageWithLinks,
 					author: commit.authorName,
 					authorEmail: commit.authorEmail,
@@ -309,7 +322,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					displayId: truncate(commit.hash, this.commitShortHashLength, false),
 					timestamp: commit.authorDate?.getTime(),
 					statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
-					references: references.length !== 0 ? references : undefined
+					references: references.length !== 0 ? references : undefined,
+					tooltip
 				} satisfies SourceControlHistoryItem);
 			}
 
@@ -325,7 +339,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		const historyItemChangesUri: Uri[] = [];
 		const historyItemChanges: SourceControlHistoryItemChange[] = [];
-		const changes = await this.repository.diffTrees(historyItemParentId, historyItemId);
+		const changes = await this.repository.diffBetween2(historyItemParentId, historyItemId);
 
 		for (const change of changes) {
 			const historyItemUri = change.uri.with({

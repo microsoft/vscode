@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
@@ -22,8 +21,8 @@ import { ILanguageService } from '../../../../../../common/languages/language.js
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel/inlineDecorations.js';
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
-import { GhostTextView } from '../../ghostText/ghostTextView.js';
-import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { GhostTextView, IGhostTextWidgetData } from '../../ghostText/ghostTextView.js';
+import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor, modifiedBackgroundColor } from '../theme.js';
 import { getPrefixTrim, mapOutFalsy } from '../utils/utils.js';
 
@@ -35,7 +34,7 @@ const BORDER_RADIUS = 4;
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
 	private readonly _editorObs: ObservableCodeEditor;
 
-	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
+	private readonly _onDidClick = this._register(new Emitter<InlineEditClickEvent>());
 	readonly onDidClick = this._onDidClick.event;
 
 	private readonly _state = derived(this, reader => {
@@ -137,26 +136,33 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 
 		this._editorObs = observableCodeEditor(this._editor);
 
-		this._ghostTextView = this._register(instantiationService.createInstance(GhostTextView,
+		this._ghostTextView = this._register(instantiationService.createInstance(
+			GhostTextView,
 			this._editor,
+			derived(reader => {
+				const ghostText = this._ghostText.read(reader);
+				if (!ghostText) {
+					return undefined;
+				}
+				return {
+					ghostText: ghostText,
+					handleInlineCompletionShown: (data) => {
+						// This is a no-op for the insertion view, as it is handled by the InlineEditsView.
+					},
+					warning: undefined,
+				} satisfies IGhostTextWidgetData;
+			}),
 			{
-				ghostText: this._ghostText,
-				minReservedLineCount: constObservable(0),
-				targetTextModel: this._editorObs.model.map(model => model ?? undefined),
-				warning: constObservable(undefined),
-				handleInlineCompletionShown: constObservable(() => {
-					// This is a no-op for the insertion view, as it is handled by the InlineEditsView.
-				}),
-			},
-			observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
-			true,
-			true
+				extraClasses: ['inline-edit'],
+				isClickable: true,
+				shouldKeepCursorStable: true,
+			}
 		));
 
 		this.isHovered = this._ghostTextView.isHovered;
 
 		this._register(this._ghostTextView.onDidClick((e) => {
-			this._onDidClick.fire(e);
+			this._onDidClick.fire(new InlineEditClickEvent(e));
 		}));
 
 		this._register(this._editorObs.createOverlayWidget({

@@ -143,7 +143,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		this.resolvableVariables.add('input');
 	}
 
-	override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: unknown, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
+	override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: unknown, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<unknown> {
 		const parsed = ConfigurationResolverExpression.parse(config);
 		await this.resolveWithInteraction(folder, parsed, section, variables, target);
 
@@ -225,7 +225,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		}
 
 
-		inputs ??= this.configurationService.getValue<any>(section, overrides)?.inputs;
+		inputs ??= this.configurationService.getValue<{ inputs?: ConfiguredInput[] }>(section, overrides)?.inputs;
 
 		return inputs;
 	}

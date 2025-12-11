@@ -19,6 +19,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextPicker, picksWithPromiseFn } from '../../chat/browser/chatContextPickService.js';
 import { IDiagnosticVariableEntryFilterData } from '../../chat/common/chatVariableEntries.js';
+import { IChatWidget } from '../../chat/browser/chat.js';
 
 class MarkerChatContextPick implements IChatContextPickerItem {
 
@@ -33,6 +34,9 @@ class MarkerChatContextPick implements IChatContextPickerItem {
 		@IEditorService private readonly _editorService: IEditorService,
 	) { }
 
+	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
+		return !!widget.attachmentCapabilities.supportsProblemAttachments;
+	}
 	asPicker(): IChatContextPicker {
 		return {
 			placeholder: localize('chatContext.diagnstic.placeholder', 'Select a problem to attach'),

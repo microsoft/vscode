@@ -7,6 +7,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ApplicationService } from './application';
 import { applyAllTools } from './automationTools/index.js';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { z } from 'zod';
 
 export async function getServer(appService: ApplicationService): Promise<Server> {
 	const server = new McpServer({
@@ -18,9 +19,12 @@ export async function getServer(appService: ApplicationService): Promise<Server>
 	server.tool(
 		'vscode_automation_start',
 		'Start VS Code Build',
-		{},
-		async () => {
-			const app = await appService.getOrCreateApplication();
+		{
+			recordVideo: z.boolean().optional()
+		},
+		async ({ recordVideo }) => {
+			const app = await appService.getOrCreateApplication({ recordVideo });
+			await app.startTracing();
 			return {
 				content: [{
 					type: 'text' as const,

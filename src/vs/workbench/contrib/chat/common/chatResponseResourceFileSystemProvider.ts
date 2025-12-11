@@ -84,27 +84,37 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		throw createFileSystemProviderError('fs is readonly', FileSystemProviderErrorCode.NoPermissions);
 	}
 
-	private lookupURI(uri: URI): Uint8Array | Promise<Uint8Array> {
+	private findMatchingInvocation(uri: URI) {
 		const parsed = ChatResponseResource.parseUri(uri);
 		if (!parsed) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
-		const { sessionId, requestId, toolCallId } = parsed;
-		const result = this.chatService.getSession(sessionId)
-			?.getRequests()
-			.find(r => r.id === requestId)
-			?.response?.entireResponse.value
-			.find((r): r is IChatToolInvocation | IChatToolInvocationSerialized => (r.kind === 'toolInvocation' || r.kind === 'toolInvocationSerialized') && r.toolCallId === toolCallId);
-
-		if (!result) {
+		const { sessionResource, toolCallId, index } = parsed;
+		const session = this.chatService.getSession(sessionResource);
+		if (!session) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
-		if (!isToolResultInputOutputDetails(result.resultDetails)) {
+		const requests = session.getRequests();
+		for (let k = requests.length - 1; k >= 0; k--) {
+			const req = requests[k];
+			const tc = req.response?.entireResponse.value.find((r): r is IChatToolInvocation | IChatToolInvocationSerialized => (r.kind === 'toolInvocation' || r.kind === 'toolInvocationSerialized') && r.toolCallId === toolCallId);
+			if (tc) {
+				return { result: tc, index };
+			}
+		}
+
+		throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
+	}
+
+	private lookupURI(uri: URI): Uint8Array | Promise<Uint8Array> {
+		const { result, index } = this.findMatchingInvocation(uri);
+		const details = IChatToolInvocation.resultDetails(result);
+		if (!isToolResultInputOutputDetails(details)) {
 			throw createFileSystemProviderError(`Tool does not have I/O`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
-		const part = result.resultDetails.output.at(parsed.index);
+		const part = details.output.at(index);
 		if (!part) {
 			throw createFileSystemProviderError(`Tool does not have part`, FileSystemProviderErrorCode.FileNotFound);
 		}

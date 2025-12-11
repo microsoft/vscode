@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { MainContext, MainThreadClipboardShape } from '../common/extHost.protocol.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 import { ILogService } from '../../../platform/log/common/log.js';
@@ -12,7 +12,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 export class MainThreadClipboard implements MainThreadClipboardShape {
 
 	constructor(
-		_context: any,
+		_context: IExtHostContext,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ILogService private readonly _logService: ILogService
 	) { }

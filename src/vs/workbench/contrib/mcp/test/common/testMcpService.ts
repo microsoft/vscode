@@ -16,8 +16,12 @@ export class TestMcpService implements IMcpService {
 
 	}
 
-	autostart(): Promise<IAutostartResult> {
-		return Promise.resolve({ serversRequiringInteraction: [] });
+	cancelAutostart(): void {
+
+	}
+
+	autostart() {
+		return observableValue<IAutostartResult>(this, { working: false, starting: [], serversRequiringInteraction: [] });
 	}
 
 	public lazyCollectionState = observableValue(this, { state: LazyCollectionState.AllKnown, collections: [] });

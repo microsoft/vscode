@@ -8,7 +8,7 @@ import { isLocation } from '../../../../editor/common/languages.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentData } from './chatAgents.js';
 import { ChatRequestModel, IChatRequestVariableData } from './chatModel.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from './chatParserTypes.js';
+import { ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUserActionEvent } from './chatService.js';
 import { isImageVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation } from './constants.js';
@@ -260,7 +260,7 @@ export class ChatRequestTelemetry {
 	private isComplete = false;
 
 	constructor(private readonly opts: {
-		agentPart: ChatRequestAgentPart | undefined;
+		agent: IChatAgentData;
 		agentSlashCommandPart: ChatRequestAgentSubcommandPart | undefined;
 		commandPart: ChatRequestSlashCommandPart | undefined;
 		sessionId: string;
@@ -291,8 +291,8 @@ export class ChatRequestTelemetry {
 			totalTime,
 			result,
 			requestType,
-			agent: detectedAgent?.id ?? this.opts.agentPart?.agent.id ?? '',
-			agentExtensionId: detectedAgent?.extensionId.value ?? this.opts.agentPart?.agent.extensionId.value ?? '',
+			agent: detectedAgent?.id ?? this.opts.agent.id,
+			agentExtensionId: detectedAgent?.extensionId.value ?? this.opts.agent.extensionId.value,
 			slashCommand: this.opts.agentSlashCommandPart ? this.opts.agentSlashCommandPart.command.name : this.opts.commandPart?.slashCommand.command,
 			chatSessionId: this.opts.sessionId,
 			enableCommandDetection: this.opts.enableCommandDetection,
