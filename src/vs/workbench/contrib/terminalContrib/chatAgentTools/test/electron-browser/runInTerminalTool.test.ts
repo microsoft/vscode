@@ -243,6 +243,9 @@ suite('RunInTerminalTool', () => {
 			'date +%Y-%m-%d',
 			'find . -name "*.txt"',
 			'grep pattern file.txt',
+			'rg pattern file.txt',
+			'rg --json pattern .',
+			'rg -i --color=never "TODO" src/',
 			'sort file.txt',
 			'tree directory'
 		];
@@ -295,6 +298,8 @@ suite('RunInTerminalTool', () => {
 			'find . -exec rm {} \\;',
 			'find . -execdir rm {} \\;',
 			'find . -fprint output.txt',
+			'rg --pre cat pattern .',
+			'rg --hostname-bin hostname pattern .',
 			'sort -o /etc/passwd file.txt',
 			'sort -S 100G file.txt',
 			'tree -o output.txt',
