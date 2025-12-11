@@ -29,6 +29,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import * as JSONContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -93,7 +94,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private readonly _callsByRequestId = new Map<string, ITrackedCall[]>();
 
-	private readonly _isAgentModeEnabled: IObservable<boolean | undefined>;
+	private readonly _isAgentModeEnabled: IObservable<boolean>;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -111,11 +112,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	) {
 		super();
 
-		this._isAgentModeEnabled = observableFromEventOpts(
-			{ owner: this, equalsFn: () => false },
-			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.AgentEnabled)),
-			() => this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled)
-		);
+		this._isAgentModeEnabled = observableConfigValue(ChatConfiguration.AgentEnabled, true, this._configurationService);
 
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
@@ -181,7 +178,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 * When agent mode is disabled only a subset of read-only tools are permitted in agentic-loop contexts.
 	 */
 	private isPermitted(toolOrToolSet: IToolData | ToolSet, reader?: IReader): boolean {
-		const agentModeEnabled = reader ? this._isAgentModeEnabled.read(reader) : this._isAgentModeEnabled.get();
+		const agentModeEnabled = this._isAgentModeEnabled.read(reader);
 		if (agentModeEnabled !== false) {
 			return true;
 		}
@@ -272,7 +269,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolData => {
 				const satisfiesWhenClause = includeDisabled || !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
-				return satisfiesWhenClause && satisfiesExternalToolCheck && this.isPermitted(toolData);
+				const satisfiesPermittedCheck = includeDisabled || this.isPermitted(toolData);
+				return satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesPermittedCheck;
 			});
 	}
 
