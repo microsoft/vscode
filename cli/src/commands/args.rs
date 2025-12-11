@@ -689,7 +689,7 @@ pub struct BaseServerArgs {
 
 	/// Reconnection grace time in seconds. Defaults to 10800 (3 hours).
 	#[clap(long)]
-	pub reconnection_grace_time: Option<u32>,
+	pub reconnection_grace_time: Option<i32>,
 }
 
 impl BaseServerArgs {
