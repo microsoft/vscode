@@ -523,31 +523,33 @@ export class AdditionalLinesWidget extends Disposable {
 
 		const { tabSize } = textModel.getOptions();
 
-		this._editor.changeViewZones((changeAccessor) => {
-			const store = new DisposableStore();
+		observableCodeEditor(this._editor).transaction(_ => {
+			this._editor.changeViewZones((changeAccessor) => {
+				const store = new DisposableStore();
 
-			this.removeActiveViewZone(changeAccessor);
+				this.removeActiveViewZone(changeAccessor);
 
-			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
-			if (heightInLines > 0) {
-				const domNode = document.createElement('div');
-				renderLines(domNode, tabSize, additionalLines, this._editor.getOptions(), this._isClickable);
+				const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
+				if (heightInLines > 0) {
+					const domNode = document.createElement('div');
+					renderLines(domNode, tabSize, additionalLines, this._editor.getOptions(), this._isClickable);
 
-				if (this._isClickable) {
-					store.add(addDisposableListener(domNode, 'mousedown', (e) => {
-						e.preventDefault(); // This prevents that the editor loses focus
-					}));
-					store.add(addDisposableListener(domNode, 'click', (e) => {
-						if (isTargetGhostText(e.target)) {
-							this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
-						}
-					}));
+					if (this._isClickable) {
+						store.add(addDisposableListener(domNode, 'mousedown', (e) => {
+							e.preventDefault(); // This prevents that the editor loses focus
+						}));
+						store.add(addDisposableListener(domNode, 'click', (e) => {
+							if (isTargetGhostText(e.target)) {
+								this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
+							}
+						}));
+					}
+
+					this.addViewZone(changeAccessor, lineNumber, heightInLines, domNode);
 				}
 
-				this.addViewZone(changeAccessor, lineNumber, heightInLines, domNode);
-			}
-
-			this._viewZoneListener.value = store;
+				this._viewZoneListener.value = store;
+			});
 		});
 	}
 
