@@ -1548,8 +1548,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return text.substr(0, 350);
 	}
 
-	private meetsMinimumReleaseAge(gallery: IGalleryExtension): boolean {
-		const minimumReleaseAge = this.configurationService.getValue<number>(MinimumReleaseAgeConfigurationKey);
+	private meetsMinimumReleaseAge(gallery: IGalleryExtension, minimumReleaseAge: number): boolean {
 		if (!minimumReleaseAge || minimumReleaseAge <= 0) {
 			return true;
 		}
@@ -1564,7 +1563,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!minimumReleaseAge || minimumReleaseAge <= 0) {
 			return galleries;
 		}
-		return galleries.filter(gallery => this.meetsMinimumReleaseAge(gallery));
+		return galleries.filter(gallery => this.meetsMinimumReleaseAge(gallery, minimumReleaseAge));
 	}
 
 	private fromGallery(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): IExtension {
