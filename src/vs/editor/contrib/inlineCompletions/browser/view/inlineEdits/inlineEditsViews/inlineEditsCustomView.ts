@@ -248,7 +248,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				boxSizing: 'border-box',
 				cursor: 'pointer',
 				border: styles.map(s => `1px solid ${s.border}`),
-				borderRadius: '4px',
+				borderRadius: '3px',
 				backgroundColor: styles.map(s => s.background),
 
 				display: 'flex',

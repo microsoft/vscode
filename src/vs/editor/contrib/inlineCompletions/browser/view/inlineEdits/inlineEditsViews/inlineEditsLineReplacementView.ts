@@ -232,7 +232,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).background.translateX(-contentLeft).withMargin(separatorWidth)),
-								borderRadius: '4px',
+								borderRadius: '3px',
 
 								border: `${separatorWidth + 1}px solid ${asCssVariable(editorBackground)}`,
 								boxSizing: 'border-box',
@@ -244,7 +244,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).background.translateX(-contentLeft)),
-								borderRadius: '4px',
+								borderRadius: '3px',
 
 								border: getEditorBlendedColor(originalBorderColor, this._themeService).map(c => `1px solid ${c.toString()}`),
 								pointerEvents: 'none',
@@ -257,7 +257,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).lowerBackground.translateX(-contentLeft)),
-								borderRadius: '0 0 4px 4px',
+								borderRadius: '0 0 3px 3px',
 								background: asCssVariable(editorBackground),
 								boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
 								border: `1px solid ${asCssVariable(modifiedBorderColor)}`,
@@ -289,7 +289,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 								fontWeight: this._editor.getOption(EditorOption.fontWeight),
 								pointerEvents: 'none',
 								whiteSpace: 'nowrap',
-								borderRadius: '0 0 4px 4px',
+								borderRadius: '0 0 3px 3px',
 								overflow: 'hidden',
 							}
 						}, [...modifiedLineElements.lines]),

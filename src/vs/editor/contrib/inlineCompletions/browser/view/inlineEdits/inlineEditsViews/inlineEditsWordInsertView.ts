@@ -77,7 +77,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 						style: {
 							position: 'absolute',
 							...rectToProps(reader => layout.read(reader).lowerBackground),
-							borderRadius: '4px',
+							borderRadius: '3px',
 							background: 'var(--vscode-editor-background)'
 						}
 					}, []),
@@ -85,7 +85,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 						style: {
 							position: 'absolute',
 							...rectToProps(reader => layout.read(reader).modified),
-							borderRadius: '4px',
+							borderRadius: '3px',
 							padding: '0px',
 							textAlign: 'center',
 							background: 'var(--vscode-inlineEdit-modifiedChangedTextBackground)',
@@ -100,7 +100,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 						style: {
 							position: 'absolute',
 							...rectToProps(reader => layout.read(reader).background),
-							borderRadius: '4px',
+							borderRadius: '3px',
 							border: `1px solid ${modifiedBorderColor}`,
 							//background: 'rgba(122, 122, 122, 0.12)', looks better
 							background: 'var(--vscode-inlineEdit-wordReplacementView-background)',

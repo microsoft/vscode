@@ -492,7 +492,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			style: {
 				position: 'absolute',
 				background: asCssVariable(inlineEditIndicatorBackground),
-				borderRadius: '4px',
+				borderRadius: '3px',
 				...rectToProps(reader => layout.read(reader).gutterEditArea),
 			}
 		}),
@@ -529,7 +529,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				['--vscodeIconForeground' as any]: this._gutterIndicatorStyles.map(v => v.foreground),
 				border: this._gutterIndicatorStyles.map(v => `1px solid ${v.border}`),
 				boxSizing: 'border-box',
-				borderRadius: '4px',
+				borderRadius: '3px',
 				display: 'flex',
 				justifyContent: 'flex-end',
 				transition: this._modifierPressed.map(m => m ? '' : 'background-color 0.2s ease-in-out, width 0.2s ease-in-out'),
