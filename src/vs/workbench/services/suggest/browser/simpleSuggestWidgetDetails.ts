@@ -159,6 +159,11 @@ export class SimpleSuggestDetailsWidget {
 			? documentation.trim().length > 0
 			: !!(documentation && documentation.value?.trim().length > 0);
 
+		const updateSize = () => {
+			this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
+			this._onDidChangeContents.fire(this);
+		};
+
 		if (!explainMode && (!canExpandCompletionItem(item) || (!hasDetail && !hasDocs))) {
 			this.clearContents();
 			return;
@@ -193,8 +198,7 @@ export class SimpleSuggestDetailsWidget {
 			dom.clearNode(this._docs);
 			const renderedContents = this.markdownRendererService.render(documentation, {
 				asyncRenderCallback: () => {
-					this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
-					this._onDidChangeContents.fire(this);
+					updateSize();
 				}
 			});
 			this._docs.appendChild(renderedContents.element);
@@ -220,8 +224,7 @@ export class SimpleSuggestDetailsWidget {
 
 		this._body.scrollTop = 0;
 
-		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
-		this._onDidChangeContents.fire(this);
+		updateSize();
 	}
 
 	clearContents() {
