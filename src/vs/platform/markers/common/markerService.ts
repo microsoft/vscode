@@ -232,6 +232,7 @@ export class MarkerService implements IMarkerService {
 			message, source,
 			startLineNumber, startColumn, endLineNumber, endColumn,
 			relatedInformation,
+			modelVersionId,
 			tags, origin
 		} = data;
 
@@ -257,6 +258,7 @@ export class MarkerService implements IMarkerService {
 			endLineNumber,
 			endColumn,
 			relatedInformation,
+			modelVersionId,
 			tags,
 			origin
 		};
