@@ -23,3 +23,6 @@ product.overrides.json
 *.tsbuildinfo
 .vscode-test
 vscode-telemetry-docs/
+
+# ResonanceIDE
+/vscodium

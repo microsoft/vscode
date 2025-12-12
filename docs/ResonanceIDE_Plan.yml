@@ -1,0 +1,828 @@
+# ResonanceIDE VS Code Fork Stripdown Plan
+# ===========================================
+# This document defines the phased approach for transforming
+# upstream VS Code OSS into ResonanceIDE: a minimal, AI-first,
+# white-labeled IDE with full extension compatibility.
+#
+# Audience: AI coding agents and human developers
+# Last Updated: 2025-12-12
+
+project: ResonanceIDE VSCode Fork Stripdown Plan
+version: "0.2"
+
+# =============================================================================
+# CONTEXT & GOALS
+# =============================================================================
+
+context:
+  vision: |
+    ResonanceIDE is a stripped-down, white-labeled VS Code fork designed
+    to be minimal, fast, and AI-first. It preserves full extension
+    compatibility while removing all Microsoft telemetry, branding,
+    and cloud services.
+
+  goals:
+    - Start from upstream VS Code OSS codebase, using VSCodium as reference for proven patterns
+    - Strip to a minimal, fast editor while preserving:
+        - Core editor UX (files, tabs, search, SCM, debug, terminal)
+        - Full extension compatibility (extension host, API, marketplace via Open VSX)
+    - Remove/disable:
+        - Microsoft telemetry, A/B experiments, crash reporting
+        - Microsoft accounts, GitHub auth, Azure integrations, tunnels, Settings Sync
+        - Built-in Copilot/AI integrations (replaced with our own)
+    - Prepare hexagonal ports for AI adapters (LiteLLM, Ollama) as built-in extensions
+    - Target desktop builds: macOS, Windows, Linux
+
+  upstream_repos:
+    vscode:
+      url: https://github.com/microsoft/vscode
+      purpose: Primary upstream source
+    vscodium:
+      url: https://github.com/VSCodium/vscodium
+      purpose: Reference implementation for telemetry/branding removal patterns
+
+  local_paths:
+    vscodium_reference: "/vscodium/"  # gitignored, for local reference only
+
+# =============================================================================
+# KEY PATHS & CONFIGURATION KNOWLEDGE
+# =============================================================================
+
+key_paths:
+  core_code:
+    path: "src/vs"
+    description: Editor, workbench, services, configuration
+    subdirs:
+      - "src/vs/base/": Foundation utilities and cross-platform abstractions
+      - "src/vs/platform/": Platform services and dependency injection
+      - "src/vs/editor/": Text editor implementation
+      - "src/vs/workbench/": Main application workbench
+      - "src/vs/code/": Electron main process
+      - "src/vs/server/": Server-specific implementation
+
+  builtin_extensions:
+    path: "extensions"
+    description: First-party extensions (git, css, json, language features, etc.)
+
+  product_config:
+    build_time:
+      - "product.json"
+      - "build/ResonanceIDE.product.json"  # ResonanceIDE-specific
+    runtime_examples:
+      linux_code_oss: "/usr/lib/code/product.json"
+      linux_vscodium: "/usr/lib/codium/product.json"
+      mac_vscodium: "/Applications/VSCodium.app/Contents/Resources/app/product.json"
+
+  branding_switches:
+    product_json_keys:
+      identity:
+        - nameShort
+        - nameLong
+        - applicationName
+        - dataFolderName
+        - urlProtocol
+        - quality
+      marketplace:
+        - extensionsGallery.serviceUrl
+        - extensionsGallery.itemUrl
+      removal_targets:
+        - updateUrl
+        - updateUrlFallback
+        - experimentsUrl
+        - crashReporter
+        - aiConfig
+        - msftsuite
+
+    telemetry_settings:
+      current: "telemetry.telemetryLevel"
+      legacy:
+        - "telemetry.enableTelemetry"
+        - "telemetry.enableCrashReporter"
+
+# =============================================================================
+# CONSTRAINTS
+# =============================================================================
+
+constraints:
+  - id: preserve-extension-host
+    rule: Preserve extension host behavior and extension API surface
+    rationale: Extension compatibility is sacred; do not alter core API contracts
+
+  - id: disable-before-delete
+    rule: Prefer disabling features via configuration/feature flags before deleting code
+    rationale: Easier upstream merges, smaller diffs, future re-enablement possible
+
+  - id: cross-platform-builds
+    rule: Keep build passing on all three target OSes (macOS, Windows, Linux) at end of each phase
+    rationale: Prevent platform-specific regressions
+
+  - id: follow-vscodium
+    rule: Favor following VSCodium's approach for telemetry/branding/marketplace changes
+    rationale: Proven patterns, reduced risk, easier maintenance
+
+  - id: feature-flag-guard
+    rule: Use `isResonanceIDE` feature flag to guard ResonanceIDE-specific behavior
+    rationale: Clean separation, easy to identify custom code
+
+# =============================================================================
+# PHASES
+# =============================================================================
+
+phases:
+  # ---------------------------------------------------------------------------
+  # PHASE 0: Bootstrap
+  # ---------------------------------------------------------------------------
+  - id: phase-0-bootstrap
+    name: Repo & Build Bootstrap
+    status: not_started  # not_started | in_progress | completed | blocked
+    estimated_effort: "2-4 hours"
+    depends_on: []
+
+    tasks:
+      - id: clone-upstream
+        goal: Local clone of VS Code OSS with VSCodium as reference
+        status: not_started
+        instructions: |
+          1. Clone VS Code upstream:
+             git clone https://github.com/microsoft/vscode.git .
+
+          2. Setup remotes:
+             git remote rename origin upstream
+             git remote add origin <ResonanceIDE-fork-url>
+
+          3. Clone VSCodium for reference (gitignored):
+             git clone https://github.com/VSCodium/vscodium.git vscodium
+
+          4. Add vscodium/ to .gitignore if not already present
+        success_criteria:
+          - VS Code cloned with upstream remote configured
+          - VSCodium available locally as /vscodium/ (gitignored)
+          - git remotes show both 'upstream' (microsoft/vscode) and 'origin' (ResonanceIDE)
+
+      - id: setup-build-env
+        goal: Ensure local build works on all target platforms
+        status: not_started
+        instructions: |
+          1. Install dependencies:
+             - Node.js LTS (match .nvmrc, typically >= 18)
+             - yarn (version per .yarnrc)
+
+          2. Install and compile:
+             yarn install
+             yarn compile
+
+          3. Run minimal tests:
+             yarn test --runGlob smoke/*
+
+          4. Build desktop targets:
+             yarn gulp vscode-darwin-min    # macOS
+             yarn gulp vscode-win32-x64-min # Windows
+             yarn gulp vscode-linux-x64-min # Linux
+
+          5. Sanity check each build:
+             - Launch the built app
+             - Open a folder, edit a file, save
+             - Verify Extensions view loads
+             - Verify integrated terminal works
+        success_criteria:
+          - yarn compile succeeds without errors
+          - All platform gulp tasks complete successfully
+          - Editor launches and basic actions work on macOS, Windows, Linux
+        validation_commands:
+          - "yarn compile"
+          - "yarn test --runGlob smoke/*"
+
+  # ---------------------------------------------------------------------------
+  # PHASE 1: Product Identity
+  # ---------------------------------------------------------------------------
+  - id: phase-1-product-identity
+    name: ResonanceIDE Product Identity & Marketplace Wiring
+    status: not_started
+    estimated_effort: "3-5 hours"
+    depends_on:
+      - phase-0-bootstrap
+
+    tasks:
+      - id: create-product-json-template
+        goal: Create ResonanceIDE-specific product.json
+        status: not_started
+        instructions: |
+          1. Inspect VSCodium patterns:
+             - vscodium/product.json (for reference)
+             - upstream product.json structure
+
+          2. Create build/ResonanceIDE.product.json with:
+             {
+               "nameShort": "ResonanceIDE",
+               "nameLong": "ResonanceIDE",
+               "applicationName": "resonance-ide",
+               "dataFolderName": ".resonance-ide",
+               "quality": "stable",
+               "urlProtocol": "resonance-ide",
+               "extensionsGallery": {
+                 "serviceUrl": "https://open-vsx.org/vscode/gallery",
+                 "itemUrl": "https://open-vsx.org/vscode/item"
+               }
+             }
+
+          3. Ensure the following are removed/null:
+             - crashReporter
+             - aiConfig
+             - msftsuite
+             - updateUrl / updateUrlFallback
+             - experimentsUrl
+        success_criteria:
+          - build/ResonanceIDE.product.json exists with correct values
+          - No Microsoft-specific URLs or services in the config
+
+      - id: wire-product-json-build
+        goal: Create ResonanceIDE build targets using custom product.json
+        status: not_started
+        instructions: |
+          1. Locate existing gulp tasks for vscode-oss builds in build/gulpfile.*.js
+
+          2. Create or modify build configuration to use ResonanceIDE.product.json
+
+          3. Add npm/yarn scripts to package.json:
+             - "build:resonance:darwin": builds macOS with ResonanceIDE config
+             - "build:resonance:win": builds Windows with ResonanceIDE config
+             - "build:resonance:linux": builds Linux with ResonanceIDE config
+
+          4. Output artifacts should be named:
+             - ResonanceIDE-darwin
+             - ResonanceIDE-win32-x64
+             - ResonanceIDE-linux-x64
+        success_criteria:
+          - Custom build scripts exist and run successfully
+          - Output artifacts are correctly named
+
+      - id: verify-product-identity
+        goal: Confirm ResonanceIDE branding is applied
+        status: not_started
+        instructions: |
+          1. Build ResonanceIDE on one platform
+
+          2. Launch and verify:
+             - Application title bar shows "ResonanceIDE"
+             - User data directory is ~/.resonance-ide (or platform equivalent)
+             - product.json in installed location has correct values
+
+          3. Check that NO Microsoft/VSCodium names appear in visible UI
+        success_criteria:
+          - Title bar shows "ResonanceIDE"
+          - Data folder is ~/.resonance-ide
+          - No Microsoft or VSCodium branding visible
+
+  # ---------------------------------------------------------------------------
+  # PHASE 2: Telemetry & MS Services Removal
+  # ---------------------------------------------------------------------------
+  - id: phase-2-telemetry-removal
+    name: Remove/Disable Telemetry, Experiments, MS Cloud Hooks
+    status: not_started
+    estimated_effort: "4-6 hours"
+    depends_on:
+      - phase-1-product-identity
+
+    tasks:
+      - id: disable-runtime-telemetry
+        goal: Disable telemetry at config and code levels
+        status: not_started
+        instructions: |
+          1. In product.json (ResonanceIDE variant):
+             - Remove or unset telemetry endpoints
+             - Remove experimentsUrl
+             - Remove configurationSync.store URLs
+
+          2. Locate telemetry service code:
+             grep -r "telemetryService" src/vs/
+             grep -r "telemetry.telemetryLevel" src/vs/
+
+          3. Create no-op telemetry adapter:
+             - Keep TelemetryService interface intact
+             - Implementation that:
+               - Logs to console in dev mode only
+               - Returns immediately in production
+               - Never makes network calls
+
+          4. Optional: Hide telemetry settings in Settings UI
+        success_criteria:
+          - No telemetry endpoints in product.json
+          - TelemetryService is no-op implementation
+          - No telemetry network calls made at runtime
+
+      - id: remove-experiments
+        goal: Disable remote experiment/A/B testing fetches
+        status: not_started
+        instructions: |
+          1. Search for experiment-related code:
+             grep -r "experiments" src/vs/
+             grep -r "experimentsUrl" src/vs/
+
+          2. For each experiment service:
+             - Guard network calls with isResonanceIDE flag
+             - Ensure production ResonanceIDE never fetches experiments
+
+          3. Validate via network inspection:
+             - No calls to *.experiments.microsoft.com
+        success_criteria:
+          - No experiment fetches in production
+          - Experiment services are guarded or no-op
+
+      - id: disable-ms-signin-services
+        goal: Remove MS accounts, GitHub auth, Azure, tunnels, Settings Sync
+        status: not_started
+        instructions: |
+          1. Identify MS service extensions in extensions/:
+             - azure-*
+             - github-*
+             - ms-vscode.remote*
+             - ms-vscode.azure-account
+             - tunnel-related
+             - settings-sync (MS backend)
+
+          2. Remove from default extension bundle list:
+             - Often in product.json or build scripts
+             - Keep extension host intact
+
+          3. Search for hardcoded MS URLs in src/vs/:
+             grep -r "login.live.com" src/vs/
+             grep -r "microsoftonline.com" src/vs/
+             grep -r "github.com/login" src/vs/
+             grep -r "vscode-sync.trafficmanager.net" src/vs/
+
+          4. Guard or remove these endpoints for ResonanceIDE builds
+
+          5. Verify:
+             - No MS account sign-in button
+             - Settings Sync hidden or shows "not available"
+        success_criteria:
+          - No MS sign-in UI visible
+          - No bundled MS service extensions
+          - No hardcoded MS auth URLs active
+
+      - id: verify-no-ms-network-traffic
+        goal: Confirm zero MS telemetry/experiments/auth calls on idle
+        status: not_started
+        instructions: |
+          1. Run ResonanceIDE with network proxy/sniffer (e.g., mitmproxy, Wireshark)
+
+          2. Open and idle for 2-3 minutes
+
+          3. Verify NO calls to:
+             - *.visualstudio.com
+             - *.vscode-unpkg.net (except marketplace if using Open VSX)
+             - *.applicationinsights.io
+             - *.microsoft.com telemetry endpoints
+             - *.experiments.microsoft.com
+        success_criteria:
+          - Zero outbound calls to Microsoft domains on idle
+          - Telemetry service verified as no-op
+
+  # ---------------------------------------------------------------------------
+  # PHASE 3: Feature Stripping
+  # ---------------------------------------------------------------------------
+  - id: phase-3-feature-stripping
+    name: Minimize to Core Features While Preserving Extension Compatibility
+    status: not_started
+    estimated_effort: "4-8 hours"
+    depends_on:
+      - phase-2-telemetry-removal
+
+    tasks:
+      - id: define-core-feature-set
+        goal: Document explicit must-keep and removal-candidate features
+        status: not_started
+        instructions: |
+          MUST KEEP:
+            - File explorer
+            - Search
+            - Editor tabs
+            - Problems panel
+            - Outline view
+            - SCM (Git) core view
+            - Debug basics (launch, breakpoints, debug console)
+            - Integrated terminal
+            - Settings UI
+            - Extension marketplace (Open VSX)
+            - Command palette
+            - Keybinding editor
+
+          REMOVAL CANDIDATES:
+            - Walkthroughs / welcome page modules
+            - Remote tunneling / dev containers (MS-specific)
+            - Live Share
+            - Notebooks (unless needed for AI features)
+            - Built-in AI/Copilot experiences
+            - MS cloud notebooks
+            - Timeline view (evaluate necessity)
+        success_criteria:
+          - Feature list documented and agreed upon
+          - Clear criteria for keep vs remove decisions
+
+      - id: remove-nonessential-builtins
+        goal: Remove or disable non-essential built-in extensions
+        status: not_started
+        instructions: |
+          1. Audit extensions/ directory
+
+          2. Categorize each extension:
+             MUST KEEP:
+               - Language basics (typescript, javascript, html, css, json, etc.)
+               - git
+               - debug-*
+               - theme-defaults
+               - configuration-editing
+               - search-result
+
+             REMOVAL CANDIDATES:
+               - ms-vscode.* (MS-specific)
+               - remote-* (tunnels, containers)
+               - github-* (MS auth)
+               - vscode-notebook-* (unless needed)
+
+          3. Configure build to bundle only must-keep extensions
+
+          4. Others remain installable via marketplace if desired
+        success_criteria:
+          - Only essential extensions bundled by default
+          - Build size reduced
+          - Non-essential extensions not activated
+
+      - id: hide-unused-ui-surfaces
+        goal: Simplify UI by hiding removed feature surfaces
+        status: not_started
+        instructions: |
+          1. Locate activity bar contributions in:
+             src/vs/workbench/browser/
+
+          2. For ResonanceIDE, guard with isResonanceIDE flag:
+             - Do not register views/actions for:
+               - Accounts
+               - Remote
+               - Live Share
+               - Copilot/AI (MS-specific)
+
+          3. Verify Activity Bar shows only:
+             - Explorer
+             - Search
+             - Source Control
+             - Run and Debug
+             - Extensions
+        success_criteria:
+          - Activity bar shows only core icons
+          - No Accounts/Remote/Copilot icons visible
+          - Settings search doesn't show removed feature settings
+
+      - id: confirm-extension-compatibility
+        goal: Verify third-party extensions work correctly
+        status: not_started
+        instructions: |
+          1. Install test extensions from Open VSX:
+             - A language server extension (e.g., Python, pyright)
+             - A UI extension (status bar or tree view)
+             - A popular productivity extension
+
+          2. Verify for each:
+             - Activation events fire correctly
+             - Extension APIs behave as expected
+             - Commands work as documented
+             - No missing proposed APIs (beyond Code-OSS defaults)
+
+          3. Run vscode-api-tests extension tests if available
+        success_criteria:
+          - Popular extensions run without modification
+          - Extension API surface unchanged
+          - No regressions in extension host behavior
+
+  # ---------------------------------------------------------------------------
+  # PHASE 4: White Labeling & Branding
+  # ---------------------------------------------------------------------------
+  - id: phase-4-white-labeling
+    name: Full VS Code Branding Removal and ResonanceIDE Visuals
+    status: not_started
+    estimated_effort: "3-5 hours"
+    depends_on:
+      - phase-3-feature-stripping
+
+    tasks:
+      - id: audit-branding-assets
+        goal: Find all VS Code / Microsoft branding references
+        status: not_started
+        instructions: |
+          1. Search for text references:
+             grep -ri "Visual Studio Code" .
+             grep -ri "VS Code" .
+             grep -ri "vscode.dev" .
+             grep -ri "code.visualstudio.com" .
+
+          2. Search for image assets:
+             find resources/ -name "*.png" -o -name "*.ico" -o -name "*.icns"
+             find build/ -name "*.png" -o -name "*.ico" -o -name "*.icns"
+
+          3. Document all locations:
+             - About dialogs
+             - Welcome content
+             - Documentation links
+             - Error messages
+             - Splash screens
+        success_criteria:
+          - Complete inventory of all branding references
+          - List of assets requiring replacement
+
+      - id: replace-branding-assets
+        goal: Swap VS Code branding with ResonanceIDE assets
+        status: not_started
+        instructions: |
+          1. Prepare ResonanceIDE icon set:
+             - App icon (icns for macOS, ico for Windows, png for Linux)
+             - About dialog logo
+             - Document icons (optional)
+
+          2. Update product.json:
+             - Marketing URLs → ResonanceIDE site/docs
+             - License URL → ResonanceIDE license
+             - Report issue URL → ResonanceIDE issues
+
+          3. Update strings:
+             - About dialog text and links
+             - Welcome/walkthrough content (remove or replace)
+             - Error message URLs
+
+          4. Replace icon files in resources/ and build/
+        success_criteria:
+          - All icons show ResonanceIDE branding
+          - No VS Code logos visible anywhere
+          - All URLs point to ResonanceIDE resources
+
+      - id: verify-trademark-clean
+        goal: Ensure no remaining MS branding in UI
+        status: not_started
+        instructions: |
+          1. Launch ResonanceIDE and check:
+             - Help → About
+             - Welcome page (if present)
+             - Settings → search for "code" or "microsoft"
+             - Error dialogs / notifications
+
+          2. Search installed product.json
+
+          3. Run string extraction and grep for:
+             - "Visual Studio"
+             - "VS Code"
+             - "Microsoft"
+             - "code.visualstudio.com"
+        success_criteria:
+          - Zero Microsoft/VS Code mentions in UI
+          - All links point to ResonanceIDE or neutral resources
+          - Legal/trademark requirements satisfied
+
+  # ---------------------------------------------------------------------------
+  # PHASE 5: AI Integration Shell
+  # ---------------------------------------------------------------------------
+  - id: phase-5-ai-integration
+    name: Prepare Minimal AI Surfaces (Shell Only)
+    status: not_started
+    estimated_effort: "4-6 hours"
+    depends_on:
+      - phase-4-white-labeling
+
+    tasks:
+      - id: create-resonance-core-extension
+        goal: Create built-in ResonanceIDE-core extension for AI features
+        status: not_started
+        instructions: |
+          1. Create new extension: extensions/resonance-core/
+
+          2. Define package.json contributions:
+             - Chat view container (sidebar or panel, empty stub)
+             - Commands:
+               - resonance.openChat
+               - resonance.runQuickFix
+               - resonance.explainCode
+             - Status bar item for AI status
+
+          3. Activation events:
+             - onCommand:resonance.openChat
+             - onView:resonance.chatView
+
+          4. Create minimal TypeScript structure:
+             - extension.ts (entry point)
+             - views/ (chat view stubs)
+             - commands/ (command handlers)
+        success_criteria:
+          - Extension compiles without errors
+          - Extension activates when commands invoked
+          - Chat view opens (empty/stub is fine)
+
+      - id: define-ai-config-schema
+        goal: Configuration keys for AI backends
+        status: not_started
+        instructions: |
+          1. In resonance-core package.json, contribute configuration:
+             {
+               "resonance.ai.backend": {
+                 "type": "string",
+                 "enum": ["litellm", "ollama", "custom"],
+                 "default": "ollama"
+               },
+               "resonance.ai.litellm.baseUrl": {
+                 "type": "string",
+                 "default": "http://localhost:4000"
+               },
+               "resonance.ai.litellm.apiKey": {
+                 "type": "string",
+                 "default": ""
+               },
+               "resonance.ai.ollama.baseUrl": {
+                 "type": "string",
+                 "default": "http://localhost:11434"
+               },
+               "resonance.ai.model.default": {
+                 "type": "string",
+                 "default": "llama3.2"
+               }
+             }
+
+          2. Add basic validation in extension code
+             - No network calls yet
+        success_criteria:
+          - Settings appear in Settings UI under "Resonance > AI"
+          - Configuration validation works
+          - No runtime errors when opening settings
+
+      - id: implement-port-adapter-boundary
+        goal: Define hexagonal port interface for AI adapters
+        status: not_started
+        instructions: |
+          1. Create src/ports/aiClient.ts in resonance-core:
+             interface AiClientPort {
+               complete(params: CompletionParams): Promise<CompletionResult>;
+               chat(params: ChatParams): Promise<ChatResult>;
+               edit(params: EditParams): Promise<EditResult>;
+               toolCall(params: ToolCallParams): Promise<ToolCallResult>;
+             }
+
+          2. Create placeholder adapters:
+             - adapters/litellmAdapter.ts
+             - adapters/ollamaAdapter.ts
+
+          3. Adapter selection at runtime based on configuration
+
+          4. For now, adapters can:
+             - Throw "NotImplemented" error
+             - Return mock/placeholder data
+        success_criteria:
+          - Interfaces defined and exported
+          - Adapters compile without errors
+          - Runtime adapter selection works
+          - No actual network calls made
+
+  # ---------------------------------------------------------------------------
+  # PHASE 6: Hardening & Distribution
+  # ---------------------------------------------------------------------------
+  - id: phase-6-distribution
+    name: Packaging, Updates, and Cross-Platform Distribution
+    status: not_started
+    estimated_effort: "4-6 hours"
+    depends_on:
+      - phase-5-ai-integration
+
+    tasks:
+      - id: configure-packaging
+        goal: Cross-platform installer artifacts
+        status: not_started
+        instructions: |
+          1. Leverage upstream packaging scripts in build/
+
+          2. Configure for each platform:
+             - macOS: .app bundle + .dmg installer
+             - Windows: setup.exe / user installer (NSIS or similar)
+             - Linux: .deb, .rpm, AppImage
+
+          3. Ensure all installers:
+             - Use ResonanceIDE naming
+             - Include correct icons
+             - Set appropriate file associations
+        success_criteria:
+          - Installers build for all three platforms
+          - Correct naming and branding
+          - Clean installation on fresh systems
+
+      - id: disable-upstream-updater
+        goal: Remove VS Code update mechanism
+        status: not_started
+        instructions: |
+          1. In product.json:
+             - Remove updateUrl
+             - Remove updateUrlFallback
+
+          2. In update service code:
+             - Guard with isResonanceIDE flag
+             - Return no-op for update checks
+
+          3. Document: Custom update mechanism for future phases
+        success_criteria:
+          - No update checks to Microsoft servers
+          - Update UI hidden or shows "updates disabled"
+          - No crashes when update service accessed
+
+      - id: smoke-test-distributions
+        goal: End-to-end validation of packaged IDE
+        status: not_started
+        instructions: |
+          1. Install on clean VMs/systems:
+             - macOS (Intel + Apple Silicon if possible)
+             - Windows 10/11
+             - Ubuntu/Debian Linux
+
+          2. For each installation, verify:
+             - Clean install works
+             - App launches correctly
+             - Create project, edit files, save
+             - Install extension from Open VSX
+             - Open resonance-core chat view (stub)
+             - No unexpected network traffic
+
+          3. Verify NO:
+             - MS branding anywhere
+             - Telemetry calls
+             - MS service features
+        success_criteria:
+          - All installers work on clean systems
+          - All core features function correctly
+          - Zero MS branding or telemetry
+          - Extension installation works via Open VSX
+
+# =============================================================================
+# AGENT NOTES & GUIDELINES
+# =============================================================================
+
+agent_notes:
+  workflow:
+    - Prefer small, incremental PRs per task (not per phase)
+    - After each task, run validation commands before marking complete
+    - After each phase completion, perform full validation
+
+  validation_checklist:
+    - "yarn compile  # Must succeed with no errors"
+    - "yarn test --runGlob smoke/*  # Basic smoke tests"
+    - "Manual launch and sanity check"
+    - "Network inspection for idle traffic (if relevant)"
+
+  principles:
+    - Check VSCodium implementation FIRST before writing new code
+    - Copy proven patterns before inventing new ones
+    - Disable features with flags before deleting code
+    - Guard ResonanceIDE-specific code with isResonanceIDE flag
+    - Maintain upstream mergeability
+
+  changelog_requirements:
+    - Document ALL product.json changes
+    - List disabled/removed built-in extensions
+    - Describe removed MS features and how
+    - Document newly added ResonanceIDE code (ports, adapters, extensions)
+
+  feature_flag:
+    name: isResonanceIDE
+    usage: |
+      Use this flag to conditionally enable/disable code paths.
+      Check vscodium/ for examples of similar patterns.
+      Example: if (isResonanceIDE) { /* skip telemetry */ }
+
+# =============================================================================
+# RISKS & BLOCKERS
+# =============================================================================
+
+risks:
+  - id: upstream-breaking-changes
+    description: Major VS Code updates may break ResonanceIDE customizations
+    mitigation: Regular upstream syncs, minimal code changes, feature flags
+    severity: medium
+
+  - id: extension-api-drift
+    description: Extension API changes in upstream could break extensions
+    mitigation: Run extension compatibility tests after each upstream sync
+    severity: high
+
+  - id: legal-trademark
+    description: Incomplete branding removal could cause trademark issues
+    mitigation: Thorough audit in Phase 4, automated string scanning
+    severity: high
+
+  - id: telemetry-leakage
+    description: Missed telemetry endpoints could violate privacy guarantees
+    mitigation: Network traffic inspection, code audits, VSCodium patterns
+    severity: high
+
+# =============================================================================
+# GLOSSARY
+# =============================================================================
+
+glossary:
+  ResonanceIDE: The product name for this VS Code fork
+  VSCodium: Open-source VS Code distribution without MS telemetry (reference only)
+  Open VSX: Open-source extension marketplace (Eclipse Foundation)
+  isResonanceIDE: Feature flag to guard ResonanceIDE-specific code
+  Hexagonal Architecture: Design pattern separating core logic from adapters/ports
+  LiteLLM: Unified LLM API proxy for multiple AI providers
+  Ollama: Local LLM runtime for running models locally
