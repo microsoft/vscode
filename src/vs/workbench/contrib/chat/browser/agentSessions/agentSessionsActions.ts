@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { IAgentSession } from './agentSessionsModel.js';
+import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -12,7 +12,7 @@ import { AgentSessionsViewerOrientation, IAgentSessionsControl, IMarshalledChatS
 import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
@@ -127,6 +127,9 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
 	}
 }
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export class FocusAgentSessionsAction extends Action2 {
 
@@ -271,7 +274,6 @@ abstract class BaseOpenAgentSessionAction extends Action2 {
 
 		await chatWidgetService.openSession(uri, this.getTargetGroup(), {
 			...this.getOptions(),
-			ignoreInView: true,
 			pinned: true
 		});
 	}
@@ -553,3 +555,40 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 }
 
 //#endregion
+
+export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions }): Promise<void> {
+	const chatSessionsService = accessor.get(IChatSessionsService);
+	const chatWidgetService = accessor.get(IChatWidgetService);
+
+	session.setRead(true); // mark as read when opened
+
+	let sessionOptions: IChatEditorOptions;
+	if (isLocalAgentSessionItem(session)) {
+		sessionOptions = {};
+	} else {
+		sessionOptions = { title: { preferred: session.label } };
+	}
+
+	let options: IChatEditorOptions = {
+		...sessionOptions,
+		...openOptions?.editorOptions,
+		revealIfOpened: true // always try to reveal if already opened
+	};
+
+	await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
+
+	let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
+	if (openOptions?.sideBySide) {
+		target = ACTIVE_GROUP;
+	} else {
+		target = ChatViewPaneTarget;
+	}
+
+	const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || session.resource.scheme === Schemas.vscodeLocalChatSession;
+	if (!isLocalChatSession && !(await chatSessionsService.canResolveChatSession(session.resource))) {
+		target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP; // force to open in editor if session cannot be resolved in panel
+		options = { ...options, revealIfOpened: true };
+	}
+
+	await chatWidgetService.openSession(session.resource, target, options);
+}

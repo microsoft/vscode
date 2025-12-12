@@ -23,8 +23,8 @@ import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatModel } from '../../contrib/chat/common/chatModel.js';
-import { IChatContentInlineReference, IChatProgress, IChatService } from '../../contrib/chat/common/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService.js';
+import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -518,6 +518,12 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				};
 			}
 		}
+
+		// Override status if the models needs input
+		if (model.lastRequest?.response?.state === ResponseModelState.NeedsInput) {
+			session.status = ChatSessionStatus.NeedsInput;
+		}
+
 		return session;
 	}
 

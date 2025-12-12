@@ -986,7 +986,7 @@ export class InlineCompletionsModel extends Disposable {
 				this.trigger(undefined);
 			}
 
-			completion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });
+			completion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted, alternativeAction });
 		} finally {
 			completion.removeRef();
 			this._inAcceptFlow.set(true, undefined);
@@ -1140,7 +1140,7 @@ export class InlineCompletionsModel extends Disposable {
 			transaction(tx => {
 				if (suggestion.action?.kind === 'jumpTo') {
 					this.stop(undefined, tx);
-					suggestion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });
+					suggestion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted, alternativeAction: false });
 				}
 
 				this._jumpedToId.set(s.inlineSuggestion.semanticId, tx);
