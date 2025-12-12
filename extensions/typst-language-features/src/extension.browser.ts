@@ -13,6 +13,7 @@ import { TypstFormattingProvider, setFormatterExtensionUri } from './features/fo
 import { registerTextCommands } from './features/textCommands';
 import { TypstCodeActionProvider } from './features/codeActionProvider';
 import { TypstFoldingProvider } from './features/foldingProvider';
+import { TypstDefinitionProvider } from './features/definitionProvider';
 
 let typstService: TypstService | undefined;
 
@@ -85,6 +86,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		vscode.languages.registerFoldingRangeProvider(
 			typstSelector,
 			new TypstFoldingProvider()
+		)
+	);
+
+	context.subscriptions.push(
+		vscode.languages.registerDefinitionProvider(
+			typstSelector,
+			new TypstDefinitionProvider()
 		)
 	);
 
