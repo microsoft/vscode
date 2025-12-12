@@ -373,8 +373,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 				class: ['editorContainer'],
 				style: {
 					overflow: 'hidden',
-					paddingTop: this._previewEditorLayoutInfo.map(i => i?.previewEditorMargin),
-					paddingBottom: this._previewEditorLayoutInfo.map(i => i?.previewEditorMargin),
+					padding: this._previewEditorLayoutInfo.map(i => i?.previewEditorMargin),
 					background: asCssVariable(editorBackground),
 					pointerEvents: 'none',
 				},
