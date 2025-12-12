@@ -392,6 +392,7 @@ export class TextAreaInput extends Disposable {
 
 			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
 			this._logService.trace(`TextAreaInput#onPaste with id : `, metadata?.id, ' with text.length: ', text.length);
+			performance.mark('code/TextAreaInput/paste', { detail: { id: metadata?.id, length: text.length } });
 			if (!text) {
 				return;
 			}
@@ -399,8 +400,8 @@ export class TextAreaInput extends Disposable {
 			// try the in-memory store
 			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 
-			performance.mark('code/TextAreaInput/paste', { detail: { id: metadata?.id, length: text.length } });
 			this._logService.trace(`TextAreaInput#onPaste (before onPaste)`);
+			performance.mark('code/TextAreaInput/beforeOnPaste');
 			this._onPaste.fire({
 				text: text,
 				metadata: metadata

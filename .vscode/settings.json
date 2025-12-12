@@ -9,7 +9,6 @@
 		"scripts/test-integration.bat": true,
 		"scripts/test-integration.sh": true,
 	},
-
 	// --- Editor ---
 	"editor.insertSpaces": false,
 	"editor.experimental.asyncTokenization": true,
@@ -37,7 +36,6 @@
 	"[github-issues]": {
 		"editor.wordWrap": "on"
 	},
-
 	// --- Files ---
 	"files.trimTrailingWhitespace": true,
 	"files.insertFinalNewline": true,
@@ -73,7 +71,6 @@
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true
 	},
-
 	// --- Search ---
 	"search.exclude": {
 		"**/node_modules": true,
@@ -96,7 +93,6 @@
 		"build/loader.min": true,
 		"**/*.snap": true,
 	},
-
 	// --- TypeScript ---
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"typescript.preferences.importModuleSpecifier": "relative",
@@ -109,7 +105,6 @@
 		"vscode-notebook-renderer",
 		"src/vs/workbench/workbench.web.main.internal.ts"
 	],
-
 	// --- Languages ---
 	"json.schemas": [
 		{
@@ -126,7 +121,6 @@
 		}
 	],
 	"css.format.spaceAroundSelectorSeparator": true,
-
 	// --- Git ---
 	"git.ignoreLimitWarning": true,
 	"git.branchProtection": [
@@ -144,7 +138,6 @@
 		"ts": "warning",
 		"eslint": "warning"
 	},
-
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,
 	"githubPullRequests.assignCreated": "${user}",
@@ -154,7 +147,6 @@
 	],
 	"githubPullRequests.codingAgent.enabled": true,
 	"githubPullRequests.codingAgent.uiIntegration": true,
-
 	// --- Testing & Debugging ---
 	"testing.autoRun.mode": "rerun",
 	"debug.javascript.terminalOptions": {
@@ -168,7 +160,6 @@
 			"${workspaceFolder}/extensions/*/out/**/*.js",
 		]
 	},
-
 	// --- Coverage ---
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
@@ -183,7 +174,6 @@
 			}
 		}
 	],
-
 	// --- Tools ---
 	"npm.exclude": "**/extensions/**",
 	"eslint.useFlatConfig": true,
@@ -202,7 +192,6 @@
 		"git",
 		"sash"
 	],
-
 	// --- Workbench ---
 	// "application.experimental.rendererProfiling": true, // https://github.com/microsoft/vscode/issues/265654
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
@@ -212,4 +201,5 @@
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
 	"chat.tools.terminal.outputLocation": "none",
+	"editor.pasteAs.enabled": false,
 }

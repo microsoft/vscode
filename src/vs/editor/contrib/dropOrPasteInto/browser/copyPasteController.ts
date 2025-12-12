@@ -256,6 +256,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 		CopyPasteController._currentCopyOperation?.operations.forEach(entry => entry.operation.cancel());
 		CopyPasteController._currentCopyOperation = { handle, operations };
+		performance.mark('code/CopyPasteController/endHandleCopy');
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
@@ -342,6 +343,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		} else {
 			this.doPasteInline(allProviders, selections, dataTransfer, metadata, e);
 		}
+		performance.mark('code/CopyPasteController/endHandlePaste');
 	}
 
 	private showPasteAsNoEditMessage(selections: readonly Selection[], preference: PastePreference) {

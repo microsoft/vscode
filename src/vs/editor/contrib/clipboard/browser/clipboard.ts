@@ -225,10 +225,8 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 		logService.trace('registerExecCommandImpl (addImplementation code-editor for : ', browserCommand, ')');
 		performance.mark(
 			browserCommand === 'cut'
-				? 'code/registerExecCommandImpl/cut'
-				: 'code/registerExecCommandImpl/copy',
-			{ detail: { command: browserCommand } }
-		);
+				? 'code/registerExecCommandImpl/code-editor/cut'
+				: 'code/registerExecCommandImpl/code-editor/copy');
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus() && focusedEditor.hasModel()) {
@@ -236,10 +234,12 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 			const emptySelectionClipboard = focusedEditor.getOption(EditorOption.emptySelectionClipboard);
 			const selection = focusedEditor.getSelection();
 			if (selection && selection.isEmpty() && !emptySelectionClipboard) {
+				performance.mark(`code/registerExecCommandImpl/code-editor/${browserCommand}/earlyReturn`);
 				return true;
 			}
 			// TODO this is very ugly. The entire copy/paste/cut system needs a complete refactoring.
 			if (focusedEditor.getOption(EditorOption.effectiveEditContext) && browserCommand === 'cut') {
+				performance.mark(`code/registerExecCommandImpl/code-editor/${browserCommand}/1stBranch`);
 				logCopyCommand(focusedEditor);
 				// execCommand(copy) works for edit context, but not execCommand(cut).
 				logService.trace('registerExecCommandImpl (before execCommand copy)');
@@ -250,14 +250,17 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 				logCopyCommand(focusedEditor);
 				logService.trace('registerExecCommandImpl (before execCommand ' + browserCommand + ')');
 				if (browserCommand === 'copy') {
+					performance.mark(`code/registerExecCommandImpl/code-editor/${browserCommand}/2ndBranch`);
 					executeClipboardCopyWithWorkaround(focusedEditor, clipboardService);
 				} else {
+					performance.mark(`code/registerExecCommandImpl/code-editor/${browserCommand}/3rdBranch`);
 					focusedEditor.getContainerDomNode().ownerDocument.execCommand(browserCommand);
 				}
 				logService.trace('registerExecCommandImpl (after execCommand ' + browserCommand + ')');
 			}
 			return true;
 		}
+		performance.mark(`code/registerExecCommandImpl/code-editor/${browserCommand}/editorNotFocused`);
 		return false;
 	});
 
@@ -266,6 +269,9 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 		const logService = accessor.get(ILogService);
 		logService.trace('registerExecCommandImpl (addImplementation generic-dom for : ', browserCommand, ')');
 		logService.trace('registerExecCommandImpl (before execCommand ' + browserCommand + ')');
+		performance.mark(browserCommand === 'cut' ?
+			'code/registerExecCommandImpl/generic-dom/cut'
+			: 'code/registerExecCommandImpl/generic-dom/copy');
 		getActiveDocument().execCommand(browserCommand);
 		logService.trace('registerExecCommandImpl (after execCommand ' + browserCommand + ')');
 		return true;
@@ -290,7 +296,7 @@ if (PasteAction) {
 	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: unknown) => {
 		const logService = accessor.get(ILogService);
 		logService.trace('registerExecCommandImpl (addImplementation code-editor for : paste)');
-		performance.mark('code/registerExecCommandImpl/paste');
+		performance.mark('code/registerExecCommandImpl/code-editor/paste');
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
 		const telemetryService = accessor.get(ITelemetryService);
@@ -313,6 +319,7 @@ if (PasteAction) {
 			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 			if (triggerPaste) {
 				logService.trace('registerExecCommandImpl (triggerPaste defined)');
+				performance.mark('code/registerExecCommandImpl/code-editor/paste/triggerPasteDefined');
 				return triggerPaste.then(async () => {
 					logService.trace('registerExecCommandImpl (after triggerPaste)');
 					if (productService.quality !== 'stable') {
@@ -334,10 +341,12 @@ if (PasteAction) {
 					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 				});
 			} else {
+				performance.mark('code/registerExecCommandImpl/code-editor/paste/triggerPasteUndefined');
 				logService.trace('registerExecCommandImpl (triggerPaste undefined)');
 			}
 			if (platform.isWeb) {
 				logService.trace('registerExecCommandImpl (Paste handling on web)');
+				performance.mark('code/registerExecCommandImpl/code-editor/paste/pastingOnWeb');
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
 					const clipboardText = await clipboardService.readText();
@@ -363,6 +372,7 @@ if (PasteAction) {
 			}
 			return true;
 		}
+		performance.mark('code/registerExecCommandImpl/code-editor/paste/editorNotFocusedOnPaste');
 		return false;
 	});
 
@@ -370,6 +380,7 @@ if (PasteAction) {
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: unknown) => {
 		const logService = accessor.get(ILogService);
 		logService.trace('registerExecCommandImpl (addImplementation generic-dom for : paste)');
+		performance.mark('code/registerExecCommandImpl/generic-dom/paste/editorNotFocusedOnPaste');
 		const triggerPaste = accessor.get(IClipboardService).triggerPaste(getActiveWindow().vscodeWindowId);
 		return triggerPaste ?? false;
 	});

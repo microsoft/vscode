@@ -125,6 +125,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._screenReaderSupport.onWillCut();
 			ensureClipboardGetsEditorSelection(e, this._context, this.logService, isFirefox);
 			this.logService.trace('NativeEditContext#cut (before viewController.cut)');
+			performance.mark('code/nativeEditContext/beforeViewControllerCut');
 			this._viewController.cut();
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'selectionchange', () => {
@@ -165,6 +166,7 @@ export class NativeEditContext extends AbstractEditContext {
 				mode = metadata.mode;
 			}
 			this.logService.trace('NativeEditContext#paste (before viewController.paste)');
+			performance.mark('code/nativeEditContext/beforeViewControllerPaste');
 			this._viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
 
