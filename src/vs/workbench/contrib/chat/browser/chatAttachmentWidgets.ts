@@ -357,10 +357,6 @@ function createTerminalCommandElements(
 		hoverElement.append(outputTitle, outputBlock);
 	}
 
-	const hint = dom.$('div', {}, localize('chat.terminalCommandHoverHint', "Click to focus this command in the terminal."));
-	hint.classList.add('attachment-additional-info');
-	hoverElement.appendChild(hint);
-
 	disposable.add(hoverService.setupDelayedHover(element, {
 		...commonHoverOptions,
 		content: hoverElement,
