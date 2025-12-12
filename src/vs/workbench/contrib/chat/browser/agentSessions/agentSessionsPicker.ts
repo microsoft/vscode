@@ -21,13 +21,15 @@ interface ISessionPickItem extends IQuickPickItem {
 
 export class AgentSessionsPicker {
 
-	private readonly sorter = new AgentSessionsSorter();
+	private readonly sorter: AgentSessionsSorter;
 
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) { }
+	) {
+		this.sorter = this.instantiationService.createInstance(AgentSessionsSorter);
+	}
 
 	async pickAgentSession(): Promise<void> {
 		const disposables = new DisposableStore();

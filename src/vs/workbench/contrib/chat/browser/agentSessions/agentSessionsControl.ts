@@ -74,7 +74,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private createList(container: HTMLElement): void {
 		this.sessionsContainer = append(container, $('.agent-sessions-viewer'));
 
-		const sorter = new AgentSessionsSorter();
+		const sorter = this.instantiationService.createInstance(AgentSessionsSorter);
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
 			this.sessionsContainer,
