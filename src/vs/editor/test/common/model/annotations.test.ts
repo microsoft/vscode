@@ -272,272 +272,172 @@ suite('Annotations Suite', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('setAnnotations 1', () => {
-		// Initial:  [#####]-----[#####]-----[#####]
-		//           0     5     10   15     20   25
 		const as = fromVisual('[#####]-----[#####]-----[#####]');
-
-		// Update: extend first annotation to position 7
 		as.setAnnotations(updateFromVisual('[#######]'));
-		// Expected: [#######]---[#####]-----[#####]
 		assertVisual(as, '[#######]---[#####]-----[#####]');
-
-		// Update: add annotation at positions 8-9
 		as.setAnnotations(updateFromVisual('--------[#]'));
-		// Expected: [#######]-[#]-[#####]-----[#####]
 		assertVisual(as, '[#######]-[#]-[#####]-----[#####]');
 	});
 
 	test('setAnnotations 2', () => {
-		// Initial:  [#####]-----[#####]-----[#####]
-		//           0    5     10   15     20   25
 		const as = fromVisual('[#####]-----[#####]-----[#####]');
-
-		// Delete range (1,12) and set (0,6)
 		as.setAnnotations(updateFromVisual(
 			'-<###########>',  // delete (1,12)
 			'[######]'         // set (0,6)
 		));
-		// Expected: [######]--------------[#####]
 		assertVisual(as, '[######]--------------[#####]');
-
-		// Delete range (5,27) and set (0,3)
 		as.setAnnotations(updateFromVisual(
 			'-----<######################>',  // delete (5,27)
 			'[###]'                            // set (0,3)
 		));
-		// Expected: [###]
 		assertVisual(as, '[###]');
-
-		// Set annotation at (1,4)
 		as.setAnnotations(updateFromVisual('-[###]'));
-		// Expected: -[###]
 		assertVisual(as, '-[###]');
 	});
 
 	test('setAnnotations 3', () => {
-		// Initial:  [#####]-----[#####]-----[#####]
-		//           0    5     10   15     20   25
 		const as = fromVisual('[#####]-----[#####]-----[#####]');
-
-		// Set annotation (4,20) - replaces all overlapping
 		as.setAnnotations(updateFromVisual('----[################]'));
-		// Expected: ----[################]
 		assertVisual(as, '----[################]');
-
-		// Add annotation at (22,23)
 		as.setAnnotations(updateFromVisual('----------------------[#]'));
-		// Expected: ----[################]--[#]
 		assertVisual(as, '----[################]--[#]');
 	});
 
 	test('getAnnotationsIntersecting 1', () => {
-		// String:  [#####]-----[#####]-----[#####]
-		//          0    5     10   15     20   25
 		const as = fromVisual('[#####]-----[#####]-----[#####]');
 
-		// Query range (0,12) should get first two annotations
 		const result1 = as.getAnnotationsIntersecting(new OffsetRange(0, 12));
 		assert.strictEqual(result1.length, 2);
 		assert.strictEqual(toVisualString(result1), '[#####]-----[#####]');
 
-		// Query range (0,22) should get all three
 		const result2 = as.getAnnotationsIntersecting(new OffsetRange(0, 22));
 		assert.strictEqual(result2.length, 3);
 		assert.strictEqual(toVisualString(result2), '[#####]-----[#####]-----[#####]');
 	});
 
 	test('getAnnotationsIntersecting 2', () => {
-		// String:  [#####]-[#]-[#]
-		//          0    5 6 7 8 9
 		const as = fromVisual('[#####]-[#]-[#]');
 
-		// Query range (5,6) should get first and second
 		const result1 = as.getAnnotationsIntersecting(new OffsetRange(5, 6));
 		assert.strictEqual(result1.length, 2);
 		assert.strictEqual(toVisualString(result1), '[#####]-[#]');
 
-		// Query range (5,8) should get all three
 		const result2 = as.getAnnotationsIntersecting(new OffsetRange(5, 8));
 		assert.strictEqual(result2.length, 3);
 		assert.strictEqual(toVisualString(result2), '[#####]-[#]-[#]');
 	});
 
 	test('getAnnotationsIntersecting 3', () => {
-		// String:  [#####]-----[#####]
-		//          0    5     10   15
 		const as = fromVisual('[#####]-----[#####]');
 
-		// Query range (5,10) should touch both annotations
 		const result1 = as.getAnnotationsIntersecting(new OffsetRange(5, 10));
 		assert.strictEqual(result1.length, 2);
 
-		// Set annotations at (0,4) and (5,9)
 		as.setAnnotations(updateFromVisual('[####]-[####]'));
-		// Expected: [####]-[####]-[#####]
 		assertVisual(as, '[####]-[####]-[#####]');
 
-		// Query range (7,10) should get last two
 		const result2 = as.getAnnotationsIntersecting(new OffsetRange(7, 10));
 		assert.strictEqual(result2.length, 2);
 		assert.strictEqual(toVisualString(result2), '-----[####]-[#####]');
 	});
 
 	test('getAnnotationsIntersecting 4', () => {
-		// String:  [##########]
-		//          0         10
 		const as = fromVisual('[##########]');
-
-		// Add annotation at (12,15)
 		as.setAnnotations(updateFromVisual('------------[###]'));
-		// Now: [##########]--[###]
-
-		// Query range (2,8) should get first annotation only
 		const result = as.getAnnotationsIntersecting(new OffsetRange(2, 8));
 		assert.strictEqual(result.length, 1);
 		assert.strictEqual(toVisualString(result), '[##########]');
 	});
 
-	// FIX and this will fix the rendering in the editor
 	test('getAnnotationsIntersecting 5', () => {
-		// String:  [#########]-[###]-[##]
-		//          0        9 10  13 14 16
 		const as = fromVisual('[#########]-[###]-[##]');
-
-		// Query range (1,16) should get all three
 		const result = as.getAnnotationsIntersecting(new OffsetRange(1, 16));
 		assert.strictEqual(result.length, 3);
 		assert.strictEqual(toVisualString(result), '[#########]-[###]-[##]');
 	});
 
 	test('applyEdit 1 - deletion within annotation', () => {
-		// Before: [#####]-----[#####]-----[#####]
-		//         0    5     10   15     20   25
-		// Delete positions 0-3 (first 3 chars of first annotation)
 		const result = visualizeEdit(
 			'[#####]-----[#####]-----[#####]',
 			editDelete(0, 3)
 		);
-		// After:  [##]-----[#####]-----[#####]
-		//         0 2     7    12     17   22
 		assert.strictEqual(result.after, '[##]-----[#####]-----[#####]');
 	});
 
 	test('applyEdit 2 - deletion and insertion within annotation', () => {
-		// Before: [#####]-----[#####]-----[#####]
-		// Replace positions 1-3 with "aaaaa" (5 chars replacing 2)
 		const result = visualizeEdit(
 			'[#####]-----[#####]-----[#####]',
-			editReplace(1, 3, 'aaaaa')
+			editReplace(1, 3, '#####')
 		);
-		// First annotation expands from 5 to 8 chars
-		// After:  [########]-----[#####]-----[#####]
 		assert.strictEqual(result.after, '[########]-----[#####]-----[#####]');
 	});
 
 	test('applyEdit 3 - deletion across several annotations', () => {
-		// Before: [#####]-----[#####]-----[#####]
-		//         0    5     10   15     20   25
-		// Replace positions 4-22 with "aaaaa"
 		const result = visualizeEdit(
 			'[#####]-----[#####]-----[#####]',
 			editReplace(4, 22, 'aaaaa')
 		);
-		// After:  [#########][###]
 		assert.strictEqual(result.after, '[#########][###]');
 	});
 
 	test('applyEdit 4 - deletion between annotations', () => {
-		// Before: [########]-----[#####]-----[#####]
-		//         0       8     13   18     23   28
-		// Delete positions 10-12 (between first and second annotation)
 		const result = visualizeEdit(
 			'[########]-----[#####]-----[#####]',
 			editDelete(10, 12)
 		);
-		// After:  [########]---[#####]-----[#####]
 		assert.strictEqual(result.after, '[########]---[#####]-----[#####]');
 	});
 
 	test('applyEdit 5 - deletion that covers annotation', () => {
-		// Before: [#####]-----[#####]-----[#####]
-		// Delete positions 0-5 (entire first annotation)
 		const result = visualizeEdit(
 			'[#####]-----[#####]-----[#####]',
 			editDelete(0, 5)
 		);
-		// First annotation removed, others shift left
-		// After:  -----[#####]-----[#####]
 		assert.strictEqual(result.after, '-----[#####]-----[#####]');
 	});
 
 	test('applyEdit 6 - several edits', () => {
-		// Before: [#####]-----[#####]-----[#####]
-		//         0    5     10   15     20   25
 		const as = fromVisual('[#####]-----[#####]-----[#####]');
-
-		// Delete all three regions: (0,5), (5,10), (10,15) composed
 		const edit1 = StringEdit.replace(new OffsetRange(0, 5), '');
 		const edit2 = StringEdit.replace(new OffsetRange(5, 10), '');
 		const edit3 = StringEdit.replace(new OffsetRange(10, 15), '');
 		as.applyEdit(edit1.compose(edit2).compose(edit3));
-
-		// All annotations removed
 		assert.strictEqual(toVisual(as), '');
 	});
 
 	test('applyEdit 7 - several edits', () => {
-		// Before: [#####]-----[#####]-----[#####]
 		const as = fromVisual('[#####]-----[#####]-----[#####]');
-
-		// Replace (0,3) with 'aaaa', then delete (0,2)
 		const edit1 = StringEdit.replace(new OffsetRange(0, 3), 'aaaa');
 		const edit2 = StringEdit.replace(new OffsetRange(0, 2), '');
 		as.applyEdit(edit1.compose(edit2));
-
-		// After:  [####]-----[#####]-----[#####]
 		assertVisual(as, '[####]-----[#####]-----[#####]');
 	});
 
 	test('applyEdit 9 - insertion at end of annotation', () => {
-		// Before: [#####]-----[#####]-----[#####]
-		// Insert "abc" at position 15 (end of second annotation)
 		const result = visualizeEdit(
 			'[#####]-----[#####]-----[#####]',
 			editInsert(15, 'abc')
 		);
-		// Insertion at end pushes third annotation, doesn't extend second
-		// After:  [#####]-----[#####]--------[#####]
 		assert.strictEqual(result.after, '[#####]-----[#####]--------[#####]');
 	});
 
 	test('applyEdit 10 - insertion in middle of annotation', () => {
-		// Before: [#####]-----[#####]-----[#####]
-		// Insert "abc" at position 12 (middle of second annotation)
 		const result = visualizeEdit(
 			'[#####]-----[#####]-----[#####]',
 			editInsert(12, 'abc')
 		);
-		// Insertion inside annotation extends it
-		// After:  [#####]-----[########]-----[#####]
 		assert.strictEqual(result.after, '[#####]-----[########]-----[#####]');
 	});
 
 	test('applyEdit 11 - replacement consuming annotation', () => {
-		// Before: [#]-[###]-[#]
-		//         0 1 2   5 6 7
-		// Replace positions 1-6 with "a" (consumes middle annotation)
 		const result = visualizeEdit(
 			'[#]-[###]-[#]',
 			editReplace(1, 6, 'a')
 		);
-		// Middle annotation is consumed
-		// After:  [#]-[#]
 		assert.strictEqual(result.after, '[#]-[#]');
 	});
 
 	test('applyEdit 12 - multiple disjoint edits', () => {
-		// Before: [#####]-----[#####]-----[#####]-----[#####]
-		//         0    5     10   15     20   25     30   35
 		const as = fromVisual('[#####]-----[#####]-----[#####]-----[#####]');
 
 		const edit = StringEdit.compose([
@@ -547,35 +447,22 @@ suite('Annotations Suite', () => {
 			StringEdit.replace(new OffsetRange(30, 35), 'c')        // Replace 30-35 with 'c'
 		]);
 		as.applyEdit(edit);
-
-		// After:  -[#####]-----[####]-----[######]----[##]
-		//         1     6     11  15     20    26    30 32
 		assertVisual(as, '-[#####]-----[####]-----[######]----[##]');
 	});
 
 	test('applyEdit 13 - edit on the left border', () => {
-		// Before: ---------------[#]
-		//                        15 16
-		// Insert "a" at position 15 (start of annotation)
 		const result = visualizeEdit(
 			'---------------[#]',
 			editInsert(15, 'a')
 		);
-		// Insertion at start pushes annotation right
-		// After:  ----------------[#]
 		assert.strictEqual(result.after, '----------------[#]');
 	});
 
 	test('applyEdit 14 - edit on the right border', () => {
-		// Before: ---------------[#]
-		//                        15 16
-		// Insert "a" at position 16 (right after annotation)
 		const result = visualizeEdit(
 			'---------------[#]',
 			editInsert(16, 'a')
 		);
-		// Insertion after annotation end doesn't extend it
-		// After:  ---------------[#]
 		assert.strictEqual(result.after, '---------------[#]');
 	});
 
