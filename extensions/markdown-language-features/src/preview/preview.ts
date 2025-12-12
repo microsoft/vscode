@@ -37,7 +37,7 @@ export class PreviewDocumentVersion {
 interface MarkdownPreviewDelegate {
 	getTitle?(resource: vscode.Uri): string;
 	getAdditionalState(): {};
-	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string | undefined): void;
+	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string | undefined, openInNewTab?: boolean): void;
 }
 
 class MarkdownPreview extends Disposable implements WebviewResourceProvider {
@@ -141,7 +141,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 					break;
 
 				case 'openLink':
-					this._onDidClickPreviewLink(e.href);
+					this._onDidClickPreviewLink(e.href, e.ctrlKey, e.metaKey, e.middleButton);
 					break;
 
 				case 'showPreviewSecuritySelector':
@@ -403,7 +403,10 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		return baseRoots;
 	}
 
-	private async _onDidClickPreviewLink(href: string) {
+	private async _onDidClickPreviewLink(href: string, ctrlKey?: boolean, metaKey?: boolean, middleButton?: boolean) {
+		// Check if user wants to open in new tab (Ctrl+Click on Windows/Linux, Cmd+Click on macOS, or middle-click)
+		const openInNewTab = ctrlKey || metaKey || middleButton;
+		
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {
@@ -412,7 +415,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 				try {
 					const doc = await vscode.workspace.openTextDocument(vscode.Uri.from(resolved.uri));
 					if (isMarkdownFile(doc)) {
-						return this._delegate.openPreviewLinkToMarkdownFile(doc.uri, resolved.fragment ? decodeURIComponent(resolved.fragment) : undefined);
+						return this._delegate.openPreviewLinkToMarkdownFile(doc.uri, resolved.fragment ? decodeURIComponent(resolved.fragment) : undefined, openInNewTab);
 					}
 				} catch {
 					// Noop
@@ -420,7 +423,9 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}
 
-		return this._opener.openDocumentLink(href, this.resource);
+		// Pass the view column to open in a new tab when modifiers are used
+		const viewColumn = openInNewTab ? vscode.ViewColumn.Beside : undefined;
+		return this._opener.openDocumentLink(href, this.resource, viewColumn);
 	}
 
 	//#region WebviewResourceProvider
@@ -501,10 +506,11 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 		const topScrollLocation = scrollLine ? new StartingScrollLine(scrollLine) : undefined;
 		this._preview = this._register(new MarkdownPreview(this._webviewPanel, resource, topScrollLocation, {
 			getAdditionalState: () => { return {}; },
-			openPreviewLinkToMarkdownFile: (markdownLink, fragment) => {
+			openPreviewLinkToMarkdownFile: (markdownLink, fragment, openInNewTab) => {
+				const viewColumn = openInNewTab ? vscode.ViewColumn.Beside : this._webviewPanel.viewColumn;
 				return vscode.commands.executeCommand('vscode.openWith', markdownLink.with({
 					fragment
-				}), StaticMarkdownPreview.customEditorViewType, this._webviewPanel.viewColumn);
+				}), StaticMarkdownPreview.customEditorViewType, viewColumn);
 			}
 		}, contentProvider, _previewConfigurations, logger, contributionProvider, opener));
 
@@ -793,8 +799,14 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 					locked: this._locked,
 				};
 			},
-			openPreviewLinkToMarkdownFile: (link: vscode.Uri, fragment?: string) => {
-				this.update(link, fragment ? new StartingScrollFragment(fragment) : undefined);
+			openPreviewLinkToMarkdownFile: (link: vscode.Uri, fragment?: string, openInNewTab?: boolean) => {
+				if (openInNewTab) {
+					// Open a new preview in a new column
+					const linkWithFragment = fragment ? link.with({ fragment }) : link;
+					vscode.commands.executeCommand('markdown.showPreviewToSide', linkWithFragment);
+				} else {
+					this.update(link, fragment ? new StartingScrollFragment(fragment) : undefined);
+				}
 			}
 		},
 			this._contentProvider,
