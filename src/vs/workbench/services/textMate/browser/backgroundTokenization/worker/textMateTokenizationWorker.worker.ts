@@ -14,6 +14,7 @@ import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../../../base/common/worker/webWorker.js';
 import { TextMateWorkerHost } from './textMateWorkerHost.js';
 import { ISerializedAnnotation } from '../../../../../../editor/common/model/tokens/annotations.js';
+import { IFontTokenOption } from '../../../../../../editor/common/textModelEvents.js';
 
 export function create(workerServer: IWebWorkerServer): TextMateTokenizationWorker {
 	return new TextMateTokenizationWorker(workerServer);
@@ -110,7 +111,7 @@ export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandle
 				}
 				return that._grammarCache[encodedLanguageId];
 			},
-			setTokensAndStates(versionId: number, tokens: Uint8Array, fontTokens: ISerializedAnnotation[], stateDeltas: StateDeltas[]): void {
+			setTokensAndStates(versionId: number, tokens: Uint8Array, fontTokens: ISerializedAnnotation<IFontTokenOption>[], stateDeltas: StateDeltas[]): void {
 				that._host.$setTokensAndStates(data.controllerId, versionId, tokens, fontTokens, stateDeltas);
 			},
 			reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void {
