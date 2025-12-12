@@ -685,6 +685,10 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				f1: true,
 				precondition: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent)),
+				keybinding: [{
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
+				}]
 			});
 		}
 
