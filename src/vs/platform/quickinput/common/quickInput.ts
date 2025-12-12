@@ -508,6 +508,13 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	filterValue: (value: string) => string;
 
 	/**
+	 * Programmatically reloads the items in the quick pick.
+	 * This is useful when provided items need to be updated, without changing the `value` of the quick input.
+	 * Triggers `onDidChangeValue` event.
+	 */
+	reload(): void;
+
+	/**
 	 * The ARIA label for the quick pick input.
 	 */
 	ariaLabel: string | undefined;
