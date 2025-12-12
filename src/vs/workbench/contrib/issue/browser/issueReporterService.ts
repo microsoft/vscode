@@ -6,6 +6,7 @@ import { IProductConfiguration } from '../../../../base/common/product.js';
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -33,9 +34,10 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAuthenticationService authenticationService: IAuthenticationService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService);
+		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService, environmentService);
 
 		// eslint-disable-next-line no-restricted-syntax
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
