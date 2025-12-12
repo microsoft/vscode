@@ -2414,6 +2414,13 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 			}
 		}
 
+		// All profiles filter
+		if (element instanceof SettingsTreeSettingElement && this.viewState.allProfilesFilter) {
+			if (!element.matchesAllProfilesFilter(this.viewState.allProfilesFilter)) {
+				return false;
+			}
+		}
+
 		// Non-user scope selected
 		if (element instanceof SettingsTreeSettingElement && this.viewState.settingsTarget !== ConfigurationTarget.USER_LOCAL) {
 			const isRemote = !!this.environmentService.remoteAuthority;
@@ -2428,6 +2435,17 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 				return element.count > 0;
 			}
 
+			// If all-profiles filter is enabled, check if group has any matching children
+			// We need to do this check because TreeVisibility.Recurse might not work correctly
+			// if children are filtered but the parent isn't re-evaluated
+			if (this.viewState.allProfilesFilter) {
+				const hasVisibleChild = this.groupHasVisibleChildren(element);
+				if (!hasVisibleChild) {
+					return false; // Hide group if no visible children
+				}
+			}
+
+			// For other cases, let the tree framework handle it with Recurse
 			return TreeVisibility.Recurse;
 		}
 
@@ -2450,6 +2468,40 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 			} else {
 				return false;
 			}
+		});
+	}
+
+	private groupHasVisibleChildren(group: SettingsTreeGroupElement): boolean {
+		const isRemote = !!this.environmentService.remoteAuthority;
+		return group.children.some(child => {
+			if (child instanceof SettingsTreeSettingElement) {
+				// Check all filters that would apply to this setting
+				if (this.viewState.allProfilesFilter && !child.matchesAllProfilesFilter(this.viewState.allProfilesFilter)) {
+					return false;
+				}
+				if (this.viewState.settingsTarget !== ConfigurationTarget.USER_LOCAL && !child.matchesScope(this.viewState.settingsTarget, isRemote)) {
+					return false;
+				}
+				if (this.viewState.tagFilters && !child.matchesAllTags(this.viewState.tagFilters)) {
+					return false;
+				}
+				if (this.viewState.extensionFilters && !child.matchesAnyExtension(this.viewState.extensionFilters)) {
+					return false;
+				}
+				if (this.viewState.idFilters && !child.matchesAnyId(this.viewState.idFilters)) {
+					return false;
+				}
+				if (this.viewState.featureFilters && !child.matchesAnyFeature(this.viewState.featureFilters)) {
+					return false;
+				}
+				if (this.viewState.languageFilter && !child.matchesAllLanguages(this.viewState.languageFilter)) {
+					return false;
+				}
+				return true;
+			} else if (child instanceof SettingsTreeGroupElement) {
+				return this.groupHasVisibleChildren(child);
+			}
+			return false;
 		});
 	}
 }
