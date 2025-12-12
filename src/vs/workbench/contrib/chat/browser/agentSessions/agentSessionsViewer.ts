@@ -206,8 +206,12 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	private getIcon(session: IAgentSession): ThemeIcon {
-		if (isSessionInProgressStatus(session.status)) {
+		if (session.status === ChatSessionStatus.InProgress) {
 			return Codicon.sessionInProgress;
+		}
+
+		if (session.status === ChatSessionStatus.NeedsInput) {
+			return Codicon.info;
 		}
 
 		if (session.status === ChatSessionStatus.Failed) {
@@ -430,8 +434,18 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
 	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
-		const aInProgress = isSessionInProgressStatus(sessionA.status);
-		const bInProgress = isSessionInProgressStatus(sessionB.status);
+		const aNeedsInput = sessionA.status === ChatSessionStatus.NeedsInput;
+		const bNeedsInput = sessionB.status === ChatSessionStatus.NeedsInput;
+
+		if (aNeedsInput && !bNeedsInput) {
+			return -1; // a (needs input) comes before b (other)
+		}
+		if (!aNeedsInput && bNeedsInput) {
+			return 1; // a (other) comes after b (needs input)
+		}
+
+		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
+		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;
 
 		if (aInProgress && !bInProgress) {
 			return -1; // a (in-progress) comes before b (finished)
