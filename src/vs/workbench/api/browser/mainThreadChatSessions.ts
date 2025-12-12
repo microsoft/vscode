@@ -24,9 +24,10 @@ import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatModel } from '../../contrib/chat/common/chatModel.js';
 import { IChatContentInlineReference, IChatProgress, IChatService } from '../../contrib/chat/common/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -341,6 +342,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ILogService private readonly _logService: ILogService,
+		@IPromptsService private readonly _promptsService: IPromptsService,
 	) {
 		super();
 
@@ -592,9 +594,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._sessionTypeToHandle.set(chatSessionScheme, handle);
 		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionScheme, provider));
-		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
+		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(async options => {
 			if (options?.optionGroups && options.optionGroups.length) {
-				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, options.optionGroups);
+				// Filter out custom agents that target vscode from the option groups
+				const filteredOptionGroups = await this._filterOptionGroupsForVSCodeTarget(options.optionGroups);
+				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, filteredOptionGroups);
 			}
 		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}
@@ -678,6 +682,33 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 
 		return undefined;
+	}
+
+	/**
+	 * Filter out custom agents with target: vscode from option groups.
+	 * These agents have tools that are only available in VS Code's Agent and
+	 * should not be shown in external providers like the Background Agent.
+	 */
+	private async _filterOptionGroupsForVSCodeTarget(optionGroups: IChatSessionProviderOptionGroup[]): Promise<IChatSessionProviderOptionGroup[]> {
+		try {
+			// Get all custom agents to check their target
+			const customAgents = await this._promptsService.getCustomAgents(CancellationToken.None);
+			const vsCodeTargetAgentNames = new Set(
+				customAgents
+					.filter(agent => agent.target === 'vscode')
+					.map(agent => agent.name)
+			);
+
+			// Filter out option items whose id matches a vscode-targeted agent
+			return optionGroups.map(group => ({
+				...group,
+				items: group.items.filter(item => !vsCodeTargetAgentNames.has(item.id))
+			})).filter(group => group.items.length > 0); // Remove empty groups
+		} catch (error) {
+			this._logService.error('Error filtering option groups for vscode target:', error);
+			// On error, return original option groups to avoid breaking functionality
+			return optionGroups;
+		}
 	}
 
 	/**
