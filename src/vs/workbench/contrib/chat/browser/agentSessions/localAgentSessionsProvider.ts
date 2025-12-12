@@ -73,6 +73,8 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 					return ChatSessionStatus.Failed;
 				} else if (lastRequest.response.isComplete) {
 					return ChatSessionStatus.Completed;
+				} else if (lastRequest.response.state === ResponseModelState.NeedsInput) {
+					return ChatSessionStatus.NeedsInput;
 				} else {
 					return ChatSessionStatus.InProgress;
 				}
@@ -160,5 +162,7 @@ function chatResponseStateToSessionStatus(state: ResponseModelState): ChatSessio
 			return ChatSessionStatus.Failed;
 		case ResponseModelState.Pending:
 			return ChatSessionStatus.InProgress;
+		case ResponseModelState.NeedsInput:
+			return ChatSessionStatus.NeedsInput;
 	}
 }

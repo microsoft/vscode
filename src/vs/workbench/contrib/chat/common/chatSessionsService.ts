@@ -20,7 +20,8 @@ import { IChatProgress, IChatService } from './chatService.js';
 export const enum ChatSessionStatus {
 	Failed = 0,
 	Completed = 1,
-	InProgress = 2
+	InProgress = 2,
+	NeedsInput = 3
 }
 
 export interface IChatSessionCommandContribution {
