@@ -12,11 +12,6 @@ export interface IAnnotation<T> {
 	annotation: T;
 }
 
-export interface IAnnotationUpdate<T> {
-	range: OffsetRange;
-	annotation: T | undefined;
-}
-
 export interface IAnnotatedString<T> {
 	/**
 	 * Set annotations for a specific line.
@@ -227,6 +222,11 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	public clone(): IAnnotatedString<T> {
 		return new AnnotatedString<T>(this._annotations.slice());
 	}
+}
+
+export interface IAnnotationUpdate<T> {
+	range: OffsetRange;
+	annotation: T | undefined;
 }
 
 type DefinedValue = object | string | number | boolean;
