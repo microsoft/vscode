@@ -316,20 +316,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const cwd = URI.revive(resourceOptions.cwd);
 		let lastWordFolderResource: URI | string | undefined;
 		if (type === 'relative' && lastWordFolder.length > 0) {
-			const lastWordFolderNoPrefix = lastWordFolder.replace(/^[.][\\\/]/, '');
-			const lastWordFolderBasename = lastWordFolderNoPrefix.replace(/[\\\/]$/, '');
-			const refersToCwd = lastWordFolderBasename.length > 0 && basename(cwd.path) === lastWordFolderBasename;
-			const folderToResolve = (useWindowsStylePath ? lastWordFolder.replaceAll('/', '\\') : lastWordFolder).replaceAll('\\ ', ' ');
+			// The extension already resolved the typed path into cwd when possible. Just ensure
+			// cwd exists before using it for completions.
 			try {
-				const resolved = URI.joinPath(cwd, folderToResolve);
-				await this._fileService.stat(resolved);
-				lastWordFolderResource = resolved;
+				await this._fileService.stat(cwd);
+				lastWordFolderResource = cwd;
 			} catch {
-				if (refersToCwd) {
-					lastWordFolderResource = cwd;
-				} else {
-					return undefined;
-				}
+				return undefined;
 			}
 		}
 
