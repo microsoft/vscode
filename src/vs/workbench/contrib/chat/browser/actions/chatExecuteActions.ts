@@ -707,7 +707,7 @@ class SendToNewChatAction extends Action2 {
 		}
 
 		await widget.clear();
-		widget.acceptInput(inputBeforeClear, { forceStoreToHistory: true });
+		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}
 }
 
