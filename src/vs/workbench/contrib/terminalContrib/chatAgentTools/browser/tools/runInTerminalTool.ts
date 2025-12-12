@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -641,7 +641,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let exitCode: number | undefined;
 			let altBufferResult: IToolResult | undefined;
 			const executeCancellation = store.add(new CancellationTokenSource(token));
-			const alternateBufferPromise = this._createAltBufferPromise(xterm, store);
 			try {
 				let strategy: ITerminalExecuteStrategy;
 				switch (toolTerminal.shellIntegrationQuality) {
@@ -665,26 +664,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const executePromise = strategy.execute(command, executeCancellation.token, commandId);
-				const executeResultOrAltBuffer = await Promise.race([
-					executePromise.then(result => ({ type: 'result' as const, result })),
-					alternateBufferPromise.then(() => ({ type: 'altBuffer' as const }))
-				]);
-				if (executeResultOrAltBuffer.type === 'altBuffer') {
-					error = 'alternateBuffer';
-					executeCancellation.cancel();
-					try {
-						await executePromise;
-					} catch (e) {
-						if (!(e instanceof CancellationError)) {
-							this._logService.debug('RunInTerminalTool: Ignoring execute promise rejection after alt buffer', e);
-						}
-					}
+				const executeResult = await strategy.execute(command, executeCancellation.token, commandId);
+				// Reset user input state after command execution completes
+				toolTerminal.receivedUserInput = false;
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
+				if (executeResult.didEnterAltBuffer) {
 					const state = toolSpecificData.terminalCommandState ?? {};
 					state.timestamp = state.timestamp ?? timingStart;
 					toolSpecificData.terminalCommandState = state;
 					toolResultMessage = altBufferMessage;
 					outputLineCount = 0;
+					error = executeResult.error ?? 'alternateBuffer';
 					altBufferResult = {
 						toolResultMessage,
 						toolMetadata: {
@@ -696,13 +689,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						}]
 					};
 				} else {
-					const executeResult = executeResultOrAltBuffer.result;
-					// Reset user input state after command execution completes
-					toolTerminal.receivedUserInput = false;
-					if (token.isCancellationRequested) {
-						throw new CancellationError();
-					}
-
 					await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
 					{
 						const state = toolSpecificData.terminalCommandState ?? {};
@@ -797,27 +783,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalService.setActiveInstance(toolTerminal.instance);
 			this._terminalService.revealTerminal(toolTerminal.instance, true);
 		}
-	}
-
-	private _createAltBufferPromise(xterm: XtermTerminal, store: DisposableStore): Promise<void> {
-		const deferred = new DeferredPromise<void>();
-		const complete = () => {
-			if (!deferred.isSettled) {
-				deferred.complete();
-			}
-		};
-
-		if (xterm.raw.buffer.active === xterm.raw.buffer.alternate) {
-			complete();
-		} else {
-			store.add(xterm.raw.buffer.onBufferChange(() => {
-				if (xterm.raw.buffer.active === xterm.raw.buffer.alternate) {
-					complete();
-				}
-			}));
-		}
-
-		return deferred.p;
 	}
 
 	// #region Terminal init
