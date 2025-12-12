@@ -23,6 +23,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -178,6 +179,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 	}
@@ -217,6 +219,21 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			this.logService.error('[chat setup] Request model not found, cannot redispatch request.');
 			return {}; // this should not happen
 		}
+		// Check if default account is available
+		const enforceDefaultAccount = this.configurationService.getValue<boolean>(ChatConfiguration.EnforceDefaultAccount) ?? true;
+		if (enforceDefaultAccount) {
+			const defaultAccount = await this.defaultAccountService.getDefaultAccount();
+			if (!defaultAccount) {
+				const warningMessage = localize('chatUnavailableNoAccount', "Chat features are unavailable. Please sign in to use chat.");
+				this.logService.warn('[chat setup] Default account unavailable');
+				progress({
+					kind: 'warning',
+					content: new MarkdownString(warningMessage)
+				});
+				return {};
+			}
+		}
+
 
 		progress({
 			kind: 'progressMessage',
