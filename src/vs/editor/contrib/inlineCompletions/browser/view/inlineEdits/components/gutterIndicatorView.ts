@@ -320,14 +320,15 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const layout = this._editorObs.layoutInfo.read(reader);
 
 		const lineHeight = this._editorObs.observeLineHeightForLine(s.range.map(r => r.startLineNumber)).read(reader);
-		const gutterViewPortPadding = 2;
+		const gutterViewPortPaddingLeft = 1;
+		const gutterViewPortPaddingTop = 2;
 
 		// Entire gutter view from top left to bottom right
-		const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPadding;
-		const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPadding;
-		const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPadding, gutterViewPortPadding, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
+		const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPaddingLeft;
+		const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPaddingTop;
+		const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPaddingLeft, gutterViewPortPaddingTop, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
 		const gutterViewPortWithoutStickyScrollWithoutPaddingTop = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader));
-		const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPadding);
+		const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPaddingTop);
 
 		// The glyph margin area across all relevant lines
 		const verticalEditRange = s.lineOffsetRange.read(reader);
@@ -355,7 +356,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		const idealIconAreaWidth = 22;
 		const iconWidth = (pillRect: Rect) => {
-			const availableIconAreaWidth = this._availableWidthForIcon.read(undefined)(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPadding;
+			const availableIconAreaWidth = this._availableWidthForIcon.read(undefined)(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPaddingLeft;
 			return Math.max(Math.min(availableIconAreaWidth, idealIconAreaWidth), CODICON_SIZE_PX);
 		};
 
@@ -531,7 +532,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				boxSizing: 'border-box',
 				borderRadius: '4px',
 				display: 'flex',
-				justifyContent: 'flex-end',
+				justifyContent: layout.map(l => l.iconDirection === 'bottom' ? 'flex-start' : 'flex-end'),
 				transition: this._modifierPressed.map(m => m ? '' : 'background-color 0.2s ease-in-out, width 0.2s ease-in-out'),
 				...rectToProps(reader => layout.read(reader).pillRect),
 			}
@@ -561,6 +562,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 					opacity: layout.map(l => l.iconVisible ? '1' : '0'),
 					marginRight: layout.map(l => l.pillRect.width - l.iconRect.width - (l.lineNumberRect?.width ?? 0)),
 					width: layout.map(l => l.iconRect.width),
+					position: 'relative',
+					right: layout.map(l => l.iconDirection === 'top' ? '1px' : '0'),
 				}
 			}, [
 				layout.map((l, reader) => withStyles(renderIcon(l.icon.read(reader)), { fontSize: toPx(Math.min(l.iconRect.width - CODICON_PADDING_PX, CODICON_SIZE_PX)) })),
