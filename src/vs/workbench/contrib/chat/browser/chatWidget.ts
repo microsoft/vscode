@@ -168,7 +168,7 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsTerminalAttachments: true,
 };
 
-const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate.");
+const DISCLAIMER = localize('chatDisclaimer', "");
 
 export class ChatWidget extends Disposable implements IChatWidget {
 
@@ -953,9 +953,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const projectTypeDescription = this._getProjectTypeDescription();
 			return new MarkdownString(localize(
 				'chatWidget.instructions',
-				"[Generate Chat Instructions]({0}) to help AI understand and work with your {1} project.",
-				`command:${generateInstructionsCommand}`,
-				projectTypeDescription
+				" ",
+				`command:${generateInstructionsCommand}`
 			), { isTrusted: { enabledCommands: [generateInstructionsCommand] } });
 		}
 
@@ -1053,7 +1052,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		let title: string;
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
-			title = localize('chatDescription', "Ask about your code");
+			title = localize('chatDescription', "DSpace AI");
 		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
 			title = localize('editsTitle', "Edit in context");
 		} else {

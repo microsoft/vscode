@@ -95,7 +95,10 @@ export class EditorGroupWatermark extends Disposable {
 
 		const elements = h('.editor-group-watermark', [
 			h('.watermark-container', [
-				h('.letterpress'),
+				h('.branding', [
+					h('.letterpress'),
+					h('.welcome', [localize('watermark.welcomeToDSpace', "Welcome to DSpace")])
+				]),
 				h('.shortcuts@shortcuts'),
 			])
 		]);

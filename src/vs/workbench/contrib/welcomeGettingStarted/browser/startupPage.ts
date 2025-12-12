@@ -9,6 +9,7 @@ import * as arrays from '../../../../base/common/arrays.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -81,6 +82,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -108,6 +110,9 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		// Wait for resolving startup editor until we are restored to reduce startup pressure
 		await this.lifecycleService.when(LifecyclePhase.Restored);
 
+		// Wait for editors to finish restoring so we can check if welcome page is already open
+		await this.editorGroupsService.whenReady;
+
 		if (AuxiliaryBarMaximizedContext.getValue(this.contextKeyService)) {
 			// If the auxiliary bar is maximized, we do not show the welcome page.
 			return;
@@ -128,17 +133,20 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return;
 		}
 
+		// Respect startupEditor setting, only show on initial startup
 		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService, this.logService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-
 			// Open the welcome even if we opened a set of default editors
 			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
+				const isEmptyWorkbench = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
 
 				if (startupEditorSetting.value === 'readme') {
 					await this.openReadme();
-				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
-					await this.openGettingStarted(true);
+				} else if (startupEditorSetting.value === 'welcomePage' || (isEmptyWorkbench && startupEditorSetting.value === 'welcomePageInEmptyWorkbench')) {
+					await this.openGettingStarted(true, isEmptyWorkbench);
+				} else if (isEmptyWorkbench && startupEditorSetting.value === 'newUntitledFile') {
+					await this.commandService.executeCommand('workbench.action.files.newUntitledFile');
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
@@ -152,6 +160,14 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return false;
 		}
 		else {
+			// Respect workbench.startupEditor: 'none' setting - don't restore walkthroughs if user explicitly disabled startup editor
+			const startupEditor = this.configurationService.inspect<string>(configurationKey);
+			if (startupEditor.value === 'none') {
+				// Clear the stored walkthrough state since user doesn't want startup editors
+				this.storageService.remove(restoreWalkthroughsConfigurationKey, StorageScope.PROFILE);
+				return false;
+			}
+
 			const restoreData: RestoreWalkthroughsConfigurationValue = JSON.parse(toRestore);
 			const currentWorkspace = this.contextService.getWorkspace();
 			if (restoreData.folder === UNKNOWN_EMPTY_WINDOW_WORKSPACE.id || restoreData.folder === currentWorkspace.folders[0].uri.toString()) {
@@ -189,13 +205,16 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme }))),
 				]);
 			} else {
-				// If no readme is found, default to showing the welcome page.
-				await this.openGettingStarted();
+				// If no readme is found, only show welcome page if startupEditor is not set to 'none'
+				const startupEditor = this.configurationService.inspect<string>(configurationKey);
+				if (startupEditor.value !== 'none') {
+					await this.openGettingStarted();
+				}
 			}
 		}
 	}
 
-	private async openGettingStarted(showTelemetryNotice?: boolean) {
+	private async openGettingStarted(showTelemetryNotice?: boolean, isEmptyWorkbench?: boolean) {
 		const startupEditorTypeID = gettingStartedInputTypeId;
 		const editor = this.editorService.activeEditor;
 
@@ -204,7 +223,9 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		const options: GettingStartedEditorOptions = editor ? { pinned: false, index: 0, showTelemetryNotice } : { pinned: false, showTelemetryNotice };
+		// Pin the welcome page if it's an empty workbench (no project/folder open) so it stays open
+		const shouldPin = isEmptyWorkbench ?? false;
+		const options: GettingStartedEditorOptions = editor ? { pinned: shouldPin, index: 0, showTelemetryNotice } : { pinned: shouldPin, showTelemetryNotice };
 		if (startupEditorTypeID === gettingStartedInputTypeId) {
 			this.editorService.openEditor({
 				resource: GettingStartedInput.RESOURCE,
@@ -220,6 +241,12 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 	}
 
 	const startupEditor = configurationService.inspect<string>(configurationKey);
+
+	// Explicitly check for 'none' first - if set, never show startup page
+	if (startupEditor.value === 'none') {
+		return false;
+	}
+
 	if (!startupEditor.userValue && !startupEditor.workspaceValue) {
 		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
 		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
