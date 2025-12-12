@@ -1,0 +1,158 @@
+{
+  "name": "pdf-preview",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "main": "./out/extension",
+  "browser": "./dist/browser/extension.js",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:pdfPreview.showPdf"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "pdfPreview.editor",
+        "displayName": "%customEditor.pdfPreview.displayName%",
+        "priority": "builtin",
+        "selector": [
+          {
+            "filenamePattern": "*.pdf"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "pdfPreview.zoomIn",
+        "title": "%command.zoomIn%",
+        "category": "PDF Preview"
+      },
+      {
+        "command": "pdfPreview.zoomOut",
+        "title": "%command.zoomOut%",
+        "category": "PDF Preview"
+      },
+      {
+        "command": "pdfPreview.goToPage",
+        "title": "%command.goToPage%",
+        "category": "PDF Preview"
+      },
+      {
+        "command": "pdfPreview.fitWidth",
+        "title": "%command.fitWidth%",
+        "category": "PDF Preview"
+      },
+      {
+        "command": "pdfPreview.fitPage",
+        "title": "%command.fitPage%",
+        "category": "PDF Preview"
+      },
+      {
+        "command": "pdfPreview.download",
+        "title": "%command.download%",
+        "category": "PDF Preview",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "pdfPreview.rotateClockwise",
+        "title": "%command.rotateClockwise%",
+        "category": "PDF Preview"
+      },
+      {
+        "command": "pdfPreview.rotateCounterClockwise",
+        "title": "%command.rotateCounterClockwise%",
+        "category": "PDF Preview"
+      },
+      {
+        "command": "pdfPreview.showPdf",
+        "title": "%command.showPdf%",
+        "category": "PDF Preview"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "pdfPreview.zoomIn",
+          "when": "activeCustomEditorId == 'pdfPreview.editor'"
+        },
+        {
+          "command": "pdfPreview.zoomOut",
+          "when": "activeCustomEditorId == 'pdfPreview.editor'"
+        },
+        {
+          "command": "pdfPreview.goToPage",
+          "when": "activeCustomEditorId == 'pdfPreview.editor'"
+        },
+        {
+          "command": "pdfPreview.fitWidth",
+          "when": "activeCustomEditorId == 'pdfPreview.editor'"
+        },
+        {
+          "command": "pdfPreview.fitPage",
+          "when": "activeCustomEditorId == 'pdfPreview.editor'"
+        },
+        {
+          "command": "pdfPreview.download",
+          "when": "activeCustomEditorId == 'pdfPreview.editor'"
+        },
+        {
+          "command": "pdfPreview.rotateClockwise",
+          "when": "activeCustomEditorId == 'pdfPreview.editor'"
+        },
+        {
+          "command": "pdfPreview.rotateCounterClockwise",
+          "when": "activeCustomEditorId == 'pdfPreview.editor'"
+        },
+        {
+          "command": "pdfPreview.showPdf",
+          "when": "false"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "pdfPreview.zoomIn",
+        "key": "ctrl+=",
+        "mac": "cmd+=",
+        "when": "activeCustomEditorId == 'pdfPreview.editor'"
+      },
+      {
+        "command": "pdfPreview.zoomOut",
+        "key": "ctrl+-",
+        "mac": "cmd+-",
+        "when": "activeCustomEditorId == 'pdfPreview.editor'"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "npx tsc -p .",
+    "watch": "npx tsc -p . --watch",
+    "compile-web": "npx webpack-cli --config extension-browser.webpack.config.js --mode none",
+    "watch-web": "npx webpack-cli --config extension-browser.webpack.config.js --mode none --watch"
+  },
+  "devDependencies": {
+    "@types/node": "22.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

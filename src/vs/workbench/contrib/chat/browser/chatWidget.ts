@@ -947,10 +947,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (this._instructionFilesExist === false) {
 			// Show generate instructions message if no files exist
 			const generateInstructionsCommand = 'workbench.action.chat.generateInstructions';
+			// Determine project type based on active editor
+			const projectTypeDescription = this._getProjectTypeDescription();
 			return new MarkdownString(localize(
 				'chatWidget.instructions',
-				"[Generate Chat Instructions]({0}) to help AI understand and work with your LaTeX project.",
-				`command:${generateInstructionsCommand}`
+				"[Generate Chat Instructions]({0}) to help AI understand and work with your {1} project.",
+				`command:${generateInstructionsCommand}`,
+				projectTypeDescription
 			), { isTrusted: { enabledCommands: [generateInstructionsCommand] } });
 		}
 
@@ -982,6 +985,45 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.logService.warn('[ChatWidget] Error checking for instruction files:', error);
 			return false;
 		}
+	}
+
+	/**
+	 * Determines the project type description based on the active editor's file extension.
+	 * Returns 'LaTeX', 'Typst', or 'document' for generic cases.
+	 */
+	private _getProjectTypeDescription(): string {
+		const activeEditor = this.editorService.activeEditor;
+		console.log(`[ChatWidget] _getProjectTypeDescription - activeEditor: ${activeEditor?.resource?.path}`);
+		if (activeEditor?.resource) {
+			const path = activeEditor.resource.path.toLowerCase();
+			if (path.endsWith('.tex') || path.endsWith('.bib')) {
+				console.log(`[ChatWidget] Detected LaTeX project from path: ${path}`);
+				return 'LaTeX';
+			}
+			if (path.endsWith('.typ')) {
+				console.log(`[ChatWidget] Detected Typst project from path: ${path}`);
+				return 'Typst';
+			}
+		}
+		// Default to generic description
+		console.log(`[ChatWidget] No specific project type detected, defaulting to 'document'`);
+		return 'document';
+	}
+
+	/**
+	 * Determines if the current project is a Typst project based on active editor.
+	 */
+	private _isTypstProject(): boolean {
+		const activeEditor = this.editorService.activeEditor;
+		console.log(`[ChatWidget] _isTypstProject - activeEditor: ${activeEditor?.resource?.path}`);
+		if (activeEditor?.resource) {
+			const path = activeEditor.resource.path.toLowerCase();
+			const isTypst = path.endsWith('.typ');
+			console.log(`[ChatWidget] _isTypstProject result: ${isTypst} (path: ${path})`);
+			return isTypst;
+		}
+		console.log(`[ChatWidget] _isTypstProject - no active editor resource, returning false`);
+		return false;
 	}
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
@@ -1027,11 +1069,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getPromptFileSuggestions(): IChatSuggestedPrompts[] {
+		console.log(`[ChatWidget] getPromptFileSuggestions called`);
+		console.log(`[ChatWidget] chatEntitlementService.sentiment.installed: ${this.chatEntitlementService.sentiment.installed}`);
 
 		// Use predefined suggestions for new users
 		if (!this.chatEntitlementService.sentiment.installed) {
 			const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+			const isTypst = this._isTypstProject();
+			console.log(`[ChatWidget] isEmpty: ${isEmpty}, isTypst: ${isTypst}`);
+
 			if (isEmpty) {
+				// Empty workspace - offer both LaTeX and Typst options since we can't determine the type
+				console.log(`[ChatWidget] Returning empty workspace suggestions with both LaTeX and Typst options`);
 				return [
 					{
 						icon: Codicon.newFile,
@@ -1039,34 +1088,58 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						prompt: localize('chatWidget.suggestedPrompts.createLatexProjectPrompt', "Create a new LaTeX project with a main .tex file and a .bib bibliography file"),
 					},
 					{
-						icon: Codicon.book,
-						label: localize('chatWidget.suggestedPrompts.gettingStartedLatex', "Getting Started with LaTeX"),
-						prompt: localize('chatWidget.suggestedPrompts.gettingStartedLatexPrompt', "How do I get started with LaTeX? Show me the basics of creating a document with sections, equations, and citations"),
+						icon: Codicon.newFile,
+						label: localize('chatWidget.suggestedPrompts.createTypstProject', "Create Typst Project"),
+						prompt: localize('chatWidget.suggestedPrompts.createTypstProjectPrompt', "Create a new Typst project with a main .typ file"),
 					}
 				];
 			} else {
-				return [
-					{
-						icon: Codicon.error,
-						label: localize('chatWidget.suggestedPrompts.checkLatexErrors', "Check LaTeX Errors"),
-						prompt: localize('chatWidget.suggestedPrompts.checkLatexErrorsPrompt', "Review this LaTeX project for compilation errors and suggest fixes"),
-					},
-					{
-						icon: Codicon.references,
-						label: localize('chatWidget.suggestedPrompts.checkCitations', "Check Citations & Bibliography"),
-						prompt: localize('chatWidget.suggestedPrompts.checkCitationsPrompt', "Review the citations in this LaTeX project. Check if all citations are properly referenced in the .bib file and if there are any missing or unused bibliography entries"),
-					}
-				];
+				// Non-empty workspace - offer error checking and citations
+				console.log(`[ChatWidget] Returning non-empty workspace suggestions (isTypst: ${isTypst})`);
+				if (isTypst) {
+					console.log(`[ChatWidget] Returning TYPST suggestions`);
+					return [
+						{
+							icon: Codicon.error,
+							label: localize('chatWidget.suggestedPrompts.checkTypstErrors', "Check Typst Errors"),
+							prompt: localize('chatWidget.suggestedPrompts.checkTypstErrorsPrompt', "Review this Typst document for compilation errors and suggest fixes"),
+						},
+						{
+							icon: Codicon.references,
+							label: localize('chatWidget.suggestedPrompts.checkTypstCitations', "Check Citations & Bibliography"),
+							prompt: localize('chatWidget.suggestedPrompts.checkTypstCitationsPrompt', "Review the citations in this Typst document. Check if all citations are properly referenced and if there are any missing or unused bibliography entries"),
+						}
+					];
+				} else {
+					// Default to LaTeX suggestions
+					console.log(`[ChatWidget] Returning LATEX suggestions (default)`);
+					return [
+						{
+							icon: Codicon.error,
+							label: localize('chatWidget.suggestedPrompts.checkLatexErrors', "Check LaTeX Errors"),
+							prompt: localize('chatWidget.suggestedPrompts.checkLatexErrorsPrompt', "Review this LaTeX project for compilation errors and suggest fixes"),
+						},
+						{
+							icon: Codicon.references,
+							label: localize('chatWidget.suggestedPrompts.checkCitations', "Check Citations & Bibliography"),
+							prompt: localize('chatWidget.suggestedPrompts.checkCitationsPrompt', "Review the citations in this LaTeX project. Check if all citations are properly referenced in the .bib file and if there are any missing or unused bibliography entries"),
+						}
+					];
+				}
 			}
+		} else {
+			console.log(`[ChatWidget] Skipping predefined suggestions because sentiment.installed is true`);
 		}
 
 		// Get the current workspace folder context if available
 		const activeEditor = this.editorService.activeEditor;
 		const resource = activeEditor ? EditorResourceAccessor.getOriginalUri(activeEditor) : undefined;
+		console.log(`[ChatWidget] Looking for prompt file suggestions configuration`);
 
 		// Get the prompt file suggestions configuration
 		const suggestions = PromptsConfig.getPromptFilesRecommendationsValue(this.configurationService, resource);
 		if (!suggestions) {
+			console.log(`[ChatWidget] No prompt file suggestions configured, returning empty array`);
 			return [];
 		}
 

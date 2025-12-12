@@ -21,6 +21,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility (Debug Console disabled)
 import { IDebugService, REPL_VIEW_ID } from '../../debug/common/debug.js';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
@@ -37,6 +38,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		@IOutputService private readonly outputService: IOutputService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
+		// @ts-expect-error - FORK: Unused property kept for future merge compatibility (Debug Console disabled)
 		@IDebugService private readonly debugService: IDebugService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
@@ -183,7 +185,9 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			});
 		});
 
+		// FORK: Debug Console is disabled
 		// Debug Consoles
+		/*
 		this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl()).forEach((session, _) => {
 			const label = session.name;
 			viewEntries.push({
@@ -199,6 +203,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			});
 
 		});
+		*/
 
 		// Output Channels
 		const channels = this.outputService.getChannelDescriptors();

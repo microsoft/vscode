@@ -1,0 +1,35 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "npm",
+				"npm": {
+					"name": "@myriaddreamin/typst-ts-web-compiler",
+					"version": "0.6.0"
+				}
+			},
+			"license": "Apache-2.0"
+		},
+		{
+			"component": {
+				"type": "npm",
+				"npm": {
+					"name": "@myriaddreamin/typst-ts-renderer",
+					"version": "0.6.0"
+				}
+			},
+			"license": "Apache-2.0"
+		},
+		{
+			"component": {
+				"type": "npm",
+				"npm": {
+					"name": "@myriaddreamin/typst.ts",
+					"version": "0.6.0"
+				}
+			},
+			"license": "Apache-2.0"
+		}
+	],
+	"version": 1
+}

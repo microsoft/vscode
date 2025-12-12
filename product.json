@@ -34,20 +34,7 @@
 	"urlProtocol": "dspace",
 	"webviewContentExternalBaseUrlTemplate": "",
 	"builtInExtensions": [],
-	"webBuiltInExtensions": [
-		{
-			"name": "james-yu.latex-workshop",
-			"version": "10.11.3",
-			"sha256": "2b7c69f63bfc3f9f96a28a850b4610ac73b04eb5e3305ea08a1cc1324bf15f41",
-			"repo": "https://github.com/James-Yu/LaTeX-Workshop",
-			"vsix": "resources/extensions/latex-workshop.vsix",
-			"metadata": {
-				"id": "james-yu.latex-workshop",
-				"publisherId": "james-yu",
-				"publisherDisplayName": "James Yu"
-			}
-		}
-	],
+	"webBuiltInExtensions": [],
 	"defaultChatAgent": {
 		"extensionId": "",
 		"chatExtensionId": "",

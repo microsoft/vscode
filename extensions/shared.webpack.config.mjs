@@ -25,6 +25,9 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 	const defaultConfig = {
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 		target: 'node', // extensions run in a node context
+		experiments: {
+			asyncWebAssembly: true, // Enable async WebAssembly support for WASM modules
+		},
 		node: {
 			__dirname: false // leave the __dirname-behaviour intact
 		},
@@ -57,6 +60,9 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 					// 	},
 					// },
 				]
+			}, {
+				test: /\.wasm$/,
+				type: 'webassembly/async'
 			}]
 		},
 		externals: {
@@ -112,6 +118,9 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 	const defaultConfig = {
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 		target: 'webworker', // extensions run in a webworker context
+		experiments: {
+			asyncWebAssembly: true, // Enable async WebAssembly support for WASM modules
+		},
 		resolve: {
 			mainFields: ['browser', 'module', 'main'],
 			extensions: ['.ts', '.js'], // support ts-files and js-files

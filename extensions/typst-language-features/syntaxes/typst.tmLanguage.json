@@ -1,0 +1,170 @@
+{
+  "name": "Typst",
+  "scopeName": "source.typst",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#math" },
+    { "include": "#markup" },
+    { "include": "#code" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.typst",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.typst",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "patterns": [
+            { "include": "#comments" }
+          ]
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.typst",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.typst",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "math": {
+      "patterns": [
+        {
+          "name": "markup.math.typst",
+          "begin": "\\$",
+          "end": "\\$",
+          "patterns": [
+            { "include": "#math-content" }
+          ]
+        }
+      ]
+    },
+    "math-content": {
+      "patterns": [
+        {
+          "name": "constant.character.escape.typst",
+          "match": "\\\\."
+        },
+        {
+          "name": "keyword.operator.math.typst",
+          "match": "[+\\-*/=<>^_&|]"
+        },
+        {
+          "name": "constant.numeric.typst",
+          "match": "\\b\\d+(\\.\\d+)?\\b"
+        },
+        {
+          "name": "entity.name.function.typst",
+          "match": "\\b[a-zA-Z][a-zA-Z0-9]*(?=\\()"
+        },
+        {
+          "name": "variable.other.typst",
+          "match": "\\b[a-zA-Z][a-zA-Z0-9]*\\b"
+        }
+      ]
+    },
+    "markup": {
+      "patterns": [
+        {
+          "name": "markup.heading.typst",
+          "match": "^\\s*(=+)\\s+.*$",
+          "captures": {
+            "1": { "name": "punctuation.definition.heading.typst" }
+          }
+        },
+        {
+          "name": "markup.bold.typst",
+          "match": "\\*[^*]+\\*"
+        },
+        {
+          "name": "markup.italic.typst",
+          "match": "_[^_]+_"
+        },
+        {
+          "name": "markup.raw.inline.typst",
+          "match": "`[^`]+`"
+        },
+        {
+          "name": "markup.raw.block.typst",
+          "begin": "```",
+          "end": "```",
+          "patterns": [
+            {
+              "name": "markup.raw.content.typst",
+              "match": "."
+            }
+          ]
+        },
+        {
+          "name": "markup.list.typst",
+          "match": "^\\s*[-+]\\s+"
+        },
+        {
+          "name": "markup.list.numbered.typst",
+          "match": "^\\s*\\d+\\.\\s+"
+        },
+        {
+          "name": "string.other.link.typst",
+          "match": "https?://[^\\s)>]+"
+        },
+        {
+          "name": "entity.name.label.typst",
+          "match": "<[a-zA-Z][a-zA-Z0-9\\-_]*>"
+        },
+        {
+          "name": "markup.other.reference.typst",
+          "match": "@[a-zA-Z][a-zA-Z0-9\\-_]*"
+        }
+      ]
+    },
+    "code": {
+      "patterns": [
+        {
+          "name": "keyword.control.typst",
+          "match": "\\b(if|else|for|while|break|continue|return|import|include|set|show|let|context)\\b"
+        },
+        {
+          "name": "constant.language.boolean.typst",
+          "match": "\\b(true|false|none)\\b"
+        },
+        {
+          "name": "constant.numeric.typst",
+          "match": "\\b\\d+(\\.\\d+)?(em|pt|cm|mm|in|%|fr|deg|rad)?\\b"
+        },
+        {
+          "name": "storage.type.typst",
+          "match": "\\b(int|float|str|bool|array|dict|content|function|arguments|selector|location|style|counter|state)\\b"
+        },
+        {
+          "name": "entity.name.function.typst",
+          "match": "#[a-zA-Z][a-zA-Z0-9\\-_]*"
+        },
+        {
+          "name": "variable.other.typst",
+          "match": "\\b[a-zA-Z][a-zA-Z0-9\\-_]*\\b"
+        },
+        {
+          "name": "keyword.operator.typst",
+          "match": "[+\\-*/=<>!&|.:]+"
+        },
+        {
+          "name": "punctuation.typst",
+          "match": "[{}()\\[\\],;]"
+        }
+      ]
+    }
+  }
+}
