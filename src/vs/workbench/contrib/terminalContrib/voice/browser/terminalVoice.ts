@@ -124,9 +124,9 @@ export class TerminalVoiceSession extends Disposable {
 					this._ghostText = undefined;
 					this._ghostTextMarker?.dispose();
 					this._ghostTextMarker = undefined;
-					this._input = '';
 					// Update decoration position for next recognition
 					this._updateDecoration();
+					this._input = '';
 					break;
 				case SpeechToTextStatus.Stopped:
 					this.stop();
