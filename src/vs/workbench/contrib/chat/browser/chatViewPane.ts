@@ -56,6 +56,7 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { AgentSessionsFilter } from './agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IAgentSession } from './agentSessions/agentSessionsModel.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -326,7 +327,24 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
 			filter: sessionsFilter,
-			getHoverPosition: () => this.sessionsViewerPosition === AgentSessionsViewerPosition.Right ? HoverPosition.LEFT : HoverPosition.RIGHT
+			getHoverPosition: () => this.sessionsViewerPosition === AgentSessionsViewerPosition.Right ? HoverPosition.LEFT : HoverPosition.RIGHT,
+			overrideCompare(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined {
+
+				// When limited where only few sessions show, sort unread sessions to the top
+				if (that.sessionsViewerLimited) {
+					const aIsUnread = !sessionA.isRead();
+					const bIsUnread = !sessionB.isRead();
+
+					if (aIsUnread && !bIsUnread) {
+						return -1; // a (unread) comes before b (read)
+					}
+					if (!aIsUnread && bIsUnread) {
+						return 1; // a (read) comes after b (unread)
+					}
+				}
+
+				return undefined;
+			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 
