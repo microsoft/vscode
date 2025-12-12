@@ -159,6 +159,9 @@ suite('PromptFilesLocator', () => {
 			getConfigBasedSourceFolders(type: PromptsType): readonly URI[] {
 				return locator.getConfigBasedSourceFolders(type);
 			},
+			async findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
+				return locator.findAgentMDsInWorkspace(token);
+			},
 			async disposeAsync(): Promise<void> {
 				await mockFs.delete();
 			}
@@ -2458,6 +2461,57 @@ suite('PromptFilesLocator', () => {
 					'/Users/legomushroom/repos/prompts/shared-prompts',
 				],
 				'Must find correct prompts.',
+			);
+			await locator.disposeAsync();
+		});
+	});
+
+	suite('findAgentMDsInWorkspace', () => {
+		testT('finds AGENTS.md files with different casings', async () => {
+			const locator = await createPromptsLocator(
+				undefined,
+				['/Users/legomushroom/repos/vscode'],
+				[
+					{
+						name: '/Users/legomushroom/repos/vscode',
+						children: [
+							{
+								name: 'agents.md',
+								contents: 'lowercase agents file',
+							},
+							{
+								name: 'subfolder',
+								children: [
+									{
+										name: 'Agents.md',
+										contents: 'capitalized agents file',
+									},
+									{
+										name: 'nested',
+										children: [
+											{
+												name: 'AGENTS.MD',
+												contents: 'uppercase agents file',
+											},
+										],
+									},
+								],
+							},
+						],
+					},
+				],
+			);
+
+			const result = await locator.findAgentMDsInWorkspace(CancellationToken.None);
+
+			assertOutcome(
+				result,
+				[
+					'/Users/legomushroom/repos/vscode/agents.md',
+					'/Users/legomushroom/repos/vscode/subfolder/Agents.md',
+					'/Users/legomushroom/repos/vscode/subfolder/nested/AGENTS.MD',
+				],
+				'Must find AGENTS.md files with different casings.',
 			);
 			await locator.disposeAsync();
 		});
