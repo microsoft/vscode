@@ -268,6 +268,16 @@ export interface ILanguageModelsService {
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void;
 
+	/**
+	 * Updates the custom display name for a model. Set to undefined to remove the custom name.
+	 */
+	updateModelDisplayName(modelIdentifier: string, displayName: string | undefined): void;
+
+	/**
+	 * Gets the custom display name for a model, if one is set.
+	 */
+	getModelDisplayName(modelIdentifier: string): string | undefined;
+
 	getLanguageModelIds(): string[];
 
 	getVendors(): IUserFriendlyLanguageModel[];
@@ -344,6 +354,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _vendors = new Map<string, IUserFriendlyLanguageModel>();
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
 	private _modelPickerUserPreferences: Record<string, boolean> = {};
+	private _modelDisplayNames: Record<string, string> = {};
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _contextKeyService: IContextKeyService;
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
@@ -360,6 +371,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._contextKeyService = _contextKeyService;
 		this._modelPickerUserPreferences = this._storageService.getObject<Record<string, boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
+		this._modelDisplayNames = this._storageService.getObject<Record<string, string>>('chatModelDisplayNames', StorageScope.PROFILE, this._modelDisplayNames);
 		// TODO @lramos15 - Remove after a few releases, as this is just cleaning a bad storage state
 		const entitlementChangeHandler = () => {
 			if ((this._chatEntitlementService.entitlement === ChatEntitlement.Business || this._chatEntitlementService.entitlement === ChatEntitlement.Enterprise) && !this._chatEntitlementService.isInternal) {
@@ -437,6 +449,27 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
 	}
 
+	updateModelDisplayName(modelIdentifier: string, displayName: string | undefined): void {
+		const model = this._modelCache.get(modelIdentifier);
+		if (!model) {
+			this._logService.warn(`[LM] Cannot update display name for unknown model ${modelIdentifier}`);
+			return;
+		}
+
+		if (displayName === undefined || displayName === model.name) {
+			delete this._modelDisplayNames[modelIdentifier];
+		} else {
+			this._modelDisplayNames[modelIdentifier] = displayName;
+		}
+		this._storageService.store('chatModelDisplayNames', this._modelDisplayNames, StorageScope.PROFILE, StorageTarget.USER);
+		this._onLanguageModelChange.fire(model.vendor);
+		this._logService.trace(`[LM] Updated display name for ${modelIdentifier} to ${displayName}`);
+	}
+
+	getModelDisplayName(modelIdentifier: string): string | undefined {
+		return this._modelDisplayNames[modelIdentifier];
+	}
+
 	getVendors(): IUserFriendlyLanguageModel[] {
 		return Array.from(this._vendors.values()).filter(vendor => {
 			if (!vendor.when) {
@@ -453,13 +486,28 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	lookupLanguageModel(modelIdentifier: string): ILanguageModelChatMetadata | undefined {
 		const model = this._modelCache.get(modelIdentifier);
-		if (model && this._configurationService.getValue('chat.experimentalShowAllModels')) {
-			return { ...model, isUserSelectable: true };
+		if (!model) {
+			return model;
 		}
-		if (model && this._modelPickerUserPreferences[modelIdentifier] !== undefined) {
-			return { ...model, isUserSelectable: this._modelPickerUserPreferences[modelIdentifier] };
+
+		// Apply user preferences (visibility and custom display name)
+		let result = model;
+		const customName = this._modelDisplayNames[modelIdentifier];
+		const visibilityPref = this._modelPickerUserPreferences[modelIdentifier];
+		const showAllModels = this._configurationService.getValue('chat.experimentalShowAllModels');
+
+		if (customName !== undefined || visibilityPref !== undefined || showAllModels) {
+			result = { ...model };
+			if (customName !== undefined) {
+				result = { ...result, name: customName };
+			}
+			if (showAllModels) {
+				result = { ...result, isUserSelectable: true };
+			} else if (visibilityPref !== undefined) {
+				result = { ...result, isUserSelectable: visibilityPref };
+			}
 		}
-		return model;
+		return result;
 	}
 
 	private _clearModelCache(vendor: string): void {

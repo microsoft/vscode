@@ -37,6 +37,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 
 const $ = DOM.$;
 
@@ -312,6 +313,8 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 
 	constructor(
 		private readonly viewModel: ChatModelsViewModel,
+		private readonly isInternal: boolean,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 	}
@@ -372,6 +375,40 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 			run: async () => this.viewModel.toggleVisibility(entry)
 		});
 		templateData.actionBar.push(toggleVisibilityAction, { icon: true, label: false });
+
+		// Add rename action for internal users only
+		if (this.isInternal) {
+			const hasCustomName = this.viewModel.getModelDisplayName(entry) !== undefined;
+			const renameAction = toAction({
+				id: 'renameModel',
+				label: localize('models.rename', 'Rename'),
+				class: `model-rename ${ThemeIcon.asClassName(Codicon.edit)}${hasCustomName ? ' model-has-custom-name' : ''}`,
+				tooltip: localize('models.renameTooltip', 'Rename model'),
+				run: async () => this.promptRenameModel(entry)
+			});
+			templateData.actionBar.push(renameAction, { icon: true, label: false });
+		}
+	}
+
+	private async promptRenameModel(entry: IModelItemEntry): Promise<void> {
+		const currentCustomName = this.viewModel.getModelDisplayName(entry);
+		const result = await this.quickInputService.input({
+			title: localize('models.renameTitle', "Rename Model"),
+			prompt: localize('models.renamePrompt', "Enter a new display name for this model"),
+			value: currentCustomName ?? entry.modelEntry.metadata.name,
+			validateInput: async (value) => {
+				if (value.trim().length === 0) {
+					return localize('models.renameEmpty', "Display name cannot be empty");
+				}
+				return undefined;
+			}
+		});
+
+		if (result !== undefined) {
+			const trimmedResult = result.trim();
+			// Update the model name (renameModel handles the logic of clearing if unchanged)
+			this.viewModel.renameModel(entry, trimmedResult === currentCustomName ? currentCustomName : trimmedResult);
+		}
 	}
 }
 
@@ -929,7 +966,8 @@ export class ChatModelsWidget extends Disposable {
 		this.tableDisposables.clear();
 		DOM.clearNode(this.tableContainer);
 
-		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel);
+		const isInternal = this.chatEntitlementService.isInternal;
+		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel, isInternal);
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
 		const costColumnRenderer = this.instantiationService.createInstance(MultiplierColumnRenderer);
 		const tokenLimitsColumnRenderer = this.instantiationService.createInstance(TokenLimitsColumnRenderer);
@@ -945,13 +983,14 @@ export class ChatModelsWidget extends Disposable {
 			this.searchWidget.focus();
 		}));
 
+		const gutterWidth = isInternal ? 64 : 40;
 		const columns = [
 			{
 				label: '',
 				tooltip: '',
 				weight: 0.05,
-				minimumWidth: 40,
-				maximumWidth: 40,
+				minimumWidth: gutterWidth,
+				maximumWidth: gutterWidth,
 				templateId: GutterColumnRenderer.TEMPLATE_ID,
 				project(row: TableEntry): TableEntry { return row; }
 			},

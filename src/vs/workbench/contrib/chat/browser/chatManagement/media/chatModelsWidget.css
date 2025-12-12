@@ -98,6 +98,11 @@
 	display: inherit;
 }
 
+/* Show rename icon when model has a custom name */
+.models-widget .models-table-container .monaco-list-row .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar .model-rename.model-has-custom-name {
+	display: inherit;
+}
+
 /** Model Name column styling **/
 
 .models-widget .models-table-container .monaco-table-td .model-name-container {
