@@ -174,21 +174,15 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			}
 			tokens = b.finalize();
 
-			const edits: StringEdit[] = [];
 			// Apply future changes to tokens
 			for (const change of this._pendingChanges) {
 				for (const innerChanges of change.changes) {
-					const range = Range.lift(innerChanges.range);
-					const text = innerChanges.text;
 					for (let j = 0; j < tokens.length; j++) {
-						tokens[j].applyEdit(range, text);
+						tokens[j].applyEdit(innerChanges.range, innerChanges.text);
 					}
-					const offsetEditStart = this._model.getOffsetAt(range.getStartPosition());
-					const offsetEditEnd = this._model.getOffsetAt(range.getEndPosition());
-					edits.push(StringEdit.replace(new OffsetRange(offsetEditStart, offsetEditEnd), text));
 				}
 			}
-			fontTokensUpdate.rebase(StringEdit.compose(edits));
+			fontTokensUpdate.rebase(this._stringEditFromChanges(this._model, this._pendingChanges));
 		}
 
 		const curToFutureTransformerStates = MonotonousIndexTransformer.fromMany(
@@ -232,6 +226,20 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		// First set states, then tokens, so that events fired from set tokens don't read invalid states
 		this._backgroundTokenizationStore.setTokens(tokens);
 		this._backgroundTokenizationStore.setFontInfo(fontTokensUpdate);
+	}
+
+	private _stringEditFromChanges(model: ITextModel, pendingChanges: IModelContentChangedEvent[]): StringEdit {
+		const edits: StringEdit[] = [];
+		for (const change of pendingChanges) {
+			for (const innerChanges of change.changes) {
+				const range = Range.lift(innerChanges.range);
+				const text = innerChanges.text;
+				const offsetEditStart = model.getOffsetAt(range.getStartPosition());
+				const offsetEditEnd = model.getOffsetAt(range.getEndPosition());
+				edits.push(StringEdit.replace(new OffsetRange(offsetEditStart, offsetEditEnd), text));
+			}
+		}
+		return StringEdit.compose(edits);
 	}
 
 	private get _shouldLog() { return this._loggingEnabled.get(); }

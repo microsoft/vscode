@@ -14,7 +14,7 @@ import { classNameForFontTokenDecorations } from '../../languages/supports/token
 import { Position } from '../../core/position.js';
 import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotationUpdate } from './annotations.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
-import { StringEdit } from '../../core/edits/stringEdit.js';
+import { offsetEditFromContentChanges } from '../textModelStringEdit.js';
 
 export interface IFontTokenAnnotation {
 	decorationId: string;
@@ -104,12 +104,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	}
 
 	public handleDidChangeContent(change: IModelContentChangedEvent) {
-		let edits: StringEdit = StringEdit.empty;
-		for (const c of change.changes) {
-			const offsetRange = new OffsetRange(c.rangeOffset, c.rangeOffset + c.rangeLength);
-			const stringEdit = StringEdit.replace(offsetRange, c.text);
-			edits = edits.compose(stringEdit);
-		}
+		const edits = offsetEditFromContentChanges(change.changes);
 		const deletedAnnotations = this._fontAnnotatedString.applyEdit(edits);
 		if (deletedAnnotations.length === 0) {
 			return;

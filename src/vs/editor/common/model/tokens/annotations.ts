@@ -53,6 +53,11 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 		this._annotations = annotations;
 	}
 
+	/**
+	 * Set annotations for a specific range.
+	 * Annotations should be sorted and non-overlapping.
+	 * If the annotation value is undefined, the annotation is removed.
+	 */
 	public setAnnotations(annotations: AnnotationsUpdate<T>): void {
 		for (const annotation of annotations.annotations) {
 			const startIndex = this._getStartIndexOfIntersectingAnnotation(annotation.range.start);
@@ -65,6 +70,9 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 		}
 	}
 
+	/**
+	 * Returns all annotations that intersect with the given offset range.
+	 */
 	public getAnnotationsIntersecting(range: OffsetRange): IAnnotation<T>[] {
 		const startIndex = this._getStartIndexOfIntersectingAnnotation(range.start);
 		const endIndexExclusive = this._getEndIndexOfIntersectingAnnotation(range.endExclusive);
@@ -109,10 +117,18 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 		return endIndexExclusive;
 	}
 
+	/**
+	 * Returns a copy of all annotations.
+	 */
 	public getAllAnnotations(): IAnnotation<T>[] {
 		return this._annotations.slice();
 	}
 
+	/**
+	 * Applies a string edit to the annotated string, updating annotation ranges accordingly.
+	 * @param edit The string edit to apply.
+	 * @returns The annotations that were deleted (became empty) as a result of the edit.
+	 */
 	public applyEdit(edit: StringEdit): IAnnotation<T>[] {
 		const annotations = this._annotations.slice();
 
@@ -205,6 +221,9 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 		return deletedAnnotations;
 	}
 
+	/**
+	 * Creates a shallow clone of this annotated string.
+	 */
 	public clone(): IAnnotatedString<T> {
 		return new AnnotatedString<T>(this._annotations.slice());
 	}
