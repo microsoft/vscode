@@ -164,7 +164,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			}
 
 			const fontUpdate = AnnotationsUpdate.create<IFontTokenOption>(fontTokensUpdate);
-			const serializedFontUpdate = AnnotationsUpdate.serialize<IFontTokenOption, IFontTokenOption>(fontUpdate, serializeFontTokenOptions());
+			const serializedFontUpdate = fontUpdate.serialize<IFontTokenOption>(serializeFontTokenOptions());
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
 			this._host.setTokensAndStates(
 				this._versionId,

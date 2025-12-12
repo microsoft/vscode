@@ -258,8 +258,8 @@ export class AnnotationsUpdate<T> {
 		this._annotations = annotatedString.getAllAnnotations();
 	}
 
-	static serialize<T, TSerializedProperty extends DefinedValue>(update: AnnotationsUpdate<T>, serializingFunc: (annotation: T) => TSerializedProperty): ISerializedAnnotation<TSerializedProperty>[] {
-		return update.annotations.map(annotation => {
+	public serialize<TSerializedProperty extends DefinedValue>(serializingFunc: (annotation: T) => TSerializedProperty): ISerializedAnnotation<TSerializedProperty>[] {
+		return this._annotations.map(annotation => {
 			const range = { start: annotation.range.start, endExclusive: annotation.range.endExclusive };
 			if (!annotation.annotation) {
 				return { range, annotation: undefined };
