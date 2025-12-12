@@ -253,7 +253,15 @@ export interface IChatWidget {
 	 */
 	focusResponseItem(lastFocused?: boolean): void;
 	focusInput(): void;
+	/**
+	 * Focuses the Todos view in the chat widget.
+	 * @returns Whether the operation succeeded (i.e., the Todos view was focused).
+	 */
 	focusTodosView(): boolean;
+	/**
+	 * Toggles focus between the Todos view and the previous focus target in the chat widget.
+	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
+	 */
 	toggleTodosViewFocus(): boolean;
 	hasInputFocus(): boolean;
 	getModeRequestOptions(): Partial<IChatSendRequestOptions>;
