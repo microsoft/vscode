@@ -12,12 +12,9 @@ import * as strings from '../../../../base/common/strings.js';
 import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/common/aiSettingsSearch.js';
-import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IGroupFilter, ISearchResult, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingKeyMatchTypes, SettingMatchType } from '../../../services/preferences/common/preferences.js';
 import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
 import { EMBEDDINGS_ONLY_SEARCH_PROVIDER_NAME, EMBEDDINGS_SEARCH_PROVIDER_NAME, IAiSearchProvider, IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration, LLM_RANKED_SEARCH_PROVIDER_NAME, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME } from '../common/preferences.js';
@@ -30,27 +27,14 @@ export interface IEndpointDetails {
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
 	declare readonly _serviceBrand: undefined;
 
-	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
-	private _installedExtensions: Promise<ILocalExtension[]>;
 	private _remoteSearchProvider: IRemoteSearchProvider | undefined;
 	private _aiSearchProvider: IAiSearchProvider | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super();
-
-		// This request goes to the shared process but results won't change during a window's lifetime, so cache the results.
-		this._installedExtensions = this.extensionManagementService.getInstalled(ExtensionType.User).then(exts => {
-			// Filter to enabled extensions that have settings
-			return exts
-				.filter(ext => this.extensionEnablementService.isEnabled(ext))
-				.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
-				.filter(ext => !!ext.identifier.uuid);
-		});
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {
