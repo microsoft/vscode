@@ -17,7 +17,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { isMousePositionWithinElement, shouldShowHover } from './hoverUtils.js';
+import { isMousePositionWithinElement, shouldShowHover, isTriggerModifierPressed } from './hoverUtils.js';
 import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
@@ -105,6 +105,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 		this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 		this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
+		this._listenersStore.add(this._editor.onKeyUp((e: IKeyboardEvent) => this._onKeyUp(e)));
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => this._cancelSchedulerAndHide()));
 		this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
@@ -209,7 +210,9 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		};
 		const isFocused = contentWidget.isFocused;
 		const isResizing = contentWidget.isResizing;
-		const isStickyAndVisibleFromKeyboard = this._hoverSettings.sticky && contentWidget.isVisibleFromKeyboard;
+		// For keyboard-triggered hovers in onKeyboardModifier mode, only keep if modifier is still pressed
+		const isStickyAndVisibleFromKeyboard = this._hoverSettings.sticky && contentWidget.isVisibleFromKeyboard
+			&& this._hoverSettings.enabled !== 'onKeyboardModifier';
 
 		return this.shouldKeepOpenOnEditorMouseMoveOrLeave
 			|| isFocused
@@ -269,6 +272,27 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (this._ignoreMouseEvents) {
 			return;
 		}
+		// we should show the hover immediately for the current (last known) mouse location even without moving the mouse again.
+		if (this._hoverSettings.enabled === 'onKeyboardModifier' && this._mouseMoveEvent) {
+			const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier);
+			if (isTriggerModifierPressed(multiCursorModifier, e)) {
+				// Avoid re-trigger if already visible
+				if (!this._contentWidget?.isVisible) {
+					// Get the position/range from the last mouse event and show hover immediately
+					const mouseTarget = this._mouseMoveEvent.target;
+					if (mouseTarget.position) {
+						this.showContentHover(
+							Range.fromPositions(mouseTarget.position),
+							HoverStartMode.Immediate,
+							HoverStartSource.Keyboard,
+							false
+						);
+					}
+				}
+				// Do not hide hover for this key press
+				return;
+			}
+		}
 		if (!this._contentWidget) {
 			return;
 		}
@@ -281,6 +305,26 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 		this.hideContentHover();
+	}
+
+	private _onKeyUp(e: IKeyboardEvent): void {
+		if (this._ignoreMouseEvents) {
+			return;
+		}
+		// Hide hover when modifier key is released in onKeyboardModifier mode
+		if (this._hoverSettings.enabled === 'onKeyboardModifier' && this._contentWidget?.isVisible) {
+			const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier);
+			// Check if the released key was the trigger modifier
+			const wasTriggerModifier = (e.keyCode === KeyCode.Ctrl && multiCursorModifier !== 'altKey')
+				|| (e.keyCode === KeyCode.Meta && multiCursorModifier !== 'altKey')
+				|| (e.keyCode === KeyCode.Alt && multiCursorModifier === 'altKey');
+			if (wasTriggerModifier) {
+				// Only hide if not hovering over the widget itself
+				if (this._mouseMoveEvent && !this._isMouseOnContentHoverWidget(this._mouseMoveEvent)) {
+					this.hideContentHover();
+				}
+			}
+		}
 	}
 
 	private _isPotentialKeyboardShortcut(e: IKeyboardEvent): boolean {
