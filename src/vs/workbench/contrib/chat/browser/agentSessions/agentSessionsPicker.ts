@@ -119,7 +119,8 @@ export class AgentSessionsPicker {
 	private toPickItem(session: IAgentSession): ISessionPickItem {
 		const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
 		const timeAgo = fromNow(session.timing.endTime || session.timing.startTime);
-		const description = descriptionText ? `${descriptionText} • ${timeAgo}` : timeAgo;
+		const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
+		const description = descriptionParts.join(' • ');
 
 		return {
 			id: session.resource.toString(),
