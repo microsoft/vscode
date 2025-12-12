@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { coalesce } from '../utils/arrays';
 import { exists, looksLikeAbsoluteWindowsPath } from '../utils/fs';
+import { resolvePackageJsonExports } from '../utils/packageExports';
 
 function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
 	return node && node.type === 'array' && node.children
@@ -156,6 +157,125 @@ async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: st
 	}
 }
 
+
+/**
+ * Splits a Node module specifier into the package name and the (posix) subpath.
+ *
+ * @example
+ * - `lodash/fp` => { packageName: 'lodash', subpath: 'fp' }
+ * - `@scope/pkg/base/tsconfig.json` => { packageName: '@scope/pkg', subpath: 'base/tsconfig.json' }
+ *
+ * @see https://nodejs.org/api/esm.html#resolution-algorithm-specification (PACKAGE_RESOLVE)
+ */
+function parseNodeModuleSpecifier(specifier: string): { packageName: string; subpath: string } | undefined {
+	const parts = specifier.split(posix.sep).filter(Boolean);
+	if (!parts.length) {
+		return undefined;
+	}
+
+	if (parts[0].startsWith('@')) {
+		if (parts.length < 2) {
+			return undefined;
+		}
+		return {
+			packageName: `${parts[0]}/${parts[1]}`,
+			subpath: parts.slice(2).join(posix.sep)
+		};
+	}
+
+	return {
+		packageName: parts[0],
+		subpath: parts.slice(1).join(posix.sep)
+	};
+}
+
+/**
+ * Walks up from `baseDirUri` and looks for `node_modules/<packageName>`.
+ *
+ * @see https://nodejs.org/api/esm.html#resolution-algorithm-specification (PACKAGE_RESOLVE)
+ */
+async function findNodeModulePackageRoot(baseDirUri: vscode.Uri, packageName: string): Promise<vscode.Uri | undefined> {
+	let currentUri = baseDirUri;
+	while (true) {
+		const candidate = vscode.Uri.joinPath(currentUri, 'node_modules', ...packageName.split(posix.sep));
+		try {
+			const stat = await vscode.workspace.fs.stat(candidate);
+			if (stat.type & vscode.FileType.Directory) {
+				return candidate;
+			}
+		} catch {
+			// noop
+		}
+
+		const oldUri = currentUri;
+		currentUri = vscode.Uri.joinPath(currentUri, '..');
+		if (oldUri.path === currentUri.path) {
+			return undefined;
+		}
+	}
+}
+
+/**
+ * Reads and parses `<packageRoot>/package.json`.
+ *
+ * Note: For this feature we use a permissive JSONC parser and ignore parse errors,
+ * because the goal is best-effort link resolution.
+ *
+ * @see https://nodejs.org/api/esm.html#resolution-algorithm-specification (READ_PACKAGE_JSON)
+ */
+async function tryReadPackageJson(packageRoot: vscode.Uri): Promise<{ exports?: unknown } | undefined> {
+	const packageJsonUri = vscode.Uri.joinPath(packageRoot, 'package.json');
+	try {
+		const bytes = await vscode.workspace.fs.readFile(packageJsonUri);
+		const text = new TextDecoder('utf-8').decode(bytes);
+		const parsed = jsonc.parse(text, [], { allowTrailingComma: true });
+		if (typeof parsed !== 'object' || parsed === null) {
+			return undefined;
+		}
+		return parsed as { exports?: unknown };
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Resolve a module specifier using `package.json#exports`.
+ *
+ * This is used for `tsconfig.json` `extends` links so that the link resolution
+ * matches Node/TypeScript behavior when packages use `exports` subpath remapping.
+ *
+ * @see https://nodejs.org/api/packages.html#package-entry-points
+ * @see https://nodejs.org/api/esm.html#resolution-algorithm-specification (PACKAGE_RESOLVE)
+ * @see https://nodejs.org/api/esm.html#resolution-algorithm-specification (PACKAGE_EXPORTS_RESOLVE)
+ */
+export async function resolveNodeModulePathUsingExports(baseDirUri: vscode.Uri, specifier: string): Promise<vscode.Uri | undefined> {
+	const parsed = parseNodeModuleSpecifier(specifier);
+	if (!parsed) {
+		return undefined;
+	}
+
+	const packageRoot = await findNodeModulePackageRoot(baseDirUri, parsed.packageName);
+	if (!packageRoot) {
+		return undefined;
+	}
+
+	const packageJson = await tryReadPackageJson(packageRoot);
+	const subpath = parsed.subpath ? `./${parsed.subpath}` : '.';
+	const resolvedTarget = resolvePackageJsonExports(packageJson?.exports, subpath, ['node', 'import'])
+		?? resolvePackageJsonExports(packageJson?.exports, subpath, ['node', 'require']);
+	if (!resolvedTarget) {
+		return undefined;
+	}
+
+	const normalized = resolvedTarget.startsWith('./') ? resolvedTarget.slice(2) : resolvedTarget;
+	if (!normalized) {
+		return undefined;
+	}
+
+	const targetUri = vscode.Uri.joinPath(packageRoot, normalized);
+	return await exists(targetUri) ? targetUri : undefined;
+}
+
 // Reference Extends:https://github.com/microsoft/TypeScript/blob/febfd442cdba343771f478cf433b0892f213ad2f/src/compiler/commandLineParser.ts#L3005
 // Reference Project References: https://github.com/microsoft/TypeScript/blob/7377f5cb9db19d79a6167065b323a45611c812b5/src/compiler/tsbuild.ts#L188C1-L194C2
 /**
@@ -181,6 +301,11 @@ async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string, linkTy
 	}
 
 	// Otherwise resolve like a module
+	const exportsResolved = await resolveNodeModulePathUsingExports(baseDirUri, pathValue);
+	if (exportsResolved) {
+		return exportsResolved;
+	}
+
 	return resolveNodeModulesPath(baseDirUri, [
 		pathValue,
 		...pathValue.endsWith('.json') ? [] : [
