@@ -316,8 +316,41 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const cwd = URI.revive(resourceOptions.cwd);
 		let lastWordFolderResource: URI | string | undefined;
 		if (type === 'relative' && lastWordFolder.length > 0) {
-			// The extension already resolved the typed path into cwd when possible. Just ensure
-			// cwd exists before using it for completions.
+			// If the typed folder matches the tail of cwd (common when the extension already
+			// resolved the path, such as `./src/vs/`), reuse cwd to avoid duplicating segments.
+			const normalizedFolder = (useWindowsStylePath ? lastWordFolder.replaceAll('\\', '/') : lastWordFolder).replaceAll('\\ ', ' ');
+			const hasDotPrefix = normalizedFolder.startsWith('./');
+			if (hasDotPrefix) {
+				const stripped = normalizedFolder.replace(/^\.\/+/, '').replace(/\/+$/, '');
+				if (stripped) {
+					const cwdParts = cwd.path.replace(/\/+$/, '').split('/');
+					const strippedParts = stripped.split('/');
+					const tailMatches = strippedParts.length <= cwdParts.length && strippedParts.every((part, idx) => cwdParts[cwdParts.length - strippedParts.length + idx] === part);
+					if (tailMatches) {
+						try {
+							await this._fileService.stat(cwd);
+							lastWordFolderResource = cwd;
+						} catch {
+							return undefined;
+						}
+					}
+				}
+			}
+
+			// Otherwise resolve the folder relative to cwd.
+			if (!lastWordFolderResource) {
+				const folderToResolve = URI.joinPath(cwd, normalizedFolder);
+				try {
+					await this._fileService.stat(folderToResolve);
+					lastWordFolderResource = folderToResolve;
+				} catch {
+					return undefined;
+				}
+			}
+		} else if (type === 'relative') {
+			lastWordFolderResource = cwd;
+		}
+		if (type === 'relative' && !lastWordFolderResource) {
 			try {
 				await this._fileService.stat(cwd);
 				lastWordFolderResource = cwd;
