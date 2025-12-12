@@ -377,7 +377,7 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 				statusLabel = localize('agentSessionCompleted', "completed");
 		}
 
-		return localize('agentSessionItemAriaLabel', "Agent session {0} ({1}), created {2}", element.label, statusLabel, new Date(element.timing.startTime).toLocaleString());
+		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, statusLabel, new Date(element.timing.startTime).toLocaleString());
 	}
 }
 
