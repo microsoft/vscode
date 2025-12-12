@@ -73,7 +73,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private viewPaneContainer: HTMLElement | undefined;
 	private readonly chatViewLocationContext: IContextKey<ViewContainerLocation>;
+
 	private lastDimensions: { height: number; width: number } | undefined;
+	private readonly lastDimensionsPerOrientation: Map<AgentSessionsViewerOrientation, { height: number; width: number }> = new Map();
 
 	private welcomeController: ChatViewWelcomeController | undefined;
 
@@ -695,6 +697,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Chat Widget
 		this._widget.layout(remainingHeight, remainingWidth);
+
+		// Remember last dimensions per orientation
+		this.lastDimensionsPerOrientation.set(this.sessionsViewerOrientation, { height, width });
 	}
 
 	private layoutSessionsControl(height: number, width: number): { heightReduction: number; widthReduction: number } {
@@ -777,6 +782,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		return { heightReduction, widthReduction };
+	}
+
+	getLastDimensionsForCurrentOrientation(orientation: AgentSessionsViewerOrientation): { height: number; width: number } | undefined {
+		return this.lastDimensionsPerOrientation.get(orientation);
 	}
 
 	//#endregion
