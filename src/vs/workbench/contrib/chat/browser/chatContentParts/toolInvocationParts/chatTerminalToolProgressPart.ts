@@ -1227,7 +1227,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 	}
 
 	public override async run() {
-		this.label = localize('focusTerminal', 'Focus Terminal');
+		this.label = this._instance?.shellLaunchConfig.hideFromUser ? localize('showAndFocusTerminal', 'Show and Focus Terminal') : localize('focusTerminal', 'Focus Terminal');
 		this._updateTooltip();
 
 		let target: FocusChatInstanceTelemetryEvent['target'] = 'none';

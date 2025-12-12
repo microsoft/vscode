@@ -27,13 +27,10 @@ import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listVi
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
-import { ChatSessionStatus } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -68,6 +65,10 @@ interface IAgentSessionItemTemplate {
 	readonly disposables: IDisposable;
 }
 
+export interface IAgentSessionRendererOptions {
+	getHoverPosition(): HoverPosition;
+}
+
 export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session';
@@ -75,13 +76,13 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
 	constructor(
+		private readonly options: IAgentSessionRendererOptions,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
@@ -164,7 +165,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Diff information
 		const { changes: diff } = session.element;
-		if (session.element.status !== ChatSessionStatus.InProgress && diff && hasValidDiff(diff)) {
+		if (!this.chatSessionsService.isChatSessionInProgressStatus(session.element.status) && diff && hasValidDiff(diff)) {
 			if (this.renderDiff(session, template)) {
 				template.diffContainer.classList.add('has-diff');
 			}
@@ -206,7 +207,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	private getIcon(session: IAgentSession): ThemeIcon {
-		if (session.status === ChatSessionStatus.InProgress) {
+		if (this.chatSessionsService.isChatSessionInProgressStatus(session.status)) {
 			return Codicon.sessionInProgress;
 		}
 
@@ -243,7 +244,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Fallback to state label
 		else {
-			if (session.element.status === ChatSessionStatus.InProgress) {
+			if (this.chatSessionsService.isChatSessionInProgressStatus(session.element.status)) {
 				template.description.textContent = localize('chat.session.status.inProgress', "Working...");
 			} else if (
 				session.element.timing.finishedOrFailedTime &&
@@ -276,7 +277,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		const getStatus = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
-			if (session.status === ChatSessionStatus.InProgress && session.timing.inProgressTime) {
+			if (this.chatSessionsService.isChatSessionInProgressStatus(session.status) && session.timing.inProgressTime) {
 				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now());
 			}
 
@@ -288,7 +289,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		template.status.textContent = getStatus(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), session.element.status === ChatSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), this.chatSessionsService.isChatSessionInProgressStatus(session.element.status) ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -299,18 +300,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 					content: tooltip,
 					style: HoverStyle.Pointer,
 					position: {
-						hoverPosition: (() => {
-							const sideBarPosition = this.layoutService.getSideBarPosition();
-							const viewLocation = this.viewDescriptorService.getViewLocationById(AGENT_SESSIONS_VIEW_ID);
-							switch (viewLocation) {
-								case ViewContainerLocation.Sidebar:
-									return sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
-								case ViewContainerLocation.AuxiliaryBar:
-									return sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
-								default:
-									return HoverPosition.RIGHT;
-							}
-						})()
+						hoverPosition: this.options.getHoverPosition()
 					}
 				}), { groupId: 'agent.sessions' })
 			);
@@ -352,6 +342,9 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 	getAriaLabel(element: IAgentSession): string | null {
 		let statusLabel: string;
 		switch (element.status) {
+			case ChatSessionStatus.NeedsInput:
+				statusLabel = localize('agentSessionNeedsInput', "needs input");
+				break;
 			case ChatSessionStatus.InProgress:
 				statusLabel = localize('agentSessionInProgress', "in progress");
 				break;
@@ -437,9 +430,13 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
+	constructor(
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+	) { }
+
 	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
-		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
-		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;
+		const aInProgress = this.chatSessionsService.isChatSessionInProgressStatus(sessionA.status);
+		const bInProgress = this.chatSessionsService.isChatSessionInProgressStatus(sessionB.status);
 
 		if (aInProgress && !bInProgress) {
 			return -1; // a (in-progress) comes before b (finished)

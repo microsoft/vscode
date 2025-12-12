@@ -40,7 +40,6 @@ import { IChatWidgetService } from '../chat.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
-import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 
 export const enum ActionLocation {
 	ChatWidget = 'chatWidget',
@@ -200,6 +199,8 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		}
 	}
 }
+
+const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
 
 class CreateRemoteAgentJobAction {
 	constructor() { }

@@ -55,6 +55,7 @@ import { ChatViewId } from './chat.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { AgentSessionsFilter } from './agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -128,14 +129,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private updateContextKeys(fromEvent: boolean): void {
 		const viewLocation = this.viewDescriptorService.getViewLocationById(this.id);
 		const sideBarPosition = this.layoutService.getSideBarPosition();
+		const panelPosition = this.layoutService.getPanelPosition();
 
 		let sideSessionsOnRightPosition: boolean;
-		if (viewLocation === ViewContainerLocation.AuxiliaryBar) {
-			sideSessionsOnRightPosition = sideBarPosition === Position.LEFT;
-		} else if (viewLocation === ViewContainerLocation.Sidebar) {
-			sideSessionsOnRightPosition = sideBarPosition === Position.RIGHT;
-		} else {
-			sideSessionsOnRightPosition = true;
+		switch (viewLocation) {
+			case ViewContainerLocation.Sidebar:
+				sideSessionsOnRightPosition = sideBarPosition === Position.RIGHT;
+				break;
+			case ViewContainerLocation.Panel:
+				sideSessionsOnRightPosition = panelPosition !== Position.LEFT;
+				break;
+			default:
+				sideSessionsOnRightPosition = sideBarPosition === Position.LEFT;
+				break;
 		}
 
 		this.sessionsViewerPosition = sideSessionsOnRightPosition ? AgentSessionsViewerPosition.Right : AgentSessionsViewerPosition.Left;
@@ -166,6 +172,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Layout changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sideBar.location'))(() => this.updateContextKeys(true)));
+		this._register(this.layoutService.onDidChangePanelPosition(() => this.updateContextKeys(true)));
 		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))(() => this.updateContextKeys(true)));
 
 		// Settings changes
@@ -315,8 +322,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
-			allowOpenSessionsInPanel: true,
-			filter: sessionsFilter
+			filter: sessionsFilter,
+			getHoverPosition: () => this.sessionsViewerPosition === AgentSessionsViewerPosition.Right ? HoverPosition.LEFT : HoverPosition.RIGHT
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 
@@ -402,7 +409,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
 		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
-		this.sessionsControl?.setVisible(newSessionsContainerVisible);
 
 		return {
 			changed: sessionsContainerVisible !== newSessionsContainerVisible,
@@ -647,11 +653,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	focusSessions(): boolean {
-		if (!this.sessionsControl?.isVisible()) {
-			return false;
+		if (this.sessionsContainer?.style.display === 'none') {
+			return false; // not visible
 		}
 
-		this.sessionsControl.focus();
+		this.sessionsControl?.focus();
 
 		return true;
 	}
