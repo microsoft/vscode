@@ -547,16 +547,17 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		if (!chatView) {
 			chatView = await viewsService.openView<ChatViewPane>(ChatViewId, false);
 		}
+		if (!chatView) {
+			return; // we need the chat view
+		}
 
 		const configuredOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
 		const newOrientation = this.getOrientation();
 
 		if ((!canResizeView || configuredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
-			chatView?.updateConfiguredSessionsViewerOrientation('stacked');
-			configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked');
+			chatView.updateConfiguredSessionsViewerOrientation('stacked');
 		} else if ((!canResizeView || configuredOrientation === 'stacked') && newOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			chatView?.updateConfiguredSessionsViewerOrientation('sideBySide');
-			configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
+			chatView.updateConfiguredSessionsViewerOrientation('sideBySide');
 		}
 
 		const part = getPartByLocation(chatLocation);
@@ -583,7 +584,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			currentSize = layoutService.getSize(part);
 		}
 
-		const lastWidthForOrientation = chatView?.getLastDimensionsForCurrentOrientation(newOrientation)?.width;
+		const lastWidthForOrientation = chatView?.getLastDimensions(newOrientation)?.width;
 
 		let newWidth: number;
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide) {
