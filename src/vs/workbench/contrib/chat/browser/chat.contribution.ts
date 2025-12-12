@@ -564,7 +564,7 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('chat.statusWidget.enabled.description', "Controls which user type should see the status widget in new chat sessions when quota is exceeded."),
 			default: undefined,
-			tags: ['experimental'],
+			tags: ['experimental', 'advanced'],
 			experiment: {
 				mode: 'auto'
 			}
