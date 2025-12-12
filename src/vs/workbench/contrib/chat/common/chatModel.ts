@@ -1018,6 +1018,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 					lastStartedWaitingAt = pending.startedWaitingAt;
 				}
 			} else if (lastStartedWaitingAt) {
+				this._modelState.set({ value: ResponseModelState.Pending }, undefined);
 				this._timeSpentWaitingAccumulator += Date.now() - lastStartedWaitingAt;
 				lastStartedWaitingAt = undefined;
 			}
