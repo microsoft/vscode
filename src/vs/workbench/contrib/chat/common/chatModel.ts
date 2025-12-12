@@ -992,7 +992,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 			return !_isPendingBool.read(r)
 				&& !this.shouldBeRemovedOnSend
-				&& this._modelState.read(r).value === ResponseModelState.Pending || this._modelState.read(r).value === ResponseModelState.NeedsInput;
+				&& (this._modelState.read(r).value === ResponseModelState.Pending || this._modelState.read(r).value === ResponseModelState.NeedsInput);
 		});
 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
