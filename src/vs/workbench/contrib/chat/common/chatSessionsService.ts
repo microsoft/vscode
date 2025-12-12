@@ -66,6 +66,7 @@ export interface IChatSessionItem {
 	resource: URI;
 	label: string;
 	iconPath?: ThemeIcon;
+	badge?: string | IMarkdownString;
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;

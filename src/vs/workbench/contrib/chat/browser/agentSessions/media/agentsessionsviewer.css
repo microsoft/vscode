@@ -32,9 +32,18 @@
 				color: unset;
 			}
 		}
+
+		.agent-session-badge {
+			background-color: unset;
+			outline: 1px solid var(--vscode-agentSessionSelectedBadge-border);
+		}
 	}
 
 	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row .agent-session-diff-container {
+		outline: 1px solid var(--vscode-agentSessionSelectedUnfocusedBadge-border);
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row .agent-session-badge {
 		outline: 1px solid var(--vscode-agentSessionSelectedUnfocusedBadge-border);
 	}
 
@@ -165,6 +174,21 @@
 
 				.agent-session-diff-removed {
 					color: var(--vscode-chat-linesRemovedForeground);
+				}
+			}
+
+			.agent-session-badge {
+				background-color: var(--vscode-toolbar-hoverBackground);
+				padding: 0 4px;
+				border-radius: 5px;
+				margin-left: 4px;
+
+				&:not(.has-badge) {
+					display: none;
+				}
+
+				.codicon {
+					font-size: 12px;
 				}
 			}
 		}
