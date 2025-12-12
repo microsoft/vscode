@@ -776,6 +776,7 @@ export interface IChatResponseModelParameters {
 
 type ResponseModelStateT =
 	| { value: ResponseModelState.Pending }
+	| { value: ResponseModelState.NeedsInput }
 	| { value: ResponseModelState.Complete | ResponseModelState.Cancelled | ResponseModelState.Failed; completedAt: number };
 
 export class ChatResponseModel extends Disposable implements IChatResponseModel {
@@ -816,7 +817,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public get isComplete(): boolean {
-		return this._modelState.get().value !== ResponseModelState.Pending;
+		return this._modelState.get().value !== ResponseModelState.Pending && this._modelState.get().value !== ResponseModelState.NeedsInput;
 	}
 
 	public get timestamp(): number {
@@ -991,7 +992,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 			return !_isPendingBool.read(r)
 				&& !this.shouldBeRemovedOnSend
-				&& this._modelState.read(r).value === ResponseModelState.Pending;
+				&& this._modelState.read(r).value === ResponseModelState.Pending || this._modelState.read(r).value === ResponseModelState.NeedsInput;
 		});
 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
@@ -1011,9 +1012,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		let lastStartedWaitingAt: number | undefined = undefined;
 		this.confirmationAdjustedTimestamp = derived(reader => {
 			const pending = this.isPendingConfirmation.read(reader);
-			if (pending && !lastStartedWaitingAt) {
-				lastStartedWaitingAt = pending.startedWaitingAt;
-			} else if (!pending && lastStartedWaitingAt) {
+			if (pending) {
+				this._modelState.set({ value: ResponseModelState.NeedsInput }, undefined);
+				if (!lastStartedWaitingAt) {
+					lastStartedWaitingAt = pending.startedWaitingAt;
+				}
+			} else if (lastStartedWaitingAt) {
 				this._timeSpentWaitingAccumulator += Date.now() - lastStartedWaitingAt;
 				lastStartedWaitingAt = undefined;
 			}
@@ -1142,7 +1146,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			result: this.result,
 			responseMarkdownInfo: this.codeBlockInfos?.map<ISerializableMarkdownInfo>(info => ({ suggestionId: info.suggestionId })),
 			followups: this.followups,
-			modelState: modelState.value === ResponseModelState.Pending ? { value: ResponseModelState.Cancelled, completedAt: Date.now() } : modelState,
+			modelState: modelState.value === ResponseModelState.Pending || modelState.value === ResponseModelState.NeedsInput ? { value: ResponseModelState.Cancelled, completedAt: Date.now() } : modelState,
 			vote: this.vote,
 			voteDownReason: this.voteDownReason,
 			slashCommand: this.slashCommand,

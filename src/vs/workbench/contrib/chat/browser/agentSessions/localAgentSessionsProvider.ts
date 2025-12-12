@@ -131,7 +131,9 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 
 		const lastRequest = model.getRequests().at(-1);
 		if (lastRequest?.response) {
-			if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails?.code === 'canceled') {
+			if (lastRequest.response.state === ResponseModelState.NeedsInput) {
+				return ChatSessionStatus.NeedsInput;
+			} else if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails?.code === 'canceled') {
 				return ChatSessionStatus.Completed;
 			} else if (lastRequest.response.result?.errorDetails) {
 				return ChatSessionStatus.Failed;
@@ -154,6 +156,8 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 				return ChatSessionStatus.Failed;
 			case ResponseModelState.Pending:
 				return ChatSessionStatus.InProgress;
+			case ResponseModelState.NeedsInput:
+				return ChatSessionStatus.NeedsInput;
 		}
 	}
 }
