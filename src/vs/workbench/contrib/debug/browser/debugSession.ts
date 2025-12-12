@@ -1330,7 +1330,7 @@ export class DebugSession implements IDebugSession {
 				this.cancelAllRequests();
 				this.model.clearThreads(this.getId(), true);
 
-				const details = this.stoppedDetails;
+				const details = this.stoppedDetails.slice();
 				this.stoppedDetails.length = 0;
 				if (details.length) {
 					await Promise.all(details.map(d => this.handleStop(d)));
