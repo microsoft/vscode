@@ -87,7 +87,7 @@ These features should be implemented first for a solid editing experience.
 | Document Formatting | ✅ | `tool/text.rs` | Uses typstyle WASM |
 | Diagnostics | ✅ | `diagnostics.rs` | Via WASM compilation with `getDiagnostics()` API for proper line/column numbers |
 | Code Folding | ✅ | `folding_range.rs` | Headings, functions, blocks (regex-based) |
-| **Go to Definition** | ❌ | `goto_definition.rs` | Labels, functions, imports |
+| **Go to Definition** | ✅ | `goto_definition.rs` | Labels (query API), functions/vars (regex), imports |
 | **Signature Help** | ❌ | `signature_help.rs` | Function parameter popup |
 | **Semantic Tokens** | ❌ | `semantic_tokens_full.rs` | Full syntax highlighting |
 
@@ -485,11 +485,14 @@ cd vscode
 - [ ] Completions appear after `#`
 - [ ] Hover shows documentation
 - [ ] Document symbols show in outline
+- [ ] **Go to Definition works** (F12 or Cmd/Ctrl+Click on labels, variables, functions, imports)
 - [ ] Preview command works (`Cmd+K V`)
 - [ ] Export PDF command works
 - [ ] Diagnostics show for syntax errors
 - [ ] Formatting works (`Shift+Alt+F`)
 - [ ] **All above work in web version too**
+
+See `TESTING_GOTO_DEFINITION.md` for detailed testing instructions.
 
 ---
 

@@ -9,6 +9,7 @@ export {
 	compileToPdf,
 	compileToSvg,
 	validateSource,
+	queryDocument,
 	resetCompiler,
 	disposeWasm
 } from './typstWasm';

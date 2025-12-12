@@ -784,6 +784,37 @@ export async function resetCompiler(): Promise<void> {
 }
 
 /**
+ * Query the document using Typst's introspection query API
+ * This is useful for finding labels, elements, etc.
+ * 
+ * @param source The Typst source code
+ * @param selector The Typst selector string (e.g., "label(<name>)" for labels)
+ * @param field Optional field to extract from the result
+ * @returns The query result, or undefined if query fails
+ */
+export async function queryDocument<T = any>(
+	source: string,
+	selector: string,
+	field?: string
+): Promise<T | undefined> {
+	if (!typstInstance) {
+		return undefined;
+	}
+
+	try {
+		const result = await typstInstance.query({
+			mainContent: source,
+			selector: selector,
+			field: field,
+		});
+		return result as T;
+	} catch (error) {
+		console.warn('[Typst WASM] Query failed:', error);
+		return undefined;
+	}
+}
+
+/**
  * Dispose of the WASM module
  */
 export function disposeWasm(): void {
