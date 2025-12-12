@@ -104,6 +104,18 @@
 	padding-left: 22px;
 }
 
+/** Styles for the list element **/
+
+.monaco-workbench .workbench-suggest-widget > .tree {
+	height: 100%;
+	width: 100%;
+}
+
+.monaco-workbench .workbench-suggest-widget .monaco-list {
+	user-select: none;
+	-webkit-user-select: none;
+}
+
 /** Styles for each row in the list element **/
 
 .workbench-suggest-widget .monaco-list .monaco-list-row {
