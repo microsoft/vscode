@@ -178,10 +178,13 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			const storedMetadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 			id = storedMetadata?.id || null;
 			this._logService.trace('CopyPasteController#handleCopy for id : ', id, ' with text.length : ', text.length);
+			performance.mark('code/CopyPasteController/handleCopy', { detail: { id, length: text.length } });
 		} else {
 			this._logService.trace('CopyPasteController#handleCopy');
+			performance.mark('code/CopyPasteController/handleCopy');
 		}
 		if (!this._editor.hasTextFocus()) {
+			performance.mark('code/CopyPasteController/handleCopy/earlyReturn1');
 			return;
 		}
 
@@ -191,12 +194,14 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._clipboardService.clearInternalState?.();
 
 		if (!e.clipboardData || !this.isPasteAsEnabled()) {
+			performance.mark('code/CopyPasteController/handleCopy/earlyReturn2');
 			return;
 		}
 
 		const model = this._editor.getModel();
 		const selections = this._editor.getSelections();
 		if (!model || !selections?.length) {
+			performance.mark('code/CopyPasteController/handleCopy/earlyReturn3');
 			return;
 		}
 
@@ -206,6 +211,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const wasFromEmptySelection = selections.length === 1 && selections[0].isEmpty();
 		if (wasFromEmptySelection) {
 			if (!enableEmptySelectionClipboard) {
+				performance.mark('code/CopyPasteController/handleCopy/earlyReturn4');
 				return;
 			}
 
@@ -226,6 +232,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			.filter(x => !!x.prepareDocumentPaste);
 		if (!providers.length) {
 			this.setCopyMetadata(e.clipboardData, { defaultPastePayload });
+			performance.mark('code/CopyPasteController/handleCopy/earlyReturn5');
 			return;
 		}
 
@@ -254,6 +261,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 		CopyPasteController._currentCopyOperation?.operations.forEach(entry => entry.operation.cancel());
 		CopyPasteController._currentCopyOperation = { handle, operations };
+		performance.mark('code/CopyPasteController/endHandleCopy');
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
@@ -261,10 +269,13 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			const [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
 			const metadataComputed = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 			this._logService.trace('CopyPasteController#handlePaste for id : ', metadataComputed?.id);
+			performance.mark('code/CopyPasteController/handlePaste', { detail: { id: metadataComputed?.id } });
 		} else {
 			this._logService.trace('CopyPasteController#handlePaste');
+			performance.mark('code/CopyPasteController/handlePaste');
 		}
 		if (!e.clipboardData || !this._editor.hasTextFocus()) {
+			performance.mark('code/CopyPasteController/handlePaste/earlyReturn1');
 			return;
 		}
 
@@ -275,6 +286,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const model = this._editor.getModel();
 		const selections = this._editor.getSelections();
 		if (!selections?.length || !model) {
+			performance.mark('code/CopyPasteController/handlePaste/earlyReturn2');
 			return;
 		}
 
@@ -282,6 +294,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			this._editor.getOption(EditorOption.readOnly) // Never enabled if editor is readonly.
 			|| (!this.isPasteAsEnabled() && !this._pasteAsActionContext) // Or feature disabled (but still enable if paste was explicitly requested)
 		) {
+			performance.mark('code/CopyPasteController/handlePaste/earlyReturn3');
 			return;
 		}
 
@@ -324,6 +337,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				e.preventDefault();
 				e.stopImmediatePropagation();
 			}
+			performance.mark('code/CopyPasteController/handlePaste/earlyReturn4');
 			return;
 		}
 
@@ -338,6 +352,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		} else {
 			this.doPasteInline(allProviders, selections, dataTransfer, metadata, e);
 		}
+		performance.mark('code/CopyPasteController/endHandlePaste');
 	}
 
 	private showPasteAsNoEditMessage(selections: readonly Selection[], preference: PastePreference) {
