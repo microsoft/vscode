@@ -19,7 +19,7 @@ import { getPartByLocation } from '../../../../services/views/browser/viewsServi
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { ChatEditorInput, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -30,6 +30,53 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AgentSessionsPicker } from './agentSessionsPicker.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+
+export class PickAgentSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: `workbench.action.chat.history`,
+			title: localize2('agentSessions.open', "Open Agent Session..."),
+			menu: [
+				{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('view', ChatViewId),
+						ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, false)
+					),
+					group: 'navigation',
+					order: 2
+				},
+				{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('view', ChatViewId),
+						ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
+					),
+					group: '2_history',
+					order: 1
+				},
+				{
+					id: MenuId.EditorTitle,
+					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+				}
+			],
+			category: CHAT_CATEGORY,
+			icon: Codicon.history,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker);
+		await agentSessionsPicker.pickAgentSession();
+	}
+}
 
 export class FocusAgentSessionsAction extends Action2 {
 
