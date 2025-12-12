@@ -62,7 +62,7 @@ type FieldType = typeof FieldType[keyof typeof FieldType];
 
 class ClassData {
 
-	fields = new Map<string, { type: FieldType; pos: number }>();
+	fields = new Map<string, { type: FieldType; pos: number; lineColumn: ts.LineAndCharacter }>();
 
 	private replacements: Map<string, string> | undefined;
 
@@ -118,7 +118,9 @@ class ClassData {
 				continue;
 			}
 			const type = ClassData._getFieldType(member);
-			this.fields.set(ident, { type, pos: member.name!.getStart() });
+			const pos = member.name!.getStart();
+			const lineColumn = node.getSourceFile().getLineAndCharacterOfPosition(pos);
+			this.fields.set(ident, { type, pos, lineColumn });
 		}
 	}
 
@@ -597,13 +599,46 @@ export class Mangler {
 			});
 		};
 
-		type RenameFn = (projectName: string, fileName: string, pos: number) => ts.RenameLocation[];
+		type RenameLocation = ts.RenameLocation & { textRange: { start: ts.LineAndCharacter; end: ts.LineAndCharacter } };
+		type RenameFn = (projectName: string, fileName: string, pos: number, lineColumn: ts.LineAndCharacter) => RenameLocation[];
 
 		const renameResults: Array<Promise<{ readonly newName: string; readonly locations: readonly ts.RenameLocation[] }>> = [];
 
-		const queueRename = (fileName: string, pos: number, newName: string) => {
-			renameResults.push(Promise.resolve(this.renameWorkerPool.exec<RenameFn>('findRenameLocations', [this.projectPath, fileName, pos]))
-				.then((locations) => ({ newName, locations })));
+		let allEditsLocation = 0;
+		let tLast = Date.now();
+		const handle = setInterval(() => {
+			const now = Date.now();
+			const elapsed = now - tLast;
+			const editsPerSecond = allEditsLocation / (elapsed / 1000);
+			console.log(`Edits: ${allEditsLocation}, per second: ${editsPerSecond.toFixed(2)}`);
+			tLast = now;
+			allEditsLocation = 0;
+		}, 1000 * 30);
+
+		const queueRename = (fileName: string, pos: number, newName: string, lineColumn: ts.LineAndCharacter) => {
+
+			renameResults.push(Promise.resolve(this.renameWorkerPool.exec<RenameFn>('findRenameLocations', [this.projectPath, fileName, pos, lineColumn]))
+				.then((locations) => {
+
+					try {
+						for (const location of locations) {
+							if (location.textRange) {
+								const source = service.getProgram()!.getSourceFile(location.fileName)!;
+								const start = source.getPositionOfLineAndCharacter(location.textRange.start.line, location.textRange.start.character);
+								const end = source.getPositionOfLineAndCharacter(location.textRange.end.line, location.textRange.end.character);
+								location.textSpan = { start, length: (end - start) };
+							}
+						}
+					} catch (error) {
+						console.error('ERROR processing rename locations for', newName, locations, error);
+					}
+
+					allEditsLocation += locations.length;
+					return {
+						newName,
+						locations
+					};
+				}));
 		};
 
 		for (const data of this.allClassDataByKey.values()) {
@@ -627,7 +662,7 @@ export class Mangler {
 				}
 
 				const newName = data.lookupShortName(name);
-				queueRename(data.fileName, info.pos, newName);
+				queueRename(data.fileName, info.pos, newName, info.lineColumn);
 			}
 		}
 
@@ -645,7 +680,7 @@ export class Mangler {
 
 			const newText = data.replacementName;
 			for (const { fileName, offset } of data.getLocations(service)) {
-				queueRename(fileName, offset, newText);
+				queueRename(fileName, offset, newText, service.getProgram()!.getSourceFile(fileName)!.getLineAndCharacterOfPosition(offset));
 			}
 		}
 
@@ -659,7 +694,9 @@ export class Mangler {
 			this.log('ERROR during rename preparation', err);
 		});
 
+		await this.renameWorkerPool.exec('terminate', []);
 		await this.renameWorkerPool.terminate();
+		clearInterval(handle);
 
 		this.log(`Done preparing edits: ${editsByFile.size} files`);
 
