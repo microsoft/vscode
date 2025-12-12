@@ -13,9 +13,14 @@
 		align-items: center;
 		cursor: pointer;
 
+		.chat-view-title-navigation-toolbar {
+			overflow: hidden;
+		}
+
 		.chat-view-title-label {
 			text-transform: uppercase;
 			font-size: 11px;
+			line-height: 16px;
 			color: var(--vscode-descriptionForeground);
 			overflow: hidden;
 			white-space: nowrap;
@@ -24,8 +29,11 @@
 		}
 
 		.chat-view-title-icon {
-			margin-left: auto;
 			color: var(--vscode-descriptionForeground);
+		}
+
+		.chat-view-title-actions-toolbar {
+			margin-left: auto;
 		}
 	}
 
