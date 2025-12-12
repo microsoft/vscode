@@ -5,6 +5,9 @@
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",
+  "enabledApiProposals": [
+    "codeActionAI"
+  ],
   "engines": {
     "vscode": "^1.77.0"
   },

@@ -95,9 +95,8 @@ export class TypstCodeActionProvider implements vscode.CodeActionProvider {
 		// Use a specific CodeActionKind to distinguish from Copilot
 		const fixAction = new vscode.CodeAction('Fix', vscode.CodeActionKind.QuickFix.append('typst'));
 		fixAction.isPreferred = true;
-		// Mark as AI action to show sparkle icon
-		// eslint-disable-next-line local/code-no-any-casts
-		(fixAction as any).isAI = true;
+		// Mark as AI action to show sparkle icon (requires codeActionAI API proposal in package.json)
+		(fixAction as unknown as { isAI?: boolean }).isAI = true;
 
 		// Use inline chat command to fix the issue
 		fixAction.command = {
@@ -129,9 +128,8 @@ export class TypstCodeActionProvider implements vscode.CodeActionProvider {
 
 		// Use a specific CodeActionKind to distinguish from Copilot
 		const explainAction = new vscode.CodeAction('Explain', vscode.CodeActionKind.QuickFix.append('typst').append('explain'));
-		// Mark as AI action to show sparkle icon
-		// eslint-disable-next-line local/code-no-any-casts
-		(explainAction as any).isAI = true;
+		// Mark as AI action to show sparkle icon (requires codeActionAI API proposal in package.json)
+		(explainAction as unknown as { isAI?: boolean }).isAI = true;
 
 		// Build context about the Typst error
 		const errorContext = this.buildErrorContext(document, diagnostics);
