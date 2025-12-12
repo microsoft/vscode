@@ -83,7 +83,7 @@ suite(`ipynb serializer`, () => {
 				execution_count: 10,
 				outputs: [],
 				source: 'print(1)'
-			}, // Cast to any to allow missing metadata field
+			},
 			{
 				cell_type: 'code',
 				outputs: [],
