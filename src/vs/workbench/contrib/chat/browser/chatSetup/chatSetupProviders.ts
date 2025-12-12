@@ -612,7 +612,7 @@ export class ChatCodeActionsProvider {
 
 	// Languages that have their own AI-powered code action providers
 	// These should be excluded from the generic chat code actions
-	private static readonly EXCLUDED_LANGUAGES = new Set(['latex', 'tex']);
+	private static readonly EXCLUDED_LANGUAGES = new Set(['latex', 'tex', 'typst']);
 
 	static registerProvider(instantiationService: IInstantiationService): IDisposable {
 		return instantiationService.invokeFunction(accessor => {

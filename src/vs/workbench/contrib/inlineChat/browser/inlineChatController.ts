@@ -1499,7 +1499,7 @@ export class InlineChatController2 implements IEditorContribution {
 				// no response or not in progress
 				this._zone.value.widget.domNode.classList.toggle('request-in-progress', false);
 				// DSpace: Changed placeholder to be LaTeX-focused
-				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder', "Edit, improve, and generate LaTeX content"));
+				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder_edit_improve_generate', "Edit, improve, and generate content"));
 
 			} else {
 				this._zone.value.widget.domNode.classList.toggle('request-in-progress', true);

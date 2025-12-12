@@ -30,6 +30,28 @@ interface DirectoryAttachmentResult {
 }
 
 /**
+ * Get the language type string based on file extension
+ * Returns "LaTeX" for .tex files, "Typst" for .typ files, or a generic message for other files
+ */
+function getLanguageTypeFromFileName(fileName: string): string {
+	const extension = fileName.toLowerCase().split('.').pop();
+	switch (extension) {
+		case 'tex':
+		case 'latex':
+		case 'ltx':
+		case 'sty':
+		case 'cls':
+		case 'bib':
+			return 'LaTeX';
+		case 'typ':
+		case 'typst':
+			return 'Typst';
+		default:
+			return 'code';
+	}
+}
+
+/**
  * Extract text content from a chat response
  */
 function extractResponseContent(response: unknown): string {
@@ -169,8 +191,11 @@ async function processFileAttachment(
 				range: range,
 			};
 
+			// Determine the language type based on file extension
+			const languageType = getLanguageTypeFromFileName(fileName);
+
 			// Add selected text prominently at the beginning
-			selectedTextPart = `\n\n**SELECTED TEXT IN ${fileName} (lines ${range.startLineNumber}-${range.endLineNumber}):**\n\`\`\`\n${selectedText}\n\`\`\`\n**IMPORTANT: This is the area of interest. For structural errors (like mismatched LaTeX environments), you may need to edit code outside this selection to properly fix the issue.**`;
+			selectedTextPart = `\n\n**SELECTED TEXT IN ${fileName} (lines ${range.startLineNumber}-${range.endLineNumber}):**\n\`\`\`\n${selectedText}\n\`\`\`\n**IMPORTANT: This is the area of interest. For structural errors (like mismatched ${languageType} environments), you may need to edit code outside this selection to properly fix the issue.**`;
 
 			logService.info(
 				`[DSpaceAgent] Attached file with selection: ${fileName} (lines ${range.startLineNumber}-${range.endLineNumber})`
@@ -284,8 +309,11 @@ export async function buildMessages(
 			// Store selection for tools to use
 			selectionsForRequest.set(documentUri.toString(), selectionRange);
 
+			// Determine the language type based on file extension
+			const languageType = getLanguageTypeFromFileName(fileName);
+
 			// Add selected text prominently at the beginning
-			const selectedTextPart = `\n\n**SELECTED TEXT IN ${fileName} (lines ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}):**\n\`\`\`\n${selectedText}\n\`\`\`\n**IMPORTANT: This is the area of interest. For structural errors (like mismatched LaTeX environments), you may need to edit code outside this selection to properly fix the issue.**`;
+			const selectedTextPart = `\n\n**SELECTED TEXT IN ${fileName} (lines ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}):**\n\`\`\`\n${selectedText}\n\`\`\`\n**IMPORTANT: This is the area of interest. For structural errors (like mismatched ${languageType} environments), you may need to edit code outside this selection to properly fix the issue.**`;
 
 			// Add full file content as context
 			const fileContextPart = `\n\n--- Current File: ${fileName} (selection: lines ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}) ---\n${fileContent}\n--- End of ${fileName} ---`;
