@@ -511,6 +511,7 @@ export class Sash extends Disposable {
 			return;
 		}
 
+		// eslint-disable-next-line no-restricted-syntax
 		const iframes = this.el.ownerDocument.getElementsByTagName('iframe');
 		for (const iframe of iframes) {
 			iframe.classList.add(PointerEventsDisabledCssClass); // disable mouse events on iframes as long as we drag the sash

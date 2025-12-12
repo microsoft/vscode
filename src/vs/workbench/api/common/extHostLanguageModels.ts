@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { AsyncIterableObject, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
+import { AsyncIterableProducer, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
@@ -50,13 +50,16 @@ class LanguageModelResponse {
 	constructor() {
 
 		const that = this;
+
+		const [stream1, stream2] = AsyncIterableProducer.tee(that._defaultStream.asyncIterable);
+
 		this.apiObject = {
 			// result: promise,
 			get stream() {
-				return that._defaultStream.asyncIterable;
+				return stream1;
 			},
 			get text() {
-				return AsyncIterableObject.map(that._defaultStream.asyncIterable, part => {
+				return stream2.map(part => {
 					if (part instanceof extHostTypes.LanguageModelTextPart) {
 						return part.value;
 					} else {
@@ -173,7 +176,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			return [];
 		}
-		this._clearModelCache(vendor);
 		const modelInformation: vscode.LanguageModelChatInformation[] = await data.provider.provideLanguageModelChatInformation(options, token) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map((m): ILanguageModelChatMetadataAndIdentifier => {
 			let auth;
@@ -215,8 +217,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			};
 		});
 
+		this._clearModelCache(vendor);
 		for (let i = 0; i < modelMetadataAndIdentifier.length; i++) {
-
 			this._localModels.set(modelMetadataAndIdentifier[i].identifier, {
 				metadata: modelMetadataAndIdentifier[i].metadata,
 				info: modelInformation[i]
@@ -336,14 +338,17 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				break;
 			}
 		}
-		if (!defaultModelId) {
+		if (!defaultModelId && !forceResolveModels) {
 			// Maybe the default wasn't cached so we will try again with resolving the models too
 			return this.getDefaultLanguageModel(extension, true);
 		}
 		return this.getLanguageModelByIdentifier(extension, defaultModelId);
 	}
 
-	async getLanguageModelByIdentifier(extension: IExtensionDescription, modelId: string): Promise<vscode.LanguageModelChat | undefined> {
+	async getLanguageModelByIdentifier(extension: IExtensionDescription, modelId: string | undefined): Promise<vscode.LanguageModelChat | undefined> {
+		if (!modelId) {
+			return undefined;
+		}
 
 		const model = this._localModels.get(modelId);
 		if (!model) {

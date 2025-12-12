@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { Separator } from '../../../../../../base/common/actions.js';
 import { getExtensionForMimeType } from '../../../../../../base/common/mime.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -12,15 +13,15 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatResponseResource } from '../../../common/chatModel.js';
-import { IChatToolInvocation } from '../../../common/chatService.js';
+import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../common/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService, IToolResultDataPart, IToolResultPromptTsxPart, IToolResultTextPart, stringifyPromptTsxPart } from '../../../common/languageModelToolsService.js';
 import { AcceptToolPostConfirmationActionId, SkipToolPostConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
-import { EditorPool } from '../chatMarkdownContentPart.js';
 import { ChatCollapsibleIOPart } from '../chatToolInputOutputContentPart.js';
 import { ChatToolOutputContentSubPart } from '../chatToolOutputContentSubPart.js';
-import { AbstractToolConfirmationSubPart, ConfirmationOutcome } from './abstractToolConfirmationSubPart.js';
+import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
 
 export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmationSubPart {
 	private _codeblocks: IChatCodeBlockInfo[] = [];
@@ -31,8 +32,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 	constructor(
 		toolInvocation: IChatToolInvocation,
 		context: IChatContentPartRenderContext,
-		private readonly editorPool: EditorPool,
-		private readonly currentWidthDelegate: () => number,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private readonly modelService: IModelService,
@@ -40,6 +39,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
+		@ILanguageModelToolsConfirmationService private readonly confirmationService: ILanguageModelToolsConfirmationService,
 	) {
 		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService);
 		const subtitle = toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
@@ -71,11 +71,29 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 
 	protected override additionalPrimaryActions() {
 		const actions = super.additionalPrimaryActions();
-		actions.push(
-			{ label: localize('allowSession', 'Allow Without Review in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSessionTooltip', 'Allow results from this tool to be sent without confirmation in this session.') },
-			{ label: localize('allowWorkspace', 'Allow Without Review in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow results from this tool to be sent without confirmation in this workspace.') },
-			{ label: localize('allowGlobally', 'Always Allow Without Review'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballyTooltip', 'Always allow results from this tool to be sent without confirmation.') },
-		);
+
+		// Get actions from confirmation service
+		const confirmActions = this.confirmationService.getPostConfirmActions({
+			toolId: this.toolInvocation.toolId,
+			source: this.toolInvocation.source,
+			parameters: this.toolInvocation.parameters
+		});
+
+		for (const action of confirmActions) {
+			if (action.divider) {
+				actions.push(new Separator());
+			}
+			actions.push({
+				label: action.label,
+				tooltip: action.detail,
+				data: async () => {
+					const shouldConfirm = await action.select();
+					if (shouldConfirm) {
+						this.confirmWith(this.toolInvocation, { type: ToolConfirmKind.UserAction });
+					}
+				}
+			});
+		}
 
 		return actions;
 	}
@@ -116,10 +134,9 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 						codemapperUri: undefined,
 						elementId: this.context.element.id,
 						focus: () => { },
-						isStreaming: false,
 						ownerMarkdownPartId: this.codeblocksPartId,
 						uri: model.uri,
-						chatSessionId: this.context.element.sessionId,
+						chatSessionResource: this.context.element.sessionResource,
 						uriPromise: Promise.resolve(model.uri)
 					}
 				});
@@ -149,10 +166,9 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 						codemapperUri: undefined,
 						elementId: this.context.element.id,
 						focus: () => { },
-						isStreaming: false,
 						ownerMarkdownPartId: this.codeblocksPartId,
 						uri: model.uri,
-						chatSessionId: this.context.element.sessionId,
+						chatSessionResource: this.context.element.sessionResource,
 						uriPromise: Promise.resolve(model.uri)
 					}
 				});
@@ -164,7 +180,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 				// Check if it's an image
 				if (mimeType?.startsWith('image/')) {
 					const permalinkBasename = getExtensionForMimeType(mimeType) ? `image${getExtensionForMimeType(mimeType)}` : 'image.bin';
-					const permalinkUri = ChatResponseResource.createUri(this.context.element.sessionId, toolInvocation.toolCallId, i, permalinkBasename);
+					const permalinkUri = ChatResponseResource.createUri(this.context.element.sessionResource, toolInvocation.toolCallId, i, permalinkBasename);
 					parts.push({ kind: 'data', value: data.buffer, mimeType, uri: permalinkUri, audience: part.audience });
 				} else {
 					// Try to display as UTF-8 text, otherwise base64
@@ -194,10 +210,9 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 								codemapperUri: undefined,
 								elementId: this.context.element.id,
 								focus: () => { },
-								isStreaming: false,
 								ownerMarkdownPartId: this.codeblocksPartId,
 								uri: model.uri,
-								chatSessionId: this.context.element.sessionId,
+								chatSessionResource: this.context.element.sessionResource,
 								uriPromise: Promise.resolve(model.uri)
 							}
 						});
@@ -227,10 +242,9 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 								codemapperUri: undefined,
 								elementId: this.context.element.id,
 								focus: () => { },
-								isStreaming: false,
 								ownerMarkdownPartId: this.codeblocksPartId,
 								uri: model.uri,
-								chatSessionId: this.context.element.sessionId,
+								chatSessionResource: this.context.element.sessionResource,
 								uriPromise: Promise.resolve(model.uri)
 							}
 						});
@@ -243,9 +257,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 			const outputSubPart = this._register(this.instantiationService.createInstance(
 				ChatToolOutputContentSubPart,
 				this.context,
-				this.editorPool,
 				parts,
-				this.currentWidthDelegate()
 			));
 
 			this._codeblocks.push(...outputSubPart.codeblocks);

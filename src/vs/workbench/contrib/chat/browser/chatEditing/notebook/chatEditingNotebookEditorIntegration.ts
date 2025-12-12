@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, debouncedObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -342,6 +343,16 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			className: 'chat-diff-change-content-widget',
 			telemetrySource: 'chatEditingNotebookHunk',
 			menuId: MenuId.ChatEditingEditorHunk,
+			actionViewItemProvider: (action, options) => {
+				if (!action.class) {
+					return new class extends ActionViewItem {
+						constructor() {
+							super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true /* hide keybinding for actions without icon */, icon: false, label: true });
+						}
+					};
+				}
+				return undefined;
+			},
 			argFactory: (deletedCellIndex: number) => {
 				return {
 					accept() {

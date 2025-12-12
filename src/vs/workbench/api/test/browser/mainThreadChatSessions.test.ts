@@ -7,7 +7,6 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,8 +18,9 @@ import { TestInstantiationService } from '../../../../platform/instantiation/tes
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
 import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
-import { IChatProgress, IChatProgressMessage } from '../../../contrib/chat/common/chatService.js';
+import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
@@ -30,6 +30,8 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { MockChatService } from '../../../contrib/chat/test/common/mockChatService.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -55,7 +57,7 @@ suite('ObservableChatSession', function () {
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ id: 'new-session-id', label: 'New Session' } as IChatSessionItem)
+			$provideNewChatSessionItem: sinon.stub().resolves({ label: 'New Session' } as IChatSessionItem)
 		};
 	});
 
@@ -81,7 +83,7 @@ suite('ObservableChatSession', function () {
 	}
 
 	async function createInitializedSession(sessionContent: any, sessionId = 'test-id'): Promise<ObservableChatSession> {
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const resource = LocalChatSessionUri.forSession(sessionId);
 		const session = new ObservableChatSession(resource, 1, proxy, logService, dialogService);
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 		await session.initialize(CancellationToken.None);
@@ -90,7 +92,7 @@ suite('ObservableChatSession', function () {
 
 	test('constructor creates session with proper initial state', function () {
 		const sessionId = 'test-id';
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const resource = LocalChatSessionUri.forSession(sessionId);
 		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
 
 		assert.strictEqual(session.providerHandle, 1);
@@ -105,7 +107,7 @@ suite('ObservableChatSession', function () {
 
 	test('session queues progress before initialization and processes it after', async function () {
 		const sessionId = 'test-id';
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const resource = LocalChatSessionUri.forSession(sessionId);
 		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
 
 		const progress1: IChatProgress = { kind: 'progressMessage', content: { value: 'Hello', isTrusted: false } };
@@ -156,7 +158,7 @@ suite('ObservableChatSession', function () {
 
 	test('initialization is idempotent and returns same promise', async function () {
 		const sessionId = 'test-id';
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const resource = LocalChatSessionUri.forSession(sessionId);
 		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
 
 		const sessionContent = createSessionContent();
@@ -224,7 +226,7 @@ suite('ObservableChatSession', function () {
 
 		const request: IChatAgentRequest = {
 			requestId: 'req1',
-			sessionId: 'test-session',
+			sessionResource: LocalChatSessionUri.forSession('test-session'),
 			agentId: 'test-agent',
 			message: 'Test prompt',
 			location: ChatAgentLocation.Chat,
@@ -245,7 +247,7 @@ suite('ObservableChatSession', function () {
 
 		const request: IChatAgentRequest = {
 			requestId: 'req1',
-			sessionId: 'test-session',
+			sessionResource: LocalChatSessionUri.forSession('test-session'),
 			agentId: 'test-agent',
 			message: 'Test prompt',
 			location: ChatAgentLocation.Chat,
@@ -284,7 +286,7 @@ suite('ObservableChatSession', function () {
 
 	test('dispose properly cleans up resources and notifies listeners', function () {
 		const sessionId = 'test-id';
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test/${sessionId}`);
+		const resource = LocalChatSessionUri.forSession(sessionId);
 		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
 
 		let disposeEventFired = false;
@@ -339,6 +341,8 @@ suite('MainThreadChatSessions', function () {
 	let chatSessionsService: IChatSessionsService;
 	let disposables: DisposableStore;
 
+	const exampleSessionResource = LocalChatSessionUri.forSession('new-session-id');
+
 	setup(function () {
 		disposables = new DisposableStore();
 		instantiationService = new TestInstantiationService();
@@ -351,7 +355,7 @@ suite('MainThreadChatSessions', function () {
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ id: 'new-session-id', label: 'New Session' } as IChatSessionItem)
+			$provideNewChatSessionItem: sinon.stub().resolves({ resource: exampleSessionResource, label: 'New Session' } as IChatSessionItem)
 		};
 
 		const extHostContext = new class implements IExtHostContext {
@@ -377,6 +381,14 @@ suite('MainThreadChatSessions', function () {
 				return { confirmed: true };
 			}
 		});
+		instantiationService.stub(ILabelService, new class extends mock<ILabelService>() {
+			override registerFormatter() {
+				return {
+					dispose: () => { }
+				};
+			}
+		});
+		instantiationService.stub(IChatService, new MockChatService());
 
 		chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
@@ -390,38 +402,6 @@ suite('MainThreadChatSessions', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('provideNewChatSessionItem creates a new chat session', async function () {
-		mainThread.$registerChatSessionItemProvider(1, 'test-type');
-
-		// Create a mock IChatAgentRequest
-		const mockRequest: IChatAgentRequest = {
-			sessionId: 'test-session',
-			requestId: 'test-request',
-			agentId: 'test-agent',
-			message: 'my prompt',
-			location: ChatAgentLocation.Chat,
-			variables: { variables: [] }
-		};
-
-		// Valid
-		const chatSessionItem = await chatSessionsService.provideNewChatSessionItem('test-type', {
-			request: mockRequest,
-			metadata: {}
-		}, CancellationToken.None);
-		assert.strictEqual(chatSessionItem.id, 'new-session-id');
-		assert.strictEqual(chatSessionItem.label, 'New Session');
-
-		// Invalid session type should throw
-		await assert.rejects(
-			chatSessionsService.provideNewChatSessionItem('invalid-type', {
-				request: mockRequest,
-				metadata: {}
-			}, CancellationToken.None)
-		);
-
-		mainThread.$unregisterChatSessionItemProvider(1);
-	});
 
 	test('provideChatSessionContent creates and initializes session', async function () {
 		const sessionScheme = 'test-session-type';
@@ -437,11 +417,11 @@ suite('MainThreadChatSessions', function () {
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-		const session1 = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None);
+		const session1 = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
 
 		assert.ok(session1);
 
-		const session2 = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None);
+		const session2 = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
 		assert.strictEqual(session1, session2);
 
 		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledOnce);
@@ -463,7 +443,7 @@ suite('MainThreadChatSessions', function () {
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
-		const session = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
+		const session = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None) as ObservableChatSession;
 
 		const progressDto: IChatProgressDto = { kind: 'progressMessage', content: { value: 'Test', isTrusted: false } };
 		await mainThread.$handleProgressChunk(1, resource, 'req1', [progressDto]);
@@ -488,7 +468,7 @@ suite('MainThreadChatSessions', function () {
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
 		const resource = URI.parse(`${sessionScheme}:/test-session`);
-		const session = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
+		const session = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None) as ObservableChatSession;
 
 		const progressDto: IChatProgressDto = { kind: 'progressMessage', content: { value: 'Test', isTrusted: false } };
 		await mainThread.$handleProgressChunk(1, resource, 'req1', [progressDto]);
@@ -518,7 +498,7 @@ suite('MainThreadChatSessions', function () {
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
 		const resource = URI.parse(`${sessionScheme}:/multi-turn-session`);
-		const session = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
+		const session = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None) as ObservableChatSession;
 
 		// Verify the session loaded correctly
 		assert.ok(session);

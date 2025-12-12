@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .pane-body.chat-view-welcome-visible {
+
 	& > .interactive-session {
 		display: none;
 	}
@@ -13,64 +14,15 @@
 	}
 }
 
-/* Container for chat widget welcome message and interactive session variants */
-.interactive-session {
-	position: relative;
-	/* Enable absolute positioning for child elements */
+/* Chat welcome container */
+.interactive-session .chat-welcome-view-container {
 	display: flex;
 	flex-direction: column;
-	height: 100%;
-
-	&.new-welcome-view {
-		.interactive-input-part {
-			.dropdown-action-container {
-				display: none;
-			}
-
-			.chat-attachments-container {
-				display: none;
-			}
-		}
-
-		.chat-input-toolbars > .chat-input-toolbar > div {
-			display: none;
-		}
-
-		.chat-input-toolbars .action-item:not(:has(.monaco-dropdown-with-primary)) {
-			display: none;
-		}
-	}
-
-	/* chat welcome container */
-	.chat-welcome-view-container {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		overflow: hidden;
-		flex: 1;
-		position: relative;
-		/* Allow absolute positioning of prompts */
-
-		&.has-chat-history {
-			/* Reintroduce minimal layout so welcome block centers vertically when history is shown */
-			flex-direction: column;
-			height: 100%;
-
-			/* Keep default align-items/justify-content from base (center) so history list sits above, then auto margins center welcome */
-			div.chat-welcome-view {
-				align-self: center;
-				margin-top: auto;
-				margin-bottom: auto;
-			}
-		}
-	}
-
-	.new-welcome-view & > .chat-welcome-view-input-part {
-		max-width: 650px;
-		margin-bottom: 8px;
-		/* Reduced margin to make room for prompts below */
-	}
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	flex: 1;
+	position: relative; /* Allow absolute positioning of prompts */
 }
 
 /* Container for ChatViewPane welcome view */
@@ -96,6 +48,29 @@ div.chat-welcome-view {
 		font-size: 40px;
 	}
 
+	& > .chat-welcome-view-icon.custom-icon {
+		mask-size: 40px;
+		-webkit-mask-size: 40px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon {
+		min-width: 72px;
+		min-height: 72px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon .codicon {
+		font-size: 72px;
+		width: 72px;
+		height: 72px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon.custom-icon {
+		mask-size: 72px !important;
+		-webkit-mask-size: 72px !important;
+		width: 72px;
+		height: 72px;
+	}
+
 	& > .chat-welcome-view-title {
 		font-size: 24px;
 		margin-top: 5px;
@@ -104,34 +79,20 @@ div.chat-welcome-view {
 		padding: 0 8px;
 	}
 
-	& > .chat-welcome-view-indicator-container {
-		display: flex;
-		flex-wrap: wrap;
-		margin-top: 5px;
-		gap: 9px;
-		justify-content: center;
-	}
-
 	& > .chat-welcome-view-message {
-		text-align: center;
-		max-width: 350px;
-		padding: 0 20px;
-		margin-top: 10px;
-
-		a {
-			color: var(--vscode-textLink-foreground);
-		}
-	}
-
-	& > .chat-welcome-view-message.empty-state {
 		position: relative;
 		text-align: center;
 		max-width: 100%;
+		padding: 0 20px;
 		margin: 0 auto;
 		color: var(--vscode-input-placeholderForeground);
 
 		a {
 			color: var(--vscode-textLink-foreground);
+		}
+
+		a:focus {
+			outline: 1px solid var(--vscode-focusBorder);
 		}
 
 		p {
@@ -168,30 +129,6 @@ div.chat-welcome-view {
 		}
 	}
 
-	& > .chat-welcome-new-view-message {
-		text-align: center;
-		max-width: 350px;
-		padding: 0 20px 32px;
-		font-size: 16px;
-
-		a {
-			color: var(--vscode-input-placeholderForeground);
-		}
-	}
-
-	& > .chat-welcome-view-additional-message {
-		color: var(--vscode-input-placeholderForeground);
-		text-align: center;
-		max-width: 400px;
-		margin-top: 8px;
-		padding: 0 12px;
-		font-size: 12px;
-
-		a {
-			color: var(--vscode-textLink-foreground);
-		}
-	}
-
 	& > .chat-welcome-view-disclaimer {
 		color: var(--vscode-input-placeholderForeground);
 		text-align: center;
@@ -201,6 +138,10 @@ div.chat-welcome-view {
 
 		a {
 			color: var(--vscode-textLink-foreground);
+		}
+
+		a:focus {
+			outline: 1px solid var(--vscode-focusBorder);
 		}
 	}
 }
@@ -240,7 +181,6 @@ div.chat-welcome-view {
 		background-color: var(--vscode-editorWidget-background);
 		cursor: pointer;
 		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-		max-width: 100%;
 		width: fit-content;
 		margin: 0;
 		box-sizing: border-box;
@@ -266,131 +206,4 @@ div.chat-welcome-view {
 	> .chat-welcome-view-suggested-prompt:hover {
 		background-color: var(--vscode-list-hoverBackground);
 	}
-}
-
-/* Fresh login view - move prompts below input box instead of at bottom */
-.new-welcome-view .chat-welcome-view-suggested-prompts {
-	position: relative;
-	bottom: auto;
-	left: auto;
-	right: auto;
-	margin-top: 8px;
-	margin-bottom: 48px;
-	justify-content: center;
-	padding: 0 12px;
-}
-
-/* Hide the title for fresh login view */
-.new-welcome-view .chat-welcome-view-suggested-prompts .chat-welcome-view-suggested-prompts-title {
-	display: none;
-}
-
-
-.chat-welcome-history-root {
-	width: 100%;
-	padding: 8px;
-
-	&.chat-welcome-history-hidden {
-		display: none;
-	}
-
-	.chat-welcome-history-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 2px 4px 2px 4px;
-		font-size: 11px;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		min-height: 22px;
-		color: var(--vscode-descriptionForeground);
-
-		.chat-welcome-history-header-toolbar {
-			padding-right: 15px;
-		}
-	}
-
-	.chat-welcome-history-header-title {
-		font-size: 11px;
-		padding-left: 8px;
-	}
-
-	.chat-welcome-history-header-actions {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		padding-right: 16px;
-	}
-
-
-	.chat-welcome-history {
-		margin: 0 8px 8px 8px;
-		width: 100%;
-	}
-
-	.chat-welcome-history-list {
-		display: flex;
-		flex-direction: column;
-		border-radius: 4px;
-		overflow: hidden;
-		box-sizing: border-box;
-		padding: 0 16px 0 0;
-	}
-
-	.chat-welcome-history-item {
-		display: flex;
-		flex-direction: row;
-		border-radius: 4px;
-		align-items: center;
-		justify-content: space-between;
-		padding: 2px 12px 4px 12px;
-		gap: 8px;
-		outline: none;
-
-		.chat-welcome-history-title {
-			font-size: 13px;
-			white-space: nowrap;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			flex: 1 1 auto;
-		}
-
-		.chat-welcome-history-date {
-			font-size: 11px;
-			color: var(--vscode-descriptionForeground);
-			flex: 0 0 auto;
-			margin-left: 8px;
-		}
-	}
-
-	.chat-welcome-history-more {
-		color: var(--vscode-textLink-foreground);
-		text-decoration: none;
-		cursor: pointer;
-		padding: 2px 12px 4px 12px;
-		border: none;
-		background: none;
-		text-align: left;
-		height: 22px;
-		display: flex;
-		align-items: center;
-		border-radius: 4px;
-		box-sizing: border-box;
-		margin-right: 14px;
-
-		&:hover {
-			background: var(--vscode-list-hoverBackground);
-		}
-
-		&:focus {
-			outline: 1px solid var(--vscode-focusBorder);
-			outline-offset: -1px;
-		}
-	}
-}
-
-/* Chat history hover tooltip styling */
-.chat-history-item-hover {
-	max-width: 300px;
-	word-wrap: break-word;
 }

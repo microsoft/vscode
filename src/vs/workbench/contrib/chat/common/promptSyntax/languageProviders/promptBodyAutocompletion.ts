@@ -5,7 +5,7 @@
 
 import { dirname, extUri } from '../../../../../../base/common/resources.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -15,7 +15,6 @@ import { CharCode } from '../../../../../../base/common/charCode.js';
 import { getWordAtText } from '../../../../../../editor/common/core/wordHelper.js';
 import { chatVariableLeader } from '../../chatParserTypes.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
-import { getPromptFileType } from '../config/promptFileLocations.js';
 
 /**
  * Provides autocompletion for the variables inside prompt bodies.
@@ -44,27 +43,41 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 	 * completion items based on the provided arguments.
 	 */
 	public async provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext, token: CancellationToken): Promise<CompletionList | undefined> {
+		const promptsType = getPromptsTypeForLanguageId(model.getLanguageId());
+		if (!promptsType) {
+			return undefined;
+		}
 		const reference = await this.findVariableReference(model, position, token);
 		if (!reference) {
 			return undefined;
 		}
 		const suggestions: CompletionItem[] = [];
-		if (reference.type === 'file') {
-			if (reference.contentRange.containsPosition(position)) {
-				// inside the link range
-				await this.collectFilePathCompletions(model, position, reference.contentRange, suggestions);
-			}
-		} else if (reference.type === '') {
-			const promptFileType = getPromptFileType(model.uri);
-			if (promptFileType === PromptsType.agent || promptFileType === PromptsType.prompt) {
-				await this.collectToolCompletions(model, position, reference.contentRange, suggestions);
-			}
+		switch (reference.type) {
+			case 'file':
+				if (reference.contentRange.containsPosition(position)) {
+					// inside the link range
+					await this.collectFilePathCompletions(model, position, reference.contentRange, suggestions);
+				} else {
+					await this.collectDefaultCompletions(model, reference.range, promptsType, suggestions);
+				}
+				break;
+			case 'tool':
+				if (reference.contentRange.containsPosition(position)) {
+					if (promptsType === PromptsType.agent || promptsType === PromptsType.prompt) {
+						await this.collectToolCompletions(model, position, reference.contentRange, suggestions);
+					}
+				} else {
+					await this.collectDefaultCompletions(model, reference.range, promptsType, suggestions);
+				}
+				break;
+			default:
+				await this.collectDefaultCompletions(model, reference.range, promptsType, suggestions);
 		}
 		return { suggestions };
 	}
 
 	private async collectToolCompletions(model: ITextModel, position: Position, toolRange: Range, suggestions: CompletionItem[]): Promise<void> {
-		for (const toolName of this.languageModelToolsService.getQualifiedToolNames()) {
+		for (const toolName of this.languageModelToolsService.getFullReferenceNames()) {
 			suggestions.push({
 				label: toolName,
 				kind: CompletionItemKind.Value,
@@ -125,7 +138,7 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 	/**
 	 * Finds a file reference that suites the provided `position`.
 	 */
-	private async findVariableReference(model: ITextModel, position: Position, token: CancellationToken): Promise<{ contentRange: Range; type: string } | undefined> {
+	private async findVariableReference(model: ITextModel, position: Position, token: CancellationToken): Promise<{ contentRange: Range; type: string; range: Range } | undefined> {
 		if (model.getLineContent(1).trimEnd() === '---') {
 			let i = 2;
 			while (i <= model.getLineCount() && model.getLineContent(i).trimEnd() !== '---') {
@@ -142,15 +155,29 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 		if (!varWord) {
 			return undefined;
 		}
+		const range = new Range(position.lineNumber, varWord.startColumn + 1, position.lineNumber, varWord.endColumn);
 		const nameMatch = varWord.word.match(/^#(\w+:)?/);
 		if (nameMatch) {
+			const contentCol = varWord.startColumn + nameMatch[0].length;
 			if (nameMatch[1] === 'file:') {
-				const contentCol = varWord.startColumn + nameMatch[0].length;
-				return { type: 'file', contentRange: new Range(position.lineNumber, contentCol, position.lineNumber, varWord.endColumn) };
+				return { type: 'file', contentRange: new Range(position.lineNumber, contentCol, position.lineNumber, varWord.endColumn), range };
+			} else if (nameMatch[1] === 'tool:') {
+				return { type: 'tool', contentRange: new Range(position.lineNumber, contentCol, position.lineNumber, varWord.endColumn), range };
 			}
 		}
-		return { type: '', contentRange: new Range(position.lineNumber, varWord.startColumn + 1, position.lineNumber, varWord.endColumn) };
+		return { type: '', contentRange: range, range };
 	}
 
-
+	private async collectDefaultCompletions(model: ITextModel, range: Range, promptFileType: PromptsType, suggestions: CompletionItem[]): Promise<void> {
+		const labels = promptFileType === PromptsType.instructions ? ['file'] : ['file', 'tool'];
+		labels.forEach(label => {
+			suggestions.push({
+				label: `${label}:`,
+				kind: CompletionItemKind.Keyword,
+				insertText: `${label}:`,
+				range: range,
+				command: { id: 'editor.action.triggerSuggest', title: 'Suggest' }
+			});
+		});
+	}
 }

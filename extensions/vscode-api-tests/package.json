@@ -268,13 +268,13 @@
   },
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:vscode-api-tests ./tsconfig.json"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/node-forge": "^1.3.11",
-    "node-forge": "^1.3.1",
+    "node-forge": "^1.3.2",
     "straightforward": "^4.2.2"
   },
   "repository": {

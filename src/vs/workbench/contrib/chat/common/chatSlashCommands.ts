@@ -12,6 +12,7 @@ import { IChatMessage } from './languageModels.js';
 import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData } from './chatService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
+import { URI } from '../../../../base/common/uri.js';
 
 //#region slash service, commands etc
 
@@ -41,7 +42,7 @@ export interface IChatSlashData {
 export interface IChatSlashFragment {
 	content: string | { treeData: IChatResponseProgressFileTreeData };
 }
-export type IChatSlashCallback = { (prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void> };
+export type IChatSlashCallback = { (prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, sessionResource: URI, token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void> };
 
 export const IChatSlashCommandService = createDecorator<IChatSlashCommandService>('chatSlashCommandService');
 
@@ -52,7 +53,7 @@ export interface IChatSlashCommandService {
 	_serviceBrand: undefined;
 	readonly onDidChangeCommands: Event<void>;
 	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable;
-	executeCommand(id: string, prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void>;
+	executeCommand(id: string, prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, sessionResource: URI, token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void>;
 	getCommands(location: ChatAgentLocation, mode: ChatModeKind): Array<IChatSlashData>;
 	hasCommand(id: string): boolean;
 }
@@ -102,7 +103,7 @@ export class ChatSlashCommandService extends Disposable implements IChatSlashCom
 		return this._commands.has(id);
 	}
 
-	async executeCommand(id: string, prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void> {
+	async executeCommand(id: string, prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, sessionResource: URI, token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void> {
 		const data = this._commands.get(id);
 		if (!data) {
 			throw new Error('No command with id ${id} NOT registered');
@@ -114,6 +115,6 @@ export class ChatSlashCommandService extends Disposable implements IChatSlashCom
 			throw new Error(`No command with id ${id} NOT resolved`);
 		}
 
-		return await data.command(prompt, progress, history, location, token);
+		return await data.command(prompt, progress, history, location, sessionResource, token);
 	}
 }

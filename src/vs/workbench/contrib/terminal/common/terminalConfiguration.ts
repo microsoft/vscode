@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import type { IStringDictionary } from '../../../../base/common/collections.js';
 import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
-import { PolicyCategory } from '../../../../base/common/policy.js';
+import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
@@ -470,10 +470,13 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: true
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.22.250204002) shipped with VS Code, instead of the one bundled with Windows."),
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.23.251008001) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
 		tags: ['preview'],
-		default: false
+		default: false,
+		experiment: {
+			mode: 'auto'
+		},
 	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -594,6 +597,14 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		],
 		default: 'both'
 	},
+	[TerminalSettingId.ShellIntegrationTimeout]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to wait the minimum time (500ms), the default value {1} means the wait time is variable based on whether shell integration injection is enabled and whether it's a remote window. Consider setting this to a small value if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
+		type: 'integer',
+		minimum: -1,
+		maximum: 60000,
+		default: -1
+	},
 	[TerminalSettingId.ShellIntegrationQuickFixEnabled]: {
 		restricted: true,
 		markdownDescription: localize('terminal.integrated.shellIntegration.quickFixEnabled', "When shell integration is enabled, enables quick fixes for terminal commands that appear as a lightbulb or sparkle icon to the left of the prompt."),
@@ -632,6 +643,26 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 		]
 	},
+	[TerminalSettingId.DeveloperPtyHostLatency]: {
+		description: localize('terminal.integrated.developer.ptyHost.latency', "Simulated latency in milliseconds applied to all calls made to the pty host. This is useful for testing terminal behavior under high latency conditions."),
+		type: 'number',
+		minimum: 0,
+		default: 0,
+		tags: ['advanced']
+	},
+	[TerminalSettingId.DeveloperPtyHostStartupDelay]: {
+		description: localize('terminal.integrated.developer.ptyHost.startupDelay', "Simulated startup delay in milliseconds for the pty host process. This is useful for testing terminal initialization under slow startup conditions."),
+		type: 'number',
+		minimum: 0,
+		default: 0,
+		tags: ['advanced']
+	},
+	[TerminalSettingId.DevMode]: {
+		description: localize('terminal.integrated.developer.devMode', "Enable developer mode for the terminal. This shows additional debug information and visualizations for shell integration sequences."),
+		type: 'boolean',
+		default: false,
+		tags: ['advanced']
+	},
 	...terminalContribConfiguration,
 };
 
@@ -642,27 +673,7 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 		order: 100,
 		title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 		type: 'object',
-		properties: {
-			...terminalConfiguration,
-			// HACK: This is included here in order instead of in the contrib to support policy
-			// extraction as it doesn't compute runtime values.
-			[TerminalContribSettingId.EnableAutoApprove]: {
-				description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
-				type: 'boolean',
-				default: true,
-				policy: {
-					name: 'ChatToolsTerminalEnableAutoApprove',
-					category: PolicyCategory.IntegratedTerminal,
-					minimumVersion: '1.104',
-					localization: {
-						description: {
-							key: 'autoApproveMode.description',
-							value: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
-						}
-					}
-				}
-			}
-		}
+		properties: terminalConfiguration,
 	});
 	terminalConfiguration[TerminalSettingId.FontFamily].defaultSnippets = await getFontSnippets();
 }
@@ -673,7 +684,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		migrateFn: (enableBell, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
 			let announcement = accessor('accessibility.signals.terminalBell')?.announcement ?? accessor('accessibility.alert.terminalBell');
-			if (announcement !== undefined && typeof announcement !== 'string') {
+			if (announcement !== undefined && !isString(announcement)) {
 				announcement = announcement ? 'auto' : 'off';
 			}
 			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);

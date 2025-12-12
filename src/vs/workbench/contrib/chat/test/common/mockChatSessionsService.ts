@@ -9,13 +9,16 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IEditableData } from '../../../../common/views.js';
-import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/chatAgents.js';
-import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatAgentAttachmentCapabilities } from '../../common/chatAgents.js';
+import { IChatModel } from '../../common/chatModel.js';
+import { IChatService } from '../../common/chatService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
 
+	private readonly _onDidChangeSessionOptions = new Emitter<URI>();
+	readonly onDidChangeSessionOptions = this._onDidChangeSessionOptions.event;
 	private readonly _onDidChangeItemsProviders = new Emitter<IChatSessionItemProvider>();
 	readonly onDidChangeItemsProviders = this._onDidChangeItemsProviders.event;
 
@@ -31,13 +34,13 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private readonly _onDidChangeContentProviderSchemes = new Emitter<{ readonly added: string[]; readonly removed: string[] }>();
 	readonly onDidChangeContentProviderSchemes = this._onDidChangeContentProviderSchemes.event;
 
-	private providers = new Map<string, IChatSessionItemProvider>();
+	private sessionItemProviders = new Map<string, IChatSessionItemProvider>();
 	private contentProviders = new Map<string, IChatSessionContentProvider>();
 	private contributions: IChatSessionsExtensionPoint[] = [];
 	private optionGroups = new Map<string, IChatSessionProviderOptionGroup[]>();
 	private sessionOptions = new ResourceMap<Map<string, string>>();
-	private editableData = new ResourceMap<IEditableData>();
 	private inProgress = new Map<string, number>();
+	private onChange = () => { };
 
 	// For testing: allow triggering events
 	fireDidChangeItemsProviders(provider: IChatSessionItemProvider): void {
@@ -57,10 +60,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable {
-		this.providers.set(provider.chatSessionType, provider);
+		this.sessionItemProviders.set(provider.chatSessionType, provider);
 		return {
 			dispose: () => {
-				this.providers.delete(provider.chatSessionType);
+				this.sessionItemProviders.delete(provider.chatSessionType);
 			}
 		};
 	}
@@ -69,21 +72,25 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions;
 	}
 
+	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined {
+		return this.contributions.find(contrib => contrib.type === chatSessionType);
+	}
+
 	setContributions(contributions: IChatSessionsExtensionPoint[]): void {
 		this.contributions = contributions;
 	}
 
-	async canResolveItemProvider(chatSessionType: string): Promise<boolean> {
-		return this.providers.has(chatSessionType);
+	async activateChatSessionItemProvider(chatSessionType: string): Promise<IChatSessionItemProvider | undefined> {
+		return this.sessionItemProviders.get(chatSessionType);
 	}
 
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
-		return Array.from(this.providers.values());
+		return Array.from(this.sessionItemProviders.values());
 	}
 
-	getIconForSessionType(chatSessionType: string): ThemeIcon | undefined {
+	getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined {
 		const contribution = this.contributions.find(c => c.type === chatSessionType);
-		return contribution?.icon ? ThemeIcon.fromId(contribution.icon) : undefined;
+		return contribution?.icon && typeof contribution.icon === 'string' ? ThemeIcon.fromId(contribution.icon) : undefined;
 	}
 
 	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined {
@@ -98,24 +105,13 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions.find(c => c.type === chatSessionType)?.inputPlaceholder;
 	}
 
-	getWelcomeTipsForSessionType(chatSessionType: string): string | undefined {
-		return this.contributions.find(c => c.type === chatSessionType)?.welcomeTips;
-	}
-
-	async provideNewChatSessionItem(chatSessionType: string, options: { request: IChatAgentRequest; metadata?: unknown }, token: CancellationToken): Promise<IChatSessionItem> {
-		const provider = this.providers.get(chatSessionType);
-		if (!provider?.provideNewChatSessionItem) {
-			throw new Error(`No provider for ${chatSessionType}`);
-		}
-		return provider.provideNewChatSessionItem(options, token);
-	}
-
-	async provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
-		const provider = this.providers.get(chatSessionType);
-		if (!provider) {
-			return [];
-		}
-		return provider.provideChatSessionItems(token);
+	getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
+		return Promise.all(Array.from(this.sessionItemProviders.values(), async provider => {
+			return {
+				chatSessionType: provider.chatSessionType,
+				items: await provider.provideChatSessionItems(token),
+			};
+		}));
 	}
 
 	reportInProgress(chatSessionType: string, count: number): void {
@@ -141,7 +137,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contentProviders.has(chatSessionType);
 	}
 
-	async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
+	async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		const provider = this.contentProviders.get(sessionResource.scheme);
 		if (!provider) {
 			throw new Error(`No content provider for ${sessionResource.scheme}`);
@@ -165,43 +161,25 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	private optionsChangeCallback?: (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>;
+	private optionsChangeCallback?: SessionOptionsChangedCallback;
 
-	setOptionsChangeCallback(callback: (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>): void {
+	setOptionsChangeCallback(callback: SessionOptionsChangedCallback): void {
 		this.optionsChangeCallback = callback;
 	}
 
-	async notifySessionOptionsChange(chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
-		if (this.optionsChangeCallback) {
-			await this.optionsChangeCallback(chatSessionType, sessionResource, updates);
-		}
-	}
-
-	async setEditableSession(sessionResource: URI, data: IEditableData | null): Promise<void> {
-		if (data) {
-			this.editableData.set(sessionResource, data);
-		} else {
-			this.editableData.delete(sessionResource);
-		}
-	}
-
-	getEditableData(sessionResource: URI): IEditableData | undefined {
-		return this.editableData.get(sessionResource);
-	}
-
-	isEditable(sessionResource: URI): boolean {
-		return this.editableData.has(sessionResource);
+	async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
+		await this.optionsChangeCallback?.(sessionResource, updates);
 	}
 
 	notifySessionItemsChanged(chatSessionType: string): void {
 		this._onDidChangeSessionItems.fire(chatSessionType);
 	}
 
-	getSessionOption(chatSessionType: string, sessionResource: URI, optionId: string): string | undefined {
+	getSessionOption(sessionResource: URI, optionId: string): string | undefined {
 		return this.sessionOptions.get(sessionResource)?.get(optionId);
 	}
 
-	setSessionOption(chatSessionType: string, sessionResource: URI, optionId: string, value: string): boolean {
+	setSessionOption(sessionResource: URI, optionId: string, value: string): boolean {
 		if (!this.sessionOptions.has(sessionResource)) {
 			this.sessionOptions.set(sessionResource, new Map());
 		}
@@ -219,5 +197,25 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	getContentProviderSchemes(): string[] {
 		return Array.from(this.contentProviders.keys());
+	}
+
+	getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
+		return undefined;
+	}
+
+	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable {
+		// Store the emitter so tests can trigger it
+		this.onChange = onChange;
+		return {
+			dispose: () => {
+			}
+		};
+	}
+
+	// Helper method for tests to trigger progress events
+	triggerProgressEvent(): void {
+		if (this.onChange) {
+			this.onChange();
+		}
 	}
 }

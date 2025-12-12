@@ -140,8 +140,8 @@ class ConfigureToolsAction extends Action2 {
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
 			type ChatActionContext = { widget: IChatWidget };
-			function isChatActionContext(obj: any): obj is ChatActionContext {
-				return obj && typeof obj === 'object' && (obj as ChatActionContext).widget;
+			function isChatActionContext(obj: unknown): obj is ChatActionContext {
+				return !!obj && typeof obj === 'object' && !!(obj as ChatActionContext).widget;
 			}
 			const context = args[0];
 			if (isChatActionContext(context)) {
@@ -163,16 +163,17 @@ class ConfigureToolsAction extends Action2 {
 				break;
 			case ToolsScope.Agent:
 				placeholder = localize('chat.tools.placeholder.agent', "Select tools for this custom agent");
-				description = localize('chat.tools.description.agent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will be applied to the custom agent file as well.", widget.input.currentModeObs.get().label);
+				description = localize('chat.tools.description.agent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will be applied to the custom agent file as well.", widget.input.currentModeObs.get().label.get());
 				break;
 			case ToolsScope.Agent_ReadOnly:
 				placeholder = localize('chat.tools.placeholder.readOnlyAgent', "Select tools for this custom agent");
-				description = localize('chat.tools.description.readOnlyAgent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will only be used for this session and will not change the '{0}' custom agent.", widget.input.currentModeObs.get().label);
+				description = localize('chat.tools.description.readOnlyAgent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will only be used for this session and will not change the '{0}' custom agent.", widget.input.currentModeObs.get().label.get());
 				break;
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
-				description = undefined;
+				description = localize('chat.tools.description.global', "The selected tools will be applied globally for all chat sessions that use the default agent.");
 				break;
+
 		}
 
 		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get());

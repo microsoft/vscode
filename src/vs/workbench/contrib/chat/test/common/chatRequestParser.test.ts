@@ -17,6 +17,7 @@ import { ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService 
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
@@ -24,6 +25,8 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
 import { MockPromptsService } from './mockPromptsService.js';
+
+const testSessionUri = LocalChatSessionUri.forSession('test-session');
 
 suite('ChatRequestParser', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,21 +51,21 @@ suite('ChatRequestParser', () => {
 
 	test('plain text', async () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest('1', 'test');
+		const result = parser.parseChatRequest(testSessionUri, 'test');
 		await assertSnapshot(result);
 	});
 
 	test('plain text with newlines', async () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'line 1\nline 2\r\nline 3';
-		const result = parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
 	});
 
 	test('slash in text', async () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'can we add a new file for an Express router to handle the / route';
-		const result = parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
 	});
 
@@ -74,7 +77,7 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/fix this';
-		const result = parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
 	});
 
@@ -86,7 +89,7 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/explain this';
-		const result = parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
 	});
 
@@ -98,7 +101,7 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/fix /fix';
-		const result = parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
 	});
 
@@ -110,7 +113,7 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'Hello /fix';
-		const result = parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
 	});
 
@@ -122,7 +125,7 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '    /fix';
-		const result = parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
 	});
 
@@ -133,18 +136,15 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
 
 		const promptSlashCommandService = mockObject<IPromptsService>()({});
-		promptSlashCommandService.asPromptSlashCommand.callsFake((command: string) => {
-			if (command.match(/^[\w_\-\.]+$/)) {
-				return { command };
-			}
-			return undefined;
+		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
+			return !!command.match(/^[\w_\-\.]+$/);
 		});
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '    /prompt';
-		const result = parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
 	});
 
@@ -155,18 +155,15 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
 
 		const promptSlashCommandService = mockObject<IPromptsService>()({});
-		promptSlashCommandService.asPromptSlashCommand.callsFake((command: string) => {
-			if (command.match(/^[\w_\-\.]+$/)) {
-				return { command };
-			}
-			return undefined;
+		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
+			return !!command.match(/^[\w_\-\.]+$/);
 		});
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'handle the / route and the request of /search-option';
-		const result = parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
 	});
 
@@ -177,18 +174,16 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
 
 		const promptSlashCommandService = mockObject<IPromptsService>()({});
-		promptSlashCommandService.asPromptSlashCommand.callsFake((command: string) => {
-			if (command.match(/^[\w_\-\.]+$/)) {
-				return { command };
-			}
-			return undefined;
+		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
+			return !!command.match(/^[\w_\-\.]+$/);
+
 		});
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/ route and the request of /search-option';
-		const result = parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
 	});
 
@@ -199,18 +194,15 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
 
 		const promptSlashCommandService = mockObject<IPromptsService>()({});
-		promptSlashCommandService.asPromptSlashCommand.callsFake((command: string) => {
-			if (command.match(/^[\w_\-\.]+$/)) {
-				return { command };
-			}
-			return undefined;
+		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
+			return !!command.match(/^[\w_\-\.]+$/);
 		});
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/001-sample this is a test';
-		const result = parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
 	});
 
@@ -220,7 +212,7 @@ suite('ChatRequestParser', () => {
 
 	// 	parser = instantiationService.createInstance(ChatRequestParser);
 	// 	const text = 'What does #selection mean?';
-	// 	const result = parser.parseChatRequest('1', text);
+	// 	const result = parser.parseChatRequest(testSessionUri, text);
 	// 	await assertSnapshot(result);
 	// });
 
@@ -230,7 +222,7 @@ suite('ChatRequestParser', () => {
 
 	// 	parser = instantiationService.createInstance(ChatRequestParser);
 	// 	const text = 'What is #selection?';
-	// 	const result = parser.parseChatRequest('1', text);
+	// 	const result = parser.parseChatRequest(testSessionUri, text);
 	// 	await assertSnapshot(result);
 	// });
 
@@ -239,7 +231,7 @@ suite('ChatRequestParser', () => {
 
 	// 	parser = instantiationService.createInstance(ChatRequestParser);
 	// 	const text = 'What does #selection mean?';
-	// 	const result = parser.parseChatRequest('1', text);
+	// 	const result = parser.parseChatRequest(testSessionUri, text);
 	// 	await assertSnapshot(result);
 	// });
 
@@ -254,7 +246,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest('1', '@agent Please do /subCommand thanks');
+		const result = parser.parseChatRequest(testSessionUri, '@agent Please do /subCommand thanks');
 		await assertSnapshot(result);
 	});
 
@@ -265,7 +257,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest('1', '@agent /subCommand Please do thanks');
+		const result = parser.parseChatRequest(testSessionUri, '@agent /subCommand Please do thanks');
 		await assertSnapshot(result);
 	});
 
@@ -276,7 +268,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest('1', '@agent hello', undefined, { mode: ChatModeKind.Edit });
+		const result = parser.parseChatRequest(testSessionUri, '@agent hello', undefined, { mode: ChatModeKind.Edit });
 		await assertSnapshot(result);
 	});
 
@@ -287,7 +279,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest('1', '@agent? Are you there');
+		const result = parser.parseChatRequest(testSessionUri, '@agent? Are you there');
 		await assertSnapshot(result);
 	});
 
@@ -298,7 +290,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest('1', '    \r\n\t   @agent \r\n\t   /subCommand Thanks');
+		const result = parser.parseChatRequest(testSessionUri, '    \r\n\t   @agent \r\n\t   /subCommand Thanks');
 		await assertSnapshot(result);
 	});
 
@@ -309,7 +301,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest('1', '    \n@agent\n/subCommand Thanks');
+		const result = parser.parseChatRequest(testSessionUri, '    \n@agent\n/subCommand Thanks');
 		await assertSnapshot(result);
 	});
 
@@ -320,7 +312,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest('1', 'Hello Mr. @agent');
+		const result = parser.parseChatRequest(testSessionUri, 'Hello Mr. @agent');
 		await assertSnapshot(result);
 	});
 
@@ -330,13 +322,13 @@ suite('ChatRequestParser', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
-		variableService.setSelectedToolAndToolSets('1', new Map([
+		variableService.setSelectedToolAndToolSets(testSessionUri, new Map([
 			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
 			[{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true]
 		] satisfies [IToolData | ToolSet, boolean][]));
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest('1', '@agent /subCommand \nPlease do with #selection\nand #debugConsole');
+		const result = parser.parseChatRequest(testSessionUri, '@agent /subCommand \nPlease do with #selection\nand #debugConsole');
 		await assertSnapshot(result);
 	});
 
@@ -346,13 +338,13 @@ suite('ChatRequestParser', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
-		variableService.setSelectedToolAndToolSets('1', new Map([
+		variableService.setSelectedToolAndToolSets(testSessionUri, new Map([
 			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
 			[{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true]
 		] satisfies [IToolData | ToolSet, boolean][]));
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest('1', '@agent Please \ndo /subCommand with #selection\nand #debugConsole');
+		const result = parser.parseChatRequest(testSessionUri, '@agent Please \ndo /subCommand with #selection\nand #debugConsole');
 		await assertSnapshot(result);
 	});
 });

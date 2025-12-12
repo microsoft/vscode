@@ -21,9 +21,7 @@ import { ServicesAccessor } from '../../../../../../platform/instantiation/commo
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { IChatWidget, IChatWidgetService, showChatView } from '../../../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatContextPicker, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../../../chat/browser/chatContextPickService.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
 import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
@@ -312,7 +310,7 @@ class KernelVariableContextPicker implements IChatContextPickerItem {
 }
 
 
-registerAction2(class CopyCellOutputAction extends Action2 {
+registerAction2(class AddCellOutputToChatAction extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.cellOutput.addToChat',
@@ -338,8 +336,6 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
 		const notebookEditor = this.getNoteboookEditor(accessor.get(IEditorService), outputContext);
-		const viewService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
 
 		if (!notebookEditor) {
 			return;
@@ -375,15 +371,8 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 		const mimeType = outputViewModel.pickedMimeType?.mimeType;
 
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		let widget = chatWidgetService.lastFocusedWidget;
-		if (!widget) {
-			const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat);
-			if (widgets.length === 0) {
-				return;
-			}
-			widget = widgets[0];
-		}
-		if (mimeType && NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST.includes(mimeType)) {
+		const widget = await chatWidgetService.revealWidget();
+		if (widget && mimeType && NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST.includes(mimeType)) {
 
 			const entry = createNotebookOutputVariableEntry(outputViewModel, mimeType, notebookEditor);
 			if (!entry) {
@@ -391,7 +380,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 			}
 
 			widget.attachmentModel.addContext(entry);
-			(await showChatView(viewService, layoutService))?.focusInput();
+			(await chatWidgetService.revealWidget())?.focusInput();
 		}
 	}
 

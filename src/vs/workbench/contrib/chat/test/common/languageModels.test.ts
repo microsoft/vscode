@@ -19,6 +19,7 @@ import { TestChatEntitlementService, TestStorageService } from '../../../../test
 import { Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 
 suite('LanguageModels', function () {
 
@@ -197,5 +198,95 @@ suite('LanguageModels', function () {
 		cts.dispose(true);
 
 		await request.result;
+	});
+
+	test('when clause defaults to true when omitted', async function () {
+		const vendors = languageModels.getVendors();
+		// Both test-vendor and actual-vendor have no when clause, so they should be visible
+		assert.ok(vendors.length >= 2);
+		assert.ok(vendors.some(v => v.vendor === 'test-vendor'));
+		assert.ok(vendors.some(v => v.vendor === 'actual-vendor'));
+	});
+});
+
+suite('LanguageModels - When Clause', function () {
+
+	class TestContextKeyService extends MockContextKeyService {
+		override contextMatchesRules(rules: ContextKeyExpression): boolean {
+			if (!rules) {
+				return true;
+			}
+			// Simple evaluation based on stored keys
+			const keys = rules.keys();
+			for (const key of keys) {
+				const contextKey = this.getContextKeyValue(key);
+				// If the key exists and is truthy, the rule matches
+				if (contextKey) {
+					return true;
+				}
+			}
+			return false;
+		}
+	}
+
+	let languageModelsWithWhen: LanguageModelsService;
+	let contextKeyService: TestContextKeyService;
+
+	setup(function () {
+		contextKeyService = new TestContextKeyService();
+		contextKeyService.createKey('testKey', true);
+
+		languageModelsWithWhen = new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent(name: string) {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			new TestStorageService(),
+			contextKeyService,
+			new TestConfigurationService(),
+			new TestChatEntitlementService()
+		);
+
+		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
+
+		ext.acceptUsers([{
+			description: { ...nullExtensionDescription },
+			value: { vendor: 'visible-vendor', displayName: 'Visible Vendor' },
+			collector: null!
+		}, {
+			description: { ...nullExtensionDescription },
+			value: { vendor: 'conditional-vendor', displayName: 'Conditional Vendor', when: 'testKey' },
+			collector: null!
+		}, {
+			description: { ...nullExtensionDescription },
+			value: { vendor: 'hidden-vendor', displayName: 'Hidden Vendor', when: 'falseKey' },
+			collector: null!
+		}]);
+	});
+
+	teardown(function () {
+		languageModelsWithWhen.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('when clause filters vendors correctly', async function () {
+		const vendors = languageModelsWithWhen.getVendors();
+		assert.strictEqual(vendors.length, 2);
+		assert.ok(vendors.some(v => v.vendor === 'visible-vendor'));
+		assert.ok(vendors.some(v => v.vendor === 'conditional-vendor'));
+		assert.ok(!vendors.some(v => v.vendor === 'hidden-vendor'));
+	});
+
+	test('when clause evaluates to true when context key is true', async function () {
+		const vendors = languageModelsWithWhen.getVendors();
+		assert.ok(vendors.some(v => v.vendor === 'conditional-vendor'), 'conditional-vendor should be visible when testKey is true');
+	});
+
+	test('when clause evaluates to false when context key is false', async function () {
+		const vendors = languageModelsWithWhen.getVendors();
+		assert.ok(!vendors.some(v => v.vendor === 'hidden-vendor'), 'hidden-vendor should be hidden when falseKey is false');
 	});
 });

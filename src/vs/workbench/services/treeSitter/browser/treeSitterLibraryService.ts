@@ -129,6 +129,10 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return lang;
 	}
 
+	async getLanguagePromise(languageId: string): Promise<Language | undefined> {
+		return this._languagesCache.get(languageId).promise;
+	}
+
 	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;

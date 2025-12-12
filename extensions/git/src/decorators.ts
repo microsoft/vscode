@@ -6,8 +6,8 @@
 import { done } from './util';
 
 function decorate(decorator: (fn: Function, key: string) => Function): Function {
-	return function (original: any, context: ClassMethodDecoratorContext) {
-		if (context.kind === 'method' || context.kind === 'getter' || context.kind === 'setter') {
+	return function (original: unknown, context: ClassMethodDecoratorContext) {
+		if (typeof original === 'function' && (context.kind === 'method' || context.kind === 'getter' || context.kind === 'setter')) {
 			return decorator(original, context.name.toString());
 		}
 		throw new Error('not supported');

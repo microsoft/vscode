@@ -22,15 +22,13 @@ import { CustomTreeView, TreeViewPane } from '../../browser/parts/views/treeView
 import { ViewPaneContainer } from '../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
 import { ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../common/views.js';
-import { ChatContextKeyExprs } from '../../contrib/chat/common/chatContextKeys.js';
-import { AGENT_SESSIONS_VIEWLET_ID as CHAT_SESSIONS } from '../../contrib/chat/common/constants.js';
 import { VIEWLET_ID as DEBUG } from '../../contrib/debug/common/debug.js';
 import { VIEWLET_ID as EXPLORER } from '../../contrib/files/common/files.js';
 import { VIEWLET_ID as REMOTE } from '../../contrib/remote/browser/remoteExplorer.js';
 import { VIEWLET_ID as SCM } from '../../contrib/scm/common/scm.js';
 import { WebviewViewPane } from '../../contrib/webviewView/browser/webviewViewPane.js';
 import { Extensions as ExtensionFeaturesRegistryExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../services/extensionManagement/common/extensionFeatures.js';
-import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
 
 export interface IUserFriendlyViewsContainerDescriptor {
@@ -241,12 +239,6 @@ const viewsContribution: IJSONSchema = {
 			items: remoteViewDescriptor,
 			default: []
 		},
-		'agentSessions': {
-			description: localize('views.agentSessions', "Contributes views to Agent Sessions container in the Activity bar. To contribute to this container, the 'chatSessionsProvider' API proposal must be enabled."),
-			type: 'array',
-			items: viewDescriptor,
-			default: []
-		}
 	},
 	additionalProperties: {
 		description: localize('views.contributed', "Contributes views to contributed views container"),
@@ -329,7 +321,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						panelOrder = this.registerCustomViewContainers(value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
 						break;
 					case 'secondarySidebar':
-						checkProposedApiEnabled(description, 'contribSecondarySidebar');
 						auxiliaryBarOrder = this.registerCustomViewContainers(value, description, auxiliaryBarOrder, existingViewContainers, ViewContainerLocation.AuxiliaryBar);
 						break;
 				}
@@ -522,17 +513,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						accessibilityHelpContent = new MarkdownString(item.accessibilityHelpContent);
 					}
 
-					let when = ContextKeyExpr.deserialize(item.when);
-					if (key === 'agentSessions') {
-						when = ContextKeyExpr.and(when, ChatContextKeyExprs.agentViewWhen);
-					}
-
 					const viewDescriptor: ICustomViewDescriptor = {
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
 						id: item.id,
 						name: { value: item.name, original: item.name },
-						when,
+						when: ContextKeyExpr.deserialize(item.when),
 						containerIcon: icon || viewContainer?.icon,
 						containerTitle: item.contextualTitle || (viewContainer && (typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value)),
 						canToggleVisibility: true,
@@ -543,7 +529,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						extensionId: extension.description.identifier,
 						originalContainerId: key,
 						group: item.group,
-						// eslint-disable-next-line local/code-no-any-casts
+						// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
 						virtualWorkspace: item.virtualWorkspace,
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,
@@ -595,9 +581,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		}
 	}
 
-	private convertInitialVisibility(value: any): InitialVisibility | undefined {
-		if (Object.values(InitialVisibility).includes(value)) {
-			return value;
+	private convertInitialVisibility(value: string | undefined): InitialVisibility | undefined {
+		if (Object.values(InitialVisibility).includes(value as InitialVisibility)) {
+			return value as InitialVisibility;
 		}
 		return undefined;
 	}
@@ -644,7 +630,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			case 'debug': return this.viewContainersRegistry.get(DEBUG);
 			case 'scm': return this.viewContainersRegistry.get(SCM);
 			case 'remote': return this.viewContainersRegistry.get(REMOTE);
-			case 'agentSessions': return this.viewContainersRegistry.get(CHAT_SESSIONS);
 			default: return this.viewContainersRegistry.get(`workbench.view.extension.${value}`);
 		}
 	}

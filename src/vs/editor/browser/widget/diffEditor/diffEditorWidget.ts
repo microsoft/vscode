@@ -473,7 +473,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	public override restoreViewState(s: IDiffEditorViewState): void {
 		if (s && s.original && s.modified) {
-			const diffEditorState = s as IDiffEditorViewState;
+			const diffEditorState = s;
 			this._editors.original.restoreViewState(diffEditorState.original);
 			this._editors.modified.restoreViewState(diffEditorState.modified);
 			if (diffEditorState.modelState) {

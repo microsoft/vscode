@@ -4,53 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode } from '../../../../../base/browser/dom.js';
-import * as dom from '../../../../../base/browser/dom.js';
-import { IChatThinkingPart } from '../../common/chatService.js';
+import { IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
-import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
-import { ThinkingDisplayMode } from '../../common/constants.js';
+import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { ChatConfiguration, ThinkingDisplayMode } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { localize } from '../../../../../nls.js';
-import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import './media/chatThinkingContent.css';
 
-function stripImSepMarkers(text: string): string {
-	return text.replace(/<\|im_sep\|>(\*{4,})?/g, '');
-}
 
 function extractTextFromPart(content: IChatThinkingPart): string {
 	const raw = Array.isArray(content.value) ? content.value.join('') : (content.value || '');
-	return stripImSepMarkers(raw).trim();
+	return raw.trim();
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
-	const headerMatch = content.match(/^\*\*([^*]+)\*\*\s*/);
-	return headerMatch ? headerMatch[1].trim() : undefined;
-}
-
-/**
- * everything     => fixedScrolling
- * gpt-5-codex    => collapsed with special grouping
- */
-function resolvePerModelDefaultThinkingStyle(modelId: string | undefined): ThinkingDisplayMode {
-	if (!modelId) {
-		return ThinkingDisplayMode.FixedScrolling;
-	}
-	const id = modelId.toLowerCase();
-
-	// TODO @justschen: could have additional styles specific to gemini/codex besides collapased.
-	if (id.includes('gpt-5-codex')) {
-		return ThinkingDisplayMode.FixedScrollingTools;
-	}
-
-	return ThinkingDisplayMode.FixedScrolling;
+	const headerMatch = content.match(/^\*\*([^*]+)\*\*/);
+	return headerMatch ? headerMatch[1] : undefined;
 }
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
@@ -58,202 +41,198 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	public readonly codeblocksPartId: undefined;
 
 	private id: string | undefined;
+	private content: IChatThinkingPart;
 	private currentThinkingValue: string;
 	private currentTitle: string;
 	private defaultTitle = localize('chat.thinking.header', 'Thinking...');
 	private textContainer!: HTMLElement;
 	private markdownResult: IRenderedMarkdown | undefined;
 	private wrapper!: HTMLElement;
-	private perItemCollapsedMode: boolean = false;
 	private fixedScrollingMode: boolean = false;
-	private fixedCollapsed: boolean = true;
-	private fixedScrollViewport: HTMLElement | undefined;
-	private fixedContainer: HTMLElement | undefined;
-	private headerButton: ButtonWithIcon | undefined;
-	private statusIcon: HTMLElement | undefined;
 	private lastExtractedTitle: string | undefined;
-	private hasMultipleItems: boolean = false;
+	private extractedTitles: string[] = [];
+	private toolInvocationCount: number = 0;
+	private streamingCompleted: boolean = false;
+	private isActive: boolean = true;
+	private currentToolCallLabel: string | undefined;
+	private toolInvocations: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
 
 	constructor(
 		content: IChatThinkingPart,
 		context: IChatContentPartRenderContext,
-		@IInstantiationService instantiationService: IInstantiationService,
+		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
-			?? localize('chat.thinking.header', 'Thinking...');
+			?? 'Thinking...';
 
 		super(extractedTitle, context);
 
 		this.id = content.id;
+		this.content = content;
+		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
 
-		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.None;
-		let effectiveMode = configuredMode;
-		if (configuredMode === ThinkingDisplayMode.Default) {
-			let modelId: string | undefined;
-			if (isResponseVM(context.element)) {
-				modelId = context.element.model.request?.modelId;
-			}
-			effectiveMode = resolvePerModelDefaultThinkingStyle(modelId);
-		}
-
-		this.perItemCollapsedMode = effectiveMode === ThinkingDisplayMode.CollapsedPerItem;
-		this.fixedScrollingMode = effectiveMode === ThinkingDisplayMode.FixedScrolling || effectiveMode === ThinkingDisplayMode.FixedScrollingTools;
+		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
 
 		this.currentTitle = extractedTitle;
 		if (extractedTitle !== this.defaultTitle) {
 			this.lastExtractedTitle = extractedTitle;
 		}
-		this.currentThinkingValue = this.parseContent(initialText);
+		this.currentThinkingValue = initialText;
 
-		if (effectiveMode === ThinkingDisplayMode.Collapsed) {
+		if (configuredMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
 		} else {
 			this.setExpanded(true);
 		}
 
-		if (this.perItemCollapsedMode) {
-			this.setExpanded(true);
-			const header = this.domNode.querySelector('.chat-used-context-label');
-			if (header) {
-				header.remove();
-				this.domNode.classList.add('chat-thinking-no-outer-header');
-			}
-		} else if (this.fixedScrollingMode) {
-			const header = this.domNode.querySelector('.chat-used-context-label');
-			if (header) {
-				header.remove();
-				this.domNode.classList.add('chat-thinking-no-outer-header', 'chat-thinking-fixed-mode');
-			}
-			this.currentTitle = this.defaultTitle;
+		if (this.fixedScrollingMode) {
+			this.setExpanded(false);
 		}
 
 		const node = this.domNode;
 		node.classList.add('chat-thinking-box');
 		node.tabIndex = 0;
-	}
 
-	private parseContent(content: string): string {
-		let cleaned = stripImSepMarkers(content).trim();
-		if (this.perItemCollapsedMode) {
-			cleaned = cleaned.replace(/^\*\*[^*]+\*\*\s*\n+(?:\s*\n)*/, '').trim();
+		if (this.fixedScrollingMode) {
+			node.classList.add('chat-thinking-fixed-mode');
+			this.currentTitle = this.defaultTitle;
+			if (this._collapseButton && !this.context.element.isComplete) {
+				this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
+			}
 		}
-		return cleaned;
+
+		// override for codicon chevron in the collapsible part
+		this._register(autorun(r => {
+			this.expanded.read(r);
+			if (this._collapseButton && this.wrapper) {
+				if (this.wrapper.classList.contains('chat-thinking-streaming') && !this.context.element.isComplete) {
+					this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
+				} else {
+					this._collapseButton.icon = Codicon.check;
+				}
+			}
+		}));
+
+		if (this._collapseButton && !this.streamingCompleted && !this.context.element.isComplete) {
+			this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
+		}
+
+		const label = this.lastExtractedTitle ?? '';
+		if (!this.fixedScrollingMode && !this._isExpanded.get()) {
+			this.setTitle(label);
+		}
+
+		if (this._collapseButton) {
+			this._register(this._collapseButton.onDidClick(() => {
+				if (this.streamingCompleted || this.fixedScrollingMode) {
+					return;
+				}
+
+				const expanded = this.isExpanded();
+				if (expanded) {
+					this.setTitle(this.defaultTitle, true);
+					this.currentTitle = this.defaultTitle;
+				} else if (this.lastExtractedTitle) {
+					const collapsedLabel = this.lastExtractedTitle ?? '';
+					this.setTitle(collapsedLabel);
+					this.currentTitle = collapsedLabel;
+				}
+			}));
+		}
 	}
 
 	// @TODO: @justschen Convert to template for each setting?
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
-		this.wrapper.classList.toggle('chat-thinking-per-item-mode', this.perItemCollapsedMode);
-		if (this.perItemCollapsedMode) {
-			this.createThinkingItemContainer();
-			if (this.currentThinkingValue) {
-				this.renderMarkdown(this.currentThinkingValue);
-			}
-			return this.wrapper;
-		} else if (this.fixedScrollingMode) {
-			this.fixedContainer = $('.chat-thinking-fixed-height-controller');
-			const header = $('.chat-thinking-fixed-header');
-
-			const button = this.headerButton = this._register(new ButtonWithIcon(header, {}));
-			button.label = this.defaultTitle;
-			button.icon = Codicon.chevronRight;
-			this.statusIcon = $('.chat-thinking-fixed-title-icon');
-			const spinnerEl = dom.h(ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin')));
-			this.statusIcon.appendChild(spinnerEl.root);
-			button.element.appendChild(this.statusIcon);
-
-			this.fixedScrollViewport = this.wrapper;
+		this.wrapper.classList.add('chat-thinking-streaming');
+		if (this.currentThinkingValue) {
 			this.textContainer = $('.chat-thinking-item.markdown-content');
 			this.wrapper.appendChild(this.textContainer);
-
-			this.fixedContainer.appendChild(header);
-			this.fixedContainer.appendChild(this.wrapper);
-
-			this._register(button.onDidClick(() => {
-				this.setFixedCollapsedState(!this.fixedCollapsed, true);
-				this._onDidChangeHeight.fire();
-			}));
-
-			if (this.currentThinkingValue) {
-				this.renderMarkdown(this.currentThinkingValue);
-			}
-			this.setFixedCollapsedState(this.fixedCollapsed);
-			return this.fixedContainer;
-		} else {
-			this.textContainer = $('.chat-thinking-item.markdown-content');
-			this.wrapper.appendChild(this.textContainer);
-			if (this.currentThinkingValue) {
-				this.renderMarkdown(this.currentThinkingValue);
-			}
-			return this.wrapper;
+			this.renderMarkdown(this.currentThinkingValue);
 		}
+		this.updateDropdownClickability();
+		return this.wrapper;
 	}
 
-	// handles chevrons outside of icons because the icon is already filled
-	private setFixedCollapsedState(collapsed: boolean, userInitiated?: boolean): void {
-		if (!this.fixedScrollingMode || !this.fixedContainer) {
+	private renderMarkdown(content: string, reuseExisting?: boolean): void {
+		// Guard against rendering after disposal to avoid leaking disposables
+		if (this._store.isDisposed) {
 			return;
 		}
-		this.fixedCollapsed = collapsed;
-		this.fixedContainer.classList.toggle('collapsed', collapsed);
-		if (this.headerButton) {
-			this.headerButton.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
-		}
-		if (this.fixedCollapsed && userInitiated) {
-			const fixedScrollViewport = this.fixedScrollViewport ?? this.wrapper;
-			if (fixedScrollViewport) {
-				fixedScrollViewport.scrollTop = fixedScrollViewport.scrollHeight;
+		const cleanedContent = content.trim();
+		if (!cleanedContent) {
+			if (this.markdownResult) {
+				this.markdownResult.dispose();
+				this.markdownResult = undefined;
 			}
+			clearNode(this.textContainer);
+			return;
 		}
-	}
 
-	private createThinkingItemContainer(): void {
-		const itemWrapper = $('.chat-thinking-item-wrapper');
-		const header = $('.chat-thinking-item-header');
-		const button = this.headerButton = this._register(new ButtonWithIcon(header, {}));
-		button.label = this.currentTitle ?? this.defaultTitle;
-		button.icon = Codicon.chevronRight;
+		// If the entire content is bolded, strip the bold markers for rendering
+		let contentToRender = cleanedContent;
+		if (cleanedContent.startsWith('**') && cleanedContent.endsWith('**')) {
+			contentToRender = cleanedContent.slice(2, -2);
+		}
 
-		const body = $('.chat-thinking-item.markdown-content');
-
-		const setPerItemCollapsedState = (collapsed: boolean) => {
-			body.classList.toggle('hidden', collapsed);
-			itemWrapper.classList.toggle('collapsed', collapsed);
-			if (this.headerButton) {
-				this.headerButton.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
-			}
-		};
-
-		this._register(button.onDidClick(() => {
-			setPerItemCollapsedState(!body.classList.contains('hidden'));
-			this._onDidChangeHeight.fire();
-		}));
-
-		itemWrapper.appendChild(header);
-		itemWrapper.appendChild(body);
-		this.wrapper.appendChild(itemWrapper);
-
-		setPerItemCollapsedState(this.perItemCollapsedMode);
-		this.textContainer = body;
-	}
-
-	private renderMarkdown(content: string): void {
+		const target = reuseExisting ? this.markdownResult?.element : undefined;
 		if (this.markdownResult) {
 			this.markdownResult.dispose();
 			this.markdownResult = undefined;
 		}
 
-		const cleanedContent = this.parseContent(content);
-		if (!cleanedContent) {
+		const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(contentToRender), {
+			fillInIncompleteTokens: true,
+			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+			codeBlockRendererSync: (_languageId, text, raw) => {
+				const codeElement = $('code');
+				codeElement.textContent = text;
+				return codeElement;
+			}
+		}, target));
+		this.markdownResult = rendered;
+		if (!target) {
+			clearNode(this.textContainer);
+			this.textContainer.appendChild(rendered.element);
+		}
+	}
+
+	private setDropdownClickable(clickable: boolean): void {
+		if (this._collapseButton) {
+			this._collapseButton.element.style.pointerEvents = clickable ? 'auto' : 'none';
+		}
+
+		if (!clickable && this.streamingCompleted) {
+			super.setTitle(this.lastExtractedTitle ?? this.currentTitle);
+		}
+	}
+
+	private updateDropdownClickability(): void {
+		if (!this.wrapper) {
 			return;
 		}
 
-		clearNode(this.textContainer);
-		this.markdownResult = this._register(this.markdownRendererService.render(new MarkdownString(cleanedContent)));
-		this.textContainer.appendChild(this.markdownResult.element);
+		if (this.wrapper.children.length > 1 || this.toolInvocationCount > 0) {
+			this.setDropdownClickable(true);
+			return;
+		}
+
+		const contentWithoutTitle = this.currentThinkingValue.trim();
+		const titleToCompare = this.lastExtractedTitle ?? this.currentTitle;
+
+		const stripMarkdown = (text: string) => {
+			return text
+				.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').replace(/`(.+?)`/g, '$1').trim();
+		};
+
+		const strippedContent = stripMarkdown(contentWithoutTitle);
+		const shouldDisable = !strippedContent || strippedContent === titleToCompare;
+		this.setDropdownClickable(!shouldDisable);
 	}
 
 	public resetId(): void {
@@ -265,115 +244,264 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public updateThinking(content: IChatThinkingPart): void {
+		// If disposed, ignore late updates coming from renderer diffing
+		if (this._store.isDisposed) {
+			return;
+		}
+		this.content = content;
 		const raw = extractTextFromPart(content);
-		const next = this.parseContent(raw);
+		const next = raw;
 		if (next === this.currentThinkingValue) {
 			return;
 		}
+		const previousValue = this.currentThinkingValue;
+		const reuseExisting = !!(this.markdownResult && next.startsWith(previousValue) && next.length > previousValue.length);
 		this.currentThinkingValue = next;
-		this.renderMarkdown(next);
+		this.renderMarkdown(next, reuseExisting);
 
-		if (this.fixedScrollingMode) {
-			const container = this.fixedScrollViewport ?? this.textContainer;
-			if (container) {
-				container.scrollTop = container.scrollHeight;
-			}
+		if (this.fixedScrollingMode && this.wrapper) {
+			this.wrapper.scrollTop = this.wrapper.scrollHeight;
 		}
 
 		const extractedTitle = extractTitleFromThinkingContent(raw);
+		if (extractedTitle && extractedTitle !== this.currentTitle) {
+			if (!this.extractedTitles.includes(extractedTitle)) {
+				this.extractedTitles.push(extractedTitle);
+			}
+			this.lastExtractedTitle = extractedTitle;
+		}
+
 		if (!extractedTitle || extractedTitle === this.currentTitle) {
 			return;
 		}
-		this.lastExtractedTitle = extractedTitle;
 
-		if (this.fixedScrollingMode && this.headerButton) {
-			const label = localize('chat.thinking.fixed.progress.withHeader', 'Thinking: {0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
-			this.headerButton.label = label;
-		} else if (!this.perItemCollapsedMode) {
-			const label = localize('chat.thinking.progress.withHeader', '{0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
+		const label = this.lastExtractedTitle ?? '';
+		if (!this.fixedScrollingMode && !this._isExpanded.get()) {
 			this.setTitle(label);
-			this.currentTitle = label;
-		} else {
-			this.setTitle(this.lastExtractedTitle);
-			this.currentTitle = this.lastExtractedTitle;
 		}
+
+		this.updateDropdownClickability();
+	}
+
+	public getIsActive(): boolean {
+		return this.isActive;
+	}
+
+	public markAsInactive(): void {
+		this.isActive = false;
 	}
 
 	public finalizeTitleIfDefault(): void {
-		if (this.fixedScrollingMode) {
-			let finalLabel: string;
-			if (this.lastExtractedTitle) {
-				finalLabel = localize('chat.thinking.fixed.done.withHeader', '{0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
-			} else {
-				finalLabel = localize('chat.thinking.fixed.done.generic', 'Thought for a few seconds');
-			}
-			if (this.headerButton) {
-				this.headerButton.label = finalLabel;
-			}
-			if (this.statusIcon && this.fixedContainer) {
-				this.fixedContainer.classList.add('finished');
-				this.setFixedCollapsedState(true);
-				this.statusIcon.replaceChildren(dom.h(ThemeIcon.asCSSSelector(Codicon.check)).root);
-			}
+		this.wrapper.classList.remove('chat-thinking-streaming');
+		this.streamingCompleted = true;
 
-			this.currentTitle = finalLabel;
+		if (this._collapseButton) {
+			this._collapseButton.icon = Codicon.check;
+		}
 
-			if (this.fixedContainer) {
-				this.fixedContainer.classList.toggle('finished', true);
-				this.setFixedCollapsedState(true);
-			}
+		this.updateDropdownClickability();
+
+		if (this.content.generatedTitle) {
+			this.currentTitle = this.content.generatedTitle;
+			super.setTitle(this.content.generatedTitle);
 			return;
 		}
 
-		if (this.currentTitle === this.defaultTitle) {
-			const suffix = localize('chat.thinking.fixed.done.generic', 'Thought for a few seconds');
-			this.setTitle(suffix);
-			this.currentTitle = suffix;
+		const existingToolTitle = this.toolInvocations.find(t => t.generatedTitle)?.generatedTitle;
+		if (existingToolTitle) {
+			this.currentTitle = existingToolTitle;
+			this.content.generatedTitle = existingToolTitle;
+			super.setTitle(existingToolTitle);
+			return;
 		}
 
-		if (!this.fixedScrollingMode && this.statusIcon) {
-			this.statusIcon.replaceChildren(dom.h(ThemeIcon.asCSSSelector(Codicon.check)).root);
+		// case where we only have one dropdown in the thinking container and no thinking parts
+		if (this.toolInvocationCount === 1 && this.extractedTitles.length === 1 && this.currentToolCallLabel && this.currentThinkingValue.trim() === '') {
+			const title = this.currentToolCallLabel;
+			this.currentTitle = title;
+			this.setTitleWithWidgets(new MarkdownString(title), this.instantiationService, this.chatMarkdownAnchorService, this.chatContentMarkdownRenderer);
+			return;
+		}
+
+		// if exactly one actual extracted title and no tool invocations, use that as the final title.
+		if (this.extractedTitles.length === 1 && this.toolInvocationCount === 0) {
+			const title = this.extractedTitles[0];
+			this.currentTitle = title;
+			this.content.generatedTitle = title;
+			super.setTitle(title);
+			return;
+		}
+
+		const generateTitles = this.configurationService.getValue<boolean>(ChatConfiguration.ThinkingGenerateTitles) ?? true;
+		if (!generateTitles) {
+			this.setFallbackTitle();
+			return;
+		}
+
+		this.generateTitleViaLLM();
+	}
+
+	private setGeneratedTitleOnToolInvocations(title: string): void {
+		for (const toolInvocation of this.toolInvocations) {
+			toolInvocation.generatedTitle = title;
 		}
 	}
 
-	public appendItem(content: HTMLElement): void {
+	private async generateTitleViaLLM(): Promise<void> {
+		try {
+			let models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+			if (!models.length) {
+				models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
+			}
+			if (!models.length) {
+				this.setFallbackTitle();
+				return;
+			}
+
+			let context: string;
+			if (this.extractedTitles.length > 0) {
+				context = this.extractedTitles.join(', ');
+			} else {
+				context = this.currentThinkingValue.substring(0, 1000);
+			}
+
+			const prompt = `Summarize the following actions in 6-7 words using past tense. Be very concise - focus on the main action only. No subjects, quotes, or punctuation.
+
+			Examples:
+			- "Preparing to create new page file, Read HomePage.tsx, Creating new TypeScript file" → "Created new page file"
+			- "Searching for files, Reading configuration, Analyzing dependencies" → "Analyzed project structure"
+			- "Invoked terminal command, Checked build output, Fixed errors" → "Ran build and fixed errors"
+
+			Actions: ${context}`;
+
+			const response = await this.languageModelsService.sendChatRequest(
+				models[0],
+				new ExtensionIdentifier('core'),
+				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
+				{},
+				CancellationToken.None
+			);
+
+			let generatedTitle = '';
+			for await (const part of response.stream) {
+				if (Array.isArray(part)) {
+					for (const p of part) {
+						if (p.type === 'text') {
+							generatedTitle += p.value;
+						}
+					}
+				} else if (part.type === 'text') {
+					generatedTitle += part.value;
+				}
+			}
+
+			await response.result;
+			generatedTitle = generatedTitle.trim();
+
+			if (generatedTitle && !this._store.isDisposed) {
+				this.currentTitle = generatedTitle;
+				if (this._collapseButton) {
+					this._collapseButton.label = generatedTitle;
+				}
+				this.content.generatedTitle = generatedTitle;
+				this.setGeneratedTitleOnToolInvocations(generatedTitle);
+				return;
+			}
+		} catch (error) {
+			// fall through to default title
+		}
+
+		this.setFallbackTitle();
+	}
+
+	private setFallbackTitle(): void {
+		const finalLabel = this.toolInvocationCount > 0
+			? localize('chat.thinking.finished.withTools', 'Finished thinking and invoked {0} tool{1}', this.toolInvocationCount, this.toolInvocationCount === 1 ? '' : 's')
+			: localize('chat.thinking.finished', 'Finished Thinking');
+
+		this.currentTitle = finalLabel;
+		this.wrapper.classList.remove('chat-thinking-streaming');
+		this.streamingCompleted = true;
+
+		if (this._collapseButton) {
+			this._collapseButton.icon = Codicon.check;
+			this._collapseButton.label = finalLabel;
+		}
+
+		this.updateDropdownClickability();
+	}
+
+	public appendItem(content: HTMLElement, toolInvocationId?: string, toolInvocation?: IChatToolInvocation | IChatToolInvocationSerialized): void {
 		this.wrapper.appendChild(content);
-		if (this.fixedScrollingMode) {
-			const container = this.fixedScrollViewport ?? this.textContainer;
-			if (container) {
-				container.scrollTop = container.scrollHeight;
+		if (toolInvocationId) {
+			this.toolInvocationCount++;
+			let toolCallLabel: string;
+
+			if (toolInvocation?.invocationMessage) {
+				const message = typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : toolInvocation.invocationMessage.value;
+				toolCallLabel = message;
+			} else {
+				toolCallLabel = `Invoked \`${toolInvocationId}\``;
+			}
+
+			if (toolInvocation?.pastTenseMessage) {
+				this.currentToolCallLabel = typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value;
+			}
+
+			if (toolInvocation) {
+				this.toolInvocations.push(toolInvocation);
+			}
+
+			// Add tool call to extracted titles for LLM title generation
+			if (!this.extractedTitles.includes(toolCallLabel)) {
+				this.extractedTitles.push(toolCallLabel);
+			}
+
+			if (!this.fixedScrollingMode && !this._isExpanded.get()) {
+				this.setTitle(toolCallLabel);
 			}
 		}
+		if (this.fixedScrollingMode && this.wrapper) {
+			this.wrapper.scrollTop = this.wrapper.scrollHeight;
+		}
+		this.updateDropdownClickability();
 	}
 
 	// makes a new text container. when we update, we now update this container.
 	public setupThinkingContainer(content: IChatThinkingPart, context: IChatContentPartRenderContext) {
-		this.hasMultipleItems = true;
-		if (this.perItemCollapsedMode) {
-			this.createThinkingItemContainer();
-		} else {
-			this.textContainer = $('.chat-thinking-item.markdown-content');
-			this.wrapper.appendChild(this.textContainer);
+		// Avoid creating new containers after disposal
+		if (this._store.isDisposed) {
+			return;
 		}
-		this.id = content?.id;
-		this.updateThinking(content);
+		this.textContainer = $('.chat-thinking-item.markdown-content');
+		if (content.value) {
+			this.wrapper.appendChild(this.textContainer);
+			this.id = content.id;
+			this.updateThinking(content);
+		}
+		this.updateDropdownClickability();
 	}
 
-	protected override setTitle(title: string): void {
-		if (!this.perItemCollapsedMode && !this.fixedScrollingMode) {
-			super.setTitle(title);
+	protected override setTitle(title: string, omitPrefix?: boolean): void {
+		if (!title || this.context.element.isComplete) {
+			return;
 		}
-		if (this.headerButton) {
-			this.headerButton.label = title;
+
+		if (omitPrefix) {
+			this.setTitleWithWidgets(new MarkdownString(title), this.instantiationService, this.chatMarkdownAnchorService, this.chatContentMarkdownRenderer);
+			this.currentTitle = title;
+			return;
 		}
+		const thinkingLabel = `Thinking: ${title}`;
+		this.lastExtractedTitle = title;
+		this.currentTitle = thinkingLabel;
+		this.setTitleWithWidgets(new MarkdownString(thinkingLabel), this.instantiationService, this.chatMarkdownAnchorService, this.chatContentMarkdownRenderer);
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
-
-		// only need this check if we are adding tools into thinking dropdown.
-		// if (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') {
-		// 	return true;
-		// }
+		if (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') {
+			return true;
+		}
 
 		if (other.kind !== 'thinking') {
 			return false;

@@ -325,20 +325,20 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	getValue<T>(section: string): T;
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
-	getValue(arg1?: any, arg2?: any): any {
+	getValue(arg1?: unknown, arg2?: unknown): unknown {
 		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : undefined;
 		return this._configuration.getValue(section, overrides);
 	}
 
-	updateValue(key: string, value: any): Promise<void>;
+	updateValue(key: string, value: unknown): Promise<void>;
 	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
 	updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
-	async updateValue(key: string, value: unknown, arg3?: any, arg4?: any, options?: any): Promise<void> {
+	async updateValue(key: string, value: unknown, arg3?: unknown, arg4?: unknown, options?: IConfigurationUpdateOptions): Promise<void> {
 		const overrides: IConfigurationUpdateOverrides | undefined = isConfigurationUpdateOverrides(arg3) ? arg3
 			: isConfigurationOverrides(arg3) ? { resource: arg3.resource, overrideIdentifiers: arg3.overrideIdentifier ? [arg3.overrideIdentifier] : undefined } : undefined;
-		const target: ConfigurationTarget | undefined = overrides ? arg4 : arg3;
+		const target: ConfigurationTarget | undefined = (overrides ? arg4 : arg3) as ConfigurationTarget | undefined;
 		const targets: ConfigurationTarget[] = target ? [target] : [];
 
 		if (overrides?.overrideIdentifiers) {
@@ -997,7 +997,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return validWorkspaceFolders;
 	}
 
-	private async writeConfigurationValue(key: string, value: unknown, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options?: IConfigurationUpdateOverrides): Promise<void> {
+	private async writeConfigurationValue(key: string, value: unknown, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options?: IConfigurationUpdateOptions): Promise<void> {
 		if (!this.instantiationService) {
 			throw new Error('Cannot write configuration because the configuration service is not yet ready to accept writes.');
 		}
@@ -1081,7 +1081,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 	}
 
-	private deriveConfigurationTargets(key: string, value: unknown, inspect: IConfigurationValue<any>): ConfigurationTarget[] {
+	private deriveConfigurationTargets(key: string, value: unknown, inspect: IConfigurationValue<unknown>): ConfigurationTarget[] {
 		if (equals(value, inspect.value)) {
 			return [];
 		}
@@ -1374,7 +1374,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 	}
 
 	private async processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void> {
-		const overrides: IStringDictionary<any> = {};
+		const overrides: IStringDictionary<unknown> = {};
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
 		for (const property of properties) {
 			const schema = allProperties[property];

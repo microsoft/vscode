@@ -20,8 +20,7 @@
           "prompt"
         ],
         "extensions": [
-          ".prompt.md",
-          "copilot-instructions.md"
+          ".prompt.md"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -46,6 +45,9 @@
         "extensions": [
           ".agent.md",
           ".chatmode.md"
+        ],
+        "filenamePatterns": [
+          "**/.github/agents/*.md"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -81,37 +83,49 @@
     ],
     "configurationDefaults": {
       "[prompt]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       },
       "[instructions]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       },
       "[chatagent]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       }
     }
   },

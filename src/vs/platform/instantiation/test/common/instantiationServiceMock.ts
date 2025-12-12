@@ -5,8 +5,8 @@
 
 import * as sinon from 'sinon';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { SyncDescriptor } from '../../common/descriptors.js';
-import { ServiceIdentifier, ServicesAccessor } from '../../common/instantiation.js';
+import { SyncDescriptor, SyncDescriptor0 } from '../../common/descriptors.js';
+import { GetLeadingNonServiceArgs, ServiceIdentifier, ServicesAccessor } from '../../common/instantiation.js';
 import { InstantiationService, Trace } from '../../common/instantiationService.js';
 import { ServiceCollection } from '../../common/serviceCollection.js';
 
@@ -20,6 +20,7 @@ const isSinonSpyLike = (fn: Function): fn is sinon.SinonSpy => fn && 'callCount'
 export class TestInstantiationService extends InstantiationService implements IDisposable, ServicesAccessor {
 
 	private _servciesMap: Map<ServiceIdentifier<any>, any>;
+	private readonly _classStubs: Map<Function, any> = new Map();
 
 	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: TestInstantiationService, private _properDispose?: boolean) {
 		super(_serviceCollection, strict, parent);
@@ -31,14 +32,6 @@ export class TestInstantiationService extends InstantiationService implements ID
 		return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
 	}
 
-	public getIfExists<T>(service: ServiceIdentifier<T>): T | undefined {
-		try {
-			return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
-		} catch (e) {
-			return undefined;
-		}
-	}
-
 	public set<T>(service: ServiceIdentifier<T>, instance: T): T {
 		return <T>this._serviceCollection.set(service, instance);
 	}
@@ -47,10 +40,21 @@ export class TestInstantiationService extends InstantiationService implements ID
 		return <T>this._create(service, { mock: true });
 	}
 
-	public stub<T>(service: ServiceIdentifier<T>, ctor: Function): T;
-	public stub<T>(service: ServiceIdentifier<T>, obj: Partial<T>): T;
-	public stub<T, V>(service: ServiceIdentifier<T>, ctor: Function, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
-	public stub<T, V>(service: ServiceIdentifier<T>, obj: Partial<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	public stubInstance<T>(ctor: new (...args: any[]) => T, instance: Partial<T>): void {
+		this._classStubs.set(ctor, instance);
+	}
+
+	public override createInstance<T>(descriptor: SyncDescriptor0<T>): T;
+	public override createInstance<Ctor extends new (...args: any[]) => unknown, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
+	public override createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: unknown[]): unknown {
+		if (this._classStubs.has(ctorOrDescriptor)) {
+			return this._classStubs.get(ctorOrDescriptor);
+		}
+		return super.createInstance(ctorOrDescriptor, ...rest);
+	}
+
+	public stub<T>(service: ServiceIdentifier<T>, obj: Partial<NoInfer<T>> | Function): T;
+	public stub<T, V>(service: ServiceIdentifier<T>, obj: Partial<NoInfer<T>> | Function, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
 	public stub<T, V>(service: ServiceIdentifier<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
 	public stub<T>(serviceIdentifier: ServiceIdentifier<T>, arg2: any, arg3?: string, arg4?: any): sinon.SinonStub | sinon.SinonSpy {
 		const service = typeof arg2 !== 'string' ? arg2 : undefined;

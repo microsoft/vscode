@@ -52,12 +52,12 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashP
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
-import { ChatAgentLocation, ChatModeKind, ChatUnsupportedFileSchemes } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../common/constants.js';
 import { ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
+import { ChatSubmitAction, IChatExecuteActionContext } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { resizeImage } from '../imageUtils.js';
+import { resizeImage } from '../chatImageUtils.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
@@ -115,7 +115,7 @@ class SlashCommandCompletions extends Disposable {
 							range,
 							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
 						};
 					})
 				};
@@ -160,7 +160,7 @@ class SlashCommandCompletions extends Disposable {
 							filterText: `${chatAgentLeader}${c.command}`,
 							sortText: c.sortText ?? 'z'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
 						};
 					})
 				};
@@ -169,7 +169,7 @@ class SlashCommandCompletions extends Disposable {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'promptSlashCommands',
 			triggerCharacters: [chatSubcommandLeader],
-			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
 					return null;
@@ -192,7 +192,7 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const promptCommands = await this.promptsService.findPromptSlashCommands();
+				const promptCommands = await this.promptsService.getPromptSlashCommands(token);
 				if (promptCommands.length === 0) {
 					return null;
 				}
@@ -203,12 +203,12 @@ class SlashCommandCompletions extends Disposable {
 
 				return {
 					suggestions: promptCommands.map((c, i): CompletionItem => {
-						const label = `/${c.command}`;
-						const description = c.promptPath ? this.promptsService.getPromptLocationLabel(c.promptPath) : undefined;
+						const label = `/${c.name}`;
+						const description = c.description;
 						return {
 							label: { label, description },
 							insertText: `${label} `,
-							documentation: c.detail,
+							documentation: c.description,
 							range,
 							sortText: 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
@@ -605,7 +605,7 @@ class StartParameterizedPromptAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const fileService = accessor.get(IFileService);
 
-		const chatWidget = widgetService.lastFocusedWidget;
+		const chatWidget = await widgetService.revealWidget(true);
 		if (!chatWidget) {
 			return;
 		}
@@ -791,6 +791,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -972,7 +973,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		// HISTORY
 		// always take the last N items
 		for (const [i, item] of this.historyService.getHistory().entries()) {
-			if (!item.resource || seen.has(item.resource) || ChatUnsupportedFileSchemes.has(item.resource.scheme)) {
+			if (!item.resource || seen.has(item.resource) || !this.instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, item.resource!.scheme))) {
 				// ignore editors without a resource
 				continue;
 			}
@@ -994,7 +995,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		// RELATED FILES
 		if (widget.input.currentModeKind !== ChatModeKind.Ask && widget.viewModel && widget.viewModel.model.editingSession) {
-			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
+			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionResource, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
 			for (const relatedFileGroup of relatedFiles) {
 				for (const relatedFile of relatedFileGroup.files) {
 					if (!seen.has(relatedFile.uri)) {

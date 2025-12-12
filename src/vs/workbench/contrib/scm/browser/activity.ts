@@ -19,7 +19,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { getRepositoryResourceCount, getSCMRepositoryIcon } from './util.js';
+import { getRepositoryResourceCount, getSCMRepositoryIcon, getStatusBarCommandGenericName } from './util.js';
 import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Command } from '../../../../editor/common/languages.js';
@@ -147,21 +147,10 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		for (let index = 0; index < commands.length; index++) {
 			const command = commands[index];
 			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
-
-			// Get a repository agnostic name for the status bar action, derive this from the
-			// first command argument which is in the form of "<extension>.<command>/<number>"
-			let repoAgnosticActionName = '';
-			if (typeof command.arguments?.[0] === 'string') {
-				repoAgnosticActionName = command.arguments[0]
-					.substring(0, command.arguments[0].lastIndexOf('/'))
-					.replace(/^(?:git\.|remoteHub\.)/, '');
-				if (repoAgnosticActionName.length > 1) {
-					repoAgnosticActionName = repoAgnosticActionName[0].toLocaleUpperCase() + repoAgnosticActionName.slice(1);
-				}
-			}
+			const genericCommandName = getStatusBarCommandGenericName(command);
 
 			const statusbarEntry: IStatusbarEntry = {
-				name: localize('status.scm', "Source Control") + (repoAgnosticActionName ? ` ${repoAgnosticActionName}` : ''),
+				name: localize('status.scm', "Source Control") + (genericCommandName ? ` ${genericCommandName}` : ''),
 				text: command.title,
 				ariaLabel: tooltip,
 				tooltip,

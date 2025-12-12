@@ -88,7 +88,7 @@ export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandle
 
 		return new TMGrammarFactory({
 			logTrace: (msg: string) => {/* console.log(msg) */ },
-			logError: (msg: string, err: any) => console.error(msg, err),
+			logError: (msg: string, err: unknown) => console.error(msg, err),
 			readFile: (resource: URI) => this._host.$readFile(resource)
 		}, grammarDefinitions, vscodeTextmate, onigLib);
 	}

@@ -941,17 +941,17 @@ export enum TerminalCompletionItemKind {
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	label: string | CompletionItemLabel;
 	replacementRange: readonly [number, number];
-	icon?: ThemeIcon | undefined;
 	detail?: string | undefined;
 	documentation?: string | vscode.MarkdownString | undefined;
+	kind?: TerminalCompletionItemKind | undefined;
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
 
-	constructor(label: string | CompletionItemLabel, replacementRange: readonly [number, number], icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean) {
+	constructor(label: string | CompletionItemLabel, replacementRange: readonly [number, number], kind?: TerminalCompletionItemKind, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean) {
 		this.label = label;
 		this.replacementRange = replacementRange;
-		this.icon = icon;
+		this.kind = kind;
 		this.detail = detail;
 		this.documentation = documentation;
 		this.isFile = isFile;
@@ -3165,6 +3165,20 @@ export class ChatResponseMultiDiffPart {
 	}
 }
 
+export class ChatResponseExternalEditPart {
+	applied: Thenable<string>;
+	didGetApplied!: (value: string) => void;
+
+	constructor(
+		public uris: vscode.Uri[],
+		public callback: () => Thenable<unknown>,
+	) {
+		this.applied = new Promise<string>((resolve) => {
+			this.didGetApplied = resolve;
+		});
+	}
+}
+
 export class ChatResponseAnchorPart implements vscode.ChatResponseAnchorPart {
 	value: vscode.Uri | vscode.Location;
 	title?: string;
@@ -3238,10 +3252,12 @@ export class ChatResponseReferencePart {
 
 export class ChatResponseCodeblockUriPart {
 	isEdit?: boolean;
+	undoStopId?: string;
 	value: vscode.Uri;
-	constructor(value: vscode.Uri, isEdit?: boolean) {
+	constructor(value: vscode.Uri, isEdit?: boolean, undoStopId?: string) {
 		this.value = value;
 		this.isEdit = isEdit;
+		this.undoStopId = undoStopId;
 	}
 }
 
@@ -3354,6 +3370,7 @@ export class ChatToolInvocationPart {
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
 	fromSubAgent?: boolean;
+	presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 	constructor(toolName: string,
 		toolCallId: string,
@@ -3371,7 +3388,8 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly references: vscode.ChatPromptReference[],
 		readonly participant: string,
 		readonly toolReferences: vscode.ChatLanguageModelToolReference[],
-		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[]
+		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
+		readonly id?: string
 	) { }
 }
 
@@ -3408,6 +3426,10 @@ export enum ChatSessionStatus {
 	InProgress = 2
 }
 
+export class ChatSessionChangedFile {
+	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+}
+
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
@@ -3422,6 +3444,7 @@ export enum ChatResponseClearToPreviousToolInvocationReason {
 
 export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
 	constructor(
+		readonly editor: vscode.TextEditor,
 		readonly document: vscode.TextDocument,
 		readonly selection: vscode.Selection,
 		readonly wholeRange: vscode.Range,
@@ -3784,6 +3807,7 @@ export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 	toolResultMessage?: string | MarkdownString;
 	toolResultDetails?: Array<URI | Location>;
 	toolMetadata?: unknown;
+	hasError?: boolean;
 }
 
 export enum LanguageModelChatToolMode {
@@ -3867,6 +3891,7 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 		public headers: Record<string, string> = {},
 		public version?: string,
 		public metadata?: vscode.McpServerMetadata,
+		public authentication?: { providerId: string; scopes: string[] },
 	) { }
 }
 //#endregion

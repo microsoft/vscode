@@ -48,6 +48,7 @@ export class CodeCell extends Disposable {
 	private _collapsedExecutionIcon: CollapsedCodeCellExecutionIcon;
 	private _cellEditorOptions: CellEditorOptions;
 	private _useNewApproachForEditorLayout = true;
+	private _pointerDownInEditor = false;
 	private readonly _cellLayout: CodeCellLayout;
 	private readonly _debug: (output: string) => void;
 	constructor(
@@ -334,7 +335,7 @@ export class CodeCell extends Disposable {
 		this._register(this.templateData.editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
 				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
-					this.onCellEditorHeightChange(`onDidContentSizeChange: ${e.contentHeight}`);
+					this.onCellEditorHeightChange(`onDidContentSizeChange`);
 					this.adjustEditorPosition();
 				}
 			}
@@ -342,6 +343,10 @@ export class CodeCell extends Disposable {
 
 		if (this._useNewApproachForEditorLayout) {
 			this._register(this.templateData.editor.onDidScrollChange(e => {
+				// Option 4: Gate scroll-driven reactions during active drag-selection
+				if (this._pointerDownInEditor) {
+					return;
+				}
 				if (this._cellLayout.editorVisibility === 'Invisible' || !this.templateData.editor.hasTextFocus()) {
 					return;
 				}
@@ -376,6 +381,11 @@ export class CodeCell extends Disposable {
 				// nor if the text editor is not actually focused (e.g. inline chat is focused and modifying the cell content)
 				|| !this.templateData.editor.hasTextFocus()
 			) {
+				return;
+			}
+
+			// Option 3: Avoid relayouts during active pointer drag to prevent stuck selection mode
+			if (this._pointerDownInEditor && this._useNewApproachForEditorLayout) {
 				return;
 			}
 
@@ -423,7 +433,22 @@ export class CodeCell extends Disposable {
 			if (e.event.rightButton) {
 				e.event.preventDefault();
 			}
+
+			if (this._useNewApproachForEditorLayout) {
+				// Track pointer-down to gate layout behavior (options 3 & 4)
+				this._pointerDownInEditor = true;
+				this._cellLayout.setPointerDown(true);
+			}
 		}));
+
+		if (this._useNewApproachForEditorLayout) {
+			// Ensure we reset pointer-down even if mouseup lands outside the editor
+			const win = DOM.getWindow(this.notebookEditor.getDomNode());
+			this._register(DOM.addDisposableListener(win, 'mouseup', () => {
+				this._pointerDownInEditor = false;
+				this._cellLayout.setPointerDown(false);
+			}));
+		}
 	}
 
 	private shouldPreserveEditor() {
@@ -601,7 +626,7 @@ export class CodeCell extends Disposable {
 		}, true);
 	}
 
-	private onCellWidthChange(dbgReasonForChange: string): void {
+	private onCellWidthChange(dbgReasonForChange: CellLayoutChangeReason): void {
 		this._debug(`Cell Editor Width Change, ${dbgReasonForChange}, Content Height = ${this.templateData.editor.getContentHeight()}`);
 		const height = this.templateData.editor.getContentHeight();
 		if (this.templateData.editor.hasModel()) {
@@ -620,7 +645,7 @@ export class CodeCell extends Disposable {
 		this._cellLayout.layoutEditor(dbgReasonForChange);
 	}
 
-	private onCellEditorHeightChange(dbgReasonForChange: string): void {
+	private onCellEditorHeightChange(dbgReasonForChange: CellLayoutChangeReason): void {
 		const height = this.templateData.editor.getContentHeight();
 		if (!this.templateData.editor.hasModel()) {
 			this._debug(`Cell Editor Height Change without model, return (2), ContentHeight: ${height}, CodeCellLayoutInfo.EditorWidth ${this.viewCell.layoutInfo.editorWidth}, EditorLayoutInfo ${this.templateData.editor.getLayoutInfo()}`);
@@ -661,6 +686,8 @@ export class CodeCell extends Disposable {
 	}
 }
 
+type CellLayoutChangeReason = 'nbLayoutChange' | 'nbDidScroll' | 'viewCellLayoutChange' | 'init' | 'onDidChangeCursorSelection' | 'onDidContentSizeChange' | 'onDidResolveTextModel';
+
 export class CodeCellLayout {
 	private _editorVisibility?: 'Full' | 'Top Clipped' | 'Bottom Clipped' | 'Full (Small Viewport)' | 'Invisible';
 	public get editorVisibility() {
@@ -673,6 +700,7 @@ export class CodeCellLayout {
 	public _previousScrollBottom?: number;
 	public _lastChangedEditorScrolltop?: number;
 	private _initialized: boolean = false;
+	private _pointerDown: boolean = false;
 	constructor(
 		private readonly _enabled: boolean,
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -681,6 +709,10 @@ export class CodeCellLayout {
 		private readonly _logService: { debug: (output: string) => void },
 		private readonly _initialEditorDimension: IDimension
 	) {
+	}
+
+	public setPointerDown(isDown: boolean) {
+		this._pointerDown = isDown;
 	}
 	/**
 	 * Dynamically lays out the code cell's Monaco editor to simulate a "sticky" run/exec area while
@@ -755,7 +787,7 @@ export class CodeCellLayout {
 	 *   │ (Outputs region begins at outputContainerOffset below input area)                │
 	 *   └──────────────────────────────────────────────────────────────────────────────────┘
 	 */
-	public layoutEditor(reason: string) {
+	public layoutEditor(reason: CellLayoutChangeReason): void {
 		if (!this._enabled) {
 			return;
 		}
@@ -773,6 +805,9 @@ export class CodeCellLayout {
 
 		const editor = this.templateData.editor;
 		const editorLayout = this.templateData.editor.getLayoutInfo();
+		// If we've already initialized once, we should use the viewCell layout info for editor width.
+		// E.g. when resizing VS Code window or notebook editor (horizontal space changes).
+		const editorWidth = this._initialized && (reason === 'nbLayoutChange' || reason === 'viewCellLayoutChange') ? this.viewCell.layoutInfo.editorWidth : editorLayout.width;
 		const editorHeight = this.viewCell.layoutInfo.editorHeight;
 		const scrollTop = this.notebookEditor.scrollTop;
 		const elementTop = this.notebookEditor.getAbsoluteTopOfElement(this.viewCell);
@@ -831,16 +866,17 @@ export class CodeCellLayout {
 		this._logService.debug(`=> scrollTop = ${scrollTop}, top = ${top}`);
 		this._logService.debug(`=> cellTopMargin = ${CELL_TOP_MARGIN}, cellBottomMargin = ${this.viewCell.layoutInfo.topMargin}, cellOutline = ${CELL_OUTLINE_WIDTH}`);
 		this._logService.debug(`=> scrollBottom: ${scrollBottom}, editBottom: ${editorBottom}, viewport: ${viewportHeight}, scroll: ${scrollDirection}, contOffset: ${outputContainerOffset})`);
-		this._logService.debug(`=> Editor Height = ${height}px, Width: ${editorLayout.width}px, Initial Width: ${this._initialEditorDimension.width}, EditorScrollTop = ${editorScrollTop}px, StatusbarHeight = ${STATUSBAR_HEIGHT}, lineHeight = ${this.notebookEditor.getLayoutInfo().fontInfo.lineHeight}`);
+		this._logService.debug(`=> Editor Height = ${height}px, Width: ${editorWidth}px, Initial Width: ${this._initialEditorDimension.width}, EditorScrollTop = ${editorScrollTop}px, StatusbarHeight = ${STATUSBAR_HEIGHT}, lineHeight = ${this.notebookEditor.getLayoutInfo().fontInfo.lineHeight}`);
 
 		try {
 			this._isUpdatingLayout = true;
 			element.style.top = `${top}px`;
 			editor.layout({
-				width: this._initialized ? editorLayout.width : this._initialEditorDimension.width,
+				width: this._initialized ? editorWidth : this._initialEditorDimension.width,
 				height
 			}, true);
-			if (editorScrollTop >= 0) {
+			// Option 3: Avoid programmatic scrollTop changes while user is actively dragging selection
+			if (!this._pointerDown && editorScrollTop >= 0) {
 				this._lastChangedEditorScrolltop = editorScrollTop;
 				editor.setScrollTop(editorScrollTop);
 			}

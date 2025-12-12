@@ -11,6 +11,7 @@ import * as extHostProtocol from './extHost.protocol.js';
 import { NotebookEdit, TextEdit } from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';
 import { asArray } from '../../../base/common/arrays.js';
+import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 
 export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape {
 
@@ -53,7 +54,7 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 			location: internalRequest.location,
 			chatRequestId: internalRequest.chatRequestId,
 			chatRequestModel: internalRequest.chatRequestModel,
-			chatSessionId: internalRequest.chatSessionId,
+			chatSessionId: internalRequest.chatSessionResource ? LocalChatSessionUri.parseLocalSessionId(URI.revive(internalRequest.chatSessionResource)) : undefined,
 			codeBlocks: internalRequest.codeBlocks.map(block => {
 				return {
 					code: block.code,

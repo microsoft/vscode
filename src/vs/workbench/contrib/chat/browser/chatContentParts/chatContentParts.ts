@@ -6,6 +6,8 @@
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
+import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
 
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement | undefined;
@@ -37,4 +39,9 @@ export interface IChatContentPartRenderContext {
 	readonly content: ReadonlyArray<IChatRendererContent>;
 	readonly contentIndex: number;
 	readonly preceedingContentParts: ReadonlyArray<IChatContentPart>;
+	readonly editorPool: EditorPool;
+	readonly codeBlockStartIndex: number;
+	readonly diffEditorPool: DiffEditorPool;
+	readonly codeBlockModelCollection: CodeBlockModelCollection;
+	currentWidth(): number;
 }

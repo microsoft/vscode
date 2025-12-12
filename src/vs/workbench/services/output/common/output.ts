@@ -119,7 +119,7 @@ export interface IOutputService {
 	/**
 	 * Save the logs to a file.
 	 */
-	saveOutputAs(...channels: IOutputChannelDescriptor[]): Promise<void>;
+	saveOutputAs(outputPath?: URI, ...channels: IOutputChannelDescriptor[]): Promise<void>;
 
 	/**
 	 * Checks if the log level can be set for the given channel.

@@ -30,8 +30,11 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	readonly onDidChangeValue = Event.fromObservable(this._value, this._store);
 	readonly onDidChangeActive = Event.fromObservable(this._activeItems, this._store);
 
-	private readonly _onDidChangeCheckedLeafItems = new Emitter<T[]>();
+	private readonly _onDidChangeCheckedLeafItems = this._register(new Emitter<T[]>());
 	readonly onDidChangeCheckedLeafItems: Event<T[]> = this._onDidChangeCheckedLeafItems.event;
+
+	private readonly _onDidChangeCheckboxState = this._register(new Emitter<T>());
+	readonly onDidChangeCheckboxState: Event<T> = this._onDidChangeCheckboxState.event;
 
 	readonly onDidAccept: Event<void>;
 
@@ -40,6 +43,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		this.onDidAccept = ui.onDidAccept;
 		this._registerAutoruns();
 		this._register(ui.tree.onDidChangeCheckedLeafItems(e => this._onDidChangeCheckedLeafItems.fire(e as T[])));
+		this._register(ui.tree.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e.item as T)));
 		// Sync active items with tree focus changes
 		this._register(ui.tree.tree.onDidChangeFocus(e => {
 			this._activeItems.set(ui.tree.getActiveItems() as T[], undefined);
@@ -75,7 +79,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	}
 
 	// TODO: Fix the any casting
-	// eslint-disable-next-line local/code-no-any-casts
+	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 	get checkedLeafItems(): readonly T[] { return this.ui.tree.getCheckedLeafItems() as any as readonly T[]; }
 
 	setItemTree(itemTree: T[]): void {

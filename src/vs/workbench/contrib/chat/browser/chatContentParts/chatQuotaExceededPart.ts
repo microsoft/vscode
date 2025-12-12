@@ -104,7 +104,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			this._onDidChangeHeight.fire();
 
 			this._register(retryButton.onDidClick(() => {
-				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
+				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
 				if (!widget) {
 					return;
 				}

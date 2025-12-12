@@ -313,6 +313,10 @@ export class SequencerByKey<TKey> {
 		return newPromise;
 	}
 
+	peek(key: TKey): Promise<unknown> | undefined {
+		return this.promiseMap.get(key) || undefined;
+	}
+
 	keys(): IterableIterator<TKey> {
 		return this.promiseMap.keys();
 	}
@@ -923,6 +927,12 @@ export class ResourceQueue implements IDisposable {
 }
 
 export type Task<T = void> = () => (Promise<T> | T);
+
+/**
+ * Wrap a type in an optional promise. This can be useful to avoid the runtime
+ * overhead of creating a promise.
+ */
+export type MaybePromise<T> = Promise<T> | T;
 
 /**
  * Processes tasks in the order they were scheduled.
@@ -1647,8 +1657,8 @@ export class TaskSequentializer {
 			this._queued = {
 				run,
 				promise,
-				promiseResolve: promiseResolve!,
-				promiseReject: promiseReject!
+				promiseResolve,
+				promiseReject
 			};
 		}
 
@@ -2418,6 +2428,42 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 				emitter.emitOne(mapFn(item));
 			}
 		});
+	}
+
+	public static tee<T>(iterable: AsyncIterable<T>): [AsyncIterableProducer<T>, AsyncIterableProducer<T>] {
+		let emitter1: AsyncIterableEmitter<T> | undefined;
+		let emitter2: AsyncIterableEmitter<T> | undefined;
+
+		const defer = new DeferredPromise<void>();
+
+		const start = async () => {
+			if (!emitter1 || !emitter2) {
+				return; // not yet ready
+			}
+			try {
+				for await (const item of iterable) {
+					emitter1.emitOne(item);
+					emitter2.emitOne(item);
+				}
+			} catch (err) {
+				emitter1.reject(err);
+				emitter2.reject(err);
+			} finally {
+				defer.complete();
+			}
+		};
+
+		const p1 = new AsyncIterableProducer<T>(async (emitter) => {
+			emitter1 = emitter;
+			start();
+			return defer.p;
+		});
+		const p2 = new AsyncIterableProducer<T>(async (emitter) => {
+			emitter2 = emitter;
+			start();
+			return defer.p;
+		});
+		return [p1, p2];
 	}
 
 	public map<R>(mapFn: (item: T) => R): AsyncIterableProducer<R> {

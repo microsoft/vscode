@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatViewId, IChatWidget, showChatView } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { OS } from '../../../../../base/common/platform.js';
@@ -16,7 +16,6 @@ import { PromptsType, PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promp
 import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
 import { UILabelProvider } from '../../../../../base/common/keybindingLabels.js';
 import { ICommandAction } from '../../../../../platform/action/common/action.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { PromptFilePickers } from './pickers/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
@@ -29,7 +28,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -132,10 +131,9 @@ abstract class RunPromptBaseAction extends Action2 {
 		inNewChat: boolean,
 		accessor: ServicesAccessor,
 	): Promise<IChatWidget | undefined> {
-		const viewsService = accessor.get(IViewsService);
 		const commandService = accessor.get(ICommandService);
 		const promptsService = accessor.get(IPromptsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const widgetService = accessor.get(IChatWidgetService);
 
 		resource ||= getActivePromptFileUri(accessor);
 		assertDefined(
@@ -147,9 +145,9 @@ abstract class RunPromptBaseAction extends Action2 {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 
-		const widget = await showChatView(viewsService, layoutService);
+		const widget = await widgetService.revealWidget();
 		if (widget) {
-			widget.setInput(`/${await promptsService.getPromptCommandName(resource)}`);
+			widget.setInput(`/${await promptsService.getPromptSlashCommandName(resource, CancellationToken.None)}`);
 			// submit the prompt immediately
 			await widget.acceptInput();
 		}
@@ -208,11 +206,10 @@ class RunSelectedPromptAction extends Action2 {
 	public override async run(
 		accessor: ServicesAccessor,
 	): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
 		const commandService = accessor.get(ICommandService);
 		const instaService = accessor.get(IInstantiationService);
 		const promptsService = accessor.get(IPromptsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const widgetService = accessor.get(IChatWidgetService);
 
 		const pickers = instaService.createInstance(PromptFilePickers);
 
@@ -234,9 +231,9 @@ class RunSelectedPromptAction extends Action2 {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 
-		const widget = await showChatView(viewsService, layoutService);
+		const widget = await widgetService.revealWidget();
 		if (widget) {
-			widget.setInput(`/${await promptsService.getPromptCommandName(promptFile)}`);
+			widget.setInput(`/${await promptsService.getPromptSlashCommandName(promptFile, CancellationToken.None)}`);
 			// submit the prompt immediately
 			await widget.acceptInput();
 			widget.focusInput();

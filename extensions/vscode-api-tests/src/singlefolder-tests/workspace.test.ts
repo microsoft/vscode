@@ -1138,7 +1138,7 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(e.files[1].toString(), file2.toString());
 	});
 
-	test.skip('issue #107739 - Redo of rename Java Class name has no effect', async () => { // https://github.com/microsoft/vscode/issues/254042
+	test('issue #107739 - Redo of rename Java Class name has no effect', async () => { // https://github.com/microsoft/vscode/issues/254042
 		const file = await createRandomFile('hello');
 		const fileName = basename(file.fsPath);
 
@@ -1149,7 +1149,7 @@ suite('vscode API - workspace', () => {
 			const we = new vscode.WorkspaceEdit();
 			we.insert(file, new vscode.Position(0, 5), '2');
 			we.renameFile(file, newFile);
-			await vscode.workspace.applyEdit(we);
+			assert.ok(await vscode.workspace.applyEdit(we));
 		}
 
 		// show the new document
@@ -1177,40 +1177,6 @@ suite('vscode API - workspace', () => {
 			assert.strictEqual(document.isDirty, true);
 		}
 
-	});
-
-	test.skip('issue #110141 - TextEdit.setEndOfLine applies an edit and invalidates redo stack even when no change is made', async () => {
-		const file = await createRandomFile('hello\nworld');
-
-		const document = await vscode.workspace.openTextDocument(file);
-		await vscode.window.showTextDocument(document);
-
-		// apply edit
-		{
-			const we = new vscode.WorkspaceEdit();
-			we.insert(file, new vscode.Position(0, 5), '2');
-			await vscode.workspace.applyEdit(we);
-		}
-
-		// check the document
-		{
-			assert.strictEqual(document.getText(), 'hello2\nworld');
-			assert.strictEqual(document.isDirty, true);
-		}
-
-		// apply no-op edit
-		{
-			const we = new vscode.WorkspaceEdit();
-			we.set(file, [vscode.TextEdit.setEndOfLine(vscode.EndOfLine.LF)]);
-			await vscode.workspace.applyEdit(we);
-		}
-
-		// undo
-		{
-			await vscode.commands.executeCommand('undo');
-			assert.strictEqual(document.getText(), 'hello\nworld');
-			assert.strictEqual(document.isDirty, false);
-		}
 	});
 
 	test('SnippetString in WorkspaceEdit', async function (): Promise<any> {

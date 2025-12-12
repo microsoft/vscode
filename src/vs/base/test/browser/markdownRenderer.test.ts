@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable no-restricted-syntax */
+
 import assert from 'assert';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
@@ -220,6 +222,36 @@ suite('MarkdownRenderer', () => {
 		});
 	});
 
+	suite('Alerts', () => {
+		test('Should render alert with data-severity attribute and icon', () => {
+			const markdown = new MarkdownString('> [!NOTE]\n> This is a note alert', { supportAlertSyntax: true });
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote[data-severity="note"]');
+			assert.ok(blockquote, 'Should have blockquote with data-severity="note"');
+			assert.ok(result.innerHTML.includes('This is a note alert'), 'Should contain alert text');
+			assert.ok(result.innerHTML.includes('codicon-info'), 'Should contain info icon');
+		});
+
+		test('Should render regular blockquote when supportAlertSyntax is disabled', () => {
+			const markdown = new MarkdownString('> [!NOTE]\n> This should be a regular blockquote');
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote');
+			assert.ok(blockquote, 'Should have blockquote');
+			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
+			assert.ok(result.innerHTML.includes('[!NOTE]'), 'Should contain literal [!NOTE] text');
+		});
+
+		test('Should not transform blockquotes without alert syntax', () => {
+			const markdown = new MarkdownString('> This is a regular blockquote', { supportAlertSyntax: true });
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote');
+			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
+		});
+	});
+
 	test('npm Hover Run Script not working #90855', function () {
 
 		const md: IMarkdownString = JSON.parse('{"value":"[Run Script](command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22fsPath%22%3A%22c%3A%5C%5CUsers%5C%5Cjrieken%5C%5CCode%5C%5C_sample%5C%5Cfoo%5C%5Cpackage.json%22%2C%22_sep%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22path%22%3A%22%2Fc%3A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22echo%22%7D \\"Run the script as a task\\")","supportThemeIcons":false,"isTrusted":true,"uris":{"__uri_e49443":{"$mid":1,"fsPath":"c:\\\\Users\\\\jrieken\\\\Code\\\\_sample\\\\foo\\\\package.json","_sep":1,"external":"file:///c%3A/Users/jrieken/Code/_sample/foo/package.json","path":"/c:/Users/jrieken/Code/_sample/foo/package.json","scheme":"file"},"command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22fsPath%22%3A%22c%3A%5C%5CUsers%5C%5Cjrieken%5C%5CCode%5C%5C_sample%5C%5Cfoo%5C%5Cpackage.json%22%2C%22_sep%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22path%22%3A%22%2Fc%3A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22echo%22%7D":{"$mid":1,"path":"npm.runScriptFromHover","scheme":"command","query":"{\\"documentUri\\":\\"__uri_e49443\\",\\"script\\":\\"echo\\"}"}}}');
@@ -267,14 +299,14 @@ suite('MarkdownRenderer', () => {
 	});
 
 	test('Should support relative links if baseurl is set', () => {
-		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a>`, {
+		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a> <img src="cat.gif">`, {
 			isTrusted: true,
 			supportHtml: true,
 		});
 		md.baseUri = URI.parse('https://example.com/path/');
 
 		const result = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a> <img src="https://example.com/path/cat.gif"></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {

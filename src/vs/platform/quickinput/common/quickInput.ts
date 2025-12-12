@@ -1007,7 +1007,7 @@ export interface IQuickInputService {
 	/**
 	 * Cancels quick input and closes it.
 	 */
-	cancel(): Promise<void>;
+	cancel(reason?: QuickInputHideReason): Promise<void>;
 
 	/**
 	 * Toggles hover for the current quick input item
@@ -1119,6 +1119,11 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	 * An event that is fired when the selected items change.
 	 */
 	readonly onDidChangeCheckedLeafItems: Event<ReadonlyArray<T>>;
+
+	/**
+	 * An event that is fired when the checkbox state of an item changes.
+	 */
+	readonly onDidChangeCheckboxState: Event<T>;
 
 	/**
 	 * An event that is fired when an item button is triggered.

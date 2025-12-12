@@ -32,8 +32,8 @@ export class PromptHeaderDefinitionProvider implements DefinitionProvider {
 			return undefined;
 		}
 
-		const parser = this.promptsService.getParsedPromptFile(model);
-		const header = parser.header;
+		const promptAST = this.promptsService.getParsedPromptFile(model);
+		const header = promptAST.header;
 		if (!header) {
 			return undefined;
 		}

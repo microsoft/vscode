@@ -62,8 +62,10 @@ export class ChatEditingModifiedNotebookDiff {
 			removed,
 			identical: added === 0 && removed === 0,
 			quitEarly: false,
+			isFinal: true,
 			modifiedURI: this.modified.snapshotUri,
 			originalURI: this.original.snapshotUri,
+			isBusy: false,
 		};
 	}
 }

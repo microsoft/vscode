@@ -435,7 +435,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	getPosition(): IOverlayWidgetPosition | null {
 		return {
 			preference: OverlayWidgetPositionPreference.TOP_CENTER,
-			stackOridinal: 10,
+			stackOrdinal: 10,
 		};
 	}
 

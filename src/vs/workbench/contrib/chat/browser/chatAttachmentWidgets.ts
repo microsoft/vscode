@@ -17,6 +17,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -41,6 +42,7 @@ import { FileKind, IFileService } from '../../../../platform/files/common/files.
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
@@ -51,9 +53,11 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
+import { toHistoryItemHoverContent } from '../../scm/browser/scmHistory.js';
 import { getHistoryItemEditorTitle } from '../../scm/browser/util.js';
+import { ITerminalService } from '../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../common/chatService.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry } from '../common/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { getCleanPromptName } from '../common/promptSyntax/config/promptFileLocations.js';
@@ -91,6 +95,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		protected readonly currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService protected readonly openerService: IOpenerService,
+		@ITerminalService protected readonly terminalService?: ITerminalService,
 	) {
 		super();
 		this.element = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
@@ -160,6 +165,11 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			return;
 		}
 
+		if (resource.scheme === Schemas.vscodeTerminal) {
+			this.terminalService?.openResource(resource);
+			return;
+		}
+
 		// Open file in editor
 		const openTextEditorOptions: ITextEditorOptions | undefined = range ? { selection: range } : undefined;
 		const options: OpenInternalOptions = {
@@ -170,6 +180,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 				...openOptions.editorOptions
 			},
 		};
+
 		await this.openerService.open(resource, options);
 		this._onDidOpen.fire();
 		this.element.focus();
@@ -247,6 +258,115 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 			content: hoverElement,
 		}, commonHoverLifecycleOptions));
 	}
+}
+
+
+export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidget {
+
+	constructor(
+		attachment: ITerminalVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@ITerminalService protected override readonly terminalService: ITerminalService,
+	) {
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, terminalService);
+
+		const ariaLabel = localize('chat.terminalCommand', "Terminal command, {0}", attachment.command);
+		const clickHandler = () => this.openResource(attachment.resource, { editorOptions: { preserveFocus: true } }, false, undefined);
+
+		this._register(createTerminalCommandElements(this.element, attachment, ariaLabel, this.hoverService, clickHandler));
+
+		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, async (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				dom.EventHelper.stop(e, true);
+				await clickHandler();
+			}
+		}));
+
+		this.attachClearButton();
+	}
+}
+
+const enum TerminalConstants {
+	MaxAttachmentOutputLineCount = 5,
+	MaxAttachmentOutputLineLength = 80,
+}
+
+function createTerminalCommandElements(
+	element: HTMLElement,
+	attachment: ITerminalVariableEntry,
+	ariaLabel: string,
+	hoverService: IHoverService,
+	clickHandler: () => Promise<void>
+): IDisposable {
+	const disposable = new DisposableStore();
+	element.ariaLabel = ariaLabel;
+	element.style.cursor = 'pointer';
+
+	const terminalIconSpan = dom.$('span');
+	terminalIconSpan.classList.add(...ThemeIcon.asClassNameArray(Codicon.terminal));
+	const pillIcon = dom.$('div.chat-attached-context-pill', {}, terminalIconSpan);
+	const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.command);
+	element.appendChild(pillIcon);
+	element.appendChild(textLabel);
+
+	disposable.add(dom.addDisposableListener(element, dom.EventType.CLICK, e => {
+		e.preventDefault();
+		e.stopPropagation();
+		clickHandler();
+	}));
+
+	const hoverElement = dom.$('div.chat-attached-context-hover');
+	hoverElement.setAttribute('aria-label', ariaLabel);
+
+	const commandTitle = dom.$('div', {}, typeof attachment.exitCode === 'number'
+		? localize('chat.terminalCommandHoverCommandTitleExit', "Command: {0}, exit code: {1}", attachment.command, attachment.exitCode)
+		: localize('chat.terminalCommandHoverCommandTitle', "Command"));
+	commandTitle.classList.add('attachment-additional-info');
+	const commandBlock = dom.$('pre.chat-terminal-command-block');
+	hoverElement.append(commandTitle, commandBlock);
+
+	if (attachment.output && attachment.output.trim().length > 0) {
+		const outputTitle = dom.$('div', {}, localize('chat.terminalCommandHoverOutputTitle', "Output:"));
+		outputTitle.classList.add('attachment-additional-info');
+		const outputBlock = dom.$('pre.chat-terminal-command-output');
+		const fullOutputLines = attachment.output.split('\n');
+		const hoverOutputLines = [];
+		for (const line of fullOutputLines) {
+			if (hoverOutputLines.length >= TerminalConstants.MaxAttachmentOutputLineCount) {
+				hoverOutputLines.push('...');
+				break;
+			}
+			const trimmed = line.trim();
+			if (trimmed.length === 0) {
+				continue;
+			}
+			if (trimmed.length > TerminalConstants.MaxAttachmentOutputLineLength) {
+				hoverOutputLines.push(`${trimmed.slice(0, TerminalConstants.MaxAttachmentOutputLineLength)}...`);
+			} else {
+				hoverOutputLines.push(trimmed);
+			}
+		}
+		outputBlock.textContent = hoverOutputLines.join('\n');
+		hoverElement.append(outputTitle, outputBlock);
+	}
+
+	const hint = dom.$('div', {}, localize('chat.terminalCommandHoverHint', "Click to focus this command in the terminal."));
+	hint.classList.add('attachment-additional-info');
+	hoverElement.appendChild(hint);
+
+	disposable.add(hoverService.setupDelayedHover(element, {
+		...commonHoverOptions,
+		content: hoverElement,
+	}, commonHoverLifecycleOptions));
+
+	return disposable;
 }
 
 export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
@@ -348,6 +468,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
 
+		// eslint-disable-next-line no-restricted-syntax
 		const existingPill = element.querySelector('.chat-attached-context-pill');
 		if (existingPill) {
 			existingPill.replaceWith(pill);
@@ -369,6 +490,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			// reset to original icon on error or invalid image
 			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 			const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);
+			// eslint-disable-next-line no-restricted-syntax
 			const existingPill = element.querySelector('.chat-attached-context-pill');
 			if (existingPill) {
 				existingPill.replaceWith(pill);
@@ -793,6 +915,7 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IHoverService hoverService: IHoverService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService
@@ -804,12 +927,12 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		this.element.style.cursor = 'pointer';
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-		const historyItem = attachment.historyItem;
-		const hoverContent = historyItem.tooltip ?? historyItem.message;
+		const { content, disposables } = toHistoryItemHoverContent(markdownRendererService, attachment.historyItem, false);
 		this._store.add(hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
-			content: hoverContent,
+			content,
 		}, commonHoverLifecycleOptions));
+		this._store.add(disposables);
 
 		this._store.add(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
@@ -843,6 +966,7 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IHoverService hoverService: IHoverService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -854,12 +978,11 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-		const historyItem = attachment.historyItem;
-		const hoverContent = historyItem.tooltip ?? historyItem.message;
+		const { content, disposables } = toHistoryItemHoverContent(markdownRendererService, attachment.historyItem, false);
 		this._store.add(hoverService.setupDelayedHover(this.element, {
-			...commonHoverOptions,
-			content: hoverContent,
+			...commonHoverOptions, content,
 		}, commonHoverLifecycleOptions));
+		this._store.add(disposables);
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
 		this.attachClearButton();
@@ -1008,7 +1131,7 @@ function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService:
 	return resourceContextKey;
 }
 
-function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: any, updateContextKeys?: () => Promise<void>): IDisposable {
+function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: unknown, updateContextKeys?: () => Promise<void>): IDisposable {
 	const contextMenuService = accessor.get(IContextMenuService);
 	const menuService = accessor.get(IMenuService);
 

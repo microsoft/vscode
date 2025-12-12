@@ -115,12 +115,12 @@
 		"c": "module",
 		"t": "source.ruby meta.module.ruby keyword.control.module.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -297,12 +297,12 @@
 		"c": "class",
 		"t": "source.ruby meta.class.ruby keyword.control.class.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1375,12 +1375,12 @@
 		"c": "def",
 		"t": "source.ruby meta.function.method.with-arguments.ruby keyword.control.def.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1669,12 +1669,12 @@
 		"c": "super",
 		"t": "source.ruby keyword.control.pseudo-method.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -2047,12 +2047,12 @@
 		"c": "if",
 		"t": "source.ruby keyword.control.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -2243,12 +2243,12 @@
 		"c": "unless",
 		"t": "source.ruby keyword.control.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -3125,12 +3125,12 @@
 		"c": "if",
 		"t": "source.ruby keyword.control.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -3433,12 +3433,12 @@
 		"c": "else",
 		"t": "source.ruby keyword.control.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -3573,12 +3573,12 @@
 		"c": "end",
 		"t": "source.ruby keyword.control.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -4091,12 +4091,12 @@
 		"c": "end",
 		"t": "source.ruby keyword.control.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -4119,12 +4119,12 @@
 		"c": "end",
 		"t": "source.ruby keyword.control.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -4133,12 +4133,12 @@
 		"c": "end",
 		"t": "source.ruby keyword.control.ruby",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}

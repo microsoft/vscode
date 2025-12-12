@@ -251,6 +251,12 @@ export interface ICommandDetectionCapability {
 	 * always be present when running the _builtin_ SI scripts.
 	 */
 	setCommandLine(commandLine: string, isTrusted: boolean): void;
+	/**
+	 * Sets the command ID to use for the next command that starts.
+	 * This allows pre-assigning an ID before the shell sends the command start sequence,
+	 * which is useful for linking commands across renderer and ptyHost.
+	 */
+	setNextCommandId(command: string, commandId: string): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
@@ -291,6 +297,7 @@ interface IBaseTerminalCommand {
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
+	id: string | undefined;
 
 	// Optional serializable
 	cwd: string | undefined;

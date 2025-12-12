@@ -8,14 +8,14 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -52,6 +52,7 @@ export interface IChatMessageThinkingPart {
 	type: 'thinking';
 	value: string | string[];
 	id?: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 }
 
@@ -131,6 +132,7 @@ export interface IChatResponseToolUsePart {
 	type: 'tool_use';
 	name: string;
 	toolCallId: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: any;
 }
 
@@ -138,6 +140,7 @@ export interface IChatResponseThinkingPart {
 	type: 'thinking';
 	value: string | string[];
 	id?: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 }
 
@@ -203,18 +206,21 @@ export namespace ILanguageModelChatMetadata {
 
 export interface ILanguageModelChatResponse {
 	stream: AsyncIterable<IChatResponsePart | IChatResponsePart[]>;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	result: Promise<any>;
 }
 
 export interface ILanguageModelChatProvider {
 	readonly onDidChange: Event<void>;
 	provideLanguageModelChatInfo(options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
 export interface ILanguageModelChat {
 	metadata: ILanguageModelChatMetadata;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	sendChatRequest(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
@@ -229,6 +235,23 @@ export interface ILanguageModelChatSelector {
 	readonly extension?: ExtensionIdentifier;
 }
 
+
+export function isILanguageModelChatSelector(value: unknown): value is ILanguageModelChatSelector {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const obj = value as Record<string, unknown>;
+	return (
+		(obj.name === undefined || typeof obj.name === 'string') &&
+		(obj.id === undefined || typeof obj.id === 'string') &&
+		(obj.vendor === undefined || typeof obj.vendor === 'string') &&
+		(obj.version === undefined || typeof obj.version === 'string') &&
+		(obj.family === undefined || typeof obj.family === 'string') &&
+		(obj.tokens === undefined || typeof obj.tokens === 'number') &&
+		(obj.extension === undefined || typeof obj.extension === 'object')
+	);
+}
+
 export const ILanguageModelsService = createDecorator<ILanguageModelsService>('ILanguageModelsService');
 
 export interface ILanguageModelChatMetadataAndIdentifier {
@@ -241,7 +264,7 @@ export interface ILanguageModelsService {
 	readonly _serviceBrand: undefined;
 
 	// TODO @lramos15 - Make this a richer event in the future. Right now it just indicates some change happened, but not what
-	readonly onDidChangeLanguageModels: Event<void>;
+	readonly onDidChangeLanguageModels: Event<string>;
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void;
 
@@ -260,13 +283,15 @@ export interface ILanguageModelsService {
 
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable;
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	sendChatRequest(modelId: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 
 	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
-const languageModelChatProviderType: IJSONSchema = {
+const languageModelChatProviderType = {
 	type: 'object',
+	required: ['vendor', 'displayName'],
 	properties: {
 		vendor: {
 			type: 'string',
@@ -279,15 +304,15 @@ const languageModelChatProviderType: IJSONSchema = {
 		managementCommand: {
 			type: 'string',
 			description: localize('vscode.extension.contributes.languageModels.managementCommand', "A command to manage the language model chat provider, e.g. 'Manage Copilot models'. This is used in the chat model picker. If not provided, a gear icon is not rendered during vendor selection.")
+		},
+		when: {
+			type: 'string',
+			description: localize('vscode.extension.contributes.languageModels.when', "Condition which must be true to show this language model chat provider in the Manage Models list.")
 		}
 	}
-};
+} as const satisfies IJSONSchema;
 
-export interface IUserFriendlyLanguageModel {
-	vendor: string;
-	displayName: string;
-	managementCommand?: string;
-}
+export type IUserFriendlyLanguageModel = TypeFromJsonSchema<typeof languageModelChatProviderType>;
 
 export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
 	extensionPoint: 'languageModelChatProviders',
@@ -320,8 +345,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
 	private _modelPickerUserPreferences: Record<string, boolean> = {};
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
-	private readonly _onLanguageModelChange = this._store.add(new Emitter<void>());
-	readonly onDidChangeLanguageModels: Event<void> = this._onLanguageModelChange.event;
+	private readonly _contextKeyService: IContextKeyService;
+	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
+	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -332,6 +358,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
+		this._contextKeyService = _contextKeyService;
 		this._modelPickerUserPreferences = this._storageService.getObject<Record<string, boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
 		// TODO @lramos15 - Remove after a few releases, as this is just cleaning a bad storage state
 		const entitlementChangeHandler = () => {
@@ -406,12 +433,18 @@ export class LanguageModelsService implements ILanguageModelsService {
 		} else if (model.isUserSelectable !== showInModelPicker) {
 			this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
 		}
-		this._onLanguageModelChange.fire();
+		this._onLanguageModelChange.fire(model.vendor);
 		this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
 	}
 
 	getVendors(): IUserFriendlyLanguageModel[] {
-		return Array.from(this._vendors.values());
+		return Array.from(this._vendors.values()).filter(vendor => {
+			if (!vendor.when) {
+				return true; // No when clause means always visible
+			}
+			const whenClause = ContextKeyExpr.deserialize(vendor.when);
+			return whenClause ? this._contextKeyService.contextMatchesRules(whenClause) : false;
+		});
 	}
 
 	getLanguageModelIds(): string[] {
@@ -464,7 +497,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			} catch (error) {
 				this._logService.error(`[LM] Error resolving language models for vendor ${vendor}:`, error);
 			}
-			this._onLanguageModelChange.fire();
+			this._onLanguageModelChange.fire(vendor);
 		});
 	}
 
@@ -521,6 +554,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		});
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async sendChatRequest(modelId: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		const provider = this._providers.get(this._modelCache.get(modelId)?.vendor || '');
 		if (!provider) {

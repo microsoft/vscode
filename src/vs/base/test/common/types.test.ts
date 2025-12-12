@@ -905,4 +905,98 @@ suite('Types', () => {
 		assert.throws(() => types.validateConstraints(['2'], [types.isNumber]));
 		assert.throws(() => types.validateConstraints([1, 'test', true], [Number, String, Number]));
 	});
+
+	suite('hasKey', () => {
+		test('should return true when object has specified key', () => {
+			type A = { a: string };
+			type B = { b: number };
+			const obj: A | B = { a: 'test' };
+
+			assert(types.hasKey(obj, { a: true }));
+			// After this check, TypeScript knows obj is type A
+			assert.strictEqual(obj.a, 'test');
+		});
+
+		test('should return false when object does not have specified key', () => {
+			type A = { a: string };
+			type B = { b: number };
+			const obj: A | B = { b: 42 };
+
+			// @ts-expect-error
+			assert(!types.hasKey(obj, { a: true }));
+		});
+
+		test('should work with multiple keys', () => {
+			type A = { a: string; b: number };
+			type B = { c: boolean };
+			const obj: A | B = { a: 'test', b: 42 };
+
+			assert(types.hasKey(obj, { a: true, b: true }));
+			// After this check, TypeScript knows obj is type A
+			assert.strictEqual(obj.a, 'test');
+			assert.strictEqual(obj.b, 42);
+		});
+
+		test('should return false if any key is missing', () => {
+			type A = { a: string; b: number };
+			type B = { a: string };
+			const obj: A | B = { a: 'test' };
+
+			assert(!types.hasKey(obj, { a: true, b: true }));
+		});
+
+		test('should work with empty key object', () => {
+			type A = { a: string };
+			type B = { b: number };
+			const obj: A | B = { a: 'test' };
+
+			// Empty key object should return true (all zero keys exist)
+			assert(types.hasKey(obj, {}));
+		});
+
+		test('should work with complex union types', () => {
+			type TypeA = { kind: 'a'; value: string };
+			type TypeB = { kind: 'b'; count: number };
+			type TypeC = { kind: 'c'; items: string[] };
+
+			const objA: TypeA | TypeB | TypeC = { kind: 'a', value: 'hello' };
+			const objB: TypeA | TypeB | TypeC = { kind: 'b', count: 5 };
+
+			assert(types.hasKey(objA, { value: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objA, { count: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objA, { items: true }));
+
+			// @ts-expect-error
+			assert(!types.hasKey(objB, { value: true }));
+			// @ts-expect-error
+			assert(types.hasKey(objB, { count: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objB, { items: true }));
+		});
+
+		test('should handle objects with optional properties', () => {
+			type A = { a: string; b?: number };
+			type B = { c: boolean };
+			const obj1: A | B = { a: 'test', b: 42 };
+			const obj2: A | B = { a: 'test' };
+
+			assert(types.hasKey(obj1, { a: true }));
+			assert(types.hasKey(obj1, { b: true }));
+
+			assert(types.hasKey(obj2, { a: true }));
+			assert(!types.hasKey(obj2, { b: true }));
+		});
+
+		test('should work with nested objects', () => {
+			type A = { data: { nested: string } };
+			type B = { value: number };
+			const obj: A | B = { data: { nested: 'test' } };
+
+			assert(types.hasKey(obj, { data: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(obj, { value: true }));
+		});
+	});
 });

@@ -23,16 +23,16 @@ export interface ICommandService {
 	readonly _serviceBrand: undefined;
 	readonly onWillExecuteCommand: Event<ICommandEvent>;
 	readonly onDidExecuteCommand: Event<ICommandEvent>;
-	executeCommand<T = any>(commandId: string, ...args: unknown[]): Promise<T | undefined>;
+	executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined>;
 }
 
 export type ICommandsMap = Map<string, ICommand>;
 
-export type ICommandHandler<Args extends unknown[] = unknown[]> = (accessor: ServicesAccessor, ...args: Args) => void;
+export type ICommandHandler<Args extends unknown[] = unknown[], R = void> = (accessor: ServicesAccessor, ...args: Args) => R;
 
-export interface ICommand<Args extends unknown[] = unknown[]> {
+export interface ICommand<Args extends unknown[] = unknown[], R = void> {
 	id: string;
-	handler: ICommandHandler<Args>;
+	handler: ICommandHandler<Args, R>;
 	metadata?: ICommandMetadata | null;
 }
 

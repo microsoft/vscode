@@ -39,7 +39,6 @@ import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../cha
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ApplyCodeBlockOperation, InsertCodeBlockOperation } from './codeBlockOperations.js';
-import { stripCommentsForShellExecution } from '../../common/codeBlockCleaning.js';
 
 const shellLangIds = [
 	'fish',
@@ -86,6 +85,7 @@ abstract class ChatCodeBlockAction extends Action2 {
 		return this.runWithContext(accessor, context);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	abstract runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext): any;
 }
 
@@ -161,7 +161,7 @@ export function registerChatCodeBlockActions() {
 				chatService.notifyUserAction({
 					agentId: context.element.agent?.id,
 					command: context.element.slashCommand?.name,
-					sessionId: context.element.sessionId,
+					sessionResource: context.element.sessionResource,
 					requestId: context.element.requestId,
 					result: context.element.result,
 					action: {
@@ -228,7 +228,7 @@ export function registerChatCodeBlockActions() {
 			chatService.notifyUserAction({
 				agentId: element.agent?.id,
 				command: element.slashCommand?.name,
-				sessionId: element.sessionId,
+				sessionResource: element.sessionResource,
 				requestId: element.requestId,
 				result: element.result,
 				action: {
@@ -387,7 +387,7 @@ export function registerChatCodeBlockActions() {
 				chatService.notifyUserAction({
 					agentId: context.element.agent?.id,
 					command: context.element.slashCommand?.name,
-					sessionId: context.element.sessionId,
+					sessionResource: context.element.sessionResource,
 					requestId: context.element.requestId,
 					result: context.element.result,
 					action: {
@@ -483,13 +483,13 @@ export function registerChatCodeBlockActions() {
 				terminalGroupService.showPanel(true);
 			}
 
-			terminal.runCommand(stripCommentsForShellExecution(context.code), false);
+			terminal.runCommand(context.code, false);
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
 					agentId: context.element.agent?.id,
 					command: context.element.slashCommand?.name,
-					sessionId: context.element.sessionId,
+					sessionResource: context.element.sessionResource,
 					requestId: context.element.requestId,
 					result: context.element.result,
 					action: {
@@ -605,7 +605,7 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 		code: editor.getValue(),
 		languageId: editor.getModel()!.getLanguageId(),
 		codemapperUri: codeBlockInfo.codemapperUri,
-		chatSessionId: codeBlockInfo.chatSessionId,
+		chatSessionResource: codeBlockInfo.chatSessionResource,
 	};
 }
 
@@ -622,6 +622,7 @@ export function registerChatCodeCompareBlockActions() {
 			return this.runWithContext(accessor, context);
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		abstract runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): any;
 	}
 
@@ -642,6 +643,7 @@ export function registerChatCodeCompareBlockActions() {
 			});
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 
 			const instaService = accessor.get(IInstantiationService);
@@ -694,6 +696,7 @@ export function registerChatCodeCompareBlockActions() {
 			});
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 			const instaService = accessor.get(IInstantiationService);
 			const editor = instaService.createInstance(DefaultChatTextEditor);

@@ -340,7 +340,7 @@ export class MouseHandler extends ViewEventHandler {
 				this._mouseDownOperation.start(t.type, e, pointerId);
 				e.preventDefault();
 			}
-		} else if (targetIsWidget && this.viewHelper.shouldSuppressMouseDownOnWidget(<string>t.detail)) {
+		} else if (targetIsWidget && this.viewHelper.shouldSuppressMouseDownOnWidget(t.detail)) {
 			focus();
 			e.preventDefault();
 		}

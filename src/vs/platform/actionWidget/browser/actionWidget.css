@@ -11,11 +11,11 @@
 	z-index: 40;
 	display: block;
 	width: 100%;
-	border: 1px solid var(--vscode-menu-border) !important;
+	border: 1px solid var(--vscode-editorHoverWidget-border) !important;
 	border-radius: 5px;
 	background-color: var(--vscode-menu-background);
 	color: var(--vscode-menu-foreground);
-	padding: 4px;
+	padding: 4px 0;
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
@@ -57,10 +57,11 @@
 /** Styles for each row in the list element **/
 .action-widget .monaco-list .monaco-list-row {
 	padding: 0 4px 0 4px;
+	margin: 0 4px 0 4px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
-	width: 100%;
+	width: calc(100% - 8px);
 	border-radius: 3px;
 }
 
@@ -85,9 +86,10 @@
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
-	padding: 0;
-	margin: 4px 0 0 0;
+	margin: 4px 0px;
+	width: 100%;
 	cursor: default;
+	-webkit-user-select: none;
 	user-select: none;
 	border-radius: 0;
 }
@@ -155,8 +157,8 @@
 
 .action-widget .action-widget-action-bar {
 	background-color: var(--vscode-menu-background);
-	border-top: 1px solid var(--vscode-menu-border);
-	margin-top: 2px;
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+	margin-top: 4px;
 }
 
 .action-widget .action-widget-action-bar::before {
@@ -166,7 +168,8 @@
 }
 
 .action-widget .action-widget-action-bar .actions-container {
-	padding: 4px 8px 2px 24px;
+	padding: 4px 8px 2px 28px;
+	width: auto;
 }
 
 .action-widget-action-bar .action-label {
@@ -194,4 +197,11 @@
 .action-widget .monaco-list .monaco-list-row .description {
 	opacity: 0.7;
 	margin-left: 0.5em;
+}
+
+.action-widget-delegate-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 12px;
 }

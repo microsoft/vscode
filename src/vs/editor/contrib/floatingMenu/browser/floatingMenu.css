@@ -21,7 +21,7 @@
 		border-radius: 2px;
 	}
 
-	.action-item > .action-label.codicon {
+	.action-item > .action-label.codicon, .action-item .codicon {
 		color: var(--vscode-button-foreground);
 	}
 
@@ -39,6 +39,6 @@
 	}
 
 	.action-item .action-label.separator {
-		background-color: var(--vscode-menu-separatorBackground);
+		background-color: var(--vscode-button-separator);
 	}
 }

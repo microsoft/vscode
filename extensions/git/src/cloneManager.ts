@@ -27,15 +27,7 @@ export class CloneManager {
 		private readonly telemetryReporter: TelemetryReporter,
 		private readonly repositoryCache: RepositoryCache) { }
 
-	clone(url?: string, options: CloneOptions = {}) {
-		const cachedRepository = url ? this.repositoryCache.get(url) : undefined;
-		if (url && cachedRepository && (cachedRepository.length > 0)) {
-			return this.tryOpenExistingRepository(cachedRepository, url, options.postCloneAction, options.parentPath, options.ref);
-		}
-		return this.cloneRepository(url, options.parentPath, options);
-	}
-
-	private async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: ApiPostCloneAction } = {}): Promise<string | undefined> {
+	async clone(url?: string, options: CloneOptions = {}) {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
 				providerLabel: provider => l10n.t('Clone from {0}', provider.name),
@@ -56,6 +48,14 @@ export class CloneManager {
 
 		url = url.trim().replace(/^git\s+clone\s+/, '');
 
+		const cachedRepository = this.repositoryCache.get(url);
+		if (cachedRepository && (cachedRepository.length > 0)) {
+			return this.tryOpenExistingRepository(cachedRepository, url, options.postCloneAction, options.parentPath, options.ref);
+		}
+		return this.cloneRepository(url, options.parentPath, options);
+	}
+
+	private async cloneRepository(url: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: ApiPostCloneAction } = {}): Promise<string | undefined> {
 		if (!parentPath) {
 			const config = workspace.getConfiguration('git');
 			let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
@@ -144,14 +144,14 @@ export class CloneManager {
 		}
 
 		if (action === undefined) {
-			let message = l10n.t('Would you like to open the cloned repository?');
+			let message = l10n.t('Would you like to open the repository?');
 			const open = l10n.t('Open');
 			const openNewWindow = l10n.t('Open in New Window');
 			const choices = [open, openNewWindow];
 
 			const addToWorkspace = l10n.t('Add to Workspace');
 			if (workspace.workspaceFolders) {
-				message = l10n.t('Would you like to open the cloned repository, or add it to the current workspace?');
+				message = l10n.t('Would you like to open the repository, or add it to the current workspace?');
 				choices.push(addToWorkspace);
 			}
 
