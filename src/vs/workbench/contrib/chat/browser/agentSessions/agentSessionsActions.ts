@@ -86,7 +86,7 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 			f1: true,
 		});
 	}
-	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+	async run(accessor: ServicesAccessor) {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const dialogService = accessor.get(IDialogService);
 

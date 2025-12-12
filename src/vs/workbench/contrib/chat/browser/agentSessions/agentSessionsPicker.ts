@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { openSession } from './agentSessionsOpener.js';
 import { IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
@@ -18,6 +19,16 @@ import { AgentSessionsSorter } from './agentSessionsViewer.js';
 interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
 }
+
+const archiveButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.archive),
+	tooltip: localize('archiveSession', "Archive")
+};
+
+const unarchiveButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.inbox),
+	tooltip: localize('unarchiveSession', "Unarchive")
+};
 
 export class AgentSessionsPicker {
 
@@ -54,6 +65,14 @@ export class AgentSessionsPicker {
 			if (!e.inBackground) {
 				picker.hide();
 			}
+		}));
+
+		disposables.add(picker.onDidTriggerItemButton(e => {
+			const session = e.item.session;
+			const newArchivedState = !session.isArchived();
+			session.setArchived(newArchivedState);
+
+			picker.items = this.createPickerItems();
 		}));
 
 		disposables.add(picker.onDidHide(() => disposables.dispose()));
@@ -128,6 +147,7 @@ export class AgentSessionsPicker {
 			tooltip: session.tooltip,
 			description,
 			iconClass: ThemeIcon.asClassName(session.icon),
+			buttons: [session.isArchived() ? unarchiveButton : archiveButton],
 			session
 		};
 	}
