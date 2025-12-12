@@ -30,6 +30,8 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AgentSessionsPicker } from './agentSessionsPicker.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 
 export class PickAgentSessionAction extends Action2 {
 	constructor() {
@@ -169,7 +171,7 @@ abstract class BaseAgentSessionAction extends Action2 {
 		}
 	}
 
-	abstract runWithSession(session: IAgentSession, accessor: ServicesAccessor): void;
+	abstract runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> | void;
 }
 
 //#region Session Title Actions
@@ -235,6 +237,33 @@ export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
 
 	runWithSession(session: IAgentSession): void {
 		session.setArchived(false);
+	}
+}
+
+export class RenameAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.rename',
+			title: localize2('rename', "Rename..."),
+			icon: Codicon.edit,
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				group: 'edit',
+				order: 3,
+				when: ChatContextKeys.agentSessionType.isEqualTo(localChatSessionType)
+			}
+		});
+	}
+
+	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const chatService = accessor.get(IChatService);
+
+		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
+		if (title) {
+			chatService.setChatSessionTitle(session.resource, title);
+		}
 	}
 }
 
