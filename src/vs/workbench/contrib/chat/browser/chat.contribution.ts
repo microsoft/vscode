@@ -563,7 +563,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.codeBlock.showProgressAnimation.description', "When applying edits, show a progress animation in the code block pill. If disabled, shows the progress percentage instead."),
 			default: true,
-			tags: ['experimental'],
+			tags: ['experimental', 'advanced'],
 		},
 		['chat.statusWidget.sku']: {
 			type: 'string',
@@ -575,7 +575,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.statusWidget.enabled.description', "Controls which user type should see the status widget in new chat sessions when quota is exceeded."),
 			default: undefined,
 			tags: ['experimental'],
-			included: false,
 			experiment: {
 				mode: 'auto'
 			}
