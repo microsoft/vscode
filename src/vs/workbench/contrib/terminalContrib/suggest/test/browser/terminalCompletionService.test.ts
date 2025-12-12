@@ -582,14 +582,14 @@ suite('TerminalCompletionService', () => {
 				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/folder2/'), isDirectory: true }
 			];
-			const result = await terminalCompletionService.resolveResources(resourceOptions, 'test/', 5, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, './test/', 7, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: './test/', detail: '/test/' },
 				{ label: './test/folder1/', detail: '/test/folder1/' },
 				{ label: './test/folder2/', detail: '/test/folder2/' },
 				{ label: './test/../', detail: '/' }
-			], { replacementRange: [0, 5] });
+			], { replacementRange: [0, 7] });
 		});
 	});
 
