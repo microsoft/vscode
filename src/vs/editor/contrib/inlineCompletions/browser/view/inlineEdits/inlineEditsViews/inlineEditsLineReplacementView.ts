@@ -24,7 +24,7 @@ import { ILanguageService } from '../../../../../../common/languages/language.js
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel/inlineDecorations.js';
 import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedChangedLineBackgroundColor, originalBackgroundColor } from '../theme.js';
+import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, modifiedChangedLineBackgroundColor, originalBackgroundColor } from '../theme.js';
 import { getEditorValidOverlayRect, getPrefixTrim, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsLineReplacementView extends Disposable implements IInlineEditsView {
@@ -232,7 +232,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).background.translateX(-contentLeft).withMargin(separatorWidth)),
-								borderRadius: '3px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 
 								border: `${separatorWidth + 1}px solid ${asCssVariable(editorBackground)}`,
 								boxSizing: 'border-box',
@@ -244,7 +244,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).background.translateX(-contentLeft)),
-								borderRadius: '3px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 
 								border: getEditorBlendedColor(originalBorderColor, this._themeService).map(c => `1px solid ${c.toString()}`),
 								pointerEvents: 'none',
@@ -257,7 +257,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).lowerBackground.translateX(-contentLeft)),
-								borderRadius: '0 0 3px 3px',
+								borderRadius: `0 0 ${INLINE_EDITS_BORDER_RADIUS}px ${INLINE_EDITS_BORDER_RADIUS}px`,
 								background: asCssVariable(editorBackground),
 								boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
 								border: `1px solid ${asCssVariable(modifiedBorderColor)}`,
@@ -289,7 +289,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 								fontWeight: this._editor.getOption(EditorOption.fontWeight),
 								pointerEvents: 'none',
 								whiteSpace: 'nowrap',
-								borderRadius: '0 0 3px 3px',
+								borderRadius: `0 0 ${INLINE_EDITS_BORDER_RADIUS}px ${INLINE_EDITS_BORDER_RADIUS}px`,
 								overflow: 'hidden',
 							}
 						}, [...modifiedLineElements.lines]),
