@@ -227,7 +227,10 @@ export interface IChatSessionsService {
 
 	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
-	isChatSessionInProgressStatus(state: ChatSessionStatus): boolean;
+}
+
+export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {
+	return state === ChatSessionStatus.InProgress || state === ChatSessionStatus.NeedsInput;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
