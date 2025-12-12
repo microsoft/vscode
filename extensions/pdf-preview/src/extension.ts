@@ -89,6 +89,28 @@ export function activate(context: vscode.ExtensionContext) {
 		previewManager.activePreview?.openFind();
 	}));
 
+	disposables.push(vscode.commands.registerCommand('pdfPreview.selectZoom', async () => {
+		const options = [
+			{ label: '50%', value: 0.5 },
+			{ label: '75%', value: 0.75 },
+			{ label: '100%', value: 1 },
+			{ label: '125%', value: 1.25 },
+			{ label: '150%', value: 1.5 },
+			{ label: '200%', value: 2 },
+			{ label: '300%', value: 3 },
+			{ label: vscode.l10n.t('Fit Page'), value: 'fit' as const },
+			{ label: vscode.l10n.t('Fit Width'), value: 'fitWidth' as const },
+		];
+
+		const selected = await vscode.window.showQuickPick(options, {
+			placeHolder: vscode.l10n.t('Select zoom level')
+		});
+
+		if (selected) {
+			zoomStatusBarEntry.setScale(selected.value);
+		}
+	}));
+
 	// Register public API command for LaTeX/Typst integration
 	disposables.push(vscode.commands.registerCommand('pdfPreview.showPdf', async (options: ShowPdfOptions) => {
 		return previewManager.showPdfPreview(options);
