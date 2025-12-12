@@ -24,3 +24,4 @@ product.overrides.json
 .vscode-test
 vscode-telemetry-docs/
 resources/extensions/latex-workshop
+extensions/pdf-preview/tomoki1207
