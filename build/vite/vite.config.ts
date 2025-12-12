@@ -6,7 +6,7 @@
 import { createLogger, defineConfig, Plugin } from 'vite';
 import * as path from 'path';
 import { join } from 'path';
-import { readFileSync, statSync } from 'fs';
+import { statSync } from 'fs';
 /// @ts-ignore
 import { urlToEsmPlugin } from './rollup-url-to-module-plugin/index.mjs';
 import { pathToFileURL } from 'url';
@@ -53,14 +53,10 @@ function injectBuiltinExtensionsPlugin(): Plugin {
 	const prebuiltExtensionsLocation = '.build/builtInExtensions';
 	async function getScannedBuiltinExtensions(vsCodeDevLocation: string) {
 		// use the build utility as to not duplicate the code
+		// scanBuiltinExtensions now reads excludedExtensions.jsonc by default when exclude parameter is undefined
 		const extensionsUtil = await import(pathToFileURL(path.join(vsCodeDevLocation, 'build', 'lib', 'extensions.js')).toString());
-		// Read excluded extensions from JSONC (single source of truth)
-		const jsoncParser = await import('jsonc-parser');
-		const excludedExtensionsPath = path.join(vsCodeDevLocation, 'build', 'lib', 'excludedExtensions.jsonc');
-		const excludedExtensionsContent = readFileSync(excludedExtensionsPath, 'utf8');
-		const excludedExtensions: string[] = jsoncParser.parse(excludedExtensionsContent, [], { allowTrailingComma: true }) as string[];
-		const localExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, 'extensions'), excludedExtensions);
-		const prebuiltExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, prebuiltExtensionsLocation), excludedExtensions);
+		const localExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, 'extensions'));
+		const prebuiltExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, prebuiltExtensionsLocation));
 		for (const ext of localExtensions) {
 			let browserMain = ext.packageJSON.browser;
 			if (browserMain) {

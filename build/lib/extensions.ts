@@ -511,13 +511,28 @@ export interface IScannedBuiltinExtension {
 	changelogPath?: string;
 }
 
-export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] = []): IScannedBuiltinExtension[] {
+export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] | undefined = undefined): IScannedBuiltinExtension[] {
 	const scannedExtensions: IScannedBuiltinExtension[] = [];
+
+	// If exclude is not provided, read from excludedExtensions.jsonc (default behavior)
+	// This ensures that even when called without exclude parameter (e.g., by @vscode/test-web),
+	// excluded extensions are still filtered out
+	let effectiveExclude: string[] = exclude ?? [];
+	if (exclude === undefined) {
+		try {
+			const excludedExtensionsPath = path.join(import.meta.dirname, 'excludedExtensions.jsonc');
+			const excludedExtensionsContent = fs.readFileSync(excludedExtensionsPath, 'utf8');
+			effectiveExclude = jsoncParser.parse(excludedExtensionsContent, [], { allowTrailingComma: true }) as string[];
+		} catch (err) {
+			// If we can't read the exclusion list, use empty array (no exclusions)
+			effectiveExclude = [];
+		}
+	}
 
 	try {
 		const extensionsFolders = fs.readdirSync(extensionsRoot);
 		for (const extensionFolder of extensionsFolders) {
-			if (exclude.indexOf(extensionFolder) >= 0) {
+			if (effectiveExclude.indexOf(extensionFolder) >= 0) {
 				continue;
 			}
 			const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
