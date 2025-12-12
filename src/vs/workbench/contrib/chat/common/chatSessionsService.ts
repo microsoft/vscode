@@ -79,9 +79,6 @@ export interface IChatSessionItem {
 		deletions: number;
 	} | readonly IChatSessionFileChange[];
 	archived?: boolean;
-	// TODO:@osortega remove once the single-view is default
-	/** @deprecated */
-	history?: boolean;
 }
 
 export interface IChatSessionFileChange {
@@ -147,11 +144,6 @@ export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
 	readonly onDidChangeChatSessionItems: Event<void>;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
-	provideNewChatSessionItem?(options: {
-		request: IChatAgentRequest;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		metadata?: any;
-	}, token: CancellationToken): Promise<IChatSessionItem>;
 }
 
 export interface IChatSessionContentProvider {
