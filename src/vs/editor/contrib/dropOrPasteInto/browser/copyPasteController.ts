@@ -184,6 +184,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			performance.mark('code/CopyPasteController/handleCopy');
 		}
 		if (!this._editor.hasTextFocus()) {
+			performance.mark('code/CopyPasteController/handleCopy/earlyReturn1');
 			return;
 		}
 
@@ -193,12 +194,14 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._clipboardService.clearInternalState?.();
 
 		if (!e.clipboardData || !this.isPasteAsEnabled()) {
+			performance.mark('code/CopyPasteController/handleCopy/earlyReturn2');
 			return;
 		}
 
 		const model = this._editor.getModel();
 		const selections = this._editor.getSelections();
 		if (!model || !selections?.length) {
+			performance.mark('code/CopyPasteController/handleCopy/earlyReturn3');
 			return;
 		}
 
@@ -208,6 +211,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const wasFromEmptySelection = selections.length === 1 && selections[0].isEmpty();
 		if (wasFromEmptySelection) {
 			if (!enableEmptySelectionClipboard) {
+				performance.mark('code/CopyPasteController/handleCopy/earlyReturn4');
 				return;
 			}
 
@@ -228,6 +232,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			.filter(x => !!x.prepareDocumentPaste);
 		if (!providers.length) {
 			this.setCopyMetadata(e.clipboardData, { defaultPastePayload });
+			performance.mark('code/CopyPasteController/handleCopy/earlyReturn5');
 			return;
 		}
 
@@ -270,6 +275,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			performance.mark('code/CopyPasteController/handlePaste');
 		}
 		if (!e.clipboardData || !this._editor.hasTextFocus()) {
+			performance.mark('code/CopyPasteController/handlePaste/earlyReturn1');
 			return;
 		}
 
@@ -280,6 +286,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const model = this._editor.getModel();
 		const selections = this._editor.getSelections();
 		if (!selections?.length || !model) {
+			performance.mark('code/CopyPasteController/handlePaste/earlyReturn2');
 			return;
 		}
 
@@ -287,6 +294,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			this._editor.getOption(EditorOption.readOnly) // Never enabled if editor is readonly.
 			|| (!this.isPasteAsEnabled() && !this._pasteAsActionContext) // Or feature disabled (but still enable if paste was explicitly requested)
 		) {
+			performance.mark('code/CopyPasteController/handlePaste/earlyReturn3');
 			return;
 		}
 
@@ -329,6 +337,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				e.preventDefault();
 				e.stopImmediatePropagation();
 			}
+			performance.mark('code/CopyPasteController/handlePaste/earlyReturn4');
 			return;
 		}
 
