@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Event, PauseableEmitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
@@ -20,7 +20,7 @@ import { isNotebookFileMatch } from '../notebookSearch/notebookSearchModelBase.j
 
 
 export abstract class TextSearchHeadingImpl<QueryType extends ITextSearchQuery> extends Disposable implements ITextSearchHeading {
-	protected _onChange = this._register(new Emitter<IChangeEvent>());
+	protected _onChange = this._register(new PauseableEmitter<IChangeEvent>());
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
 	private _isDirty = false;
 	private _showHighlights: boolean = false;
@@ -298,7 +298,12 @@ export class PlainTextSearchHeadingImpl extends TextSearchHeadingImpl<ITextQuery
 
 		return promise.then(() => {
 			this.replacingAll = false;
-			this.clear();
+			this._onChange.pause();
+			try {
+				this.matches().forEach(fileMatch => fileMatch.forceUpdateMatches());
+			} finally {
+				this._onChange.resume();
+			}
 		}, () => {
 			this.replacingAll = false;
 		});
