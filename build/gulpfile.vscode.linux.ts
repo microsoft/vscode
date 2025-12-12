@@ -8,7 +8,7 @@ import replace from 'gulp-replace';
 import rename from 'gulp-rename';
 import es from 'event-stream';
 import vfs from 'vinyl-fs';
-import { rimraf } from './lib/util.ts';
+import { getDate, rimraf } from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/task.ts';
 import packageJson from '../package.json' with { type: 'json' };
@@ -23,7 +23,7 @@ const exec = promisify(cp.exec);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 
-const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
+const linuxPackageRevision = Math.floor(getDate().getTime() / 1000);
 
 function getDebPackageArch(arch: string): string {
 	switch (arch) {
