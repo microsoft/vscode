@@ -746,7 +746,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		// height math
 		// Cap list content height to a reasonable maximum (12 items worth), matching suggestWidget behavior
 		const cappedListContentHeight = Math.min(this._list.contentHeight, info.itemHeight * 12);
-		const fullHeight = info.statusBarHeight + cappedListContentHeight + this._messageElement.clientHeight + info.borderHeight;
+		const fullHeight = info.statusBarHeight + cappedListContentHeight + info.borderHeight;
 		const minHeight = info.itemHeight + info.statusBarHeight;
 		// const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
 		// const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
