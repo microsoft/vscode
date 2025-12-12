@@ -1,0 +1,117 @@
+{
+	"Document setup": {
+		"prefix": ["doc", "document"],
+		"body": [
+			"#set page(\"a4\")",
+			"#set text(size: 11pt, font: \"Times New Roman\")",
+			"",
+			"$0"
+		],
+		"description": "Create a new Typst document with basic page and text settings"
+	},
+	"Figure": {
+		"prefix": ["fig", "figure"],
+		"body": [
+			"#figure(",
+			"  image(\"${1:path/to/image.png}\"),",
+			"  caption: [${2:Caption text}]",
+			")"
+		],
+		"description": "Insert a figure with image and caption"
+	},
+	"Table": {
+		"prefix": ["tab", "table"],
+		"body": [
+			"#table(",
+			"  columns: (${1:2}),",
+			"  ${2:..}",
+			")"
+		],
+		"description": "Insert a table"
+	},
+	"Math block": {
+		"prefix": ["$$", "math"],
+		"body": [
+			"$ ${1:formula} $"
+		],
+		"description": "Insert inline math formula"
+	},
+	"Math display": {
+		"prefix": ["math-display", "display"],
+		"body": [
+			"$ ${1:formula} $"
+		],
+		"description": "Insert display math formula"
+	},
+	"Code block": {
+		"prefix": ["raw", "code"],
+		"body": [
+			"```${1:lang}",
+			"${2:code}",
+			"```"
+		],
+		"description": "Insert a raw code block"
+	},
+	"List": {
+		"prefix": ["list", "ul"],
+		"body": [
+			"- ${1:First item}",
+			"- ${2:Second item}",
+			"- ${3:Third item}",
+			"$0"
+		],
+		"description": "Insert an unordered list"
+	},
+	"Numbered list": {
+		"prefix": ["enum", "ol"],
+		"body": [
+			"+ ${1:First item}",
+			"+ ${2:Second item}",
+			"+ ${3:Third item}",
+			"$0"
+		],
+		"description": "Insert a numbered list"
+	},
+	"Heading 1": {
+		"prefix": ["h1", "heading1"],
+		"body": [
+			"= ${1:Heading}"
+		],
+		"description": "Insert a level 1 heading"
+	},
+	"Heading 2": {
+		"prefix": ["h2", "heading2"],
+		"body": [
+			"== ${1:Heading}"
+		],
+		"description": "Insert a level 2 heading"
+	},
+	"Heading 3": {
+		"prefix": ["h3", "heading3"],
+		"body": [
+			"=== ${1:Heading}"
+		],
+		"description": "Insert a level 3 heading"
+	},
+	"Bold text": {
+		"prefix": ["bold", "strong"],
+		"body": [
+			"*${1:${TM_SELECTED_TEXT:text}}*$0"
+		],
+		"description": "Insert bold text"
+	},
+	"Italic text": {
+		"prefix": ["italic", "em"],
+		"body": [
+			"_${1:${TM_SELECTED_TEXT:text}}_$0"
+		],
+		"description": "Insert italic text"
+	},
+	"Underline text": {
+		"prefix": ["underline", "ul"],
+		"body": [
+			"#underline[${1:${TM_SELECTED_TEXT:text}}]$0"
+		],
+		"description": "Insert underlined text"
+	}
+}

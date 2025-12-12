@@ -331,7 +331,9 @@
             "items": {
               "type": "string"
             },
-            "default": ["key"],
+            "default": [
+              "key"
+            ],
             "description": "%latex.bibtex.format.sortBy.description%",
             "scope": "window"
           },
@@ -780,5 +782,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.18.10"
-  }
+  },
+  "extensionDependencies": [
+    "vscode.pdf-preview"
+  ]
 }

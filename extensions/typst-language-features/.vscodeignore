@@ -1,0 +1,10 @@
+**/*.ts
+**/*.map
+**/tsconfig.json
+**/tsconfig.browser.json
+**/*.webpack.config.js
+.vscode/
+node_modules/
+src/
+!dist/**
+!out/**

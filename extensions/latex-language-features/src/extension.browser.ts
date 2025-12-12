@@ -42,7 +42,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	// Initialize LaTeX service
 	latexService = new LatexService(logger, context);
-	const previewManager = new PreviewManager(context, logger);
+	const previewManager = new PreviewManager(logger);
 	latexService.setPreviewManager(previewManager);
 	context.subscriptions.push(latexService, previewManager);
 

@@ -1,0 +1,28 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ES2022",
+		"moduleResolution": "bundler",
+		"lib": [
+			"ES2022",
+			"WebWorker"
+		],
+		"strict": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"declaration": false,
+		"sourceMap": true,
+		"outDir": "./dist/browser",
+		"rootDir": "./src",
+		"esModuleInterop": true,
+		"skipLibCheck": true
+	},
+	"include": [
+		"src/**/*.ts"
+	],
+	"exclude": [
+		"node_modules"
+	]
+}

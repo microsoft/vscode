@@ -848,9 +848,23 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
+			const editorService = accessor.get(IEditorService);
+
+			// Detect project type based on active editor
+			const activeEditor = editorService.activeEditor;
+			const isTypstProject = activeEditor?.resource?.path.toLowerCase().endsWith('.typ') ?? false;
 
 			// Use chat command to open and send the query
-			const query = `Analyze this LaTeX project to generate or update \`.instructions.md\` for guiding AI agents working with LaTeX documents.
+			const query = isTypstProject ? this._getTypstInstructionsQuery() : this._getLatexInstructionsQuery();
+
+			await commandService.executeCommand('workbench.action.chat.open', {
+				mode: 'agent',
+				query: query,
+			});
+		}
+
+		private _getLatexInstructionsQuery(): string {
+			return `Analyze this LaTeX project to generate or update \`.instructions.md\` for guiding AI agents working with LaTeX documents.
 
 Focus on discovering the essential knowledge that would help an AI agent be immediately productive with this LaTeX project. Consider aspects like:
 - Document structure and organization - main .tex files, chapter organization, how the project is structured across multiple files
@@ -870,11 +884,29 @@ Guidelines for creating effective instructions:
 - Include compilation commands and workflow specific to this project
 
 Update \`.instructions.md\` for the user, then ask for feedback on any unclear or incomplete sections to iterate.`;
+		}
 
-			await commandService.executeCommand('workbench.action.chat.open', {
-				mode: 'agent',
-				query: query,
-			});
+		private _getTypstInstructionsQuery(): string {
+			return `Analyze this Typst project to generate or update \`.instructions.md\` for guiding AI agents working with Typst documents.
+
+Focus on discovering the essential knowledge that would help an AI agent be immediately productive with this Typst project. Consider aspects like:
+- Document structure and organization - main .typ files, how the project is structured across multiple files, import patterns
+- Compilation workflow - how to compile the document, preview settings, and output formats
+- Bibliography management - bibliography file structure, citation patterns, how references are organized
+- Project-specific Typst conventions - custom functions (#let), show rules, set rules, and formatting patterns
+- Common Typst patterns in this project - how equations, figures, tables, and cross-references are handled
+- Dependencies and requirements - imported packages, external resources, or special setup needed
+
+Guidelines for creating effective instructions:
+- If \`.instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
+- Write concise, actionable instructions (~20-50 lines) using markdown structure
+- Include specific examples from the Typst project when describing patterns (e.g., "Use #import for modules as shown in main.typ")
+- Avoid generic Typst advice - focus on THIS project's specific approaches and conventions
+- Document only discoverable patterns from the actual files, not aspirational practices
+- Reference key Typst files (main .typ, template files, bibliography) that exemplify important patterns
+- Include compilation commands and workflow specific to this project
+
+Update \`.instructions.md\` for the user, then ask for feedback on any unclear or incomplete sections to iterate.`;
 		}
 	});
 

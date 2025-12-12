@@ -1,0 +1,20 @@
+{
+	"displayName": "Typst Language Features",
+	"description": "Provides rich language support for Typst files",
+	"typst.title": "Typst",
+	"typst.compilation.mode.description": "Controls how Typst documents are compiled",
+	"typst.compilation.mode.auto": "Automatically select the best compilation mode",
+	"typst.compilation.mode.wasm": "Use WebAssembly-based compilation (offline, runs in browser)",
+	"typst.preview.enabled.description": "Enable preview functionality for Typst documents",
+	"typst.preview.refresh.description": "Controls when the preview is refreshed",
+	"typst.formatting.enabled.description": "Enable formatting for Typst documents",
+	"typst.formatting.printWidth.description": "Maximum line width for formatting",
+	"typst.validation.enabled.description": "Enable validation and diagnostics for Typst documents",
+	"typst.hover.preview.enabled.description": "Enable hover preview for equations and elements",
+	"typst.hover.preview.math.enabled.description": "Enable rendered preview of math formulas on hover",
+	"typst.preview.title": "Preview Typst Document",
+	"typst.exportPdf.title": "Export to PDF",
+	"typst.shortcut.bold.title": "Toggle Bold",
+	"typst.shortcut.italic.title": "Toggle Italic",
+	"typst.shortcut.underline.title": "Toggle Underline"
+}

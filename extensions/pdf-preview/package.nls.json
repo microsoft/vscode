@@ -1,0 +1,14 @@
+{
+	"displayName": "PDF Preview",
+	"description": "Provides PDF preview support",
+	"customEditor.pdfPreview.displayName": "PDF Preview",
+	"command.zoomIn": "Zoom In",
+	"command.zoomOut": "Zoom Out",
+	"command.goToPage": "Go to Page",
+	"command.fitWidth": "Fit to Width",
+	"command.fitPage": "Fit to Page",
+	"command.download": "Download PDF",
+	"command.rotateClockwise": "Rotate Clockwise",
+	"command.rotateCounterClockwise": "Rotate Counter-Clockwise",
+	"command.showPdf": "Show PDF Preview"
+}
