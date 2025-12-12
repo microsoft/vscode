@@ -100,18 +100,18 @@ class Point {
 
 	test('Inline Edit Is Correctly Shifted When Typing', async function () {
 		await runTest(async ({ context, model, editor, editorViewModel }, provider, view) => {
-			provider.add(`Ü`, `{x: this.x, y: this.y}`);
+			provider.add('Ü', '{x: this.x, y: this.y}');
 			await model.trigger();
 			await timeout(10000);
 			assert.deepStrictEqual(view.getAndClearViewStates(), ([
 				undefined,
-				"...\n\t\treturn ❰Ü↦{x: t...is.y}❱;\n"
+				'...\n\t\treturn ❰Ü↦{x: t...is.y}❱;\n'
 			]));
 			editor.setPosition(val.getMarkerPosition(2));
 			editorViewModel.type('{');
 
 			assert.deepStrictEqual(view.getAndClearViewStates(), ([
-				"...\t\treturn {❰Ü↦x: th...is.y}❱;\n"
+				'...\t\treturn {❰Ü↦x: th...is.y}❱;\n'
 			]));
 		});
 	});
