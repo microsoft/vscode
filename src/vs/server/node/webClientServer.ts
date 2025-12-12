@@ -28,6 +28,7 @@ import { isString, Mutable } from '../../base/common/types.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { IExtensionManifest } from '../../platform/extensions/common/extensions.js';
 import { ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { pathToFileURL } from 'url';
 
 const textMimeType: { [ext: string]: string | undefined } = {
 	'.html': 'text/html',
@@ -498,6 +499,18 @@ export class WebClientServer {
 				bundledExtensions.push({ extensionPath, packageJSON });
 			}
 			values['WORKBENCH_BUILTIN_EXTENSIONS'] = asJSON(bundledExtensions);
+		} else if (!this._environmentService.isBuilt) {
+			// In development mode, scan extensions and filter out excluded ones
+			// scanBuiltinExtensions now reads excludedExtensions.jsonc by default when exclude parameter is undefined
+			try {
+				const extensionsUtilPath = pathToFileURL(join(APP_ROOT, 'build', 'lib', 'extensions.js')).toString();
+				const extensionsUtil = await import(extensionsUtilPath);
+				const bundledExtensions = extensionsUtil.scanBuiltinExtensions(builtinExtensionsPath);
+				values['WORKBENCH_BUILTIN_EXTENSIONS'] = asJSON(bundledExtensions);
+			} catch (error) {
+				// If scanning fails, leave it undefined (will be replaced with 'undefined' string)
+				this._logService.warn(`Failed to scan builtin extensions: ${error}`);
+			}
 		}
 
 		let data;

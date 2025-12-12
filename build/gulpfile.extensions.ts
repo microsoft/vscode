@@ -284,5 +284,18 @@ async function buildWebExtensions(isWatch: boolean) {
 		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
 		{ ignore: ['**/node_modules'] }
 	);
-	return ext.webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath })));
+	
+	// Filter out excluded extensions - they should not be compiled in dev or prod
+	const excludedExtensions = ext.getExcludedExtensions();
+	const filteredConfigLocations = webpackConfigLocations.filter(configPath => {
+		// Extract extension name from path like 'extensions/name/extension-browser.webpack.config.js'
+		const match = configPath.match(/extensions\/([^\/]+)\//);
+		if (!match) {
+			return true; // Keep non-extension paths (shouldn't happen, but be safe)
+		}
+		const extensionName = match[1];
+		return !excludedExtensions.includes(extensionName);
+	});
+	
+	return ext.webpackExtensions('packaging web extension', isWatch, filteredConfigLocations.map(configPath => ({ configPath })));
 }
