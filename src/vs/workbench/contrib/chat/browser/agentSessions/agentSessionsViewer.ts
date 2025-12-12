@@ -27,13 +27,10 @@ import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listVi
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
-import { ChatSessionStatus } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -68,6 +65,10 @@ interface IAgentSessionItemTemplate {
 	readonly disposables: IDisposable;
 }
 
+export interface IAgentSessionRendererOptions {
+	getHoverPosition(): HoverPosition;
+}
+
 export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session';
@@ -75,10 +76,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
 	constructor(
+		private readonly options: IAgentSessionRendererOptions,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -160,11 +160,12 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		// Title Actions - Update context keys
 		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
 		ChatContextKeys.isReadAgentSession.bindTo(template.contextKeyService).set(session.element.isRead());
+		ChatContextKeys.agentSessionType.bindTo(template.contextKeyService).set(session.element.providerType);
 		template.titleToolbar.context = session.element;
 
 		// Diff information
 		const { changes: diff } = session.element;
-		if (session.element.status !== ChatSessionStatus.InProgress && diff && hasValidDiff(diff)) {
+		if (!isSessionInProgressStatus(session.element.status) && diff && hasValidDiff(diff)) {
 			if (this.renderDiff(session, template)) {
 				template.diffContainer.classList.add('has-diff');
 			}
@@ -210,6 +211,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			return Codicon.sessionInProgress;
 		}
 
+		if (session.status === ChatSessionStatus.NeedsInput) {
+			return Codicon.info;
+		}
+
 		if (session.status === ChatSessionStatus.Failed) {
 			return Codicon.error;
 		}
@@ -243,7 +248,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Fallback to state label
 		else {
-			if (session.element.status === ChatSessionStatus.InProgress) {
+			if (isSessionInProgressStatus(session.element.status)) {
 				template.description.textContent = localize('chat.session.status.inProgress', "Working...");
 			} else if (
 				session.element.timing.finishedOrFailedTime &&
@@ -276,7 +281,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		const getStatus = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
-			if (session.status === ChatSessionStatus.InProgress && session.timing.inProgressTime) {
+			if (isSessionInProgressStatus(session.status) && session.timing.inProgressTime) {
 				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now());
 			}
 
@@ -288,7 +293,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		template.status.textContent = getStatus(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), session.element.status === ChatSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), isSessionInProgressStatus(session.element.status) ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -299,18 +304,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 					content: tooltip,
 					style: HoverStyle.Pointer,
 					position: {
-						hoverPosition: (() => {
-							const sideBarPosition = this.layoutService.getSideBarPosition();
-							const viewLocation = this.viewDescriptorService.getViewLocationById(AGENT_SESSIONS_VIEW_ID);
-							switch (viewLocation) {
-								case ViewContainerLocation.Sidebar:
-									return sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
-								case ViewContainerLocation.AuxiliaryBar:
-									return sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
-								default:
-									return HoverPosition.RIGHT;
-							}
-						})()
+						hoverPosition: this.options.getHoverPosition()
 					}
 				}), { groupId: 'agent.sessions' })
 			);
@@ -350,7 +344,22 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 	}
 
 	getAriaLabel(element: IAgentSession): string | null {
-		return element.label;
+		let statusLabel: string;
+		switch (element.status) {
+			case ChatSessionStatus.NeedsInput:
+				statusLabel = localize('agentSessionNeedsInput', "needs input");
+				break;
+			case ChatSessionStatus.InProgress:
+				statusLabel = localize('agentSessionInProgress', "in progress");
+				break;
+			case ChatSessionStatus.Failed:
+				statusLabel = localize('agentSessionFailed', "failed");
+				break;
+			default:
+				statusLabel = localize('agentSessionCompleted', "completed");
+		}
+
+		return localize('agentSessionItemAriaLabel', "Agent session {0} ({1}), created {2}", element.label, statusLabel, new Date(element.timing.startTime).toLocaleString());
 	}
 }
 
@@ -423,9 +432,28 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 	}
 }
 
+export interface IAgentSessionsSorterOptions {
+	overrideCompare?(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined;
+}
+
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
+	constructor(private readonly options?: IAgentSessionsSorterOptions) { }
+
 	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
+
+		// Input Needed
+		const aNeedsInput = sessionA.status === ChatSessionStatus.NeedsInput;
+		const bNeedsInput = sessionB.status === ChatSessionStatus.NeedsInput;
+
+		if (aNeedsInput && !bNeedsInput) {
+			return -1; // a (needs input) comes before b (other)
+		}
+		if (!aNeedsInput && bNeedsInput) {
+			return 1; // a (other) comes after b (needs input)
+		}
+
+		// In Progress
 		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
 		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;
 
@@ -436,6 +464,7 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (finished) comes after b (in-progress)
 		}
 
+		// Archived
 		const aArchived = sessionA.isArchived();
 		const bArchived = sessionB.isArchived();
 
@@ -446,7 +475,13 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (archived) comes after b (non-archived)
 		}
 
-		// Both in-progress or finished: sort by end or start time (most recent first)
+		// Before we compare by time, allow override
+		const override = this.options?.overrideCompare?.(sessionA, sessionB);
+		if (typeof override === 'number') {
+			return override;
+		}
+
+		//Sort by end or start time (most recent first)
 		return (sessionB.timing.endTime || sessionB.timing.startTime) - (sessionA.timing.endTime || sessionA.timing.startTime);
 	}
 }
