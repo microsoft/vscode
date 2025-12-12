@@ -154,7 +154,12 @@ export class SimpleSuggestDetailsWidget {
 			documentation = new MarkdownString().appendCodeblock('empty', md);
 		}
 
-		if (!explainMode && !canExpandCompletionItem(item)) {
+		const hasDetail = typeof detail === 'string' ? detail.trim().length > 0 : !!detail;
+		const hasDocs = typeof documentation === 'string'
+			? documentation.trim().length > 0
+			: !!(documentation && documentation.value?.trim().length > 0);
+
+		if (!explainMode && (!canExpandCompletionItem(item) || (!hasDetail && !hasDocs))) {
 			this.clearContents();
 			return;
 		}
@@ -163,7 +168,7 @@ export class SimpleSuggestDetailsWidget {
 
 		// --- details
 
-		if (detail) {
+		if (hasDetail && detail) {
 			const cappedDetail = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
 			this._type.textContent = cappedDetail;
 			this._type.title = cappedDetail;
@@ -179,11 +184,11 @@ export class SimpleSuggestDetailsWidget {
 		// // --- documentation
 
 		dom.clearNode(this._docs);
-		if (typeof documentation === 'string') {
+		if (hasDocs && typeof documentation === 'string') {
 			this._docs.classList.remove('markdown-docs');
 			this._docs.textContent = documentation;
 
-		} else if (documentation) {
+		} else if (hasDocs && documentation && typeof documentation !== 'string') {
 			this._docs.classList.add('markdown-docs');
 			dom.clearNode(this._docs);
 			const renderedContents = this.markdownRendererService.render(documentation, {
@@ -194,9 +199,11 @@ export class SimpleSuggestDetailsWidget {
 			});
 			this._docs.appendChild(renderedContents.element);
 			this._renderDisposeable.add(renderedContents);
+		} else {
+			this._docs.classList.remove('markdown-docs');
 		}
 
-		this.domNode.classList.toggle('detail-and-doc', !!detail && !!documentation);
+		this.domNode.classList.toggle('detail-and-doc', hasDetail && hasDocs);
 
 		this.domNode.style.userSelect = 'text';
 		this.domNode.tabIndex = -1;
