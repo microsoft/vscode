@@ -743,6 +743,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidFocus.fire();
 	}
 
+	focusTodosView(): boolean {
+		if (!this.input.hasVisibleTodos()) {
+			return false;
+		}
+
+		return this.input.focusTodoList();
+	}
+
+	toggleTodosViewFocus(): boolean {
+		if (!this.input.hasVisibleTodos()) {
+			return false;
+		}
+
+		if (this.input.isTodoListFocused()) {
+			this.focusInput();
+			return true;
+		}
+
+		return this.input.focusTodoList();
+	}
+
 	hasInputFocus(): boolean {
 		return this.input.hasFocus();
 	}

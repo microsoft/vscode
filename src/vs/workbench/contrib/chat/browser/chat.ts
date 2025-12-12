@@ -253,6 +253,8 @@ export interface IChatWidget {
 	 */
 	focusResponseItem(lastFocused?: boolean): void;
 	focusInput(): void;
+	focusTodosView(): boolean;
+	toggleTodosViewFocus(): boolean;
 	hasInputFocus(): boolean;
 	getModeRequestOptions(): Partial<IChatSendRequestOptions>;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
