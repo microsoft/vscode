@@ -12,7 +12,6 @@ import { IObservable, ISettableObservable, autorun, constObservable, debouncedOb
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -34,6 +33,7 @@ import { InlineSuggestionItem } from '../../../model/inlineSuggestionItem.js';
 import { localize } from '../../../../../../../nls.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
 import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 
 export class InlineEditsGutterIndicatorData {
 	constructor(
@@ -476,20 +476,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _indicator = n.div({
 		class: 'inline-edits-view-gutter-indicator',
-		onclick: () => {
-			const layout = this._layout.get();
-			const acceptOnClick = layout?.icon.get() === Codicon.check;
-
-			const data = this._data.get();
-			if (!data) { throw new BugIndicatingError('Gutter indicator data not available'); }
-
-			this._editorObs.editor.focus();
-			if (acceptOnClick) {
-				data.model.accept();
-			} else {
-				data.model.jump();
-			}
-		},
 		style: {
 			position: 'absolute',
 			overflow: 'visible',
@@ -506,6 +492,23 @@ export class InlineEditsGutterIndicator extends Disposable {
 		n.div({
 			class: 'icon',
 			ref: this._iconRef,
+
+			tabIndex: 0,
+			onclick: () => {
+				const layout = this._layout.get();
+				const acceptOnClick = layout?.icon.get() === Codicon.check;
+
+				const data = this._data.get();
+				if (!data) { throw new BugIndicatingError('Gutter indicator data not available'); }
+
+				this._editorObs.editor.focus();
+				if (acceptOnClick) {
+					data.model.accept();
+				} else {
+					data.model.jump();
+				}
+			},
+
 			onmouseenter: () => {
 				// TODO show hover when hovering ghost text etc.
 				this._showHover();
