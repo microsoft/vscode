@@ -1335,30 +1335,26 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}
 
+		const promises: Promise<IExtension[]>[] = [];
 		if (this.localExtensions) {
-			try {
-				await this.localExtensions.queryInstalled(this.getProductVersion());
-			}
-			catch (error) {
+			promises.push(this.localExtensions.queryInstalled(this.getProductVersion()).catch(error => {
 				this.logService.error(error);
-			}
+				return [];
+			}));
 		}
 		if (this.remoteExtensions) {
-			try {
-				await this.remoteExtensions.queryInstalled(this.getProductVersion());
-			}
-			catch (error) {
+			promises.push(this.remoteExtensions.queryInstalled(this.getProductVersion()).catch(error => {
 				this.logService.error(error);
-			}
+				return [];
+			}));
 		}
 		if (this.webExtensions) {
-			try {
-				await this.webExtensions.queryInstalled(this.getProductVersion());
-			}
-			catch (error) {
+			promises.push(this.webExtensions.queryInstalled(this.getProductVersion()).catch(error => {
 				this.logService.error(error);
-			}
+				return [];
+			}));
 		}
+		await Promise.all(promises);
 		return this.local;
 	}
 
