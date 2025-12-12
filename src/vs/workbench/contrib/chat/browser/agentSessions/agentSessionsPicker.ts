@@ -38,16 +38,14 @@ const renameButton: IQuickInputButton = {
 
 export class AgentSessionsPicker {
 
-	private readonly sorter: AgentSessionsSorter;
+	private readonly sorter = new AgentSessionsSorter();
 
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
-	) {
-		this.sorter = this.instantiationService.createInstance(AgentSessionsSorter);
-	}
+	) { }
 
 	async pickAgentSession(): Promise<void> {
 		const disposables = new DisposableStore();
