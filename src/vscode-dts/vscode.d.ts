@@ -20012,10 +20012,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a hidden part of a chat response that signals the chat widget should be cleared.
+	 * This part is not rendered and is used internally to trigger widget clearing.
+	 */
+	export class ChatResponseClearWidgetPart {
+		/**
+		 * Create a new ChatResponseClearWidgetPart.
+		 */
+		constructor();
+	}
+
+	/**
 	 * Represents the different chat response types.
 	 */
 	export type ChatResponsePart = ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
-		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
+		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart | ChatResponseClearWidgetPart;
 
 
 	/**

@@ -1530,7 +1530,8 @@ export type IChatProgressDto =
 	| IChatTaskDto
 	| IChatNotebookEditDto
 	| IChatExternalEditsDto
-	| IChatResponseClearToPreviousToolInvocationDto;
+	| IChatResponseClearToPreviousToolInvocationDto
+	| IChatClearWidgetDto;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
@@ -2313,6 +2314,10 @@ export interface IChatNotebookEditDto {
 export interface IChatResponseClearToPreviousToolInvocationDto {
 	kind: 'clearToPreviousToolInvocation';
 	reason: ChatResponseClearToPreviousToolInvocationReason;
+}
+
+export interface IChatClearWidgetDto {
+	kind: 'clearWidget';
 }
 
 export type ICellEditOperationDto =
