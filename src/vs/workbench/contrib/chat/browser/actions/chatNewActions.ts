@@ -166,7 +166,8 @@ export function registerNewChatActions() {
 			title: localize2('chat.goBack', "Go Back"),
 			icon: Codicon.arrowLeft,
 		},
-		group: 'navigation'
+		group: 'navigation',
+		order: 1
 	});
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
