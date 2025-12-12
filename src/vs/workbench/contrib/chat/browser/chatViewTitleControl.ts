@@ -8,13 +8,11 @@ import { addDisposableListener, EventType, h } from '../../../../base/browser/do
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
-import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { localize } from '../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -27,6 +25,8 @@ import { IChatModel } from '../common/chatModel.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ChatViewId } from './chat.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions/agentSessions.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction } from '../../../../base/common/actions.js';
 import { AgentSessionsPicker } from './agentSessions/agentSessionsPicker.js';
 
 export interface IChatViewTitleDelegate {
@@ -54,7 +54,7 @@ export class ChatViewTitleControl extends Disposable {
 	private title: string | undefined = undefined;
 
 	private titleContainer: HTMLElement | undefined;
-	private titleLabel: ChatViewTitleLabel | undefined;
+	private titleLabel = this._register(new MutableDisposable<ChatViewTitleLabel>());
 	private titleIcon: HTMLElement | undefined;
 
 	private model: IChatModel | undefined;
@@ -100,8 +100,6 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private registerActions(): void {
-		const that = this;
-
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -119,7 +117,7 @@ export class ChatViewTitleControl extends Disposable {
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const instantiationService = accessor.get(IInstantiationService);
 
-				const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, that.titleLabel?.element);
+				const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker);
 				await agentSessionsPicker.pickAgentSession();
 			}
 		}));
@@ -134,19 +132,18 @@ export class ChatViewTitleControl extends Disposable {
 
 		// Toolbar on the left
 		this.navigationToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.navigationToolbar, MenuId.ChatViewSessionTitleNavigationToolbar, {
-			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === ChatViewTitleControl.PICK_AGENT_SESSION_ACTION_ID) {
-					this.titleLabel?.dispose();
-					this.titleLabel = this._register(new ChatViewTitleLabel(action));
-					this.titleLabel?.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
+					this.titleLabel.value = new ChatViewTitleLabel(action);
+					this.titleLabel.value.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
 
-					return this.titleLabel;
+					return this.titleLabel.value;
 				}
 
 				return undefined;
 			},
-			hiddenItemStrategy: HiddenItemStrategy.NoHide
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			menuOptions: { shouldForwardArgs: true }
 		}));
 
 		// Actions toolbar on the right
@@ -250,7 +247,7 @@ export class ChatViewTitleControl extends Disposable {
 		}
 
 		this.titleContainer.classList.toggle('visible', this.shouldRender());
-		this.titleLabel?.updateTitle(title);
+		this.titleLabel.value?.updateTitle(title);
 
 		const currentHeight = this.getHeight();
 		if (currentHeight !== this.lastKnownHeight) {
@@ -323,13 +320,14 @@ class ChatViewTitleLabel extends ActionViewItem {
 	}
 
 	protected override updateLabel(): void {
-		if (this.options.label && this.label && this.title) {
+		if (this.options.label && this.label && typeof this.title === 'string') {
 			this.label.textContent = this.title;
 		}
 	}
 
 	updateTitle(title: string): void {
 		this.title = title;
+
 		this.updateLabel();
 	}
 }

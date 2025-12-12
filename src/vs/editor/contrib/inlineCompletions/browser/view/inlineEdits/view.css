@@ -239,6 +239,12 @@
 	background: linear-gradient(to left, var(--vscode-editorWidget-background) 0, transparent 12px);
 }
 
+.hc-black .inline-edits-long-distance-hint-widget .go-to-label::before,
+.hc-light .inline-edits-long-distance-hint-widget .go-to-label::before {
+	/* Remove gradient in high contrast mode for clearer separation */
+	background: var(--vscode-editorWidget-background);
+}
+
 .inline-edit-alternative-action-label .codicon {
 	font-size: 12px !important;
 	padding-right: 4px;

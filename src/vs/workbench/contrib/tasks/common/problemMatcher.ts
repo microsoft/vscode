@@ -33,7 +33,7 @@ export enum FileLocationKind {
 	Search
 }
 
-export module FileLocationKind {
+export namespace FileLocationKind {
 	export function fromString(value: string): FileLocationKind | undefined {
 		value = value.toLowerCase();
 		if (value === 'absolute') {
@@ -55,7 +55,7 @@ export enum ProblemLocationKind {
 	Location
 }
 
-export module ProblemLocationKind {
+export namespace ProblemLocationKind {
 	export function fromString(value: string): ProblemLocationKind | undefined {
 		value = value.toLowerCase();
 		if (value === 'file') {
@@ -117,7 +117,7 @@ export enum ApplyToKind {
 	closedDocuments
 }
 
-export module ApplyToKind {
+export namespace ApplyToKind {
 	export function fromString(value: string): ApplyToKind | undefined {
 		value = value.toLowerCase();
 		if (value === 'alldocuments') {
