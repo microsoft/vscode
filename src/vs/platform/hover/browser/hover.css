@@ -101,6 +101,7 @@
 
 .monaco-hover.workbench-hover a {
 	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
 }
 
 .monaco-hover.workbench-hover a:focus {
