@@ -83,17 +83,17 @@ suite(`ipynb serializer`, () => {
 				execution_count: 10,
 				outputs: [],
 				source: 'print(1)'
-			} as any, // Cast to any to allow missing metadata field
+			}, // Cast to any to allow missing metadata field
 			{
 				cell_type: 'code',
 				outputs: [],
 				source: 'print(2)'
-			} as any,
+			},
 			{
 				cell_type: 'markdown',
 				source: '# HEAD'
-			} as any
-		];
+			}
+		] as unknown as nbformat.ICell[];
 		const notebook = jupyterNotebookModelToNotebookData({ cells }, 'python');
 		assert.ok(notebook);
 		assert.strictEqual(notebook.cells.length, 3);
