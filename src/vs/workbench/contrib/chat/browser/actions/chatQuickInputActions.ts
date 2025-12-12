@@ -26,7 +26,7 @@ export function registerQuickChatActions() {
 				title: localize2('chat.openInChatView.label', "Open in Chat View"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				icon: Codicon.commentDiscussion,
+				icon: Codicon.chatSparkle,
 				menu: {
 					id: MenuId.ChatInputSide,
 					group: 'navigation',
@@ -69,9 +69,9 @@ class QuickChatGlobalAction extends Action2 {
 	constructor() {
 		super({
 			id: ASK_QUICK_QUESTION_ACTION_ID,
-			title: localize2('quickChat', 'Quick Chat'),
+			title: localize2('quickChat', 'Open Quick Chat'),
 			precondition: ChatContextKeys.enabled,
-			icon: Codicon.commentDiscussion,
+			icon: Codicon.chatSparkle,
 			f1: false,
 			category: CHAT_CATEGORY,
 			keybinding: {
@@ -80,8 +80,8 @@ class QuickChatGlobalAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.ChatTitleBarMenu,
-				group: 'e_quickChat',
-				order: 5
+				group: 'a_open',
+				order: 4
 			},
 			metadata: {
 				description: localize('toggle.desc', 'Toggle the quick chat'),
@@ -134,6 +134,7 @@ class AskQuickChatAction extends Action2 {
 			id: `workbench.action.openQuickChat`,
 			category: CHAT_CATEGORY,
 			title: localize2('interactiveSession.open', "Open Quick Chat"),
+			precondition: ChatContextKeys.enabled,
 			f1: true
 		});
 	}

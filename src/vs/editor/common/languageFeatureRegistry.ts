@@ -59,7 +59,7 @@ export class LanguageFeatureRegistry<T> {
 	private readonly _entries: Entry<T>[] = [];
 
 	private readonly _onDidChange = new Emitter<number>();
-	readonly onDidChange = this._onDidChange.event;
+	get onDidChange() { return this._onDidChange.event; }
 
 	constructor(private readonly _notebookInfoResolver?: NotebookInfoResolver) { }
 
@@ -139,7 +139,7 @@ export class LanguageFeatureRegistry<T> {
 		return result;
 	}
 
-	private _orderedForEach(model: ITextModel, recursive: boolean, callback: (provider: Entry<T>) => any): void {
+	private _orderedForEach(model: ITextModel, recursive: boolean, callback: (provider: Entry<T>) => void): void {
 
 		this._updateScores(model, recursive);
 
@@ -191,7 +191,7 @@ export class LanguageFeatureRegistry<T> {
 		this._entries.sort(LanguageFeatureRegistry._compareByScoreAndTime);
 	}
 
-	private static _compareByScoreAndTime(a: Entry<any>, b: Entry<any>): number {
+	private static _compareByScoreAndTime(a: Entry<unknown>, b: Entry<unknown>): number {
 		if (a._score < b._score) {
 			return 1;
 		} else if (a._score > b._score) {

@@ -9,13 +9,11 @@ import { Emitter } from '../../../../base/common/event.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IMarkerService } from '../../../../platform/markers/common/markers.js';
 import { IEditorProgressService, Progress } from '../../../../platform/progress/common/progress.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption, ShowLightbulbIconMode } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
@@ -176,7 +174,6 @@ export class CodeActionModel extends Disposable {
 		contextKeyService: IContextKeyService,
 		private readonly _progressService?: IEditorProgressService,
 		private readonly _configurationService?: IConfigurationService,
-		private readonly _telemetryService?: ITelemetryService
 	) {
 		super();
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
@@ -235,14 +232,19 @@ export class CodeActionModel extends Disposable {
 				const actions = createCancelablePromise(async token => {
 					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+						this.codeActionsDisposable.value = codeActionSet;
 						const allCodeActions = [...codeActionSet.allActions];
 						if (token.isCancellationRequested) {
 							codeActionSet.dispose();
 							return emptyCodeActionSet;
 						}
 
-						// Search for quickfixes in the curret code action set.
-						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) : false);
+						// Search for non-AI quickfixes in the current code action set - if AI code actions are the only thing found, continue searching for diagnostics in line.
+						const foundQuickfix = codeActionSet.validActions?.some(action => {
+							return action.action.kind &&
+								CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) &&
+								!action.action.isAI;
+						});
 						const allMarkers = this._markerService.read({ resource: model.uri });
 						if (foundQuickfix) {
 							for (const action of codeActionSet.validActions) {
@@ -328,29 +330,8 @@ export class CodeActionModel extends Disposable {
 
 					// Case for manual triggers - specifically Source Actions and Refactors
 					if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
-						const sw = new StopWatch();
 						const codeActions = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
-
-						// Telemetry for duration of each code action on save.
-						if (this._telemetryService) {
-							type RenderActionMenu = {
-								codeActions: number;
-								duration: number;
-							};
-
-							type RenderActionMenuClassification = {
-								owner: 'justschen';
-								comment: 'Information about how long it took for code actions to be received from the provider and shown in the UI.';
-								codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of valid code actions received from TS.' };
-								duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration it took for TS to return the action to run for each kind. ' };
-							};
-
-							this._telemetryService.publicLog2<RenderActionMenu, RenderActionMenuClassification>('codeAction.invokedDurations', {
-								codeActions: codeActions.validActions.length,
-								duration: sw.elapsed()
-							});
-						}
-
+						this.codeActionsDisposable.value = codeActions;
 						return codeActions;
 					}
 
@@ -390,7 +371,7 @@ export class CodeActionModel extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger) {
 		this._codeActionOracle.value?.trigger(trigger);
-		this.codeActionsDisposable.clear();
+		this.codeActionsDisposable.dispose();
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {

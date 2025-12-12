@@ -36,11 +36,10 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isAllInterfaces, isLocalhost, ITunnelService, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from '../../../../platform/tunnel/common/tunnel.js';
+import { isAllInterfaces, isLocalhost, isRemoteTunnel, ITunnelService, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from '../../../../platform/tunnel/common/tunnel.js';
 import { TunnelPrivacy } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, labelPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, stopForwardIcon } from './remoteIcons.js';
 import { IExternalUriOpenerService } from '../../externalUriOpener/common/externalUriOpenerService.js';
@@ -560,7 +559,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		});
 	}
 
-	disposeElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData, height: number | undefined) {
+	disposeElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData) {
 		templateData.elementDisposable.dispose();
 	}
 
@@ -782,12 +781,11 @@ export class TunnelPanel extends ViewPane {
 		@IMenuService private readonly menuService: IMenuService,
 		@IThemeService themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
 		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
 		this.tunnelPrivacyContext = TunnelPrivacyContextKey.bindTo(contextKeyService);
@@ -1328,7 +1326,7 @@ export namespace OpenPortInBrowserAction {
 			let key: string | undefined;
 			if (isITunnelItem(arg)) {
 				key = makeAddress(arg.remoteHost, arg.remotePort);
-			} else if (arg.tunnelRemoteHost && arg.tunnelRemotePort) {
+			} else if (isRemoteTunnel(arg)) {
 				key = makeAddress(arg.tunnelRemoteHost, arg.tunnelRemotePort);
 			}
 			if (key) {
@@ -1357,7 +1355,7 @@ export namespace OpenPortInPreviewAction {
 			let key: string | undefined;
 			if (isITunnelItem(arg)) {
 				key = makeAddress(arg.remoteHost, arg.remotePort);
-			} else if (arg.tunnelRemoteHost && arg.tunnelRemotePort) {
+			} else if (isRemoteTunnel(arg)) {
 				key = makeAddress(arg.tunnelRemoteHost, arg.tunnelRemotePort);
 			}
 			if (key) {

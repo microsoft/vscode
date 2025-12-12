@@ -19,7 +19,6 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { disposableWindowInterval } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -27,6 +26,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -76,16 +76,6 @@ export interface IExtensionUrlHandler {
 	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IExtensionContributedURLHandler): void;
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
 }
-
-export interface ExtensionUrlHandlerEvent {
-	readonly extensionId: string;
-}
-
-type ExtensionUrlHandlerClassification = {
-	owner: 'joaomoreno';
-	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension that should handle the URI' };
-	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
-};
 
 export interface IExtensionUrlHandlerOverride {
 	canHandleURL(uri: URI): boolean;
@@ -139,7 +129,6 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
 	) {
@@ -175,7 +164,6 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const extensionId = uri.authority;
-		this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/start', { extensionId });
 
 		const initialHandler = this.extensionHandlers.get(ExtensionIdentifier.toKey(extensionId));
 		let extensionDisplayName: string;
@@ -194,7 +182,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const trusted = options?.trusted
-			|| this.productService.trustedExtensionProtocolHandlers?.includes(extensionId)
+			|| this.productService.trustedExtensionProtocolHandlers?.some(value => equalsIgnoreCase(value, extensionId))
 			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
 		if (!trusted) {
@@ -219,7 +207,6 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			});
 
 			if (!result.confirmed) {
-				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/cancel', { extensionId });
 				return true;
 			}
 
@@ -274,28 +261,21 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private async handleURLByExtension(extensionId: ExtensionIdentifier | string, handler: IURLHandler, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/end', { extensionId: ExtensionIdentifier.toKey(extensionId) });
 		return await handler.handleURL(uri, options);
 	}
 
 	private async handleUnhandledURL(uri: URI, extensionId: string, options?: IOpenURLOptions): Promise<void> {
-
-		this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/start', { extensionId });
-
 		try {
 			await this.commandService.executeCommand('workbench.extensions.installExtension', extensionId, {
 				justification: {
 					reason: `${localize('installDetail', "This extension wants to open a URI:")}\n${uri.toString()}`,
 					action: localize('openUri', "Open URI")
 				},
-				enable: true
+				enable: true,
+				installPreReleaseVersion: this.productService.quality !== 'stable'
 			});
-			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/accept', { extensionId });
 		} catch (error) {
-			if (isCancellationError(error)) {
-				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/cancel', { extensionId });
-			} else {
-				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/error', { extensionId });
+			if (!isCancellationError(error)) {
 				this.notificationService.error(error);
 			}
 			return;

@@ -5,7 +5,7 @@
 
 import type { DocumentSelector } from 'vscode';
 
-export const defaultNotebookFormat = { major: 4, minor: 2 };
+export const defaultNotebookFormat = { major: 4, minor: 5 };
 export const ATTACHMENT_CLEANUP_COMMANDID = 'ipynb.cleanInvalidImageAttachment';
 
 export const JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR: DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' };

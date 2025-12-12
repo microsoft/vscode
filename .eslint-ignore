@@ -10,9 +10,12 @@
 **/extensions/markdown-language-features/media/**
 **/extensions/markdown-language-features/notebook-out/**
 **/extensions/markdown-math/notebook-out/**
+**/extensions/mermaid-chat-features/chat-webview-out/**
 **/extensions/notebook-renderers/renderer-out/index.js
 **/extensions/simple-browser/media/index.js
 **/extensions/terminal-suggest/src/completions/upstream/**
+**/extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts
+**/extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts
 **/extensions/terminal-suggest/third_party/**
 **/extensions/typescript-language-features/test-workspace/**
 **/extensions/typescript-language-features/extension.webpack.config.js
@@ -22,9 +25,8 @@
 **/extensions/vscode-api-tests/testWorkspace2/**
 **/fixtures/**
 **/node_modules/**
-**/out-*/**/*.js
-**/out-editor-*/**
-**/out/**/*.js
+**/out/**
+**/out-*/**
 **/src/**/dompurify.js
 **/src/**/marked.js
 **/src/**/semver.js
@@ -35,4 +37,5 @@
 **/test/unit/assert.js
 **/test/automation/out/**
 **/typings/**
+**/.build/**
 !.vscode

@@ -5,6 +5,7 @@
 
 import { isWindows } from '../../../../../base/common/platform.js';
 import { count } from '../../../../../base/common/strings.js';
+import { isString } from '../../../../../base/common/types.js';
 import { SimpleCompletionModel, type LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { TerminalCompletionItemKind, type TerminalCompletionItem } from './terminalCompletionItem.js';
 
@@ -40,14 +41,19 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		return 1;
 	}
 
-	// Sort by underscore penalty (eg. `__init__/` should be penalized)
-	if (a.underscorePenalty !== b.underscorePenalty) {
-		return a.underscorePenalty - b.underscorePenalty;
+	if (a.punctuationPenalty !== b.punctuationPenalty) {
+		// Sort by underscore penalty (eg. `__init__/` should be penalized)
+		// Sort by punctuation penalty (eg. `;` should be penalized)
+		return a.punctuationPenalty - b.punctuationPenalty;
 	}
 
 	// Sort files of the same name by extension
 	const isArg = leadingLineContent.includes(' ');
-	if (!isArg && a.labelLowExcludeFileExt === b.labelLowExcludeFileExt) {
+	if (!isArg && a.completion.kind === TerminalCompletionItemKind.File && b.completion.kind === TerminalCompletionItemKind.File) {
+		// If the file name excluding the extension is different, just do a regular sort
+		if (a.labelLowExcludeFileExt !== b.labelLowExcludeFileExt) {
+			return a.labelLowExcludeFileExt.localeCompare(b.labelLowExcludeFileExt, undefined, { ignorePunctuation: true });
+		}
 		// Then by label length ascending (excluding file extension if it's a file)
 		score = a.labelLowExcludeFileExt.length - b.labelLowExcludeFileExt.length;
 		if (score !== 0) {
@@ -65,13 +71,30 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		}
 	}
 
+	// Boost main and master branches for git commands
+	// HACK: Currently this just matches leading line content, it should eventually check the
+	//       completion type is a branch
+	if (a.completion.kind === TerminalCompletionItemKind.Argument && b.completion.kind === TerminalCompletionItemKind.Argument && /^\s*git\b/.test(leadingLineContent)) {
+		const aLabel = isString(a.completion.label) ? a.completion.label : a.completion.label.label;
+		const bLabel = isString(b.completion.label) ? b.completion.label : b.completion.label.label;
+		const aIsMainOrMaster = aLabel === 'main' || aLabel === 'master';
+		const bIsMainOrMaster = bLabel === 'main' || bLabel === 'master';
+
+		if (aIsMainOrMaster && !bIsMainOrMaster) {
+			return -1;
+		}
+		if (bIsMainOrMaster && !aIsMainOrMaster) {
+			return 1;
+		}
+	}
+
 	// Sort by more detailed completions
 	if (a.completion.kind === TerminalCompletionItemKind.Method && b.completion.kind === TerminalCompletionItemKind.Method) {
-		if (typeof a.completion.label !== 'string' && a.completion.label.description && typeof b.completion.label !== 'string' && b.completion.label.description) {
+		if (!isString(a.completion.label) && a.completion.label.description && !isString(b.completion.label) && b.completion.label.description) {
 			score = 0;
-		} else if (typeof a.completion.label !== 'string' && a.completion.label.description) {
+		} else if (!isString(a.completion.label) && a.completion.label.description) {
 			score = -2;
-		} else if (typeof b.completion.label !== 'string' && b.completion.label.description) {
+		} else if (!isString(b.completion.label) && b.completion.label.description) {
 			score = 2;
 		}
 		score += (b.completion.detail ? 1 : 0) + (b.completion.documentation ? 2 : 0) - (a.completion.detail ? 1 : 0) - (a.completion.documentation ? 2 : 0);
@@ -81,20 +104,44 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 	}
 
 	// Sort by folder depth (eg. `vscode/` should come before `vscode-.../`)
-	if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
-		// Directories
-		// Count depth of path (number of / or \ occurrences)
-		score = count(a.labelLowNormalizedPath, '/') - count(b.labelLowNormalizedPath, '/');
-		if (score !== 0) {
-			return score;
-		}
+	if (a.completion.kind === TerminalCompletionItemKind.Folder && b.completion.kind === TerminalCompletionItemKind.Folder) {
+		if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
+			// Directories
+			// Count depth of path (number of / or \ occurrences)
+			score = count(a.labelLowNormalizedPath, '/') - count(b.labelLowNormalizedPath, '/');
+			if (score !== 0) {
+				return score;
+			}
 
-		// Ensure shorter prefixes appear first
-		if (b.labelLowNormalizedPath.startsWith(a.labelLowNormalizedPath)) {
-			return -1; // `a` is a prefix of `b`, so `a` should come first
+			// Ensure shorter prefixes appear first
+			if (b.labelLowNormalizedPath.startsWith(a.labelLowNormalizedPath)) {
+				return -1; // `a` is a prefix of `b`, so `a` should come first
+			}
+			if (a.labelLowNormalizedPath.startsWith(b.labelLowNormalizedPath)) {
+				return 1; // `b` is a prefix of `a`, so `b` should come first
+			}
 		}
-		if (a.labelLowNormalizedPath.startsWith(b.labelLowNormalizedPath)) {
-			return 1; // `b` is a prefix of `a`, so `b` should come first
+	}
+
+	if (a.completion.kind !== b.completion.kind) {
+		// Sort by kind
+		if ((a.completion.kind === TerminalCompletionItemKind.Method || a.completion.kind === TerminalCompletionItemKind.Alias) && (b.completion.kind !== TerminalCompletionItemKind.Method && b.completion.kind !== TerminalCompletionItemKind.Alias)) {
+			return -1; // Methods and aliases should come first
+		}
+		if ((b.completion.kind === TerminalCompletionItemKind.Method || b.completion.kind === TerminalCompletionItemKind.Alias) && (a.completion.kind !== TerminalCompletionItemKind.Method && a.completion.kind !== TerminalCompletionItemKind.Alias)) {
+			return 1; // Methods and aliases should come first
+		}
+		if (a.completion.kind === TerminalCompletionItemKind.Argument && b.completion.kind !== TerminalCompletionItemKind.Argument) {
+			return -1; // Arguments should come before other kinds
+		}
+		if (b.completion.kind === TerminalCompletionItemKind.Argument && a.completion.kind !== TerminalCompletionItemKind.Argument) {
+			return 1; // Arguments should come before other kinds
+		}
+		if (isResourceKind(a.completion.kind) && !isResourceKind(b.completion.kind)) {
+			return 1; // Resources should come last
+		}
+		if (isResourceKind(b.completion.kind) && !isResourceKind(a.completion.kind)) {
+			return -1; // Resources should come last
 		}
 	}
 
@@ -102,6 +149,12 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 	// all at the top
 	return a.labelLow.localeCompare(b.labelLow, undefined, { ignorePunctuation: true });
 };
+
+const isResourceKind = (kind: TerminalCompletionItemKind | undefined) =>
+	kind === TerminalCompletionItemKind.File ||
+	kind === TerminalCompletionItemKind.Folder ||
+	kind === TerminalCompletionItemKind.SymbolicLinkFile ||
+	kind === TerminalCompletionItemKind.SymbolicLinkFolder;
 
 // TODO: This should be based on the process OS, not the local OS
 // File score boosts for specific file extensions on Windows. This only applies when the file is the

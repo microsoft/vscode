@@ -10,7 +10,7 @@ import lsSpec from '../../../completions/upstream/ls';
 const allOptions = [
 	'-%',
 	'-,',
-	'--color',
+	'--color <when>',
 	'-1',
 	'-@',
 	'-A',
@@ -51,7 +51,7 @@ const allOptions = [
 	'-w',
 	'-x',
 ];
-const expectedCompletions = [{ label: 'ls', description: (lsSpec as any).description }];
+const expectedCompletions = [{ label: 'ls', description: (lsSpec as Fig.Subcommand).description }];
 export const lsTestSuiteSpec: ISuiteSpec = {
 	name: 'ls',
 	completionSpecs: lsSpec,

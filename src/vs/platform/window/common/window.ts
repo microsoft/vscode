@@ -127,13 +127,58 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 	return !!(uriToOpen as IFileToOpen).fileUri;
 }
 
+export const enum MenuSettings {
+	MenuStyle = 'window.menuStyle',
+	MenuBarVisibility = 'window.menuBarVisibility'
+}
+
+export const enum MenuStyleConfiguration {
+	CUSTOM = 'custom',
+	NATIVE = 'native',
+	INHERIT = 'inherit',
+}
+
+export function hasNativeContextMenu(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	if (isWeb) {
+		return false;
+	}
+
+	const nativeTitle = hasNativeTitlebar(configurationService, titleBarStyle);
+	const windowConfigurations = configurationService.getValue<IWindowSettings | undefined>('window');
+
+	if (windowConfigurations?.menuStyle === MenuStyleConfiguration.NATIVE) {
+		// Do not support native menu with custom title bar
+		if (!isMacintosh && !nativeTitle) {
+			return false;
+		}
+		return true;
+	}
+
+	if (windowConfigurations?.menuStyle === MenuStyleConfiguration.CUSTOM) {
+		return false;
+	}
+
+	return nativeTitle; // Default to inherit from title bar style
+}
+
+export function hasNativeMenu(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	if (isWeb) {
+		return false;
+	}
+
+	if (isMacintosh) {
+		return true;
+	}
+
+	return hasNativeContextMenu(configurationService, titleBarStyle);
+}
+
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
-	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
-	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
+	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>(MenuSettings.MenuBarVisibility);
 
-	if (menuBarVisibility === 'default' || (nativeTitleBarEnabled && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
+	if (menuBarVisibility === 'default' || (menuBarVisibility === 'compact' && hasNativeMenu(configurationService)) || (isMacintosh && isNative)) {
 		return 'classic';
 	} else {
 		return menuBarVisibility;
@@ -152,6 +197,8 @@ export interface IWindowSettings {
 	readonly restoreFullscreen: boolean;
 	readonly zoomLevel: number;
 	readonly titleBarStyle: TitlebarStyle;
+	readonly controlsStyle: WindowControlsStyle;
+	readonly menuStyle: MenuStyleConfiguration;
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -163,6 +210,7 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
+	readonly border: 'off' | 'default' | 'system' | string /* color in RGB or other formats */;
 }
 
 export interface IDensitySettings {
@@ -177,6 +225,12 @@ export const enum TitleBarSetting {
 export const enum TitlebarStyle {
 	NATIVE = 'native',
 	CUSTOM = 'custom',
+}
+
+export const enum WindowControlsStyle {
+	NATIVE = 'native',
+	CUSTOM = 'custom',
+	HIDDEN = 'hidden'
 }
 
 export const enum CustomTitleBarVisibility {
@@ -208,7 +262,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
 		if (useNativeTabs) {
-			return TitlebarStyle.NATIVE; // native tabs on sierra do not work with custom title style
+			return TitlebarStyle.NATIVE; // native tabs on macOS do not work with custom title style
 		}
 
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
@@ -225,6 +279,20 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 	return TitlebarStyle.CUSTOM; // default to custom on all OS
 }
 
+export function getWindowControlsStyle(configurationService: IConfigurationService): WindowControlsStyle {
+	if (isWeb || isMacintosh || getTitleBarStyle(configurationService) === TitlebarStyle.NATIVE) {
+		return WindowControlsStyle.NATIVE; // only supported on Windows/Linux desktop with custom titlebar
+	}
+
+	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
+	const style = configuration?.controlsStyle;
+	if (style === WindowControlsStyle.CUSTOM || style === WindowControlsStyle.HIDDEN) {
+		return style;
+	}
+
+	return WindowControlsStyle.NATIVE; // default to native on all OS
+}
+
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
@@ -234,6 +302,13 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 
 	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
+	}
+
+	if (!isMacintosh) {
+		const setting = getWindowControlsStyle(configurationService);
+		if (setting === WindowControlsStyle.CUSTOM || setting === WindowControlsStyle.HIDDEN) {
+			return false; // explicitly disabled by choice
+		}
 	}
 
 	return true; // default
@@ -320,7 +395,7 @@ export interface INativeOpenFileRequest extends IOpenFileRequest {
 export interface INativeRunActionInWindowRequest {
 	readonly id: string;
 	readonly from: 'menu' | 'touchbar' | 'mouse';
-	readonly args?: any[];
+	readonly args?: unknown[];
 }
 
 export interface INativeRunKeybindingInWindowRequest {
@@ -396,8 +471,9 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
  * https://github.com/electron/electron/blob/master/docs/api/web-contents.md#contentssetzoomlevellevel
  */
 export function zoomLevelToZoomFactor(zoomLevel = 0): number {
-	return Math.pow(1.2, zoomLevel);
+	return 1.2 ** zoomLevel;
 }
 
-export const DEFAULT_WINDOW_SIZE = { width: 1200, height: 800 } as const;
+export const DEFAULT_EMPTY_WINDOW_SIZE = { width: 1200, height: 800 } as const;
+export const DEFAULT_WORKSPACE_WINDOW_SIZE = { width: 1440, height: 900 } as const;
 export const DEFAULT_AUX_WINDOW_SIZE = { width: 1024, height: 768 } as const;

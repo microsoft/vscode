@@ -33,6 +33,8 @@
 	z-index: 1;
 }
 
+.monaco-editor .ghost-text-decoration.clickable,
+.monaco-editor .ghost-text-decoration-preview.clickable,
 .monaco-editor .suggest-preview-text.clickable .ghost-text {
 	cursor: pointer;
 }

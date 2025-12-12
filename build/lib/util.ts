@@ -11,12 +11,12 @@ import path from 'path';
 import fs from 'fs';
 import _rimraf from 'rimraf';
 import VinylFile from 'vinyl';
-import { ThroughStream } from 'through';
+import through from 'through';
 import sm from 'source-map';
 import { pathToFileURL } from 'url';
 import ternaryStream from 'ternary-stream';
 
-const root = path.dirname(path.dirname(__dirname));
+const root = path.dirname(path.dirname(import.meta.dirname));
 
 export interface ICancellationToken {
 	isCancellationRequested(): boolean;
@@ -129,9 +129,10 @@ export function fixWin32DirectoryPermissions(): NodeJS.ReadWriteStream {
 export function setExecutableBit(pattern?: string | string[]): NodeJS.ReadWriteStream {
 	const setBit = es.mapSync<VinylFile, VinylFile>(f => {
 		if (!f.stat) {
-			f.stat = { isFile() { return true; } } as any;
+			const stat: Pick<fs.Stats, 'isFile' | 'mode'> = { isFile() { return true; }, mode: 0 };
+			f.stat = stat as fs.Stats;
 		}
-		f.stat.mode = /* 100755 */ 33261;
+		f.stat!.mode = /* 100755 */ 33261;
 		return f;
 	});
 
@@ -185,9 +186,7 @@ export function cleanNodeModules(rulePath: string): NodeJS.ReadWriteStream {
 	return es.duplex(input, output);
 }
 
-declare class FileSourceMap extends VinylFile {
-	public sourceMap: sm.RawSourceMap;
-}
+type FileSourceMap = VinylFile & { sourceMap: sm.RawSourceMap };
 
 export function loadSourcemaps(): NodeJS.ReadWriteStream {
 	const input = es.through();
@@ -204,8 +203,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 				return;
 			}
 
-			const contents = (<Buffer>f.contents).toString('utf8');
-
+			const contents = (f.contents as Buffer).toString('utf8');
 			const reg = /\/\/# sourceMappingURL=(.*)$/g;
 			let lastMatch: RegExpExecArray | null = null;
 			let match: RegExpExecArray | null = null;
@@ -245,7 +243,7 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 
 	const output = input
 		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
-			const contents = (<Buffer>f.contents).toString('utf8');
+			const contents = (f.contents as Buffer).toString('utf8');
 			f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
 			return f;
 		}));
@@ -284,7 +282,7 @@ export function rewriteSourceMappingURL(sourceMappingURLBase: string): NodeJS.Re
 
 	const output = input
 		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
-			const contents = (<Buffer>f.contents).toString('utf8');
+			const contents = (f.contents as Buffer).toString('utf8');
 			const str = `//# sourceMappingURL=${sourceMappingURLBase}/${path.dirname(f.relative).replace(/\\/g, '/')}/$1`;
 			f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, str));
 			return f;
@@ -351,17 +349,17 @@ export function rebase(count: number): NodeJS.ReadWriteStream {
 }
 
 export interface FilterStream extends NodeJS.ReadWriteStream {
-	restore: ThroughStream;
+	restore: through.ThroughStream;
 }
 
 export function filter(fn: (data: any) => boolean): FilterStream {
-	const result = <FilterStream><any>es.through(function (data) {
+	const result = es.through(function (data) {
 		if (fn(data)) {
 			this.emit('data', data);
 		} else {
 			result.restore.push(data);
 		}
-	});
+	}) as unknown as FilterStream;
 
 	result.restore = es.through();
 	return result;
@@ -379,4 +377,55 @@ export function getElectronVersion(): Record<string, string> {
 	const electronVersion = /^target="(.*)"$/m.exec(npmrc)![1];
 	const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
 	return { electronVersion, msBuildId };
+}
+
+export class VinylStat implements fs.Stats {
+
+	readonly dev: number;
+	readonly ino: number;
+	readonly mode: number;
+	readonly nlink: number;
+	readonly uid: number;
+	readonly gid: number;
+	readonly rdev: number;
+	readonly size: number;
+	readonly blksize: number;
+	readonly blocks: number;
+	readonly atimeMs: number;
+	readonly mtimeMs: number;
+	readonly ctimeMs: number;
+	readonly birthtimeMs: number;
+	readonly atime: Date;
+	readonly mtime: Date;
+	readonly ctime: Date;
+	readonly birthtime: Date;
+
+	constructor(stat: Partial<fs.Stats>) {
+		this.dev = stat.dev ?? 0;
+		this.ino = stat.ino ?? 0;
+		this.mode = stat.mode ?? 0;
+		this.nlink = stat.nlink ?? 0;
+		this.uid = stat.uid ?? 0;
+		this.gid = stat.gid ?? 0;
+		this.rdev = stat.rdev ?? 0;
+		this.size = stat.size ?? 0;
+		this.blksize = stat.blksize ?? 0;
+		this.blocks = stat.blocks ?? 0;
+		this.atimeMs = stat.atimeMs ?? 0;
+		this.mtimeMs = stat.mtimeMs ?? 0;
+		this.ctimeMs = stat.ctimeMs ?? 0;
+		this.birthtimeMs = stat.birthtimeMs ?? 0;
+		this.atime = stat.atime ?? new Date(0);
+		this.mtime = stat.mtime ?? new Date(0);
+		this.ctime = stat.ctime ?? new Date(0);
+		this.birthtime = stat.birthtime ?? new Date(0);
+	}
+
+	isFile(): boolean { return true; }
+	isDirectory(): boolean { return false; }
+	isBlockDevice(): boolean { return false; }
+	isCharacterDevice(): boolean { return false; }
+	isSymbolicLink(): boolean { return false; }
+	isFIFO(): boolean { return false; }
+	isSocket(): boolean { return false; }
 }

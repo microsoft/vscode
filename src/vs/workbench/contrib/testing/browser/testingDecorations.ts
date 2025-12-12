@@ -5,11 +5,11 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, Throttler, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
@@ -47,7 +47,7 @@ import { themeColorFromId } from '../../../../platform/theme/common/themeService
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorLineNumberContextMenu, GutterActionsRegistry } from '../../codeEditor/browser/editorLineNumberMenu.js';
 import { DefaultGutterClickAction, TestingConfigKeys, getTestingConfiguration } from '../common/configuration.js';
-import { Testing, labelForTestInState } from '../common/constants.js';
+import { TestCommandId, Testing, labelForTestInState } from '../common/constants.js';
 import { TestId } from '../common/testId.js';
 import { ITestProfileService } from '../common/testProfileService.js';
 import { ITestResult, LiveTestResult, TestResultItemChangeReason } from '../common/testResult.js';
@@ -158,7 +158,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
-		codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined);
+		this._register(codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined));
 
 		this._register(modelService.onModelRemoved(e => this.decorationCache.delete(e.uri)));
 
@@ -394,7 +394,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	) {
 		super();
 
-		codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined, editor);
+		this._register(codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined, editor));
 
 		this.attachModel(editor.getModel()?.uri);
 		this._register(decorations.onDidChange(() => {
@@ -403,10 +403,21 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 		}));
 
+		const msgThrottler = this._register(new Throttler());
+		this._register(this.results.onTestChanged(ev => {
+			if (ev.reason !== TestResultItemChangeReason.NewMessage) {
+				return;
+			}
+
+			msgThrottler.queue(() => {
+				this.applyResults();
+				return timeout(100);
+			});
+		}));
+
 		this._register(Event.any(
 			this.results.onResultsChanged,
 			editor.onDidChangeModel,
-			Event.filter(this.results.onTestChanged, c => c.reason === TestResultItemChangeReason.NewMessage),
 			this.testService.showInlineOutput.onDidChange,
 		)(() => this.applyResults()));
 
@@ -448,7 +459,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				}
 			}
 		}));
-		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, this._store)(evts => {
+		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, undefined, this._store)(evts => {
 			const model = editor.getModel();
 			if (!this._currentUri || !model) {
 				return;
@@ -515,7 +526,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.decorations.syncDecorations(uri);
 
 		(async () => {
-			for await (const _test of testsInFile(this.testService, this.uriIdentityService, uri, false)) {
+			for await (const _tests of testsInFile(this.testService, this.uriIdentityService, uri, false)) {
 				// consume the iterator so that all tests in the file get expanded. Or
 				// at least until the URI changes. If new items are requested, changes
 				// will be trigged in the `onDidProcessDiff` callback.
@@ -1026,7 +1037,7 @@ abstract class RunTestDecoration {
 	 * Gets context menu actions relevant for a singel test.
 	 */
 	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem): IReference<IAction[]> {
-		const testActions: IAction[] = [];
+		const testActions: Action[] = [];
 		const capabilities = this.testProfileService.capabilitiesForTest(test.item);
 
 		[
@@ -1063,11 +1074,16 @@ abstract class RunTestDecoration {
 				() => this.commandService.executeCommand('vscode.peekTestError', test.item.extId)));
 		}
 
+		if (resultItem?.computedState === TestResultState.Running) {
+			testActions.push(new Action('testing.gutter.cancel', localize('testing.cancelRun', 'Cancel Test Run'), undefined, undefined,
+				() => this.commandService.executeCommand(TestCommandId.CancelTestRunAction)));
+		}
+
 		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined,
 			() => this.commandService.executeCommand('_revealTestInExplorer', test.item.extId)));
 
 		const contributed = this.getContributedTestActions(test, capabilities);
-		return { object: Separator.join(testActions, contributed), dispose() { } };
+		return { object: Separator.join(testActions, contributed), dispose() { testActions.forEach(a => a.dispose()); } };
 	}
 
 	private getContributedTestActions(test: InternalTestItem, capabilities: number): IAction[] {
@@ -1110,8 +1126,8 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 	}
 
 	public override getContextMenuActions() {
-		const allActions: IAction[] = [];
-
+		const disposable = new DisposableStore();
+		const allActions: Action[] = [];
 		[
 			{ bitset: TestRunProfileBitset.Run, label: localize('run all test', 'Run All Tests') },
 			{ bitset: TestRunProfileBitset.Coverage, label: localize('run all test with coverage', 'Run All Tests with Coverage') },
@@ -1122,6 +1138,8 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 				allActions.push(new Action(`testing.gutter.run${i}`, label, undefined, undefined, () => this.runWith(bitset)));
 			}
 		});
+
+		disposable.add(toDisposable(() => allActions.forEach(a => a.dispose())));
 
 		const testItems = this.tests.map((testItem): IMultiRunTest => ({
 			currentLabel: testItem.test.item.label,
@@ -1157,7 +1175,6 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			return (ai.sortText || ai.label).localeCompare(bi.sortText || bi.label);
 		});
 
-		const disposable = new DisposableStore();
 		let testSubmenus: IAction[] = testItems.map(({ currentLabel, testItem }) => {
 			const actions = this.getTestContextMenuActions(testItem.test, testItem.resultItem);
 			disposable.add(actions);
@@ -1361,11 +1378,17 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 		super();
 
 		const setMarginTop = () => {
-			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			const lineHeight = editor.getLineHeightForPosition(position);
 			this.node.root.style.marginTop = (lineHeight - ERROR_CONTENT_WIDGET_HEIGHT) / 2 + 'px';
 		};
 
 		setMarginTop();
+		this._register(editor.onDidChangeLineHeight(e => {
+			if (e.affects(position)) {
+				setMarginTop();
+			}
+		}));
+
 		this._register(editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.lineHeight)) {
 				setMarginTop();
@@ -1376,15 +1399,15 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 		if (message.expected !== undefined && message.actual !== undefined) {
 			text = `${truncateMiddle(message.actual.replace(/\s+/g, ' '), 30)} != ${truncateMiddle(message.expected.replace(/\s+/g, ' '), 30)}`;
 		} else {
-			const msg = renderStringAsPlaintext(message.message);
+			const msg = renderAsPlaintext(message.message);
 			const lf = msg.indexOf('\n');
 			text = lf === -1 ? msg : msg.slice(0, lf);
 		}
 
-		this.node.root.addEventListener('click', e => {
+		this._register(dom.addDisposableListener(this.node.root, dom.EventType.CLICK, e => {
 			this.peekOpener.peekUri(uri);
 			e.preventDefault();
-		});
+		}));
 
 		const ctrl = TestingOutputPeekController.get(editor);
 		if (ctrl) {

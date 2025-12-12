@@ -7,10 +7,8 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -38,12 +36,12 @@ import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/commo
 import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { INotebookDocumentService } from '../../../services/notebook/common/notebookDocumentService.js';
 import { ExplorerFolderContext } from '../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatContentInlineReference } from '../common/chatService.js';
-import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatWidgetService } from './chat.js';
-import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
+import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from './chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 
 type ContentRefData =
@@ -54,6 +52,23 @@ type ContentRefData =
 		readonly range?: IRange;
 	};
 
+export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
+	// eslint-disable-next-line no-restricted-syntax
+	const links = element.querySelectorAll('a');
+	links.forEach(a => {
+		// Empty link text -> render file widget
+		if (!a.textContent?.trim()) {
+			const href = a.getAttribute('data-href');
+			const uri = href ? URI.parse(href) : undefined;
+			if (uri?.scheme) {
+				const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri });
+				disposables.add(chatMarkdownAnchorService.register(widget));
+				disposables.add(widget);
+			}
+		}
+	});
+}
+
 export class InlineAnchorWidget extends Disposable {
 
 	public static readonly className = 'chat-inline-anchor-widget';
@@ -61,8 +76,6 @@ export class InlineAnchorWidget extends Disposable {
 	private readonly _chatResourceContext: IContextKey<string>;
 
 	readonly data: ContentRefData;
-
-	private _isDisposed = false;
 
 	constructor(
 		private readonly element: HTMLAnchorElement | HTMLElement,
@@ -78,6 +91,7 @@ export class InlineAnchorWidget extends Disposable {
 		@IModelService modelService: IModelService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
+		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
 	) {
 		super();
 
@@ -92,11 +106,9 @@ export class InlineAnchorWidget extends Disposable {
 		const contextKeyService = this._register(originalContextKeyService.createScoped(element));
 		this._chatResourceContext = chatAttachmentResourceContextKey.bindTo(contextKeyService);
 
-		const anchorId = new Lazy(generateUuid);
-
 		element.classList.add(InlineAnchorWidget.className, 'show-file-icons');
 
-		let iconText: string;
+		let iconText: Array<string | HTMLElement>;
 		let iconClasses: string[];
 
 		let location: { readonly uri: URI; readonly range?: IRange };
@@ -106,29 +118,25 @@ export class InlineAnchorWidget extends Disposable {
 			const symbol = this.data.symbol;
 
 			location = this.data.symbol.location;
-			iconText = this.data.symbol.name;
+			iconText = [this.data.symbol.name];
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
-
-			this._register(dom.addDisposableListener(element, 'click', () => {
-				telemetryService.publicLog2<{
-					anchorId: string;
-				}, {
-					anchorId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for the current anchor.' };
-					owner: 'mjbvz';
-					comment: 'Provides insight into the usage of Chat features.';
-				}>('chat.inlineAnchor.openSymbol', {
-					anchorId: anchorId.value
-				});
-			}));
 
 			this._store.add(instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, element, contextKeyService, { value: symbol.location, name: symbol.name, kind: symbol.kind }, MenuId.ChatInlineSymbolAnchorContext)));
 		} else {
 			location = this.data;
 
-			const label = labelService.getUriBasenameLabel(location.uri);
-			iconText = location.range && this.data.kind !== 'symbol' ?
-				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
-				label;
+			const filePathLabel = labelService.getUriBasenameLabel(location.uri);
+			if (location.range && this.data.kind !== 'symbol') {
+				const suffix = location.range.startLineNumber === location.range.endLineNumber
+					? `:${location.range.startLineNumber}`
+					: `:${location.range.startLineNumber}-${location.range.endLineNumber}`;
+
+				iconText = [filePathLabel, dom.$('span.label-suffix', undefined, suffix)];
+			} else if (location.uri.scheme === 'vscode-notebook-cell' && this.data.kind !== 'symbol') {
+				iconText = [`${filePathLabel} • cell${this.getCellIndex(location.uri)}`];
+			} else {
+				iconText = [filePathLabel];
+			}
 
 			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
@@ -156,18 +164,6 @@ export class InlineAnchorWidget extends Disposable {
 				})
 				.catch(() => { });
 
-			this._register(dom.addDisposableListener(element, 'click', () => {
-				telemetryService.publicLog2<{
-					anchorId: string;
-				}, {
-					anchorId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for the current anchor.' };
-					owner: 'mjbvz';
-					comment: 'Provides insight into the usage of Chat features.';
-				}>('chat.inlineAnchor.openResource', {
-					anchorId: anchorId.value
-				});
-			}));
-
 			// Context menu
 			this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async domEvent => {
 				const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
@@ -179,7 +175,7 @@ export class InlineAnchorWidget extends Disposable {
 					console.error(e);
 				}
 
-				if (this._isDisposed) {
+				if (this._store.isDisposed) {
 					return;
 				}
 
@@ -192,6 +188,15 @@ export class InlineAnchorWidget extends Disposable {
 					},
 				});
 			}));
+
+			// Add line range label for screen readers
+			if (location.range) {
+				if (location.range.startLineNumber === location.range.endLineNumber) {
+					element.setAttribute('aria-label', nls.localize('chat.inlineAnchor.ariaLabel.line', "{0} line {1}", filePathLabel, location.range.startLineNumber));
+				} else {
+					element.setAttribute('aria-label', nls.localize('chat.inlineAnchor.ariaLabel.range', "{0} lines {1} to {2}", filePathLabel, location.range.startLineNumber, location.range.endLineNumber));
+				}
+			}
 		}
 
 		const resourceContextKey = this._register(new ResourceContextKey(contextKeyService, fileService, languageService, modelService));
@@ -200,7 +205,7 @@ export class InlineAnchorWidget extends Disposable {
 
 		const iconEl = dom.$('span.icon');
 		iconEl.classList.add(...iconClasses);
-		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
+		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, ...iconText));
 
 		const fragment = location.range ? `${location.range.startLineNumber},${location.range.startColumn}` : '';
 		element.setAttribute('data-href', (fragment ? location.uri.with({ fragment }) : location.uri).toString());
@@ -225,13 +230,14 @@ export class InlineAnchorWidget extends Disposable {
 		}
 	}
 
-	override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
-	}
-
 	getHTMLElement(): HTMLElement {
 		return this.element;
+	}
+
+	private getCellIndex(location: URI) {
+		const notebook = this.notebookDocumentService.getNotebook(location);
+		const index = notebook?.getCellIndex(location) ?? -1;
+		return index >= 0 ? ` ${index + 1}` : '';
 	}
 }
 
@@ -256,14 +262,12 @@ registerAction2(class AddFileToChatAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const variablesService = accessor.get(IChatVariablesService);
 
 		const widget = chatWidgetService.lastFocusedWidget;
-		if (!widget) {
-			return;
-		}
+		if (widget) {
+			widget.attachmentModel.addFile(resource);
 
-		variablesService.attachContext('file', resource, widget.location);
+		}
 	}
 });
 
@@ -391,13 +395,14 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
+	override async run(accessor: ServicesAccessor, location: Location): Promise<unknown> {
 		const editorService = accessor.get(ICodeEditorService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		await openEditorWithSelection(editorService, location);
 
 		const action = new DefinitionAction({ openToSide: false, openInPeek: false, muteMessage: true }, { title: { value: '', original: '' }, id: '', precondition: undefined });
-		return action.run(accessor);
+		return instantiationService.invokeFunction(accessor => action.run(accessor));
 	}
 });
 
@@ -442,7 +447,7 @@ registerAction2(class GoToTypeDefinitionsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToTypeDefinition', location);
+		await runGoToCommand(accessor, 'editor.action.goToTypeDefinition', location);
 	}
 });
 
@@ -467,7 +472,7 @@ registerAction2(class GoToImplementations extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToImplementation', location);
+		await runGoToCommand(accessor, 'editor.action.goToImplementation', location);
 	}
 });
 
@@ -492,7 +497,7 @@ registerAction2(class GoToReferencesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToReferences', location);
+		await runGoToCommand(accessor, 'editor.action.goToReferences', location);
 	}
 });
 

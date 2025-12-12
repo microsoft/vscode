@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { IDefaultAccount } from '../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { PolicyName } from '../../../base/common/policy.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
-export type PolicyName = string;
-export type PolicyValue = string | number;
-export type PolicyDefinition = { type: 'string' | 'number' };
+export type PolicyValue = string | number | boolean;
+export type PolicyDefinition = {
+	type: 'string' | 'number' | 'boolean';
+	value?: (account: IDefaultAccount) => string | number | boolean | undefined;
+};
 
 export const IPolicyService = createDecorator<IPolicyService>('policy');
 
@@ -22,12 +26,13 @@ export interface IPolicyService {
 	updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>>;
 	getPolicyValue(name: PolicyName): PolicyValue | undefined;
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> | undefined;
+	readonly policyDefinitions: IStringDictionary<PolicyDefinition>;
 }
 
 export abstract class AbstractPolicyService extends Disposable implements IPolicyService {
 	readonly _serviceBrand: undefined;
 
-	protected policyDefinitions: IStringDictionary<PolicyDefinition> = {};
+	public policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 	protected policies = new Map<PolicyName, PolicyValue>();
 
 	protected readonly _onDidChange = this._register(new Emitter<readonly PolicyName[]>());
@@ -38,7 +43,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 		this.policyDefinitions = { ...policyDefinitions, ...this.policyDefinitions };
 
 		if (size !== Object.keys(this.policyDefinitions).length) {
-			await this._updatePolicyDefinitions(policyDefinitions);
+			await this._updatePolicyDefinitions(this.policyDefinitions);
 		}
 
 		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
@@ -61,4 +66,5 @@ export class NullPolicyService implements IPolicyService {
 	async updatePolicyDefinitions() { return {}; }
 	getPolicyValue() { return undefined; }
 	serialize() { return undefined; }
+	policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 }

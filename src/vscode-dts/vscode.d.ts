@@ -117,6 +117,24 @@ declare module 'vscode' {
 		readonly languageId: string;
 
 		/**
+		 * The file encoding of this document that will be used when the document is saved.
+		 *
+		 * Use the {@link workspace.onDidChangeTextDocument onDidChangeTextDocument}-event to
+		 * get notified when the document encoding changes.
+		 *
+		 * Note that the possible encoding values are currently defined as any of the following:
+		 * 'utf8', 'utf8bom', 'utf16le', 'utf16be', 'windows1252', 'iso88591', 'iso88593',
+		 * 'iso885915', 'macroman', 'cp437', 'windows1256', 'iso88596', 'windows1257',
+		 * 'iso88594', 'iso885914', 'windows1250', 'iso88592', 'cp852', 'windows1251',
+		 * 'cp866', 'cp1125', 'iso88595', 'koi8r', 'koi8u', 'iso885913', 'windows1253',
+		 * 'iso88597', 'windows1255', 'iso88598', 'iso885910', 'iso885916', 'windows1254',
+		 * 'iso88599', 'windows1258', 'gbk', 'gb18030', 'cp950', 'big5hkscs', 'shiftjis',
+		 * 'eucjp', 'euckr', 'windows874', 'iso885911', 'koi8ru', 'koi8t', 'gb2312',
+		 * 'cp865', 'cp850'.
+		 */
+		readonly encoding: string;
+
+		/**
 		 * The version number of this document (it will strictly increase after each
 		 * change, including undo/redo).
 		 */
@@ -182,14 +200,14 @@ declare module 'vscode' {
 		 * The position will be {@link TextDocument.validatePosition adjusted}.
 		 *
 		 * @param position A position.
-		 * @returns A valid zero-based offset.
+		 * @returns A valid zero-based offset in UTF-16 [code units](https://developer.mozilla.org/en-US/docs/Glossary/Code_unit).
 		 */
 		offsetAt(position: Position): number;
 
 		/**
 		 * Converts a zero-based offset to a position.
 		 *
-		 * @param offset A zero-based offset.
+		 * @param offset A zero-based offset into the document. This offset is in UTF-16 [code units](https://developer.mozilla.org/en-US/docs/Glossary/Code_unit).
 		 * @returns A valid {@link Position}.
 		 */
 		positionAt(offset: number): Position;
@@ -257,6 +275,8 @@ declare module 'vscode' {
 
 		/**
 		 * The zero-based character value.
+		 *
+		 * Character offsets are expressed using UTF-16 [code units](https://developer.mozilla.org/en-US/docs/Glossary/Code_unit).
 		 */
 		readonly character: number;
 
@@ -501,13 +521,13 @@ declare module 'vscode' {
 		 * The position at which the selection starts.
 		 * This position might be before or after {@link Selection.active active}.
 		 */
-		anchor: Position;
+		readonly anchor: Position;
 
 		/**
 		 * The position of the cursor.
 		 * This position might be before or after {@link Selection.anchor anchor}.
 		 */
-		active: Position;
+		readonly active: Position;
 
 		/**
 		 * Create a selection from two positions.
@@ -530,7 +550,7 @@ declare module 'vscode' {
 		/**
 		 * A selection is reversed if its {@link Selection.anchor anchor} is the {@link Selection.end end} position.
 		 */
-		isReversed: boolean;
+		readonly isReversed: boolean;
 	}
 
 	/**
@@ -1646,7 +1666,7 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event} which fires upon cancellation.
 		 */
-		onCancellationRequested: Event<any>;
+		readonly onCancellationRequested: Event<any>;
 	}
 
 	/**
@@ -1852,86 +1872,105 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The kind of {@link QuickPickItem quick pick item}.
+	 * Defines the kind of {@link QuickPickItem quick pick item}.
 	 */
 	export enum QuickPickItemKind {
 		/**
-		 * When a {@link QuickPickItem} has a kind of {@link Separator}, the item is just a visual separator and does not represent a real item.
-		 * The only property that applies is {@link QuickPickItem.label label }. All other properties on {@link QuickPickItem} will be ignored and have no effect.
+		 * A separator item that provides a visual grouping.
+		 *
+		 * When a {@link QuickPickItem} has a kind of {@link Separator}, the item is just a visual separator
+		 * and does not represent a selectable item. The only property that applies is
+		 * {@link QuickPickItem.label label}. All other properties on {@link QuickPickItem} will be ignored
+		 * and have no effect.
 		 */
 		Separator = -1,
 		/**
-		 * The default {@link QuickPickItem.kind} is an item that can be selected in the quick pick.
+		 * The default kind for an item that can be selected in the quick pick.
 		 */
 		Default = 0,
 	}
 
 	/**
-	 * Represents an item that can be selected from
-	 * a list of items.
+	 * Represents an item that can be selected from a list of items.
 	 */
 	export interface QuickPickItem {
 
 		/**
-		 * A human-readable string which is rendered prominent. Supports rendering of {@link ThemeIcon theme icons} via
-		 * the `$(<name>)`-syntax.
+		 * A human-readable string which is rendered prominently.
+		 *
+		 * Supports rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 *
+		 * **Note:** When {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Default} (so a regular
+		 * item instead of a separator), it supports rendering of {@link ThemeIcon theme icons} via the
+		 * `$(<name>)`-syntax.
 		 */
 		label: string;
 
 		/**
-		 * The kind of QuickPickItem that will determine how this item is rendered in the quick pick. When not specified,
-		 * the default is {@link QuickPickItemKind.Default}.
+		 * The kind of this item that determines how it is rendered in the quick pick.
+		 *
+		 * When not specified, the default is {@link QuickPickItemKind.Default}.
 		 */
 		kind?: QuickPickItemKind;
 
 		/**
-		 * The icon path or {@link ThemeIcon} for the QuickPickItem.
+		 * The icon for the item.
 		 */
 		iconPath?: IconPath;
 
 		/**
-		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
-		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 * A human-readable string which is rendered less prominently in the same line.
 		 *
-		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
+		 * Supports rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 *
+		 * **Note:** This property is ignored when {@link QuickPickItem.kind kind} is set to
+		 * {@link QuickPickItemKind.Separator}.
 		 */
 		description?: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent in a separate line. Supports rendering of
-		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 * A human-readable string which is rendered less prominently in a separate line.
 		 *
-		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
+		 * Supports rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 *
+		 * **Note:** This property is ignored when {@link QuickPickItem.kind kind} is set to
+		 * {@link QuickPickItemKind.Separator}.
 		 */
 		detail?: string;
 
 		/**
-		 * Optional flag indicating if this item is picked initially. This is only honored when using
-		 * the {@link window.showQuickPick showQuickPick()} API. To do the same thing with
-		 * the {@link window.createQuickPick createQuickPick()} API, simply set the {@link QuickPick.selectedItems}
-		 * to the items you want picked initially.
-		 * (*Note:* This is only honored when the picker allows multiple selections.)
+		 * Optional flag indicating if this item is initially selected.
+		 *
+		 * This is only honored when using the {@link window.showQuickPick showQuickPick} API. To do the same
+		 * thing with the {@link window.createQuickPick createQuickPick} API, simply set the
+		 * {@link QuickPick.selectedItems selectedItems} to the items you want selected initially.
+		 *
+		 * **Note:** This is only honored when the picker allows multiple selections.
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
 		 *
-		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
+		 * **Note:** This property is ignored when {@link QuickPickItem.kind kind} is set to
+		 * {@link QuickPickItemKind.Separator}.
 		 */
 		picked?: boolean;
 
 		/**
-		 * Always show this item.
+		 * Determines if this item is always shown, even when filtered out by the user's input.
 		 *
-		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
+		 * **Note:** This property is ignored when {@link QuickPickItem.kind kind} is set to
+		 * {@link QuickPickItemKind.Separator}.
 		 */
 		alwaysShow?: boolean;
 
 		/**
-		 * Optional buttons that will be rendered on this particular item. These buttons will trigger
-		 * an {@link QuickPickItemButtonEvent} when clicked. Buttons are only rendered when using a quickpick
-		 * created by the {@link window.createQuickPick createQuickPick()} API. Buttons are not rendered when using
-		 * the {@link window.showQuickPick showQuickPick()} API.
+		 * Optional buttons that will be rendered on this particular item.
 		 *
-		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
+		 * These buttons will trigger an {@link QuickPickItemButtonEvent} when pressed. Buttons are only rendered
+		 * when using a quick pick created by the {@link window.createQuickPick createQuickPick} API. Buttons are
+		 * not rendered when using the {@link window.showQuickPick showQuickPick} API.
+		 *
+		 * **Note:** This property is ignored when {@link QuickPickItem.kind kind} is set to
+		 * {@link QuickPickItemKind.Separator}.
 		 */
 		buttons?: readonly QuickInputButton[];
 	}
@@ -1942,33 +1981,33 @@ declare module 'vscode' {
 	export interface QuickPickOptions {
 
 		/**
-		 * An optional string that represents the title of the quick pick.
+		 * An optional title for the quick pick.
 		 */
 		title?: string;
 
 		/**
-		 * An optional flag to include the description when filtering the picks.
+		 * Determines if the {@link QuickPickItem.description description} should be included when filtering items. Defaults to `false`.
 		 */
 		matchOnDescription?: boolean;
 
 		/**
-		 * An optional flag to include the detail when filtering the picks.
+		 * Determines if the {@link QuickPickItem.detail detail} should be included when filtering items. Defaults to `false`.
 		 */
 		matchOnDetail?: boolean;
 
 		/**
-		 * An optional string to show as placeholder in the input box to guide the user what to pick on.
+		 * An optional string to show as placeholder in the input box to guide the user.
 		 */
 		placeHolder?: string;
 
 		/**
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
-		 * This setting is ignored on iPad and is always false.
+		 * This setting is ignored on iPad and is always `false`.
 		 */
 		ignoreFocusOut?: boolean;
 
 		/**
-		 * An optional flag to make the picker accept multiple selections, if true the result is an array of picks.
+		 * Determines if the picker allows multiple selections. When `true`, the result is an array of picks.
 		 */
 		canPickMany?: boolean;
 
@@ -1979,24 +2018,24 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options to configure the behaviour of the {@link WorkspaceFolder workspace folder} pick UI.
+	 * Options to configure the behavior of the {@link WorkspaceFolder workspace folder} pick UI.
 	 */
 	export interface WorkspaceFolderPickOptions {
 
 		/**
-		 * An optional string to show as placeholder in the input box to guide the user what to pick on.
+		 * An optional string to show as placeholder in the input box to guide the user.
 		 */
 		placeHolder?: string;
 
 		/**
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
-		 * This setting is ignored on iPad and is always false.
+		 * This setting is ignored on iPad and is always `false`.
 		 */
 		ignoreFocusOut?: boolean;
 	}
 
 	/**
-	 * Options to configure the behaviour of a file open dialog.
+	 * Options to configure the behavior of a file open dialog.
 	 *
 	 * * Note 1: On Windows and Linux, a file dialog cannot be both a file selector and a folder selector, so if you
 	 * set both `canSelectFiles` and `canSelectFolders` to `true` on these platforms, a folder selector will be shown.
@@ -2132,39 +2171,38 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Impacts the behavior and appearance of the validation message.
-	 */
-	/**
-	 * The severity level for input box validation.
+	 * Severity levels for input box validation messages.
 	 */
 	export enum InputBoxValidationSeverity {
 		/**
-		 * Informational severity level.
+		 * Indicates an informational message that does not prevent input acceptance.
 		 */
 		Info = 1,
 		/**
-		 * Warning severity level.
+		 * Indicates a warning message that does not prevent input acceptance.
 		 */
 		Warning = 2,
 		/**
-		 * Error severity level.
+		 * Indicates an error message that prevents the user from accepting the input.
 		 */
 		Error = 3
 	}
 
 	/**
-	 * Object to configure the behavior of the validation message.
+	 * Represents a validation message for an {@link InputBox}.
 	 */
 	export interface InputBoxValidationMessage {
 		/**
-		 * The validation message to display.
+		 * The validation message to display to the user.
 		 */
 		readonly message: string;
 
 		/**
-		 * The severity of the validation message.
-		 * NOTE: When using `InputBoxValidationSeverity.Error`, the user will not be allowed to accept (hit ENTER) the input.
-		 * `Info` and `Warning` will still allow the InputBox to accept the input.
+		 * The severity level of the validation message.
+		 *
+		 * **Note:** When using {@link InputBoxValidationSeverity.Error}, the user will not be able to accept
+		 * the input (e.g., by pressing Enter). {@link InputBoxValidationSeverity.Info Info} and
+		 * {@link InputBoxValidationSeverity.Warning Warning} severities will still allow the input to be accepted.
 		 */
 		readonly severity: InputBoxValidationSeverity;
 	}
@@ -3110,12 +3148,12 @@ declare module 'vscode' {
 	 */
 	export class EvaluatableExpression {
 
-		/*
+		/**
 		 * The range is used to extract the evaluatable expression from the underlying document and to highlight it.
 		 */
 		readonly range: Range;
 
-		/*
+		/**
 		 * If specified the expression overrides the extracted expression.
 		 */
 		readonly expression?: string | undefined;
@@ -4441,6 +4479,12 @@ declare module 'vscode' {
 	 * semantic tokens.
 	 */
 	export interface DocumentRangeSemanticTokensProvider {
+
+		/**
+		 * An optional event to signal that the semantic tokens from this provider have changed.
+		 */
+		onDidChangeSemanticTokens?: Event<void>;
+
 		/**
 		 * @see {@link DocumentSemanticTokensProvider.provideDocumentSemanticTokens provideDocumentSemanticTokens}.
 		 */
@@ -7731,6 +7775,18 @@ declare module 'vscode' {
 		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 		 */
 		readonly isInteractedWith: boolean;
+
+		/**
+		 * The detected shell type of the {@link Terminal}. This will be `undefined` when there is
+		 * not a clear signal as to what the shell is, or the shell is not supported yet. This
+		 * value should change to the shell type of a sub-shell when launched (for example, running
+		 * `bash` inside `zsh`).
+		 *
+		 * Note that the possible values are currently defined as any of the following:
+		 * 'bash', 'cmd', 'csh', 'fish', 'gitbash', 'julia', 'ksh', 'node', 'nu', 'pwsh', 'python',
+		 * 'sh', 'wsl', 'zsh'.
+		 */
+		readonly shell: string | undefined;
 	}
 
 	/**
@@ -7749,6 +7805,8 @@ declare module 'vscode' {
 		 *
 		 * @param commandLine The command line to execute, this is the exact text that will be sent
 		 * to the terminal.
+		 *
+		 * @throws When run on a terminal doesn't support this API, such as task terminals.
 		 *
 		 * @example
 		 * // Execute a command in a terminal immediately after being created
@@ -8407,7 +8465,7 @@ declare module 'vscode' {
 		 * {@linkcode ExtensionContext.globalState globalState} to store key value data.
 		 *
 		 * @see {@linkcode FileSystem workspace.fs} for how to read and write files and folders from
-		 *  an uri.
+		 *  a uri.
 		 */
 		readonly storageUri: Uri | undefined;
 
@@ -8545,6 +8603,11 @@ declare module 'vscode' {
 	 */
 	export interface SecretStorage {
 		/**
+		 * Retrieve the keys of all the secrets stored by this extension.
+		 */
+		keys(): Thenable<string[]>;
+
+		/**
 		 * Retrieve a secret that was stored with key. Returns undefined if there
 		 * is no password matching that key.
 		 * @param key The key the secret was stored under.
@@ -8568,7 +8631,7 @@ declare module 'vscode' {
 		/**
 		 * Fires when a secret is stored or deleted.
 		 */
-		onDidChange: Event<SecretStorageChangeEvent>;
+		readonly onDidChange: Event<SecretStorageChangeEvent>;
 	}
 
 	/**
@@ -9527,6 +9590,10 @@ declare module 'vscode' {
 		 * - the absolute path to exclude
 		 * - a relative path to exclude (for example `build/output`)
 		 * - a simple glob pattern (for example `**​/build`, `output/**`)
+		 *
+		 * *Note* that case-sensitivity of the {@link excludes} patterns for built-in file system providers
+		 * will depend on the underlying file system: on Windows and macOS the matching will be case-insensitive and
+		 * on Linux it will be case-sensitive.
 		 *
 		 * It is the file system provider's job to call {@linkcode FileSystemProvider.onDidChangeFile onDidChangeFile}
 		 * for every change given these rules. No event should be emitted for files that match any of the provided
@@ -11311,7 +11378,7 @@ declare module 'vscode' {
 		 * @param items An array of strings, or a promise that resolves to an array of strings.
 		 * @param options Configures the behavior of the selection list.
 		 * @param token A token that can be used to signal cancellation.
-		 * @returns A promise that resolves to the selected items or `undefined`.
+		 * @returns A thenable that resolves to the selected items or `undefined`.
 		 */
 		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options: QuickPickOptions & { /** literal-type defines return type */canPickMany: true }, token?: CancellationToken): Thenable<string[] | undefined>;
 
@@ -11321,7 +11388,7 @@ declare module 'vscode' {
 		 * @param items An array of strings, or a promise that resolves to an array of strings.
 		 * @param options Configures the behavior of the selection list.
 		 * @param token A token that can be used to signal cancellation.
-		 * @returns A promise that resolves to the selection or `undefined`.
+		 * @returns A thenable that resolves to the selected string or `undefined`.
 		 */
 		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
 
@@ -11331,7 +11398,7 @@ declare module 'vscode' {
 		 * @param items An array of items, or a promise that resolves to an array of items.
 		 * @param options Configures the behavior of the selection list.
 		 * @param token A token that can be used to signal cancellation.
-		 * @returns A promise that resolves to the selected items or `undefined`.
+		 * @returns A thenable that resolves to the selected items or `undefined`.
 		 */
 		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options: QuickPickOptions & { /** literal-type defines return type */ canPickMany: true }, token?: CancellationToken): Thenable<T[] | undefined>;
 
@@ -11341,7 +11408,7 @@ declare module 'vscode' {
 		 * @param items An array of items, or a promise that resolves to an array of items.
 		 * @param options Configures the behavior of the selection list.
 		 * @param token A token that can be used to signal cancellation.
-		 * @returns A promise that resolves to the selected item or `undefined`.
+		 * @returns A thenable that resolves to the selected item or `undefined`.
 		 */
 		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
 
@@ -11375,23 +11442,22 @@ declare module 'vscode' {
 		/**
 		 * Opens an input box to ask the user for input.
 		 *
-		 * The returned value will be `undefined` if the input box was canceled (e.g. pressing ESC). Otherwise the
+		 * The returned value will be `undefined` if the input box was canceled (e.g., pressing ESC). Otherwise the
 		 * returned value will be the string typed by the user or an empty string if the user did not type
 		 * anything but dismissed the input box with OK.
 		 *
 		 * @param options Configures the behavior of the input box.
 		 * @param token A token that can be used to signal cancellation.
-		 * @returns A promise that resolves to a string the user provided or to `undefined` in case of dismissal.
+		 * @returns A thenable that resolves to a string the user provided or to `undefined` in case of dismissal.
 		 */
 		export function showInputBox(options?: InputBoxOptions, token?: CancellationToken): Thenable<string | undefined>;
 
 		/**
-		 * Creates a {@link QuickPick} to let the user pick an item from a list
-		 * of items of type T.
+		 * Creates a {@link QuickPick} to let the user pick an item from a list of items of type `T`.
 		 *
-		 * Note that in many cases the more convenient {@link window.showQuickPick}
-		 * is easier to use. {@link window.createQuickPick} should be used
-		 * when {@link window.showQuickPick} does not offer the required flexibility.
+		 * Note that in many cases the more convenient {@link window.showQuickPick} is easier to use.
+		 * {@link window.createQuickPick} should be used when {@link window.showQuickPick} does not offer
+		 * the required flexibility.
 		 *
 		 * @returns A new {@link QuickPick}.
 		 */
@@ -11400,9 +11466,9 @@ declare module 'vscode' {
 		/**
 		 * Creates a {@link InputBox} to let the user enter some text input.
 		 *
-		 * Note that in many cases the more convenient {@link window.showInputBox}
-		 * is easier to use. {@link window.createInputBox} should be used
-		 * when {@link window.showInputBox} does not offer the required flexibility.
+		 * Note that in many cases the more convenient {@link window.showInputBox} is easier to use.
+		 * {@link window.createInputBox} should be used when {@link window.showInputBox} does not offer
+		 * the required flexibility.
 		 *
 		 * @returns A new {@link InputBox}.
 		 */
@@ -11980,6 +12046,8 @@ declare module 'vscode' {
 		 * When the user starts dragging items from this `DragAndDropController`, `handleDrag` will be called.
 		 * Extensions can use `handleDrag` to add their {@link DataTransferItem `DataTransferItem`} items to the drag and drop.
 		 *
+		 * Mime types added in `handleDrag` won't be available outside the application.
+		 *
 		 * When the items are dropped on **another tree item** in **the same tree**, your `DataTransferItem` objects
 		 * will be preserved. Use the recommended mime type for the tree (`application/vnd.code.tree.<treeidlowercase>`) to add
 		 * tree objects in a data transfer. See the documentation for `DataTransferItem` for how best to take advantage of this.
@@ -12427,6 +12495,20 @@ declare module 'vscode' {
 		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
 		 */
 		isTransient?: boolean;
+
+		/**
+		 * The nonce to use to verify shell integration sequences are coming from a trusted source.
+		 * An example impact of UX of this is if the command line is reported with a nonce, it will
+		 * not need to verify with the user that the command line is correct before rerunning it
+		 * via the [shell integration command decoration](https://code.visualstudio.com/docs/terminal/shell-integration#_command-decorations-and-the-overview-ruler).
+		 *
+		 * This should be used if the terminal includes [custom shell integration support](https://code.visualstudio.com/docs/terminal/shell-integration#_supported-escape-sequences).
+		 * It should be set to a random GUID which will then set the `VSCODE_NONCE` environment
+		 * variable. Inside the shell, this should then be removed from the environment so as to
+		 * protect it from general access. Once that is done it can be passed through in the
+		 * relevant sequences to make them trusted.
+		 */
+		shellIntegrationNonce?: string;
 	}
 
 	/**
@@ -12466,6 +12548,18 @@ declare module 'vscode' {
 		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
 		 */
 		isTransient?: boolean;
+
+		/**
+		 * The nonce to use to verify shell integration sequences are coming from a trusted source.
+		 * An example impact of UX of this is if the command line is reported with a nonce, it will
+		 * not need to verify with the user that the command line is correct before rerunning it
+		 * via the [shell integration command decoration](https://code.visualstudio.com/docs/terminal/shell-integration#_command-decorations-and-the-overview-ruler).
+		 *
+		 * This should be used if the terminal includes [custom shell integration support](https://code.visualstudio.com/docs/terminal/shell-integration#_supported-escape-sequences).
+		 * It should be set to a random GUID. Inside the {@link Pseudoterminal} implementation, this value
+		 * can be passed through in the relevant sequences to make them trusted.
+		 */
+		shellIntegrationNonce?: string;
 	}
 
 	/**
@@ -12927,115 +13021,115 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A light-weight user input UI that is initially not visible. After
-	 * configuring it through its properties the extension can make it
-	 * visible by calling {@link QuickInput.show}.
+	 * The base interface for all quick input types.
 	 *
-	 * There are several reasons why this UI might have to be hidden and
-	 * the extension will be notified through {@link QuickInput.onDidHide}.
-	 * (Examples include: an explicit call to {@link QuickInput.hide},
-	 * the user pressing Esc, some other input UI opening, etc.)
+	 * Quick input provides a unified way for extensions to interact with users through simple UI elements.
+	 * A quick input UI is initially not visible. After configuring it through its properties the extension
+	 * can make it visible by calling {@link QuickInput.show show}.
 	 *
-	 * A user pressing Enter or some other gesture implying acceptance
-	 * of the current state does not automatically hide this UI component.
-	 * It is up to the extension to decide whether to accept the user's input
-	 * and if the UI should indeed be hidden through a call to {@link QuickInput.hide}.
+	 * There are several reasons why this UI might have to be hidden and the extension will be notified
+	 * through {@link QuickInput.onDidHide onDidHide}. Examples include: an explicit call to
+	 * {@link QuickInput.hide hide}, the user pressing Esc, some other input UI opening, etc.
 	 *
-	 * When the extension no longer needs this input UI, it should
-	 * {@link QuickInput.dispose} it to allow for freeing up
-	 * any resources associated with it.
+	 * A user pressing Enter or some other gesture implying acceptance of the current state does not
+	 * automatically hide this UI component. It is up to the extension to decide whether to accept the
+	 * user's input and if the UI should indeed be hidden through a call to {@link QuickInput.hide hide}.
+	 *
+	 * When the extension no longer needs this input UI, it should {@link QuickInput.dispose dispose} it
+	 * to allow for freeing up any resources associated with it.
 	 *
 	 * See {@link QuickPick} and {@link InputBox} for concrete UIs.
 	 */
 	export interface QuickInput {
 
 		/**
-		 * An optional title.
+		 * An optional title for the input UI.
 		 */
 		title: string | undefined;
 
 		/**
-		 * An optional current step count.
+		 * An optional current step count for multi-step input flows.
 		 */
 		step: number | undefined;
 
 		/**
-		 * An optional total step count.
+		 * An optional total step count for multi-step input flows.
 		 */
 		totalSteps: number | undefined;
 
 		/**
-		 * If the UI should allow for user input. Defaults to true.
+		 * Determines if the UI should allow for user input. Defaults to `true`.
 		 *
-		 * Change this to false, e.g., while validating user input or
-		 * loading data for the next step in user input.
+		 * Change this to `false`, for example, while validating user input or loading data for the next
+		 * step in user input.
 		 */
 		enabled: boolean;
 
 		/**
-		 * If the UI should show a progress indicator. Defaults to false.
+		 * Determines if the UI should show a progress indicator. Defaults to `false`.
 		 *
-		 * Change this to true, e.g., while loading more data or validating
-		 * user input.
+		 * Change this to `true`, for example, while loading more data or validating user input.
 		 */
 		busy: boolean;
 
 		/**
-		 * If the UI should stay open even when loosing UI focus. Defaults to false.
-		 * This setting is ignored on iPad and is always false.
+		 * Determines if the UI should stay open even when losing UI focus. Defaults to `false`.
+		 * This setting is ignored on iPad and is always `false`.
 		 */
 		ignoreFocusOut: boolean;
 
 		/**
-		 * Makes the input UI visible in its current configuration. Any other input
-		 * UI will first fire an {@link QuickInput.onDidHide} event.
+		 * Makes the input UI visible in its current configuration.
+		 *
+		 * Any other input UI will first fire an {@link QuickInput.onDidHide onDidHide} event.
 		 */
 		show(): void;
 
 		/**
-		 * Hides this input UI. This will also fire an {@link QuickInput.onDidHide}
-		 * event.
+		 * Hides this input UI.
+		 *
+		 * This will also fire an {@link QuickInput.onDidHide onDidHide} event.
 		 */
 		hide(): void;
 
 		/**
 		 * An event signaling when this input UI is hidden.
 		 *
-		 * There are several reasons why this UI might have to be hidden and
-		 * the extension will be notified through {@link QuickInput.onDidHide}.
-		 * (Examples include: an explicit call to {@link QuickInput.hide},
-		 * the user pressing Esc, some other input UI opening, etc.)
+		 * There are several reasons why this UI might have to be hidden and the extension will be notified
+		 * through {@link QuickInput.onDidHide onDidHide}. Examples include: an explicit call to
+		 * {@link QuickInput.hide hide}, the user pressing Esc, some other input UI opening, etc.
 		 */
-		onDidHide: Event<void>;
+		readonly onDidHide: Event<void>;
 
 		/**
-		 * Dispose of this input UI and any associated resources. If it is still
-		 * visible, it is first hidden. After this call the input UI is no longer
-		 * functional and no additional methods or properties on it should be
-		 * accessed. Instead a new input UI should be created.
+		 * Dispose of this input UI and any associated resources.
+		 *
+		 * If it is still visible, it is first hidden. After this call the input UI is no longer functional
+		 * and no additional methods or properties on it should be accessed. Instead a new input UI should
+		 * be created.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * A concrete {@link QuickInput} to let the user pick an item from a
-	 * list of items of type T. The items can be filtered through a filter text field and
-	 * there is an option {@link QuickPick.canSelectMany canSelectMany} to allow for
-	 * selecting multiple items.
+	 * A concrete {@link QuickInput} to let the user pick an item from a list of items of type `T`.
 	 *
-	 * Note that in many cases the more convenient {@link window.showQuickPick}
-	 * is easier to use. {@link window.createQuickPick} should be used
-	 * when {@link window.showQuickPick} does not offer the required flexibility.
+	 * The items can be filtered through a filter text field and there is an option
+	 * {@link QuickPick.canSelectMany canSelectMany} to allow for selecting multiple items.
+	 *
+	 * Note that in many cases the more convenient {@link window.showQuickPick} is easier to use.
+	 * {@link window.createQuickPick} should be used when {@link window.showQuickPick} does not offer
+	 * the required flexibility.
 	 */
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 
 		/**
-		 * Current value of the filter text.
+		 * The current value of the filter text.
 		 */
 		value: string;
 
 		/**
-		 * Optional placeholder shown in the filter textbox when no filter has been entered.
+		 * Optional placeholder text displayed in the filter text box when no value has been entered.
 		 */
 		placeholder: string | undefined;
 
@@ -13055,14 +13149,17 @@ declare module 'vscode' {
 		buttons: readonly QuickInputButton[];
 
 		/**
-		 * An event signaling when a top level button (buttons stored in {@link buttons}) was triggered.
-		 * This event does not fire for buttons on a {@link QuickPickItem}.
+		 * An event signaling when a button was triggered.
+		 *
+		 * This event fires for buttons stored in the {@link QuickPick.buttons buttons} array. This event does
+		 * not fire for buttons on a {@link QuickPickItem}.
 		 */
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 
 		/**
 		 * An event signaling when a button in a particular {@link QuickPickItem} was triggered.
-		 * This event does not fire for buttons in the title bar.
+		 *
+		 * This event does not fire for buttons in the title bar which are part of {@link QuickPick.buttons buttons}.
 		 */
 		readonly onDidTriggerItemButton: Event<QuickPickItemButtonEvent<T>>;
 
@@ -13072,22 +13169,22 @@ declare module 'vscode' {
 		items: readonly T[];
 
 		/**
-		 * If multiple items can be selected at the same time. Defaults to false.
+		 * Determines if multiple items can be selected at the same time. Defaults to `false`.
 		 */
 		canSelectMany: boolean;
 
 		/**
-		 * If the filter text should also be matched against the description of the items. Defaults to false.
+		 * Determines if the filter text should also be matched against the {@link QuickPickItem.description description} of the items. Defaults to `false`.
 		 */
 		matchOnDescription: boolean;
 
 		/**
-		 * If the filter text should also be matched against the detail of the items. Defaults to false.
+		 * Determines if the filter text should also be matched against the {@link QuickPickItem.detail detail} of the items. Defaults to `false`.
 		 */
 		matchOnDetail: boolean;
 
 		/**
-		 * An optional flag to maintain the scroll position of the quick pick when the quick pick items are updated. Defaults to false.
+		 * Determines if the scroll position is maintained when the quick pick items are updated. Defaults to `false`.
 		 */
 		keepScrollPosition?: boolean;
 
@@ -13115,35 +13212,36 @@ declare module 'vscode' {
 	/**
 	 * A concrete {@link QuickInput} to let the user input a text value.
 	 *
-	 * Note that in many cases the more convenient {@link window.showInputBox}
-	 * is easier to use. {@link window.createInputBox} should be used
-	 * when {@link window.showInputBox} does not offer the required flexibility.
+	 * Note that in many cases the more convenient {@link window.showInputBox} is easier to use.
+	 * {@link window.createInputBox} should be used when {@link window.showInputBox} does not offer
+	 * the required flexibility.
 	 */
 	export interface InputBox extends QuickInput {
 
 		/**
-		 * Current input value.
+		 * The current input value.
 		 */
 		value: string;
 
 		/**
-		 * Selection range in the input value. Defined as tuple of two number where the
-		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
-		 * pre-filled value will be selected, when empty (start equals end) only the cursor will be set,
-		 * otherwise the defined range will be selected.
+		 * Selection range in the input value.
 		 *
-		 * This property does not get updated when the user types or makes a selection,
-		 * but it can be updated by the extension.
+		 * Defined as tuple of two numbers where the first is the inclusive start index and the second the
+		 * exclusive end index. When `undefined` the whole pre-filled value will be selected, when empty
+		 * (start equals end) only the cursor will be set, otherwise the defined range will be selected.
+		 *
+		 * This property does not get updated when the user types or makes a selection, but it can be updated
+		 * by the extension.
 		 */
 		valueSelection: readonly [number, number] | undefined;
 
 		/**
-		 * Optional placeholder shown when no value has been input.
+		 * Optional placeholder text shown when no value has been input.
 		 */
 		placeholder: string | undefined;
 
 		/**
-		 * If the input value should be hidden. Defaults to false.
+		 * Determines if the input value should be hidden. Defaults to `false`.
 		 */
 		password: boolean;
 
@@ -13174,23 +13272,24 @@ declare module 'vscode' {
 
 		/**
 		 * An optional validation message indicating a problem with the current input value.
-		 * By returning a string, the InputBox will use a default {@link InputBoxValidationSeverity} of Error.
-		 * Returning undefined clears the validation message.
+		 *
+		 * By setting a string, the InputBox will use a default {@link InputBoxValidationSeverity} of Error.
+		 * Returning `undefined` clears the validation message.
 		 */
 		validationMessage: string | InputBoxValidationMessage | undefined;
 	}
 
 	/**
-	 * Button for an action in a {@link QuickPick} or {@link InputBox}.
+	 * A button for an action in a {@link QuickPick} or {@link InputBox}.
 	 */
 	export interface QuickInputButton {
-
 		/**
-		 * Icon for the button.
+		 * The icon for the button.
 		 */
 		readonly iconPath: IconPath;
+
 		/**
-		 * An optional tooltip.
+		 * An optional tooltip displayed when hovering over the button.
 		 */
 		readonly tooltip?: string | undefined;
 	}
@@ -13199,12 +13298,11 @@ declare module 'vscode' {
 	 * Predefined buttons for {@link QuickPick} and {@link InputBox}.
 	 */
 	export class QuickInputButtons {
-
 		/**
-		 * A back button for {@link QuickPick} and {@link InputBox}.
+		 * A predefined back button for {@link QuickPick} and {@link InputBox}.
 		 *
-		 * When a navigation 'back' button is needed this one should be used for consistency.
-		 * It comes with a predefined icon, tooltip and location.
+		 * This button should be used for consistency when a navigation back button is needed. It comes
+		 * with a predefined icon, tooltip, and location.
 		 */
 		static readonly Back: QuickInputButton;
 
@@ -13215,12 +13313,11 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * An event signaling when a button in a particular {@link QuickPickItem} was triggered.
-	 * This event does not fire for buttons in the title bar.
+	 * An event describing a button that was pressed on a {@link QuickPickItem}.
 	 */
 	export interface QuickPickItemButtonEvent<T extends QuickPickItem> {
 		/**
-		 * The button that was clicked.
+		 * The button that was pressed.
 		 */
 		readonly button: QuickInputButton;
 		/**
@@ -13796,9 +13893,21 @@ declare module 'vscode' {
 		 * all opened workspace folders. It cannot be used to add more folders for file watching, nor will
 		 * it report any file events from folders that are not part of the opened workspace folders.
 		 *
+		 * *Note* that case-sensitivity of the {@link globPattern} parameter will depend on the file system
+		 * where the watcher is running: on Windows and macOS the matching will be case-insensitive and
+		 * on Linux it will be case-sensitive.
+		 *
 		 * Optionally, flags to ignore certain kinds of events can be provided.
 		 *
 		 * To stop listening to events the watcher must be disposed.
+		 *
+		 * *Note* that file events from deleting a folder may not include events for the contained files.
+		 * For example, when a folder is moved to the trash, only one event is reported because technically
+		 * this is a rename/move operation and not a delete operation for each files within.
+		 * On top of that, performance optimizations are in place to fold multiple events that all belong
+		 * to the same parent operation (e.g. delete folder) into one event for that parent. As such, if
+		 * you need to know about all deleted files, you have to watch with `**` and deal with all file
+		 * events yourself.
 		 *
 		 * *Note* that file events from recursive file watchers may be excluded based on user configuration.
 		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
@@ -13973,7 +14082,29 @@ declare module 'vscode' {
 		 * @param uri Identifies the resource to open.
 		 * @returns A promise that resolves to a {@link TextDocument document}.
 		 */
-		export function openTextDocument(uri: Uri): Thenable<TextDocument>;
+		export function openTextDocument(uri: Uri, options?: {
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document to use
+			 * for decoding the underlying buffer to text. If omitted, the encoding
+			 * will be guessed based on the file content and/or the editor settings
+			 * unless the document is already opened.
+			 *
+			 * Opening a text document that was already opened with a different encoding
+			 * has the potential of changing the text contents of the text document.
+			 * Specifically, when the encoding results in a different set of characters
+			 * than the previous encoding. As such, an error is thrown for dirty documents
+			 * when the specified encoding is different from the encoding of the document.
+			 *
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding. Using an unsupported encoding will fallback to the
+			 * default encoding for the document.
+			 *
+			 * *Note* that if you open a document with an encoding that does not
+			 * support decoding the underlying bytes, content may be replaced with
+			 * substitution characters as appropriate.
+			 */
+			readonly encoding?: string;
+		}): Thenable<TextDocument>;
 
 		/**
 		 * A short-hand for `openTextDocument(Uri.file(path))`.
@@ -13982,7 +14113,29 @@ declare module 'vscode' {
 		 * @param path A path of a file on disk.
 		 * @returns A promise that resolves to a {@link TextDocument document}.
 		 */
-		export function openTextDocument(path: string): Thenable<TextDocument>;
+		export function openTextDocument(path: string, options?: {
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document to use
+			 * for decoding the underlying buffer to text. If omitted, the encoding
+			 * will be guessed based on the file content and/or the editor settings
+			 * unless the document is already opened.
+			 *
+			 * Opening a text document that was already opened with a different encoding
+			 * has the potential of changing the text contents of the text document.
+			 * Specifically, when the encoding results in a different set of characters
+			 * than the previous encoding. As such, an error is thrown for dirty documents
+			 * when the specified encoding is different from the encoding of the document.
+			 *
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding. Using an unsupported encoding will fallback to the
+			 * default encoding for the document.
+			 *
+			 * *Note* that if you open a document with an encoding that does not
+			 * support decoding the underlying bytes, content may be replaced with
+			 * substitution characters as appropriate.
+			 */
+			readonly encoding?: string;
+		}): Thenable<TextDocument>;
 
 		/**
 		 * Opens an untitled text document. The editor will prompt the user for a file
@@ -14001,6 +14154,14 @@ declare module 'vscode' {
 			 * The initial contents of the document.
 			 */
 			content?: string;
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document.
+			 *
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding. Using an unsupported encoding will fallback to the
+			 * default encoding for the document.
+			 */
+			readonly encoding?: string;
 		}): Thenable<TextDocument>;
 
 		/**
@@ -14284,6 +14445,129 @@ declare module 'vscode' {
 		 * Event that fires when the current workspace has been trusted.
 		 */
 		export const onDidGrantWorkspaceTrust: Event<void>;
+
+		/**
+		 * Decodes the content from a `Uint8Array` to a `string`. You MUST
+		 * provide the entire content at once to ensure that the encoding
+		 * can properly apply. Do not use this method to decode content
+		 * in chunks, as that may lead to incorrect results.
+		 *
+		 * Will pick an encoding based on settings and the content of the
+		 * buffer (for example byte order marks).
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
+		 *
+		 * @throws This method will throw an error when the content is binary.
+		 *
+		 * @param content The text content to decode as a `Uint8Array`.
+		 * @returns A thenable that resolves to the decoded `string`.
+		 */
+		export function decode(content: Uint8Array): Thenable<string>;
+
+		/**
+		 * Decodes the content from a `Uint8Array` to a `string` using the
+		 * provided encoding. You MUST provide the entire content at once
+		 * to ensure that the encoding can properly apply. Do not use this
+		 * method to decode content in chunks, as that may lead to incorrect
+		 * results.
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
+		 *
+		 * @throws This method will throw an error when the content is binary.
+		 *
+		 * @param content The text content to decode as a `Uint8Array`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the decoded `string`.
+		 */
+		export function decode(content: Uint8Array, options: {
+			/**
+			 * Allows to explicitly pick the encoding to use.
+			 * See {@link TextDocument.encoding} for more information
+			 * about valid values for encoding.
+			 * Using an unsupported encoding will fallback to the
+			 * default configured encoding.
+			 */
+			readonly encoding: string;
+		}): Thenable<string>;
+
+		/**
+		 * Decodes the content from a `Uint8Array` to a `string`. You MUST
+		 * provide the entire content at once to ensure that the encoding
+		 * can properly apply. Do not use this method to decode content
+		 * in chunks, as that may lead to incorrect results.
+		 *
+		 * The encoding is picked based on settings and the content
+		 * of the buffer (for example byte order marks).
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
+		 *
+		 * @throws This method will throw an error when the content is binary.
+		 *
+		 * @param content The content to decode as a `Uint8Array`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the decoded `string`.
+		 */
+		export function decode(content: Uint8Array, options: {
+			/**
+			 * The URI that represents the file if known. This information
+			 * is used to figure out the encoding related configuration
+			 * for the file if any.
+			 */
+			readonly uri: Uri;
+		}): Thenable<string>;
+
+		/**
+		 * Encodes the content of a `string` to a `Uint8Array`.
+		 *
+		 * Will pick an encoding based on settings.
+		 *
+		 * @param content The content to decode as a `string`.
+		 * @returns A thenable that resolves to the encoded `Uint8Array`.
+		 */
+		export function encode(content: string): Thenable<Uint8Array>;
+
+		/**
+		 * Encodes the content of a `string` to a `Uint8Array` using the
+		 * provided encoding.
+		 *
+		 * @param content The content to decode as a `string`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the encoded `Uint8Array`.
+		 */
+		export function encode(content: string, options: {
+			/**
+			 * Allows to explicitly pick the encoding to use.
+			 * See {@link TextDocument.encoding} for more information
+			 * about valid values for encoding.
+			 * Using an unsupported encoding will fallback to the
+			 * default configured encoding.
+			 */
+			readonly encoding: string;
+		}): Thenable<Uint8Array>;
+
+		/**
+		 * Encodes the content of a `string` to a `Uint8Array`.
+		 *
+		 * The encoding is picked based on settings.
+		 *
+		 * @param content The content to decode as a `string`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the encoded `Uint8Array`.
+		 */
+		export function encode(content: string, options: {
+			/**
+			 * The URI that represents the file if known. This information
+			 * is used to figure out the encoding related configuration
+			 * for the file if any.
+			 */
+			readonly uri: Uri;
+		}): Thenable<Uint8Array>;
 	}
 
 	/**
@@ -16278,7 +16562,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Namespace for source control mangement.
+	 * Namespace for source control management.
 	 */
 	export namespace scm {
 
@@ -16592,7 +16876,7 @@ declare module 'vscode' {
 	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterNamedPipeServer | DebugAdapterInlineImplementation;
 
 	/**
-	 * A debug adaper factory that creates {@link DebugAdapterDescriptor debug adapter descriptors}.
+	 * A debug adapter factory that creates {@link DebugAdapterDescriptor debug adapter descriptors}.
 	 */
 	export interface DebugAdapterDescriptorFactory {
 		/**
@@ -16646,7 +16930,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A debug adaper factory that creates {@link DebugAdapterTracker debug adapter trackers}.
+	 * A debug adapter factory that creates {@link DebugAdapterTracker debug adapter trackers}.
 	 */
 	export interface DebugAdapterTrackerFactory {
 		/**
@@ -17183,7 +17467,7 @@ declare module 'vscode' {
 		 * Whether the thread supports reply.
 		 * Defaults to true.
 		 */
-		canReply: boolean;
+		canReply: boolean | CommentAuthorInformation;
 
 		/**
 		 * Context value of the comment thread. This can be used to contribute thread specific actions.
@@ -17447,9 +17731,16 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * The access token.
+		 * The access token. This token should be used to authenticate requests to a service. Popularized by OAuth.
+		 * @reference https://oauth.net/2/access-tokens/
 		 */
 		readonly accessToken: string;
+
+		/**
+		 * The ID token. This token contains identity information about the user. Popularized by OpenID Connect.
+		 * @reference https://openid.net/specs/openid-connect-core-1_0.html#IDToken
+		 */
+		readonly idToken?: string;
 
 		/**
 		 * The account associated with the session.
@@ -17566,6 +17857,30 @@ declare module 'vscode' {
 		 * The account that you would like to get a session for. This is passed down to the Authentication Provider to be used for creating the correct session.
 		 */
 		account?: AuthenticationSessionAccountInformation;
+	}
+
+	/**
+	 * Represents parameters for creating a session based on a WWW-Authenticate header value.
+	 * This is used when an API returns a 401 with a WWW-Authenticate header indicating
+	 * that additional authentication is required. The details of which will be passed down
+	 * to the authentication provider to create a session.
+	 *
+	 * @note The authorization provider must support handling challenges and specifically
+	 * the challenges in this WWW-Authenticate value.
+	 * @note For more information on WWW-Authenticate please see https://developer.mozilla.org/docs/Web/HTTP/Reference/Headers/WWW-Authenticate
+	 */
+	export interface AuthenticationWwwAuthenticateRequest {
+		/**
+		 * The raw WWW-Authenticate header value that triggered this challenge.
+		 * This will be parsed by the authentication provider to extract the necessary
+		 * challenge information.
+		 */
+		readonly wwwAuthenticate: string;
+
+		/**
+		 * The fallback scopes to use if no scopes are found in the WWW-Authenticate header.
+		 */
+		readonly fallbackScopes?: readonly string[];
 	}
 
 	/**
@@ -17690,49 +18005,59 @@ declare module 'vscode' {
 	 */
 	export namespace authentication {
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
+		 * Get an authentication session matching the desired scopes or satisfying the WWW-Authenticate request. Rejects if
+		 * a provider with providerId is not registered, or if the user does not consent to sharing authentication information
+		 * with the extension. If there are multiple sessions with the same scopes, the user will be shown a quickpick to
+		 * select which account they would like to use.
 		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * Built-in auth providers include:
+		 * * 'github' - For GitHub.com
+		 * * 'microsoft' For both personal & organizational Microsoft accounts
+		 * * (less common) 'github-enterprise' - for alternative GitHub hostings, GHE.com, GitHub Enterprise Server
+		 * * (less common) 'microsoft-sovereign-cloud' - for alternative Microsoft clouds
+		 *
 		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param scopeListOrRequest A scope list of permissions requested or a WWW-Authenticate request. These are dependent on the authentication provider.
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
 
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
+		 * Get an authentication session matching the desired scopes or request. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with the extension. If there
+		 * are multiple sessions with the same scopes, the user will be shown a quickpick to select which account they would like to use.
 		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * Built-in auth providers include:
+		 * * 'github' - For GitHub.com
+		 * * 'microsoft' For both personal & organizational Microsoft accounts
+		 * * (less common) 'github-enterprise' - for alternative GitHub hostings, GHE.com, GitHub Enterprise Server
+		 * * (less common) 'microsoft-sovereign-cloud' - for alternative Microsoft clouds
+		 *
 		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param scopeListOrRequest A scope list of permissions requested or a WWW-Authenticate request. These are dependent on the authentication provider.
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
+		 * Get an authentication session matching the desired scopes or request. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with the extension. If there
+		 * are multiple sessions with the same scopes, the user will be shown a quickpick to select which account they would like to use.
 		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * Built-in auth providers include:
+		 * * 'github' - For GitHub.com
+		 * * 'microsoft' For both personal & organizational Microsoft accounts
+		 * * (less common) 'github-enterprise' - for alternative GitHub hostings, GHE.com, GitHub Enterprise Server
+		 * * (less common) 'microsoft-sovereign-cloud' - for alternative Microsoft clouds
+		 *
 		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param scopeListOrRequest A scope list of permissions requested or a WWW-Authenticate request. These are dependent on the authentication provider.
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
-		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
+		 * @returns A thenable that resolves to an authentication session or undefined if a silent flow was used and no session was found
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
 		 * Get all accounts that the user is logged in to for the specified provider.
@@ -17810,7 +18135,7 @@ declare module 'vscode' {
 		 * @example
 		 * l10n.t('Hello {name}', { name: 'Erich' });
 		 */
-		export function t(message: string, args: Record<string, any>): string;
+		export function t(message: string, args: Record<string, string | number | boolean>): string;
 		/**
 		 * Marks a string for localization. If a localized bundle is available for the language specified by
 		 * {@link env.language} and the bundle has a localized value for this message, then that localized
@@ -17822,17 +18147,17 @@ declare module 'vscode' {
 		export function t(options: {
 			/**
 			 * The message to localize. If {@link options.args args} is an array, this message supports index templating where strings like
-			 * `{0}` and `{1}` are replaced by the item at that index in the {@link options.args args} array. If `args` is a `Record<string, any>`,
+			 * `{0}` and `{1}` are replaced by the item at that index in the {@link options.args args} array. If `args` is a `Record`,
 			 * this supports named templating where strings like `{foo}` and `{bar}` are replaced by the value in
 			 * the Record for that key (foo, bar, etc).
 			 */
 			message: string;
 			/**
 			 * The arguments to be used in the localized string. As an array, the index of the argument is used to
-			 * match the template placeholder in the localized string. As a Record, the key is used to match the template
+			 * match the template placeholder in the localized string. As a `Record`, the key is used to match the template
 			 * placeholder in the localized string.
 			 */
-			args?: Array<string | number | boolean> | Record<string, any>;
+			args?: Array<string | number | boolean> | Record<string, string | number | boolean>;
 			/**
 			 * A comment to help translators understand the context of the message.
 			 */
@@ -17943,7 +18268,7 @@ declare module 'vscode' {
 		 * Fired when a user has changed whether this is a default profile. The
 		 * event contains the new value of {@link isDefault}
 		 */
-		onDidChangeDefault: Event<boolean>;
+		readonly onDidChangeDefault: Event<boolean>;
 
 		/**
 		 * Whether this profile supports continuous running of requests. If so,
@@ -18322,7 +18647,7 @@ declare module 'vscode' {
 		 * An event fired when the editor is no longer interested in data
 		 * associated with the test run.
 		 */
-		onDidDispose: Event<void>;
+		readonly onDidDispose: Event<void>;
 	}
 
 	/**
@@ -18623,7 +18948,7 @@ declare module 'vscode' {
 		 * Creates a {@link FileCoverage} instance with counts filled in from
 		 * the coverage details.
 		 * @param uri Covered file URI
-		 * @param detailed Detailed coverage information
+		 * @param details Detailed coverage information
 		 */
 		static fromDetails(uri: Uri, details: readonly FileCoverageDetail[]): FileCoverage;
 
@@ -18634,7 +18959,7 @@ declare module 'vscode' {
 		 * used to represent line coverage.
 		 * @param branchCoverage Branch coverage information
 		 * @param declarationCoverage Declaration coverage information
-		 * @param includesTests Test cases included in this coverage report, see {@link includesTests}
+		 * @param includesTests Test cases included in this coverage report, see {@link FileCoverage.includesTests}
 		 */
 		constructor(
 			uri: Uri,
@@ -19045,7 +19370,7 @@ declare module 'vscode' {
 		readonly value: T;
 
 		/**
-		 * Creates a new telementry trusted value.
+		 * Creates a new telemetry trusted value.
 		 *
 		 * @param value A value to trust
 		 */
@@ -19053,7 +19378,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A telemetry logger which can be used by extensions to log usage and error telementry.
+	 * A telemetry logger which can be used by extensions to log usage and error telemetry.
 	 *
 	 * A logger wraps around an {@link TelemetrySender sender} but it guarantees that
 	 * - user settings to disable or tweak telemetry are respected, and that
@@ -19398,7 +19723,7 @@ declare module 'vscode' {
 		 * The passed {@link ChatResultFeedback.result result} is guaranteed to have the same properties as the result that was
 		 * previously returned from this chat participant's handler.
 		 */
-		onDidReceiveFeedback: Event<ChatResultFeedback>;
+		readonly onDidReceiveFeedback: Event<ChatResultFeedback>;
 
 		/**
 		 * Dispose this participant and free resources.
@@ -19481,7 +19806,7 @@ declare module 'vscode' {
 		readonly toolInvocationToken: ChatParticipantToolToken;
 
 		/**
-		 * This is the model that is currently selected in the UI. Extensions can use this or use {@link chat.selectChatModels} to
+		 * This is the model that is currently selected in the UI. Extensions can use this or use {@link lm.selectChatModels} to
 		 * pick another model. Don't hold onto this past the lifetime of the request.
 		 */
 		readonly model: LanguageModelChat;
@@ -19735,7 +20060,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart>, name?: string): LanguageModelChatMessage;
+		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelDataPart>, name?: string): LanguageModelChatMessage;
 
 		/**
 		 * Utility to create a new assistant message.
@@ -19743,7 +20068,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart>, name?: string): LanguageModelChatMessage;
+		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart>, name?: string): LanguageModelChatMessage;
 
 		/**
 		 * The role of this message.
@@ -19754,7 +20079,7 @@ declare module 'vscode' {
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>;
+		content: Array<LanguageModelInputPart>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -19768,13 +20093,13 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>, name?: string);
+		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelInputPart>, name?: string);
 	}
 
 	/**
 	 * Represents a language model response.
 	 *
-	 * @see {@link LanguageModelAccess.chatRequest}
+	 * @see {@link ChatRequest}
 	 */
 	export interface LanguageModelChatResponse {
 
@@ -19809,7 +20134,7 @@ declare module 'vscode' {
 		 * }
 		 * ```
 		 */
-		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | unknown>;
+		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | unknown>;
 
 		/**
 		 * This is equivalent to filtering everything except for text parts from a {@link LanguageModelChatResponse.stream}.
@@ -19978,7 +20303,7 @@ declare module 'vscode' {
 
 		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model
-		 * and need to be lookup in the respective documentation.
+		 * and need to be looked up in the respective documentation.
 		 */
 		modelOptions?: { [name: string]: any };
 
@@ -19999,6 +20324,321 @@ declare module 'vscode' {
 		 * 	The tool-selecting mode to use. {@link LanguageModelChatToolMode.Auto} by default.
 		 */
 		toolMode?: LanguageModelChatToolMode;
+	}
+
+	/**
+	 * McpStdioServerDefinition represents an MCP server available by running
+	 * a local process and operating on its stdin and stdout streams. The process
+	 * will be spawned as a child process of the extension host and by default
+	 * will not run in a shell environment.
+	 */
+	export class McpStdioServerDefinition {
+		/**
+		 * The human-readable name of the server.
+		 */
+		readonly label: string;
+
+		/**
+		 * The working directory used to start the server.
+		 */
+		cwd?: Uri;
+
+		/**
+		 * The command used to start the server. Node.js-based servers may use
+		 * `process.execPath` to use the editor's version of Node.js to run the script.
+		 */
+		command: string;
+
+		/**
+		 * Additional command-line arguments passed to the server.
+		 */
+		args: string[];
+
+		/**
+		 * Optional additional environment information for the server. Variables
+		 * in this environment will overwrite or remove (if null) the default
+		 * environment variables of the editor's extension host.
+		 */
+		env: Record<string, string | number | null>;
+
+		/**
+		 * Optional version identification for the server. If this changes, the
+		 * editor will indicate that tools have changed and prompt to refresh them.
+		 */
+		version?: string;
+
+		/**
+		 * @param label The human-readable name of the server.
+		 * @param command The command used to start the server.
+		 * @param args Additional command-line arguments passed to the server.
+		 * @param env Optional additional environment information for the server.
+		 * @param version Optional version identification for the server.
+		 */
+		constructor(label: string, command: string, args?: string[], env?: Record<string, string | number | null>, version?: string);
+	}
+
+	/**
+	 * McpHttpServerDefinition represents an MCP server available using the
+	 * Streamable HTTP transport.
+	 */
+	export class McpHttpServerDefinition {
+		/**
+		 * The human-readable name of the server.
+		 */
+		readonly label: string;
+
+		/**
+		 * The URI of the server. The editor will make a POST request to this URI
+		 * to begin each session.
+		 */
+		uri: Uri;
+
+		/**
+		 * Optional additional heads included with each request to the server.
+		 */
+		headers: Record<string, string>;
+
+		/**
+		 * Optional version identification for the server. If this changes, the
+		 * editor will indicate that tools have changed and prompt to refresh them.
+		 */
+		version?: string;
+
+		/**
+		 * @param label The human-readable name of the server.
+		 * @param uri The URI of the server.
+		 * @param headers Optional additional heads included with each request to the server.
+		 */
+		constructor(label: string, uri: Uri, headers?: Record<string, string>, version?: string);
+	}
+
+	/**
+	 * Definitions that describe different types of Model Context Protocol servers,
+	 * which can be returned from the {@link McpServerDefinitionProvider}.
+	 */
+	export type McpServerDefinition = McpStdioServerDefinition | McpHttpServerDefinition;
+
+	/**
+	 * A type that can provide Model Context Protocol server definitions. This
+	 * should be registered using {@link lm.registerMcpServerDefinitionProvider}
+	 * during extension activation.
+	 */
+	export interface McpServerDefinitionProvider<T extends McpServerDefinition = McpServerDefinition> {
+		/**
+		 * Optional event fired to signal that the set of available servers has changed.
+		 */
+		readonly onDidChangeMcpServerDefinitions?: Event<void>;
+
+		/**
+		 * Provides available MCP servers. The editor will call this method eagerly
+		 * to ensure the availability of servers for the language model, and so
+		 * extensions should not take actions which would require user
+		 * interaction, such as authentication.
+		 *
+		 * @param token A cancellation token.
+		 * @returns An array of MCP available MCP servers
+		 */
+		provideMcpServerDefinitions(token: CancellationToken): ProviderResult<T[]>;
+
+		/**
+		 * This function will be called when the editor needs to start a MCP server.
+		 * At this point, the extension may take any actions which may require user
+		 * interaction, such as authentication. Any non-`readonly` property of the
+		 * server may be modified, and the extension should return the resolved server.
+		 *
+		 * The extension may return undefined to indicate that the server
+		 * should not be started, or throw an error. If there is a pending tool
+		 * call, the editor will cancel it and return an error message to the
+		 * language model.
+		 *
+		 * @param server The MCP server to resolve
+		 * @param token A cancellation token.
+		 * @returns The resolved server or thenable that resolves to such. This may
+		 * be the given `server` definition with non-readonly properties filled in.
+		 */
+		resolveMcpServerDefinition?(server: T, token: CancellationToken): ProviderResult<T>;
+	}
+
+	/**
+	 * The provider version of {@linkcode LanguageModelChatRequestOptions}
+	 */
+	export interface ProvideLanguageModelChatResponseOptions {
+		/**
+		 * A set of options that control the behavior of the language model. These options are specific to the language model.
+		 */
+		readonly modelOptions?: { readonly [name: string]: any };
+
+		/**
+		 * An optional list of tools that are available to the language model. These could be registered tools available via
+		 * {@link lm.tools}, or private tools that are just implemented within the calling extension.
+		 *
+		 * If the LLM requests to call one of these tools, it will return a {@link LanguageModelToolCallPart} in
+		 * {@link LanguageModelChatResponse.stream}. It's the caller's responsibility to invoke the tool. If it's a tool
+		 * registered in {@link lm.tools}, that means calling {@link lm.invokeTool}.
+		 *
+		 * Then, the tool result can be provided to the LLM by creating an Assistant-type {@link LanguageModelChatMessage} with a
+		 * {@link LanguageModelToolCallPart}, followed by a User-type message with a {@link LanguageModelToolResultPart}.
+		 */
+		readonly tools?: readonly LanguageModelChatTool[];
+
+		/**
+		 * 	The tool-selecting mode to use. The provider must implement respecting this.
+		 */
+		readonly toolMode: LanguageModelChatToolMode;
+	}
+
+	/**
+	 * Represents a language model provided by a {@linkcode LanguageModelChatProvider}.
+	 */
+	export interface LanguageModelChatInformation {
+
+		/**
+		 * Unique identifier for the language model. Must be unique per provider, but not required to be globally unique.
+		 */
+		readonly id: string;
+
+		/**
+		 * Human-readable name of the language model.
+		 */
+		readonly name: string;
+
+		/**
+		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
+		 */
+		readonly family: string;
+
+		/**
+		 * The tooltip to render when hovering the model. Used to provide more information about the model.
+		 */
+		readonly tooltip?: string;
+
+		/**
+		 * An optional, human-readable string which will be rendered alongside the model.
+		 * Useful for distinguishing models of the same name in the UI.
+		 */
+		readonly detail?: string;
+
+		/**
+		 * Opaque version string of the model.
+		 * This is used as a lookup value in {@linkcode LanguageModelChatSelector.version}
+		 * An example is how GPT 4o has multiple versions like 2024-11-20 and 2024-08-06
+		 */
+		readonly version: string;
+
+		/**
+		 * The maximum number of tokens the model can accept as input.
+		 */
+		readonly maxInputTokens: number;
+
+		/**
+		 * The maximum number of tokens the model is capable of producing.
+		 */
+		readonly maxOutputTokens: number;
+
+		/**
+		 * Various features that the model supports such as tool calling or image input.
+		 */
+		readonly capabilities: LanguageModelChatCapabilities;
+	}
+
+	/**
+	 * Various features that the {@link LanguageModelChatInformation} supports such as tool calling or image input.
+	 */
+	export interface LanguageModelChatCapabilities {
+		/**
+		 * Whether image input is supported by the model.
+		 * Common supported images are jpg and png, but each model will vary in supported mimetypes.
+		 */
+		readonly imageInput?: boolean;
+
+		/**
+		 * Whether tool calling is supported by the model.
+		 * If a number is provided, that is the maximum number of tools that can be provided in a request to the model.
+		 */
+		readonly toolCalling?: boolean | number;
+	}
+
+	/**
+	 * The provider version of {@linkcode LanguageModelChatMessage}.
+	 */
+	export interface LanguageModelChatRequestMessage {
+		/**
+		 * The role of this message.
+		 */
+		readonly role: LanguageModelChatMessageRole;
+
+		/**
+		 * A heterogeneous array of things that a message can contain as content. Some parts may be message-type
+		 * specific for some models.
+		 */
+		readonly content: ReadonlyArray<LanguageModelInputPart | unknown>;
+
+		/**
+		 * The optional name of a user for this message.
+		 */
+		readonly name: string | undefined;
+	}
+
+	/**
+	 * The various message types which a {@linkcode LanguageModelChatProvider} can emit in the chat response stream
+	 */
+	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart;
+
+	/**
+	 * The various message types which can be sent via {@linkcode LanguageModelChat.sendRequest } and processed by a {@linkcode LanguageModelChatProvider}
+	 */
+	export type LanguageModelInputPart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart;
+
+	/**
+	 * A LanguageModelChatProvider implements access to language models, which users can then use through the chat view, or through extension API by acquiring a LanguageModelChat.
+	 * An example of this would be an OpenAI provider that provides models like gpt-5, o3, etc.
+	 */
+	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
+
+		/**
+		 * An optional event fired when the available set of language models changes.
+		 */
+		readonly onDidChangeLanguageModelChatInformation?: Event<void>;
+
+		/**
+		 * Get the list of available language models provided by this provider
+		 * @param options Options which specify the calling context of this function
+		 * @param token A cancellation token
+		 * @returns The list of available language models
+		 */
+		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
+
+		/**
+		 * Returns the response for a chat request, passing the results to the progress callback.
+		 * The {@linkcode LanguageModelChatProvider} must emit the response parts to the progress callback as they are received from the language model.
+		 * @param model The language model to use
+		 * @param messages The messages to include in the request
+		 * @param options Options for the request
+		 * @param progress The progress to emit the streamed response chunks to
+		 * @param token A cancellation token
+		 * @returns A promise that resolves when the response is complete. Results are actually passed to the progress callback.
+		 */
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart>, token: CancellationToken): Thenable<void>;
+
+		/**
+		 * Returns the number of tokens for a given text using the model-specific tokenizer logic
+		 * @param model The language model to use
+		 * @param text The text to count tokens for
+		 * @param token A cancellation token
+		 * @returns The number of tokens
+		 */
+		provideTokenCount(model: T, text: string | LanguageModelChatRequestMessage, token: CancellationToken): Thenable<number>;
+	}
+
+	/**
+	 * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
+	 */
+	export interface PrepareLanguageModelChatModelOptions {
+		/**
+		 * Whether or not the user should be prompted via some UI flow, or if models should be attempted to be resolved silently.
+		 * If silent is true, all models may not be resolved due to lack of info such as API keys.
+		 */
+		readonly silent: boolean;
 	}
 
 	/**
@@ -20060,7 +20700,7 @@ declare module 'vscode' {
 		 * any custom flow.
 		 *
 		 * In the former case, the caller shall pass the
-		 * {@link LanguageModelToolInvocationOptions.toolInvocationToken toolInvocationToken}, which comes with the a
+		 * {@link LanguageModelToolInvocationOptions.toolInvocationToken toolInvocationToken}, which comes from a
 		 * {@link ChatRequest.toolInvocationToken chat request}. This makes sure the chat UI shows the tool invocation for the
 		 * correct conversation.
 		 *
@@ -20079,6 +20719,45 @@ declare module 'vscode' {
 		 * @returns The result of the tool invocation.
 		 */
 		export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token?: CancellationToken): Thenable<LanguageModelToolResult>;
+
+		/**
+		 * Registers a provider that publishes Model Context Protocol servers for the editor to
+		 * consume. This allows MCP servers to be dynamically provided to the editor in
+		 * addition to those the user creates in their configuration files.
+		 *
+		 * Before calling this method, extensions must register the `contributes.mcpServerDefinitionProviders`
+		 * extension point with the corresponding {@link id}, for example:
+		 *
+		 * ```js
+		 * 	"contributes": {
+		 * 		"mcpServerDefinitionProviders": [
+		 * 			{
+		 * 				"id": "cool-cloud-registry.mcp-servers",
+		 * 				"label": "Cool Cloud Registry",
+		 * 			}
+		 * 		]
+		 * 	}
+		 * ```
+		 *
+		 * When a new McpServerDefinitionProvider is available, the editor will, by default,
+		 * automatically invoke it to discover new servers and tools when a chat message is
+		 * submitted. To enable this flow, extensions should call
+		 * `registerMcpServerDefinitionProvider` during activation.
+		 *
+		 * @param id The ID of the provider, which is unique to the extension.
+		 * @param provider The provider to register
+		 * @returns A disposable that unregisters the provider when disposed.
+		 */
+		export function registerMcpServerDefinitionProvider(id: string, provider: McpServerDefinitionProvider): Disposable;
+
+		/**
+		 * Registers a {@linkcode LanguageModelChatProvider}
+		 * Note: You must also define the language model chat provider via the `languageModelChatProviders` contribution point in package.json
+		 * @param vendor The vendor for this provider. Must be globally unique. An example is `copilot` or `openai`.
+		 * @param provider The provider to register
+		 * @returns A disposable that unregisters the provider when disposed
+		 */
+		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider): Disposable;
 	}
 
 	/**
@@ -20089,7 +20768,7 @@ declare module 'vscode' {
 		/**
 		 * An event that fires when access information changes.
 		 */
-		onDidChange: Event<void>;
+		readonly onDidChange: Event<void>;
 
 		/**
 		 * Checks if a request can be made to a language model.
@@ -20121,7 +20800,7 @@ declare module 'vscode' {
 		/**
 		 * A JSON schema for the input this tool accepts.
 		 */
-		inputSchema?: object;
+		inputSchema?: object | undefined;
 	}
 
 	/**
@@ -20185,13 +20864,13 @@ declare module 'vscode' {
 		/**
 		 * The value of the tool result.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>;
+		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>;
 
 		/**
 		 * @param callId The ID of the tool call.
 		 * @param content The content of the tool result.
 		 */
-		constructor(callId: string, content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>);
+		constructor(callId: string, content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>);
 	}
 
 	/**
@@ -20222,7 +20901,7 @@ declare module 'vscode' {
 
 		/**
 		 * Construct a prompt-tsx part with the given content.
-		 * @param value The value of the part, the result of `renderPromptElementJSON` from `@vscode/prompt-tsx`.
+		 * @param value The value of the part, the result of `renderElementJSON` from `@vscode/prompt-tsx`.
 		 */
 		constructor(value: unknown);
 	}
@@ -20232,17 +20911,67 @@ declare module 'vscode' {
 	 */
 	export class LanguageModelToolResult {
 		/**
-		 * A list of tool result content parts. Includes `unknown` becauses this list may be extended with new content types in
+		 * A list of tool result content parts. Includes `unknown` because this list may be extended with new content types in
 		 * the future.
 		 * @see {@link lm.invokeTool}.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>;
+		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>;
 
 		/**
 		 * Create a LanguageModelToolResult
 		 * @param content A list of tool result content parts
 		 */
-		constructor(content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart>);
+		constructor(content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>);
+	}
+
+	/**
+	 * A language model response part containing arbitrary data. Can be used in {@link LanguageModelChatResponse responses},
+	 * {@link LanguageModelChatMessage chat messages}, {@link LanguageModelToolResult tool results}, and other language model interactions.
+	 */
+	export class LanguageModelDataPart {
+		/**
+		 * Create a new {@linkcode LanguageModelDataPart} for an image.
+		 * @param data Binary image data
+		 * @param mime The MIME type of the image. Common values are `image/png` and `image/jpeg`.
+		 */
+		static image(data: Uint8Array, mime: string): LanguageModelDataPart;
+
+		/**
+		 * Create a new {@linkcode LanguageModelDataPart} for a json.
+		 *
+		 * *Note* that this function is not expecting "stringified JSON" but
+		 * an object that can be stringified. This function will throw an error
+		 * when the passed value cannot be JSON-stringified.
+		 * @param value  A JSON-stringifyable value.
+		 * @param mime Optional MIME type, defaults to `application/json`
+		 */
+		static json(value: any, mime?: string): LanguageModelDataPart;
+
+		/**
+		 * Create a new {@linkcode LanguageModelDataPart} for text.
+		 *
+		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
+		 * @param value Text data
+		 * @param mime The MIME type if any. Common values are `text/plain` and `text/markdown`.
+		 */
+		static text(value: string, mime?: string): LanguageModelDataPart;
+
+		/**
+		 * The mime type which determines how the data property is interpreted.
+		 */
+		mimeType: string;
+
+		/**
+		 * The byte data for this part.
+		 */
+		data: Uint8Array;
+
+		/**
+		 * Construct a generic data part with the given content.
+		 * @param data The byte data for this part.
+		 * @param mimeType The mime type of the data.
+		 */
+		constructor(data: Uint8Array, mimeType: string);
 	}
 
 	/**

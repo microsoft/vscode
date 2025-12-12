@@ -8,7 +8,7 @@ import { GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInput
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { INotebookService, SimpleNotebookProviderInfo } from './notebookService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqual, joinPath } from '../../../../base/common/resources.js';
+import { isEqual, toLocalResource } from '../../../../base/common/resources.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotebookEditorModelResolverService } from './notebookEditorModelResolverService.js';
@@ -31,6 +31,9 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { isAbsolute } from '../../../../base/common/path.js';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -71,7 +74,9 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService
+		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super(resource, preferredResource, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
 		this._defaultDirtyState = !!options.startDirty;
@@ -207,7 +212,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return undefined;
 		}
 
-		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(provider, this.labelService.getUriBasenameLabel(this.resource)) : this.editorModelReference.object.resource;
+		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled)
+			? await this._suggestName(provider)
+			: this.editorModelReference.object.resource;
+
 		let target: URI | undefined;
 		if (this.editorModelReference.object.hasAssociatedFilePath()) {
 			target = pathCandidate;
@@ -241,8 +249,22 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return await this.editorModelReference.object.saveAs(target);
 	}
 
-	private async _suggestName(provider: NotebookProviderInfo, suggestedFilename: string) {
-		// guess file extensions
+	private async _suggestName(provider: NotebookProviderInfo) {
+		const resource = await this.ensureAbsolutePath(this.ensureProviderExtension(provider));
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		return toLocalResource(resource, remoteAuthority, this.pathService.defaultUriScheme);
+	}
+
+	private async ensureAbsolutePath(resource: URI): Promise<URI> {
+		if (resource.scheme !== Schemas.untitled || isAbsolute(resource.path)) {
+			return resource;
+		}
+
+		const defaultFilePath = await this._fileDialogService.defaultFilePath();
+		return URI.joinPath(defaultFilePath, resource.path);
+	}
+
+	private ensureProviderExtension(provider: NotebookProviderInfo) {
 		const firstSelector = provider.selectors[0];
 		let selectorStr = firstSelector && typeof firstSelector === 'string' ? firstSelector : undefined;
 		if (!selectorStr && firstSelector) {
@@ -252,17 +274,18 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 		}
 
+		const resource = this.resource;
 		if (selectorStr) {
 			const matches = /^\*\.([A-Za-z_-]*)$/.exec(selectorStr);
 			if (matches && matches.length > 1) {
 				const fileExt = matches[1];
-				if (!suggestedFilename.endsWith(fileExt)) {
-					return joinPath(await this._fileDialogService.defaultFilePath(), suggestedFilename + '.' + fileExt);
+				if (!resource.path.endsWith(fileExt)) {
+					return resource.with({ path: resource.path + '.' + fileExt });
 				}
 			}
 		}
 
-		return joinPath(await this._fileDialogService.defaultFilePath(), suggestedFilename);
+		return resource;
 	}
 
 	// called when users rename a notebook document

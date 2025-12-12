@@ -168,7 +168,7 @@ class SyncedBuffer {
 	) { }
 
 	public open(): void {
-		const args: Proto.OpenRequestArgs = {
+		const args: Proto.OpenRequestArgs & { plugins?: string[] } = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
 			projectRootPath: this.getProjectRootPath(this.document.uri),
@@ -183,7 +183,7 @@ class SyncedBuffer {
 			.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 
 		if (tsPluginsForDocument.length) {
-			(args as any).plugins = tsPluginsForDocument.map(plugin => plugin.name);
+			args.plugins = tsPluginsForDocument.map(plugin => plugin.name);
 		}
 
 		this.synchronizer.open(this.resource, args);
@@ -191,7 +191,20 @@ class SyncedBuffer {
 	}
 
 	private getProjectRootPath(resource: vscode.Uri): string | undefined {
-		const workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+		let workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+
+		// If we didn't find a real workspace, we still want to try sending along a workspace folder
+		// to prevent TS from loading projects from outside of any workspace.
+		// Just pick the highest level one on the same FS even though the file is outside of it
+		if (!workspaceRoot && vscode.workspace.workspaceFolders) {
+			for (const root of Array.from(vscode.workspace.workspaceFolders).sort((a, b) => a.uri.path.length - b.uri.path.length)) {
+				if (root.uri.scheme === resource.scheme && root.uri.authority === resource.authority) {
+					workspaceRoot = root.uri;
+					break;
+				}
+			}
+		}
+
 		if (workspaceRoot) {
 			const tsRoot = this.client.toTsFilePath(workspaceRoot);
 			return tsRoot?.startsWith(inMemoryResourcePrefix) ? undefined : tsRoot;
@@ -336,15 +349,15 @@ class GetErrRequest {
 		}
 	}
 
-	private areProjectDiagnosticsEnabled() {
+	private areProjectDiagnosticsEnabled(): boolean {
 		return this.client.configuration.enableProjectDiagnostics && this.client.capabilities.has(ClientCapability.Semantic);
 	}
 
-	private areRegionDiagnosticsEnabled() {
+	private areRegionDiagnosticsEnabled(): boolean {
 		return this.client.configuration.enableRegionDiagnostics && this.client.apiVersion.gte(API.v560);
 	}
 
-	public cancel(): any {
+	public cancel(): void {
 		if (!this._done) {
 			this._token.cancel();
 		}

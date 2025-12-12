@@ -100,6 +100,14 @@ export class QuickInputBox extends Disposable {
 		this.findInput.setAdditionalToggles(toggles);
 	}
 
+	get ariaLabel(): string {
+		return this.findInput.inputBox.inputElement.getAttribute('aria-label') || '';
+	}
+
+	set ariaLabel(ariaLabel: string) {
+		this.findInput.inputBox.inputElement.setAttribute('aria-label', ariaLabel);
+	}
+
 	hasFocus(): boolean {
 		return this.findInput.inputBox.hasFocus();
 	}

@@ -6,7 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IMouseWheelEvent, StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, type IReference } from '../../../../../base/common/lifecycle.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -47,7 +47,6 @@ export class NotebookStickyLine extends Disposable {
 				this.toggleFoldRange(currentFoldingState);
 			}
 		}));
-
 	}
 
 	private toggleFoldRange(currentState: CellFoldingState) {
@@ -165,6 +164,11 @@ export class NotebookStickyScroll extends Disposable {
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
 			this.onContextMenu(event);
 		}));
+
+		// Forward wheel events to the notebook editor to enable scrolling when hovering over sticky scroll
+		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.WHEEL, (event: WheelEvent) => {
+			this.notebookCellList.triggerScrollFromMouseWheelEvent(event as unknown as IMouseWheelEvent);
+		}));
 	}
 
 	private onContextMenu(e: MouseEvent) {
@@ -212,13 +216,17 @@ export class NotebookStickyScroll extends Disposable {
 		await notebookCellOutline.computeFullSymbols(CancellationToken.None);
 
 		// Initial content update
-		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight()));
+		const computed = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
+		this.updateContent(computed);
 
 		// Set up outline change listener
 		this._disposables.add(notebookCellOutline.onDidChange(() => {
-			const recompute = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
-			if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
-				this.updateContent(recompute);
+			const computed = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
+			if (!this.compareStickyLineMaps(computed, this.currentStickyLines)) {
+				this.updateContent(computed);
+			} else {
+				// if we don't end up updating the content, we need to avoid leaking the map
+				this.disposeStickyLineMap(computed);
 			}
 		}));
 
@@ -226,19 +234,34 @@ export class NotebookStickyScroll extends Disposable {
 		this._disposables.add(this.notebookEditor.onDidAttachViewModel(async () => {
 			// ensure recompute symbols when view model changes -- could be missed if outline is closed
 			await notebookCellOutline.computeFullSymbols(CancellationToken.None);
-			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight()));
+
+			const computed = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
+			this.updateContent(computed);
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
 			const d = new Delayer(100);
 			d.trigger(() => {
 				d.dispose();
-				const recompute = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
-				if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
-					this.updateContent(recompute);
+
+				const computed = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
+				if (!this.compareStickyLineMaps(computed, this.currentStickyLines)) {
+					this.updateContent(computed);
+				} else {
+					// if we don't end up updating the content, we need to avoid leaking the map
+					this.disposeStickyLineMap(computed);
 				}
 			});
 		}));
+	}
+
+	// Add helper method to dispose a map of sticky lines
+	private disposeStickyLineMap(map: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>) {
+		map.forEach(value => {
+			if (value.line) {
+				value.line.dispose();
+			}
+		});
 	}
 
 	// take in an cell index, and get the corresponding outline entry

@@ -6,9 +6,11 @@
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
+import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
 
 export interface IChatContentPart extends IDisposable {
-	domNode: HTMLElement;
+	domNode: HTMLElement | undefined;
 
 	/**
 	 * Used to indicate a part's ownership of a code block.
@@ -31,8 +33,15 @@ export interface IChatContentPart extends IDisposable {
 }
 
 export interface IChatContentPartRenderContext {
-	element: ChatTreeItem;
-	content: ReadonlyArray<IChatRendererContent>;
-	contentIndex: number;
-	preceedingContentParts: ReadonlyArray<IChatContentPart>;
+	readonly element: ChatTreeItem;
+	readonly elementIndex: number;
+	readonly container: HTMLElement;
+	readonly content: ReadonlyArray<IChatRendererContent>;
+	readonly contentIndex: number;
+	readonly preceedingContentParts: ReadonlyArray<IChatContentPart>;
+	readonly editorPool: EditorPool;
+	readonly codeBlockStartIndex: number;
+	readonly diffEditorPool: DiffEditorPool;
+	readonly codeBlockModelCollection: CodeBlockModelCollection;
+	currentWidth(): number;
 }

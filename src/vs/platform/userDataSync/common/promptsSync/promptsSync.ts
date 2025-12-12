@@ -7,13 +7,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { isPromptFile } from '../../../prompts/common/constants.js';
 import { IStorageService } from '../../../storage/common/storage.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
+
 import { IUserDataProfile } from '../../../userDataProfile/common/userDataProfile.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { areSame, IMergeResult as IPromptsMergeResult, merge } from './promptsMerge.js';
@@ -34,7 +34,7 @@ export function parsePrompts(syncData: ISyncData): IStringDictionary<string> {
 }
 
 /**
- * Synchronizer class for the global prompt files.
+ * Synchronizer class for the "user" prompt files.
  * Adopted from {@link SnippetsSynchroniser}.
  */
 export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDataSynchroniser {
@@ -516,14 +516,12 @@ export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDa
 		}
 		for (const entry of stat.children || []) {
 			const resource = entry.resource;
-
-			if (!isPromptFile(resource)) {
-				continue;
+			const path = resource.path;
+			if (['.prompt.md', '.instructions.md', '.chatmode.md', '.agent.md'].some(ext => path.endsWith(ext))) {
+				const key = this.extUri.relativePath(this.promptsFolder, resource)!;
+				const content = await this.fileService.readFile(resource);
+				prompts[key] = content;
 			}
-
-			const key = this.extUri.relativePath(this.promptsFolder, resource)!;
-			const content = await this.fileService.readFile(resource);
-			prompts[key] = content;
 		}
 
 		return prompts;

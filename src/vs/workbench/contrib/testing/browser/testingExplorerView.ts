@@ -14,11 +14,12 @@ import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/icon
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from '../../../../base/browser/ui/tree/tree.js';
-import { Action, ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { RunOnceScheduler, disposableTimeout } from '../../../../base/common/async.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
+import { compareFileNames } from '../../../../base/common/comparers.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -29,14 +30,14 @@ import { fuzzyContains } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { MenuEntryActionViewItem, createActionViewItem, getActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -44,7 +45,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { UnmanagedProgress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
@@ -71,6 +71,7 @@ import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemEx
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
+import { CountSummary, collectTestStateCounts, getTestProgressText } from '../common/testingProgressMessages.js';
 import { cmpPriority, isFailedState, isStateWithResult, statesInOrder } from '../common/testingStates.js';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from './explorerProjections/index.js';
 import { ListProjection } from './explorerProjections/listProjection.js';
@@ -82,7 +83,6 @@ import * as icons from './icons.js';
 import './media/testing.css';
 import { DebugLastRun, ReRunLastRun } from './testExplorerActions.js';
 import { TestingExplorerFilter } from './testingExplorerFilter.js';
-import { CountSummary, collectTestStateCounts, getTestProgressText } from './testingProgressUiService.js';
 
 const enum LastFocusState {
 	Input,
@@ -115,14 +115,13 @@ export class TestingExplorerView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITestService private readonly testService: ITestService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		const relayout = this._register(new RunOnceScheduler(() => this.layoutBody(), 1));
 		this._register(this.onDidChangeViewWelcomeState(() => {
@@ -213,7 +212,7 @@ export class TestingExplorerView extends ViewPane {
 				!alreadyIncluded
 				// And it can be run using the current profile (if any)
 				&& isRunnableWithProfileOrBitset(element.test)
-				// And either it's a leaf node or most children are included, the  include it.
+				// And either it's a leaf node or most children are included, then include it.
 				&& (visibleRunnableChildren === 0 || visibleRunnableChildren * 2 >= inTree.children.length)
 				// And not if we're only showing a single of its children, since it
 				// probably fans out later. (Worse case we'll directly include its single child)
@@ -262,22 +261,8 @@ export class TestingExplorerView extends ViewPane {
 				continue;
 			}
 
-			// single controllers won't have visible root ID nodes, handle that  case specially
-			if (!this.viewModel.tree.hasElement(element)) {
-				const visibleChildren = [...element.children].reduce((acc, c) =>
-					this.viewModel.tree.hasElement(c) && this.viewModel.tree.getNode(c).visible ? acc + 1 : acc, 0);
-
-				// note we intentionally check children > 0 here, unlike above, since
-				// we don't want to bother dispatching to controllers who have no discovered tests
-				if (element.children.size > 0 && visibleChildren * 2 >= element.children.size) {
-					include.add(element.test);
-					element.children.forEach(c => attempt(c, true));
-				} else {
-					element.children.forEach(c => attempt(c, false));
-				}
-			} else {
-				attempt(element, false);
-			}
+			include.add(element.test);
+			element.children.forEach(c => attempt(c, true));
 		}
 
 		return { include: [...include], exclude };
@@ -360,17 +345,15 @@ export class TestingExplorerView extends ViewPane {
 				if (!hasAdded) {
 					hasAdded = true;
 					participatingGroups++;
-					profileActions.push(new Action(`${controller.id}.$root`, controller.label.get(), undefined, false));
+					profileActions.push(toAction({ id: `${controller.id}.$root`, label: controller.label.get(), enabled: false, checked: false, run: () => { } }));
 				}
 
 				hasConfigurable = hasConfigurable || profile.hasConfigurationHandler;
 				participatingProfiles++;
-				profileActions.push(new Action(
-					`${controller.id}.${profile.profileId}`,
-					defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
-					undefined,
-					undefined,
-					() => {
+				profileActions.push(toAction({
+					id: `${controller.id}.${profile.profileId}`,
+					label: defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
+					run: () => {
 						const { include, exclude } = this.getTreeIncludeExclude(profile);
 						this.testService.runResolvedTests({
 							exclude: exclude.map(e => e.item.extId),
@@ -382,7 +365,7 @@ export class TestingExplorerView extends ViewPane {
 							}]
 						});
 					},
-				));
+				}));
 			}
 		}
 
@@ -405,23 +388,19 @@ export class TestingExplorerView extends ViewPane {
 
 		const postActions: IAction[] = [];
 		if (participatingProfiles > 1) {
-			postActions.push(new Action(
-				'selectDefaultTestConfigurations',
-				localize('selectDefaultConfigs', 'Select Default Profile'),
-				undefined,
-				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.SelectDefaultTestProfiles, group),
-			));
+			postActions.push(toAction({
+				id: 'selectDefaultTestConfigurations',
+				label: localize('selectDefaultConfigs', 'Select Default Profile'),
+				run: () => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.SelectDefaultTestProfiles, group),
+			}));
 		}
 
 		if (hasConfigurable) {
-			postActions.push(new Action(
-				'configureTestProfiles',
-				localize('configureTestProfiles', 'Configure Test Profiles'),
-				undefined,
-				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.ConfigureTestProfilesAction, group),
-			));
+			postActions.push(toAction({
+				id: 'configureTestProfiles',
+				label: localize('configureTestProfiles', 'Configure Test Profiles'),
+				run: () => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.ConfigureTestProfilesAction, group),
+			}));
 		}
 
 		// show menu actions if there are any otherwise don't
@@ -703,15 +682,11 @@ class TestingExplorerViewModel extends Disposable {
 	public readonly projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
 	private readonly revealTimeout = new MutableDisposable();
-	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
-	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
+	private readonly _viewMode: IContextKey<TestExplorerViewMode>;
+	private readonly _viewSorting: IContextKey<TestExplorerViewSorting>;
 	private readonly welcomeVisibilityEmitter = new Emitter<WelcomeExperience>();
 	private readonly actionRunner = this._register(new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined)));
-	private readonly lastViewState = this._register(new StoredValue<ISerializedTestTreeCollapseState>({
-		key: 'testing.treeState',
-		scope: StorageScope.WORKSPACE,
-		target: StorageTarget.MACHINE,
-	}, this.storageService));
+	private readonly lastViewState: StoredValue<ISerializedTestTreeCollapseState>;
 	private readonly noTestForDocumentWidget: NoTestsForDocumentWidget;
 
 	/**
@@ -783,6 +758,13 @@ class TestingExplorerViewModel extends Disposable {
 
 		this.hasPendingReveal = !!filterState.reveal.get();
 		this.noTestForDocumentWidget = this._register(instantiationService.createInstance(NoTestsForDocumentWidget, listContainer));
+		this.lastViewState = this._register(new StoredValue<ISerializedTestTreeCollapseState>({
+			key: 'testing.treeState',
+			scope: StorageScope.WORKSPACE,
+			target: StorageTarget.MACHINE,
+		}, this.storageService));
+		this._viewMode = TestingContextKeys.viewMode.bindTo(contextKeyService);
+		this._viewSorting = TestingContextKeys.viewSorting.bindTo(contextKeyService);
 		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
 		this._viewSorting.set(this.storageService.get('testing.viewSorting', StorageScope.WORKSPACE, TestExplorerViewSorting.ByLocation) as TestExplorerViewSorting);
 
@@ -1350,7 +1332,9 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 		const sb = b.test.item.sortText;
 		// If tests are in the same location and there's no preferred sortText,
 		// keep the extension's insertion order (#163449).
-		return inSameLocation && !sa && !sb ? 0 : (sa || a.test.item.label).localeCompare(sb || b.test.item.label);
+		return inSameLocation && !sa && !sb
+			? 0
+			: compareFileNames(sa || a.test.item.label, sb || b.test.item.label);
 	}
 }
 
@@ -1380,7 +1364,7 @@ class TestExplorerActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected override async runAction(action: IAction, context: TestExplorerTreeElement): Promise<any> {
+	protected override async runAction(action: IAction, context: TestExplorerTreeElement): Promise<void> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -1461,14 +1445,11 @@ interface IErrorTemplateData {
 class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, IErrorTemplateData> {
 	static readonly ID = 'error';
 
-	private readonly renderer: MarkdownRenderer;
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
-		@IInstantiationService instantionService: IInstantiationService,
-	) {
-		this.renderer = instantionService.createInstance(MarkdownRenderer, {});
-	}
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+	) { }
 
 	get templateId(): string {
 		return ErrorRenderer.ID;
@@ -1485,7 +1466,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 		if (typeof element.message === 'string') {
 			data.label.innerText = element.message;
 		} else {
-			const result = this.renderer.render(element.message, { inline: true });
+			const result = this.markdownRendererService.render(element.message, undefined, document.createElement('span'));
 			data.label.appendChild(result.element);
 		}
 		data.disposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, element.description));
@@ -1545,6 +1526,12 @@ class TestItemRenderer extends Disposable
 				action instanceof MenuItemAction
 					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
 					: undefined
+		}));
+
+		disposable.add(this.profiles.onDidChange(() => {
+			if (templateData.current) {
+				this.fillActionBar(templateData.current, templateData);
+			}
 		}));
 
 		disposable.add(this.crService.onDidChange(changed => {

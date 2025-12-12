@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as fs from 'fs';
+import { join } from 'path';
 import 'mocha';
-import { ChatContext, ChatRequest, ChatResult, Disposable, Event, EventEmitter, chat, commands, lm } from 'vscode';
+import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult, Disposable, env, Event, EventEmitter, chat, commands, lm, UIKind } from 'vscode';
 import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
 suite('chat', () => {
@@ -15,22 +17,26 @@ suite('chat', () => {
 		disposables = [];
 
 		// Register a dummy default model which is required for a participant request to go through
-		disposables.push(lm.registerChatModelProvider('test-lm', {
-			async provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+		disposables.push(lm.registerLanguageModelChatProvider('test-lm-vendor', {
+			async provideLanguageModelChatInformation(_options, _token) {
+				return [{
+					id: 'test-lm',
+					name: 'test-lm',
+					family: 'test',
+					version: '1.0.0',
+					maxInputTokens: 100,
+					maxOutputTokens: 100,
+					isDefault: true,
+					isUserSelectable: true,
+					capabilities: {}
+				}];
+			},
+			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
 				return undefined;
 			},
-			async provideTokenCount(_text, _token) {
+			async provideTokenCount(_model, _text, _token) {
 				return 1;
 			},
-		}, {
-			name: 'test-lm',
-			version: '1.0.0',
-			family: 'test',
-			vendor: 'test-lm-vendor',
-			maxInputTokens: 100,
-			maxOutputTokens: 100,
-			isDefault: true,
-			isUserSelectable: true
 		}));
 	});
 
@@ -71,6 +77,7 @@ suite('chat', () => {
 					assert.strictEqual(request.context.history.length, 2);
 					assert.strictEqual(request.context.history[0].participant, 'api-test.participant');
 					assert.strictEqual(request.context.history[0].command, 'hello');
+					assert.ok(request.context.history[0] instanceof ChatRequestTurn && request.context.history[0] instanceof ChatRequestTurn2);
 					deferred.complete();
 				}
 			} catch (e) {
@@ -120,6 +127,67 @@ suite('chat', () => {
 		assert.strictEqual(request3.context.history.length, 2); // request + response = 2
 	});
 
+	// fixme(rwoll): workbench.action.chat.open.blockOnResponse tests are flaking in CI:
+	//               * https://github.com/microsoft/vscode/issues/263572
+	//               * https://github.com/microsoft/vscode/issues/263575
+	test.skip('workbench.action.chat.open.blockOnResponse defaults to non-blocking for backwards compatibility', async () => {
+		const toolRegistration = lm.registerTool<void>('requires_confirmation_tool', {
+			invoke: async (_options, _token) => null, prepareInvocation: async (_options, _token) => {
+				return { invocationMessage: 'Invoking', pastTenseMessage: 'Invoked', confirmationMessages: { title: 'Confirm', message: 'Are you sure?' } };
+			}
+		});
+
+		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
+			await lm.invokeTool('requires_confirmation_tool', {
+				input: {},
+				toolInvocationToken: _request.toolInvocationToken,
+			});
+			return { metadata: { complete: true } };
+		});
+		disposables.push(participant, toolRegistration);
+
+		await commands.executeCommand('workbench.action.chat.newChat');
+		const result = await commands.executeCommand('workbench.action.chat.open', { query: 'hello' });
+		assert.strictEqual(result, undefined);
+	});
+
+	test.skip('workbench.action.chat.open.blockOnResponse resolves when waiting for user confirmation to run a tool', async () => {
+		const toolRegistration = lm.registerTool<void>('requires_confirmation_tool', {
+			invoke: async (_options, _token) => null, prepareInvocation: async (_options, _token) => {
+				return { invocationMessage: 'Invoking', pastTenseMessage: 'Invoked', confirmationMessages: { title: 'Confirm', message: 'Are you sure?' } };
+			}
+		});
+
+		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
+			await lm.invokeTool('requires_confirmation_tool', {
+				input: {},
+				toolInvocationToken: _request.toolInvocationToken,
+			});
+			return { metadata: { complete: true } };
+		});
+		disposables.push(participant, toolRegistration);
+
+		await commands.executeCommand('workbench.action.chat.newChat');
+		const result: any = await commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
+		assert.strictEqual(result?.type, 'confirmation');
+	});
+
+	test.skip('workbench.action.chat.open.blockOnResponse resolves when an error is hit', async () => {
+		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
+			return { errorDetails: { code: 'rate_limited', message: `You've been rate limited. Try again later!` } };
+		});
+		disposables.push(participant);
+
+		await commands.executeCommand('workbench.action.chat.newChat');
+		const result = await commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
+		type PartialChatAgentResult = {
+			errorDetails: {
+				code: string;
+			};
+		};
+		assert.strictEqual((<PartialChatAgentResult>result).errorDetails.code, 'rate_limited');
+	});
+
 	test('title provider is called for first request', async () => {
 		let calls = 0;
 		const deferred = new DeferredPromise<void>();
@@ -147,5 +215,29 @@ suite('chat', () => {
 
 		// Title provider was not called again
 		assert.strictEqual(calls, 1);
+	});
+
+	test('can access node-pty module', async function () {
+		// Required for copilot cli in chat extension.
+		if (env.uiKind === UIKind.Web) {
+			this.skip();
+		}
+		const nodePtyModules = [
+			join(env.appRoot, 'node_modules.asar', 'node-pty'),
+			join(env.appRoot, 'node_modules', 'node-pty')
+		];
+
+		for (const modulePath of nodePtyModules) {
+			// try to stat and require module
+			try {
+				await fs.promises.stat(modulePath);
+				const nodePty = require(modulePath);
+				assert.ok(nodePty, `Successfully required node-pty from ${modulePath}`);
+				return;
+			} catch (err) {
+				// failed to require, try next
+			}
+		}
+		assert.fail('Failed to find and require node-pty module');
 	});
 });

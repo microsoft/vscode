@@ -21,11 +21,10 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { CommentsViewFilterFocusContextKey, ICommentsView } from './comments.js';
 import { CommentsFilters, CommentsFiltersChangeEvent, CommentsSortOrder } from './commentsViewActions.js';
-import { Memento, MementoObject } from '../../../common/memento.js';
+import { Memento } from '../../../common/memento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { FilterOptions } from './commentsFilterOptions.js';
 import { CommentThreadApplicability, CommentThreadState } from '../../../../editor/common/languages.js';
@@ -45,6 +44,14 @@ export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
 export const CONTEXT_KEY_COMMENT_FOCUSED = new RawContextKey<boolean>('commentsView.commentFocused', false);
 const VIEW_STORAGE_ID = 'commentsViewState';
+
+interface CommentsViewState {
+	filter?: string;
+	filterHistory?: string[];
+	showResolved?: boolean;
+	showUnresolved?: boolean;
+	sortBy?: CommentsSortOrder;
+}
 
 type CommentsTreeNode = CommentsModel | ResourceWithCommentThreads | CommentNode;
 
@@ -79,8 +86,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 
 	private currentHeight = 0;
 	private currentWidth = 0;
-	private readonly viewState: MementoObject;
-	private readonly stateMemento: Memento;
+	private readonly viewState: CommentsViewState;
+	private readonly stateMemento: Memento<CommentsViewState>;
 	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
 
 	readonly onDidChangeVisibility = this.onDidChangeBodyVisibility;
@@ -148,24 +155,23 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IStorageService storageService: IStorageService,
 		@IPathService private readonly pathService: IPathService,
 	) {
-		const stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
+		const stateMemento = new Memento<CommentsViewState>(VIEW_STORAGE_ID, storageService);
 		const viewState = stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		super({
 			...options,
 			filterOptions: {
 				placeholder: nls.localize('comments.filter.placeholder', "Filter (e.g. text, author)"),
 				ariaLabel: nls.localize('comments.filter.ariaLabel', "Filter comments"),
-				history: viewState['filterHistory'] || [],
-				text: viewState['filter'] || '',
+				history: viewState.filterHistory || [],
+				text: viewState.filter || '',
 				focusContextKey: CommentsViewFilterFocusContextKey.key
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.hasCommentsContextKey = CONTEXT_KEY_HAS_COMMENTS.bindTo(contextKeyService);
 		this.someCommentsExpandedContextKey = CONTEXT_KEY_SOME_COMMENTS_EXPANDED.bindTo(contextKeyService);
 		this.commentsFocusedContextKey = CONTEXT_KEY_COMMENT_FOCUSED.bindTo(contextKeyService);
@@ -173,9 +179,9 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.viewState = viewState;
 
 		this.filters = this._register(new CommentsFilters({
-			showResolved: this.viewState['showResolved'] !== false,
-			showUnresolved: this.viewState['showUnresolved'] !== false,
-			sortBy: this.viewState['sortBy'] ?? CommentsSortOrder.ResourceAscending,
+			showResolved: this.viewState.showResolved !== false,
+			showUnresolved: this.viewState.showUnresolved !== false,
+			sortBy: this.viewState.sortBy ?? CommentsSortOrder.ResourceAscending,
 		}, this.contextKeyService));
 		this.filter = new Filter(new FilterOptions(this.filterWidget.getFilterText(), this.filters.showResolved, this.filters.showUnresolved));
 
@@ -191,11 +197,11 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	}
 
 	override saveState(): void {
-		this.viewState['filter'] = this.filterWidget.getFilterText();
-		this.viewState['filterHistory'] = this.filterWidget.getHistory();
-		this.viewState['showResolved'] = this.filters.showResolved;
-		this.viewState['showUnresolved'] = this.filters.showUnresolved;
-		this.viewState['sortBy'] = this.filters.sortBy;
+		this.viewState.filter = this.filterWidget.getFilterText();
+		this.viewState.filterHistory = this.filterWidget.getHistory();
+		this.viewState.showResolved = this.filters.showResolved;
+		this.viewState.showUnresolved = this.filters.showUnresolved;
+		this.viewState.sortBy = this.filters.sortBy;
 		this.stateMemento.saveMemento();
 		super.saveState();
 	}

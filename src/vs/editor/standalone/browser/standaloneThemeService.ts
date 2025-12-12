@@ -16,7 +16,7 @@ import { hc_black, hc_light, vs, vs_dark } from '../common/themes.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from '../../../platform/theme/common/colorRegistry.js';
-import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle, IThemeChangeEvent } from '../../../platform/theme/common/themeService.js';
+import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle } from '../../../platform/theme/common/themeService.js';
 import { IDisposable, Disposable } from '../../../base/common/lifecycle.js';
 import { ColorScheme, isDark, isHighContrast } from '../../../platform/theme/common/theme.js';
 import { getIconsStyleSheet, UnthemedProductIconTheme } from '../../../platform/theme/browser/iconsStyleSheet.js';
@@ -213,7 +213,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onColorThemeChange = this._register(new Emitter<IThemeChangeEvent>());
+	private readonly _onColorThemeChange = this._register(new Emitter<IStandaloneTheme>());
 	public readonly onDidColorThemeChange = this._onColorThemeChange.event;
 
 	private readonly _onFileIconThemeChange = this._register(new Emitter<IFileIconTheme>());
@@ -263,6 +263,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		}));
 
 		addMatchMediaChangeListener(mainWindow, '(forced-colors: active)', () => {
+			// Update theme selection for auto-detecting high contrast
 			this._onOSSchemeChanged();
 		});
 	}
@@ -399,11 +400,16 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
 
+		// If the OS has forced-colors active, disable forced color adjustment for
+		// Monaco editor elements so that VS Code's built-in high contrast themes
+		// (hc-black / hc-light) are used instead of the OS forcing system colors.
+		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor, .monaco-component { forced-color-adjust: none; }`);
+
 		this._themeCSS = cssRules.join('\n');
 		this._updateCSS();
 
 		TokenizationRegistry.setColorMap(colorMap);
-		this._onColorThemeChange.fire({ theme: this._theme });
+		this._onColorThemeChange.fire(this._theme);
 	}
 
 	private _updateCSS(): void {

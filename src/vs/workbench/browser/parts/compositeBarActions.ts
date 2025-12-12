@@ -9,7 +9,7 @@ import { $, addDisposableListener, append, clearNode, EventHelper, EventType, ge
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { toDisposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
-import { IThemeService, IColorTheme, IThemeChangeEvent } from '../../../platform/theme/common/themeService.js';
+import { IThemeService, IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { NumberBadge, IBadge, IActivity, ProgressBadge, IconBadge } from '../../services/activity/common/activity.js';
 import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { DelayedDragHandler } from '../../../base/browser/dnd.js';
@@ -29,6 +29,7 @@ import { Action2, IAction2Options } from '../../../platform/actions/common/actio
 import { ViewContainerLocation } from '../../common/views.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { createConfigureKeybindingAction } from '../../../platform/actions/common/menuService.js';
+import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
 
 export interface ICompositeBar {
 
@@ -160,7 +161,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable<DisposableStore>());
-	private mouseUpTimeout: any;
+	private mouseUpTimeout: Timeout | undefined;
 	private keybindingLabel: string | undefined | null;
 
 	constructor(
@@ -260,16 +261,13 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		this._register(this.hoverService.setupDelayedHover(this.container, () => ({
 			content: this.computeTitle(),
+			style: HoverStyle.Pointer,
 			position: {
 				hoverPosition: this.options.hoverOptions.position(),
 			},
 			persistence: {
 				hideOnKeyDown: true,
 			},
-			appearance: {
-				showPointer: true,
-				compact: true,
-			}
 		}), { groupId: 'composite-bar-actions' }));
 
 		// Label
@@ -289,7 +287,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.updateTitle();
 	}
 
-	private onThemeChange(theme: IThemeChangeEvent): void {
+	private onThemeChange(theme: IColorTheme): void {
 		this.updateStyles();
 	}
 

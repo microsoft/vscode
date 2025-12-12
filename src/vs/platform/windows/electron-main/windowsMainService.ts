@@ -20,7 +20,7 @@ import { getMarks, mark } from '../../../base/common/performance.js';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { cwd } from '../../../base/common/process.js';
 import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from '../../../base/common/resources.js';
-import { assertIsDefined } from '../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { getNLSLanguage, getNLSMessages, localize } from '../../../nls.js';
 import { IBackupMainService } from '../../backup/electron-main/backup.js';
@@ -210,7 +210,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private readonly windows = new Map<number, ICodeWindow>();
 
-	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateService, this.lifecycleMainService, this.logService, this.configurationService));
+	private readonly windowsStateHandler: WindowsStateHandler;
 
 	constructor(
 		private readonly machineId: string,
@@ -219,7 +219,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
-		@IStateService private readonly stateService: IStateService,
+		@IStateService stateService: IStateService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
@@ -237,6 +237,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
 	) {
 		super();
+
+		this.windowsStateHandler = this._register(new WindowsStateHandler(this, stateService, this.lifecycleMainService, this.logService, this.configurationService));
 
 		this.registerListeners();
 	}
@@ -282,8 +284,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Bring window to front
 		window.focus();
 
-		// Handle --wait
+		// Handle `<app> --wait`
 		this.handleWaitMarkerFile(openConfig, [window]);
+
+		// Handle `<app> chat`
+		this.handleChatRequest(openConfig, [window]);
 	}
 
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
@@ -384,7 +389,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Otherwise, find a good window based on open params
 			else {
-				const focusLastActive = this.windowsStateHandler.state.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
+				const focusLastActive = this.windowsStateHandler.state.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !openConfig.urisToOpen?.length;
 				let focusLastOpened = true;
 				let focusLastWindow = true;
 
@@ -441,8 +446,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this.workspacesHistoryMainService.addRecentlyOpened(recents);
 		}
 
-		// Handle --wait
+		// Handle `<app> --wait`
 		this.handleWaitMarkerFile(openConfig, usedWindows);
+
+		// Handle `<app> chat`
+		this.handleChatRequest(openConfig, usedWindows);
 
 		return usedWindows;
 	}
@@ -463,6 +471,27 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					// ignore - could have been deleted from the window already
 				}
 			})();
+		}
+	}
+
+	private handleChatRequest(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
+		if (openConfig.context !== OpenContext.CLI || !openConfig.cli.chat || usedWindows.length === 0) {
+			return;
+		}
+
+		let windowHandlingChatRequest: ICodeWindow | undefined;
+		if (usedWindows.length === 1) {
+			windowHandlingChatRequest = usedWindows[0];
+		} else {
+			const chatRequestFolder = openConfig.cli._[0]; // chat request gets cwd() as folder to open
+			if (chatRequestFolder) {
+				windowHandlingChatRequest = findWindowOnWorkspaceOrFolder(usedWindows, URI.file(chatRequestFolder));
+			}
+		}
+
+		if (windowHandlingChatRequest) {
+			windowHandlingChatRequest.sendWhenReady('vscode:handleChatRequest', CancellationToken.None, openConfig.cli.chat);
+			windowHandlingChatRequest.focus();
 		}
 	}
 
@@ -1291,7 +1320,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
-		let openFilesInNewWindow: boolean = false;
+		let openFilesInNewWindow = false;
 		if (openConfig.forceNewWindow || openConfig.forceReuseWindow) {
 			openFilesInNewWindow = !!openConfig.forceNewWindow && !openConfig.forceReuseWindow;
 		} else {
@@ -1381,7 +1410,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		cliArgs = cliArgs.filter(path => {
 			const uri = URI.file(path);
-			if (!!findWindowOnWorkspaceOrFolder(this.getWindows(), uri)) {
+			if (findWindowOnWorkspaceOrFolder(this.getWindows(), uri)) {
 				return false;
 			}
 
@@ -1390,7 +1419,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		folderUris = folderUris.filter(folderUriStr => {
 			const folderUri = this.cliArgToUri(folderUriStr);
-			if (folderUri && !!findWindowOnWorkspaceOrFolder(this.getWindows(), folderUri)) {
+			if (folderUri && findWindowOnWorkspaceOrFolder(this.getWindows(), folderUri)) {
 				return false;
 			}
 
@@ -1399,7 +1428,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		fileUris = fileUris.filter(fileUriStr => {
 			const fileUri = this.cliArgToUri(fileUriStr);
-			if (fileUri && !!findWindowOnWorkspaceOrFolder(this.getWindows(), fileUri)) {
+			if (fileUri && findWindowOnWorkspaceOrFolder(this.getWindows(), fileUri)) {
 				return false;
 			}
 
@@ -1553,7 +1582,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			disposables.add(createdWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire({ window: createdWindow, fullscreen: false })));
 			disposables.add(createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y })));
 
-			const webContents = assertIsDefined(createdWindow.win?.webContents);
+			const webContents = assertReturnsDefined(createdWindow.win?.webContents);
 			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
 			disposables.add(Event.fromNodeEventEmitter(webContents, 'devtools-reload-page')(() => this.lifecycleMainService.reload(createdWindow)));
 
@@ -1580,7 +1609,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration['disable-extensions'] = currentWindowConfig['disable-extensions'];
 				configuration['disable-extension'] = currentWindowConfig['disable-extension'];
 			}
-			configuration.loggers = configuration.loggers;
 		}
 
 		// Update window identifier and session now
@@ -1706,19 +1734,19 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return getLastFocused(windows);
 	}
 
-	sendToFocused(channel: string, ...args: any[]): void {
+	sendToFocused(channel: string, ...args: unknown[]): void {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
 		focusedWindow?.sendWhenReady(channel, CancellationToken.None, ...args);
 	}
 
-	sendToOpeningWindow(channel: string, ...args: any[]): void {
+	sendToOpeningWindow(channel: string, ...args: unknown[]): void {
 		this._register(Event.once(this.onDidSignalReadyWindow)(window => {
 			window.sendWhenReady(channel, CancellationToken.None, ...args);
 		}));
 	}
 
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
+	sendToAll(channel: string, payload?: unknown, windowIdsToIgnore?: number[]): void {
 		for (const window of this.getWindows()) {
 			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(window.id) >= 0) {
 				continue; // do not send if we are instructed to ignore it

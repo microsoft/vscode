@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'node:path';
 import * as fs from 'original-fs';
-import * as os from 'os';
-import { performance } from 'perf_hooks';
+import * as os from 'node:os';
+import { performance } from 'node:perf_hooks';
 import { configurePortable } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
-import { fileURLToPath } from 'url';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 import minimist from 'minimist';
 import { product } from './bootstrap-meta.js';
@@ -20,8 +19,6 @@ import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
 import { INLSConfiguration } from './vs/nls.js';
 import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 perf.mark('code/didStartMain');
 
@@ -91,7 +88,7 @@ perf.mark('code/didStartCrashReporter');
 // to ensure that no 'logs' folder is created on disk at a
 // location outside of the portable directory
 // (https://github.com/microsoft/vscode/issues/56651)
-if (portable && portable.isPortable) {
+if (portable.isPortable) {
 	app.setAppLogsPath(path.join(userDataPath, 'logs'));
 }
 
@@ -129,7 +126,7 @@ if (userLocale) {
 		osLocale,
 		commit: product.commit,
 		userDataPath,
-		nlsMetadataPath: __dirname
+		nlsMetadataPath: import.meta.dirname
 	});
 }
 
@@ -228,7 +225,9 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		'disable-lcd-text',
 
 		// bypass any specified proxy for the given semi-colon-separated list of hosts
-		'proxy-bypass-list'
+		'proxy-bypass-list',
+
+		'remote-debugging-port'
 	];
 
 	if (process.platform === 'linux') {
@@ -249,7 +248,10 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		'log-level',
 
 		// Use an in-memory storage for secrets
-		'use-inmemory-secretstorage'
+		'use-inmemory-secretstorage',
+
+		// Enables display tracking to restore maximized windows under RDP: https://github.com/electron/electron/issues/47016
+		'enable-rdp-display-tracking',
 	];
 
 	// Read argv config
@@ -307,15 +309,29 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 						process.argv.push('--use-inmemory-secretstorage');
 					}
 					break;
+
+				case 'enable-rdp-display-tracking':
+					if (argvValue) {
+						process.argv.push('--enable-rdp-display-tracking');
+					}
+					break;
 			}
 		}
 	});
 
+	// Following features are enabled from the runtime:
+	// `NetAdapterMaxBufSizeFeature` - Specify the max buffer size for NetToMojoPendingBuffer, refs https://github.com/microsoft/vscode/issues/268800
+	// `DocumentPolicyIncludeJSCallStacksInCrashReports` - https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
+	// `EarlyEstablishGpuChannel` - Refs https://issues.chromium.org/issues/40208065
+	// `EstablishGpuChannelAsync` - Refs https://issues.chromium.org/issues/40208065
+	const featuresToEnable =
+		`NetAdapterMaxBufSizeFeature:NetAdapterMaxBufSize/8192,DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,${app.commandLine.getSwitchValue('enable-features')}`;
+	app.commandLine.appendSwitch('enable-features', featuresToEnable);
+
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
-	// `PlzDedicatedWorker` - Refs https://github.com/microsoft/vscode/issues/233060#issuecomment-2523212427
 	const featuresToDisable =
-		`CalculateNativeWinOcclusion,PlzDedicatedWorker,${app.commandLine.getSwitchValue('disable-features')}`;
+		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Blink features to configure.
@@ -352,6 +368,8 @@ interface IArgvConfig {
 	readonly 'log-level'?: string | string[];
 	readonly 'disable-chromium-sandbox'?: boolean;
 	readonly 'use-inmemory-secretstorage'?: boolean;
+	readonly 'enable-rdp-display-tracking'?: boolean;
+	readonly 'remote-debugging-port'?: string;
 }
 
 function readArgvConfigSync(): IArgvConfig {
@@ -510,7 +528,8 @@ function configureCrashReporter(): void {
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL,
 		uploadToServer,
-		compress: true
+		compress: true,
+		ignoreSystemCrashHandler: true
 	});
 }
 
@@ -520,6 +539,18 @@ function getJSFlags(cliArgs: NativeParsedArgs): string | null {
 	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
 		jsFlags.push(cliArgs['js-flags']);
+	}
+
+	if (process.platform === 'linux') {
+		// Fix cppgc crash on Linux with 16KB page size.
+		// Refs https://issues.chromium.org/issues/378017037
+		// The fix from https://github.com/electron/electron/commit/6c5b2ef55e08dc0bede02384747549c1eadac0eb
+		// only affects non-renderer process.
+		// The following will ensure that the flag will be
+		// applied to the renderer process as well.
+		// TODO(deepak1556): Remove this once we update to
+		// Chromium >= 134.
+		jsFlags.push('--nodecommit_pooled_pages');
 	}
 
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
@@ -552,7 +583,7 @@ function registerListeners(): void {
 	 * the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
 	 */
 	const macOpenFiles: string[] = [];
-	(globalThis as any)['macOpenFiles'] = macOpenFiles;
+	(globalThis as { macOpenFiles?: string[] }).macOpenFiles = macOpenFiles;
 	app.on('open-file', function (event, path) {
 		macOpenFiles.push(path);
 	});
@@ -572,7 +603,7 @@ function registerListeners(): void {
 		app.on('open-url', onOpenUrl);
 	});
 
-	(globalThis as any)['getOpenUrls'] = function () {
+	(globalThis as { getOpenUrls?: () => string[] }).getOpenUrls = function () {
 		app.removeListener('open-url', onOpenUrl);
 
 		return openUrls;
@@ -662,7 +693,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 			userLocale: 'en',
 			osLocale,
 			resolvedLanguage: 'en',
-			defaultMessagesFile: path.join(__dirname, 'nls.messages.json'),
+			defaultMessagesFile: path.join(import.meta.dirname, 'nls.messages.json'),
 
 			// NLS: below 2 are a relic from old times only used by vscode-nls and deprecated
 			locale: 'en',
@@ -678,7 +709,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 		osLocale,
 		commit: product.commit,
 		userDataPath,
-		nlsMetadataPath: __dirname
+		nlsMetadataPath: import.meta.dirname
 	});
 }
 

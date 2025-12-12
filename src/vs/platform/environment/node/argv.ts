@@ -14,7 +14,8 @@ import { NativeParsedArgs } from '../common/argv.js';
 const helpCategories = {
 	o: localize('optionsUpperCase', "Options"),
 	e: localize('extensionsManagement', "Extensions Management"),
-	t: localize('troubleshooting', "Troubleshooting")
+	t: localize('troubleshooting', "Troubleshooting"),
+	m: localize('mcp', "Model Context Protocol")
 };
 
 export interface Option<OptionType> {
@@ -47,9 +48,32 @@ export type OptionDescriptions<T> = {
 export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web'] as const;
 
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
+	'chat': {
+		type: 'subcommand',
+		description: 'Pass in a prompt to run in a chat session in the current working directory.',
+		options: {
+			'_': { type: 'string[]', description: localize('prompt', "The prompt to use as chat.") },
+			'mode': { type: 'string', cat: 'o', alias: 'm', args: 'mode', description: localize('chatMode', "The mode to use for the chat session. Available options: 'ask', 'edit', 'agent', or the identifier of a custom mode. Defaults to 'agent'.") },
+			'add-file': { type: 'string[]', cat: 'o', alias: 'a', args: 'path', description: localize('addFile', "Add files as context to the chat session.") },
+			'maximize': { type: 'boolean', cat: 'o', description: localize('chatMaximize', "Maximize the chat session view.") },
+			'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindowForChat', "Force to use the last active window for the chat session.") },
+			'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindowForChat', "Force to open an empty window for the chat session.") },
+			'profile': { type: 'string', 'cat': 'o', args: 'profileName', description: localize('profileName', "Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created.") },
+			'help': { type: 'boolean', alias: 'h', description: localize('help', "Print usage.") }
+		}
+	},
+	'serve-web': {
+		type: 'subcommand',
+		description: 'Run a server that displays the editor UI in browsers.',
+		options: {
+			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
+			'disable-telemetry': { type: 'boolean' },
+			'telemetry-level': { type: 'string' },
+		}
+	},
 	'tunnel': {
 		type: 'subcommand',
-		description: 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel',
+		description: 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel.',
 		options: {
 			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
 			'disable-telemetry': { type: 'boolean' },
@@ -68,16 +92,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			}
 		}
 	},
-	'serve-web': {
-		type: 'subcommand',
-		description: 'Run a server that displays the editor UI in browsers.',
-		options: {
-			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
-			'disable-telemetry': { type: 'boolean' },
-			'telemetry-level': { type: 'string' },
-		}
-	},
-
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	'merge': { type: 'boolean', cat: 'o', alias: 'm', args: ['path1', 'path2', 'base', 'result'], description: localize('merge', "Perform a three-way merge by providing paths for two modified versions of a file, the common origin of both modified versions and the output file to save merge results.") },
 	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
@@ -104,6 +118,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'update-extensions': { type: 'boolean', cat: 'e', description: localize('updateExtensions', "Update the installed extensions.") },
 	'enable-proposed-api': { type: 'string[]', allowEmptyValue: true, cat: 'e', args: 'ext-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
+	'add-mcp': { type: 'string[]', cat: 'm', args: 'json', description: localize('addMcp', "Adds a Model Context Protocol server definition to the user profile. Accepts JSON input in the form '{\"name\":\"server-name\",\"command\":...}'") },
+
 	'version': { type: 'boolean', cat: 't', alias: 'v', description: localize('version', "Print version.") },
 	'verbose': { type: 'boolean', cat: 't', global: true, description: localize('verbose', "Print verbose output (implies --wait).") },
 	'log': { type: 'string[]', cat: 't', args: 'level', global: true, description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'. You can also configure the log level of an extension by passing extension id and log level in the following format: '${publisher}.${name}:${logLevel}'. For example: 'vscode.csharp:trace'. Can receive one or more such entries.") },
@@ -125,6 +141,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
 	'disable-chromium-sandbox': { type: 'boolean', cat: 't', description: localize('disableChromiumSandbox', "Use this option only when there is requirement to launch the application as sudo user on Linux or when running as an elevated user in an applocker environment on Windows.") },
 	'sandbox': { type: 'boolean' },
+	'locate-shell-integration-path': { type: 'string', cat: 't', args: ['shell'], description: localize('locateShellIntegrationPath', "Print the path to a terminal shell integration script. Allowed values are 'bash', 'pwsh', 'zsh' or 'fish'.") },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
 	'remote': { type: 'string', allowEmptyValue: true },
@@ -145,6 +162,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
+	'export-policy-data': { type: 'string', allowEmptyValue: true },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
@@ -152,6 +170,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'skip-welcome': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
+	'transient': { type: 'boolean', cat: 't', description: localize('transient', "Run with temporary data and extension directories, as if launched for the first time.") },
 	'use-inmemory-secretstorage': { type: 'boolean', deprecates: ['disable-keytar'] },
 	'password-store': { type: 'string' },
 	'disable-workspace-trust': { type: 'boolean' },
@@ -179,9 +198,12 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'__enable-file-policy': { type: 'boolean' },
 	'editSessionId': { type: 'string' },
 	'continueOn': { type: 'string' },
-	'locate-shell-integration-path': { type: 'string', args: ['bash', 'pwsh', 'zsh', 'fish'] },
-
 	'enable-coi': { type: 'boolean' },
+	'unresponsive-sample-interval': { type: 'string' },
+	'unresponsive-sample-period': { type: 'string' },
+	'enable-rdp-display-tracking': { type: 'boolean' },
+	'disable-layout-restore': { type: 'boolean' },
+	'disable-experiments': { type: 'boolean' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
@@ -234,17 +256,18 @@ const ignoringReporter = {
 };
 
 export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
-	const firstArg = args.find(a => a.length > 0 && a[0] !== '-');
+	// Find the first non-option arg, which also isn't the value for a previous `--flag`
+	const firstPossibleCommand = args.find((a, i) => a.length > 0 && a[0] !== '-' && options.hasOwnProperty(a) && options[a as T].type === 'subcommand');
 
 	const alias: { [key: string]: string } = {};
 	const stringOptions: string[] = ['_'];
 	const booleanOptions: string[] = [];
-	const globalOptions: OptionDescriptions<any> = {};
-	let command: Subcommand<any> | undefined = undefined;
+	const globalOptions: Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'>> = {};
+	let command: Subcommand<Record<string, unknown>> | undefined = undefined;
 	for (const optionId in options) {
 		const o = options[optionId];
 		if (o.type === 'subcommand') {
-			if (optionId === firstArg) {
+			if (optionId === firstPossibleCommand) {
 				command = o;
 			}
 		} else {
@@ -268,17 +291,17 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 			}
 		}
 	}
-	if (command && firstArg) {
-		const options = globalOptions;
+	if (command && firstPossibleCommand) {
+		const options: Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>> = globalOptions;
 		for (const optionId in command.options) {
 			options[optionId] = command.options[optionId];
 		}
-		const newArgs = args.filter(a => a !== firstArg);
-		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstArg) : undefined;
-		const subcommandOptions = parseArgs(newArgs, options, reporter);
+		const newArgs = args.filter(a => a !== firstPossibleCommand);
+		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstPossibleCommand) : undefined;
+		const subcommandOptions = parseArgs(newArgs, options as OptionDescriptions<Record<string, unknown>>, reporter);
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <T>{
-			[firstArg]: subcommandOptions,
+			[firstPossibleCommand]: subcommandOptions,
 			_: []
 		};
 	}
@@ -287,8 +310,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	// remove aliases to avoid confusion
 	const parsedArgs = minimist(args, { string: stringOptions, boolean: booleanOptions, alias });
 
-	const cleanedArgs: any = {};
-	const remainingArgs: any = parsedArgs;
+	const cleanedArgs: Record<string, unknown> = {};
+	const remainingArgs: Record<string, unknown> = parsedArgs;
 
 	// https://github.com/microsoft/vscode/issues/58177, https://github.com/microsoft/vscode/issues/106617
 	cleanedArgs._ = parsedArgs._.map(arg => String(arg)).filter(arg => arg.length > 0);
@@ -325,8 +348,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 					val = [val];
 				}
 				if (!o.allowEmptyValue) {
-					const sanitized = val.filter((v: string) => v.length > 0);
-					if (sanitized.length !== val.length) {
+					const sanitized = (val as string[]).filter((v: string) => v.length > 0);
+					if (sanitized.length !== (val as string[]).length) {
 						errorReporter.onEmptyValue(optionId);
 						val = sanitized.length > 0 ? sanitized : undefined;
 					}
@@ -334,7 +357,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 			} else if (o.type === 'string') {
 				if (Array.isArray(val)) {
 					val = val.pop(); // take the last
-					errorReporter.onMultipleValues(optionId, val);
+					errorReporter.onMultipleValues(optionId, val as string);
 				} else if (!val && !o.allowEmptyValue) {
 					errorReporter.onEmptyValue(optionId);
 					val = undefined;
@@ -353,10 +376,10 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		errorReporter.onUnknownOption(key);
 	}
 
-	return cleanedArgs;
+	return cleanedArgs as T;
 }
 
-function formatUsage(optionId: string, option: Option<any>) {
+function formatUsage(optionId: string, option: Option<'boolean'> | Option<'string'> | Option<'string[]'>) {
 	let args = '';
 	if (option.args) {
 		if (Array.isArray(option.args)) {
@@ -372,10 +395,10 @@ function formatUsage(optionId: string, option: Option<any>) {
 }
 
 // exported only for testing
-export function formatOptions(options: OptionDescriptions<any>, columns: number): string[] {
+export function formatOptions(options: OptionDescriptions<unknown> | Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'>>, columns: number): string[] {
 	const usageTexts: [string, string][] = [];
 	for (const optionId in options) {
-		const o = options[optionId];
+		const o = options[optionId as keyof typeof options] as Option<'boolean'> | Option<'string'> | Option<'string[]'>;
 		const usageText = formatUsage(optionId, o);
 		usageTexts.push([usageText, o.description!]);
 	}
@@ -410,42 +433,43 @@ function indent(count: number): string {
 function wrapText(text: string, columns: number): string[] {
 	const lines: string[] = [];
 	while (text.length) {
-		const index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
+		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
+		if (index === 0) {
+			index = columns;
+		}
 		const line = text.slice(0, index).trim();
-		text = text.slice(index);
+		text = text.slice(index).trimStart();
 		lines.push(line);
 	}
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; noInputFiles: boolean }): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<unknown> | Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>>, capabilities?: { noPipe?: boolean; noInputFiles?: boolean; isChat?: boolean }): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
-	const inputFiles = capabilities?.noInputFiles !== true ? `[${localize('paths', 'paths')}...]` : '';
+	const inputFiles = capabilities?.noInputFiles ? '' : capabilities?.isChat ? ` [${localize('cliPrompt', 'prompt')}]` : ` [${localize('paths', 'paths')}...]`;
+	const subcommand = capabilities?.isChat ? ' chat' : '';
 
 	const help = [`${productName} ${version}`];
 	help.push('');
-	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}]${inputFiles}`);
+	help.push(`${localize('usage', "Usage")}: ${executableName}${subcommand} [${localize('options', "options")}]${inputFiles}`);
 	help.push('');
 	if (capabilities?.noPipe !== true) {
-		if (isWindows) {
-			help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
-		} else {
-			help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
-		}
+		help.push(buildStdinMessage(executableName, capabilities?.isChat));
 		help.push('');
 	}
-	const optionsByCategory: { [P in keyof typeof helpCategories]?: OptionDescriptions<any> } = {};
+	const optionsByCategory: { [P in keyof typeof helpCategories]?: Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'>> } = {};
 	const subcommands: { command: string; description: string }[] = [];
 	for (const optionId in options) {
-		const o = options[optionId];
+		const o = options[optionId as keyof typeof options] as Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>;
 		if (o.type === 'subcommand') {
 			if (o.description) {
 				subcommands.push({ command: optionId, description: o.description });
 			}
 		} else if (o.description && o.cat) {
-			let optionsByCat = optionsByCategory[o.cat];
+			const cat = o.cat;
+			let optionsByCat = optionsByCategory[cat];
 			if (!optionsByCat) {
-				optionsByCategory[o.cat] = optionsByCat = {};
+				optionsByCategory[cat] = optionsByCat = {};
 			}
 			optionsByCat[optionId] = o;
 		}
@@ -469,6 +493,25 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 	}
 
 	return help.join('\n');
+}
+
+export function buildStdinMessage(executableName: string, isChat?: boolean): string {
+	let example: string;
+	if (isWindows) {
+		if (isChat) {
+			example = `echo Hello World | ${executableName} chat <prompt> -`;
+		} else {
+			example = `echo Hello World | ${executableName} -`;
+		}
+	} else {
+		if (isChat) {
+			example = `ps aux | grep code | ${executableName} chat <prompt> -`;
+		} else {
+			example = `ps aux | grep code | ${executableName} -`;
+		}
+	}
+
+	return localize('stdinUsage', "To read from stdin, append '-' (e.g. '{0}')", example);
 }
 
 export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {

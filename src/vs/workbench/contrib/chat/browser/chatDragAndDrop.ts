@@ -7,31 +7,25 @@ import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { $, DragAndDropObserver } from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { UriList } from '../../../../base/common/dataTransfer.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
-import { basename, joinPath } from '../../../../base/common/resources.js';
-import { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IRange } from '../../../../editor/common/core/range.js';
-import { SymbolKinds } from '../../../../editor/common/languages.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractMarkerDropData, extractSymbolDropData, IDraggedResourceEditorInput, MarkerTransferData } from '../../../../platform/dnd/browser/dnd.js';
-import { FileType, IFileService, IFileSystemProvider } from '../../../../platform/files/common/files.js';
-import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { CodeDataTransfers, containsDragType, extractEditorsDropData, extractMarkerDropData, extractNotebookCellOutputDropData, extractSymbolDropData } from '../../../../platform/dnd/browser/dnd.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { isUntitledResourceEditorInput } from '../../../common/editor.js';
-import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry } from '../common/chatModel.js';
+import { extractSCMHistoryItemDropData } from '../../scm/browser/scmHistoryChatContext.js';
+import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
+import { IChatAttachmentResolveService, ImageTransferData } from './chatAttachmentResolveService.js';
 import { IChatInputStyles } from './chatInputPart.js';
-import { imageToHash } from './chatPasteProviders.js';
-import { convertStringToUInt8Array, resizeImage } from './imageUtils.js';
+import { convertStringToUInt8Array } from './chatImageUtils.js';
 
 enum ChatDragAndDropType {
 	FILE_INTERNAL,
@@ -41,27 +35,45 @@ enum ChatDragAndDropType {
 	SYMBOL,
 	HTML,
 	MARKER,
+	NOTEBOOK_CELL_OUTPUT,
+	SCM_HISTORY_ITEM
 }
+
+const IMAGE_DATA_REGEX = /^data:image\/[a-z]+;base64,/;
+const URL_REGEX = /^https?:\/\/.+/;
 
 export class ChatDragAndDrop extends Themable {
 
 	private readonly overlays: Map<HTMLElement, { overlay: HTMLElement; disposable: IDisposable }> = new Map();
 	private overlayText?: HTMLElement;
 	private overlayTextBackground: string = '';
+	private disableOverlay: boolean = false;
 
 	constructor(
-		protected readonly attachmentModel: ChatAttachmentModel,
+		private readonly widgetRef: () => IChatWidget | undefined,
+		private readonly attachmentModel: ChatAttachmentModel,
 		private readonly styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IFileService protected readonly fileService: IFileService,
-		@IEditorService protected readonly editorService: IEditorService,
-		@IDialogService protected readonly dialogService: IDialogService,
-		@ITextModelService protected readonly textModelService: ITextModelService
+		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
+		@ILogService private readonly logService: ILogService,
+		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService
 	) {
 		super(themeService);
 
 		this.updateStyles();
+
+		this._register(toDisposable(() => {
+			this.overlays.forEach(({ overlay, disposable }) => {
+				disposable.dispose();
+				overlay.remove();
+			});
+
+			this.overlays.clear();
+			this.currentActiveTarget = undefined;
+			this.overlayText?.remove();
+			this.overlayText = undefined;
+		}));
 	}
 
 	addOverlay(target: HTMLElement, overlayContainer: HTMLElement): void {
@@ -84,6 +96,10 @@ export class ChatDragAndDrop extends Themable {
 		}
 	}
 
+	setDisabledOverlay(disable: boolean) {
+		this.disableOverlay = disable;
+	}
+
 	private currentActiveTarget: HTMLElement | undefined = undefined;
 	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement): { overlay: HTMLElement; disposable: IDisposable } {
 		const overlay = document.createElement('div');
@@ -93,6 +109,10 @@ export class ChatDragAndDrop extends Themable {
 
 		const disposable = new DragAndDropObserver(target, {
 			onDragOver: (e) => {
+				if (this.disableOverlay) {
+					return;
+				}
+
 				e.stopPropagation();
 				e.preventDefault();
 
@@ -110,6 +130,9 @@ export class ChatDragAndDrop extends Themable {
 
 			},
 			onDragLeave: (e) => {
+				if (this.disableOverlay) {
+					return;
+				}
 				if (target === this.currentActiveTarget) {
 					this.currentActiveTarget = undefined;
 				}
@@ -117,6 +140,9 @@ export class ChatDragAndDrop extends Themable {
 				this.onDragLeave(e, target);
 			},
 			onDrop: (e) => {
+				if (this.disableOverlay) {
+					return;
+				}
 				e.stopPropagation();
 				e.preventDefault();
 
@@ -147,15 +173,11 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private async drop(e: DragEvent): Promise<void> {
-		const contexts = await this.getAttachContext(e);
+		const contexts = await this.resolveAttachmentsFromDragEvent(e);
 		if (contexts.length === 0) {
 			return;
 		}
 
-		this.handleDrop(contexts);
-	}
-
-	protected handleDrop(contexts: IChatRequestVariableEntry[]): void {
 		this.attachmentModel.addContext(...contexts);
 	}
 
@@ -169,8 +191,12 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private guessDropType(e: DragEvent): ChatDragAndDropType | undefined {
-		// This is an esstimation based on the datatransfer types/items
-		if (this.isImageDnd(e)) {
+		// This is an estimation based on the datatransfer types/items
+		if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
+			return ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT;
+		} else if (containsDragType(e, CodeDataTransfers.SCM_HISTORY_ITEM)) {
+			return ChatDragAndDropType.SCM_HISTORY_ITEM;
+		} else if (containsImageDragType(e)) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
 		} else if (containsDragType(e, 'text/html')) {
 			return ChatDragAndDropType.HTML;
@@ -180,9 +206,9 @@ export class ChatDragAndDrop extends Themable {
 			return ChatDragAndDropType.MARKER;
 		} else if (containsDragType(e, DataTransfers.FILES)) {
 			return ChatDragAndDropType.FILE_EXTERNAL;
-		} else if (containsDragType(e, DataTransfers.INTERNAL_URI_LIST)) {
+		} else if (containsDragType(e, CodeDataTransfers.EDITORS)) {
 			return ChatDragAndDropType.FILE_INTERNAL;
-		} else if (containsDragType(e, Mimes.uriList, CodeDataTransfers.FILES)) {
+		} else if (containsDragType(e, Mimes.uriList, CodeDataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.INTERNAL_URI_LIST)) {
 			return ChatDragAndDropType.FOLDER;
 		}
 
@@ -195,7 +221,7 @@ export class ChatDragAndDrop extends Themable {
 		return dropType !== undefined;
 	}
 
-	protected getDropTypeName(type: ChatDragAndDropType): string {
+	private getDropTypeName(type: ChatDragAndDropType): string {
 		switch (type) {
 			case ChatDragAndDropType.FILE_INTERNAL: return localize('file', 'File');
 			case ChatDragAndDropType.FILE_EXTERNAL: return localize('file', 'File');
@@ -204,200 +230,145 @@ export class ChatDragAndDrop extends Themable {
 			case ChatDragAndDropType.SYMBOL: return localize('symbol', 'Symbol');
 			case ChatDragAndDropType.MARKER: return localize('problem', 'Problem');
 			case ChatDragAndDropType.HTML: return localize('url', 'URL');
+			case ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT: return localize('notebookOutput', 'Output');
+			case ChatDragAndDropType.SCM_HISTORY_ITEM: return localize('scmHistoryItem', 'Change');
 		}
 	}
 
-	private isImageDnd(e: DragEvent): boolean {
-		// Image detection should not have false positives, only false negatives are allowed
-		if (containsDragType(e, 'image')) {
-			return true;
-		}
-
-		if (containsDragType(e, DataTransfers.FILES)) {
-			const files = e.dataTransfer?.files;
-			if (files && files.length > 0) {
-				const file = files[0];
-				return file.type.startsWith('image/');
-			}
-
-			const items = e.dataTransfer?.items;
-			if (items && items.length > 0) {
-				const item = items[0];
-				return item.type.startsWith('image/');
-			}
-		}
-
-		return false;
-	}
-
-	private async getAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
+	private async resolveAttachmentsFromDragEvent(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
 		if (!this.isDragEventSupported(e)) {
 			return [];
 		}
 
+		if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
+			const notebookOutputData = extractNotebookCellOutputDropData(e);
+			if (notebookOutputData) {
+				return this.chatAttachmentResolveService.resolveNotebookOutputAttachContext(notebookOutputData);
+			}
+		}
+
+		if (containsDragType(e, CodeDataTransfers.SCM_HISTORY_ITEM)) {
+			const scmHistoryItemData = extractSCMHistoryItemDropData(e);
+			if (scmHistoryItemData) {
+				return this.chatAttachmentResolveService.resolveSourceControlHistoryItemAttachContext(scmHistoryItemData);
+			}
+		}
+
 		const markerData = extractMarkerDropData(e);
 		if (markerData) {
-			return this.resolveMarkerAttachContext(markerData);
+			return this.chatAttachmentResolveService.resolveMarkerAttachContext(markerData);
 		}
 
 		if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
-			const data = extractSymbolDropData(e);
-			return this.resolveSymbolsAttachContext(data);
+			const symbolsData = extractSymbolDropData(e);
+			return this.chatAttachmentResolveService.resolveSymbolsAttachContext(symbolsData);
 		}
 
-		if (containsDragType(e, 'text/html')) {
-			const data = e.dataTransfer?.getData('text/html');
-			return data ? this.resolveHTMLAttachContext(data) : [];
+		const editorDragData = extractEditorsDropData(e);
+		if (editorDragData.length > 0) {
+			return coalesce(await Promise.all(editorDragData.map(editorInput => {
+				return this.chatAttachmentResolveService.resolveEditorAttachContext(editorInput);
+			})));
 		}
 
-		const data = extractEditorsDropData(e);
-		return coalesce(await Promise.all(data.map(editorInput => {
-			return this.resolveAttachContext(editorInput);
-		})));
-	}
-
-	private async resolveAttachContext(editorInput: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
-		// Image
-		const imageContext = await getImageAttachContext(editorInput, this.fileService, this.dialogService);
-		if (imageContext) {
-			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
-		}
-
-		// File
-		return await this.getEditorAttachContext(editorInput);
-	}
-
-	private async getEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
-
-		// untitled editor
-		if (isUntitledResourceEditorInput(editor)) {
-			return await this.resolveUntitledAttachContext(editor);
-		}
-
-		if (!editor.resource) {
-			return undefined;
-		}
-
-		let stat;
-		try {
-			stat = await this.fileService.stat(editor.resource);
-		} catch {
-			return undefined;
-		}
-
-		if (!stat.isDirectory && !stat.isFile) {
-			return undefined;
-		}
-
-		return await getResourceAttachContext(editor.resource, stat.isDirectory, this.textModelService);
-	}
-
-	private async resolveUntitledAttachContext(editor: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
-		// If the resource is known, we can use it directly
-		if (editor.resource) {
-			return await getResourceAttachContext(editor.resource, false, this.textModelService);
-		}
-
-		// Otherwise, we need to check if the contents are already open in another editor
-		const openUntitledEditors = this.editorService.editors.filter(editor => editor instanceof UntitledTextEditorInput) as UntitledTextEditorInput[];
-		for (const canidate of openUntitledEditors) {
-			const model = await canidate.resolve();
-			const contents = model.textEditorModel?.getValue();
-			if (contents === editor.contents) {
-				return await getResourceAttachContext(canidate.resource, false, this.textModelService);
+		const internal = e.dataTransfer?.getData(DataTransfers.INTERNAL_URI_LIST);
+		if (internal) {
+			const uriList = UriList.parse(internal);
+			if (uriList.length) {
+				return coalesce(await Promise.all(
+					uriList.map(uri => this.chatAttachmentResolveService.resolveEditorAttachContext({ resource: URI.parse(uri) }))
+				));
 			}
 		}
 
-		return undefined;
-	}
-
-	private resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[]): ISymbolVariableEntry[] {
-		return symbols.map(symbol => {
-			const resource = URI.file(symbol.fsPath);
-			return {
-				kind: 'symbol',
-				id: symbolId(resource, symbol.range),
-				value: { uri: resource, range: symbol.range },
-				symbolKind: symbol.kind,
-				fullName: `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbol.name}`,
-				name: symbol.name,
-			};
-		});
-	}
-
-	private async resolveHTMLAttachContext(data: string): Promise<IChatRequestVariableEntry[]> {
-		const displayName = localize('dragAndDroppedImageName', 'Image from URL');
-		let finalDisplayName = displayName;
-
-		for (let appendValue = 2; this.attachmentModel.attachments.some(attachment => attachment.name === finalDisplayName); appendValue++) {
-			finalDisplayName = `${displayName} ${appendValue}`;
+		if (!containsDragType(e, DataTransfers.INTERNAL_URI_LIST) && containsDragType(e, Mimes.uriList) && ((containsDragType(e, Mimes.html) || containsDragType(e, Mimes.text) /* Text mime needed for safari support */))) {
+			return this.resolveHTMLAttachContext(e);
 		}
 
-		const { src, alt } = extractImageAttributes(data);
-		finalDisplayName = alt ?? finalDisplayName;
-
-		if (/^data:image\/[a-z]+;base64,/.test(src)) {
-			const resizedImage = await resizeImage(src);
-			return [{
-				id: await imageToHash(resizedImage),
-				name: finalDisplayName,
-				value: resizedImage,
-				isImage: true,
-				isFile: false,
-				isDirectory: false
-			}];
-		} else if (/^https?:\/\/.+/.test(src)) {
-			const url = new URL(src);
-			const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(url.pathname);
-			if (isImage) {
-				const buffer = convertStringToUInt8Array(src);
-				return [{
-					id: url.toString(),
-					name: finalDisplayName,
-					value: buffer,
-					isImage,
-					isFile: false,
-					isDirectory: false,
-				}];
-			} else {
-				return [{
-					kind: 'link',
-					id: url.toString(),
-					name: finalDisplayName,
-					value: URI.parse(url.toString()),
-					isFile: false,
-					isDirectory: false,
-				}];
-			}
-		}
 		return [];
 	}
 
-	private resolveMarkerAttachContext(markers: MarkerTransferData[]): IDiagnosticVariableEntry[] {
-		return markers.map((marker): IDiagnosticVariableEntry => {
-			const filter: Mutable<IDiagnosticVariableEntryFilterData> = {};
-			if (!('severity' in marker)) {
-				filter.filterUri = URI.revive(marker.uri);
-				filter.filterSeverity = MarkerSeverity.Warning;
-			} else {
-				filter.filterUri = URI.revive(marker.resource);
-				filter.filterSeverity = marker.severity;
-				filter.filterRange = {
-					startLineNumber: marker.startLineNumber,
-					startColumn: marker.startColumn,
-					endLineNumber: marker.endLineNumber,
-					endColumn: marker.endColumn
-				};
+	private async downloadImageAsUint8Array(url: string): Promise<Uint8Array | undefined> {
+		try {
+			const extractedImages = await this.webContentExtractorService.readImage(URI.parse(url), CancellationToken.None);
+			if (extractedImages) {
+				return extractedImages.buffer;
+			}
+		} catch (error) {
+			this.logService.warn('Fetch failed:', error);
+		}
+
+		// TODO: use dnd provider to insert text @justschen
+		const widget = this.widgetRef();
+		const selection = widget?.inputEditor.getSelection();
+		if (selection && widget) {
+			widget.inputEditor.executeEdits('chatInsertUrl', [{ range: selection, text: url }]);
+		}
+
+		this.logService.warn(`Image URLs must end in .jpg, .png, .gif, .webp, or .bmp. Failed to fetch image from this URL: ${url}`);
+		return undefined;
+	}
+
+	private async resolveHTMLAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
+		const existingAttachmentNames = new Set<string>(this.attachmentModel.attachments.map(attachment => attachment.name));
+		const createDisplayName = (): string => {
+			const baseName = localize('dragAndDroppedImageName', 'Image from URL');
+			let uniqueName = baseName;
+			let baseNameInstance = 1;
+
+			while (existingAttachmentNames.has(uniqueName)) {
+				uniqueName = `${baseName} ${++baseNameInstance}`;
 			}
 
-			return {
-				kind: 'diagnostic',
-				id: IDiagnosticVariableEntryFilterData.id(filter),
-				name: IDiagnosticVariableEntryFilterData.label(filter),
-				value: filter,
-				...filter,
-			};
-		});
+			existingAttachmentNames.add(uniqueName);
+			return uniqueName;
+		};
+
+		const getImageTransferDataFromUrl = async (url: string): Promise<ImageTransferData | undefined> => {
+			const resource = URI.parse(url);
+
+			if (IMAGE_DATA_REGEX.test(url)) {
+				return { data: convertStringToUInt8Array(url), name: createDisplayName(), resource };
+			}
+
+			if (URL_REGEX.test(url)) {
+				const data = await this.downloadImageAsUint8Array(url);
+				if (data) {
+					return { data, name: createDisplayName(), resource, id: url };
+				}
+			}
+
+			return undefined;
+		};
+
+		const getImageTransferDataFromFile = async (file: File): Promise<ImageTransferData | undefined> => {
+			try {
+				const buffer = await file.arrayBuffer();
+				return { data: new Uint8Array(buffer), name: createDisplayName() };
+			} catch (error) {
+				this.logService.error('Error reading file:', error);
+			}
+
+			return undefined;
+		};
+
+		const imageTransferData: ImageTransferData[] = [];
+
+		// Image Web File Drag and Drop
+		const imageFiles = extractImageFilesFromDragEvent(e);
+		if (imageFiles.length) {
+			const imageTransferDataFromFiles = await Promise.all(imageFiles.map(file => getImageTransferDataFromFile(file)));
+			imageTransferData.push(...imageTransferDataFromFiles.filter(data => !!data));
+		}
+
+		// Image Web URL Drag and Drop
+		const imageUrls = extractUrlsFromDragEvent(e);
+		if (imageUrls.length) {
+			const imageTransferDataFromUrl = await Promise.all(imageUrls.map(getImageTransferDataFromUrl));
+			imageTransferData.push(...imageTransferDataFromUrl.filter(data => !!data));
+		}
+
+		return await this.chatAttachmentResolveService.resolveImageAttachContext(imageTransferData);
 	}
 
 	private setOverlay(target: HTMLElement, type: ChatDragAndDropType | undefined): void {
@@ -425,7 +396,7 @@ export class ChatDragAndDrop extends Themable {
 		overlay.classList.toggle('visible', type !== undefined);
 	}
 
-	protected getOverlayText(type: ChatDragAndDropType): string {
+	private getOverlayText(type: ChatDragAndDropType): string {
 		const typeName = this.getDropTypeName(type);
 		return localize('attacAsContext', 'Attach {0} as Context', typeName);
 	}
@@ -441,149 +412,49 @@ export class ChatDragAndDrop extends Themable {
 	}
 }
 
-export class EditsDragAndDrop extends ChatDragAndDrop {
-
-	constructor(
-		attachmentModel: ChatAttachmentModel,
-		styles: IChatInputStyles,
-		@IThemeService themeService: IThemeService,
-		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService,
-		@IEditorService editorService: IEditorService,
-		@IDialogService dialogService: IDialogService,
-		@ITextModelService textModelService: ITextModelService
-	) {
-		super(attachmentModel, styles, themeService, extensionService, fileService, editorService, dialogService, textModelService);
+function containsImageDragType(e: DragEvent): boolean {
+	// Image detection should not have false positives, only false negatives are allowed
+	if (containsDragType(e, 'image')) {
+		return true;
 	}
 
-	protected override handleDrop(context: IChatRequestVariableEntry[]): void {
-		this.handleDropAsync(context);
+	if (containsDragType(e, DataTransfers.FILES)) {
+		const files = e.dataTransfer?.files;
+		if (files && files.length > 0) {
+			return Array.from(files).some(file => file.type.startsWith('image/'));
+		}
+
+		const items = e.dataTransfer?.items;
+		if (items && items.length > 0) {
+			return Array.from(items).some(item => item.type.startsWith('image/'));
+		}
 	}
 
-	protected async handleDropAsync(context: IChatRequestVariableEntry[]): Promise<void> {
-		const nonDirectoryContext = context.filter(context => !context.isDirectory);
-		const directories = context
-			.filter(context => context.isDirectory)
-			.map(context => context.value)
-			.filter(value => !!value && URI.isUri(value));
+	return false;
+}
 
-		// If there are directories, we need to resolve the files and add them to the working set
-		for (const directory of directories) {
-			const fileSystemProvider = this.fileService.getProvider(directory.scheme);
-			if (!fileSystemProvider) {
-				continue;
+function extractUrlsFromDragEvent(e: DragEvent, logService?: ILogService): string[] {
+	const textUrl = e.dataTransfer?.getData('text/uri-list');
+	if (textUrl) {
+		try {
+			const urls = UriList.parse(textUrl);
+			if (urls.length > 0) {
+				return urls;
 			}
-
-			const resolvedFiles = await resolveFilesInDirectory(directory, fileSystemProvider, true);
-			const resolvedFileContext = await Promise.all(resolvedFiles.map(file => getResourceAttachContext(file, false, this.textModelService)));
-			nonDirectoryContext.push(...resolvedFileContext.filter(context => !!context));
-		}
-
-		super.handleDrop(nonDirectoryContext);
-	}
-
-	protected override getOverlayText(type: ChatDragAndDropType): string {
-		const typeName = this.getDropTypeName(type);
-		switch (type) {
-			case ChatDragAndDropType.FILE_INTERNAL:
-			case ChatDragAndDropType.FILE_EXTERNAL:
-				return localize('addToWorkingSet', 'Add {0} to Working Set', typeName);
-			case ChatDragAndDropType.FOLDER:
-				return localize('addToWorkingSet', 'Add {0} to Working Set', localize('files', 'Files'));
-			default:
-				return super.getOverlayText(type);
-		}
-	}
-}
-
-async function resolveFilesInDirectory(resource: URI, fileSystemProvider: IFileSystemProvider, shouldRecurse: boolean): Promise<URI[]> {
-	const entries = await fileSystemProvider.readdir(resource);
-
-	const files: URI[] = [];
-	const folders: URI[] = [];
-
-	for (const [name, type] of entries) {
-		const entryResource = joinPath(resource, name);
-		if (type === FileType.File) {
-			files.push(entryResource);
-		} else if (type === FileType.Directory && shouldRecurse) {
-			folders.push(entryResource);
+		} catch (error) {
+			logService?.error('Error parsing URI list:', error);
+			return [];
 		}
 	}
 
-	const subFiles = await Promise.all(folders.map(folder => resolveFilesInDirectory(folder, fileSystemProvider, shouldRecurse)));
-
-	return [...files, ...subFiles.flat()];
+	return [];
 }
 
-async function getResourceAttachContext(resource: URI, isDirectory: boolean, textModelService: ITextModelService): Promise<IChatRequestVariableEntry | undefined> {
-	let isOmitted = false;
-	try {
-		const createdModel = await textModelService.createModelReference(resource);
-		createdModel.dispose();
-	} catch {
-		isOmitted = true;
+function extractImageFilesFromDragEvent(e: DragEvent): File[] {
+	const files = e.dataTransfer?.files;
+	if (!files) {
+		return [];
 	}
 
-	return {
-		value: resource,
-		id: resource.toString(),
-		name: basename(resource),
-		isFile: !isDirectory,
-		isDirectory,
-		isOmitted
-	};
-}
-
-async function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService, dialogService: IDialogService): Promise<IChatRequestVariableEntry | undefined> {
-	if (!editor.resource) {
-		return undefined;
-	}
-
-	if (/\.(png|jpg|jpeg|gif|webp)$/i.test(editor.resource.path)) {
-		const fileName = basename(editor.resource);
-		const readFile = await fileService.readFile(editor.resource);
-		if (readFile.size > 30 * 1024 * 1024) { // 30 MB
-			dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
-			throw new Error('Image is too large');
-		}
-		const resizedImage = await resizeImage(readFile.value.buffer);
-		return {
-			id: editor.resource.toString(),
-			name: fileName,
-			fullName: editor.resource.path,
-			value: resizedImage,
-			icon: Codicon.fileMedia,
-			isImage: true,
-			isFile: false,
-			references: [{ reference: editor.resource, kind: 'reference' }]
-		};
-	}
-
-	return undefined;
-}
-
-function symbolId(resource: URI, range?: IRange): string {
-	let rangePart = '';
-	if (range) {
-		rangePart = `:${range.startLineNumber}`;
-		if (range.startLineNumber !== range.endLineNumber) {
-			rangePart += `-${range.endLineNumber}`;
-		}
-	}
-	return resource.fsPath + rangePart;
-}
-
-function extractImageAttributes(html: string): { src: string; alt?: string } {
-	const imgTagRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/;
-	const altRegex = /alt=["']([^"']+)["']/;
-
-	const match = imgTagRegex.exec(html);
-	if (match) {
-		const src = match[1];
-		const altMatch = match[0].match(altRegex);
-		return { src, alt: altMatch ? altMatch[1] : undefined };
-	}
-
-	return { src: '', alt: undefined };
+	return Array.from(files).filter(file => file.type.startsWith('image/'));
 }
