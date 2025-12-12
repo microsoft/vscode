@@ -175,65 +175,10 @@
 		}
 	}
 
-	// Render all pages
+	// Render all pages (legacy function - now delegates to renderWithFitScale)
 	async function renderAllPages() {
-		if (!pdf || isRendering || !container) { return; }
-		isRendering = true;
-
-		container.innerHTML = '';
-		pageElements = [];
-
-		for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-			const page = await pdf.getPage(pageNum);
-			const viewport = page.getViewport({ scale: currentScale, rotation });
-
-			const pageDiv = document.createElement('div');
-			pageDiv.className = 'pdf-page-container';
-			if (settings.enableSyncClick) {
-				pageDiv.classList.add('synctex-enabled');
-			}
-			pageDiv.style.width = viewport.width + 'px';
-			pageDiv.style.height = viewport.height + 'px';
-			pageDiv.dataset.pageNum = pageNum;
-
-			const canvas = document.createElement('canvas');
-			const context = canvas.getContext('2d');
-			canvas.height = viewport.height;
-			canvas.width = viewport.width;
-
-			// Add click handler for SyncTeX
-			if (settings.enableSyncClick) {
-				canvas.addEventListener('click', (e) => {
-					const rect = canvas.getBoundingClientRect();
-					const x = (e.clientX - rect.left) / currentScale;
-					const y = (e.clientY - rect.top) / currentScale;
-					vscode.postMessage({
-						type: 'syncClick',
-						page: pageNum,
-						x: x,
-						y: y
-					});
-				});
-			}
-
-			// Add page number overlay
-			const pageOverlay = document.createElement('div');
-			pageOverlay.className = 'page-number-overlay';
-			pageOverlay.textContent = pageNum;
-
-			pageDiv.appendChild(canvas);
-			pageDiv.appendChild(pageOverlay);
-			container.appendChild(pageDiv);
-
-			await page.render({
-				canvasContext: context,
-				viewport: viewport
-			}).promise;
-
-			pageElements.push({ page, viewport, element: pageDiv, canvas });
-		}
-
-		isRendering = false;
+		// Delegate to renderWithFitScale for consistent text layer rendering
+		await renderWithFitScale();
 	}
 
 	// Update scale
@@ -299,15 +244,31 @@
 			pageDiv.style.height = viewport.height + 'px';
 			pageDiv.dataset.pageNum = pageNum;
 
+			// Create canvas wrapper for proper layering
+			const canvasWrapper = document.createElement('div');
+			canvasWrapper.className = 'canvasWrapper';
+
 			const canvas = document.createElement('canvas');
 			const context = canvas.getContext('2d');
 			canvas.height = viewport.height;
 			canvas.width = viewport.width;
 
-			// Add click handler for SyncTeX
+			canvasWrapper.appendChild(canvas);
+			pageDiv.appendChild(canvasWrapper);
+
+			// Create text layer for text selection
+			const textLayerDiv = document.createElement('div');
+			textLayerDiv.className = 'textLayer';
+
+			// Add click handler for SyncTeX on the text layer (it's on top)
 			if (settings.enableSyncClick) {
-				canvas.addEventListener('click', (e) => {
-					const rect = canvas.getBoundingClientRect();
+				textLayerDiv.addEventListener('click', (e) => {
+					// Only trigger SyncTeX if no text is selected
+					const selection = window.getSelection();
+					if (selection && selection.toString().length > 0) {
+						return;
+					}
+					const rect = pageDiv.getBoundingClientRect();
 					const x = (e.clientX - rect.left) / numericScale;
 					const y = (e.clientY - rect.top) / numericScale;
 					vscode.postMessage({
@@ -317,20 +278,42 @@
 						y: y
 					});
 				});
+				textLayerDiv.classList.add('synctex-enabled');
 			}
+
+			pageDiv.appendChild(textLayerDiv);
 
 			const pageOverlay = document.createElement('div');
 			pageOverlay.className = 'page-number-overlay';
 			pageOverlay.textContent = pageNum;
 
-			pageDiv.appendChild(canvas);
 			pageDiv.appendChild(pageOverlay);
 			container.appendChild(pageDiv);
 
+			// Render the canvas
 			await page.render({
 				canvasContext: context,
 				viewport: viewport
 			}).promise;
+
+			// Render the text layer for text selection
+			try {
+				const textContent = await page.getTextContent();
+
+				// Set CSS variables for proper scaling
+				textLayerDiv.style.setProperty('--scale-factor', numericScale);
+
+				// Use PDF.js renderTextLayer API
+				const textLayerTask = window.pdfjsLib.renderTextLayer({
+					textContentSource: textContent,
+					container: textLayerDiv,
+					viewport: viewport
+				});
+
+				await textLayerTask.promise;
+			} catch (textErr) {
+				console.warn('Failed to render text layer for page ' + pageNum + ':', textErr);
+			}
 
 			pageElements.push({ page, viewport, element: pageDiv, canvas, scale: numericScale });
 		}

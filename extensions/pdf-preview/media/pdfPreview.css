@@ -246,8 +246,62 @@ body {
 	background: white;
 }
 
+/* Canvas wrapper for proper layering with text layer */
+.pdf-page-container .canvasWrapper {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+}
+
 .pdf-page-container canvas {
 	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+/* Text layer for text selection */
+.pdf-page-container .textLayer {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	overflow: hidden;
+	opacity: 0.25;
+	line-height: 1;
+	text-size-adjust: none;
+	forced-color-adjust: none;
+	transform-origin: 0 0;
+	z-index: 2;
+}
+
+.pdf-page-container .textLayer span,
+.pdf-page-container .textLayer br {
+	color: transparent;
+	position: absolute;
+	white-space: pre;
+	cursor: text;
+	transform-origin: 0% 0%;
+}
+
+.pdf-page-container .textLayer ::selection {
+	background: rgba(0, 0, 255, 0.3);
+}
+
+.pdf-page-container .textLayer ::-moz-selection {
+	background: rgba(0, 0, 255, 0.3);
+}
+
+/* When SyncTeX is enabled, show crosshair cursor but still allow text selection */
+.pdf-page-container .textLayer.synctex-enabled {
+	cursor: crosshair;
+}
+
+.pdf-page-container .textLayer.synctex-enabled span {
+	cursor: text;
 }
 
 .pdf-page-container.synctex-enabled canvas {
@@ -335,6 +389,15 @@ body.pdf-dark-mode .pdf-page-container {
 
 body.pdf-dark-mode .pdf-page-container canvas {
 	filter: invert(0.88) hue-rotate(180deg) contrast(0.95);
+}
+
+/* Adjust text layer selection color in dark mode */
+body.pdf-dark-mode .pdf-page-container .textLayer ::selection {
+	background: rgba(100, 149, 237, 0.4);
+}
+
+body.pdf-dark-mode .pdf-page-container .textLayer ::-moz-selection {
+	background: rgba(100, 149, 237, 0.4);
 }
 
 body.pdf-dark-mode .page-number-overlay {
