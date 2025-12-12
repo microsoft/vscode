@@ -117,7 +117,6 @@ export const EXTENSION_FETCH_TIMEOUT_MS = 1000;
 export const STRING_MATCH_SEARCH_PROVIDER_NAME = 'local';
 export const TF_IDF_SEARCH_PROVIDER_NAME = 'tfIdf';
 export const FILTER_MODEL_SEARCH_PROVIDER_NAME = 'filterModel';
-export const EMBEDDINGS_ONLY_SEARCH_PROVIDER_NAME = 'embeddingsOnly';
 export const EMBEDDINGS_SEARCH_PROVIDER_NAME = 'embeddingsFull';
 export const LLM_RANKED_SEARCH_PROVIDER_NAME = 'llmRanked';
 
