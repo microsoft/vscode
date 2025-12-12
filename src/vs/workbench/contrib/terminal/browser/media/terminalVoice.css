@@ -10,6 +10,7 @@
 	display: flex;
 	align-items: center;
 	white-space: nowrap;
+	box-shadow: 0 4px 8px var(--vscode-widget-shadow);
 	z-index: 1000;
 }
 
