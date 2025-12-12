@@ -229,11 +229,11 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 }
 
-export type ISerializedProperty = { [property: string]: string | number } | undefined;
+type DefinedValue = object | string | number | boolean;
 
-export type ISerializedAnnotation = {
+export type ISerializedAnnotation<TSerializedProperty extends DefinedValue> = {
 	range: { start: number; endExclusive: number };
-	annotation: ISerializedProperty;
+	annotation: TSerializedProperty | undefined;
 };
 
 export class AnnotationsUpdate<T> {
@@ -258,21 +258,23 @@ export class AnnotationsUpdate<T> {
 		this._annotations = annotatedString.getAllAnnotations();
 	}
 
-	static serialize<T>(update: AnnotationsUpdate<T>, serializingFunc: (annotation: T | undefined) => ISerializedProperty): ISerializedAnnotation[] {
+	static serialize<T, TSerializedProperty extends DefinedValue>(update: AnnotationsUpdate<T>, serializingFunc: (annotation: T) => TSerializedProperty): ISerializedAnnotation<TSerializedProperty>[] {
 		return update.annotations.map(annotation => {
-			return {
-				range: { start: annotation.range.start, endExclusive: annotation.range.endExclusive },
-				annotation: serializingFunc(annotation.annotation)
-			};
+			const range = { start: annotation.range.start, endExclusive: annotation.range.endExclusive };
+			if (!annotation.annotation) {
+				return { range, annotation: undefined };
+			}
+			return { range, annotation: serializingFunc(annotation.annotation) };
 		});
 	}
 
-	static deserialize<T>(serializedAnnotations: ISerializedAnnotation[], deserializingFunc: (annotation: ISerializedProperty) => T): AnnotationsUpdate<T> {
+	static deserialize<T, TSerializedProperty extends DefinedValue>(serializedAnnotations: ISerializedAnnotation<TSerializedProperty>[], deserializingFunc: (annotation: TSerializedProperty) => T): AnnotationsUpdate<T> {
 		const annotations: IAnnotationUpdate<T>[] = serializedAnnotations.map(serializedAnnotation => {
-			return {
-				range: new OffsetRange(serializedAnnotation.range.start, serializedAnnotation.range.endExclusive),
-				annotation: deserializingFunc(serializedAnnotation.annotation)
-			};
+			const range = new OffsetRange(serializedAnnotation.range.start, serializedAnnotation.range.endExclusive);
+			if (!serializedAnnotation.annotation) {
+				return { range, annotation: undefined };
+			}
+			return { range, annotation: deserializingFunc(serializedAnnotation.annotation) };
 		});
 		return new AnnotationsUpdate(annotations);
 	}

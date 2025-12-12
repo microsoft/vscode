@@ -27,7 +27,7 @@ import { EncodedTokenizationResult } from '../../../../../../editor/common/langu
 
 export interface TextMateModelTokenizerHost {
 	getOrCreateGrammar(languageId: string, encodedLanguageId: LanguageId): Promise<ICreateGrammarResult | null>;
-	setTokensAndStates(versionId: number, tokens: Uint8Array, fontTokens: ISerializedAnnotation[], stateDeltas: StateDeltas[]): void;
+	setTokensAndStates(versionId: number, tokens: Uint8Array, fontTokens: ISerializedAnnotation<IFontTokenOption>[], stateDeltas: StateDeltas[]): void;
 	reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void;
 }
 
@@ -164,7 +164,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			}
 
 			const fontUpdate = AnnotationsUpdate.create<IFontTokenOption>(fontTokensUpdate);
-			const serializedFontUpdate = AnnotationsUpdate.serialize<IFontTokenOption>(fontUpdate, serializeFontTokenOptions());
+			const serializedFontUpdate = AnnotationsUpdate.serialize<IFontTokenOption, IFontTokenOption>(fontUpdate, serializeFontTokenOptions());
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
 			this._host.setTokensAndStates(
 				this._versionId,

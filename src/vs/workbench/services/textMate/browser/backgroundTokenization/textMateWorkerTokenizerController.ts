@@ -12,7 +12,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IBackgroundTokenizationStore, ILanguageIdCodec } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { TokenizationStateStore } from '../../../../../editor/common/model/textModelTokens.js';
-import { deserializeFontTokenOptions, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { deserializeFontTokenOptions, IFontTokenOption, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { IModelContentChange } from '../../../../../editor/common/model/mirrorTextModel.js';
 import { ContiguousMultilineTokensBuilder } from '../../../../../editor/common/tokens/contiguousMultilineTokensBuilder.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -112,7 +112,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 	/**
 	 * This method is called from the worker through the worker host.
 	 */
-	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: Uint8Array, fontTokens: ISerializedAnnotation[], stateDeltas: StateDeltas[]): Promise<void> {
+	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: Uint8Array, fontTokens: ISerializedAnnotation<IFontTokenOption>[], stateDeltas: StateDeltas[]): Promise<void> {
 		if (this.controllerId !== controllerId) {
 			// This event is for an outdated controller (the worker didn't receive the delete/create messages yet), ignore the event.
 			return;
