@@ -180,23 +180,25 @@ export function getAvatarLink(userId: string, size: number): string {
 	return `https://avatars.githubusercontent.com/u/${userId}?s=${size}`;
 }
 
-export function getBranchLink(url: string, branch: string, hostPrefix: string = 'https://github.com') {
+export function getBranchLink(url: string, branch: string, hostPrefix?: string) {
 	const repo = getRepositoryFromUrl(url);
 	if (!repo) {
 		throw new Error('Invalid repository URL provided');
 	}
 
+	const baseUrl = hostPrefix ?? repo.baseUrl;
 	branch = encodeURIComponentExceptSlashes(branch);
-	return `${hostPrefix}/${repo.owner}/${repo.repo}/tree/${branch}`;
+	return `${baseUrl}/${repo.owner}/${repo.repo}/tree/${branch}`;
 }
 
-export function getCommitLink(url: string, hash: string, hostPrefix: string = 'https://github.com') {
+export function getCommitLink(url: string, hash: string, hostPrefix?: string) {
 	const repo = getRepositoryFromUrl(url);
 	if (!repo) {
 		throw new Error('Invalid repository URL provided');
 	}
 
-	return `${hostPrefix}/${repo.owner}/${repo.repo}/commit/${hash}`;
+	const baseUrl = hostPrefix ?? repo.baseUrl;
+	return `${baseUrl}/${repo.owner}/${repo.repo}/commit/${hash}`;
 }
 
 export function getVscodeDevHost(): string {
