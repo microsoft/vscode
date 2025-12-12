@@ -204,6 +204,13 @@
 	],
 
 	// --- Workbench ---
+	"workbench.startupEditor": "none",
+
+	"window.autoDetectColorScheme": true,
+	"workbench.preferredLightColorTheme": "Light Modern",
+	"workbench.preferredDarkColorTheme": "Dark Modern",
+
+
 	// "application.experimental.rendererProfiling": true, // https://github.com/microsoft/vscode/issues/265654
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
 	"azureMcp.enabledServices": [

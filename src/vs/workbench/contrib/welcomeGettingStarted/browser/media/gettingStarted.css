@@ -41,13 +41,11 @@
 
 /* DSpace: Logo styling for Welcome page */
 .monaco-workbench .part.editor > .content .gettingStartedContainer .header .welcome-logo {
+	display: block;
 	width: 80px;
 	height: 80px;
-	margin-bottom: 16px;
-	background-image: url('./galaxy.png');
-	background-size: contain;
-	background-repeat: no-repeat;
-	background-position: center;
+	margin: 0 auto 16px auto;
+	object-fit: contain;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer h1 {

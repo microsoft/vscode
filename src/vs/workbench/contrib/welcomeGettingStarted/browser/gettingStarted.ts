@@ -26,6 +26,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { FileAccess } from '../../../../base/common/network.js';
 import './media/gettingStarted.css';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
@@ -912,8 +913,9 @@ export class GettingStartedPage extends EditorPane {
 		}));
 
 		// DSpace: Add logo to the Welcome page header
+		const galaxyLogoUri = FileAccess.asBrowserUri('vs/workbench/contrib/welcomeGettingStarted/browser/media/galaxy.png');
 		const header = $('.header', {},
-			$('.welcome-logo'),
+			$('img.welcome-logo', { src: galaxyLogoUri.toString(), alt: 'DSpace Logo' }),
 			$('h1.product-name.caption', {}, this.productService.nameLong),
 			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
 		);
