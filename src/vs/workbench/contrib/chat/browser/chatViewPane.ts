@@ -350,13 +350,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Deal with orientation configuration
 		this._register(Event.runAndSubscribe(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsOrientation)), e => {
 			const newSessionsViewerOrientationConfiguration = this.configurationService.getValue<'auto' | 'stacked' | 'sideBySide'>(ChatConfiguration.ChatViewSessionsOrientation);
-			this.updateConfiguredSessionsViewerOrientation(newSessionsViewerOrientationConfiguration, !e /* only layout from event */);
+			this.doUpdateConfiguredSessionsViewerOrientation(newSessionsViewerOrientationConfiguration, { updateConfiguration: false, layout: !!e });
 		}));
 
 		return sessionsControl;
 	}
 
-	updateConfiguredSessionsViewerOrientation(orientation: 'auto' | 'stacked' | 'sideBySide', skipLayout?: boolean): void {
+	updateConfiguredSessionsViewerOrientation(orientation: 'auto' | 'stacked' | 'sideBySide'): void {
+		return this.doUpdateConfiguredSessionsViewerOrientation(orientation, { updateConfiguration: true, layout: true });
+	}
+
+	private doUpdateConfiguredSessionsViewerOrientation(orientation: 'auto' | 'stacked' | 'sideBySide', options: { updateConfiguration: boolean; layout: boolean }): void {
 		const oldSessionsViewerOrientationConfiguration = this.sessionsViewerOrientationConfiguration;
 		this.sessionsViewerOrientationConfiguration = orientation;
 
@@ -364,7 +368,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return; // no change from our existing config
 		}
 
-		if (!skipLayout && this.lastDimensions) {
+		if (options.updateConfiguration) {
+			this.configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, orientation);
+		}
+
+		if (options.layout && this.lastDimensions) {
 			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 		}
 	}
@@ -784,7 +792,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return { heightReduction, widthReduction };
 	}
 
-	getLastDimensionsForCurrentOrientation(orientation: AgentSessionsViewerOrientation): { height: number; width: number } | undefined {
+	getLastDimensions(orientation: AgentSessionsViewerOrientation): { height: number; width: number } | undefined {
 		return this.lastDimensionsPerOrientation.get(orientation);
 	}
 
