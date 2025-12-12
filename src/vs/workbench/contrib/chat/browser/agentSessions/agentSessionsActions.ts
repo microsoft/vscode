@@ -27,6 +27,11 @@ import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AgentSessionsPicker } from './agentSessionsPicker.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 
 //#region Chat View
 
@@ -127,11 +132,6 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
 	}
 }
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AgentSessionsPicker } from './agentSessionsPicker.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
 
 export class PickAgentSessionAction extends Action2 {
 	constructor() {
