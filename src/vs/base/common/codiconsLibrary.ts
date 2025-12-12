@@ -646,4 +646,6 @@ export const codiconsLibrary = {
 	collectionSmall: register('collection-small', 0xec78),
 	vmSmall: register('vm-small', 0xec79),
 	cloudSmall: register('cloud-small', 0xec7a),
+	addSmall: register('add-small', 0xec7b),
+	removeSmall: register('remove-small', 0xec7c),
 } as const;
