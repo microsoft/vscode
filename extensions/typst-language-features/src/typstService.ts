@@ -219,7 +219,9 @@ export class TypstService implements vscode.Disposable {
 				default: severity = vscode.DiagnosticSeverity.Information;
 			}
 
-			return new vscode.Diagnostic(range, e.message, severity);
+			const diagnostic = new vscode.Diagnostic(range, e.message, severity);
+			diagnostic.source = 'typst';
+			return diagnostic;
 		});
 	}
 

@@ -58,7 +58,6 @@ export class InlineChatCodeActionsProvider {
 					position: range.getStartPosition()
 				};
 
-				// Fix action - automatically sends a fix request
 				actions.push({
 					kind: baseKind.append('fix').value,
 					isAI: true,

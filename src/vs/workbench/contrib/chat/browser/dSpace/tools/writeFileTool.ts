@@ -18,7 +18,7 @@ export class WriteFileTool implements IToolImpl {
 		return {
 			id: WriteFileTool.TOOL_ID,
 			displayName: localize('dSpaceTool.writeFile.displayName', 'Write File'),
-			modelDescription: 'CRITICAL: Use ONLY for creating brand NEW files that do not exist yet. NEVER use this tool if the file already exists - it will overwrite and delete all existing content. For existing files, ALWAYS use dSpace_readFile first to read the current content, then use dSpace_editFile to make changes. This tool will reject attempts to write to existing files. This is a LaTeX editor, so by default: (1) If no file extension is specified in the path, default to .tex extension. (2) If no content is provided or content is empty, generate a basic LaTeX document template (\\documentclass{article}, \\begin{document}, etc.).',
+			modelDescription: 'CRITICAL: Use ONLY for creating brand NEW files that do not exist yet. NEVER use this tool if the file already exists - it will overwrite and delete all existing content. For existing files, ALWAYS use dSpace_readFile first to read the current content, then use dSpace_editFile to make changes. This tool will reject attempts to write to existing files. This is a LaTeX/Typst editor, so by default: (1) If no file extension is specified in the path, default to .tex for LaTeX or .typ for Typst based on context. (2) If no content is provided or content is empty, generate a basic document template appropriate for the file type.',
 			userDescription: 'Create a new file with content',
 			source: ToolDataSource.Internal,
 			inputSchema: {
@@ -30,7 +30,7 @@ export class WriteFileTool implements IToolImpl {
 					},
 					content: {
 						type: 'string',
-						description: 'Complete content for the new file. If empty or not provided, generate a basic LaTeX document template.'
+						description: 'Complete content for the new file. If empty or not provided, generate a basic document template appropriate for the file type (LaTeX for .tex, Typst for .typ).'
 					}
 				},
 				required: ['path', 'content']

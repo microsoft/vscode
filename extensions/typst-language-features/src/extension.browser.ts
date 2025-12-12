@@ -11,6 +11,7 @@ import { TypstMathHoverProvider } from './features/mathHoverProvider';
 import { TypstDocumentSymbolProvider } from './features/documentSymbolProvider';
 import { TypstFormattingProvider, setFormatterExtensionUri } from './features/formattingProvider';
 import { registerTextCommands } from './features/textCommands';
+import { TypstCodeActionProvider } from './features/codeActionProvider';
 
 let typstService: TypstService | undefined;
 
@@ -85,6 +86,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			new TypstFormattingProvider()
 		)
 	);
+
+	// Register code action provider for AI-powered quick fixes
+	context.subscriptions.push(TypstCodeActionProvider.register(context));
+	logger.appendLine('Typst Code Action Provider registered for AI-powered fixes');
 
 	// Register commands
 	context.subscriptions.push(

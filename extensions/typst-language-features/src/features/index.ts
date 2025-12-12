@@ -8,3 +8,4 @@ export { TypstHoverProvider } from './hoverProvider';
 export { TypstMathHoverProvider } from './mathHoverProvider';
 export { TypstDocumentSymbolProvider } from './documentSymbolProvider';
 export { TypstFormattingProvider } from './formattingProvider';
+export { TypstCodeActionProvider } from './codeActionProvider';
