@@ -178,11 +178,15 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
 		// Badge
-		this.renderBadge(session, template);
+		let hasBadge = false;
+		if (!isSessionInProgressStatus(session.element.status)) {
+			hasBadge = this.renderBadge(session, template);
+		}
+		template.badge.classList.toggle('has-badge', hasBadge);
 
 		// Description (unless diff is shown)
 		if (!hasDiff) {
-			this.renderDescription(session, template);
+			this.renderDescription(session, template, hasBadge);
 		}
 
 		// Status
@@ -192,13 +196,13 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		this.renderHover(session, template);
 	}
 
-	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
 		const badge = session.element.badge;
-		template.badge.classList.toggle('has-badge', !!badge);
-
 		if (badge) {
 			this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
 		}
+
+		return !!badge;
 	}
 
 	private renderMarkdownOrText(content: string | IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
@@ -258,7 +262,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		return Codicon.circleSmallFilled;
 	}
 
-	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate, hasBadge: boolean): void {
 		const description = session.element.description;
 		if (description) {
 			this.renderMarkdownOrText(description, template.description, template.elementDisposable);
@@ -268,6 +272,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		else {
 			if (isSessionInProgressStatus(session.element.status)) {
 				template.description.textContent = localize('chat.session.status.inProgress', "Working...");
+			} else if (session.element.status === ChatSessionStatus.NeedsInput) {
+				template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
+			} else if (hasBadge && session.element.status === ChatSessionStatus.Completed) {
+				template.description.textContent = ''; // no description if completed and has badge
 			} else if (
 				session.element.timing.finishedOrFailedTime &&
 				session.element.timing.inProgressTime &&
@@ -306,6 +314,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			if (!timeLabel) {
 				timeLabel = fromNow(session.timing.endTime || session.timing.startTime);
 			}
+
 			return `${session.providerLabel} • ${timeLabel}`;
 		};
 
