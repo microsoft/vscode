@@ -20,7 +20,7 @@ import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/com
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IGroupFilter, ISearchResult, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingKeyMatchTypes, SettingMatchType } from '../../../services/preferences/common/preferences.js';
 import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
-import { EMBEDDINGS_ONLY_SEARCH_PROVIDER_NAME, EMBEDDINGS_SEARCH_PROVIDER_NAME, IAiSearchProvider, IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration, LLM_RANKED_SEARCH_PROVIDER_NAME, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME } from '../common/preferences.js';
+import { EMBEDDINGS_SEARCH_PROVIDER_NAME, IAiSearchProvider, IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration, LLM_RANKED_SEARCH_PROVIDER_NAME, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME } from '../common/preferences.js';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -409,8 +409,7 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 	private _filter: string = '';
 
 	constructor(
-		private readonly _aiSettingsSearchService: IAiSettingsSearchService,
-		private readonly _excludeSelectionStep: boolean
+		private readonly _aiSettingsSearchService: IAiSettingsSearchService
 	) {
 		this._recordProvider = new SettingsRecordProvider();
 	}
@@ -425,7 +424,7 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 		}
 
 		this._recordProvider.updateModel(preferencesModel);
-		this._aiSettingsSearchService.startSearch(this._filter, this._excludeSelectionStep, token);
+		this._aiSettingsSearchService.startSearch(this._filter, token);
 
 		return {
 			filterMatches: await this.getEmbeddingsItems(token),
@@ -441,7 +440,7 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 			return [];
 		}
 
-		const providerName = this._excludeSelectionStep ? EMBEDDINGS_ONLY_SEARCH_PROVIDER_NAME : EMBEDDINGS_SEARCH_PROVIDER_NAME;
+		const providerName = EMBEDDINGS_SEARCH_PROVIDER_NAME;
 		for (const settingKey of settings) {
 			if (filterMatches.length === EmbeddingsSearchProvider.EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS) {
 				break;
@@ -589,7 +588,7 @@ class AiSearchProvider implements IAiSearchProvider {
 	constructor(
 		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
 	) {
-		this._embeddingsSearchProvider = new EmbeddingsSearchProvider(this.aiSettingsSearchService, false);
+		this._embeddingsSearchProvider = new EmbeddingsSearchProvider(this.aiSettingsSearchService);
 		this._recordProvider = new SettingsRecordProvider();
 	}
 
