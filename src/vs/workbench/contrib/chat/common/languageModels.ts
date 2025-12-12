@@ -487,7 +487,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	lookupLanguageModel(modelIdentifier: string): ILanguageModelChatMetadata | undefined {
 		const model = this._modelCache.get(modelIdentifier);
 		if (!model) {
-			return model;
+			return undefined;
 		}
 
 		// Apply user preferences (visibility and custom display name)

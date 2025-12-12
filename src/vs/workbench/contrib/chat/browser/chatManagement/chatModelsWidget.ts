@@ -407,7 +407,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 		if (result !== undefined) {
 			const trimmedResult = result.trim();
 			// Update the model name (renameModel handles the logic of clearing if unchanged)
-			this.viewModel.renameModel(entry, trimmedResult === currentCustomName ? currentCustomName : trimmedResult);
+			this.viewModel.renameModel(entry, trimmedResult);
 		}
 	}
 }
