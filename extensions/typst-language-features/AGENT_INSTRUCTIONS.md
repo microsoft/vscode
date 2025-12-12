@@ -61,11 +61,11 @@ Ask yourself:
 ### Current Progress
 
 ```
-Implemented:     26 features (16%)
+Implemented:     27 features (16%)
 Partial:          3 features (2%)
-Not Implemented: 135 features (82%)
+Not Implemented: 134 features (82%)
 
-Overall: ~18% complete
+Overall: ~19% complete
 ```
 
 ---
@@ -86,7 +86,7 @@ These features should be implemented first for a solid editing experience.
 | Math Hover Preview | ✅ | - | Uses WASM compiler |
 | Document Formatting | ✅ | `tool/text.rs` | Uses typstyle WASM |
 | Diagnostics | ✅ | `diagnostics.rs` | Via WASM compilation with `getDiagnostics()` API for proper line/column numbers |
-| **Code Folding** | ❌ | `folding_range.rs` | Headings, functions, blocks |
+| Code Folding | ✅ | `folding_range.rs` | Headings, functions, blocks (regex-based) |
 | **Go to Definition** | ❌ | `goto_definition.rs` | Labels, functions, imports |
 | **Signature Help** | ❌ | `signature_help.rs` | Function parameter popup |
 | **Semantic Tokens** | ❌ | `semantic_tokens_full.rs` | Full syntax highlighting |
@@ -275,6 +275,7 @@ typst-language-features/
 │       ├── hoverProvider.ts       # Static hover
 │       ├── mathHoverProvider.ts   # Math preview hover
 │       ├── documentSymbolProvider.ts # Regex-based symbols
+│       ├── foldingProvider.ts       # Code folding (headings, blocks, functions)
 │       ├── formattingProvider.ts  # Document formatting (typstyle WASM)
 │       └── textCommands.ts        # Text formatting shortcuts (bold, italic, underline)
 ├── snippets/                      # ✅ Snippets implemented

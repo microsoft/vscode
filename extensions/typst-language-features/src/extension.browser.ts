@@ -12,6 +12,7 @@ import { TypstDocumentSymbolProvider } from './features/documentSymbolProvider';
 import { TypstFormattingProvider, setFormatterExtensionUri } from './features/formattingProvider';
 import { registerTextCommands } from './features/textCommands';
 import { TypstCodeActionProvider } from './features/codeActionProvider';
+import { TypstFoldingProvider } from './features/foldingProvider';
 
 let typstService: TypstService | undefined;
 
@@ -77,6 +78,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		vscode.languages.registerDocumentSymbolProvider(
 			typstSelector,
 			new TypstDocumentSymbolProvider()
+		)
+	);
+
+	context.subscriptions.push(
+		vscode.languages.registerFoldingRangeProvider(
+			typstSelector,
+			new TypstFoldingProvider()
 		)
 	);
 
