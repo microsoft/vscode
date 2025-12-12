@@ -11,8 +11,9 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IChatService } from '../../common/chatService.js';
 import { openSession } from './agentSessionsOpener.js';
-import { IAgentSession } from './agentSessionsModel.js';
+import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsSorter } from './agentSessionsViewer.js';
 
@@ -30,6 +31,11 @@ const unarchiveButton: IQuickInputButton = {
 	tooltip: localize('unarchiveSession', "Unarchive")
 };
 
+const renameButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.edit),
+	tooltip: localize('renameSession', "Rename")
+};
+
 export class AgentSessionsPicker {
 
 	private readonly sorter: AgentSessionsSorter;
@@ -38,6 +44,7 @@ export class AgentSessionsPicker {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		this.sorter = this.instantiationService.createInstance(AgentSessionsSorter);
 	}
@@ -67,10 +74,18 @@ export class AgentSessionsPicker {
 			}
 		}));
 
-		disposables.add(picker.onDidTriggerItemButton(e => {
+		disposables.add(picker.onDidTriggerItemButton(async e => {
 			const session = e.item.session;
-			const newArchivedState = !session.isArchived();
-			session.setArchived(newArchivedState);
+
+			if (e.button === renameButton) {
+				const title = await this.quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
+				if (title) {
+					this.chatService.setChatSessionTitle(session.resource, title);
+				}
+			} else {
+				const newArchivedState = !session.isArchived();
+				session.setArchived(newArchivedState);
+			}
 
 			picker.items = this.createPickerItems();
 		}));
@@ -141,13 +156,19 @@ export class AgentSessionsPicker {
 		const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
 		const description = descriptionParts.join(' • ');
 
+		const buttons: IQuickInputButton[] = [];
+		if (isLocalAgentSessionItem(session)) {
+			buttons.push(renameButton);
+		}
+		buttons.push(session.isArchived() ? unarchiveButton : archiveButton);
+
 		return {
 			id: session.resource.toString(),
 			label: session.label,
 			tooltip: session.tooltip,
 			description,
 			iconClass: ThemeIcon.asClassName(session.icon),
-			buttons: [session.isArchived() ? unarchiveButton : archiveButton],
+			buttons,
 			session
 		};
 	}
