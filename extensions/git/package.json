@@ -1655,19 +1655,19 @@
         },
         {
           "command": "git.stashView",
-          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+          "when": "config.git.enabled && !git.missing"
         },
         {
           "command": "git.viewChanges",
-          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+          "when": "config.git.enabled && !git.missing"
         },
         {
           "command": "git.viewStagedChanges",
-          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+          "when": "config.git.enabled && !git.missing"
         },
         {
           "command": "git.viewUntrackedChanges",
-          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled && config.git.untrackedChanges == separate"
+          "when": "config.git.enabled && !git.missing && config.git.untrackedChanges == separate"
         },
         {
           "command": "git.viewCommit",
