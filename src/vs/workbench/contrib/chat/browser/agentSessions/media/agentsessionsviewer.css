@@ -71,9 +71,7 @@
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 8px 12px
-			/* to offset from possible scrollbar */
-			8px 8px;
+		padding: 8px 12px /* to offset from possible scrollbar */ 8px 8px;
 
 		&.archived {
 			color: var(--vscode-descriptionForeground);
@@ -132,6 +130,7 @@
 		}
 
 		.agent-session-details-row {
+			gap: 4px;
 			font-size: 12px;
 			color: var(--vscode-descriptionForeground);
 
@@ -181,7 +180,6 @@
 				background-color: var(--vscode-toolbar-hoverBackground);
 				padding: 0 4px;
 				border-radius: 5px;
-				margin-left: 4px;
 
 				&:not(.has-badge) {
 					display: none;
