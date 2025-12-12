@@ -563,7 +563,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		let currentSize = layoutService.getSize(part);
 
 		const sideBySideMinWidth = 600 + 1;	// account for possible theme border
-		const stackedMaxWidth = 300 + 1;	// account for possible theme border
+		const stackedMaxWidth = sideBySideMinWidth - 1;
 
 		if (configuredOrientation !== 'auto') {
 			if (
@@ -583,11 +583,13 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			currentSize = layoutService.getSize(part);
 		}
 
+		const lastWidthForOrientation = chatView?.getLastDimensionsForCurrentOrientation(newOrientation)?.width;
+
 		let newWidth: number;
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			newWidth = Math.max(sideBySideMinWidth, Math.round(layoutService.mainContainerDimension.width / 2));
+			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(layoutService.mainContainerDimension.width / 2));
 		} else {
-			newWidth = stackedMaxWidth;
+			newWidth = Math.min(stackedMaxWidth, lastWidthForOrientation || stackedMaxWidth);
 		}
 
 		layoutService.setSize(part, {
