@@ -244,6 +244,19 @@ suite('Response', () => {
 		assert.ok(!responseString.includes('Initial content'), 'Should not include content before clear');
 		assert.ok(responseString.endsWith('Made changes.'), 'Should end with "Made changes."');
 	});
+
+	test('clearWidget is ignored in response representation', async () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Initial content'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'clearWidget' });
+		response.updateContent({ content: new MarkdownString('More content'), kind: 'markdownContent' });
+
+		// clearWidget should not affect the response representation
+		const responseString = response.toString();
+		assert.ok(responseString.includes('Initial content'), 'Should include initial content');
+		assert.ok(responseString.includes('More content'), 'Should include more content');
+		assert.strictEqual(responseString, 'Initial contentMore content', 'Should concatenate content without clearWidget interference');
+	});
 });
 
 suite('normalizeSerializableChatData', () => {
