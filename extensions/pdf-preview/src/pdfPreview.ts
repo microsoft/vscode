@@ -88,13 +88,14 @@ export class PdfPreview extends Disposable {
 			this._register(watcher.onDidChange((e: vscode.Uri) => {
 				if (e.toString() === this.resource.toString()) {
 					this.updateBinarySize();
-					this.render();
+					this.reloadFromFilesystem();
 				}
 			}));
 		}
 
 		this.updateBinarySize();
-		this.render(options?.syncPosition);
+		// Initialize: if no pdfData provided, load from filesystem to avoid vscode-resource auth issues in web
+		this.initializeRender(options?.syncPosition);
 		this.updateState();
 	}
 
@@ -250,6 +251,52 @@ export class PdfPreview extends Disposable {
 		);
 
 		this.webviewPanel.webview.html = html;
+	}
+
+	/**
+	 * Initialize render - loads PDF from filesystem if no pdfData provided.
+	 * This avoids vscode-resource authentication issues in web environments.
+	 */
+	private async initializeRender(syncPosition?: { page: number; x?: number; y?: number }): Promise<void> {
+		if (this._previewState === PreviewState.Disposed) {
+			return;
+		}
+
+		// If we don't have pdfData, load from filesystem to use base64 data URL
+		// This avoids 401 authentication errors with vscode-resource in web production
+		if (!this._pdfData) {
+			try {
+				this._pdfData = await vscode.workspace.fs.readFile(this.resource);
+			} catch (error) {
+				// If reading fails, fall back to URL-based loading (original behavior)
+				console.error('Failed to read PDF file, falling back to URL loading:', error);
+			}
+		}
+
+		await this.render(syncPosition);
+	}
+
+	/**
+	 * Reload PDF from filesystem when file changes
+	 */
+	private async reloadFromFilesystem(): Promise<void> {
+		if (this._previewState === PreviewState.Disposed) {
+			return;
+		}
+
+		try {
+			this._pdfData = await vscode.workspace.fs.readFile(this.resource);
+			// Send updated data to webview without full re-render to preserve state
+			const base64 = this.uint8ArrayToBase64(this._pdfData);
+			this.webviewPanel.webview.postMessage({
+				type: 'updatePdf',
+				pdfData: base64
+			});
+		} catch (error) {
+			console.error('Failed to reload PDF file:', error);
+			// Fall back to full re-render
+			await this.render();
+		}
 	}
 
 	private updateState(): void {
