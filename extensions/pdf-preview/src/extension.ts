@@ -85,6 +85,10 @@ export function activate(context: vscode.ExtensionContext) {
 		previewManager.activePreview?.rotate(-90);
 	}));
 
+	disposables.push(vscode.commands.registerCommand('pdfPreview.find', () => {
+		previewManager.activePreview?.openFind();
+	}));
+
 	// Register public API command for LaTeX/Typst integration
 	disposables.push(vscode.commands.registerCommand('pdfPreview.showPdf', async (options: ShowPdfOptions) => {
 		return previewManager.showPdfPreview(options);

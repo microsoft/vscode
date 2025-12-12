@@ -10,5 +10,6 @@
 	"command.download": "Download PDF",
 	"command.rotateClockwise": "Rotate Clockwise",
 	"command.rotateCounterClockwise": "Rotate Counter-Clockwise",
-	"command.showPdf": "Show PDF Preview"
+	"command.showPdf": "Show PDF Preview",
+	"command.find": "Find in Document"
 }

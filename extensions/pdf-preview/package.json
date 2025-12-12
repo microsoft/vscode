@@ -85,6 +85,11 @@
         "command": "pdfPreview.showPdf",
         "title": "%command.showPdf%",
         "category": "PDF Preview"
+      },
+      {
+        "command": "pdfPreview.find",
+        "title": "%command.find%",
+        "category": "PDF Preview"
       }
     ],
     "menus": {
@@ -124,6 +129,10 @@
         {
           "command": "pdfPreview.showPdf",
           "when": "false"
+        },
+        {
+          "command": "pdfPreview.find",
+          "when": "activeCustomEditorId == 'pdfPreview.editor'"
         }
       ]
     },
@@ -138,6 +147,12 @@
         "command": "pdfPreview.zoomOut",
         "key": "ctrl+-",
         "mac": "cmd+-",
+        "when": "activeCustomEditorId == 'pdfPreview.editor'"
+      },
+      {
+        "command": "pdfPreview.find",
+        "key": "ctrl+f",
+        "mac": "cmd+f",
         "when": "activeCustomEditorId == 'pdfPreview.editor'"
       }
     ]
