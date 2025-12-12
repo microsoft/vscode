@@ -39,7 +39,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -57,6 +57,7 @@ interface IAgentSessionItemTemplate {
 	readonly diffAddedSpan: HTMLSpanElement;
 	readonly diffRemovedSpan: HTMLSpanElement;
 
+	readonly badge: HTMLElement;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
 
@@ -106,6 +107,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 								h('span.agent-session-diff-added@addedSpan'),
 								h('span.agent-session-diff-removed@removedSpan')
 							]),
+						h('div.agent-session-badge@badge'),
 						h('div.agent-session-description@description'),
 						h('div.agent-session-status@status')
 					])
@@ -130,6 +132,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			diffFilesSpan: elements.filesSpan,
 			diffAddedSpan: elements.addedSpan,
 			diffRemovedSpan: elements.removedSpan,
+			badge: elements.badge,
 			description: elements.description,
 			status: elements.status,
 			contextKeyService,
@@ -145,6 +148,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.diffFilesSpan.textContent = '';
 		template.diffAddedSpan.textContent = '';
 		template.diffRemovedSpan.textContent = '';
+		template.badge.textContent = '';
 		template.description.textContent = '';
 
 		// Archived
@@ -164,17 +168,20 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.titleToolbar.context = session.element;
 
 		// Diff information
+		let hasDiff = false;
 		const { changes: diff } = session.element;
 		if (!isSessionInProgressStatus(session.element.status) && diff && hasValidDiff(diff)) {
 			if (this.renderDiff(session, template)) {
-				template.diffContainer.classList.add('has-diff');
+				hasDiff = true;
 			}
 		}
+		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
-		// Description otherwise
-		else {
-			template.diffContainer.classList.remove('has-diff');
+		// Badge
+		this.renderBadge(session, template);
 
+		// Description (unless diff is shown)
+		if (!hasDiff) {
 			this.renderDescription(session, template);
 		}
 
@@ -183,6 +190,31 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Hover
 		this.renderHover(session, template);
+	}
+
+	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		const badge = session.element.badge;
+		template.badge.classList.toggle('has-badge', !!badge);
+
+		if (badge) {
+			this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
+		}
+	}
+
+	private renderMarkdownOrText(content: string | IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
+		if (typeof content === 'string') {
+			container.textContent = content;
+		} else {
+			disposables.add(this.markdownRendererService.render(content, {
+				sanitizerConfig: {
+					replaceWithPlaintext: true,
+					allowedTags: {
+						override: allowedChatMarkdownHtmlTags,
+					},
+					allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
+				},
+			}, container));
+		}
 	}
 
 	private renderDiff(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
@@ -229,21 +261,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
 		const description = session.element.description;
 		if (description) {
-
-			// Support description as string
-			if (typeof description === 'string') {
-				template.description.textContent = description;
-			} else {
-				template.elementDisposable.add(this.markdownRendererService.render(description, {
-					sanitizerConfig: {
-						replaceWithPlaintext: true,
-						allowedTags: {
-							override: allowedChatMarkdownHtmlTags,
-						},
-						allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
-					},
-				}, template.description));
-			}
+			this.renderMarkdownOrText(description, template.description, template.elementDisposable);
 		}
 
 		// Fallback to state label

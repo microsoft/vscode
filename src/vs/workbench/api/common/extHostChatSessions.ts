@@ -181,6 +181,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			resource: sessionContent.resource,
 			label: sessionContent.label,
 			description: sessionContent.description ? typeConvert.MarkdownString.from(sessionContent.description) : undefined,
+			badge: sessionContent.badge ? typeConvert.MarkdownString.from(sessionContent.badge) : undefined,
 			status: this.convertChatSessionStatus(sessionContent.status),
 			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip),
 			timing: {
