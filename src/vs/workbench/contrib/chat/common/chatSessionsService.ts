@@ -19,7 +19,8 @@ import { IChatProgress, IChatService } from './chatService.js';
 export const enum ChatSessionStatus {
 	Failed = 0,
 	Completed = 1,
-	InProgress = 2
+	InProgress = 2,
+	NeedsInput = 3
 }
 
 export interface IChatSessionCommandContribution {
@@ -226,6 +227,7 @@ export interface IChatSessionsService {
 
 	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
+	isChatSessionInProgressStatus(state: ChatSessionStatus): boolean;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
