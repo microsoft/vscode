@@ -193,6 +193,12 @@ export class PdfPreview extends Disposable {
 		}
 	}
 
+	public openFind(): void {
+		if (this._previewState === PreviewState.Active) {
+			this.webviewPanel.webview.postMessage({ type: 'openFind' });
+		}
+	}
+
 	private handleMessage(message: WebviewMessage): void {
 		switch (message.type) {
 			case 'pageChanged':

@@ -78,6 +78,12 @@ export function getPdfViewerHtml(
 			</button>
 		</div>
 		<div class="toolbar-divider"></div>
+		<div class="toolbar-group">
+			<button class="toolbar-button toolbar-button-icon" id="btn-find" title="Find in Document (Ctrl+F)">
+				<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+			</button>
+		</div>
+		<div class="toolbar-divider"></div>
 		<div class="toolbar-group toolbar-group-zoom">
 			<button class="toolbar-button toolbar-button-icon" id="btn-zoom-out" title="Zoom Out">
 				<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M19 13H5v-2h14v2z"/></svg>
@@ -117,6 +123,35 @@ export function getPdfViewerHtml(
 				<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
 			</button>
 		</div>
+	</div>
+	<div id="findbar" class="findbar hidden">
+		<div class="findbar-input-container">
+			<input type="text" id="find-input" class="findbar-input" placeholder="Find in document..." title="Find">
+			<div class="findbar-buttons">
+				<button class="findbar-button" id="find-prev" title="Previous match">
+					<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+				</button>
+				<button class="findbar-button" id="find-next" title="Next match">
+					<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+				</button>
+			</div>
+		</div>
+		<div class="findbar-options">
+			<label class="findbar-option">
+				<input type="checkbox" id="find-highlight-all">
+				<span>Highlight all</span>
+			</label>
+			<label class="findbar-option">
+				<input type="checkbox" id="find-match-case">
+				<span>Match case</span>
+			</label>
+		</div>
+		<div class="findbar-status">
+			<span id="find-results-count"></span>
+		</div>
+		<button class="findbar-close" id="find-close" title="Close">
+			<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+		</button>
 	</div>
 	<div id="loading">
 		<div class="loading-spinner"></div>

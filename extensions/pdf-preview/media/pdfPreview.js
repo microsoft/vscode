@@ -43,6 +43,17 @@
 	const btnDownload = document.getElementById('btn-download');
 	const btnFitWidth = document.getElementById('btn-fit-width');
 
+	// Find/Search elements
+	const btnFind = document.getElementById('btn-find');
+	const findbar = document.getElementById('findbar');
+	const findInput = document.getElementById('find-input');
+	const findPrev = document.getElementById('find-prev');
+	const findNext = document.getElementById('find-next');
+	const findHighlightAll = document.getElementById('find-highlight-all');
+	const findMatchCase = document.getElementById('find-match-case');
+	const findResultsCount = document.getElementById('find-results-count');
+	const findClose = document.getElementById('find-close');
+
 	// Dark mode button
 	const btnDarkMode = document.getElementById('btn-dark-mode');
 
@@ -57,6 +68,13 @@
 	const zoomLevels = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
 	const MIN_SCALE = 0.25;
 	const MAX_SCALE = 5;
+
+	// Search state
+	let currentMatchIndex = -1;
+	let totalMatches = 0;
+	let lastSearchQuery = '';
+	// Store original text content of spans for restoration
+	const originalSpanTexts = new WeakMap();
 
 	// Dark mode state - load from vscode state if available
 	const state = vscode.getState() || {};
@@ -165,6 +183,9 @@
 			// Use renderWithFitScale to properly handle 'fitWidth' default
 			await renderWithFitScale();
 
+			// Initialize fit width button state (default is fitWidth)
+			updateFitWidthButtonState();
+
 			// Scroll to sync position if provided
 			if (settings.syncPosition && settings.syncPosition.page) {
 				goToPage(settings.syncPosition.page);
@@ -205,6 +226,9 @@
 		vscode.postMessage({ type: 'scaleChanged', scale: currentScale });
 
 		await renderWithFitScale();
+
+		// Update fit width button state
+		updateFitWidthButtonState();
 	}
 
 	// Render with fit scale calculations
@@ -408,9 +432,24 @@
 		}
 	}
 
-	// Fit to width
-	function fitWidth() {
-		updateScale('fitWidth');
+	// Toggle fit to width / 100%
+	function toggleFitWidth() {
+		if (currentScale === 'fitWidth') {
+			updateScale(1); // Switch to 100%
+		} else {
+			updateScale('fitWidth'); // Switch to fit width
+		}
+	}
+
+	// Update fit width button active state
+	function updateFitWidthButtonState() {
+		if (btnFitWidth) {
+			if (currentScale === 'fitWidth') {
+				btnFitWidth.classList.add('active');
+			} else {
+				btnFitWidth.classList.remove('active');
+			}
+		}
 	}
 
 	// Track scroll to update current page
@@ -484,12 +523,324 @@
 		btnDownload.addEventListener('click', download);
 	}
 	if (btnFitWidth) {
-		btnFitWidth.addEventListener('click', fitWidth);
+		btnFitWidth.addEventListener('click', toggleFitWidth);
 	}
 
 	// Dark mode toggle
 	if (btnDarkMode) {
 		btnDarkMode.addEventListener('click', toggleDarkMode);
+	}
+
+	// ==================== SEARCH/FIND FUNCTIONALITY ====================
+
+	// Toggle findbar
+	function toggleFindbar() {
+		if (findbar && !findbar.classList.contains('hidden')) {
+			closeFindbar();
+		} else {
+			openFindbar();
+		}
+	}
+
+	// Open findbar
+	function openFindbar() {
+		if (findbar) {
+			findbar.classList.remove('hidden');
+			if (btnFind) {
+				btnFind.classList.add('active');
+			}
+			if (findInput) {
+				findInput.focus();
+				findInput.select();
+			}
+		}
+	}
+
+	// Close findbar
+	function closeFindbar() {
+		if (findbar) {
+			findbar.classList.add('hidden');
+			if (btnFind) {
+				btnFind.classList.remove('active');
+			}
+			clearSearchHighlights();
+			updateSearchResultsCount(0, 0);
+		}
+	}
+
+	// Clear all search highlights and restore original span content
+	function clearSearchHighlights() {
+		const textLayers = document.querySelectorAll('.textLayer');
+		textLayers.forEach(textLayer => {
+			const spans = textLayer.querySelectorAll(':scope > span');
+			spans.forEach(span => {
+				// Restore original text if we have it saved
+				const originalText = originalSpanTexts.get(span);
+				if (originalText !== undefined) {
+					span.textContent = originalText;
+				}
+			});
+		});
+		currentMatchIndex = -1;
+		totalMatches = 0;
+	}
+
+	// Update search results count display
+	function updateSearchResultsCount(current, total) {
+		if (findResultsCount) {
+			if (total === 0 && findInput && findInput.value.length > 0) {
+				findResultsCount.textContent = 'No results';
+				findResultsCount.classList.add('not-found');
+			} else if (total > 0) {
+				findResultsCount.textContent = `${current} of ${total}`;
+				findResultsCount.classList.remove('not-found');
+			} else {
+				findResultsCount.textContent = '';
+				findResultsCount.classList.remove('not-found');
+			}
+		}
+	}
+
+	// Perform search across all pages
+	function performSearch(query) {
+		if (!pdf || !query) {
+			clearSearchHighlights();
+			updateSearchResultsCount(0, 0);
+			lastSearchQuery = '';
+			return;
+		}
+
+		// Store the query first so highlighting can use it
+		lastSearchQuery = query;
+
+		// Clear previous highlights
+		clearSearchHighlights();
+
+		// Always apply highlights to count total matches
+		applyHighlightsToAllPages();
+
+		// Count total matches by counting highlighted spans
+		const allHighlights = container?.querySelectorAll('.textLayer .highlight');
+		totalMatches = allHighlights ? allHighlights.length : 0;
+
+		// Update count and navigate to first match
+		if (totalMatches > 0) {
+			currentMatchIndex = 0;
+			updateSearchResultsCount(1, totalMatches);
+
+			// Apply visibility based on highlightAll setting
+			updateHighlightVisibility();
+			navigateToMatch(0);
+		} else {
+			currentMatchIndex = -1;
+			updateSearchResultsCount(0, 0);
+		}
+	}
+
+	// Update highlight visibility based on "Highlight all" checkbox
+	function updateHighlightVisibility() {
+		const highlightAll = findHighlightAll ? findHighlightAll.checked : true;
+		const allHighlights = container?.querySelectorAll('.textLayer .highlight');
+
+		if (!allHighlights) {return;}
+
+		allHighlights.forEach((highlight, index) => {
+			if (highlightAll) {
+				// Show all highlights
+				highlight.style.visibility = 'visible';
+			} else {
+				// Only show the current match
+				highlight.style.visibility = (index === currentMatchIndex) ? 'visible' : 'hidden';
+			}
+		});
+	}
+
+	// Apply highlights to text layer spans
+	function applyHighlightsToAllPages() {
+		if (!lastSearchQuery) {return;}
+
+		const matchCase = findMatchCase ? findMatchCase.checked : false;
+		const query = lastSearchQuery;
+
+		// Search directly in each page's text layer spans
+		const pageContainers = container?.querySelectorAll('.pdf-page-container');
+		if (!pageContainers) {return;}
+
+		pageContainers.forEach(pageContainer => {
+			const textLayer = pageContainer.querySelector('.textLayer');
+			if (!textLayer) {return;}
+
+			// Get only direct span children (not our highlight spans)
+			const spans = textLayer.querySelectorAll(':scope > span');
+
+			spans.forEach(span => {
+				highlightTextInSpan(span, query, matchCase);
+			});
+		});
+	}
+
+	// Highlight specific text within a span by wrapping matches in highlight elements
+	// Following PDF.js approach: save original text, clear span, rebuild with highlights
+	function highlightTextInSpan(span, query, matchCase) {
+		// Get original text (either from cache or current content)
+		let originalText = originalSpanTexts.get(span);
+		if (originalText === undefined) {
+			originalText = span.textContent || '';
+			originalSpanTexts.set(span, originalText);
+		}
+
+		const textToSearch = matchCase ? originalText : originalText.toLowerCase();
+		const searchQuery = matchCase ? query : query.toLowerCase();
+
+		// Check if this span contains the search query
+		if (!textToSearch.includes(searchQuery)) {
+			return 0;
+		}
+
+		// Find all match positions
+		const matches = [];
+		let startIndex = 0;
+		let foundIndex;
+
+		while ((foundIndex = textToSearch.indexOf(searchQuery, startIndex)) !== -1) {
+			matches.push({
+				start: foundIndex,
+				end: foundIndex + query.length
+			});
+			startIndex = foundIndex + 1;
+		}
+
+		if (matches.length === 0) {return 0;}
+
+		// Clear span content (PDF.js approach)
+		span.textContent = '';
+
+		// Rebuild content with highlights
+		let lastEnd = 0;
+
+		matches.forEach(match => {
+			// Add text before the match as TextNode
+			if (match.start > lastEnd) {
+				span.appendChild(document.createTextNode(originalText.substring(lastEnd, match.start)));
+			}
+
+			// Add the highlighted match as span (PDF.js uses "highlight appended" class)
+			const highlightSpan = document.createElement('span');
+			highlightSpan.className = 'highlight appended';
+			highlightSpan.appendChild(document.createTextNode(originalText.substring(match.start, match.end)));
+			span.appendChild(highlightSpan);
+
+			lastEnd = match.end;
+		});
+
+		// Add remaining text after last match
+		if (lastEnd < originalText.length) {
+			span.appendChild(document.createTextNode(originalText.substring(lastEnd)));
+		}
+
+		return matches.length;
+	}
+
+	// Navigate to a specific match
+	function navigateToMatch(matchIndex) {
+		if (totalMatches === 0 || matchIndex < 0) {return;}
+
+		// Remove previous selection
+		const prevSelected = document.querySelectorAll('.textLayer .highlight.selected');
+		prevSelected.forEach(el => el.classList.remove('selected'));
+
+		// Get all highlights in document order
+		const allHighlights = container?.querySelectorAll('.textLayer .highlight');
+		if (!allHighlights || allHighlights.length === 0) {return;}
+
+		// Wrap around if needed
+		const targetIndex = matchIndex % allHighlights.length;
+		const targetHighlight = allHighlights[targetIndex];
+
+		if (targetHighlight) {
+			targetHighlight.classList.add('selected');
+
+			// Update visibility based on highlightAll setting
+			updateHighlightVisibility();
+
+			// Scroll the highlight into view
+			targetHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		}
+	}
+
+	// Find next match
+	function findNextMatch() {
+		if (totalMatches === 0) {return;}
+
+		currentMatchIndex = (currentMatchIndex + 1) % totalMatches;
+		updateSearchResultsCount(currentMatchIndex + 1, totalMatches);
+		navigateToMatch(currentMatchIndex);
+	}
+
+	// Find previous match
+	function findPrevMatch() {
+		if (totalMatches === 0) {return;}
+
+		currentMatchIndex = (currentMatchIndex - 1 + totalMatches) % totalMatches;
+		updateSearchResultsCount(currentMatchIndex + 1, totalMatches);
+		navigateToMatch(currentMatchIndex);
+	}
+
+	// Event listeners for find functionality
+	if (btnFind) {
+		btnFind.addEventListener('click', toggleFindbar);
+	}
+
+	if (findClose) {
+		findClose.addEventListener('click', closeFindbar);
+	}
+
+	if (findInput) {
+		let searchTimeout;
+		findInput.addEventListener('input', () => {
+			// Debounce search
+			clearTimeout(searchTimeout);
+			searchTimeout = setTimeout(() => {
+				performSearch(findInput.value);
+			}, 300);
+		});
+
+		findInput.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				if (e.shiftKey) {
+					findPrevMatch();
+				} else {
+					findNextMatch();
+				}
+			} else if (e.key === 'Escape') {
+				closeFindbar();
+			}
+		});
+	}
+
+	if (findNext) {
+		findNext.addEventListener('click', findNextMatch);
+	}
+
+	if (findPrev) {
+		findPrev.addEventListener('click', findPrevMatch);
+	}
+
+	if (findHighlightAll) {
+		findHighlightAll.checked = true; // Default to highlight all
+		findHighlightAll.addEventListener('change', () => {
+			// Just update visibility, no need to re-search
+			updateHighlightVisibility();
+		});
+	}
+
+	if (findMatchCase) {
+		findMatchCase.addEventListener('change', () => {
+			if (findInput && findInput.value) {
+				performSearch(findInput.value);
+			}
+		});
 	}
 
 	// Save current view state (for preserving state during PDF updates)
@@ -600,12 +951,36 @@
 					reloadPdfWithData(e.data.pdfData);
 				}
 				break;
+			case 'openFind':
+				openFindbar();
+				break;
+			case 'closeFind':
+				closeFindbar();
+				break;
 		}
 	});
 
 	// Keyboard shortcuts
 	document.addEventListener('keydown', (e) => {
-		if (pageInput && e.target === pageInput) { return; }
+		// Allow typing in input fields except for specific shortcuts
+		const isInInput = e.target === pageInput || e.target === findInput;
+
+		// Ctrl+F or Cmd+F to open findbar
+		if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+			e.preventDefault();
+			openFindbar();
+			return;
+		}
+
+		// Escape to close findbar
+		if (e.key === 'Escape' && findbar && !findbar.classList.contains('hidden')) {
+			e.preventDefault();
+			closeFindbar();
+			return;
+		}
+
+		// Don't process other shortcuts when in input fields
+		if (isInInput) { return; }
 
 		switch (e.key) {
 			case '+':

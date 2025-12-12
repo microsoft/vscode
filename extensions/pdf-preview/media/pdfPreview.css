@@ -409,3 +409,184 @@ body.pdf-dark-mode .page-number-overlay {
 #btn-dark-mode.active svg path {
 	fill: #8ab4f8;
 }
+
+/* Find button active state (when findbar is open) */
+#btn-find.active svg path {
+	fill: #8ab4f8;
+}
+
+/* Fit width button active state */
+#btn-fit-width.active svg path {
+	fill: #8ab4f8;
+}
+
+/* ==================== FINDBAR STYLES ==================== */
+
+.findbar {
+	position: sticky;
+	top: 40px;
+	z-index: 999;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 12px;
+	background: #2a2d30;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	flex-wrap: wrap;
+}
+
+.findbar.hidden {
+	display: none;
+}
+
+.findbar-input-container {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+	min-width: 200px;
+	max-width: 400px;
+}
+
+.findbar-input {
+	flex: 1;
+	padding: 6px 10px;
+	background: #202124;
+	color: #e8eaed;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	font-size: 13px;
+	font-family: inherit;
+	min-width: 150px;
+}
+
+.findbar-input:hover {
+	border-color: rgba(255, 255, 255, 0.2);
+}
+
+.findbar-input:focus {
+	outline: none;
+	border-color: #8ab4f8;
+}
+
+.findbar-input::placeholder {
+	color: rgba(255, 255, 255, 0.5);
+}
+
+.findbar-buttons {
+	display: flex;
+	gap: 2px;
+}
+
+.findbar-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	background: transparent;
+	color: #e8eaed;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+}
+
+.findbar-button:hover {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.findbar-button:active {
+	background: rgba(255, 255, 255, 0.15);
+}
+
+.findbar-button:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.findbar-options {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.findbar-option {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	color: #e8eaed;
+	font-size: 12px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.findbar-option input[type="checkbox"] {
+	width: 14px;
+	height: 14px;
+	margin: 0;
+	cursor: pointer;
+	accent-color: #8ab4f8;
+}
+
+.findbar-status {
+	color: rgba(255, 255, 255, 0.7);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+#find-results-count {
+	font-variant-numeric: tabular-nums;
+}
+
+#find-results-count.not-found {
+	color: #f28b82;
+}
+
+.findbar-close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	margin-left: auto;
+	background: transparent;
+	color: #e8eaed;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+}
+
+.findbar-close:hover {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+/* ==================== SEARCH HIGHLIGHT STYLES ==================== */
+
+/* Highlight spans for search results - following PDF.js pattern */
+.pdf-page-container .textLayer .highlight {
+	background-color: rgba(255, 255, 0, 1);
+	border-radius: 3px;
+	margin: -1px;
+	padding: 1px;
+}
+
+.pdf-page-container .textLayer .highlight.appended {
+	position: initial;
+}
+
+.pdf-page-container .textLayer .highlight.selected {
+	background-color: rgba(255, 165, 0, 1);
+}
+
+/* Dark mode adjustments for search highlights */
+body.pdf-dark-mode .pdf-page-container .textLayer .highlight {
+	background-color: rgba(255, 230, 0, 1);
+}
+
+body.pdf-dark-mode .pdf-page-container .textLayer .highlight.selected {
+	background-color: rgba(255, 140, 0, 1);
+}
