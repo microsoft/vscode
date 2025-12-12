@@ -1077,9 +1077,9 @@ export type LifetimeSummary = {
 	availableProviders: string;
 	skuPlan: string | undefined;
 	skuType: string | undefined;
-	renameCreated: boolean;
+	renameCreated: boolean | undefined;
 	renameDuration: number | undefined;
-	renameTimedOut: boolean;
+	renameTimedOut: boolean | undefined;
 	renameDroppedOtherEdits: number | undefined;
 	renameDroppedRenameEdits: number | undefined;
 	editKind: string | undefined;

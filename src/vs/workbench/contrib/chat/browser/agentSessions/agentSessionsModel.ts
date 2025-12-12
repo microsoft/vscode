@@ -47,6 +47,7 @@ interface IAgentSessionData {
 
 	readonly label: string;
 	readonly description?: string | IMarkdownString;
+	readonly badge?: string | IMarkdownString;
 	readonly icon: ThemeIcon;
 
 	readonly timing: {
@@ -346,6 +347,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					label: session.label,
 					description: session.description,
 					icon,
+					badge: session.badge,
 					tooltip: session.tooltip,
 					status,
 					archived: session.archived,
