@@ -168,7 +168,7 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsTerminalAttachments: true,
 };
 
-const DISCLAIMER = localize('chatDisclaimer', "");
+const DISCLAIMER = '';
 
 export class ChatWidget extends Disposable implements IChatWidget {
 
@@ -950,7 +950,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Show generate instructions message if no files exist
 			const generateInstructionsCommand = 'workbench.action.chat.generateInstructions';
 			// Determine project type based on active editor
-			const projectTypeDescription = this._getProjectTypeDescription();
+			// const projectTypeDescription = this._getProjectTypeDescription();
 			return new MarkdownString(localize(
 				'chatWidget.instructions',
 				" ",
@@ -992,24 +992,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * Determines the project type description based on the active editor's file extension.
 	 * Returns 'LaTeX', 'Typst', or 'document' for generic cases.
 	 */
-	private _getProjectTypeDescription(): string {
-		const activeEditor = this.editorService.activeEditor;
-		console.log(`[ChatWidget] _getProjectTypeDescription - activeEditor: ${activeEditor?.resource?.path}`);
-		if (activeEditor?.resource) {
-			const path = activeEditor.resource.path.toLowerCase();
-			if (path.endsWith('.tex') || path.endsWith('.bib')) {
-				console.log(`[ChatWidget] Detected LaTeX project from path: ${path}`);
-				return 'LaTeX';
-			}
-			if (path.endsWith('.typ')) {
-				console.log(`[ChatWidget] Detected Typst project from path: ${path}`);
-				return 'Typst';
-			}
-		}
-		// Default to generic description
-		console.log(`[ChatWidget] No specific project type detected, defaulting to 'document'`);
-		return 'document';
-	}
+	// private _getProjectTypeDescription(): string {
+	// 	const activeEditor = this.editorService.activeEditor;
+	// 	console.log(`[ChatWidget] _getProjectTypeDescription - activeEditor: ${activeEditor?.resource?.path}`);
+	// 	if (activeEditor?.resource) {
+	// 		const path = activeEditor.resource.path.toLowerCase();
+	// 		if (path.endsWith('.tex') || path.endsWith('.bib')) {
+	// 			console.log(`[ChatWidget] Detected LaTeX project from path: ${path}`);
+	// 			return 'LaTeX';
+	// 		}
+	// 		if (path.endsWith('.typ')) {
+	// 			console.log(`[ChatWidget] Detected Typst project from path: ${path}`);
+	// 			return 'Typst';
+	// 		}
+	// 	}
+	// 	// Default to generic description
+	// 	console.log(`[ChatWidget] No specific project type detected, defaulting to 'document'`);
+	// 	return 'document';
+	// }
 
 	/**
 	 * Determines if the current project is a Typst project based on active editor.
