@@ -564,33 +564,39 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		oldSessions.sort(this.sorter.compare.bind(this.sorter));
 		archivedSessions.sort(this.sorter.compare.bind(this.sorter));
 
-		// Add active sessions always first without header
+		// Active Sessions
 		result.push(...activeSessions);
 
-		// Add recent sessions (header only if we have active sessions)
-		if (activeSessions.length > 0) {
-			result.push({
-				section: AgentSessionSection.Recent,
-				label: localize('agentSessions.recentSection', "Recent")
-			});
+		// Recent Sessions
+		if (recentSessions.length > 0) {
+			if (result.length > 0) {
+				result.push({
+					section: AgentSessionSection.Recent,
+					label: localize('agentSessions.recentSection', "Recent")
+				});
+			}
+			result.push(...recentSessions);
 		}
-		result.push(...recentSessions);
 
-		// Add old sessions section if any
+		// Old Sessions
 		if (oldSessions.length > 0) {
-			result.push({
-				section: AgentSessionSection.Old,
-				label: localize('agentSessions.oldSection', "Older")
-			});
+			if (result.length > 0) {
+				result.push({
+					section: AgentSessionSection.Old,
+					label: localize('agentSessions.oldSection', "Older")
+				});
+			}
 			result.push(...oldSessions);
 		}
 
-		// Add archived sessions section if any
+		// AArchived Sessions7
 		if (archivedSessions.length > 0) {
-			result.push({
-				section: AgentSessionSection.Archived,
-				label: localize('agentSessions.archivedSection', "Archived")
-			});
+			if (result.length > 0) {
+				result.push({
+					section: AgentSessionSection.Archived,
+					label: localize('agentSessions.archivedSection', "Archived")
+				});
+			}
 			result.push(...archivedSessions);
 		}
 
