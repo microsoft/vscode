@@ -16,6 +16,16 @@
 		.chat-view-title-navigation-toolbar {
 			overflow: hidden;
 			min-width: 0;
+			flex: 1;
+
+			.monaco-action-bar .actions-container {
+				overflow: hidden;
+			}
+
+			.monaco-action-bar .action-item {
+				overflow: hidden;
+				min-width: 0;
+			}
 		}
 
 		.chat-view-title-label {
