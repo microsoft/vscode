@@ -121,6 +121,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION,
 			],
 		},
+		'problems.followLocationOnNavigate': {
+			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_FOLLOW_LOCATION_ON_NAVIGATE,
+			'type': 'boolean',
+			'default': true
+		},
 	}
 });
 
