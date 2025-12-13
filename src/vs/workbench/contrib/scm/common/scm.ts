@@ -202,6 +202,7 @@ export interface ISCMRepositoryMenus {
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;
 	getArtifactGroupMenu(artifactGroup: ISCMArtifactGroup): IMenu;
 	getArtifactMenu(artifactGroup: ISCMArtifactGroup, artifact: ISCMArtifact): IMenu;
+	getArtifactFolderMenu(artifactGroup: ISCMArtifactGroup): IMenu;
 }
 
 export interface ISCMMenus {
