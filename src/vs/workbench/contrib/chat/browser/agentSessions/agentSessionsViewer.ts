@@ -536,7 +536,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const result: AgentSessionListItem[] = [];
 
 		const now = Date.now();
-		const oneWeekAgo = now - AgentSessionsDataSource.RECENT_THRESHOLD;
+		const recent = now - AgentSessionsDataSource.RECENT_THRESHOLD;
 
 		const activeSessions: IAgentSession[] = [];
 		const recentSessions: IAgentSession[] = [];
@@ -550,7 +550,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 				archivedSessions.push(session);
 			} else {
 				const sessionTime = session.timing.endTime || session.timing.startTime;
-				if (sessionTime < oneWeekAgo) {
+				if (sessionTime < recent) {
 					oldSessions.push(session);
 				} else {
 					recentSessions.push(session);
