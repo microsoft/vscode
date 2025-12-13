@@ -782,9 +782,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		let availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
-		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-			availableSessionsHeight -= ChatViewPane.MIN_CHAT_WIDGET_HEIGHT; // always reserve some space for chat input
-		}
 
 		// Show as sidebar
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
@@ -798,6 +795,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Show stacked (grows with the number of items displayed)
 		else {
+			availableSessionsHeight = Math.max(0, availableSessionsHeight - ChatViewPane.MIN_CHAT_WIDGET_HEIGHT); // leave some min height for chat widget
+
 			let sessionsHeight: number;
 			if (this.sessionsViewerLimited) {
 				sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
@@ -805,7 +804,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				sessionsHeight = (ChatViewPane.SESSIONS_LIMIT + 2 /* expand a bit to indicate more items */) * AgentSessionsListDelegate.ITEM_HEIGHT;
 			}
 
-			sessionsHeight = Math.min(availableSessionsHeight);
+			sessionsHeight = Math.min(availableSessionsHeight, sessionsHeight);
 
 			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = ``;
