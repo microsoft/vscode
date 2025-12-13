@@ -449,6 +449,32 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					continue;
 				}
 
+				// Extension filter (filters by marker.owner which is the extension ID)
+				if (this.filterOptions.extensionFilter) {
+					const ownerToMatch = marker.marker.owner.toLowerCase();
+					const filterValue = this.filterOptions.extensionFilter.toLowerCase();
+					if (!ownerToMatch.includes(filterValue)) {
+						continue;
+					}
+				}
+
+				// Source filter
+				if (this.filterOptions.sourceFilter) {
+					if (!marker.marker.source) {
+						continue;
+					}
+					// Match source filter (case-insensitive, allows brackets like [ts] to match "ts")
+					const sourceToMatch = marker.marker.source.toLowerCase();
+					let filterValue = this.filterOptions.sourceFilter.toLowerCase();
+					// Strip brackets if present (e.g., "[ts]" becomes "ts")
+					if (filterValue.startsWith('[') && filterValue.endsWith(']')) {
+						filterValue = filterValue.slice(1, -1);
+					}
+					if (!sourceToMatch.includes(filterValue)) {
+						continue;
+					}
+				}
+
 				// Text filter
 				if (this.filterOptions.textFilter.text) {
 					const sourceMatches = marker.marker.source ? FilterOptions._filter(this.filterOptions.textFilter.text, marker.marker.source) ?? undefined : undefined;
