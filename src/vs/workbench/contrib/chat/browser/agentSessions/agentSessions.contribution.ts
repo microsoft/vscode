@@ -115,7 +115,11 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
 	group: 'navigation',
 	order: 1,
 	when: ContextKeyExpr.and(
-		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+		ContextKeyExpr.or(
+			ChatContextKeys.agentSessionsViewerVisible.negate(),
+			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+
+		),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
 	)
 });
@@ -129,7 +133,11 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
 	group: 'navigation',
 	order: 1,
 	when: ContextKeyExpr.and(
-		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+		ContextKeyExpr.or(
+			ChatContextKeys.agentSessionsViewerVisible.negate(),
+			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+
+		),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
 	)
 });
