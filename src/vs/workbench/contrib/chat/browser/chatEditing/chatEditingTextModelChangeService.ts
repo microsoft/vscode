@@ -499,6 +499,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			this.modifiedModel.uri,
 			{
 				ignoreTrimWhitespace: false, // NEVER ignore whitespace so that undo/accept edits are correct and so that all changes (1 of 2) are spelled out
+				ignoreEOL: true,
 				computeMoves: false,
 				maxComputationTimeMs: 3000
 			},

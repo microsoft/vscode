@@ -103,7 +103,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		const diff = await this._editorWorkerService.computeDiff(
 			originalModel.uri,
 			model.uri,
-			{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER },
+			{ computeMoves: true, ignoreTrimWhitespace: false, ignoreEOL: true, maxComputationTimeMs: Number.MAX_SAFE_INTEGER },
 			'advanced'
 		);
 
