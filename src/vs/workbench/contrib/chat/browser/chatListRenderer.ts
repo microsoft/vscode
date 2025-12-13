@@ -293,6 +293,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	}
 
+	resetSession(): void {
+		for (const templateData of this.templateDataByRequestId.values()) {
+			this.clearRenderedParts(templateData);
+			templateData.elementDisposables.clear();
+			templateData.currentElement = undefined;
+		}
+		this.templateDataByRequestId.clear();
+		this.codeBlocksByResponseId.clear();
+		this.codeBlocksByEditorUri.clear();
+		this.fileTreesByResponseId.clear();
+		this.focusedFileTreesByResponseId.clear();
+	}
+
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
 		return this.codeBlocksByEditorUri.get(uri);
 	}
