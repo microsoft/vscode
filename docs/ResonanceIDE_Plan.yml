@@ -134,14 +134,14 @@ phases:
   # ---------------------------------------------------------------------------
   - id: phase-0-bootstrap
     name: Repo & Build Bootstrap
-    status: not_started  # not_started | in_progress | completed | blocked
+    status: completed  # not_started | in_progress | completed | blocked
     estimated_effort: "2-4 hours"
     depends_on: []
 
     tasks:
       - id: clone-upstream
         goal: Local clone of VS Code OSS with VSCodium as reference
-        status: not_started
+        status: completed
         instructions: |
           1. Clone VS Code upstream:
              git clone https://github.com/microsoft/vscode.git .
@@ -161,7 +161,7 @@ phases:
 
       - id: setup-build-env
         goal: Ensure local build works on all target platforms
-        status: not_started
+        status: completed
         instructions: |
           1. Install dependencies:
              - Node.js LTS (match .nvmrc, typically >= 18)
