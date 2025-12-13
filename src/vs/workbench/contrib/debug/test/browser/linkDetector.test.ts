@@ -273,7 +273,10 @@ suite('Debug - Link Detector', () => {
 	test('mixedStackTraceFormats', () => {
 		const input = isWindows ? 'C:\\foo\\bar.js:12:34 and C:\\baz\\qux.cs:line 6' :
 			'/Users/foo/bar.js:12:34 and /Users/baz/qux.cs:line 6';
-		const expectedOutput = /^<span><a tabindex="0">.*\/foo\/bar.js:12:34<\/a> and <a tabindex="0">.*\/baz\/qux.cs:line 6<\/a><\/span>$/;
+		// Use flexible path separator matching for cross-platform compatibility
+		const expectedOutput = isWindows ?
+			/^<span><a tabindex="0">.*\\foo\\bar\.js:12:34<\/a> and <a tabindex="0">.*\\baz\\qux\.cs:line 6<\/a><\/span>$/ :
+			/^<span><a tabindex="0">.*\/foo\/bar\.js:12:34<\/a> and <a tabindex="0">.*\/baz\/qux\.cs:line 6<\/a><\/span>$/;
 		const output = linkDetector.linkify(input);
 
 		assert.strictEqual(2, output.children.length);
