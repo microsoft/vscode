@@ -100,6 +100,8 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private registerActions(): void {
+		const that = this;
+
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -117,7 +119,7 @@ export class ChatViewTitleControl extends Disposable {
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const instantiationService = accessor.get(IInstantiationService);
 
-				const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker);
+				const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, that.titleLabel.value?.element);
 				await agentSessionsPicker.pickAgentSession();
 			}
 		}));
