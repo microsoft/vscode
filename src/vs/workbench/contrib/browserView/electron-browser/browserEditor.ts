@@ -37,6 +37,8 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
+export const CONTEXT_BROWSER_LOADING = new RawContextKey<boolean>('browserLoading', false, localize('browser.loading', "Whether the browser is currently loading a page"));
+export const CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD = new RawContextKey<boolean>('browserInReloadCooldownPeriod', false, localize('browser.inReloadCooldownPeriod', "Whether the browser is in the cooldown period after reload button was clicked, during which the stop button will not be shown"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
@@ -44,6 +46,9 @@ export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browser
 class BrowserNavigationBar extends Disposable {
 	private readonly _onDidNavigate = this._register(new Emitter<string>());
 	readonly onDidNavigate: Event<string> = this._onDidNavigate.event;
+
+	private readonly _onDidMouseLeaveToolbar = this._register(new Emitter<void>());
+	readonly onDidMouseLeaveToolbar: Event<void> = this._onDidMouseLeaveToolbar.event;
 
 	private readonly _urlInput: HTMLInputElement;
 
@@ -80,6 +85,11 @@ class BrowserNavigationBar extends Disposable {
 				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 			}
 		));
+
+		// Listen for mouse leaving the navigation toolbar to reset reload cooldown
+		this._register(addDisposableListener(navContainer, EventType.MOUSE_LEAVE, () => {
+			this._onDidMouseLeaveToolbar.fire();
+		}));
 
 		// URL input
 		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
@@ -148,6 +158,9 @@ export class BrowserEditor extends EditorPane {
 	private _errorContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
+	private _loadingContext!: IContextKey<boolean>;
+	private _inReloadCooldownPeriodContext!: IContextKey<boolean>;
+	private _reloadCooldownPeriodTimeout: ReturnType<typeof setTimeout> | undefined = undefined;
 	private _storageScopeContext!: IContextKey<string>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
 
@@ -176,6 +189,8 @@ export class BrowserEditor extends EditorPane {
 		// Bind navigation capability context keys
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
+		this._loadingContext = CONTEXT_BROWSER_LOADING.bindTo(contextKeyService);
+		this._inReloadCooldownPeriodContext = CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD.bindTo(contextKeyService);
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 
@@ -194,6 +209,9 @@ export class BrowserEditor extends EditorPane {
 
 		// Listen for navigation from URL input
 		this._register(this._navigationBar.onDidNavigate(url => this.navigateToUrl(url)));
+
+		// Reset reload cooldown when mouse leaves the toolbar
+		this._register(this._navigationBar.onDidMouseLeaveToolbar(() => this.resetReloadCooldown()));
 
 		root.appendChild(toolbar);
 
@@ -238,6 +256,7 @@ export class BrowserEditor extends EditorPane {
 			return;
 		}
 
+		this._loadingContext.set(this._model.loading);
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
 
@@ -271,7 +290,8 @@ export class BrowserEditor extends EditorPane {
 			this.updateNavigationState(navEvent);
 		}));
 
-		this._inputDisposables.add(this._model.onDidChangeLoadingState(() => {
+		this._inputDisposables.add(this._model.onDidChangeLoadingState((e) => {
+			this._loadingContext.set(e.loading);
 			this.updateErrorDisplay();
 		}));
 
@@ -432,7 +452,31 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	public async reload(): Promise<void> {
+		// Reset cooldown timer and set it to end after 500ms
+		const cooldownPeriodMs = 500;
+		if (this._reloadCooldownPeriodTimeout) {
+			clearTimeout(this._reloadCooldownPeriodTimeout);
+		}
+		this._inReloadCooldownPeriodContext.set(true);
+		this._reloadCooldownPeriodTimeout = setTimeout(() => {
+			this._inReloadCooldownPeriodContext.set(false);
+			this._reloadCooldownPeriodTimeout = undefined;
+		}, cooldownPeriodMs);
+
 		return this._model?.reload();
+	}
+
+	private resetReloadCooldown(): void {
+		// Clear the cooldown timeout and reset the context
+		if (this._reloadCooldownPeriodTimeout) {
+			clearTimeout(this._reloadCooldownPeriodTimeout);
+			this._reloadCooldownPeriodTimeout = undefined;
+			this._inReloadCooldownPeriodContext.set(false);
+		}
+	}
+
+	public async stopLoading(): Promise<void> {
+		return this._model?.stop();
 	}
 
 	public async toggleDevTools(): Promise<void> {
@@ -522,8 +566,16 @@ export class BrowserEditor extends EditorPane {
 		void this._model?.setVisible(false);
 		this._model = undefined;
 
+		// Clean up cooldown timeout used for reload actions
+		if (this._reloadCooldownPeriodTimeout) {
+			clearTimeout(this._reloadCooldownPeriodTimeout);
+			this._reloadCooldownPeriodTimeout = undefined;
+		}
+
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
+		this._loadingContext.reset();
+		this._inReloadCooldownPeriodContext.reset();
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
 

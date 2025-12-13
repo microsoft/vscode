@@ -181,6 +181,13 @@ export class BrowserView extends Disposable {
 		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
 			if (isMainFrame) {
+				// Ignore ERR_ABORTED (-3) which is the expected error when user stops a page load.
+				// This way, when the user clicks button or presses keybinding to stop loading, the page will just stop loading instead of showing an error page.
+				if (errorCode === -3) {
+					fireLoadingEvent(false);
+					return;
+				}
+
 				this._lastError = {
 					url: validatedURL,
 					errorCode,
@@ -229,9 +236,22 @@ export class BrowserView extends Disposable {
 				const isNonEditingKey =
 					keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
 					keyCode >= KeyCode.AudioVolumeMute;
+				const isEscapeKey = keyCode === KeyCode.Escape;
 
 				if (hasCommandModifier || isNonEditingKey) {
 					event.preventDefault();
+					this._onDidKeyCommand.fire({
+						key: input.key,
+						keyCode: eventKeyCode,
+						code: input.code,
+						ctrlKey: input.control || false,
+						shiftKey: input.shift || false,
+						altKey: input.alt || false,
+						metaKey: input.meta || false,
+						repeat: input.isAutoRepeat || false
+					});
+				} else if (isEscapeKey) {
+					// Don't preventDefault so page can also handle the keypress normally.
 					this._onDidKeyCommand.fire({
 						key: input.key,
 						keyCode: eventKeyCode,
@@ -351,6 +371,13 @@ export class BrowserView extends Disposable {
 	 */
 	reload(): void {
 		this._view.webContents.reload();
+	}
+
+	/**
+	 * Stop loading the current page
+	 */
+	stop(): void {
+		this._view.webContents.stop();
 	}
 
 	/**
