@@ -29,7 +29,16 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 	}
 
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString {
-		if (this.configurationService.getValue(mcpAccessConfig) !== McpAccessValue.None) {
+		const accessValue = this.configurationService.getValue(mcpAccessConfig);
+		const policyValue = this.configurationService.inspect<string>(mcpAccessConfig).policyValue;
+		
+		// If MCP is disabled by policy, show a specific message
+		if (policyValue === McpAccessValue.None) {
+			return new MarkdownString(nls.localize('mcp servers are disabled by policy', "Model Context Protocol servers are disabled by your organization's policy."));
+		}
+		
+		// If user explicitly disabled MCP (not policy), allow them to change it
+		if (accessValue !== McpAccessValue.None) {
 			return true;
 		}
 
