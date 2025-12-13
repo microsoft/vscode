@@ -54,6 +54,8 @@ export interface IQuickInputOptions {
 	idPrefix: string;
 	container: HTMLElement;
 	ignoreFocusOut(): boolean;
+	maximumWidth(): number;
+	relativeWidth(): number;
 	backKeybindingLabel(): string | undefined;
 	setContextKey(id?: string): void;
 	linkOpenerDelegate(content: string): void;
