@@ -266,6 +266,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private static readonly SESSIONS_LIMIT = 3;
 	private static readonly SESSIONS_SIDEBAR_WIDTH = 300;
 	private static readonly SESSIONS_SIDEBAR_VIEW_MIN_WIDTH = 300 /* default chat width */ + this.SESSIONS_SIDEBAR_WIDTH;
+	private static readonly MIN_CHAT_WIDGET_HEIGHT = 120;
 
 	private sessionsContainer: HTMLElement | undefined;
 	private sessionsTitleContainer: HTMLElement | undefined;
@@ -282,6 +283,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsViewerLimitedContext: IContextKey<boolean>;
 	private sessionsViewerPosition = AgentSessionsViewerPosition.Right;
 	private sessionsViewerPositionContext: IContextKey<AgentSessionsViewerPosition>;
+	private cachedSessionsLinkHeight = 0;
 
 	private createSessionsControl(parent: HTMLElement): AgentSessionsControl {
 		const that = this;
@@ -776,20 +778,41 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Ensure visibility is in sync before we layout
 		this.updateSessionsControlVisibility();
 
-		const availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
+		const sessionsTitleHeight = this.sessionsTitleContainer.offsetHeight;
+		const sessionsLinkHeight = this.sessionsLinkContainer.offsetHeight;
+		if (sessionsLinkHeight > 0) {
+			this.cachedSessionsLinkHeight = sessionsLinkHeight;
+		}
 
-		// Show as sidebar
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
+			// Side by Side layout
+
+			setVisibility(true, this.sessionsContainer);
+			setVisibility(true, this.sessionsLinkContainer);
+
+			const availableSessionsHeight = Math.max(0, height - sessionsTitleHeight - sessionsLinkHeight);
 			this.sessionsControlContainer.style.height = `${availableSessionsHeight}px`;
 			this.sessionsControlContainer.style.width = `${ChatViewPane.SESSIONS_SIDEBAR_WIDTH}px`;
 			this.sessionsControl.layout(availableSessionsHeight, ChatViewPane.SESSIONS_SIDEBAR_WIDTH);
 
 			heightReduction = 0; // side by side to chat widget
 			widthReduction = this.sessionsContainer.offsetWidth;
-		}
+		} else {
+			// Stacked layout
 
-		// Show stacked (grows with the number of items displayed)
-		else {
+			const maxSessionsContainerHeight = Math.max(0, height - ChatViewPane.MIN_CHAT_WIDGET_HEIGHT - (this.titleControl?.getHeight() ?? 0));
+			if (maxSessionsContainerHeight < sessionsTitleHeight + AgentSessionsListDelegate.ITEM_HEIGHT) {
+				setVisibility(false, this.sessionsContainer);
+				return { heightReduction: 0, widthReduction: 0 };
+			}
+
+			// When stacked and space is tight, prefer keeping the chat input visible over showing the sessions list / link.
+			// Use cachedSessionLinkHeight since the link may be hidden at this point.
+			const showSessionsLink = maxSessionsContainerHeight >= sessionsTitleHeight + this.cachedSessionsLinkHeight + AgentSessionsListDelegate.ITEM_HEIGHT;
+			setVisibility(showSessionsLink, this.sessionsLinkContainer);
+			const effectiveSessionsLinkHeight = showSessionsLink ? this.cachedSessionsLinkHeight : 0;
+			const availableSessionsHeight = Math.max(0, maxSessionsContainerHeight - sessionsTitleHeight - effectiveSessionsLinkHeight);
+
 			let sessionsHeight: number;
 			if (this.sessionsViewerLimited) {
 				sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
@@ -803,7 +826,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsControlContainer.style.width = ``;
 			this.sessionsControl.layout(sessionsHeight, width);
 
-			heightReduction = this.sessionsContainer.offsetHeight;
+			heightReduction = Math.min(height, maxSessionsContainerHeight, sessionsTitleHeight + effectiveSessionsLinkHeight + sessionsHeight);
 			widthReduction = 0; // stacked on top of the chat widget
 		}
 
