@@ -6,7 +6,7 @@
 import { MainThreadStatusBarShape, MainContext, ExtHostContext, StatusBarItemDto, ExtHostStatusBarShape } from '../common/extHost.protocol.js';
 import { ThemeColor } from '../../../base/common/themables.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { Command } from '../../../editor/common/languages.js';
 import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
@@ -20,6 +20,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 	private readonly _proxy: ExtHostStatusBarShape;
 	private readonly _store = new DisposableStore();
+	private readonly _entryDisposables = new DisposableMap<string>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -71,11 +72,13 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 		const kind = this.statusbarService.setOrUpdateEntry(entryId, id, extensionId, name, text, tooltipOrTooltipProvider, command, color, backgroundColor, alignLeft, priority, accessibilityInformation);
 		if (kind === StatusBarUpdateKind.DidDefine) {
-			this._store.add(toDisposable(() => this.statusbarService.unsetEntry(entryId)));
+			const disposable = toDisposable(() => this.statusbarService.unsetEntry(entryId));
+			this._entryDisposables.set(entryId, disposable);
 		}
 	}
 
 	$disposeEntry(entryId: string) {
+		this._entryDisposables.deleteAndDispose(entryId);
 		this.statusbarService.unsetEntry(entryId);
 	}
 }
