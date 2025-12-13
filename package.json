@@ -103,7 +103,6 @@
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.4",
     "katex": "^0.16.22",
-    "kerberos": "2.1.1",
     "minimist": "^1.2.8",
     "native-is-elevated": "0.8.0",
     "native-keymap": "^3.3.5",
@@ -161,6 +160,7 @@
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
     "electron": "39.2.3",
+    "esbuild": "^0.25.5",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",
@@ -210,6 +210,7 @@
     "source-map": "0.6.1",
     "source-map-support": "^0.3.2",
     "style-loader": "^3.3.2",
+    "ternary-stream": "^3.0.0",
     "ts-loader": "^9.5.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
@@ -237,6 +238,7 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
+    "kerberos": "2.1.1",
     "windows-foreground-love": "0.5.0"
   }
 }
