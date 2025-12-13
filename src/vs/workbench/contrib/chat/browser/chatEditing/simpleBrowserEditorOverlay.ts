@@ -141,6 +141,9 @@ class SimpleBrowserOverlayWidget {
 		const cancelButtonLabel = localize('cancelSelectionLabel', 'Cancel');
 		cancelButton.label = cancelButtonLabel;
 
+		const attachLogs = this._showStore.add(new Button(mainContent, { ...defaultButtonStyles, supportIcons: true, title: localize('chat.attachLogs', "Attach Logs") }));
+		attachLogs.icon = Codicon.bug;
+
 		const configure = this._showStore.add(new Button(mainContent, { supportIcons: true, title: localize('chat.configureElements', "Configure Attachments Sent") }));
 		configure.icon = Codicon.gear;
 
@@ -224,6 +227,10 @@ class SimpleBrowserOverlayWidget {
 		this._showStore.add(addDisposableListener(configure.element, 'click', () => {
 			this._preferencesService.openSettings({ jsonEditor: false, query: '@id:chat.sendElementsToChat.enabled,chat.sendElementsToChat.attachCSS,chat.sendElementsToChat.attachImages' });
 		}));
+
+		this._showStore.add(addDisposableListener(attachLogs.element, 'click', async () => {
+			await this.addConsolesToChat();
+		}));
 	}
 
 	setActiveBrowserType(type: BrowserType | undefined) {
@@ -242,6 +249,23 @@ class SimpleBrowserOverlayWidget {
 			return;
 		}
 		element.classList.remove('hidden');
+	}
+
+	async addConsolesToChat() {
+		const logs = await this._browserElementsService.getConsoleLogs();
+		const toAttach: IChatRequestVariableEntry[] = [];
+
+		toAttach.push({
+			id: 'element-' + Date.now(),
+			name: localize('consoleLogs', 'Console Logs'),
+			fullName: localize('consoleLogs', 'Console Logs'),
+			value: logs ?? localize('noConsoleLogs', 'No console logs captured.'),
+			kind: 'element',
+			icon: ThemeIcon.fromId(Codicon.bug.id),
+		});
+
+		const widget = await showChatView(this._viewService, this._layoutService) ?? this._chatWidgetService.lastFocusedWidget;
+		widget?.attachmentModel?.addContext(...toAttach);
 	}
 
 	async addElementToChat(cts: CancellationTokenSource) {
@@ -374,6 +398,7 @@ class SimpleBrowserOverlayController {
 			if (activeBrowserType) {
 				try {
 					await this._browserElementsService.startDebugSession(cts.token, activeBrowserType);
+
 				} catch (error) {
 					connectingWebviewElement.textContent = localize('reopenErrorWebviewElement', 'Please reopen the preview.');
 					return;

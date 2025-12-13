@@ -24,6 +24,18 @@ interface NodeDataResponse {
 	bounds: IRectangle;
 }
 
+interface LogEntry {
+	type: 'console' | 'exception' | 'log';
+	level?: string;
+	message?: string;
+	args?: any[];
+	exceptionDetails?: any;
+	timestamp: number;
+	rawData: string;
+}
+
+const allConsole = new Map<number, LogEntry[]>();
+
 export class NativeBrowserElementsMainService extends Disposable implements INativeBrowserElementsMainService {
 	_serviceBrand: undefined;
 
@@ -141,6 +153,75 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 			debuggers.attach();
 		}
 
+		let sessionId: string | undefined;
+		const onMessage = (event: any, method: string, params: any, sessionIdFromMessage?: string) => {
+			if (sessionIdFromMessage === sessionId && (method === 'Runtime.consoleAPICalled' || method === 'Runtime.exceptionThrown' || method === 'Log.entryAdded')) {
+				const current = allConsole.get(windowId!) ?? [];
+
+				let logEntry: LogEntry;
+
+				if (method === 'Runtime.consoleAPICalled') {
+					// Extract console message from args
+					const args = params.args?.map((arg: any) => {
+						if (arg.type === 'string') {
+							return arg.value;
+						}
+						if (arg.type === 'object') {
+							// For objects, try to extract a readable representation
+							if (arg.preview?.description) {
+								return arg.preview.description;
+							}
+							return JSON.stringify(arg, null, 2);
+						}
+						if (arg.value !== undefined) {
+							return arg.value;
+						}
+						return JSON.stringify(arg, null, 2);
+					}) ?? [];
+
+					logEntry = {
+						type: 'console',
+						level: params.type, // 'log', 'debug', 'info', 'error', 'warning', 'dir', 'dirxml', 'table', 'trace', 'clear', 'startGroup', 'startGroupCollapsed', 'endGroup'
+						message: args.join(' '),
+						args: params.args,
+						timestamp: Date.now(),
+						rawData: JSON.stringify(params)
+					};
+				} else if (method === 'Runtime.exceptionThrown') {
+					const exceptionDetails = params.exceptionDetails;
+					let errorMessage = exceptionDetails?.text || 'Unknown error';
+					if (exceptionDetails?.exception?.description) {
+						errorMessage = exceptionDetails.exception.description;
+					}
+
+					logEntry = {
+						type: 'exception',
+						level: 'error',
+						message: errorMessage,
+						exceptionDetails: params.exceptionDetails,
+						timestamp: Date.now(),
+						rawData: JSON.stringify(params)
+					};
+				} else { // Log.entryAdded
+					logEntry = {
+						type: 'log',
+						level: params.level, // 'verbose', 'info', 'warning', 'error'
+						message: params.text,
+						timestamp: Date.now(),
+						rawData: JSON.stringify(params)
+					};
+				}
+
+				if (!current.some(entry => entry.rawData === logEntry.rawData)) {
+					current.push(logEntry);
+					if (current.length > 5) {
+						current.shift();
+					}
+					allConsole.set(windowId!, current);
+				}
+			}
+		};
+
 		try {
 			const matchingTargetId = await this.waitForWebviewTargets(debuggers, windowId!, browserType);
 			if (!matchingTargetId) {
@@ -149,6 +230,20 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 				}
 				throw new Error('No target found');
 			}
+
+			// starts console logging as well.
+			const attachResult = await debuggers.sendCommand('Target.attachToTarget', {
+				targetId: matchingTargetId,
+				flatten: true,
+			});
+			sessionId = attachResult.sessionId;
+
+			allConsole.set(windowId!, []);
+
+			await debuggers.sendCommand('Debugger.enable', {}, sessionId);
+			await debuggers.sendCommand('Runtime.enable', {}, sessionId);
+			await debuggers.sendCommand('Log.enable', {}, sessionId);
+			debuggers.on('message', onMessage);
 
 		} catch (e) {
 			if (debuggers.isAttached()) {
@@ -170,6 +265,53 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 				}
 			}
 		});
+
+		window.win.webContents.on('ipc-message', async (event, channel, closedCancelAndDetachId) => {
+			if (channel === `vscode:changeElementSelection${cancelAndDetachId}`) {
+				if (cancelAndDetachId !== closedCancelAndDetachId) {
+					return;
+				}
+				if (debuggers.isAttached()) {
+					debuggers.detach();
+				}
+				debuggers.off('message', onMessage);
+				if (window.win) {
+					window.win.webContents.removeAllListeners('ipc-message');
+				}
+			}
+		});
+	}
+
+	async getConsoleLogs(windowId: number | undefined): Promise<string | undefined> {
+		const window = this.windowById(windowId);
+		if (!window?.win) {
+			return undefined;
+		}
+
+		const logs = allConsole.get(window.id) ?? [];
+		if (logs.length === 0) {
+			return undefined;
+		}
+
+		const formatted = logs.map(log => {
+			let line = '';
+			if (log.type === 'console') {
+				line = `[${log.level?.toUpperCase()}] ${log.message}`;
+			} else if (log.type === 'exception') {
+				line = `[ERROR] Exception: ${log.message}`;
+				if (log.exceptionDetails?.stackTrace?.callFrames?.length) {
+					line += '\nStack Trace:';
+					log.exceptionDetails.stackTrace.callFrames.forEach((frame: any) => {
+						line += `\n  at ${frame.functionName} (${frame.url}:${frame.lineNumber}:${frame.columnNumber})`;
+					});
+				}
+			} else if (log.type === 'log') {
+				line = `[${log.level?.toUpperCase()}] ${log.message}`;
+			}
+			return line;
+		}).join('\n');
+
+		return formatted;
 	}
 
 	async finishOverlay(debuggers: Electron.Debugger, sessionId: string | undefined): Promise<void> {

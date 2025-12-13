@@ -48,7 +48,8 @@
 .element-selection-main-content .monaco-button.codicon.codicon-close,
 .element-expand-container .monaco-button.codicon.codicon-layout,
 .element-selection-main-content .monaco-button.codicon.codicon-chevron-right,
-.element-selection-main-content .monaco-button.codicon.codicon-gear {
+.element-selection-main-content .monaco-button.codicon.codicon-gear,
+.element-selection-main-content .monaco-button.codicon.codicon-bug {
 	width: 17px;
 	height: 17px;
 	padding: 2px 2px;
