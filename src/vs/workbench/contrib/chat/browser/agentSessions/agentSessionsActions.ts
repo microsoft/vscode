@@ -661,7 +661,8 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			title: ShowAgentSessionsSidebar.TITLE,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked)
+				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -684,7 +685,8 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			title: HideAgentSessionsSidebar.TITLE,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide)
+				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -696,6 +698,39 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 	}
 }
 
+export class ToggleAgentSessionsSidebar extends Action2 {
+
+	static readonly ID = 'agentSessions.toggleAgentSessionsSidebar';
+	static readonly TITLE = localize2('toggleAgentSessionsSidebar', "Toggle Agent Sessions Sidebar");
+
+	constructor() {
+		super({
+			id: ToggleAgentSessionsSidebar.ID,
+			title: ToggleAgentSessionsSidebar.TITLE,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
+			),
+			f1: true,
+			category: CHAT_CATEGORY,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const viewsService = accessor.get(IViewsService);
+
+		const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
+		const currentOrientation = chatView?.getSessionsViewerOrientation();
+
+		if (currentOrientation === AgentSessionsViewerOrientation.SideBySide) {
+			await commandService.executeCommand(HideAgentSessionsSidebar.ID);
+		} else {
+			await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
+		}
+	}
+}
+
 export class FocusAgentSessionsAction extends Action2 {
 
 	static readonly id = 'workbench.action.chat.focusAgentSessionsViewer';
@@ -704,7 +739,10 @@ export class FocusAgentSessionsAction extends Action2 {
 		super({
 			id: FocusAgentSessionsAction.id,
 			title: localize2('chat.focusAgentSessionsViewer.label', "Focus Agent Sessions"),
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
+			),
 			category: CHAT_CATEGORY,
 			f1: true,
 		});
