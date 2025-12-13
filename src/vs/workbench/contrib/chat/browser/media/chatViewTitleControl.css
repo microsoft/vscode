@@ -5,16 +5,10 @@
 
 .chat-viewpane {
 
-	/* Remove title bottom border when there is a scroll bar in SxS mode (shadow handles separation). */
-	&.sessions-control-orientation-sidebyside .chat-controls-container:has(.scrollbar.vertical.visible, .scrollbar.vertical.fade) > .chat-view-title-container {
-		border-bottom: none;
-	}
-
 	.chat-view-title-container {
 		display: none;
 		/* try to align with the sessions view title */
 		padding: 8px 12px 8px 16px;
-		border-bottom: 1px solid var(--vscode-panel-border);
 		align-items: center;
 		cursor: pointer;
 
