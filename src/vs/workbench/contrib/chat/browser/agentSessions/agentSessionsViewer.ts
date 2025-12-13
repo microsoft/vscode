@@ -490,7 +490,7 @@ export interface IAgentSessionsFilter {
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
 
-	private static readonly ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+	private static readonly RECENT_THRESHOLD = 5 * 24 * 60 * 60 * 1000;
 
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
@@ -536,7 +536,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const result: AgentSessionListItem[] = [];
 
 		const now = Date.now();
-		const oneWeekAgo = now - AgentSessionsDataSource.ONE_WEEK_MS;
+		const oneWeekAgo = now - AgentSessionsDataSource.RECENT_THRESHOLD;
 
 		const activeSessions: IAgentSession[] = [];
 		const recentSessions: IAgentSession[] = [];
