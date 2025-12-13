@@ -327,6 +327,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
 			filter: sessionsFilter,
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			getHoverPosition: () => this.sessionsViewerPosition === AgentSessionsViewerPosition.Right ? HoverPosition.LEFT : HoverPosition.RIGHT,
 			overrideCompare(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined {
 
@@ -462,6 +463,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			changed: sessionsContainerVisible !== newSessionsContainerVisible,
 			visible: newSessionsContainerVisible
 		};
+	}
+
+	getFocusedSessions(): IAgentSession[] {
+		return this.sessionsControl?.getFocus() ?? [];
 	}
 
 	//#endregion
