@@ -206,4 +206,18 @@
 			text-overflow: ellipsis;
 		}
 	}
+
+	.agent-session-section {
+		display: flex;
+		align-items: center;
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--vscode-descriptionForeground);
+		padding: 0 8px;
+
+		.agent-session-section-label {
+			flex: 1;
+		}
+	}
 }

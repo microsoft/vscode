@@ -306,6 +306,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			limitResults: () => {
 				return that.sessionsViewerLimited ? ChatViewPane.SESSIONS_LIMIT : undefined;
 			},
+			groupResults: () => {
+				return that.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide;
+			},
 			overrideExclude(session) {
 				if (that.sessionsViewerLimited) {
 					if (session.isArchived()) {
@@ -784,6 +787,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsViewerLimited = this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked;
 			if (oldSessionsViewerLimited !== this.sessionsViewerLimited) {
 				this.notifySessionsControlLimitedChanged(false /* already in layout */);
+			} else {
+				this.sessionsControl?.update(); // still need to update for section visibility
 			}
 		}
 

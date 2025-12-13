@@ -128,21 +128,36 @@ export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 	return session.providerType === localChatSessionType;
 }
 
-export function isAgentSession(obj: IAgentSessionsModel | IAgentSession): obj is IAgentSession {
+export function isAgentSession(obj: unknown): obj is IAgentSession {
 	const session = obj as IAgentSession | undefined;
 
-	return URI.isUri(session?.resource);
+	return URI.isUri(session?.resource) && typeof session.setArchived === 'function' && typeof session.setRead === 'function';
 }
 
-export function isAgentSessionsModel(obj: IAgentSessionsModel | IAgentSession): obj is IAgentSessionsModel {
+export function isAgentSessionsModel(obj: unknown): obj is IAgentSessionsModel {
 	const sessionsModel = obj as IAgentSessionsModel | undefined;
 
-	return Array.isArray(sessionsModel?.sessions);
+	return Array.isArray(sessionsModel?.sessions) && typeof sessionsModel?.getSession === 'function';
 }
 
 interface IAgentSessionState {
 	readonly archived: boolean;
 	readonly read: number /* last date turned read */;
+}
+
+export const enum AgentSessionSection {
+	Recent = 'recent',
+	Archived = 'archived',
+	Old = 'old',
+}
+
+export interface IAgentSessionSection {
+	readonly section: AgentSessionSection;
+	readonly label: string;
+}
+
+export function isAgentSessionSection(obj: IAgentSessionsModel | IAgentSession | IAgentSessionSection): obj is IAgentSessionSection {
+	return typeof (obj as IAgentSessionSection)?.section === 'string';
 }
 
 //#endregion
