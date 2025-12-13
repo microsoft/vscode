@@ -251,7 +251,7 @@ export class ExtHostTelemetryLogger {
 		} else {
 			eventName = this._extension.identifier.value + '/' + eventName;
 		}
-		data = this.mixInCommonPropsAndCleanData(data || {});
+		data = this.mixInCommonPropsAndCleanData(data || { properties: {}, measurements: {} });
 		if (!this._inLoggingOnlyMode) {
 			this._sender?.sendEventData(eventName, data);
 		}
@@ -285,11 +285,11 @@ export class ExtHostTelemetryLogger {
 			});
 			cleanedError.stack = typeof cleanedErrorData.stack === 'string' ? cleanedErrorData.stack : undefined;
 			cleanedError.name = typeof cleanedErrorData.name === 'string' ? cleanedErrorData.name : 'unknown';
-			data = this.mixInCommonPropsAndCleanData(data || {});
+			data = this.mixInCommonPropsAndCleanData(data || { properties: {}, measurements: {} });
 			if (!this._inLoggingOnlyMode) {
 				this._sender.sendErrorData(cleanedError, data);
 			}
-			this._logger.trace('exception', data);
+			this._logger.trace('unhandlederror', data);
 		}
 	}
 
