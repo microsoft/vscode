@@ -182,6 +182,7 @@ const listSmoothScrolling = 'workbench.list.smoothScrolling';
 const mouseWheelScrollSensitivityKey = 'workbench.list.mouseWheelScrollSensitivity';
 const fastScrollSensitivityKey = 'workbench.list.fastScrollSensitivity';
 const treeExpandMode = 'workbench.tree.expandMode';
+const treeAutoCollapseCheckedFolders = 'workbench.tree.autoCollapseCheckedFolders';
 const treeStickyScroll = 'workbench.tree.enableStickyScroll';
 const treeStickyScrollMaxElements = 'workbench.tree.stickyScrollMaxItemCount';
 
@@ -1472,6 +1473,11 @@ configurationRegistry.registerConfiguration({
 			enum: ['singleClick', 'doubleClick'],
 			default: 'singleClick',
 			description: localize('expand mode', "Controls how tree folders are expanded when clicking the folder names. Note that some trees and lists might choose to ignore this setting if it is not applicable."),
+		},
+		[treeAutoCollapseCheckedFolders]: {
+			type: 'boolean',
+			default: false,
+			description: localize('auto collapse checked folders', "Controls whether folders in trees are automatically collapsed when all their sub-items have been checked. This setting applies to tree views that support checkboxes."),
 		},
 		[treeStickyScroll]: {
 			type: 'boolean',
