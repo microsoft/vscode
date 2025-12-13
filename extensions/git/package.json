@@ -782,6 +782,26 @@
         "category": "Git"
       },
       {
+        "command": "git.revealRepositoryInExplorer",
+        "title": "%command.revealRepositoryInExplorer%",
+        "category": "Git"
+      },
+      {
+        "command": "git.revealRepositoryInOS.linux",
+        "title": "%command.revealRepositoryInOS.linux%",
+        "category": "Git"
+      },
+      {
+        "command": "git.revealRepositoryInOS.mac",
+        "title": "%command.revealRepositoryInOS.mac%",
+        "category": "Git"
+      },
+      {
+        "command": "git.revealRepositoryInOS.windows",
+        "title": "%command.revealRepositoryInOS.windows%",
+        "category": "Git"
+      },
+      {
         "command": "git.stashIncludeUntracked",
         "title": "%command.stashIncludeUntracked%",
         "category": "Git",
@@ -1983,6 +2003,26 @@
           "command": "git.deleteWorktree2",
           "group": "2_worktree@1",
           "when": "scmProvider == git && scmProviderContext == worktree"
+        },
+        {
+          "command": "git.revealRepositoryInOS.linux",
+          "group": "2_view@1",
+          "when": "scmProvider == git && isLinux"
+        },
+        {
+          "command": "git.revealRepositoryInOS.mac",
+          "group": "2_view@1",
+          "when": "scmProvider == git && isMacintosh"
+        },
+        {
+          "command": "git.revealRepositoryInOS.windows",
+          "group": "2_view@1",
+          "when": "scmProvider == git && isWindows"
+        },
+        {
+          "command": "git.revealRepositoryInExplorer",
+          "group": "2_view@2",
+          "when": "scmProvider == git"
         }
       ],
       "scm/artifactGroup/context": [
