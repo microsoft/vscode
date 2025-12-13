@@ -776,7 +776,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		// Ensure visibility is in sync before we layout
-		this.updateSessionsControlVisibility();
+		const { visible: sessionsContainerVisible } = this.updateSessionsControlVisibility();
+		if (!sessionsContainerVisible) {
+			return { heightReduction: 0, widthReduction: 0 };
+		}
 
 		const sessionsTitleHeight = this.sessionsTitleContainer.offsetHeight;
 		const sessionsLinkHeight = this.sessionsLinkContainer.offsetHeight;
