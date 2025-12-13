@@ -8,7 +8,7 @@ import * as objects from '../../../base/common/objects.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, EXTENSION_UNIFICATION_EXTENSION_IDS } from '../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, EXTENSION_UNIFICATION_EXTENSION_IDS, overrideIdentifiersFromKey } from '../../../platform/configuration/common/configurationRegistry.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, mcpSchemaId } from '../../services/configuration/common/configuration.js';
 import { isObject, isUndefined } from '../../../base/common/types.js';
@@ -484,62 +484,27 @@ class ConfigurationDefaultsTableRenderer extends Disposable implements IExtensio
 	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
 		const configurationDefaults = manifest.contributes?.configurationDefaults ?? {};
 
-		const headers = [nls.localize('setting name', "ID"), nls.localize('default override value', "Override Value")];
+		const headers = [nls.localize('language', "Languages"), nls.localize('setting', "Setting"), nls.localize('default override value', "Override Value")];
 		const rows: IRowData[][] = [];
 
-		// Group settings by override identifier
-		const groups = new Map<string, { settingId: string; value: unknown }[]>();
-		
 		for (const key of Object.keys(configurationDefaults)) {
 			const value = configurationDefaults[key];
-			
-			// Check if the key matches override identifier pattern (e.g., [markdown], [git-commit])
 			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-				// This is an override identifier - add all settings within it
-				const overrideIdentifiers = key;
-				if (!groups.has(overrideIdentifiers)) {
-					groups.set(overrideIdentifiers, []);
-				}
-				
-				// Add all settings for this override identifier
-				if (typeof value === 'object' && value !== null) {
-					for (const settingKey of Object.keys(value)) {
-						groups.get(overrideIdentifiers)!.push({
-							settingId: settingKey,
-							value: (value as any)[settingKey]
-						});
-					}
+				const languages = overrideIdentifiersFromKey(key);
+				const languageMarkdown = new MarkdownString().appendMarkdown(`${languages.join(', ')}`);
+				for (const key of Object.keys(value)) {
+					const row: IRowData[] = [];
+					row.push(languageMarkdown);
+					row.push(new MarkdownString().appendMarkdown(`\`${key}\``));
+					row.push(new MarkdownString().appendCodeblock('json', JSON.stringify(value[key], null, 2)));
+					rows.push(row);
 				}
 			} else {
-				// This is a direct setting override (no language/scope identifier)
-				const defaultGroup = nls.localize('default overrides', "Default Overrides");
-				if (!groups.has(defaultGroup)) {
-					groups.set(defaultGroup, []);
-				}
-				groups.get(defaultGroup)!.push({
-					settingId: key,
-					value: value
-				});
-			}
-		}
-
-		// Sort groups and generate rows
-		const sortedGroups = Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-		
-		for (const [groupName, settings] of sortedGroups) {
-			// Add group header row
-			rows.push([
-				new MarkdownString().appendMarkdown(`**${groupName}**`),
-				''
-			]);
-			
-			// Add setting rows sorted by setting ID
-			settings.sort((a, b) => a.settingId.localeCompare(b.settingId));
-			for (const setting of settings) {
-				rows.push([
-					new MarkdownString().appendMarkdown(`\`${setting.settingId}\``),
-					new MarkdownString().appendCodeblock('json', JSON.stringify(setting.value, null, 2))
-				]);
+				const row: IRowData[] = [];
+				row.push('');
+				row.push(new MarkdownString().appendMarkdown(`\`${key}\``));
+				row.push(new MarkdownString().appendCodeblock('json', JSON.stringify(value, null, 2)));
+				rows.push(row);
 			}
 		}
 
@@ -555,7 +520,7 @@ class ConfigurationDefaultsTableRenderer extends Disposable implements IExtensio
 
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'configurationDefaults',
-	label: nls.localize('settings default overrides', "Settings (Default Overrides)"),
+	label: nls.localize('settings default overrides', "Settings Defaults Overrides"),
 	access: {
 		canToggle: false
 	},
