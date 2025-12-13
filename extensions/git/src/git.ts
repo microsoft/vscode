@@ -2420,9 +2420,13 @@ export class Repository {
 		}
 	}
 
-	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
+	async blame2(path: string, ref?: string, ignoreWhitespace?: boolean): Promise<BlameInformation[] | undefined> {
 		try {
 			const args = ['blame', '--root', '--incremental'];
+
+			if (ignoreWhitespace) {
+				args.push('-w');
+			}
 
 			if (ref) {
 				args.push(ref);
