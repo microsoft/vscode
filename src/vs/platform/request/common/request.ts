@@ -186,7 +186,7 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 				'http.useLocalProxyConfiguration': {
 					type: 'boolean',
 					default: useHostProxyDefault,
-					markdownDescription: localize('useLocalProxy', "Controls whether in the remote extension host the local proxy configuration should be used. This setting only applies as a remote setting during [remote development](https://aka.ms/vscode-remote)."),
+					markdownDescription: localize('useLocalProxy', "Controls whether the local proxy configuration (of the VS Code host) is used by the remote extension host. This setting only applies as a remote setting during [remote development](https://aka.ms/vscode-remote)."),
 					restricted: true
 				},
 			}
@@ -252,7 +252,7 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 						localize('proxySupportOverride', "Enable proxy support for extensions, override request options."),
 					],
 					default: 'override',
-					markdownDescription: localize('proxySupport', "Use the proxy support for extensions. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
+					markdownDescription: localize('proxySupport', "Use the proxy configuration for extensions. When during [remote development](https://aka.ms/vscode-remote) and the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
 					restricted: true
 				},
 				'http.systemCertificates': {
