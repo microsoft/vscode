@@ -27,6 +27,7 @@ import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { EditDeltaInfo } from './textModelEditSource.js';
+import { FontTokensUpdate } from './textModelEvents.js';
 
 /**
  * @internal
@@ -67,6 +68,17 @@ export class TokenizationResult {
 /**
  * @internal
  */
+export interface IFontToken {
+	readonly startIndex: number;
+	readonly endIndex: number;
+	readonly fontFamily: string | null;
+	readonly fontSize: string | null;
+	readonly lineHeight: number | null;
+}
+
+/**
+ * @internal
+ */
 export class EncodedTokenizationResult {
 	_encodedTokenizationResultBrand: void = undefined;
 
@@ -78,6 +90,7 @@ export class EncodedTokenizationResult {
 		 *
 		 */
 		public readonly tokens: Uint32Array,
+		public readonly fontInfo: IFontToken[],
 		public readonly endState: IState,
 	) {
 	}
@@ -139,6 +152,8 @@ export interface IBackgroundTokenizer extends IDisposable {
  */
 export interface IBackgroundTokenizationStore {
 	setTokens(tokens: ContiguousMultilineTokens[]): void;
+
+	setFontInfo(changes: FontTokensUpdate): void;
 
 	setEndState(lineNumber: number, state: IState): void;
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color } from '../../../../base/common/color.js';
+import { IFontTokenOptions } from '../../../../platform/theme/common/themeService.js';
 import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts } from '../../encodedTokenAttributes.js';
 
 export interface ITokenThemeRule {
@@ -421,4 +422,34 @@ export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string
 	rules.push('.mtks { text-decoration: line-through; }');
 	rules.push('.mtks.mtku { text-decoration: underline line-through; text-underline-position: under; }');
 	return rules.join('\n');
+}
+
+export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[]): string {
+	const rules: string[] = [];
+	const fonts = new Set<string>();
+	for (let i = 1, len = fontMap.length; i < len; i++) {
+		const font = fontMap[i];
+		if (!font.fontFamily && !font.fontSize) {
+			continue;
+		}
+		const className = classNameForFontTokenDecorations(font.fontFamily ?? '', font.fontSize ?? '');
+		if (fonts.has(className)) {
+			continue;
+		}
+		fonts.add(className);
+		let rule = `.${className} {`;
+		if (font.fontFamily) {
+			rule += `font-family: ${font.fontFamily};`;
+		}
+		if (font.fontSize) {
+			rule += `font-size: ${font.fontSize};`;
+		}
+		rule += `}`;
+		rules.push(rule);
+	}
+	return rules.join('\n');
+}
+
+export function classNameForFontTokenDecorations(fontFamily: string, fontSize: string): string {
+	return `font-decoration-${fontFamily.toLowerCase()}-${fontSize.toLowerCase()}`;
 }

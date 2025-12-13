@@ -8,6 +8,7 @@ import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
 import { IModelContentChange } from './model/mirrorTextModel.js';
+import { AnnotationsUpdate } from './model/tokens/annotations.js';
 import { TextModelEditSource } from './textModelEditSource.js';
 
 /**
@@ -148,6 +149,63 @@ export interface IModelTokensChangedEvent {
 		 */
 		readonly toLineNumber: number;
 	}[];
+}
+
+/**
+ * @internal
+ */
+export interface IFontTokenOption {
+	/**
+	 * Font family of the token.
+	 */
+	readonly fontFamily?: string;
+	/**
+	 * Font size of the token.
+	 */
+	readonly fontSize?: string;
+	/**
+	 * Line height of the token.
+	 */
+	readonly lineHeight?: number;
+}
+
+/**
+ * An event describing a token font change event
+ * @internal
+ */
+export interface IModelFontTokensChangedEvent {
+	changes: FontTokensUpdate;
+}
+
+/**
+ * @internal
+ */
+export type FontTokensUpdate = AnnotationsUpdate<IFontTokenOption | undefined>;
+
+/**
+ * @internal
+ */
+export function serializeFontTokenOptions(): (options: IFontTokenOption) => IFontTokenOption {
+	return (annotation: IFontTokenOption) => {
+		return {
+			fontFamily: annotation.fontFamily ?? '',
+			fontSize: annotation.fontSize ?? '',
+			lineHeight: annotation.lineHeight ?? 0
+		};
+	};
+}
+
+/**
+ * @internal
+ */
+export function deserializeFontTokenOptions(): (options: IFontTokenOption) => IFontTokenOption {
+	return (annotation: IFontTokenOption) => {
+		return {
+			fontFamily: annotation.fontFamily ? String(annotation.fontFamily) : undefined,
+			fontSize: annotation.fontSize ? String(annotation.fontSize) : undefined,
+			lineHeight: annotation.lineHeight ? Number(annotation.lineHeight) : undefined
+		};
+	};
 }
 
 export interface IModelOptionsChangedEvent {

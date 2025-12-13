@@ -122,7 +122,7 @@ class ManualTokenizationSupport implements ITokenizationSupport {
 
 	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult {
 		const s = state as LineState;
-		return new EncodedTokenizationResult(this.tokens.get(s.lineNumber)!, new LineState(s.lineNumber + 1));
+		return new EncodedTokenizationResult(this.tokens.get(s.lineNumber)!, [], new LineState(s.lineNumber + 1));
 	}
 
 	/**
