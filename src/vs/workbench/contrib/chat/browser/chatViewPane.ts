@@ -154,7 +154,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.chatViewLocationContext.set(viewLocation ?? ViewContainerLocation.AuxiliaryBar);
 		this.sessionsViewerOrientationContext.set(this.sessionsViewerOrientation);
 		this.sessionsViewerPositionContext.set(this.sessionsViewerPosition);
-		this.sessionsViewerVisibilityContext.set(!!this.sessionsContainer && this.sessionsContainer.style.display !== 'none');
 
 		if (fromEvent && this.lastDimensions) {
 			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
