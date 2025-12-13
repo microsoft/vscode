@@ -17,6 +17,9 @@ function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): 
 		: [];
 }
 
+const maxPackageJsonCacheEntries = 100;
+const packageJsonCache = new Map<string, { exports?: unknown }>();
+
 const openExtendsLinkCommandId = '_typescript.openExtendsLink';
 
 enum TsConfigLinkType {
@@ -195,6 +198,9 @@ function parseNodeModuleSpecifier(specifier: string): { packageName: string; sub
  * @see https://nodejs.org/api/esm.html#resolution-algorithm-specification (PACKAGE_RESOLVE)
  */
 async function findNodeModulePackageRoot(baseDirUri: vscode.Uri, packageName: string): Promise<vscode.Uri | undefined> {
+	const workspaceFolder = vscode.workspace.getWorkspaceFolder(baseDirUri);
+	const workspaceRoot = workspaceFolder?.uri?.toString();
+
 	let currentUri = baseDirUri;
 	while (true) {
 		const candidate = vscode.Uri.joinPath(currentUri, 'node_modules', ...packageName.split(posix.sep));
@@ -209,7 +215,9 @@ async function findNodeModulePackageRoot(baseDirUri: vscode.Uri, packageName: st
 
 		const oldUri = currentUri;
 		currentUri = vscode.Uri.joinPath(currentUri, '..');
-		if (oldUri.path === currentUri.path) {
+
+		// Stop at workspace or system root
+		if (oldUri.toString() === workspaceRoot || oldUri.path === currentUri.path) {
 			return undefined;
 		}
 	}
@@ -226,13 +234,32 @@ async function findNodeModulePackageRoot(baseDirUri: vscode.Uri, packageName: st
 async function tryReadPackageJson(packageRoot: vscode.Uri): Promise<{ exports?: unknown } | undefined> {
 	const packageJsonUri = vscode.Uri.joinPath(packageRoot, 'package.json');
 	try {
+		const stat = await vscode.workspace.fs.stat(packageJsonUri);
+		const cacheKey = `${packageJsonUri.toString()}@${stat.mtime}`;
+		const cached = packageJsonCache.get(cacheKey);
+		if (cached) {
+			return cached;
+		}
+
 		const bytes = await vscode.workspace.fs.readFile(packageJsonUri);
 		const text = new TextDecoder('utf-8').decode(bytes);
 		const parsed = jsonc.parse(text, [], { allowTrailingComma: true });
 		if (typeof parsed !== 'object' || parsed === null) {
 			return undefined;
 		}
-		return parsed as { exports?: unknown };
+
+		const value = parsed as { exports?: unknown };
+		packageJsonCache.set(cacheKey, value);
+
+		while (packageJsonCache.size > maxPackageJsonCacheEntries) {
+			const oldestKey = packageJsonCache.keys().next().value as string | undefined;
+			if (!oldestKey) {
+				break;
+			}
+			packageJsonCache.delete(oldestKey);
+		}
+
+		return value;
 	} catch {
 		return undefined;
 	}

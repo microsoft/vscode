@@ -134,6 +134,31 @@ suite('resolveNodeModulePathUsingExports', () => {
 		const resolved = await resolveNodeModulePathUsingExports(baseDir, 'pkg/base/tsconfig.json');
 		assert.strictEqual(resolved, undefined);
 	});
+
+	test('stops searching at workspace root', async function () {
+		// This test verifies that node_modules resolution correctly traverses up the directory tree
+		// Create a deeply nested project structure
+		const projectDir = vscode.Uri.joinPath(root, 'project', 'src', 'nested', 'deep');
+		await vscode.workspace.fs.createDirectory(projectDir);
+
+		// Put a package in the root's node_modules (several levels up from projectDir)
+		const rootPackage = vscode.Uri.joinPath(root, 'node_modules', 'root-pkg');
+		await vscode.workspace.fs.createDirectory(rootPackage);
+		await writeFile(
+			vscode.Uri.joinPath(rootPackage, 'package.json'),
+			JSON.stringify({
+				name: 'root-pkg',
+				exports: {
+					'./tsconfig.json': './tsconfig.json'
+				}
+			}, undefined, '\t'));
+		await writeFile(vscode.Uri.joinPath(rootPackage, 'tsconfig.json'), '{}');
+
+		// Should find the package by traversing up from deep within the project
+		const resolved = await resolveNodeModulePathUsingExports(projectDir, 'root-pkg/tsconfig.json');
+		assert.ok(resolved, 'Should find package by traversing up directories');
+		assert.strictEqual(resolved!.fsPath, vscode.Uri.joinPath(rootPackage, 'tsconfig.json').fsPath);
+	});
 });
 
 async function writeFile(uri: vscode.Uri, contents: string): Promise<void> {
