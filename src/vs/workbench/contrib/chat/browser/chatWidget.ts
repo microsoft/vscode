@@ -1971,6 +1971,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (!model) {
+			if (this.viewModel?.editing) {
+				this.finishedEditing();
+			}
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 			return;
@@ -1978,6 +1981,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
 			return;
+		}
+
+		if (this.viewModel?.editing) {
+			this.finishedEditing();
 		}
 		this.inputPart.clearTodoListWidget(model.sessionResource, false);
 		this.chatSuggestNextWidget.hide();
