@@ -8,8 +8,8 @@ import { Event } from '../../../../../base/common/event.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
 import { localize } from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
-import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
@@ -179,14 +179,13 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const { name, statusIcon, tooltip } = this.currentModel?.metadata || {};
-		const disposables = new DisposableStore();
 		const domChildren = [];
 
 		if (statusIcon) {
-			const element = dom.$('span', undefined, ...renderLabelWithIcons(`\$(${statusIcon.id})`));
-			domChildren.push(element);
+			const iconElement = renderIcon(statusIcon);
+			domChildren.push(iconElement);
 			if (tooltip) {
-				disposables.add(this.hoverService.setupDelayedHoverAtMouse(element, () => ({ content: tooltip })));
+				this._store.add(this.hoverService.setupDelayedHoverAtMouse(iconElement, () => ({ content: tooltip })));
 			}
 		}
 
@@ -195,7 +194,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);
-		return disposables;
+		return null;
 	}
 
 	override render(container: HTMLElement): void {
