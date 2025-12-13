@@ -101,7 +101,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return await fn(input, token);
 	}
 
-	async invokeTool(extension: IExtensionDescription, toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token?: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	async invokeTool(extension: IExtensionDescription, toolIdOrInfo: string | vscode.LanguageModelToolInformation, options: vscode.LanguageModelToolInvocationOptions<any>, token?: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+		const toolId = typeof toolIdOrInfo === 'string' ? toolIdOrInfo : toolIdOrInfo.name;
 		const callId = generateUuid();
 		if (options.tokenizationOptions) {
 			this._tokenCountFuncs.set(callId, options.tokenizationOptions.countTokens);
@@ -169,6 +170,14 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 						return true;
 				}
 			});
+	}
+
+	/**
+	 * Check if a tool supports a specific model.
+	 * @returns `true` if supported, `false` if not, `undefined` if no supportsModel implementation (treat as supported)
+	 */
+	async supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined> {
+		return this._proxy.$supportsModel(toolId, modelId, token);
 	}
 
 	async $invokeTool(dto: Dto<IToolInvocation>, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
@@ -273,6 +282,21 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
 				presentation: result.presentation as ToolInvocationPresentation | undefined
 			};
+		}
+
+		return undefined;
+	}
+
+	async $supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined> {
+		const item = this._registeredTools.get(toolId);
+		if (!item) {
+			throw new Error(`Unknown tool ${toolId}`);
+		}
+
+		// supportsModel is a proposed API
+		const supportsModelFn = item.tool.supportsModel;
+		if (supportsModelFn) {
+			return supportsModelFn(modelId);
 		}
 
 		return undefined;
