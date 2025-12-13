@@ -561,8 +561,8 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		// Sort each group
 		activeSessions.sort(this.sorter.compare.bind(this.sorter));
 		recentSessions.sort(this.sorter.compare.bind(this.sorter));
-		archivedSessions.sort(this.sorter.compare.bind(this.sorter));
 		oldSessions.sort(this.sorter.compare.bind(this.sorter));
+		archivedSessions.sort(this.sorter.compare.bind(this.sorter));
 
 		// Add active sessions always first without header
 		result.push(...activeSessions);
