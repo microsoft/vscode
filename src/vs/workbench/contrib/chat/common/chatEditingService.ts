@@ -421,6 +421,7 @@ export const enum ChatEditingSessionState {
 export const CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME = 'chat-editing-multi-diff-source';
 
 export const chatEditingWidgetFileStateContextKey = new RawContextKey<ModifiedFileEntryState>('chatEditingWidgetFileState', undefined, localize('chatEditingWidgetFileState', "The current state of the file in the chat editing widget"));
+export const chatEditingWidgetReadonlyContextKey = new RawContextKey<boolean>('chatEditingWidgetReadonly', false, localize('chatEditingWidgetReadonly', "Whether the chat editing widget is in read-only mode (e.g., for agent sessions with timeline diffs)"));
 export const chatEditingAgentSupportsReadonlyReferencesContextKey = new RawContextKey<boolean>('chatEditingAgentSupportsReadonlyReferences', undefined, localize('chatEditingAgentSupportsReadonlyReferences', "Whether the chat editing agent supports readonly references (temporary)"));
 export const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
 export const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
