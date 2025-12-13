@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -54,6 +54,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	private visible: boolean = true;
 
+	private focusedAgentSessionArchivedContextKey: IContextKey<boolean>;
+	private focusedAgentSessionReadContextKey: IContextKey<boolean>;
+	private focusedAgentSessionTypeContextKey: IContextKey<string>;
+
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly options: IAgentSessionsControlOptions,
@@ -67,6 +71,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+
+		this.focusedAgentSessionArchivedContextKey = ChatContextKeys.isArchivedAgentSession.bindTo(this.contextKeyService);
+		this.focusedAgentSessionReadContextKey = ChatContextKeys.isReadAgentSession.bindTo(this.contextKeyService);
+		this.focusedAgentSessionTypeContextKey = ChatContextKeys.agentSessionType.bindTo(this.contextKeyService);
 
 		this.createList(this.container);
 	}
@@ -99,6 +107,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, IAgentSession, FuzzyScore>;
 
+		ChatContextKeys.agentSessionsViewerFocused.bindTo(list.contextKeyService);
+
 		const model = this.agentSessionsService.model;
 
 		this._register(Event.any(
@@ -118,6 +128,19 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._register(list.onMouseDblClick(({ element }) => {
 			if (element === null) {
 				this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+			}
+		}));
+
+		this._register(Event.any(list.onDidChangeFocus, model.onDidChangeSessions)(() => {
+			const focused = list.getFocus().at(0);
+			if (focused) {
+				this.focusedAgentSessionArchivedContextKey.set(focused.isArchived());
+				this.focusedAgentSessionReadContextKey.set(focused.isRead());
+				this.focusedAgentSessionTypeContextKey.set(focused.providerType);
+			} else {
+				this.focusedAgentSessionArchivedContextKey.reset();
+				this.focusedAgentSessionReadContextKey.reset();
+				this.focusedAgentSessionTypeContextKey.reset();
 			}
 		}));
 	}
@@ -195,5 +218,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	clearFocus(): void {
 		this.sessionsList?.setFocus([]);
 		this.sessionsList?.setSelection([]);
+	}
+
+	getFocus(): IAgentSession[] {
+		return this.sessionsList?.getFocus() ?? [];
 	}
 }
