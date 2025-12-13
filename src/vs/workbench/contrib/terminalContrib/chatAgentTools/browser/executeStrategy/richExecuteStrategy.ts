@@ -13,7 +13,7 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { setupRecreatingStartMarker } from './strategyHelpers.js';
+import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -45,6 +45,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			if (!xterm) {
 				throw new Error('Xterm is not available');
 			}
+			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
 
 			const onDone = Promise.race([
 				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
@@ -80,9 +81,18 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');
-			const onDoneResult = await onDone;
+			const onDoneResult = await Promise.race([onDone, alternateBufferPromise.then(() => ({ type: 'alternateBuffer' } as const))]);
 			if (onDoneResult && onDoneResult.type === 'disposal') {
 				throw new Error('The terminal was closed');
+			}
+			if (onDoneResult && onDoneResult.type === 'alternateBuffer') {
+				this._log('Detected alternate buffer entry, skipping output capture');
+				return {
+					output: undefined,
+					exitCode: undefined,
+					error: 'alternateBuffer',
+					didEnterAltBuffer: true
+				};
 			}
 			const finishedCommand = onDoneResult && onDoneResult.type === 'success' ? onDoneResult.command : undefined;
 

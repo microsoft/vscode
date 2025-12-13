@@ -29,6 +29,7 @@ export interface ITerminalExecuteStrategyResult {
 	additionalInformation?: string;
 	exitCode?: number;
 	error?: string;
+	didEnterAltBuffer?: boolean;
 }
 
 export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number): Promise<void> {
