@@ -18,7 +18,7 @@ suite('AgentSessionsDataSource', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const ONE_DAY = 24 * 60 * 60 * 1000;
-	const RECENT_THRESHOLD = 5 * ONE_DAY; // 5 days
+	const WEEK_THRESHOLD = 7 * ONE_DAY; // 7 days
 
 	function createMockSession(overrides: Partial<{
 		id: string;
@@ -129,7 +129,7 @@ suite('AgentSessionsDataSource', () => {
 			assert.ok(isSessionInProgressStatus((firstItem as IAgentSession).status) || (firstItem as IAgentSession).status === ChatSessionStatus.NeedsInput);
 		});
 
-		test('adds Recent header when there are active sessions', () => {
+		test('adds Today header when there are active sessions', () => {
 			const now = Date.now();
 			const sessions = [
 				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now, endTime: now }),
@@ -145,10 +145,10 @@ suite('AgentSessionsDataSource', () => {
 			const sections = getSectionsFromResult(result);
 
 			assert.strictEqual(sections.length, 1);
-			assert.strictEqual(sections[0].section, AgentSessionSection.Recent);
+			assert.strictEqual(sections[0].section, AgentSessionSection.Today);
 		});
 
-		test('does not add Recent header when there are no active sessions', () => {
+		test('does not add Today header when there are no active sessions', () => {
 			const now = Date.now();
 			const sessions = [
 				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now, endTime: now }),
@@ -163,14 +163,14 @@ suite('AgentSessionsDataSource', () => {
 			const result = Array.from(dataSource.getChildren(mockModel));
 			const sections = getSectionsFromResult(result);
 
-			assert.strictEqual(sections.filter(s => s.section === AgentSessionSection.Recent).length, 0);
+			assert.strictEqual(sections.filter(s => s.section === AgentSessionSection.Today).length, 0);
 		});
 
-		test('adds Older header for sessions older than threshold', () => {
+		test('adds Older header for sessions older than week threshold', () => {
 			const now = Date.now();
 			const sessions = [
 				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now, endTime: now }),
-				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - RECENT_THRESHOLD - ONE_DAY, endTime: now - RECENT_THRESHOLD - ONE_DAY }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - WEEK_THRESHOLD - ONE_DAY, endTime: now - WEEK_THRESHOLD - ONE_DAY }),
 			];
 
 			const filter = createMockFilter({ groupResults: true });
@@ -181,7 +181,7 @@ suite('AgentSessionsDataSource', () => {
 			const result = Array.from(dataSource.getChildren(mockModel));
 			const sections = getSectionsFromResult(result);
 
-			assert.strictEqual(sections.filter(s => s.section === AgentSessionSection.Old).length, 1);
+			assert.strictEqual(sections.filter(s => s.section === AgentSessionSection.Older).length, 1);
 		});
 
 		test('adds Archived header for archived sessions', () => {
@@ -202,11 +202,11 @@ suite('AgentSessionsDataSource', () => {
 			assert.strictEqual(sections.filter(s => s.section === AgentSessionSection.Archived).length, 1);
 		});
 
-		test('archived sessions come after old sessions', () => {
+		test('archived sessions come after older sessions', () => {
 			const now = Date.now();
 			const sessions = [
 				createMockSession({ id: '1', status: ChatSessionStatus.Completed, isArchived: true, startTime: now, endTime: now }),
-				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - RECENT_THRESHOLD - ONE_DAY, endTime: now - RECENT_THRESHOLD - ONE_DAY }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - WEEK_THRESHOLD - ONE_DAY, endTime: now - WEEK_THRESHOLD - ONE_DAY }),
 			];
 
 			const filter = createMockFilter({ groupResults: true });
@@ -216,18 +216,19 @@ suite('AgentSessionsDataSource', () => {
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
 
-			const oldIndex = result.findIndex(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Old);
+			const olderIndex = result.findIndex(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Older);
 			const archivedIndex = result.findIndex(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Archived);
 
-			assert.ok(oldIndex < archivedIndex, 'Older section should come before Archived section');
+			assert.ok(olderIndex < archivedIndex, 'Older section should come before Archived section');
 		});
 
-		test('correct order: active, recent, older, archived', () => {
+		test('correct order: active, today, week, older, archived', () => {
 			const now = Date.now();
 			const sessions = [
 				createMockSession({ id: 'archived', status: ChatSessionStatus.Completed, isArchived: true, startTime: now, endTime: now }),
-				createMockSession({ id: 'recent', status: ChatSessionStatus.Completed, startTime: now, endTime: now }),
-				createMockSession({ id: 'old', status: ChatSessionStatus.Completed, startTime: now - RECENT_THRESHOLD - ONE_DAY, endTime: now - RECENT_THRESHOLD - ONE_DAY }),
+				createMockSession({ id: 'today', status: ChatSessionStatus.Completed, startTime: now, endTime: now }),
+				createMockSession({ id: 'week', status: ChatSessionStatus.Completed, startTime: now - 3 * ONE_DAY, endTime: now - 3 * ONE_DAY }),
+				createMockSession({ id: 'old', status: ChatSessionStatus.Completed, startTime: now - WEEK_THRESHOLD - ONE_DAY, endTime: now - WEEK_THRESHOLD - ONE_DAY }),
 				createMockSession({ id: 'active', status: ChatSessionStatus.InProgress, startTime: now }),
 			];
 
@@ -246,14 +247,16 @@ suite('AgentSessionsDataSource', () => {
 				return item.label;
 			});
 
-			// Active first, then Recent header, then recent sessions, then Older header, old sessions, Archived header, archived sessions
+			// Active first, then Today header, then today sessions, then Week header, week sessions, Older header, old sessions, Archived header, archived sessions
 			assert.strictEqual(resultLabels[0], 'Session active');
-			assert.strictEqual(resultLabels[1], '[recent]');
-			assert.strictEqual(resultLabels[2], 'Session recent');
-			assert.strictEqual(resultLabels[3], '[old]');
-			assert.strictEqual(resultLabels[4], 'Session old');
-			assert.strictEqual(resultLabels[5], '[archived]');
-			assert.strictEqual(resultLabels[6], 'Session archived');
+			assert.strictEqual(resultLabels[1], '[today]');
+			assert.strictEqual(resultLabels[2], 'Session today');
+			assert.strictEqual(resultLabels[3], '[week]');
+			assert.strictEqual(resultLabels[4], 'Session week');
+			assert.strictEqual(resultLabels[5], '[older]');
+			assert.strictEqual(resultLabels[6], 'Session old');
+			assert.strictEqual(resultLabels[7], '[archived]');
+			assert.strictEqual(resultLabels[8], 'Session archived');
 		});
 
 		test('empty sessions returns empty result', () => {
@@ -267,11 +270,11 @@ suite('AgentSessionsDataSource', () => {
 			assert.strictEqual(result.length, 0);
 		});
 
-		test('only recent sessions produces no section headers', () => {
+		test('only today sessions produces no section headers', () => {
 			const now = Date.now();
 			const sessions = [
 				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now, endTime: now }),
-				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY, endTime: now - ONE_DAY }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - 1000, endTime: now - 1000 }),
 			];
 
 			const filter = createMockFilter({ groupResults: true });
@@ -282,7 +285,7 @@ suite('AgentSessionsDataSource', () => {
 			const result = Array.from(dataSource.getChildren(mockModel));
 			const sections = getSectionsFromResult(result);
 
-			// No headers when only recent sessions exist
+			// No headers when only today sessions exist
 			assert.strictEqual(sections.length, 0);
 			assert.strictEqual(getSessionsFromResult(result).length, 2);
 		});
@@ -290,10 +293,10 @@ suite('AgentSessionsDataSource', () => {
 		test('sessions are sorted within each group', () => {
 			const now = Date.now();
 			const sessions = [
-				createMockSession({ id: 'old1', status: ChatSessionStatus.Completed, startTime: now - RECENT_THRESHOLD - 2 * ONE_DAY, endTime: now - RECENT_THRESHOLD - 2 * ONE_DAY }),
-				createMockSession({ id: 'old2', status: ChatSessionStatus.Completed, startTime: now - RECENT_THRESHOLD - ONE_DAY, endTime: now - RECENT_THRESHOLD - ONE_DAY }),
-				createMockSession({ id: 'recent1', status: ChatSessionStatus.Completed, startTime: now - 2 * ONE_DAY, endTime: now - 2 * ONE_DAY }),
-				createMockSession({ id: 'recent2', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY, endTime: now - ONE_DAY }),
+				createMockSession({ id: 'old1', status: ChatSessionStatus.Completed, startTime: now - WEEK_THRESHOLD - 2 * ONE_DAY, endTime: now - WEEK_THRESHOLD - 2 * ONE_DAY }),
+				createMockSession({ id: 'old2', status: ChatSessionStatus.Completed, startTime: now - WEEK_THRESHOLD - ONE_DAY, endTime: now - WEEK_THRESHOLD - ONE_DAY }),
+				createMockSession({ id: 'week1', status: ChatSessionStatus.Completed, startTime: now - 3 * ONE_DAY, endTime: now - 3 * ONE_DAY }),
+				createMockSession({ id: 'week2', status: ChatSessionStatus.Completed, startTime: now - 2 * ONE_DAY, endTime: now - 2 * ONE_DAY }),
 			];
 
 			const filter = createMockFilter({ groupResults: true });
@@ -304,10 +307,10 @@ suite('AgentSessionsDataSource', () => {
 			const result = Array.from(dataSource.getChildren(mockModel));
 			const allSessions = getSessionsFromResult(result);
 
-			// Recent sessions should be sorted most recent first
-			const recentSessions = allSessions.filter(s => !s.label.includes('old'));
-			assert.strictEqual(recentSessions[0].label, 'Session recent2');
-			assert.strictEqual(recentSessions[1].label, 'Session recent1');
+			// Week sessions should be sorted most recent first
+			const weekSessions = allSessions.filter(s => s.label.includes('week'));
+			assert.strictEqual(weekSessions[0].label, 'Session week2');
+			assert.strictEqual(weekSessions[1].label, 'Session week1');
 
 			// Old sessions should also be sorted most recent first
 			const oldSessions = allSessions.filter(s => s.label.includes('old'));
