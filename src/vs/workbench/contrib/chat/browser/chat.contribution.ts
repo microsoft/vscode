@@ -372,7 +372,7 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
 		},
-		[ChatConfiguration.ChatViewSessionsOrientation]: { // TODO@bpasero move off preview
+		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
 			enum: ['auto', 'stacked', 'sideBySide'],
 			enumDescriptions: [
@@ -382,10 +382,6 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'auto',
 			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the chat agent sessions view when it is shown alongside the chat."),
-			tags: ['preview', 'experimental'],
-			experiment: {
-				mode: 'auto'
-			}
 		},
 		[ChatConfiguration.ChatViewTitleEnabled]: {
 			type: 'boolean',
