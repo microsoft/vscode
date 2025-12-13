@@ -403,6 +403,11 @@ export interface IEditorOptions {
 	 */
 	links?: boolean;
 	/**
+	 * Enable underlining links in the editor.
+	 * Defaults to true.
+	 */
+	linkUnderline?: boolean;
+	/**
 	 * Enable inline color decorators and color picker rendering.
 	 */
 	colorDecorators?: boolean;
@@ -5803,6 +5808,7 @@ export const enum EditorOption {
 	lineNumbersMinChars,
 	linkedEditing,
 	links,
+	linkUnderline,
 	matchBrackets,
 	minimap,
 	mouseStyle,
@@ -6334,6 +6340,10 @@ export const EditorOptions = {
 	links: register(new EditorBooleanOption(
 		EditorOption.links, 'links', true,
 		{ description: nls.localize('links', "Controls whether the editor should detect links and make them clickable.") }
+	)),
+	linkUnderline: register(new EditorBooleanOption(
+		EditorOption.linkUnderline, 'linkUnderline', true,
+		{ description: nls.localize('linkUnderline', "Controls whether links should be underlined in the editor.") }
 	)),
 	matchBrackets: register(new EditorStringEnumOption(
 		EditorOption.matchBrackets, 'matchBrackets',
