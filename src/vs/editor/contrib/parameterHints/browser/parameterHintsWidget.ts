@@ -63,7 +63,7 @@ export class ParameterHintsWidget extends ResizableContentWidget {
 		const minimumWidth = 200;
 		super(editor, new dom.Dimension(minimumWidth, minimumHeight));
 
-		this._resizableNode.domNode.style.zIndex = '50';
+		this._resizableNode.domNode.style.zIndex = '10';
 		this._resizableNode.enableSashes(false, true, false, false);
 
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
