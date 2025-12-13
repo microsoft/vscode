@@ -9,11 +9,12 @@ import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scro
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ResizableContentWidget } from '../../hover/browser/resizableContentWidget.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import './parameterHints.css';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import * as languages from '../../../common/languages.js';
@@ -32,7 +33,7 @@ const $ = dom.$;
 const parameterHintsNextIcon = registerIcon('parameter-hints-next', Codicon.chevronDown, nls.localize('parameterHintsNextIcon', 'Icon for show next parameter hint.'));
 const parameterHintsPreviousIcon = registerIcon('parameter-hints-previous', Codicon.chevronUp, nls.localize('parameterHintsPreviousIcon', 'Icon for show previous parameter hint.'));
 
-export class ParameterHintsWidget extends Disposable implements IContentWidget {
+export class ParameterHintsWidget extends ResizableContentWidget {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
@@ -51,8 +52,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	private visible: boolean = false;
 	private announcedLabel: string | null = null;
 
-	// Editor.IContentWidget.allowEditorOverflow
-	allowEditorOverflow = true;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -60,10 +59,20 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
-		super();
+		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
+		const minimumWidth = 200;
+		super(editor, new dom.Dimension(minimumWidth, minimumHeight));
+
+		this._resizableNode.domNode.style.zIndex = '50';
+		this._resizableNode.enableSashes(false, true, false, false);
 
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
+	}
+
+	public override dispose(): void {
+		super.dispose();
+		this.editor.removeContentWidget(this);
 	}
 
 	private createParameterHintDOMNodes() {
@@ -106,6 +115,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			scrollbar,
 		};
 
+		// put the element inside the resizable node and register as content widget
+		this._resizableNode.domNode.appendChild(element);
 		this.editor.addContentWidget(this);
 		this.hide();
 
@@ -135,8 +146,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			$ => $.filter(e => e.hasChanged(EditorOption.fontInfo))
 		)(updateFont));
 
-		this._register(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
-		this.updateMaxHeight();
+		this._register(this.editor.onDidLayoutChange(e => this.updateMaxDimensions()));
+		this.updateMaxDimensions();
 	}
 
 	public show(): void {
@@ -150,6 +161,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 		this.keyVisible.set(true);
 		this.visible = true;
+		// set content position for ResizableContentWidget
+		this._contentPosition = {
+			position: this.editor.getPosition(),
+			preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
+		};
 		setTimeout(() => {
 			this.domNodes?.element.classList.add('visible');
 		}, 100);
@@ -167,15 +183,14 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.visible = false;
 		this.announcedLabel = null;
 		this.domNodes?.element.classList.remove('visible');
+		this._contentPosition = null;
+		this._resizableNode.maxSize = new dom.Dimension(Infinity, Infinity);
 		this.editor.layoutContentWidget(this);
 	}
 
-	getPosition(): IContentWidgetPosition | null {
+	override getPosition(): IContentWidgetPosition | null {
 		if (this.visible) {
-			return {
-				position: this.editor.getPosition(),
-				preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
-			};
+			return this._contentPosition;
 		}
 		return null;
 	}
@@ -265,6 +280,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 		this.editor.layoutContentWidget(this);
 		this.domNodes.scrollbar.scanDomNode();
+		this._resize(this._resizableNode.size);
 	}
 
 	private renderMarkdownDocs(markdown: IMarkdownString): IRenderedMarkdown {
@@ -276,6 +292,51 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}));
 		renderedContents.element.classList.add('markdown-docs');
 		return renderedContents;
+	}
+
+	private static _applyDimensions(container: HTMLElement, width: number | string, height: number | string): void {
+		const transformedWidth = typeof width === 'number' ? `${width}px` : width;
+		const transformedHeight = typeof height === 'number' ? `${height}px` : height;
+		container.style.width = transformedWidth;
+		container.style.height = transformedHeight;
+	}
+
+	private _setElementDomNodeDimensions(width: number | string, height: number | string): void {
+		if (!this.domNodes) {
+			return;
+		}
+		const containerDomNode = this.domNodes?.element;
+		return ParameterHintsWidget._applyDimensions(containerDomNode, width, height);
+	}
+
+	private _setScrollableElementDimensions(width: number | string, height: number | string): void {
+		if (!this.domNodes) {
+			return;
+		}
+		const scrollbarDomElement = this.domNodes.scrollbar.getDomNode();
+		return ParameterHintsWidget._applyDimensions(scrollbarDomElement, width, height);
+	}
+
+	private _setParameterHintsWidgetDimensions(width: number | string, height: number | string): void {
+		this._setElementDomNodeDimensions(width, height);
+		this._setScrollableElementDimensions(width, height);
+		this.editor.layoutContentWidget(this);
+	}
+
+	protected override _resize(size: dom.Dimension): void {
+		if (!this.domNodes) {
+			return;
+		}
+
+		this.updateMaxDimensions();
+		size = new dom.Dimension(
+			Math.max(size.width, this._resizableNode.minSize.width),
+			Math.max(dom.getTotalHeight(this.domNodes.signature) + dom.getTotalHeight(this.domNodes.docs), this._resizableNode.minSize.height)
+		);
+		this._setParameterHintsWidgetDimensions(size.width, size.height);
+		this._resizableNode.layout(size.height, size.width);
+		this.domNodes.scrollbar.scanDomNode();
+		this.editor.layoutContentWidget(this);
 	}
 
 	private hasDocs(signature: languages.SignatureInformation, activeParameter: languages.ParameterInformation | undefined): boolean {
@@ -338,29 +399,49 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.model.previous();
 	}
 
-	getDomNode(): HTMLElement {
+	override getDomNode(): HTMLElement {
 		if (!this.domNodes) {
 			this.createParameterHintDOMNodes();
 		}
-		return this.domNodes!.element;
+		return super.getDomNode();
 	}
 
 	getId(): string {
 		return ParameterHintsWidget.ID;
 	}
 
-	private updateMaxHeight(): void {
+	private static _applyMaxDimensions(container: HTMLElement, width: number | string, height: number | string) {
+		const transformedWidth = typeof width === 'number' ? `${width}px` : width;
+		const transformedHeight = typeof height === 'number' ? `${height}px` : height;
+		container.style.maxWidth = transformedWidth;
+		container.style.maxHeight = transformedHeight;
+	}
+
+	private updateMaxDimensions(): void {
 		if (!this.domNodes) {
 			return;
 		}
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
-		const maxHeight = `${height}px`;
-		this.domNodes.element.style.maxHeight = maxHeight;
+		const width = Math.max(this.editor.getLayoutInfo().width * 0.66, 750);
+
+		ParameterHintsWidget._applyMaxDimensions(this.domNodes.element, width, height);
+
 		// eslint-disable-next-line no-restricted-syntax
 		const wrapper = this.domNodes.element.getElementsByClassName('phwrapper') as HTMLCollectionOf<HTMLElement>;
 		if (wrapper.length) {
-			wrapper[0].style.maxHeight = maxHeight;
+			ParameterHintsWidget._applyMaxDimensions(wrapper[0], width, height);
 		}
+
+		ParameterHintsWidget._applyMaxDimensions(this.domNodes.scrollbar.getDomNode(), width, height);
+
+		const signatureHeightRatio = dom.getTotalHeight(this.domNodes.signature) / (dom.getTotalHeight(this.domNodes.scrollbar.getDomNode()));
+		const docsHeightRatio = 1 - signatureHeightRatio;
+
+		ParameterHintsWidget._applyMaxDimensions(this.domNodes.signature, width, height * signatureHeightRatio);
+		ParameterHintsWidget._applyMaxDimensions(this.domNodes.docs, width, height * docsHeightRatio);
+
+		// constrain vertical resizing
+		this._resizableNode.maxSize = new dom.Dimension(width, height);
 	}
 }
 
