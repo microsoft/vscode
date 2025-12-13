@@ -10,57 +10,9 @@ import * as net from 'net';
  * is openable. Will return 0 in case no free port can be found.
  */
 export function findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
-	let done = false;
-
-	return new Promise(resolve => {
-		const timeoutHandle = setTimeout(() => {
-			if (!done) {
-				done = true;
-				return resolve(0);
-			}
-		}, timeout);
-
-		doFindFreePort(startPort, giveUpAfter, stride, (port) => {
-			if (!done) {
-				done = true;
-				clearTimeout(timeoutHandle);
-				return resolve(port);
-			}
-		});
-	});
-}
-
-function doFindFreePort(startPort: number, giveUpAfter: number, stride: number, clb: (port: number) => void): void {
-	if (giveUpAfter === 0) {
-		return clb(0);
-	}
-
-	const client = new net.Socket();
-
-	// If we can connect to the port it means the port is already taken so we continue searching
-	client.once('connect', () => {
-		dispose(client);
-
-		return doFindFreePort(startPort + stride, giveUpAfter - 1, stride, clb);
-	});
-
-	client.once('data', () => {
-		// this listener is required since node.js 8.x
-	});
-
-	client.once('error', (err: Error & { code?: string }) => {
-		dispose(client);
-
-		// If we receive any non ECONNREFUSED error, it means the port is used but we cannot connect
-		if (err.code !== 'ECONNREFUSED') {
-			return doFindFreePort(startPort + stride, giveUpAfter - 1, stride, clb);
-		}
-
-		// Otherwise it means the port is free to use!
-		return clb(startPort);
-	});
-
-	client.connect(startPort, '127.0.0.1');
+	// Prefer the "listen" based approach because on some systems connecting to a closed port
+	// can hang (instead of erroring with ECONNREFUSED), which breaks the connect-based algorithm.
+	return findFreePortFaster(startPort, giveUpAfter, timeout, '127.0.0.1', stride);
 }
 
 // Reference: https://chromium.googlesource.com/chromium/src.git/+/refs/heads/main/net/base/port_util.cc#56
@@ -158,7 +110,7 @@ interface ServerError {
 /**
  * Uses listen instead of connect. Is faster, but if there is another listener on 0.0.0.0 then this will take 127.0.0.1 from that listener.
  */
-export function findFreePortFaster(startPort: number, giveUpAfter: number, timeout: number, hostname: string = '127.0.0.1'): Promise<number> {
+export function findFreePortFaster(startPort: number, giveUpAfter: number, timeout: number, hostname: string = '127.0.0.1', stride = 1): Promise<number> {
 	let resolved: boolean = false;
 	let timeoutHandle: Timeout | undefined = undefined;
 	let countTried: number = 1;
@@ -184,7 +136,7 @@ export function findFreePortFaster(startPort: number, giveUpAfter: number, timeo
 		});
 		server.on('error', (err: ServerError) => {
 			if (err && (err.code === 'EADDRINUSE' || err.code === 'EACCES') && (countTried < giveUpAfter)) {
-				startPort++;
+				startPort += stride;
 				countTried++;
 				server.listen(startPort, hostname);
 			} else {
@@ -196,16 +148,4 @@ export function findFreePortFaster(startPort: number, giveUpAfter: number, timeo
 		});
 		server.listen(startPort, hostname);
 	});
-}
-
-function dispose(socket: net.Socket): void {
-	try {
-		socket.removeAllListeners('connect');
-		socket.removeAllListeners('error');
-		socket.end();
-		socket.destroy();
-		socket.unref();
-	} catch (error) {
-		console.error(error); // otherwise this error would get lost in the callback chain
-	}
 }

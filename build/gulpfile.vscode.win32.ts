@@ -10,17 +10,18 @@ import * as path from 'path';
 import rcedit from 'rcedit';
 import vfs from 'vinyl-fs';
 import pkg from '../package.json' with { type: 'json' };
-import product from '../product.json' with { type: 'json' };
 import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/task.ts';
 import * as util from './lib/util.ts';
+import { getBuildName, getProductConfiguration } from './lib/productConfig.ts';
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
 const repoPath = path.dirname(import.meta.dirname);
+const product = getProductConfiguration(repoPath);
 const commit = getVersion(repoPath);
-const buildPath = (arch: string) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
+const buildPath = (arch: string) => path.join(path.dirname(repoPath), `${getBuildName()}-win32-${arch}`);
 const setupDir = (arch: string, target: string) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
 const signWin32Path = path.join(repoPath, 'build', 'azure-pipelines', 'common', 'sign-win32.ts');

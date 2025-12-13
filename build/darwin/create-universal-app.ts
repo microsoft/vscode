@@ -7,6 +7,7 @@ import path from 'path';
 import fs from 'fs';
 import minimatch from 'minimatch';
 import { makeUniversalApp } from 'vscode-universal-bundler';
+import { getBuildName, getProductConfiguration } from '../lib/productConfig.ts';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 
@@ -17,12 +18,13 @@ async function main(buildDir?: string) {
 		throw new Error('Build dir not provided');
 	}
 
-	const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+	const buildName = getBuildName();
+	const product = getProductConfiguration(root);
 	const appName = product.nameLong + '.app';
-	const x64AppPath = path.join(buildDir, 'VSCode-darwin-x64', appName);
-	const arm64AppPath = path.join(buildDir, 'VSCode-darwin-arm64', appName);
+	const x64AppPath = path.join(buildDir, `${buildName}-darwin-x64`, appName);
+	const arm64AppPath = path.join(buildDir, `${buildName}-darwin-arm64`, appName);
 	const asarRelativePath = path.join('Contents', 'Resources', 'app', 'node_modules.asar');
-	const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
+	const outAppPath = path.join(buildDir, `${buildName}-darwin-${arch}`, appName);
 	const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
 
 	const filesToSkip = [

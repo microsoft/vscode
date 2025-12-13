@@ -7,10 +7,12 @@ import fs from 'fs';
 import path from 'path';
 import { sign, type SignOptions } from '@electron/osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
+import { getBuildName, getProductConfiguration } from '../lib/productConfig.ts';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 const baseDir = path.dirname(import.meta.dirname);
-const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+const product = getProductConfiguration(root);
+const buildName = getBuildName();
 const helperAppBaseName = product.nameShort;
 const gpuHelperAppName = helperAppBaseName + ' Helper (GPU).app';
 const rendererHelperAppName = helperAppBaseName + ' Helper (Renderer).app';
@@ -75,7 +77,7 @@ async function main(buildDir?: string): Promise<void> {
 		throw new Error('$AGENT_TEMPDIRECTORY not set');
 	}
 
-	const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
+	const appRoot = path.join(buildDir, `${buildName}-darwin-${arch}`);
 	const appName = product.nameLong + '.app';
 	const infoPlistPath = path.resolve(appRoot, appName, 'Contents', 'Info.plist');
 
@@ -96,25 +98,26 @@ async function main(buildDir?: string): Promise<void> {
 	// Only overwrite plist entries for x64 and arm64 builds,
 	// universal will get its copy from the x64 build.
 	if (arch !== 'universal') {
+		const usagePrefix = `An application in ${product.nameLong} wants to use`;
 		await spawn('plutil', [
 			'-insert',
 			'NSAppleEventsUsageDescription',
 			'-string',
-			'An application in Visual Studio Code wants to use AppleScript.',
+			`${usagePrefix} AppleScript.`,
 			`${infoPlistPath}`
 		]);
 		await spawn('plutil', [
 			'-replace',
 			'NSMicrophoneUsageDescription',
 			'-string',
-			'An application in Visual Studio Code wants to use the Microphone.',
+			`${usagePrefix} the Microphone.`,
 			`${infoPlistPath}`
 		]);
 		await spawn('plutil', [
 			'-replace',
 			'NSCameraUsageDescription',
 			'-string',
-			'An application in Visual Studio Code wants to use the Camera.',
+			`${usagePrefix} the Camera.`,
 			`${infoPlistPath}`
 		]);
 	}

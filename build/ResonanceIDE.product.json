@@ -1,0 +1,26 @@
+{
+	"nameShort": "ResonanceIDE",
+	"nameLong": "ResonanceIDE",
+	"applicationName": "resonance-ide",
+	"dataFolderName": ".resonance-ide",
+	"win32MutexName": "resonanceide",
+	"serverApplicationName": "resonance-ide-server",
+	"serverDataFolderName": ".resonance-ide-server",
+	"tunnelApplicationName": "resonance-ide-tunnel",
+	"win32DirName": "ResonanceIDE",
+	"win32NameVersion": "ResonanceIDE",
+	"win32RegValueName": "ResonanceIDE",
+	"win32AppUserModelId": "ResonanceIDE",
+	"win32ShellNameShort": "ResonanceIDE",
+	"win32TunnelServiceMutex": "resonanceide-tunnelservice",
+	"win32TunnelMutex": "resonanceide-tunnel",
+	"darwinBundleIdentifier": "com.resonanceide.resonanceide",
+	"linuxIconName": "resonance-ide",
+	"urlProtocol": "resonance-ide",
+	"quality": "stable",
+	"extensionsGallery": {
+		"serviceUrl": "https://open-vsx.org/vscode/gallery",
+		"itemUrl": "https://open-vsx.org/vscode/item"
+	}
+}
+
