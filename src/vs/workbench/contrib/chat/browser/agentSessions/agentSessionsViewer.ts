@@ -477,6 +477,12 @@ export interface IAgentSessionsFilter {
 	readonly groupResults?: () => boolean | undefined;
 
 	/**
+	 * A callback to notify the filter about the label of the
+	 * first section when grouping is enabled.
+	 */
+	notifyFirstGroupLabel?(label: string | undefined): void;
+
+	/**
 	 * A callback to notify the filter about the number of
 	 * results after filtering.
 	 */
@@ -604,6 +610,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		];
 
 		let isFirstSection = true;
+		let firstSectionLabel: string | undefined;
 		for (const { sessions, section, label } of orderedSections) {
 			if (sessions.length === 0) {
 				continue;
@@ -613,6 +620,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 			if (isFirstSection) {
 				result.push(...sessions);
 				isFirstSection = false;
+				firstSectionLabel = label;
 			}
 
 			// Subsequent sections: add as parent nodes with children
@@ -620,6 +628,9 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 				result.push({ section, label, sessions });
 			}
 		}
+
+		// Notify the first section label
+		this.filter?.notifyFirstGroupLabel?.(firstSectionLabel);
 
 		return result;
 	}
