@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { openSession } from './agentSessionsActions.js';
-import { IAgentSession } from './agentSessionsModel.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IChatService } from '../../common/chatService.js';
+import { openSession } from './agentSessionsOpener.js';
+import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsSorter } from './agentSessionsViewer.js';
 
@@ -19,17 +21,31 @@ interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
 }
 
+const archiveButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.archive),
+	tooltip: localize('archiveSession', "Archive")
+};
+
+const unarchiveButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.inbox),
+	tooltip: localize('unarchiveSession', "Unarchive")
+};
+
+const renameButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.edit),
+	tooltip: localize('renameSession', "Rename")
+};
+
 export class AgentSessionsPicker {
 
-	private readonly sorter: AgentSessionsSorter;
+	private readonly sorter = new AgentSessionsSorter();
 
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) {
-		this.sorter = this.instantiationService.createInstance(AgentSessionsSorter);
-	}
+		@IChatService private readonly chatService: IChatService,
+	) { }
 
 	async pickAgentSession(): Promise<void> {
 		const disposables = new DisposableStore();
@@ -54,6 +70,22 @@ export class AgentSessionsPicker {
 			if (!e.inBackground) {
 				picker.hide();
 			}
+		}));
+
+		disposables.add(picker.onDidTriggerItemButton(async e => {
+			const session = e.item.session;
+
+			if (e.button === renameButton) {
+				const title = await this.quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
+				if (title) {
+					this.chatService.setChatSessionTitle(session.resource, title);
+				}
+			} else {
+				const newArchivedState = !session.isArchived();
+				session.setArchived(newArchivedState);
+			}
+
+			picker.items = this.createPickerItems();
 		}));
 
 		disposables.add(picker.onDidHide(() => disposables.dispose()));
@@ -119,7 +151,14 @@ export class AgentSessionsPicker {
 	private toPickItem(session: IAgentSession): ISessionPickItem {
 		const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
 		const timeAgo = fromNow(session.timing.endTime || session.timing.startTime);
-		const description = descriptionText ? `${descriptionText} • ${timeAgo}` : timeAgo;
+		const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
+		const description = descriptionParts.join(' • ');
+
+		const buttons: IQuickInputButton[] = [];
+		if (isLocalAgentSessionItem(session)) {
+			buttons.push(renameButton);
+		}
+		buttons.push(session.isArchived() ? unarchiveButton : archiveButton);
 
 		return {
 			id: session.resource.toString(),
@@ -127,6 +166,7 @@ export class AgentSessionsPicker {
 			tooltip: session.tooltip,
 			description,
 			iconClass: ThemeIcon.asClassName(session.icon),
+			buttons,
 			session
 		};
 	}

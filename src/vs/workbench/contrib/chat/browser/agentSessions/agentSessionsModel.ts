@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ChatSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, localChatSessionType } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -47,6 +47,7 @@ interface IAgentSessionData {
 
 	readonly label: string;
 	readonly description?: string | IMarkdownString;
+	readonly badge?: string | IMarkdownString;
 	readonly icon: ThemeIcon;
 
 	readonly timing: {
@@ -302,14 +303,14 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				if (!state) {
 					this.mapSessionToState.set(session.resource, {
 						status,
-						inProgressTime: this.chatSessionsService.isChatSessionInProgressStatus(status) ? Date.now() : undefined, // this is not accurate but best effort
+						inProgressTime: isSessionInProgressStatus(status) ? Date.now() : undefined, // this is not accurate but best effort
 					});
 				}
 
 				// State changed, update it
 				else if (status !== state.status) {
-					inProgressTime = this.chatSessionsService.isChatSessionInProgressStatus(status) ? Date.now() : state.inProgressTime;
-					finishedOrFailedTime = !this.chatSessionsService.isChatSessionInProgressStatus(status) ? Date.now() : state.finishedOrFailedTime;
+					inProgressTime = isSessionInProgressStatus(status) ? Date.now() : state.inProgressTime;
+					finishedOrFailedTime = !isSessionInProgressStatus(status) ? Date.now() : state.finishedOrFailedTime;
 
 					this.mapSessionToState.set(session.resource, {
 						status,
@@ -346,6 +347,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					label: session.label,
 					description: session.description,
 					icon,
+					badge: session.badge,
 					tooltip: session.tooltip,
 					status,
 					archived: session.archived,
