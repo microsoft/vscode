@@ -12,7 +12,7 @@
 .monaco-progress-container .progress-bit {
 	width: 2%;
 	height: 2px;
-	position: absolute;
+	position: relative;
 	left: 0;
 	display: none;
 }
