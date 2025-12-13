@@ -239,24 +239,30 @@ suite('AgentSessionsDataSource', () => {
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
 
-			// Verify order
-			const resultLabels = result.map(item => {
-				if (isAgentSessionSection(item)) {
-					return `[${item.section}]`;
-				}
-				return item.label;
-			});
+			// Verify order: first section (active) is flat, subsequent sections are parent nodes with children
+			// Active session is flat (first section)
+			assert.ok(!isAgentSessionSection(result[0]));
+			assert.strictEqual((result[0] as IAgentSession).label, 'Session active');
 
-			// Active first, then Today header, then today sessions, then Week header, week sessions, Older header, old sessions, Archived header, archived sessions
-			assert.strictEqual(resultLabels[0], 'Session active');
-			assert.strictEqual(resultLabels[1], '[today]');
-			assert.strictEqual(resultLabels[2], 'Session today');
-			assert.strictEqual(resultLabels[3], '[week]');
-			assert.strictEqual(resultLabels[4], 'Session week');
-			assert.strictEqual(resultLabels[5], '[older]');
-			assert.strictEqual(resultLabels[6], 'Session old');
-			assert.strictEqual(resultLabels[7], '[archived]');
-			assert.strictEqual(resultLabels[8], 'Session archived');
+			// Today section as parent node
+			assert.ok(isAgentSessionSection(result[1]));
+			assert.strictEqual((result[1] as IAgentSessionSection).section, AgentSessionSection.Today);
+			assert.strictEqual((result[1] as IAgentSessionSection).sessions[0].label, 'Session today');
+
+			// Week section as parent node
+			assert.ok(isAgentSessionSection(result[2]));
+			assert.strictEqual((result[2] as IAgentSessionSection).section, AgentSessionSection.Week);
+			assert.strictEqual((result[2] as IAgentSessionSection).sessions[0].label, 'Session week');
+
+			// Older section as parent node
+			assert.ok(isAgentSessionSection(result[3]));
+			assert.strictEqual((result[3] as IAgentSessionSection).section, AgentSessionSection.Older);
+			assert.strictEqual((result[3] as IAgentSessionSection).sessions[0].label, 'Session old');
+
+			// Archived section as parent node
+			assert.ok(isAgentSessionSection(result[4]));
+			assert.strictEqual((result[4] as IAgentSessionSection).section, AgentSessionSection.Archived);
+			assert.strictEqual((result[4] as IAgentSessionSection).sessions[0].label, 'Session archived');
 		});
 
 		test('empty sessions returns empty result', () => {
@@ -305,17 +311,18 @@ suite('AgentSessionsDataSource', () => {
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
-			const allSessions = getSessionsFromResult(result);
 
-			// Week sessions should be sorted most recent first
-			const weekSessions = allSessions.filter(s => s.label.includes('week'));
+			// First section (week) is flat, second section (older) is a parent node
+			// Week sessions are flat (first section) and should be sorted most recent first
+			const weekSessions = result.filter((item): item is IAgentSession => !isAgentSessionSection(item));
 			assert.strictEqual(weekSessions[0].label, 'Session week2');
 			assert.strictEqual(weekSessions[1].label, 'Session week1');
 
-			// Old sessions should also be sorted most recent first
-			const oldSessions = allSessions.filter(s => s.label.includes('old'));
-			assert.strictEqual(oldSessions[0].label, 'Session old2');
-			assert.strictEqual(oldSessions[1].label, 'Session old1');
+			// Old sessions are in the Older section parent node
+			const olderSection = result.find((item): item is IAgentSessionSection => isAgentSessionSection(item) && item.section === AgentSessionSection.Older);
+			assert.ok(olderSection);
+			assert.strictEqual(olderSection.sessions[0].label, 'Session old2');
+			assert.strictEqual(olderSection.sessions[1].label, 'Session old1');
 		});
 	});
 });

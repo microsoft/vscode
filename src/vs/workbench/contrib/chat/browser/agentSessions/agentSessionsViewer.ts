@@ -498,38 +498,63 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 	) { }
 
 	hasChildren(element: IAgentSessionsModel | AgentSessionListItem): boolean {
-		return isAgentSessionsModel(element);
+
+		// Sessions model
+		if (isAgentSessionsModel(element)) {
+			return true;
+		}
+
+		// Sessions	section
+		else if (isAgentSessionSection(element)) {
+			return element.sessions.length > 0;
+		}
+
+		// Session element
+		else {
+			return false;
+		}
 	}
 
 	getChildren(element: IAgentSessionsModel | AgentSessionListItem): Iterable<AgentSessionListItem> {
-		if (!isAgentSessionsModel(element)) {
+
+		// Sessions model
+		if (isAgentSessionsModel(element)) {
+
+			// Apply filter if configured
+			let filteredSessions = element.sessions.filter(session => !this.filter?.exclude(session));
+
+			// Apply sorter unless we group into sections or we are to limit results
+			const limitResultsCount = this.filter?.limitResults?.();
+			if (!this.filter?.groupResults?.() || typeof limitResultsCount === 'number') {
+				filteredSessions.sort(this.sorter.compare.bind(this.sorter));
+			}
+
+			// Apply limiter if configured (requires sorting)
+			if (typeof limitResultsCount === 'number') {
+				filteredSessions = filteredSessions.slice(0, limitResultsCount);
+			}
+
+			// Callback results count
+			this.filter?.notifyResults?.(filteredSessions.length);
+
+			// Group sessions into sections if enabled
+			if (this.filter?.groupResults?.()) {
+				return this.groupSessionsIntoSections(filteredSessions);
+			}
+
+			// Otherwise return flat sorted list
+			return filteredSessions;
+		}
+
+		// Sessions	section
+		else if (isAgentSessionSection(element)) {
+			return element.sessions;
+		}
+
+		// Session element
+		else {
 			return [];
 		}
-
-		// Apply filter if configured
-		let filteredSessions = element.sessions.filter(session => !this.filter?.exclude(session));
-
-		// Apply sorter unless we group into sections or we are to limit results
-		const limitResultsCount = this.filter?.limitResults?.();
-		if (!this.filter?.groupResults?.() || typeof limitResultsCount === 'number') {
-			filteredSessions.sort(this.sorter.compare.bind(this.sorter));
-		}
-
-		// Apply limiter if configured (requires sorting)
-		if (typeof limitResultsCount === 'number') {
-			filteredSessions = filteredSessions.slice(0, limitResultsCount);
-		}
-
-		// Callback results count
-		this.filter?.notifyResults?.(filteredSessions.length);
-
-		// Group sessions into sections if enabled
-		if (this.filter?.groupResults?.()) {
-			return this.groupSessionsIntoSections(filteredSessions);
-		}
-
-		// Otherwise return flat sorted list
-		return filteredSessions;
 	}
 
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
@@ -569,51 +594,31 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		olderSessions.sort(this.sorter.compare.bind(this.sorter));
 		archivedSessions.sort(this.sorter.compare.bind(this.sorter));
 
-		// Active Sessions
-		result.push(...activeSessions);
+		// Determine the first non-empty section to render without a parent node
+		const orderedSections = [
+			{ sessions: activeSessions, section: AgentSessionSection.Active, label: localize('agentSessions.activeSection', "Active") },
+			{ sessions: todaySessions, section: AgentSessionSection.Today, label: localize('agentSessions.todaySection', "Today") },
+			{ sessions: weekSessions, section: AgentSessionSection.Week, label: localize('agentSessions.weekSection', "Week") },
+			{ sessions: olderSessions, section: AgentSessionSection.Older, label: localize('agentSessions.olderSection', "Older") },
+			{ sessions: archivedSessions, section: AgentSessionSection.Archived, label: localize('agentSessions.archivedSection', "Archived") },
+		];
 
-		// Today Sessions
-		if (todaySessions.length > 0) {
-			if (result.length > 0) {
-				result.push({
-					section: AgentSessionSection.Today,
-					label: localize('agentSessions.todaySection', "Today")
-				});
+		let isFirstSection = true;
+		for (const { sessions, section, label } of orderedSections) {
+			if (sessions.length === 0) {
+				continue;
 			}
-			result.push(...todaySessions);
-		}
 
-		// This Week Sessions
-		if (weekSessions.length > 0) {
-			if (result.length > 0) {
-				result.push({
-					section: AgentSessionSection.Week,
-					label: localize('agentSessions.weekSection', "Week")
-				});
+			// First section: add sessions directly without a parent node
+			if (isFirstSection) {
+				result.push(...sessions);
+				isFirstSection = false;
 			}
-			result.push(...weekSessions);
-		}
 
-		// Older Sessions
-		if (olderSessions.length > 0) {
-			if (result.length > 0) {
-				result.push({
-					section: AgentSessionSection.Older,
-					label: localize('agentSessions.olderSection', "Older")
-				});
+			// Subsequent sections: add as parent nodes with children
+			else {
+				result.push({ section, label, sessions });
 			}
-			result.push(...olderSessions);
-		}
-
-		// Archived Sessions
-		if (archivedSessions.length > 0) {
-			if (result.length > 0) {
-				result.push({
-					section: AgentSessionSection.Archived,
-					label: localize('agentSessions.archivedSection', "Archived")
-				});
-			}
-			result.push(...archivedSessions);
 		}
 
 		return result;
