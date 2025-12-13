@@ -5423,7 +5423,23 @@ export class CommandCenter {
 						options.modal = false;
 						break;
 					default: {
-						const hint = (err.stderr || err.message || String(err))
+						const stderrText = err.stderr || err.message || String(err);
+
+						// Check if stderr contains only informational SSH warnings
+						const sshKnownHostsWarning = /warning: permanently added ['"].*['"] to the list of known hosts/i;
+						const isOnlySSHWarning = sshKnownHostsWarning.test(stderrText) &&
+							!stderrText.toLowerCase().includes('error') &&
+							!stderrText.toLowerCase().includes('fatal');
+
+						if (isOnlySSHWarning) {
+							// This is just an informational SSH message, treat as information
+							type = 'information';
+							options.modal = false;
+							message = l10n.t('SSH: {0}', stderrText.trim());
+							break;
+						}
+
+						const hint = stderrText
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
