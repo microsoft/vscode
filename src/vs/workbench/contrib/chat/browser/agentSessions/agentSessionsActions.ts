@@ -223,7 +223,7 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 
 abstract class BaseAgentSessionAction extends Action2 {
 
-	run(accessor: ServicesAccessor, context: IAgentSession | IMarshalledChatSessionContext): void {
+	run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledChatSessionContext): void {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const viewsService = accessor.get(IViewsService);
 
