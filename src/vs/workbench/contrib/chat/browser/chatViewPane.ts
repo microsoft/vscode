@@ -123,6 +123,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsViewerLimitedContext = ChatContextKeys.agentSessionsViewerLimited.bindTo(contextKeyService);
 		this.sessionsViewerOrientationContext = ChatContextKeys.agentSessionsViewerOrientation.bindTo(contextKeyService);
 		this.sessionsViewerPositionContext = ChatContextKeys.agentSessionsViewerPosition.bindTo(contextKeyService);
+		this.sessionsViewerVisibilityContext = ChatContextKeys.agentSessionsViewerVisible.bindTo(contextKeyService);
 
 		this.updateContextKeys(false);
 
@@ -280,6 +281,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsViewerOrientationConfiguration: 'auto' | 'stacked' | 'sideBySide' = 'auto';
 	private sessionsViewerOrientationContext: IContextKey<AgentSessionsViewerOrientation>;
 	private sessionsViewerLimitedContext: IContextKey<boolean>;
+	private sessionsViewerVisibilityContext: IContextKey<boolean>;
 	private sessionsViewerPosition = AgentSessionsViewerPosition.Right;
 	private sessionsViewerPositionContext: IContextKey<AgentSessionsViewerPosition>;
 
@@ -458,6 +460,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
 		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
+		this.sessionsViewerVisibilityContext.set(newSessionsContainerVisible);
 
 		return {
 			changed: sessionsContainerVisible !== newSessionsContainerVisible,
