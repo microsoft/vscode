@@ -92,7 +92,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				this.instantiationService.createInstance(AgentSessionRenderer, this.options),
 				new AgentSessionSectionRenderer(),
 			],
-			new AgentSessionsDataSource(this.options?.filter, sorter),
+			new AgentSessionsDataSource(this.options.filter, sorter),
 			{
 				accessibilityProvider: new AgentSessionsAccessibilityProvider(),
 				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
@@ -102,7 +102,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
-				overrideStyles: this.options?.overrideStyles,
+				overrideStyles: this.options.overrideStyles,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
@@ -112,7 +112,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const model = this.agentSessionsService.model;
 
 		this._register(Event.any(
-			this.options?.filter?.onDidChange ?? Event.None,
+			this.options.filter?.onDidChange ?? Event.None,
 			model.onDidChangeSessions
 		)(() => {
 			if (this.visible) {

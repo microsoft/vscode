@@ -362,7 +362,6 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 interface IAgentSessionSectionTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLSpanElement;
-	readonly disposables: IDisposable;
 }
 
 export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IAgentSessionSection, FuzzyScore, IAgentSessionSectionTemplate> {
@@ -372,8 +371,6 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 	readonly templateId = AgentSessionSectionRenderer.TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): IAgentSessionSectionTemplate {
-		const disposables = new DisposableStore();
-
 		const elements = h(
 			'div.agent-session-section@container',
 			[
@@ -386,7 +383,6 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 		return {
 			container: elements.container,
 			label: elements.label,
-			disposables
 		};
 	}
 
@@ -403,7 +399,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 	}
 
 	disposeTemplate(templateData: IAgentSessionSectionTemplate): void {
-		templateData.disposables.dispose();
+		// noop
 	}
 }
 
@@ -513,10 +509,14 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		// Apply filter if configured
 		let filteredSessions = element.sessions.filter(session => !this.filter?.exclude(session));
 
-		// Apply limiter if configured (requires sorting)
+		// Apply sorter unless we group into sections or we are to limit results
 		const limitResultsCount = this.filter?.limitResults?.();
-		if (typeof limitResultsCount === 'number') {
+		if (!this.filter?.groupResults?.() || typeof limitResultsCount === 'number') {
 			filteredSessions.sort(this.sorter.compare.bind(this.sorter));
+		}
+
+		// Apply limiter if configured (requires sorting)
+		if (typeof limitResultsCount === 'number') {
 			filteredSessions = filteredSessions.slice(0, limitResultsCount);
 		}
 
@@ -529,7 +529,6 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		}
 
 		// Otherwise return flat sorted list
-		filteredSessions.sort(this.sorter.compare.bind(this.sorter));
 		return filteredSessions;
 	}
 
