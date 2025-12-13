@@ -463,7 +463,11 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 
 export interface IAgentSessionsFilter {
 
-	readonly onDidChange?: Event<void>;
+	/**
+	 * An event that fires when the filter changes and sessions
+	 * should be re-evaluated.
+	 */
+	readonly onDidChange: Event<void>;
 
 	/**
 	 * Optional limit on the number of sessions to show.
