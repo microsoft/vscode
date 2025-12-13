@@ -1201,6 +1201,18 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.revealRepositoryInExplorer', { repository: true })
+	async revealRepositoryInExplorer(repository: Repository): Promise<void> {
+		await commands.executeCommand('revealInExplorer', Uri.file(repository.root));
+	}
+
+	@command('git.revealRepositoryInOS.linux', { repository: true })
+	@command('git.revealRepositoryInOS.mac', { repository: true })
+	@command('git.revealRepositoryInOS.windows', { repository: true })
+	async revealRepositoryInOS(repository: Repository): Promise<void> {
+		await commands.executeCommand('revealFileInOS', Uri.file(repository.root));
+	}
+
 	@command('git.openFile')
 	async openFile(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		const preserveFocus = arg instanceof Resource;
