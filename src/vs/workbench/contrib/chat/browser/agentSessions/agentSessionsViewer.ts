@@ -482,7 +482,10 @@ export interface IAgentSessionsFilter {
 	 */
 	notifyResults?(count: number): void;
 
-	exclude?(session: IAgentSession): boolean;
+	/**
+	 * The logic to exclude sessions from the view.
+	 */
+	exclude(session: IAgentSession): boolean;
 }
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
@@ -504,7 +507,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		}
 
 		// Apply filter if configured
-		let filteredSessions = element.sessions.filter(session => !this.filter?.exclude?.(session));
+		let filteredSessions = element.sessions.filter(session => !this.filter?.exclude(session));
 
 		// Apply limiter if configured (requires sorting)
 		const limitResultsCount = this.filter?.limitResults?.();
