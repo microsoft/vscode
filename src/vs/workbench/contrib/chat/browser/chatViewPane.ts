@@ -468,6 +468,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Chat Control
 
+	private static readonly MIN_CHAT_WIDGET_HEIGHT = 120;
+
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
 
@@ -774,7 +776,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		// Ensure visibility is in sync before we layout
-		this.updateSessionsControlVisibility();
+		const { visible: sessionsContainerVisible } = this.updateSessionsControlVisibility();
+		if (!sessionsContainerVisible) {
+			return { heightReduction: 0, widthReduction: 0 };
+		}
 
 		const availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
 
@@ -797,7 +802,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				sessionsHeight = (ChatViewPane.SESSIONS_LIMIT + 2 /* expand a bit to indicate more items */) * AgentSessionsListDelegate.ITEM_HEIGHT;
 			}
 
-			sessionsHeight = Math.min(availableSessionsHeight, sessionsHeight);
+			sessionsHeight = Math.min(availableSessionsHeight - ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, sessionsHeight);
 
 			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = ``;
