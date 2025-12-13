@@ -993,6 +993,7 @@
 		"--comment-thread-editor-font-family",
 		"--comment-thread-editor-font-weight",
 		"--comment-thread-state-color",
-		"--comment-thread-state-background-color"
+		"--comment-thread-state-background-color",
+		"--inline-edit-border-radius"
 	]
 }

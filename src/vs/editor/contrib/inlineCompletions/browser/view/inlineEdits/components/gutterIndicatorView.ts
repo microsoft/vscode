@@ -24,7 +24,7 @@ import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorSuccessfulBackground, inlineEditIndicatorSuccessfulBorder, inlineEditIndicatorSuccessfulForeground } from '../theme.js';
+import { getEditorBlendedColor, INLINE_EDITS_BORDER_RADIUS, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorSuccessfulBackground, inlineEditIndicatorSuccessfulBorder, inlineEditIndicatorSuccessfulForeground } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
 import { assertNever } from '../../../../../../../base/common/assert.js';
@@ -493,7 +493,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			style: {
 				position: 'absolute',
 				background: asCssVariable(inlineEditIndicatorBackground),
-				borderRadius: '4px',
+				borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 				...rectToProps(reader => layout.read(reader).gutterEditArea),
 			}
 		}),
@@ -530,7 +530,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				['--vscodeIconForeground' as any]: this._gutterIndicatorStyles.map(v => v.foreground),
 				border: this._gutterIndicatorStyles.map(v => `1px solid ${v.border}`),
 				boxSizing: 'border-box',
-				borderRadius: '4px',
+				borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 				display: 'flex',
 				justifyContent: layout.map(l => l.iconDirection === 'bottom' ? 'flex-start' : 'flex-end'),
 				transition: this._modifierPressed.map(m => m ? '' : 'background-color 0.2s ease-in-out, width 0.2s ease-in-out'),

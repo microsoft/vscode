@@ -36,7 +36,7 @@ import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDist
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
 import { jumpToNextInlineEditId } from '../../../../controller/commandIds.js';
 
-const BORDER_RADIUS = 4;
+const BORDER_RADIUS = 6;
 const MAX_WIDGET_WIDTH = { EMPTY_SPACE: 425, OVERLAY: 375 };
 const MIN_WIDGET_WIDTH = 250;
 

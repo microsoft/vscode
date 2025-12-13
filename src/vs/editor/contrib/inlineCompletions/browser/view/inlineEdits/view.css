@@ -8,6 +8,8 @@
 */
 
 .monaco-editor {
+	--inline-edit-border-radius: 3px;
+
 	.inline-edits-view-indicator {
 		display: flex;
 
@@ -17,7 +19,7 @@
 		color: var(--vscode-inlineEdit-gutterIndicator-primaryForeground);
 		background-color: var(--vscode-inlineEdit-gutterIndicator-background);
 		border: 1px solid var(--vscode-inlineEdit-gutterIndicator-primaryBorder);
-		border-radius: 3px;
+		border-radius: var(--inline-edit-border-radius);
 
 		align-items: center;
 		padding: 2px;
@@ -132,13 +134,13 @@
 		border-bottom: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 	.inlineCompletions-char-insert.single-line-inline.start {
-		border-top-left-radius: 4px;
-		border-bottom-left-radius: 4px;
+		border-top-left-radius: var(--inline-edit-border-radius);
+		border-bottom-left-radius: var(--inline-edit-border-radius);
 		border-left: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 	.inlineCompletions-char-insert.single-line-inline.end {
-		border-top-right-radius: 4px;
-		border-bottom-right-radius: 4px;
+		border-top-right-radius: var(--inline-edit-border-radius);
+		border-bottom-right-radius: var(--inline-edit-border-radius);
 		border-right: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 

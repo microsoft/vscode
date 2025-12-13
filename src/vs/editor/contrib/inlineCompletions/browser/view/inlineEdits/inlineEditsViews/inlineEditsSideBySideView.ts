@@ -23,7 +23,7 @@ import { StickyScrollController } from '../../../../../stickyScroll/browser/stic
 import { InlineCompletionContextKeys } from '../../../controller/inlineCompletionContextKeys.js';
 import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
-import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from '../theme.js';
+import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, modifiedBackgroundColor, originalBackgroundColor } from '../theme.js';
 import { PathBuilder, getContentRenderWidth, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, observeEditorBoundingClientRect } from '../utils/utils.js';
 
 const HORIZONTAL_PADDING = 0;
@@ -33,7 +33,7 @@ const ENABLE_OVERFLOW = false;
 const BORDER_WIDTH = 1;
 const WIDGET_SEPARATOR_WIDTH = 1;
 const WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH = 3;
-const BORDER_RADIUS = 4;
+const BORDER_RADIUS = INLINE_EDITS_BORDER_RADIUS;
 const ORIGINAL_END_PADDING = 20;
 const MODIFIED_END_PADDING = 12;
 

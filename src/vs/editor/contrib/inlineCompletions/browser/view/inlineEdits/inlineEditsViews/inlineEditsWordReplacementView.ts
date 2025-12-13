@@ -31,7 +31,7 @@ import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineToke
 import { inlineSuggestCommitAlternativeActionId } from '../../../controller/commandIds.js';
 import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
 import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getModifiedBorderColor, getOriginalBorderColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
+import { getModifiedBorderColor, getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
 import { getEditorValidOverlayRect, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class WordReplacementsViewData implements IEquatable<WordReplacementsViewData> {
@@ -241,7 +241,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								width: undefined,
 								pointerEvents: 'auto',
 								boxSizing: 'border-box',
-								borderRadius: '4px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 
 								background: asCssVariable(editorBackground),
 								display: 'flex',
@@ -258,7 +258,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 									fontSize: this._editor.getOption(EditorOption.fontSize),
 									fontWeight: this._editor.getOption(EditorOption.fontWeight),
 									width: rectToProps(reader => layout.read(reader).codeLine.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH)).width,
-									borderRadius: '4px',
+									borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 									border: primaryActionStyles.map(s => `${BORDER_WIDTH}px solid ${s.borderColor}`),
 									boxSizing: 'border-box',
 									padding: `${BORDER_WIDTH}px`,
@@ -287,7 +287,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 									id: DOM_ID_RENAME,
 									style: {
 										position: 'relative',
-										borderRadius: '4px',
+										borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 										borderTop: `${BORDER_WIDTH}px solid`,
 										borderRight: `${BORDER_WIDTH}px solid`,
 										borderBottom: `${BORDER_WIDTH}px solid`,
@@ -326,7 +326,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).originalLine.withMargin(BORDER_WIDTH)),
 								boxSizing: 'border-box',
-								borderRadius: '4px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 								border: `${BORDER_WIDTH}px solid ${originalBorderColor}`,
 								background: asCssVariable(originalChangedTextOverlayColor),
 								pointerEvents: 'none',
