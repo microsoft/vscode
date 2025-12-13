@@ -33,13 +33,13 @@ import { IFilesConfigurationService } from '../../../services/filesConfiguration
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { WebviewIcons } from '../../webviewPanel/browser/webviewEditorInput.js';
+import { WebviewIconPath } from '../../webviewPanel/browser/webviewEditorInput.js';
 
 interface CustomEditorInputInitInfo {
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly webviewTitle: string | undefined;
-	readonly iconPath: WebviewIcons | undefined;
+	readonly iconPath: WebviewIconPath | undefined;
 }
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
