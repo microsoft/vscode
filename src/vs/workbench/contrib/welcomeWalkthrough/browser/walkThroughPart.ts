@@ -325,6 +325,7 @@ export class WalkThroughPart extends EditorPane {
 					const editor = this.instantiationService.createInstance(CodeEditorWidget, div, options, {
 						telemetryData: telemetryData
 					});
+
 					editor.setModel(model);
 					this.contentDisposables.push(editor);
 
