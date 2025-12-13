@@ -311,7 +311,8 @@ export class PromptFilesLocator {
 			type: QueryType.File,
 			shouldGlobMatchFilePattern: true,
 			excludePattern: getExcludePattern(folder),
-			filePattern: '**/AGENTS.md',
+			// Case-insensitive search for 'AGENTS.md'. Using character classes here for case-insensitivity until IFileQuery supports case-insensitive glob patterns.
+			filePattern: '**/[Aa][Gg][Ee][Nn][Tt][Ss].[Mm][Dd]',
 		};
 
 		try {
