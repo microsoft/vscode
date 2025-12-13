@@ -1180,6 +1180,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor.hasWidgetFocus();
 	}
 
+	focusTodoList(): boolean {
+		return this._chatInputTodoListWidget.value?.focus() ?? false;
+	}
+
+	isTodoListFocused(): boolean {
+		return this._chatInputTodoListWidget.value?.hasFocus() ?? false;
+	}
+
+	hasVisibleTodos(): boolean {
+		return this._chatInputTodoListWidget.value?.hasTodos() ?? false;
+	}
+
 	/**
 	 * Reset the input and update history.
 	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
