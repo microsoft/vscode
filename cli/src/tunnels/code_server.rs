@@ -75,7 +75,7 @@ pub struct CodeServerArgs {
 	pub connection_token_file: Option<String>,
 	pub without_connection_token: bool,
 	// reconnection
-	pub reconnection_grace_time: Option<u32>,
+	pub reconnection_grace_time: Option<i32>,
 }
 
 impl CodeServerArgs {
