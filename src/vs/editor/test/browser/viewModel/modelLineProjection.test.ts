@@ -104,14 +104,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const wrapOnEscapedLineFeeds = config.options.get(EditorOption.wrapOnEscapedLineFeeds);
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
-		const model = createTextModel([
-			'int main() {',
-			'\tprintf("Hello world!");',
-			'}',
-			'int main() {',
-			'\tprintf("Hello world!");',
-			'}',
-		].join('\n'));
+		const model = createTextModel(text);
 
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,

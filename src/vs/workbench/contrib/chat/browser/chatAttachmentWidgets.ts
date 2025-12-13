@@ -357,10 +357,6 @@ function createTerminalCommandElements(
 		hoverElement.append(outputTitle, outputBlock);
 	}
 
-	const hint = dom.$('div', {}, localize('chat.terminalCommandHoverHint', "Click to focus this command in the terminal."));
-	hint.classList.add('attachment-additional-info');
-	hoverElement.appendChild(hint);
-
 	disposable.add(hoverService.setupDelayedHover(element, {
 		...commonHoverOptions,
 		content: hoverElement,
@@ -1131,7 +1127,7 @@ function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService:
 	return resourceContextKey;
 }
 
-function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: any, updateContextKeys?: () => Promise<void>): IDisposable {
+function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: unknown, updateContextKeys?: () => Promise<void>): IDisposable {
 	const contextMenuService = accessor.get(IContextMenuService);
 	const menuService = accessor.get(IMenuService);
 

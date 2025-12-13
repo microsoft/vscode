@@ -5,8 +5,14 @@
 
 import { $ } from '../../../../base/browser/dom.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../base/browser/markdownRenderer.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 
 export const allowedChatMarkdownHtmlTags = Object.freeze([
@@ -56,6 +62,10 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
  */
 export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 	constructor(
+		@ILanguageService languageService: ILanguageService,
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) { }
 
@@ -93,6 +103,26 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 				child.replaceWith($('p', undefined, child.textContent));
 			}
 		}
-		return result;
+		return this.attachCustomHover(result);
+	}
+
+	private attachCustomHover(result: IRenderedMarkdown): IRenderedMarkdown {
+		const store = new DisposableStore();
+		// eslint-disable-next-line no-restricted-syntax
+		result.element.querySelectorAll('a').forEach((element) => {
+			if (element.title) {
+				const title = element.title;
+				element.title = '';
+				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, title));
+			}
+		});
+
+		return {
+			element: result.element,
+			dispose: () => {
+				result.dispose();
+				store.dispose();
+			}
+		};
 	}
 }

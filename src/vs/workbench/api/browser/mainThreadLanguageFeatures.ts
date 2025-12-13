@@ -1434,8 +1434,9 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			selectedSuggestionInfo: lifetimeSummary.selectedSuggestionInfo,
 			extensionId: this.providerId.extensionId!,
 			extensionVersion: this.providerId.extensionVersion!,
-			groupId: this.groupId,
-			sku: lifetimeSummary.sku,
+			groupId: extractEngineFromCorrelationId(lifetimeSummary.correlationId) ?? this.groupId,
+			skuPlan: lifetimeSummary.skuPlan,
+			skuType: lifetimeSummary.skuType,
 			performanceMarkers: lifetimeSummary.performanceMarkers,
 			availableProviders: lifetimeSummary.availableProviders,
 			partiallyAccepted: lifetimeSummary.partiallyAccepted,
@@ -1446,12 +1447,17 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
 				: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
 					: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored ? 'ignored' : undefined,
+			acceptedAlternativeAction: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted && reason.alternativeAction,
 			noSuggestionReason: undefined,
 			notShownReason: lifetimeSummary.notShownReason,
 			renameCreated: lifetimeSummary.renameCreated,
 			renameDuration: lifetimeSummary.renameDuration,
 			renameTimedOut: lifetimeSummary.renameTimedOut,
+			renameDroppedOtherEdits: lifetimeSummary.renameDroppedOtherEdits,
+			renameDroppedRenameEdits: lifetimeSummary.renameDroppedRenameEdits,
 			editKind: lifetimeSummary.editKind,
+			longDistanceHintVisible: lifetimeSummary.longDistanceHintVisible,
+			longDistanceHintDistance: lifetimeSummary.longDistanceHintDistance,
 			...forwardToChannelIf(isCopilotLikeExtension(this.providerId.extensionId!)),
 		};
 
@@ -1471,5 +1477,20 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 
 	override toString() {
 		return `InlineCompletionsProvider(${this.providerId.toString()})`;
+	}
+}
+
+function extractEngineFromCorrelationId(correlationId: string | undefined): string | undefined {
+	if (!correlationId) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(correlationId);
+		if (typeof parsed === 'object' && parsed !== null && typeof parsed.engine === 'string') {
+			return parsed.engine;
+		}
+		return undefined;
+	} catch {
+		return undefined;
 	}
 }

@@ -13,7 +13,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IAgentSession, IAgentSessionsModel, isAgentSession, isAgentSessionsModel } from './agentSessionsModel.js';
+import { getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionsModel, isAgentSession, isAgentSessionsModel } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -27,22 +27,19 @@ import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listVi
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
-import { ChatSessionStatus } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
-import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { AgentSessionDiffActionViewItem, AgentSessionShowDiffAction } from './agentSessionsActions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { Event } from '../../../../../base/common/event.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -55,13 +52,22 @@ interface IAgentSessionItemTemplate {
 	readonly titleToolbar: MenuWorkbenchToolBar;
 
 	// Column 2 Row 2
-	readonly detailsToolbar: ActionBar;
+	readonly diffContainer: HTMLElement;
+	readonly diffFilesSpan: HTMLSpanElement;
+	readonly diffAddedSpan: HTMLSpanElement;
+	readonly diffRemovedSpan: HTMLSpanElement;
+
+	readonly badge: HTMLElement;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
 
 	readonly contextKeyService: IContextKeyService;
 	readonly elementDisposable: DisposableStore;
 	readonly disposables: IDisposable;
+}
+
+export interface IAgentSessionRendererOptions {
+	getHoverPosition(): HoverPosition;
 }
 
 export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
@@ -71,10 +77,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
 	constructor(
+		private readonly options: IAgentSessionRendererOptions,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -96,7 +101,13 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
-						h('div.agent-session-details-toolbar@detailsToolbar'),
+						h('div.agent-session-diff-container@diffContainer',
+							[
+								h('span.agent-session-diff-files@filesSpan'),
+								h('span.agent-session-diff-added@addedSpan'),
+								h('span.agent-session-diff-removed@removedSpan')
+							]),
+						h('div.agent-session-badge@badge'),
 						h('div.agent-session-description@description'),
 						h('div.agent-session-status@status')
 					])
@@ -110,16 +121,6 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		const detailsToolbar = disposables.add(new ActionBar(elements.detailsToolbar, {
-			actionViewItemProvider: (action, options) => {
-				if (action.id === AgentSessionShowDiffAction.ID) {
-					return this.instantiationService.createInstance(AgentSessionDiffActionViewItem, action, options);
-				}
-
-				return undefined;
-			},
-		}));
-
 		container.appendChild(elements.item);
 
 		return {
@@ -127,7 +128,11 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			titleToolbar,
-			detailsToolbar,
+			diffContainer: elements.diffContainer,
+			diffFilesSpan: elements.filesSpan,
+			diffAddedSpan: elements.addedSpan,
+			diffRemovedSpan: elements.removedSpan,
+			badge: elements.badge,
 			description: elements.description,
 			status: elements.status,
 			contextKeyService,
@@ -140,29 +145,48 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Clear old state
 		template.elementDisposable.clear();
-		template.detailsToolbar.clear();
+		template.diffFilesSpan.textContent = '';
+		template.diffAddedSpan.textContent = '';
+		template.diffRemovedSpan.textContent = '';
+		template.badge.textContent = '';
 		template.description.textContent = '';
+
+		// Archived
+		template.element.classList.toggle('archived', session.element.isArchived());
 
 		// Icon
 		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
 
 		// Title
-		template.title.setLabel(session.element.label, undefined, { matches: createMatches(session.filterData) });
+		const markdownTitle = new MarkdownString(session.element.label);
+		template.title.setLabel(renderAsPlaintext(markdownTitle), undefined, { matches: createMatches(session.filterData) });
 
 		// Title Actions - Update context keys
-		ChatContextKeys.isArchivedItem.bindTo(template.contextKeyService).set(session.element.isArchived());
+		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
+		ChatContextKeys.isReadAgentSession.bindTo(template.contextKeyService).set(session.element.isRead());
+		ChatContextKeys.agentSessionType.bindTo(template.contextKeyService).set(session.element.providerType);
 		template.titleToolbar.context = session.element;
 
-		// Details Actions
-		const { statistics: diff } = session.element;
-		if (session.element.status !== ChatSessionStatus.InProgress && diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
-			const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
-			template.detailsToolbar.push([diffAction], { icon: false, label: true });
+		// Diff information
+		let hasDiff = false;
+		const { changes: diff } = session.element;
+		if (!isSessionInProgressStatus(session.element.status) && diff && hasValidDiff(diff)) {
+			if (this.renderDiff(session, template)) {
+				hasDiff = true;
+			}
 		}
+		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
-		// Description otherwise
-		else {
-			this.renderDescription(session, template);
+		// Badge
+		let hasBadge = false;
+		if (!isSessionInProgressStatus(session.element.status)) {
+			hasBadge = this.renderBadge(session, template);
+		}
+		template.badge.classList.toggle('has-badge', hasBadge);
+
+		// Description (unless diff is shown)
+		if (!hasDiff) {
+			this.renderDescription(session, template, hasBadge);
 		}
 
 		// Status
@@ -172,28 +196,20 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		this.renderHover(session, template);
 	}
 
-	private getIcon(session: IAgentSession): ThemeIcon {
-		if (session.status === ChatSessionStatus.InProgress) {
-			return ThemeIcon.modify(Codicon.loading, 'spin');
+	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
+		const badge = session.element.badge;
+		if (badge) {
+			this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
 		}
 
-		if (session.status === ChatSessionStatus.Failed) {
-			return Codicon.error;
-		}
-
-		return session.icon;
+		return !!badge;
 	}
 
-	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
-
-		// Support description as string
-		if (typeof session.element.description === 'string') {
-			template.description.textContent = session.element.description;
-		}
-
-		// or as markdown
-		else if (session.element.description) {
-			template.elementDisposable.add(this.markdownRendererService.render(session.element.description, {
+	private renderMarkdownOrText(content: string | IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
+		if (typeof content === 'string') {
+			container.textContent = content;
+		} else {
+			disposables.add(this.markdownRendererService.render(content, {
 				sanitizerConfig: {
 					replaceWithPlaintext: true,
 					allowedTags: {
@@ -201,13 +217,65 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 					},
 					allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
 				},
-			}, template.description));
+			}, container));
+		}
+	}
+
+	private renderDiff(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
+		const diff = getAgentChangesSummary(session.element.changes);
+		if (!diff) {
+			return false;
+		}
+
+		if (diff.files > 0) {
+			template.diffFilesSpan.textContent = diff.files === 1 ? localize('diffFile', "1 file") : localize('diffFiles', "{0} files", diff.files);
+		}
+
+		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
+			template.diffAddedSpan.textContent = `+${diff.insertions}`;
+		}
+
+		if (diff.deletions >= 0 /* render even `0` for more homogeneity */) {
+			template.diffRemovedSpan.textContent = `-${diff.deletions}`;
+		}
+
+		return true;
+	}
+
+	private getIcon(session: IAgentSession): ThemeIcon {
+		if (session.status === ChatSessionStatus.InProgress) {
+			return Codicon.sessionInProgress;
+		}
+
+		if (session.status === ChatSessionStatus.NeedsInput) {
+			return Codicon.info;
+		}
+
+		if (session.status === ChatSessionStatus.Failed) {
+			return Codicon.error;
+		}
+
+		if (!session.isRead() && !session.isArchived()) {
+			return Codicon.circleFilled;
+		}
+
+		return Codicon.circleSmallFilled;
+	}
+
+	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate, hasBadge: boolean): void {
+		const description = session.element.description;
+		if (description) {
+			this.renderMarkdownOrText(description, template.description, template.elementDisposable);
 		}
 
 		// Fallback to state label
 		else {
-			if (session.element.status === ChatSessionStatus.InProgress) {
+			if (isSessionInProgressStatus(session.element.status)) {
 				template.description.textContent = localize('chat.session.status.inProgress', "Working...");
+			} else if (session.element.status === ChatSessionStatus.NeedsInput) {
+				template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
+			} else if (hasBadge && session.element.status === ChatSessionStatus.Completed) {
+				template.description.textContent = ''; // no description if completed and has badge
 			} else if (
 				session.element.timing.finishedOrFailedTime &&
 				session.element.timing.inProgressTime &&
@@ -239,19 +307,20 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		const getStatus = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
-			if (session.status === ChatSessionStatus.InProgress && session.timing.inProgressTime) {
+			if (isSessionInProgressStatus(session.status) && session.timing.inProgressTime) {
 				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now());
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.endTime || session.timing.startTime, true);
+				timeLabel = fromNow(session.timing.endTime || session.timing.startTime);
 			}
+
 			return `${session.providerLabel} • ${timeLabel}`;
 		};
 
 		template.status.textContent = getStatus(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), session.element.status === ChatSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), isSessionInProgressStatus(session.element.status) ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -262,18 +331,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 					content: tooltip,
 					style: HoverStyle.Pointer,
 					position: {
-						hoverPosition: (() => {
-							const sideBarPosition = this.layoutService.getSideBarPosition();
-							const viewLocation = this.viewDescriptorService.getViewLocationById(AGENT_SESSIONS_VIEW_ID);
-							switch (viewLocation) {
-								case ViewContainerLocation.Sidebar:
-									return sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
-								case ViewContainerLocation.AuxiliaryBar:
-									return sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
-								default:
-									return HoverPosition.RIGHT;
-							}
-						})()
+						hoverPosition: this.options.getHoverPosition()
 					}
 				}), { groupId: 'agent.sessions' })
 			);
@@ -295,7 +353,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSession> {
 
-	static readonly ITEM_HEIGHT = 44;
+	static readonly ITEM_HEIGHT = 52;
 
 	getHeight(element: IAgentSession): number {
 		return AgentSessionsListDelegate.ITEM_HEIGHT;
@@ -313,7 +371,22 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 	}
 
 	getAriaLabel(element: IAgentSession): string | null {
-		return element.label;
+		let statusLabel: string;
+		switch (element.status) {
+			case ChatSessionStatus.NeedsInput:
+				statusLabel = localize('agentSessionNeedsInput', "needs input");
+				break;
+			case ChatSessionStatus.InProgress:
+				statusLabel = localize('agentSessionInProgress', "in progress");
+				break;
+			case ChatSessionStatus.Failed:
+				statusLabel = localize('agentSessionFailed', "failed");
+				break;
+			default:
+				statusLabel = localize('agentSessionCompleted', "completed");
+		}
+
+		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, statusLabel, new Date(element.timing.startTime).toLocaleString());
 	}
 }
 
@@ -324,7 +397,7 @@ export interface IAgentSessionsFilter {
 	/**
 	 * Optional limit on the number of sessions to show.
 	 */
-	readonly limitResults?: number;
+	readonly limitResults?: () => number | undefined;
 
 	/**
 	 * A callback to notify the filter about the number of
@@ -355,9 +428,10 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		let filteredSessions = element.sessions.filter(session => !this.filter?.exclude?.(session));
 
 		// Apply limiter if configured (requires sorting)
-		if (this.filter?.limitResults !== undefined) {
+		const limitResultsCount = this.filter?.limitResults?.();
+		if (typeof limitResultsCount === 'number') {
 			filteredSessions.sort(this.sorter.compare.bind(this.sorter));
-			filteredSessions = filteredSessions.slice(0, this.filter.limitResults);
+			filteredSessions = filteredSessions.slice(0, limitResultsCount);
 		}
 
 		// Callback results count
@@ -385,9 +459,28 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 	}
 }
 
+export interface IAgentSessionsSorterOptions {
+	overrideCompare?(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined;
+}
+
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
+	constructor(private readonly options?: IAgentSessionsSorterOptions) { }
+
 	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
+
+		// Input Needed
+		const aNeedsInput = sessionA.status === ChatSessionStatus.NeedsInput;
+		const bNeedsInput = sessionB.status === ChatSessionStatus.NeedsInput;
+
+		if (aNeedsInput && !bNeedsInput) {
+			return -1; // a (needs input) comes before b (other)
+		}
+		if (!aNeedsInput && bNeedsInput) {
+			return 1; // a (other) comes after b (needs input)
+		}
+
+		// In Progress
 		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
 		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;
 
@@ -398,6 +491,7 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (finished) comes after b (in-progress)
 		}
 
+		// Archived
 		const aArchived = sessionA.isArchived();
 		const bArchived = sessionB.isArchived();
 
@@ -408,7 +502,13 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (archived) comes after b (non-archived)
 		}
 
-		// Both in-progress or finished: sort by end or start time (most recent first)
+		// Before we compare by time, allow override
+		const override = this.options?.overrideCompare?.(sessionA, sessionB);
+		if (typeof override === 'number') {
+			return override;
+		}
+
+		//Sort by end or start time (most recent first)
 		return (sessionB.timing.endTime || sessionB.timing.startTime) - (sessionA.timing.endTime || sessionA.timing.startTime);
 	}
 }

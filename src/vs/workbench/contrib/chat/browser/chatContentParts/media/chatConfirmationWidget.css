@@ -16,7 +16,7 @@
 	padding: 0 12px;
 	min-height: 2em;
 	box-sizing: border-box;
-	font-size: var(--vscode-chat-font-size-body-s);
+	font-size: var(--vscode-chat-font-size-body-m);
 }
 
 .chat-confirmation-widget:not(:last-child) {

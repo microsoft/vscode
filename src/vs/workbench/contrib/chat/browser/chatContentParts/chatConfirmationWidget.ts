@@ -46,7 +46,7 @@ export interface IChatConfirmationWidgetOptions<T> {
 	message: string | IMarkdownString;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
-	toolbarData?: { arg: any; partType: string; partSource?: string };
+	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 	silent?: boolean;
 }
 
@@ -269,7 +269,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 				['chatConfirmationPartSource', options.toolbarData.partSource],
 			]);
 			const nestedInsta = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, overlay])));
-			this._register(nestedInsta.createInstance(
+			const toolbar = this._register(nestedInsta.createInstance(
 				MenuWorkbenchToolBar,
 				elements.toolbar,
 				MenuId.ChatConfirmationMenu,
@@ -281,6 +281,8 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 					}
 				}
 			));
+
+			this._register(toolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		}
 	}
 
@@ -330,7 +332,7 @@ export interface IChatConfirmationWidget2Options<T> {
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
-	toolbarData?: { arg: any; partType: string; partSource?: string };
+	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 }
 
 abstract class BaseChatConfirmationWidget<T> extends Disposable {

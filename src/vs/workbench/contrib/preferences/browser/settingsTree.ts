@@ -776,7 +776,7 @@ const SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID = 'settings.extensionToggle.template
 
 export interface ISettingChangeEvent {
 	key: string;
-	value: any; // undefined => reset/unconfigure
+	value: unknown; // undefined => reset/unconfigure
 	type: SettingValueType | SettingValueType[];
 	manualReset: boolean;
 	scope: ConfigurationScope | undefined;
@@ -890,9 +890,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	abstract renderTemplate(container: HTMLElement): any;
 
-	abstract renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: any): void;
+	abstract renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: unknown): void;
 
-	protected renderCommonTemplate(tree: any, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
+	protected renderCommonTemplate(tree: unknown, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
 		_container.classList.add('setting-item');
 		_container.classList.add('setting-item-' + typeClass);
 
@@ -1018,7 +1018,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			}
 		}));
 
-		const onChange = (value: any) => this._onDidChangeSetting.fire({
+		const onChange = (value: unknown) => this._onDidChangeSetting.fire({
 			key: element.setting.key,
 			value,
 			type: template.context!.valueType,
@@ -1088,7 +1088,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		return renderedMarkdown.element;
 	}
 
-	protected abstract renderValue(dataElement: SettingsTreeSettingElement, template: ISettingItemTemplate, onChange: (value: any) => void): void;
+	protected abstract renderValue(dataElement: SettingsTreeSettingElement, template: ISettingItemTemplate, onChange: (value: unknown) => void): void;
 
 	disposeTemplate(template: IDisposableTemplate): void {
 		template.toDispose.dispose();

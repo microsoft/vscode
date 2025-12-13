@@ -855,6 +855,10 @@ export interface InlineCompletion {
 	 * Used for telemetry.
 	 */
 	readonly correlationId?: string | undefined;
+
+	readonly jumpToPosition?: IPosition;
+
+	readonly doNotLog?: boolean;
 }
 
 export interface InlineCompletionWarning {
@@ -1029,6 +1033,7 @@ export enum InlineCompletionEndOfLifeReasonKind {
 
 export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
 	kind: InlineCompletionEndOfLifeReasonKind.Accepted; // User did an explicit action to accept
+	alternativeAction: boolean; // Whether the user performed an alternative action.
 } | {
 	kind: InlineCompletionEndOfLifeReasonKind.Rejected; // User did an explicit action to reject
 } | {
@@ -1048,6 +1053,7 @@ export type LifetimeSummary = {
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilActuallyShown: number | undefined;
 	timeUntilProviderRequest: number;
 	timeUntilProviderResponse: number;
 	notShownReason: string | undefined;
@@ -1069,11 +1075,16 @@ export type LifetimeSummary = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
-	sku: string | undefined;
-	renameCreated: boolean;
-	renameDuration?: number;
-	renameTimedOut: boolean;
+	skuPlan: string | undefined;
+	skuType: string | undefined;
+	renameCreated: boolean | undefined;
+	renameDuration: number | undefined;
+	renameTimedOut: boolean | undefined;
+	renameDroppedOtherEdits: number | undefined;
+	renameDroppedRenameEdits: number | undefined;
 	editKind: string | undefined;
+	longDistanceHintVisible?: boolean;
+	longDistanceHintDistance?: number;
 };
 
 export interface CodeAction {

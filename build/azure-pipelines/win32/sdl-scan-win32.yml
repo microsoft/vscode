@@ -115,6 +115,16 @@ steps:
       Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.pdb"
     displayName: List files
 
+  - task: PublishSymbols@2
+    displayName: 'Publish Symbols to Artifacts'
+    inputs:
+      SymbolsFolder: '$(Agent.BuildDirectory)\scanbin'
+      SearchPattern: '**/*.pdb'
+      IndexSources: false
+      PublishSymbols: true
+      SymbolServerType: 'TeamServices'
+      SymbolsProduct: 'vscode-client'
+
   - task: CopyFiles@2
     displayName: 'Collect Symbols for API Scan'
     inputs:
