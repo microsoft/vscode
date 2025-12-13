@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow, isHTMLElement, reset } from '../../../../base/browser/dom.js';
+import { addDisposableListener, getWindow, isHTMLElement, reset } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -60,12 +60,16 @@ export const enum DebugLinkHoverBehavior {
 }
 
 /** Store implies HoverBehavior=rich */
-export type DebugLinkHoverBehaviorTypeData = { type: DebugLinkHoverBehavior.None | DebugLinkHoverBehavior.Basic }
+export type DebugLinkHoverBehaviorTypeData =
+	| { type: DebugLinkHoverBehavior.None; store: DisposableStore }
+	| { type: DebugLinkHoverBehavior.Basic; store: DisposableStore }
 	| { type: DebugLinkHoverBehavior.Rich; store: DisposableStore };
 
+
+
 export interface ILinkDetector {
-	linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, hoverBehavior?: DebugLinkHoverBehaviorTypeData, highlights?: IHighlight[]): HTMLElement;
-	linkifyLocation(text: string, locationReference: number, session: IDebugSession, hoverBehavior?: DebugLinkHoverBehaviorTypeData): HTMLElement;
+	linkify(text: string, hoverBehavior: DebugLinkHoverBehaviorTypeData, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, highlights?: IHighlight[]): HTMLElement;
+	linkifyLocation(text: string, locationReference: number, session: IDebugSession, hoverBehavior: DebugLinkHoverBehaviorTypeData): HTMLElement;
 }
 
 export class LinkDetector implements ILinkDetector {
@@ -88,14 +92,13 @@ export class LinkDetector implements ILinkDetector {
 	 * 'onclick' event is attached to all anchored links that opens them in the editor.
 	 * When splitLines is true, each line of the text, even if it contains no links, is wrapped in a <span>
 	 * and added as a child of the returned <span>.
-	 * If a `hoverBehavior` is passed, hovers may be added using the workbench hover service.
-	 * This should be preferred for new code where hovers are desirable.
+	 * The `hoverBehavior` is required and manages the lifecycle of event listeners.
 	 */
-	linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, hoverBehavior?: DebugLinkHoverBehaviorTypeData, highlights?: IHighlight[]): HTMLElement {
-		return this._linkify(text, splitLines, workspaceFolder, includeFulltext, hoverBehavior, highlights);
+	linkify(text: string, hoverBehavior: DebugLinkHoverBehaviorTypeData, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, highlights?: IHighlight[]): HTMLElement {
+		return this._linkify(text, hoverBehavior, splitLines, workspaceFolder, includeFulltext, highlights);
 	}
 
-	private _linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, hoverBehavior?: DebugLinkHoverBehaviorTypeData, highlights?: IHighlight[], defaultRef?: { locationReference: number; session: IDebugSession }): HTMLElement {
+	private _linkify(text: string, hoverBehavior: DebugLinkHoverBehaviorTypeData, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, highlights?: IHighlight[], defaultRef?: { locationReference: number; session: IDebugSession }): HTMLElement {
 		if (splitLines) {
 			const lines = text.split('\n');
 			for (let i = 0; i < lines.length - 1; i++) {
@@ -105,7 +108,7 @@ export class LinkDetector implements ILinkDetector {
 				// Remove the last element ('') that split added.
 				lines.pop();
 			}
-			const elements = lines.map(line => this._linkify(line, false, workspaceFolder, includeFulltext, hoverBehavior, highlights, defaultRef));
+			const elements = lines.map(line => this._linkify(line, hoverBehavior, false, workspaceFolder, includeFulltext, highlights, defaultRef));
 			if (elements.length === 1) {
 				// Do not wrap single line with extra span.
 				return elements[0];
@@ -192,7 +195,7 @@ export class LinkDetector implements ILinkDetector {
 	/**
 	 * Linkifies a location reference.
 	 */
-	linkifyLocation(text: string, locationReference: number, session: IDebugSession, hoverBehavior?: DebugLinkHoverBehaviorTypeData) {
+	linkifyLocation(text: string, locationReference: number, session: IDebugSession, hoverBehavior: DebugLinkHoverBehaviorTypeData) {
 		const link = this.createLink(text);
 		this.decorateLink(link, undefined, text, hoverBehavior, async (preserveFocus: boolean) => {
 			const location = await session.resolveLocationReference(locationReference);
@@ -213,13 +216,13 @@ export class LinkDetector implements ILinkDetector {
 	 */
 	makeReferencedLinkDetector(locationReference: number, session: IDebugSession): ILinkDetector {
 		return {
-			linkify: (text, splitLines, workspaceFolder, includeFulltext, hoverBehavior, highlights) =>
-				this._linkify(text, splitLines, workspaceFolder, includeFulltext, hoverBehavior, highlights, { locationReference, session }),
+			linkify: (text, hoverBehavior, splitLines, workspaceFolder, includeFulltext, highlights) =>
+				this._linkify(text, hoverBehavior, splitLines, workspaceFolder, includeFulltext, highlights, { locationReference, session }),
 			linkifyLocation: this.linkifyLocation.bind(this),
 		};
 	}
 
-	private createWebLink(fulltext: string | undefined, url: string, hoverBehavior?: DebugLinkHoverBehaviorTypeData): Node {
+	private createWebLink(fulltext: string | undefined, url: string, hoverBehavior: DebugLinkHoverBehaviorTypeData): Node {
 		const link = this.createLink(url);
 
 		let uri = URI.parse(url);
@@ -263,7 +266,7 @@ export class LinkDetector implements ILinkDetector {
 		return link;
 	}
 
-	private createPathLink(fulltext: string | undefined, text: string, path: string, lineNumber: number, columnNumber: number, workspaceFolder: IWorkspaceFolder | undefined, hoverBehavior?: DebugLinkHoverBehaviorTypeData): Node {
+	private createPathLink(fulltext: string | undefined, text: string, path: string, lineNumber: number, columnNumber: number, workspaceFolder: IWorkspaceFolder | undefined, hoverBehavior: DebugLinkHoverBehaviorTypeData): Node {
 		if (path[0] === '/' && path[1] === '/') {
 			// Most likely a url part which did not match, for example ftp://path.
 			return document.createTextNode(text);
@@ -307,22 +310,28 @@ export class LinkDetector implements ILinkDetector {
 		return link;
 	}
 
-	private decorateLink(link: HTMLElement, uri: URI | undefined, fulltext: string | undefined, hoverBehavior: DebugLinkHoverBehaviorTypeData | undefined, onClick: (preserveFocus: boolean) => void) {
+	private decorateLink(link: HTMLElement, uri: URI | undefined, fulltext: string | undefined, hoverBehavior: DebugLinkHoverBehaviorTypeData, onClick: (preserveFocus: boolean) => void) {
 		link.classList.add('link');
 		const followLink = uri && this.tunnelService.canTunnel(uri) ? localize('followForwardedLink', "follow link using forwarded port") : localize('followLink', "follow link");
 		const title = link.ariaLabel = fulltext
 			? (platform.isMacintosh ? localize('fileLinkWithPathMac', "Cmd + click to {0}\n{1}", followLink, fulltext) : localize('fileLinkWithPath', "Ctrl + click to {0}\n{1}", followLink, fulltext))
 			: (platform.isMacintosh ? localize('fileLinkMac', "Cmd + click to {0}", followLink) : localize('fileLink', "Ctrl + click to {0}", followLink));
 
-		if (hoverBehavior?.type === DebugLinkHoverBehavior.Rich) {
+		if (hoverBehavior.type === DebugLinkHoverBehavior.Rich) {
 			hoverBehavior.store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), link, title));
-		} else if (hoverBehavior?.type !== DebugLinkHoverBehavior.None) {
+		} else if (hoverBehavior.type !== DebugLinkHoverBehavior.None) {
 			link.title = title;
 		}
 
-		link.onmousemove = (event) => { link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey); };
-		link.onmouseleave = () => link.classList.remove('pointer');
-		link.onclick = (event) => {
+		hoverBehavior.store.add(addDisposableListener(link, 'mousemove', (event: MouseEvent) => {
+			link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey);
+		}));
+
+		hoverBehavior.store.add(addDisposableListener(link, 'mouseleave', () => {
+			link.classList.remove('pointer');
+		}));
+
+		hoverBehavior.store.add(addDisposableListener(link, 'click', (event: MouseEvent) => {
 			const selection = getWindow(link).getSelection();
 			if (!selection || selection.type === 'Range') {
 				return; // do not navigate when user is selecting
@@ -334,15 +343,16 @@ export class LinkDetector implements ILinkDetector {
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			onClick(false);
-		};
-		link.onkeydown = e => {
+		}));
+
+		hoverBehavior.store.add(addDisposableListener(link, 'keydown', (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
 				event.preventDefault();
 				event.stopPropagation();
 				onClick(event.keyCode === KeyCode.Space);
 			}
-		};
+		}));
 	}
 
 	private detectLinks(text: string): LinkPart[] {
