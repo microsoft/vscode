@@ -15,6 +15,7 @@
 
 		.chat-view-title-navigation-toolbar {
 			overflow: hidden;
+			min-width: 0;
 		}
 
 		.chat-view-title-label {
