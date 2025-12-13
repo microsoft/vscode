@@ -124,7 +124,8 @@ class ReloadAction extends Action2 {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
 				order: 3,
-				// Show reload button when not loading, OR during the cooldown period after reload was clicked
+				// Show reload button when not loading, OR during the cooldown period after reload was clicked.
+				// These conditions must be mutually exclusive with the stop button conditions.
 				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, ContextKeyExpr.or(ContextKeyExpr.not(CONTEXT_BROWSER_LOADING.key), CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD))
 			},
 			precondition: BROWSER_EDITOR_ACTIVE,
@@ -139,14 +140,6 @@ class ReloadAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const contextKeyService = accessor.get(IContextKeyService);
-		const inCooldownPeriod = contextKeyService.getContextKeyValue(CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD.key);
-
-		// No-op if we're in the cooldown period (prevents accidental double-click double reload)
-		if (inCooldownPeriod) {
-			return;
-		}
-
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
 		if (activeEditorPane instanceof BrowserEditor) {
@@ -169,7 +162,8 @@ class StopLoadingAction extends Action2 {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
 				order: 3,
-				// Show stop button only when loading AND not in cooldown period
+				// Show stop button only when loading AND not in cooldown period.
+				// These conditions must be mutually exclusive with the reload button conditions.
 				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_LOADING, ContextKeyExpr.not(CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD.key))
 			},
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_LOADING),

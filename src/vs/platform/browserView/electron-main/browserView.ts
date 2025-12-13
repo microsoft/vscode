@@ -235,7 +235,7 @@ export class BrowserView extends Disposable {
 				const isNonEditingKey =
 					keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
 					keyCode >= KeyCode.AudioVolumeMute;
-				const isEscapeWhileLoading = keyCode === KeyCode.Escape && webContents.isLoading();
+				const isEscapeKey = keyCode === KeyCode.Escape;
 
 				if (hasCommandModifier || isNonEditingKey) {
 					event.preventDefault();
@@ -249,8 +249,8 @@ export class BrowserView extends Disposable {
 						metaKey: input.meta || false,
 						repeat: input.isAutoRepeat || false
 					});
-				} else if (isEscapeWhileLoading) {
-					// Forward to VS Code to support keybinding for stopping page load. Don't preventDefault so page can also handle it normally.
+				} else if (isEscapeKey) {
+					// Don't preventDefault so page can also handle the keypress normally.
 					this._onDidKeyCommand.fire({
 						key: input.key,
 						keyCode: eventKeyCode,

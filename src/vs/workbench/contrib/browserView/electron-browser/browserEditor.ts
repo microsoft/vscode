@@ -38,7 +38,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
 export const CONTEXT_BROWSER_LOADING = new RawContextKey<boolean>('browserLoading', false, localize('browser.loading', "Whether the browser is currently loading a page"));
-export const CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD = new RawContextKey<boolean>('browserInReloadCooldownPeriod', false, localize('browser.inReloadCooldownPeriod', "Whether the browser is in the cooldown period after reload button was clicked"));
+export const CONTEXT_BROWSER_IN_RELOAD_COOLDOWN_PERIOD = new RawContextKey<boolean>('browserInReloadCooldownPeriod', false, localize('browser.inReloadCooldownPeriod', "Whether the browser is in the cooldown period after reload button was clicked, during which the stop button will not be shown"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
