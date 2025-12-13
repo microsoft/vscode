@@ -6,7 +6,7 @@
 import * as sinon from 'sinon';
 import assert from 'assert';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from '../../common/extensions.js';
+import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, MinimumReleaseAgeConfigurationKey } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
@@ -58,6 +58,8 @@ import { UserDataProfileService } from '../../../../services/userDataProfile/com
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+
+const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -1617,16 +1619,75 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
 	});
 
+	test('Test queryGallery filters extensions by minimum release age', async () => {
+		const now = Date.now();
+		const oneDayAgo = now - (1 * MILLISECONDS_PER_DAY);
+		const threeDaysAgo = now - (3 * MILLISECONDS_PER_DAY);
+		const fiveDaysAgo = now - (5 * MILLISECONDS_PER_DAY);
+
+		const recentExtension = aGalleryExtension('recent', { version: '1.0.0', releaseDate: oneDayAgo });
+		const mediumExtension = aGalleryExtension('medium', { version: '1.0.0', releaseDate: threeDaysAgo });
+		const oldExtension = aGalleryExtension('old', { version: '1.0.0', releaseDate: fiveDaysAgo });
+
+		stubConfiguration(true, true, 2); // Set minimum release age to 2 days
+		testObject = await aWorkbenchService();
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(recentExtension, mediumExtension, oldExtension));
+
+		const result = await testObject.queryGallery(CancellationToken.None);
+
+		// Only medium and old extensions should be returned (2+ days old)
+		assert.strictEqual(2, result.firstPage.length);
+		assert.strictEqual('medium', result.firstPage[0].name);
+		assert.strictEqual('old', result.firstPage[1].name);
+	});
+
+	test('Test outdated extension respects minimum release age', async () => {
+		const now = Date.now();
+		const oneDayAgo = now - (1 * MILLISECONDS_PER_DAY);
+
+		const local = aLocalExtension('myext', { version: '1.0.0' });
+		const gallery = aGalleryExtension('myext', { version: '2.0.0', releaseDate: oneDayAgo });
+
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		stubConfiguration(true, true, 2); // Set minimum release age to 2 days
+		testObject = await aWorkbenchService();
+
+		const extension = testObject.local[0];
+		extension.gallery = gallery;
+
+		// Extension should not be marked as outdated because the update is too recent
+		assert.strictEqual(false, extension.outdated);
+	});
+
+	test('Test outdated extension is marked outdated when meeting minimum release age', async () => {
+		const now = Date.now();
+		const threeDaysAgo = now - (3 * MILLISECONDS_PER_DAY);
+
+		const local = aLocalExtension('myext', { version: '1.0.0' });
+		const gallery = aGalleryExtension('myext', { version: '2.0.0', releaseDate: threeDaysAgo });
+
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		stubConfiguration(true, true, 2); // Set minimum release age to 2 days
+		testObject = await aWorkbenchService();
+
+		const extension = testObject.local[0];
+		extension.gallery = gallery;
+
+		// Extension should be marked as outdated because the update is old enough
+		assert.strictEqual(true, extension.outdated);
+	});
+
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {
 		const workbenchService: ExtensionsWorkbenchService = disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		await workbenchService.queryLocal();
 		return workbenchService;
 	}
 
-	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any): void {
+	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any, minimumReleaseAge?: number): void {
 		const values: any = {
 			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
-			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true
+			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true,
+			[MinimumReleaseAgeConfigurationKey]: minimumReleaseAge ?? 0
 		};
 		const emitter = disposableStore.add(new Emitter<IConfigurationChangeEvent>());
 		instantiationService.stub(IConfigurationService, {
