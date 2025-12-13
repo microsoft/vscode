@@ -644,6 +644,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
+		// Skip contributions with displayName ending in "Chat" to avoid duplicate commands
+		// (prefer "Agent" variants over "Chat" variants)
+		if (contribution.displayName?.endsWith(' Chat')) {
+			this._logService.trace(`Skipping chat session contribution '${contribution.type}' with displayName '${contribution.displayName}' (prefer Agent variant)`);
+			return;
+		}
+
 		const disposableStore = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposableStore);
 		if (contribution.canDelegate) {
