@@ -201,6 +201,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._titleInterval = undefined;
 			}
 		}));
+		this._register(toDisposable(() => {
+			this._ptyProcess = undefined;
+			this._processStartupComplete = undefined;
+		}));
 	}
 
 	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {

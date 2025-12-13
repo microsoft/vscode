@@ -23,7 +23,7 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { awaitStatsForSession } from './chat.js';
 import { ModifiedFileEntryState } from './chatEditingService.js';
 import { ChatModel, IChatModelInputState, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
-import { IChatSessionStats } from './chatService.js';
+import { IChatSessionStats, IChatSessionTiming, ResponseModelState } from './chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
 import { ChatAgentLocation } from './constants.js';
 
@@ -430,9 +430,11 @@ export interface IChatSessionEntryMetadata {
 	sessionId: string;
 	title: string;
 	lastMessageDate: number;
+	timing?: IChatSessionTiming;
 	initialLocation?: ChatAgentLocation;
 	hasPendingEdits?: boolean;
 	stats?: IChatSessionStats;
+	lastResponseState?: ResponseModelState;
 
 	/**
 	 * This only exists because the migrated data from the storage service had empty sessions persisted, and it's impossible to know which ones are
@@ -497,15 +499,27 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 		stats = await awaitStatsForSession(session);
 	}
 
+	const timing = session instanceof ChatModel ?
+		session.timing :
+		// session is only ISerializableChatData in the old pre-fs storage data migration scenario
+		{
+			startTime: session.creationDate,
+			endTime: session.lastMessageDate
+		};
+
 	return {
 		sessionId: session.sessionId,
 		title: title || localize('newChat', "New Chat"),
 		lastMessageDate: session.lastMessageDate,
+		timing,
 		initialLocation: session.initialLocation,
 		hasPendingEdits: session instanceof ChatModel ? (session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)) : false,
 		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0,
 		stats,
-		isExternal: session instanceof ChatModel && !LocalChatSessionUri.parseLocalSessionId(session.sessionResource)
+		isExternal: session instanceof ChatModel && !LocalChatSessionUri.parseLocalSessionId(session.sessionResource),
+		lastResponseState: session instanceof ChatModel ?
+			(session.lastRequest?.response?.state ?? ResponseModelState.Complete) :
+			ResponseModelState.Complete
 	};
 }
 

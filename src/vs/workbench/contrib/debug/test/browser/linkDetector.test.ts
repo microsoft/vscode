@@ -81,6 +81,17 @@ suite('Debug - Link Detector', () => {
 		assert.strictEqual(isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34', output.firstElementChild!.textContent);
 	});
 
+	test('allows links with @ (#282635)', () => {
+		if (!isWindows) {
+			const input = '(/home/alexey_korepov/projects/dt2/playwright/node_modules/.pnpm/playwright-core@1.57.0/node_modules/playwright-core/lib/client/errors.js:56:16)';
+			const expectedOutput = '<span>(<a tabindex="0">/home/alexey_korepov/projects/dt2/playwright/node_modules/.pnpm/playwright-core@1.57.0/node_modules/playwright-core/lib/client/errors.js:56:16</a>)</span>';
+			const output = linkDetector.linkify(input);
+
+			assert.strictEqual(expectedOutput, output.outerHTML);
+			assert.strictEqual(1, output.children.length);
+		}
+	});
+
 	test('relativeLink', () => {
 		const input = '\./foo/bar.js';
 		const expectedOutput = '<span>\./foo/bar.js</span>';

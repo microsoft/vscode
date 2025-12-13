@@ -282,13 +282,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		);
 		this.sentimentObs = observableFromEvent(this.onDidChangeSentiment, () => this.sentiment);
 
-		if ((
-			// TODO@bpasero remove this condition and 'serverlessWebEnabled' once Chat web support lands
-			isWeb &&
-			!environmentService.remoteAuthority &&
-			!configurationService.getValue('chat.experimental.serverlessWebEnabled')
-		)) {
-			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI
+		if ((isWeb && !environmentService.remoteAuthority)) {
+			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI on web if unsupported
 			return;
 		}
 

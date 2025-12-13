@@ -7,23 +7,33 @@
 
 	.chat-view-title-container {
 		display: none;
-		padding: 8px 8px 8px 16px; /* try to align with the sessions view title */
-		border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+		/* try to align with the sessions view title */
+		padding: 8px 12px 8px 16px;
+		border-bottom: 1px solid var(--vscode-panel-border);
 		align-items: center;
 		cursor: pointer;
+
+		.chat-view-title-navigation-toolbar {
+			overflow: hidden;
+		}
 
 		.chat-view-title-label {
 			text-transform: uppercase;
 			font-size: 11px;
+			line-height: 16px;
 			color: var(--vscode-descriptionForeground);
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;
+			min-width: 0;
 		}
 
 		.chat-view-title-icon {
-			margin-left: auto;
 			color: var(--vscode-descriptionForeground);
+		}
+
+		.chat-view-title-actions-toolbar {
+			margin-left: auto;
 		}
 	}
 

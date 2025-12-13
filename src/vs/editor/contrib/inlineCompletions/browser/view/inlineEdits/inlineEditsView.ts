@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../../../base/browser/dom.js';
-import { itemsEquals } from '../../../../../../base/common/equals.js';
+import { equals } from '../../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -165,7 +165,7 @@ export class InlineEditsView extends Disposable {
 			return undefined;
 		})));
 		const wordReplacements = derivedOpts({
-			equalsFn: itemsEquals<WordReplacementsViewData>((a, b) => a.equals(b))
+			equalsFn: equals.arrayC(equals.thisC())
 		}, reader => {
 			const s = this._uiState.read(reader);
 			return s?.state?.kind === InlineCompletionViewKind.WordReplacements ? s.state.replacements.map(replacement => new WordReplacementsViewData(replacement, s.state?.alternativeAction)) : [];

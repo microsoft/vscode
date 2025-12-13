@@ -25,7 +25,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { FileAccess } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -59,6 +59,8 @@ import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, ICh
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../common/constants.js';
+import { localChatSessionType } from '../common/chatSessionsService.js';
+import { getChatSessionType } from '../common/chatUri.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
@@ -1163,7 +1165,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {
-		return element.isComplete && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
+		// Only show file changes summary for local sessions - background sessions already have their own file changes part
+		const isLocalSession = getChatSessionType(element.sessionResource) === localChatSessionType;
+		return element.isComplete && isLocalSession && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
 	}
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
@@ -1233,7 +1237,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Don't pin terminal tools
 		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
-		if (isTerminalTool) {
+		const isContributedTerminalToolInvocation = element
+			&& (element.sessionResource.scheme !== Schemas.vscodeChatInput && element.sessionResource.scheme !== Schemas.vscodeLocalChatSession) // contributed sessions
+			&& part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'terminal'; // contributed serialized terminal tool invocations data
+		if (isTerminalTool && !isContributedTerminalToolInvocation) {
 			return false;
 		}
 
@@ -1642,6 +1649,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderMarkdown(markdown: IChatMarkdownContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
+		this.finalizeCurrentThinkingPart(context, templateData);
 		const element = context.element;
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;

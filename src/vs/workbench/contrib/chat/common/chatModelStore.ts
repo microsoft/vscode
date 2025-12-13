@@ -9,7 +9,7 @@ import { ObservableMap } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatEditingSession } from './chatEditingService.js';
-import { ChatModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { ChatModel, IExportableChatData, ISerializableChatData, ISerializableChatModelInputState } from './chatModel.js';
 import { ChatAgentLocation } from './constants.js';
 
 export interface IStartSessionProps {
@@ -20,6 +20,7 @@ export interface IStartSessionProps {
 	readonly canUseTools: boolean;
 	readonly transferEditingSession?: IChatEditingSession;
 	readonly disableBackgroundKeepAlive?: boolean;
+	readonly inputState?: ISerializableChatModelInputState;
 }
 
 export interface ChatModelStoreDelegate {
