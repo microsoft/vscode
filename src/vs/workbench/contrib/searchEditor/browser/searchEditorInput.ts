@@ -144,7 +144,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	public tryReadConfigSync(): SearchConfiguration | undefined {
-		return this._cachedConfigurationModel?.config;
+		return this._cachedConfigurationModel?.config ?? searchEditorModelFactory.getConfigSync(this.modelUri);
 	}
 
 	private async serializeForDisk() {
@@ -212,7 +212,7 @@ export class SearchEditorInput extends EditorInput {
 			return localize('searchTitle.withQuery', "Search: {0}", basename((originalURI ?? this.backingUri).path, SEARCH_EDITOR_EXT));
 		}
 
-		const query = this._cachedConfigurationModel?.config?.query?.trim();
+		const query = (this._cachedConfigurationModel?.config ?? searchEditorModelFactory.getConfigSync(this.modelUri))?.query?.trim();
 		if (query) {
 			return localize('searchTitle.withQuery', "Search: {0}", trimToMax(query));
 		}
