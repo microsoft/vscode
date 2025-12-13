@@ -99,4 +99,43 @@ suite('Default Document Colors Computer', () => {
 		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
 		assert.strictEqual(colors[0].color.alpha, 1, 'Alpha should be 1 (ff/255)');
 	});
+
+	test('8-digit hex colors with ARGB format should be parsed correctly', () => {
+		// #AARRGGBB format - alpha first
+		const model = new TestDocumentModel(`const color = '#80ff0000';`);
+		const colors = computeDefaultDocumentColors(model, 'argb');
+
+		assert.strictEqual(colors.length, 1, 'Should detect one 8-digit hex color');
+		assert.strictEqual(colors[0].color.red, 1, 'Red component should be 1 (ff)');
+		assert.strictEqual(colors[0].color.green, 0, 'Green component should be 0');
+		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
+		// Alpha is first: 0x80 = 128, 128/255 ≈ 0.502
+		assert.ok(Math.abs(colors[0].color.alpha - 128 / 255) < 0.01, `Alpha should be ~0.502 but was ${colors[0].color.alpha}`);
+	});
+
+	test('4-digit hex colors with ARGB format should be parsed correctly', () => {
+		// #ARGB format - alpha first
+		const model = new TestDocumentModel(`const color = '#8f00';`);
+		const colors = computeDefaultDocumentColors(model, 'argb');
+
+		assert.strictEqual(colors.length, 1, 'Should detect one 4-digit hex color');
+		assert.strictEqual(colors[0].color.red, 1, 'Red component should be 1 (f expanded to ff)');
+		assert.strictEqual(colors[0].color.green, 0, 'Green component should be 0');
+		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
+		// Alpha is first: 0x8 expanded to 0x88 = 136, 136/255 ≈ 0.533
+		assert.ok(Math.abs(colors[0].color.alpha - 136 / 255) < 0.01, `Alpha should be ~0.533 but was ${colors[0].color.alpha}`);
+	});
+
+	test('8-digit hex colors with default RGBA format', () => {
+		// #RRGGBBAA format - alpha last (default)
+		const model = new TestDocumentModel(`const color = '#ff000080';`);
+		const colors = computeDefaultDocumentColors(model); // default is rgba
+
+		assert.strictEqual(colors.length, 1, 'Should detect one 8-digit hex color');
+		assert.strictEqual(colors[0].color.red, 1, 'Red component should be 1');
+		assert.strictEqual(colors[0].color.green, 0, 'Green component should be 0');
+		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
+		// Alpha is last: 0x80 = 128, 128/255 ≈ 0.502
+		assert.ok(Math.abs(colors[0].color.alpha - 128 / 255) < 0.01, `Alpha should be ~0.502 but was ${colors[0].color.alpha}`);
+	});
 });

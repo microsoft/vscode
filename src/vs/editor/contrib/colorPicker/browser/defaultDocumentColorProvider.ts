@@ -10,15 +10,18 @@ import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation } 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class DefaultDocumentColorProvider implements DocumentColorProvider {
 
 	constructor(
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
 	async provideDocumentColors(model: ITextModel, _token: CancellationToken): Promise<IColorInformation[] | null> {
-		return this._editorWorkerService.computeDefaultDocumentColors(model.uri);
+		const colorFormat = this._configurationService.getValue<'rgba' | 'argb'>('editor.colorDecoratorsHexFormat') ?? 'rgba';
+		return this._editorWorkerService.computeDefaultDocumentColors(model.uri, colorFormat);
 	}
 
 	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): IColorPresentation[] {
@@ -43,9 +46,10 @@ export class DefaultDocumentColorProviderFeature extends Disposable {
 	constructor(
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		this._register(_languageFeaturesService.colorProvider.register('*', new DefaultDocumentColorProvider(editorWorkerService)));
+		this._register(_languageFeaturesService.colorProvider.register('*', new DefaultDocumentColorProvider(editorWorkerService, configurationService)));
 	}
 }
 

@@ -415,6 +415,10 @@ export interface IEditorOptions {
 	 */
 	colorDecoratorsLimit?: number;
 	/**
+	 * Controls the hexadecimal color format used by color decorators.
+	 */
+	colorDecoratorsHexFormat?: 'rgba' | 'argb';
+	/**
 	 * Control the behaviour of comments in the editor.
 	 */
 	comments?: IEditorCommentsOptions;
@@ -5751,6 +5755,7 @@ export const enum EditorOption {
 	codeLensFontSize,
 	colorDecorators,
 	colorDecoratorsLimit,
+	colorDecoratorsHexFormat,
 	columnSelection,
 	comments,
 	contextmenu,
@@ -6105,6 +6110,17 @@ export const EditorOptions = {
 		EditorOption.colorDecoratorsLimit, 'colorDecoratorsLimit', 500, 1, 1000000,
 		{
 			markdownDescription: nls.localize('colorDecoratorsLimit', "Controls the max number of color decorators that can be rendered in an editor at once.")
+		}
+	)),
+	colorDecoratorsHexFormat: register(new EditorStringEnumOption(
+		EditorOption.colorDecoratorsHexFormat, 'colorDecoratorsHexFormat', 'rgba' as 'rgba' | 'argb',
+		['rgba', 'argb'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('editor.colorDecoratorsHexFormat.rgba', "Use RGBA format (#RRGGBBAA)"),
+				nls.localize('editor.colorDecoratorsHexFormat.argb', "Use ARGB format (#AARRGGBB)")
+			],
+			markdownDescription: nls.localize('colorDecoratorsHexFormat', "Controls the hexadecimal color format for parsing colors. RGBA is standard for web (CSS), while ARGB is used by Qt and some other frameworks.")
 		}
 	)),
 	columnSelection: register(new EditorBooleanOption(

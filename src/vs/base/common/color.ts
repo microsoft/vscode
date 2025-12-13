@@ -858,8 +858,9 @@ export namespace Color {
 			 * Converts an Hex color value to a Color.
 			 * returns r, g, and b are contained in the set [0, 255]
 			 * @param hex string (#RGB, #RGBA, #RRGGBB or #RRGGBBAA).
+			 * @param format 'rgba' (default) or 'argb' - controls how to interpret 8-char hex colors
 			 */
-			export function parseHex(hex: string): Color | null {
+			export function parseHex(hex: string, format: 'rgba' | 'argb' = 'rgba'): Color | null {
 				const length = hex.length;
 
 				if (length === 0) {
@@ -881,11 +882,19 @@ export namespace Color {
 				}
 
 				if (length === 9) {
-					// #RRGGBBAA format
-					const r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
-					const g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
-					const b = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
-					const a = 16 * _parseHexDigit(hex.charCodeAt(7)) + _parseHexDigit(hex.charCodeAt(8));
+					// #RRGGBBAA or #AARRGGBB format
+					let r: number, g: number, b: number, a: number;
+					if (format === 'argb') {
+						a = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
+						r = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
+						g = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
+						b = 16 * _parseHexDigit(hex.charCodeAt(7)) + _parseHexDigit(hex.charCodeAt(8));
+					} else {
+						r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
+						g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
+						b = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
+						a = 16 * _parseHexDigit(hex.charCodeAt(7)) + _parseHexDigit(hex.charCodeAt(8));
+					}
 					return new Color(new RGBA(r, g, b, a / 255));
 				}
 
@@ -898,11 +907,19 @@ export namespace Color {
 				}
 
 				if (length === 5) {
-					// #RGBA format
-					const r = _parseHexDigit(hex.charCodeAt(1));
-					const g = _parseHexDigit(hex.charCodeAt(2));
-					const b = _parseHexDigit(hex.charCodeAt(3));
-					const a = _parseHexDigit(hex.charCodeAt(4));
+					// #RGBA or #ARGB format
+					let r: number, g: number, b: number, a: number;
+					if (format === 'argb') {
+						a = _parseHexDigit(hex.charCodeAt(1));
+						r = _parseHexDigit(hex.charCodeAt(2));
+						g = _parseHexDigit(hex.charCodeAt(3));
+						b = _parseHexDigit(hex.charCodeAt(4));
+					} else {
+						r = _parseHexDigit(hex.charCodeAt(1));
+						g = _parseHexDigit(hex.charCodeAt(2));
+						b = _parseHexDigit(hex.charCodeAt(3));
+						a = _parseHexDigit(hex.charCodeAt(4));
+					}
 					return new Color(new RGBA(16 * r + r, 16 * g + g, 16 * b + b, (16 * a + a) / 255));
 				}
 
