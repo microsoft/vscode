@@ -99,6 +99,8 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _suppressInSnippetMode;
 	private readonly _isInSnippetMode;
 
+	get isActive() { return this._isActive; }
+
 	get editor() {
 		return this._editor;
 	}
