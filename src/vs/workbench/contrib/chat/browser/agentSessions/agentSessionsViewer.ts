@@ -474,7 +474,7 @@ export interface IAgentSessionsFilter {
 	 * Whether to show section headers (Active, Older, Archived).
 	 * When false, sessions are shown as a flat list.
 	 */
-	readonly showSections?: () => boolean | undefined;
+	readonly groupResults?: () => boolean | undefined;
 
 	/**
 	 * A callback to notify the filter about the number of
@@ -517,7 +517,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		this.filter?.notifyResults?.(filteredSessions.length);
 
 		// Group sessions into sections if enabled
-		if (this.filter?.showSections?.()) {
+		if (this.filter?.groupResults?.()) {
 			return this.groupSessionsIntoSections(filteredSessions);
 		}
 

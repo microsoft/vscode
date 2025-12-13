@@ -22,7 +22,7 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
-	readonly showSections?: () => boolean | undefined;
+	readonly groupResults?: () => boolean | undefined;
 
 	overrideExclude?(session: IAgentSession): boolean | undefined;
 }
@@ -50,7 +50,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	readonly onDidChange = this._onDidChange.event;
 
 	readonly limitResults = () => this.options.limitResults?.();
-	readonly showSections = () => this.options.showSections?.();
+	readonly groupResults = () => this.options.groupResults?.();
 
 	private excludes = DEFAULT_EXCLUDES;
 

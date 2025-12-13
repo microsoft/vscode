@@ -304,7 +304,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			limitResults: () => {
 				return that.sessionsViewerLimited ? ChatViewPane.SESSIONS_LIMIT : undefined;
 			},
-			showSections: () => {
+			groupResults: () => {
 				return that.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide;
 			},
 			overrideExclude(session) {
