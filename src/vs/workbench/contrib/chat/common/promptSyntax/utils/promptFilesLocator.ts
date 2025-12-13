@@ -288,8 +288,13 @@ export class PromptFilesLocator {
 		const { folders } = this.workspaceService.getWorkspace();
 		for (const folder of folders) {
 			const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
-			if (await this.fileService.exists(file)) {
-				result.push(file);
+			try {
+				const stat = await this.fileService.stat(file);
+				if (stat.isFile) {
+					result.push(file);
+				}
+			} catch (error) {
+				this.logService.trace(`[PromptFilesLocator] Skipping copilot-instructions.md at ${file.toString()}: ${error}`);
 			}
 		}
 		return result;
