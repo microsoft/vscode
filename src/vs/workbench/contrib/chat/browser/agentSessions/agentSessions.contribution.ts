@@ -118,7 +118,6 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
 		ContextKeyExpr.or(
 			ChatContextKeys.agentSessionsViewerVisible.negate(),
 			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-
 		),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
 	)
@@ -136,7 +135,6 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
 		ContextKeyExpr.or(
 			ChatContextKeys.agentSessionsViewerVisible.negate(),
 			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-
 		),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
 	)
