@@ -100,6 +100,7 @@ import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorker
 import { StandaloneWebWorkerService } from './services/standaloneWebWorkerService.js';
 import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount } from '../../../base/common/defaultAccount.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1123,6 +1124,55 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	}
 }
 
+class StandaloneProductService implements IProductService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly version = '1.0.0';
+	readonly nameShort = 'Monaco Editor';
+	readonly nameLong = 'Monaco Editor';
+	readonly applicationName = 'monaco-editor';
+	readonly dataFolderName = '.monaco-editor';
+	readonly urlProtocol = 'monaco-editor';
+	readonly quality = 'stable';
+	readonly serverApplicationName = 'monaco-editor-server';
+	readonly extensionProperties = {};
+	readonly defaultChatAgent = {
+		extensionId: '',
+		chatExtensionId: '',
+		documentationUrl: '',
+		skusDocumentationUrl: '',
+		publicCodeMatchesUrl: '',
+		manageSettingsUrl: '',
+		managePlanUrl: '',
+		manageOverageUrl: '',
+		upgradePlanUrl: '',
+		signUpUrl: '',
+		termsStatementUrl: '',
+		privacyStatementUrl: '',
+		provider: {
+			default: { id: '', name: '' },
+			enterprise: { id: '', name: '' },
+			google: { id: '', name: '' },
+			apple: { id: '', name: '' },
+		},
+		providerUriSetting: '',
+		providerScopes: [],
+		entitlementUrl: '',
+		entitlementSignupLimitedUrl: '',
+		chatQuotaExceededContext: '',
+		completionsQuotaExceededContext: '',
+		walkthroughCommand: '',
+		completionsMenuCommand: '',
+		completionsRefreshTokenCommand: '',
+		chatRefreshTokenCommand: '',
+		generateCommitMessageCommand: '',
+		resolveMergeConflictsCommand: '',
+		completionsAdvancedSetting: '',
+		completionsEnablementSetting: '',
+		nextEditSuggestionsSetting: '',
+	};
+}
+
 export interface IEditorOverrideServices {
 	[index: string]: unknown;
 }
@@ -1166,6 +1216,7 @@ registerSingleton(ITreeSitterLibraryService, StandaloneTreeSitterLibraryService,
 registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
 registerSingleton(IDataChannelService, NullDataChannelService, InstantiationType.Eager);
 registerSingleton(IDefaultAccountService, StandaloneDefaultAccountService, InstantiationType.Eager);
+registerSingleton(IProductService, StandaloneProductService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance
