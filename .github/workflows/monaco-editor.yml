@@ -4,12 +4,15 @@ on:
   push:
     branches:
       - main
+      - dev
       - release/*
   pull_request:
     branches:
       - main
+      - dev
       - release/*
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   main:
@@ -19,13 +22,14 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+          cache: 'npm'
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey

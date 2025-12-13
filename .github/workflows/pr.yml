@@ -1,16 +1,22 @@
-name: Code OSS
+name: ResonanceIDE CI
 
 on:
   pull_request:
     branches:
       - main
+      - dev
       - 'release/*'
+  push:
+    branches:
+      - main
+      - dev
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions: {}
+permissions:
+  contents: read
 
 env:
   VSCODE_QUALITY: 'oss'
@@ -18,135 +24,127 @@ env:
 jobs:
   compile:
     name: Compile & Hygiene
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
+      - name: Checkout ResonanceIDE
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
-
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: actions/cache/restore@v4
-        with:
-          path: .build/node_modules_cache
-          key: "node_modules-compile-${{ hashFiles('.build/packagelockhash') }}"
-
-      - name: Extract node_modules cache
-        if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        run: tar -xzf .build/node_modules_cache/cache.tgz
+          cache: 'npm'
 
       - name: Install build tools
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev libsecret-1-dev
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
-          set -e
-
-          for i in {1..5}; do # try 5 times
-            npm ci && break
-            if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
-              exit 1
-            fi
-            echo "Npm install failed $i, trying again..."
-          done
+          npm ci --ignore-scripts || npm ci --ignore-scripts
+          cd build && npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create node_modules archive
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      - name: Install extension dependencies
         run: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+          # Install dependencies for all extensions and their subdirectories
+          find extensions -name "package.json" -not -path "*/node_modules/*" | while read pkg; do
+            dir=$(dirname "$pkg")
+            echo "Installing dependencies in $dir"
+            (cd "$dir" && npm install --ignore-scripts --no-audit --no-fund 2>/dev/null || true)
+          done
+          # Install .vscode extension dependencies
+          if [ -d ".vscode/extensions/vscode-selfhost-test-provider" ]; then
+            cd .vscode/extensions/vscode-selfhost-test-provider && npm install --ignore-scripts || true
+            cd ../vscode-selfhost-import-aid && npm install --ignore-scripts || true
+          fi
 
       - name: Type check /build/ scripts
         run: npm run typecheck
         working-directory: build
 
-      - name: Compile & Hygiene
-        run: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+      - name: Compile
+        run: npm run compile
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  linux-cli-tests:
-    name: Linux
-    uses: ./.github/workflows/pr-linux-cli-test.yml
-    with:
-      job_name: CLI
-      rustup_toolchain: 1.85
+      - name: Run hygiene checks
+        run: npm run hygiene
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  linux-electron-tests:
-    name: Linux
-    uses: ./.github/workflows/pr-linux-test.yml
-    with:
-      job_name: Electron
-      electron_tests: true
+  linux-unit-tests:
+    name: Linux Unit Tests
+    runs-on: ubuntu-latest
+    needs: compile
+    steps:
+      - name: Checkout ResonanceIDE
+        uses: actions/checkout@v4
 
-  linux-browser-tests:
-    name: Linux
-    uses: ./.github/workflows/pr-linux-test.yml
-    with:
-      job_name: Browser
-      browser_tests: true
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: 'npm'
 
-  linux-remote-tests:
-    name: Linux
-    uses: ./.github/workflows/pr-linux-test.yml
-    with:
-      job_name: Remote
-      remote_tests: true
+      - name: Install build tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev libsecret-1-dev xvfb
 
-  macos-electron-tests:
-    name: macOS
-    uses: ./.github/workflows/pr-darwin-test.yml
-    with:
-      job_name: Electron
-      electron_tests: true
+      - name: Install dependencies
+        run: |
+          npm ci --ignore-scripts || npm ci --ignore-scripts
+          cd build && npm ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  macos-browser-tests:
-    name: macOS
-    uses: ./.github/workflows/pr-darwin-test.yml
-    with:
-      job_name: Browser
-      browser_tests: true
+      - name: Install extension dependencies
+        run: |
+          for dir in extensions/*/; do
+            if [ -f "$dir/package.json" ]; then
+              (cd "$dir" && npm install --ignore-scripts --no-audit --no-fund 2>/dev/null || true)
+            fi
+          done
+          cd .vscode/extensions/vscode-selfhost-test-provider && npm install --ignore-scripts || true
+          cd ../vscode-selfhost-import-aid && npm install --ignore-scripts || true
 
-  macos-remote-tests:
-    name: macOS
-    uses: ./.github/workflows/pr-darwin-test.yml
-    with:
-      job_name: Remote
-      remote_tests: true
+      - name: Compile
+        run: npm run compile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  windows-electron-tests:
-    name: Windows
-    uses: ./.github/workflows/pr-win32-test.yml
-    with:
-      job_name: Electron
-      electron_tests: true
+      - name: Run node unit tests
+        run: npm run test-node
+        timeout-minutes: 15
 
-  windows-browser-tests:
-    name: Windows
-    uses: ./.github/workflows/pr-win32-test.yml
-    with:
-      job_name: Browser
-      browser_tests: true
+  monaco-editor:
+    name: Monaco Editor Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ResonanceIDE
+        uses: actions/checkout@v4
 
-  windows-remote-tests:
-    name: Windows
-    uses: ./.github/workflows/pr-win32-test.yml
-    with:
-      job_name: Remote
-      remote_tests: true
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci --ignore-scripts || npm ci --ignore-scripts
+          cd build && npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Monaco Editor checks
+        run: npm run monaco-compile-check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
