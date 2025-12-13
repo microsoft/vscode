@@ -53,7 +53,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatClearWidget, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../common/chatService.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
@@ -1390,6 +1390,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
 			} else if (content.kind === 'thinking') {
 				return this.renderThinkingPart(content, context, templateData);
+			} else if (content.kind === 'clearWidget') {
+				return this.renderClearWidget(content, context);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
@@ -1437,6 +1439,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderUndoStop(content: IChatUndoStop) {
 		return this.renderNoContent(other => other.kind === content.kind && other.id === content.id);
+	}
+
+	private renderClearWidget(content: IChatClearWidget, context: IChatContentPartRenderContext): IChatContentPart {
+		// Trigger widget clearing asynchronously
+		const widget = isResponseVM(context.element) 
+			? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)
+			: undefined;
+		
+		if (widget) {
+			// Clear the widget asynchronously to avoid interfering with the rendering process
+			Promise.resolve().then(() => widget.clear());
+		}
+
+		// Return a no-content part since clearWidget is hidden
+		return this.renderNoContent(other => other.kind === content.kind);
 	}
 
 	private renderNoContent(equals: (otherContent: IChatRendererContent) => boolean): IChatContentPart {

@@ -3061,6 +3061,14 @@ export namespace ChatResponseCodeCitationPart {
 	}
 }
 
+export namespace ChatResponseClearWidgetPart {
+	export function from(part: vscode.ChatResponseClearWidgetPart): extHostProtocol.IChatClearWidgetDto {
+		return {
+			kind: 'clearWidget'
+		};
+	}
+}
+
 export namespace ChatResponsePart {
 
 	export function from(part: vscode.ExtendedChatResponsePart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
@@ -3090,6 +3098,8 @@ export namespace ChatResponsePart {
 			return ChatResponseCodeblockUriPart.from(part);
 		} else if (part instanceof types.ChatResponseWarningPart) {
 			return ChatResponseWarningPart.from(part);
+		} else if (part instanceof types.ChatResponseClearWidgetPart) {
+			return ChatResponseClearWidgetPart.from(part);
 		} else if (part instanceof types.ChatResponseConfirmationPart) {
 			return ChatResponseConfirmationPart.from(part);
 		} else if (part instanceof types.ChatResponseCodeCitationPart) {
