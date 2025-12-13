@@ -36,6 +36,8 @@ import { DialogMainService, IDialogMainService } from '../../platform/dialogs/el
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
 import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
 import { NativeBrowserElementsMainService, INativeBrowserElementsMainService } from '../../platform/browserElements/electron-main/nativeBrowserElementsMainService.js';
+import { ipcBrowserViewChannelName } from '../../platform/browserView/common/browserView.js';
+import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -413,6 +415,11 @@ export class CodeApplication extends Disposable {
 
 			// Block any in-page navigation
 			contents.on('will-navigate', event => {
+				// Allow navigation in integrated browser views
+				if (BrowserViewMainService.isBrowserViewWebContents(contents)) {
+					return;
+				}
+
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 
 				event.preventDefault();
@@ -1021,6 +1028,9 @@ export class CodeApplication extends Disposable {
 		// Browser Elements
 		services.set(INativeBrowserElementsMainService, new SyncDescriptor(NativeBrowserElementsMainService, undefined, false /* proxied to other processes */));
 
+		// Browser View
+		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
+
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
@@ -1167,6 +1177,10 @@ export class CodeApplication extends Disposable {
 		const browserElementsChannel = ProxyChannel.fromService(accessor.get(INativeBrowserElementsMainService), disposables);
 		mainProcessElectronServer.registerChannel('browserElements', browserElementsChannel);
 		sharedProcessClient.then(client => client.registerChannel('browserElements', browserElementsChannel));
+
+		// Browser View
+		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables);
+		mainProcessElectronServer.registerChannel(ipcBrowserViewChannelName, browserViewChannel);
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);
