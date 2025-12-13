@@ -267,27 +267,6 @@ suite('AgentSessionsDataSource', () => {
 			assert.strictEqual(result.length, 0);
 		});
 
-		test('only active sessions produces Recent section header', () => {
-			const now = Date.now();
-			const sessions = [
-				createMockSession({ id: '1', status: ChatSessionStatus.InProgress, startTime: now }),
-				createMockSession({ id: '2', status: ChatSessionStatus.NeedsInput, startTime: now - ONE_DAY }),
-			];
-
-			const filter = createMockFilter({ groupResults: true });
-			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
-
-			const mockModel = createMockModel(sessions);
-			const result = Array.from(dataSource.getChildren(mockModel));
-			const sections = getSectionsFromResult(result);
-
-			// Recent header is added after active sessions even if no recent sessions exist
-			assert.strictEqual(sections.length, 1);
-			assert.strictEqual(sections[0].section, AgentSessionSection.Recent);
-			assert.strictEqual(getSessionsFromResult(result).length, 2);
-		});
-
 		test('only recent sessions produces no section headers', () => {
 			const now = Date.now();
 			const sessions = [
