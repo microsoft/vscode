@@ -12,7 +12,7 @@ import { rimraf } from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/task.ts';
 import packageJson from '../package.json' with { type: 'json' };
-import product from '../product.json' with { type: 'json' };
+import { getBuildName, getProductConfiguration } from './lib/productConfig.ts';
 import { getDependencies } from './linux/dependencies-generator.ts';
 import { recommendedDeps as debianRecommendedDependencies } from './linux/debian/dep-lists.ts';
 import * as path from 'path';
@@ -21,6 +21,7 @@ import { promisify } from 'util';
 
 const exec = promisify(cp.exec);
 const root = path.dirname(import.meta.dirname);
+const product = getProductConfiguration(root);
 const commit = getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
@@ -35,7 +36,7 @@ function getDebPackageArch(arch: string): string {
 }
 
 function prepareDebPackage(arch: string) {
-	const binaryDir = '../VSCode-linux-' + arch;
+	const binaryDir = `../${getBuildName()}-linux-${arch}`;
 	const debArch = getDebPackageArch(arch);
 	const destination = '.build/linux/deb/' + debArch + '/' + product.applicationName + '-' + debArch;
 
@@ -145,7 +146,7 @@ function getRpmPackageArch(arch: string): string {
 }
 
 function prepareRpmPackage(arch: string) {
-	const binaryDir = '../VSCode-linux-' + arch;
+	const binaryDir = `../${getBuildName()}-linux-${arch}`;
 	const rpmArch = getRpmPackageArch(arch);
 	const stripBinary = process.env['STRIP'] ?? '/usr/bin/strip';
 
@@ -232,7 +233,7 @@ function getSnapBuildPath(arch: string): string {
 }
 
 function prepareSnapPackage(arch: string) {
-	const binaryDir = '../VSCode-linux-' + arch;
+	const binaryDir = `../${getBuildName()}-linux-${arch}`;
 	const destination = getSnapBuildPath(arch);
 
 	return function () {

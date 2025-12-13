@@ -21,7 +21,6 @@ import buildfile from './buildfile.ts';
 import * as optimize from './lib/optimize.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
 import packageJson from '../package.json' with { type: 'json' };
-import product from '../product.json' with { type: 'json' };
 import * as crypto from 'crypto';
 import * as i18n from './lib/i18n.ts';
 import { getProductionDependencies } from './lib/dependencies.ts';
@@ -33,13 +32,15 @@ import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, 
 import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
+import { getBuildName, getProductConfiguration } from './lib/productConfig.ts';
 
 
 const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
+const product = getProductConfiguration(root);
 const commit = getVersion(root);
-const versionedResourcesFolder = (product as typeof product & { quality?: string })?.quality === 'insider' ? commit!.substring(0, 10) : '';
+const versionedResourcesFolder = (product as { quality?: string })?.quality === 'insider' ? commit!.substring(0, 10) : '';
 
 // Build
 const vscodeEntryPoints = [
@@ -270,7 +271,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		let productJsonContents: string;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(jsonEditor({ commit, date: readISODate('out-build'), checksums, version }))
+			.pipe(jsonEditor(() => ({ ...product, commit, date: readISODate('out-build'), checksums, version })))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
@@ -511,10 +512,11 @@ BUILD_TARGETS.forEach(buildTarget => {
 	const platform = buildTarget.platform;
 	const arch = buildTarget.arch;
 	const opts = buildTarget.opts;
+	const buildName = getBuildName();
 
 	const [vscode, vscodeMin] = ['', 'min'].map(minified => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
-		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
+		const destinationFolderName = `${buildName}${dashed(platform)}${dashed(arch)}`;
 
 		const tasks = [
 			compileNativeExtensionsBuildTask,

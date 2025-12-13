@@ -1,0 +1,47 @@
+{
+	"$comment": "ResonanceIDE product configuration overlay. Merged with base product.json at build time via build/lib/productConfig.ts",
+
+	"nameShort": "ResonanceIDE",
+	"nameLong": "ResonanceIDE",
+	"applicationName": "resonance-ide",
+	"dataFolderName": ".resonance-ide",
+	"urlProtocol": "resonance-ide",
+	"quality": "stable",
+
+	"licenseName": "MIT",
+	"licenseFileName": "LICENSE.txt",
+	"licenseUrl": "https://github.com/GodSpeedAI/ResonanceIDE/blob/main/LICENSE.txt",
+
+	"win32MutexName": "resonanceide",
+	"win32DirName": "ResonanceIDE",
+	"win32NameVersion": "ResonanceIDE",
+	"win32RegValueName": "ResonanceIDE",
+	"win32AppUserModelId": "ResonanceIDE",
+	"win32ShellNameShort": "ResonanceIDE",
+	"win32TunnelServiceMutex": "resonanceide-tunnelservice",
+	"win32TunnelMutex": "resonanceide-tunnel",
+
+	"darwinBundleIdentifier": "com.resonanceide.resonanceide",
+
+	"linuxIconName": "resonance-ide",
+
+	"serverApplicationName": "resonance-ide-server",
+	"serverDataFolderName": ".resonance-ide-server",
+	"tunnelApplicationName": "resonance-ide-tunnel",
+
+	"extensionsGallery": {
+		"serviceUrl": "https://open-vsx.org/vscode/gallery",
+		"itemUrl": "https://open-vsx.org/vscode/item"
+	},
+
+	"builtInExtensions": [],
+	"webBuiltInExtensions": [],
+
+	"reportIssueUrl": "https://github.com/GodSpeedAI/ResonanceIDE/issues/new",
+
+	"aiConfig": null,
+	"crashReporter": null,
+	"updateUrl": null,
+	"experimentsUrl": null
+}
+

@@ -197,15 +197,19 @@ phases:
   # ---------------------------------------------------------------------------
   - id: phase-1-product-identity
     name: ResonanceIDE Product Identity & Marketplace Wiring
-    status: not_started
+    status: in_progress
     estimated_effort: "3-5 hours"
     depends_on:
       - phase-0-bootstrap
+    validation_commands:
+      - "npm run compile"
+      - "npm run test-node"
+      - "npm run test-build-scripts"
 
     tasks:
       - id: create-product-json-template
         goal: Create ResonanceIDE-specific product.json
-        status: not_started
+        status: completed
         instructions: |
           1. Inspect VSCodium patterns:
              - vscodium/product.json (for reference)
@@ -237,7 +241,7 @@ phases:
 
       - id: wire-product-json-build
         goal: Create ResonanceIDE build targets using custom product.json
-        status: not_started
+        status: completed
         instructions: |
           1. Locate existing gulp tasks for vscode-oss builds in build/gulpfile.*.js
 
@@ -259,8 +263,16 @@ phases:
       - id: verify-product-identity
         goal: Confirm ResonanceIDE branding is applied
         status: not_started
+        blockers_resolved:
+          - "Missing builtInExtensions array in ResonanceIDE.product.json caused .filter() crash"
+          - "Missing licenseFileName caused gulp stream errors"
+          - "Added validation script to prevent future crashes"
         instructions: |
-          1. Build ResonanceIDE on one platform
+          PREREQUISITE: Run validation first to catch config errors:
+             npm run validate:resonance
+
+          1. Build ResonanceIDE on one platform:
+             npm run build:resonance:linux   # or darwin/win
 
           2. Launch and verify:
              - Application title bar shows "ResonanceIDE"
@@ -268,10 +280,16 @@ phases:
              - product.json in installed location has correct values
 
           3. Check that NO Microsoft/VSCodium names appear in visible UI
+
+          TROUBLESHOOTING:
+          - If build hangs/crashes: run `npm run validate:resonance` first
+          - Check scripts/validate-product-config.js output for specific errors
+          - Ensure all platform-specific fields are set in build/ResonanceIDE.product.json
         success_criteria:
           - Title bar shows "ResonanceIDE"
           - Data folder is ~/.resonance-ide
           - No Microsoft or VSCodium branding visible
+          - npm run validate:resonance passes with no errors
 
   # ---------------------------------------------------------------------------
   # PHASE 2: Telemetry & MS Services Removal
