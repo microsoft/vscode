@@ -8,19 +8,12 @@
 	display: flex;
 
 	.chat-controls-container {
-		height: 100%;
-		min-height: 0;
-		min-width: 0;
-	}
-}
-
-/* Sessions control: either sidebar or compact */
-.chat-viewpane.has-sessions-control {
-
-	.chat-controls-container {
 		display: flex;
 		flex-direction: column;
 		flex: 1;
+		height: 100%;
+		min-height: 0;
+		min-width: 0;
 	}
 
 	.agent-sessions-container {
@@ -43,6 +36,13 @@
 				white-space: nowrap;
 			}
 		}
+	}
+}
+
+/* Sessions control: either sidebar or compact */
+.chat-viewpane.has-sessions-control {
+
+	.agent-sessions-container {
 
 		.agent-sessions-toolbar {
 
