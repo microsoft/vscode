@@ -39,6 +39,7 @@
 			padding: 8px;
 
 			.agent-sessions-title {
+				cursor: pointer;
 				overflow: hidden;
 				text-overflow: ellipsis;
 				white-space: nowrap;

@@ -222,6 +222,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.sessionsList?.setSelection([]);
 	}
 
+	scrollToTop(): void {
+		if (this.sessionsList) {
+			this.sessionsList.scrollTop = 0;
+		}
+	}
+
 	getFocus(): IAgentSession[] {
 		const focused = this.sessionsList?.getFocus() ?? [];
 

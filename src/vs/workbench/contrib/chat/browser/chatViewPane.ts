@@ -294,6 +294,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsTitleContainer = this.sessionsTitleContainer = append(sessionsContainer, $('.agent-sessions-title-container'));
 		const sessionsTitle = this.sessionsTitle = append(sessionsTitleContainer, $('span.agent-sessions-title'));
 		sessionsTitle.textContent = this.sessionsViewerLimited ? localize('recentSessions', "Recent Sessions") : localize('allSessions', "All Sessions");
+		this._register(addDisposableListener(sessionsTitle, EventType.CLICK, () => {
+			this.sessionsControl?.scrollToTop();
+			this.sessionsControl?.focus();
+		}));
 
 		// Sessions Toolbar
 		const sessionsToolbarContainer = append(sessionsTitleContainer, $('.agent-sessions-toolbar'));
