@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IChatSessionItem, localChatSessionType } from '../../common/chatSessionsService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -51,6 +52,7 @@ export enum AgentSessionsViewerPosition {
 export interface IAgentSessionsControl {
 	refresh(): void;
 	openFind(): void;
+	reveal(sessionResource: URI): void;
 }
 
 export const agentSessionReadIndicatorForeground = registerColor(

@@ -13,13 +13,17 @@ import { IAgentSessionsService, AgentSessionsService } from './agentSessionsServ
 import { LocalAgentsSessionsProvider } from './localAgentSessionsProvider.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ArchiveAgentSessionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction } from './agentSessionsActions.js';
+import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationAutoAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, ToggleChatViewSessionsAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, RenameAgentSessionAction } from './agentSessionsActions.js';
 
 //#region Actions and Menus
 
 registerAction2(FocusAgentSessionsAction);
+registerAction2(PickAgentSessionAction);
+registerAction2(ArchiveAllAgentSessionsAction);
+registerAction2(ArchiveAgentSessionSectionAction);
 registerAction2(ArchiveAgentSessionAction);
 registerAction2(UnarchiveAgentSessionAction);
+registerAction2(RenameAgentSessionAction);
 registerAction2(MarkAgentSessionUnreadAction);
 registerAction2(MarkAgentSessionReadAction);
 registerAction2(OpenAgentSessionInNewWindowAction);
@@ -29,6 +33,11 @@ registerAction2(RefreshAgentSessionsViewerAction);
 registerAction2(FindAgentSessionInViewerAction);
 registerAction2(ShowAgentSessionsSidebar);
 registerAction2(HideAgentSessionsSidebar);
+registerAction2(ToggleAgentSessionsSidebar);
+registerAction2(ToggleChatViewSessionsAction);
+registerAction2(SetAgentSessionsOrientationAutoAction);
+registerAction2(SetAgentSessionsOrientationStackedAction);
+registerAction2(SetAgentSessionsOrientationSideBySideAction);
 
 // --- Agent Sessions Toolbar
 
@@ -108,7 +117,10 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
 	group: 'navigation',
 	order: 1,
 	when: ContextKeyExpr.and(
-		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+		ContextKeyExpr.or(
+			ChatContextKeys.agentSessionsViewerVisible.negate(),
+			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+		),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
 	)
 });
@@ -122,7 +134,10 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
 	group: 'navigation',
 	order: 1,
 	when: ContextKeyExpr.and(
-		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+		ContextKeyExpr.or(
+			ChatContextKeys.agentSessionsViewerVisible.negate(),
+			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+		),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
 	)
 });

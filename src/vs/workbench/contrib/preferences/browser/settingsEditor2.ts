@@ -204,7 +204,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private settingFastUpdateDelayer: Delayer<void>;
 	private settingSlowUpdateDelayer: Delayer<void>;
-	private pendingSettingUpdate: { key: string; value: any; languageFilter: string | undefined } | null = null;
+	private pendingSettingUpdate: { key: string; value: unknown; languageFilter: string | undefined } | null = null;
 
 	private readonly viewState: ISettingsEditorViewState;
 	private readonly _searchResultModel = this._register(new MutableDisposable<SearchResultModel>());
@@ -1184,7 +1184,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 	}
 
-	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[], manualReset: boolean, scope: ConfigurationScope | undefined): void {
+	private onDidChangeSetting(key: string, value: unknown, type: SettingValueType | SettingValueType[], manualReset: boolean, scope: ConfigurationScope | undefined): void {
 		const parsedQuery = parseQuery(this.searchWidget.getValue());
 		const languageFilter = parsedQuery.languageFilter;
 		if (manualReset || (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key)) {
@@ -1252,7 +1252,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private getAncestors(element: SettingsTreeElement): SettingsTreeElement[] {
-		const ancestors: any[] = [];
+		const ancestors: SettingsTreeElement[] = [];
 
 		while (element.parent) {
 			if (element.parent.id !== 'root') {
@@ -1265,7 +1265,7 @@ export class SettingsEditor2 extends EditorPane {
 		return ancestors.reverse();
 	}
 
-	private updateChangedSetting(key: string, value: any, manualReset: boolean, languageFilter: string | undefined, scope: ConfigurationScope | undefined): Promise<void> {
+	private updateChangedSetting(key: string, value: unknown, manualReset: boolean, languageFilter: string | undefined, scope: ConfigurationScope | undefined): Promise<void> {
 		// ConfigurationService displays the error if this fails.
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change.
 		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
