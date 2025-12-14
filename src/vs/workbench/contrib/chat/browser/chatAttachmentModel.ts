@@ -7,9 +7,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { IChatRequestFileEntry, IChatRequestVariableEntry, isPromptFileVariableEntry } from '../common/chatVariableEntries.js';
-import { FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
+import { FileChangeType, IFileService, IFileSystemWatcher } from '../../../../platform/files/common/files.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
@@ -26,6 +26,7 @@ export interface IChatAttachmentChangeEvent {
 export class ChatAttachmentModel extends Disposable {
 
 	private readonly _attachments = new Map<string, IChatRequestVariableEntry>();
+	private readonly _fileWatchers = this._register(new DisposableMap<IChatRequestFileEntry['id'], IFileSystemWatcher>());
 
 	private _onDidChange = this._register(new Emitter<IChatAttachmentChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
@@ -36,23 +37,6 @@ export class ChatAttachmentModel extends Disposable {
 		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 	) {
 		super();
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		// Listen for file deletions and remove deleted files from attachments
-		this._register(this.fileService.onDidFilesChange(e => {
-			const idsToDelete: string[] = [];
-			for (const [id, attachment] of this._attachments) {
-				const uri = IChatRequestVariableEntry.toUri(attachment);
-				if (uri && e.contains(uri, FileChangeType.DELETED)) {
-					idsToDelete.push(id);
-				}
-			}
-			if (idsToDelete.length > 0) {
-				this.updateContext(idsToDelete, Iterable.empty());
-			}
-		}));
 	}
 
 	get attachments(): ReadonlyArray<IChatRequestVariableEntry> {
@@ -97,6 +81,7 @@ export class ChatAttachmentModel extends Disposable {
 		if (clearStickyAttachments) {
 			const deleted = Array.from(this._attachments.keys());
 			this._attachments.clear();
+			this._fileWatchers.clearAndDisposeAll();
 			this._onDidChange.fire({ deleted, added: [], updated: [] });
 		} else {
 			const deleted: string[] = [];
@@ -105,6 +90,7 @@ export class ChatAttachmentModel extends Disposable {
 				const entry = this._attachments.get(id);
 				if (entry && !isPromptFileVariableEntry(entry)) {
 					this._attachments.delete(id);
+					this._fileWatchers.deleteAndDispose(id);
 					deleted.push(id);
 				}
 			}
@@ -135,6 +121,7 @@ export class ChatAttachmentModel extends Disposable {
 			if (item) {
 				this._attachments.delete(id);
 				deleted.push(id);
+				this._fileWatchers.deleteAndDispose(id);
 			}
 		}
 
@@ -143,15 +130,34 @@ export class ChatAttachmentModel extends Disposable {
 			if (!oldItem) {
 				this._attachments.set(item.id, item);
 				added.push(item);
+				this._watchAttachment(item);
 			} else if (!equals(oldItem, item)) {
+				this._fileWatchers.deleteAndDispose(item.id);
 				this._attachments.set(item.id, item);
 				updated.push(item);
+				this._watchAttachment(item);
 			}
 		}
 
 		if (deleted.length > 0 || added.length > 0 || updated.length > 0) {
 			this._onDidChange.fire({ deleted, added, updated });
 		}
+	}
+
+	private _watchAttachment(attachment: IChatRequestVariableEntry): void {
+		const uri = IChatRequestVariableEntry.toUri(attachment);
+		if (!uri || uri.scheme !== Schemas.file) {
+			return;
+		}
+
+		const watcher = this.fileService.createWatcher(uri, { recursive: false, excludes: [] });
+		this._fileWatchers.set(attachment.id, watcher);
+
+		watcher.onDidChange(e => {
+			if (e.contains(uri, FileChangeType.DELETED)) {
+				this.updateContext([attachment.id], Iterable.empty());
+			}
+		});
 	}
 
 	// ---- create utils
