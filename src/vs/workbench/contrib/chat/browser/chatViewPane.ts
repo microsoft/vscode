@@ -598,6 +598,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 			this.notifySessionsControlCountChanged();
 		}));
+
+		// Track the active chat model and reveal it in the sessions control if side-by-side
+		this._register(chatWidget.onDidChangeViewModel(() => {
+			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
+				return; // only reveal in side-by-side mode
+			}
+
+			const sessionResource = chatWidget.viewModel?.sessionResource;
+			if (sessionResource) {
+				sessionsControl.reveal(sessionResource);
+			}
+		}));
 	}
 
 	private setupContextMenu(parent: HTMLElement): void {
