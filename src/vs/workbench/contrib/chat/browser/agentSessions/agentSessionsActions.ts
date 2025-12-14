@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { IAgentSession } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, isAgentSessionSection } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -212,6 +212,47 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 		}
 
 		for (const session of sessionsToArchive) {
+			session.setArchived(true);
+		}
+	}
+}
+
+export class ArchiveAgentSessionSectionAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionSection.archive',
+			title: localize2('archiveSection', "Archive All"),
+			icon: Codicon.archive,
+			menu: {
+				id: MenuId.AgentSessionSectionToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IAgentSessionSection): Promise<void> {
+		if (!context || !isAgentSessionSection(context)) {
+			return;
+		}
+
+		const dialogService = accessor.get(IDialogService);
+
+		const confirmed = await dialogService.confirm({
+			message: context.sessions.length === 1
+				? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to archive 1 agent session from '{0}'?", context.label)
+				: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} agent sessions from '{1}'?", context.sessions.length, context.label),
+			detail: localize('archiveSectionSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
+			primaryButton: localize('archiveSectionSessions.archive', "Archive All")
+		});
+
+		if (!confirmed.confirmed) {
+			return;
+		}
+
+		for (const session of context.sessions) {
 			session.setArchived(true);
 		}
 	}

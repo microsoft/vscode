@@ -28,6 +28,7 @@ import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IAgentSessionsControl, IMarshalledChatSessionContext } from './agentSessions.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { openSession } from './agentSessionsOpener.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
@@ -90,7 +91,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			new AgentSessionsCompressionDelegate(),
 			[
 				this.instantiationService.createInstance(AgentSessionRenderer, this.options),
-				new AgentSessionSectionRenderer(),
+				this.instantiationService.createInstance(AgentSessionSectionRenderer),
 			],
 			new AgentSessionsDataSource(this.options.filter, sorter),
 			{
@@ -193,8 +194,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		return this.agentSessionsService.model.resolve(undefined);
 	}
 
-	update(): void {
-		this.sessionsList?.updateChildren();
+	async update(): Promise<void> {
+		await this.sessionsList?.updateChildren();
 	}
 
 	setVisible(visible: boolean): void {
@@ -222,9 +223,33 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.sessionsList?.setSelection([]);
 	}
 
+	scrollToTop(): void {
+		if (this.sessionsList) {
+			this.sessionsList.scrollTop = 0;
+		}
+	}
+
 	getFocus(): IAgentSession[] {
 		const focused = this.sessionsList?.getFocus() ?? [];
 
 		return focused.filter(e => isAgentSession(e));
+	}
+
+	reveal(sessionResource: URI): void {
+		if (!this.sessionsList) {
+			return;
+		}
+
+		const session = this.agentSessionsService.model.getSession(sessionResource);
+		if (!session || !this.sessionsList.hasNode(session)) {
+			return;
+		}
+
+		if (this.sessionsList.getRelativeTop(session) === null) {
+			this.sessionsList.reveal(session, 0.5); // only reveal when not already visible
+		}
+
+		this.sessionsList.setFocus([session]);
+		this.sessionsList.setSelection([session]);
 	}
 }

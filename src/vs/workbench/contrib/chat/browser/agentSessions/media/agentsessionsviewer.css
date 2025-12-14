@@ -48,8 +48,7 @@
 		position: relative; /* for the absolute positioning of the toolbar below */
 
 		.monaco-toolbar {
-			/* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
-			position: absolute;
+			position: absolute; /* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
 			right: 0;
 			top: 0;
 			display: none;
@@ -214,10 +213,30 @@
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--vscode-descriptionForeground);
-		padding: 0 8px;
+		padding: 0 12px 0 8px; /* align with session item padding */
 
 		.agent-session-section-label {
 			flex: 1;
+		}
+
+		.agent-session-section-toolbar {
+			position: relative; /* for the absolute positioning of the toolbar below */
+
+			.monaco-toolbar {
+				position: absolute; /* this is required because the overal height (including the padding needed for hover feedback) would push down the label otherwise */
+				right: 0;
+				top: 0;
+				display: none;
+			}
+		}
+	}
+
+	.monaco-list-row:hover .agent-session-section .agent-session-section-toolbar,
+	.monaco-list-row.focused .agent-session-section .agent-session-section-toolbar {
+		width: 22px;
+
+		.monaco-toolbar {
+			display: block;
 		}
 	}
 }
