@@ -9,12 +9,16 @@
 		display: none;
 		/* try to align with the sessions view title */
 		padding: 8px 12px 8px 16px;
-		border-bottom: 1px solid var(--vscode-panel-border);
 		align-items: center;
 		cursor: pointer;
 
 		.chat-view-title-navigation-toolbar {
 			overflow: hidden;
+
+			.chat-view-title-action-item {
+				flex: 1 1 auto;
+				min-width: 0;
+			}
 		}
 
 		.chat-view-title-label {
@@ -22,6 +26,7 @@
 			font-size: 11px;
 			line-height: 16px;
 			color: var(--vscode-descriptionForeground);
+			display: block;
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;

@@ -316,6 +316,8 @@ class ChatViewTitleLabel extends ActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 
+		container.classList.add('chat-view-title-action-item');
+
 		this.label?.classList.add('chat-view-title-label');
 	}
 
