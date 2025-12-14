@@ -9,7 +9,7 @@ import { basename } from '../../../../base/common/resources.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChatRequestFileEntry, IChatRequestVariableEntry, isPromptFileVariableEntry } from '../common/chatVariableEntries.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
@@ -36,6 +36,23 @@ export class ChatAttachmentModel extends Disposable {
 		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 	) {
 		super();
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		// Listen for file deletions and remove deleted files from attachments
+		this._register(this.fileService.onDidFilesChange(e => {
+			const idsToDelete: string[] = [];
+			for (const [id, attachment] of this._attachments) {
+				const uri = IChatRequestVariableEntry.toUri(attachment);
+				if (uri && e.contains(uri, FileChangeType.DELETED)) {
+					idsToDelete.push(id);
+				}
+			}
+			if (idsToDelete.length > 0) {
+				this.updateContext(idsToDelete, Iterable.empty());
+			}
+		}));
 	}
 
 	get attachments(): ReadonlyArray<IChatRequestVariableEntry> {
