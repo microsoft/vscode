@@ -413,7 +413,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private notifySessionsControlLimitedChanged(triggerLayout: boolean): void {
+	private notifySessionsControlLimitedChanged(triggerLayout: boolean): Promise<void> {
 		this.sessionsViewerLimitedContext.set(this.sessionsViewerLimited);
 
 		this.updateSessionsControlTitle();
@@ -425,11 +425,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			};
 		}
 
-		this.sessionsControl?.update();
+		const updatePromise = this.sessionsControl?.update();
 
 		if (triggerLayout && this.lastDimensions) {
 			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 		}
+
+		return updatePromise ?? Promise.resolve();
 	}
 
 	private notifySessionsControlCountChanged(newSessionsCount?: number): void {
@@ -821,10 +823,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (oldSessionsViewerOrientation !== this.sessionsViewerOrientation) {
 			const oldSessionsViewerLimited = this.sessionsViewerLimited;
 			this.sessionsViewerLimited = this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked;
+
+			let updatePromise: Promise<void>;
 			if (oldSessionsViewerLimited !== this.sessionsViewerLimited) {
-				this.notifySessionsControlLimitedChanged(false /* already in layout */);
+				updatePromise = this.notifySessionsControlLimitedChanged(false /* already in layout */);
 			} else {
-				this.sessionsControl?.update(); // still need to update for section visibility
+				updatePromise = this.sessionsControl?.update(); // still need to update for section visibility
+			}
+
+			// Switching to side-by-side, reveal the current session after elements have loaded
+			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
+				updatePromise.then(() => {
+					const sessionResource = this._widget?.viewModel?.sessionResource;
+					if (sessionResource) {
+						this.sessionsControl?.reveal(sessionResource);
+					}
+				});
 			}
 		}
 

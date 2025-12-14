@@ -194,8 +194,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		return this.agentSessionsService.model.resolve(undefined);
 	}
 
-	update(): void {
-		this.sessionsList?.updateChildren();
+	async update(): Promise<void> {
+		await this.sessionsList?.updateChildren();
 	}
 
 	setVisible(visible: boolean): void {
