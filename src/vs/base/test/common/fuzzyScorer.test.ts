@@ -1335,6 +1335,14 @@ suite('Fuzzy Scorer', () => {
 		[score, matches] = _doScore2('MyClass', 'MC#');
 		assert.ok(typeof score === 'number' && score > 0, 'Should fuzzy match "MyClass" symbol when query is "MC#"');
 		assert.ok(matches.length > 0);
+
+		// Make sure leading # or # in the middle are not removed.
+		query = prepareQuery('#SpecialFunction');
+		assert.strictEqual(query.original, '#SpecialFunction');
+		assert.strictEqual(query.normalized, '#SpecialFunction');
+		[score, matches] = _doScore2('#SpecialFunction', '#SpecialFunction');
+		assert.ok(typeof score === 'number' && score > 0, 'Should match "#SpecialFunction" symbol when query is "#SpecialFunction"');
+		assert.ok(matches.length > 0);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
