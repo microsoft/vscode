@@ -37,7 +37,10 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const productJson = es.through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
-		if (product.extensionsGallery) {
+		const currentBranch = cp.execSync('git branch --show-current', { encoding: 'utf8' }).trim();
+		const allowExtensionsGallery = currentBranch === 'local_with_extensions';
+
+		if (product.extensionsGallery && !allowExtensionsGallery) {
 			console.error(`product.json: Contains 'extensionsGallery'`);
 			errorCount++;
 		}
