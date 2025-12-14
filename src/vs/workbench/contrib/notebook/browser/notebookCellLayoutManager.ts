@@ -41,13 +41,18 @@ export class NotebookCellLayoutManager extends Disposable {
 		}
 
 		if (this._pendingLayouts?.has(cell)) {
-			this._pendingLayouts?.get(cell)!.dispose();
+			const oldPendingLayout = this._pendingLayouts.get(cell)!;
+			oldPendingLayout.dispose();
+			this._layoutDisposables.delete(oldPendingLayout);
 		}
 
 		const deferred = new DeferredPromise<void>();
+		let capturedDisposable: IDisposable | undefined = undefined;
+
 		const doLayout = () => {
-			const pendingLayout = this._pendingLayouts?.get(cell);
-			this._pendingLayouts?.delete(cell);
+			if (capturedDisposable) {
+				this._pendingLayouts?.delete(cell);
+			}
 
 			this._layoutStack.push(layoutTag);
 			try {
@@ -56,12 +61,10 @@ export class NotebookCellLayoutManager extends Disposable {
 				}
 
 				if (!this.notebookWidget.viewModel?.hasCell(cell)) {
-					// Cell removed in the meantime?
 					return;
 				}
 
 				if (this._list.getViewIndex(cell) === undefined) {
-					// Cell can be hidden
 					return;
 				}
 
@@ -72,13 +75,10 @@ export class NotebookCellLayoutManager extends Disposable {
 				this.checkStackDepth();
 
 				if (!this.notebookWidget.hasEditorFocus()) {
-					// Do not scroll inactive notebook
-					// https://github.com/microsoft/vscode/issues/145340
 					const cellIndex = this.notebookWidget.viewModel?.getCellIndex(cell);
 					const visibleRanges = this.notebookWidget.visibleRanges;
 					if (cellIndex !== undefined
 						&& visibleRanges && visibleRanges.length && visibleRanges[0].start === cellIndex
-						// cell is partially visible
 						&& this._list.scrollTop > this.notebookWidget.getAbsoluteTopOfElement(cell)
 					) {
 						return this._list.updateElementHeight2(cell, height, Math.min(cellIndex + 1, this.notebookWidget.getLength() - 1));
@@ -89,23 +89,21 @@ export class NotebookCellLayoutManager extends Disposable {
 			} finally {
 				this._layoutStack.pop();
 				deferred.complete(undefined);
-				if (pendingLayout) {
-					pendingLayout.dispose();
-					this._layoutDisposables.delete(pendingLayout);
+				if (capturedDisposable) {
+					this._layoutDisposables.delete(capturedDisposable);
 				}
-
 			}
 		};
 
 		if (this._list.inRenderingTransaction) {
 			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.notebookWidget.getDomNode()), doLayout);
 
-			const disposable = toDisposable(() => {
+			capturedDisposable = toDisposable(() => {
 				layoutDisposable.dispose();
 				deferred.complete(undefined);
 			});
-			this._pendingLayouts?.set(cell, disposable);
-			this._layoutDisposables.add(disposable);
+			this._pendingLayouts?.set(cell, capturedDisposable);
+			this._layoutDisposables.add(capturedDisposable);
 		} else {
 			doLayout();
 		}
