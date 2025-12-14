@@ -362,6 +362,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 interface IAgentSessionSectionTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLSpanElement;
+	readonly toolbar: MenuWorkbenchToolBar;
+	readonly contextKeyService: IContextKeyService;
+	readonly disposables: IDisposable;
 }
 
 export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IAgentSessionSection, FuzzyScore, IAgentSessionSectionTemplate> {
@@ -370,24 +373,47 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 	readonly templateId = AgentSessionSectionRenderer.TEMPLATE_ID;
 
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+	) { }
+
 	renderTemplate(container: HTMLElement): IAgentSessionSectionTemplate {
+		const disposables = new DisposableStore();
+
 		const elements = h(
 			'div.agent-session-section@container',
 			[
-				h('span.agent-session-section-label@label')
+				h('span.agent-session-section-label@label'),
+				h('div.agent-session-section-toolbar@toolbar')
 			]
 		);
+
+		const contextKeyService = disposables.add(this.contextKeyService.createScoped(elements.container));
+		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.AgentSessionSectionToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+		}));
 
 		container.appendChild(elements.container);
 
 		return {
 			container: elements.container,
 			label: elements.label,
+			toolbar,
+			contextKeyService,
+			disposables
 		};
 	}
 
 	renderElement(element: ITreeNode<IAgentSessionSection, FuzzyScore>, index: number, template: IAgentSessionSectionTemplate, details?: ITreeElementRenderDetails): void {
+
+		// Label
 		template.label.textContent = element.element.label;
+
+		// Toolbar
+		ChatContextKeys.agentSessionSection.bindTo(template.contextKeyService).set(element.element.section);
+		template.toolbar.context = element.element;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSessionSection>, FuzzyScore>, index: number, templateData: IAgentSessionSectionTemplate, details?: ITreeElementRenderDetails): void {
@@ -399,7 +425,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 	}
 
 	disposeTemplate(templateData: IAgentSessionSectionTemplate): void {
-		// noop
+		templateData.disposables.dispose();
 	}
 }
 
