@@ -39,6 +39,12 @@
 
 	"reportIssueUrl": "https://github.com/GodSpeedAI/ResonanceIDE/issues/new",
 
+	"serverLicenseUrl": "https://github.com/GodSpeedAI/ResonanceIDE/blob/main/LICENSE.txt",
+	"webviewContentExternalBaseUrlTemplate": null,
+
+	"defaultChatAgent": null,
+	"trustedExtensionAuthAccess": null,
+
 	"aiConfig": null,
 	"crashReporter": null,
 	"updateUrl": null,

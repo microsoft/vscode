@@ -197,7 +197,7 @@ phases:
   # ---------------------------------------------------------------------------
   - id: phase-1-product-identity
     name: ResonanceIDE Product Identity & Marketplace Wiring
-    status: in_progress
+    status: completed
     estimated_effort: "3-5 hours"
     depends_on:
       - phase-0-bootstrap
@@ -262,7 +262,7 @@ phases:
 
       - id: verify-product-identity
         goal: Confirm ResonanceIDE branding is applied
-        status: in_progress
+        status: completed
         blockers_resolved:
           - "Missing builtInExtensions array in ResonanceIDE.product.json caused .filter() crash"
           - "Missing licenseFileName caused gulp stream errors"
