@@ -35,7 +35,7 @@ import { TokenWithTextArray } from '../../../../../common/tokens/tokenWithTextAr
 import { InlineCompletionViewData } from '../inlineEdits/inlineEditsViewInterface.js';
 import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
 import { equals, sum } from '../../../../../../base/common/arrays.js';
-import { equalsIfDefined, IEquatable, itemEquals } from '../../../../../../base/common/equals.js';
+import { equalsIfDefinedC, IEquatable, thisEqualsC } from '../../../../../../base/common/equals.js';
 
 export interface IGhostTextWidgetData {
 	readonly ghostText: GhostText | GhostTextReplacement;
@@ -103,7 +103,7 @@ export class GhostTextView extends Disposable {
 		this._additionalLinesWidget = this._register(
 			new AdditionalLinesWidget(
 				this._editor,
-				derivedOpts({ owner: this, equalsFn: equalsIfDefined(itemEquals()) }, reader => {
+				derivedOpts({ owner: this, equalsFn: equalsIfDefinedC(thisEqualsC()) }, reader => {
 					/** @description lines */
 					const uiState = this._state.read(reader);
 					return uiState ? new AdditionalLinesData(
@@ -435,7 +435,7 @@ class AdditionalLinesData implements IEquatable<AdditionalLinesData> {
 		if (this.minReservedLineCount !== other.minReservedLineCount) {
 			return false;
 		}
-		return equals(this.additionalLines, other.additionalLines, itemEquals());
+		return equals(this.additionalLines, other.additionalLines, thisEqualsC());
 	}
 }
 
@@ -523,31 +523,33 @@ export class AdditionalLinesWidget extends Disposable {
 
 		const { tabSize } = textModel.getOptions();
 
-		this._editor.changeViewZones((changeAccessor) => {
-			const store = new DisposableStore();
+		observableCodeEditor(this._editor).transaction(_ => {
+			this._editor.changeViewZones((changeAccessor) => {
+				const store = new DisposableStore();
 
-			this.removeActiveViewZone(changeAccessor);
+				this.removeActiveViewZone(changeAccessor);
 
-			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
-			if (heightInLines > 0) {
-				const domNode = document.createElement('div');
-				renderLines(domNode, tabSize, additionalLines, this._editor.getOptions(), this._isClickable);
+				const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
+				if (heightInLines > 0) {
+					const domNode = document.createElement('div');
+					renderLines(domNode, tabSize, additionalLines, this._editor.getOptions(), this._isClickable);
 
-				if (this._isClickable) {
-					store.add(addDisposableListener(domNode, 'mousedown', (e) => {
-						e.preventDefault(); // This prevents that the editor loses focus
-					}));
-					store.add(addDisposableListener(domNode, 'click', (e) => {
-						if (isTargetGhostText(e.target)) {
-							this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
-						}
-					}));
+					if (this._isClickable) {
+						store.add(addDisposableListener(domNode, 'mousedown', (e) => {
+							e.preventDefault(); // This prevents that the editor loses focus
+						}));
+						store.add(addDisposableListener(domNode, 'click', (e) => {
+							if (isTargetGhostText(e.target)) {
+								this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
+							}
+						}));
+					}
+
+					this.addViewZone(changeAccessor, lineNumber, heightInLines, domNode);
 				}
 
-				this.addViewZone(changeAccessor, lineNumber, heightInLines, domNode);
-			}
-
-			this._viewZoneListener.value = store;
+				this._viewZoneListener.value = store;
+			});
 		});
 	}
 

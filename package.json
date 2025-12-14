@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.108.0",
-  "distro": "ac62b183885af851634b215f084a75e84d439948",
+  "distro": "30bf5c1b117940f64d2dc13a89612f14618f1c77",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -108,7 +108,7 @@
     "native-is-elevated": "0.8.0",
     "native-keymap": "^3.3.5",
     "native-watchdog": "^1.4.1",
-    "node-pty": "1.1.0-beta35",
+    "node-pty": "1.1.0-beta40",
     "open": "^10.1.2",
     "tas-client": "0.3.1",
     "undici": "^7.9.0",

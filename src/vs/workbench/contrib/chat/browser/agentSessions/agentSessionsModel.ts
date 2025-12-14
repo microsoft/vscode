@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ChatSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, localChatSessionType } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -47,6 +47,7 @@ interface IAgentSessionData {
 
 	readonly label: string;
 	readonly description?: string | IMarkdownString;
+	readonly badge?: string | IMarkdownString;
 	readonly icon: ThemeIcon;
 
 	readonly timing: {
@@ -127,21 +128,42 @@ export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 	return session.providerType === localChatSessionType;
 }
 
-export function isAgentSession(obj: IAgentSessionsModel | IAgentSession): obj is IAgentSession {
+export function isAgentSession(obj: unknown): obj is IAgentSession {
 	const session = obj as IAgentSession | undefined;
 
-	return URI.isUri(session?.resource);
+	return URI.isUri(session?.resource) && typeof session.setArchived === 'function' && typeof session.setRead === 'function';
 }
 
-export function isAgentSessionsModel(obj: IAgentSessionsModel | IAgentSession): obj is IAgentSessionsModel {
+export function isAgentSessionsModel(obj: unknown): obj is IAgentSessionsModel {
 	const sessionsModel = obj as IAgentSessionsModel | undefined;
 
-	return Array.isArray(sessionsModel?.sessions);
+	return Array.isArray(sessionsModel?.sessions) && typeof sessionsModel?.getSession === 'function';
 }
 
 interface IAgentSessionState {
 	readonly archived: boolean;
 	readonly read: number /* last date turned read */;
+}
+
+export const enum AgentSessionSection {
+	Active = 'active',
+	Today = 'today',
+	Yesterday = 'yesterday',
+	Week = 'week',
+	Older = 'older',
+	Archived = 'archived',
+}
+
+export interface IAgentSessionSection {
+	readonly section: AgentSessionSection;
+	readonly label: string;
+	readonly sessions: IAgentSession[];
+}
+
+export function isAgentSessionSection(obj: IAgentSessionsModel | IAgentSession | IAgentSessionSection): obj is IAgentSessionSection {
+	const candidate = obj as IAgentSessionSection;
+
+	return typeof candidate.section === 'string' && Array.isArray(candidate.sessions);
 }
 
 //#endregion
@@ -302,14 +324,14 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				if (!state) {
 					this.mapSessionToState.set(session.resource, {
 						status,
-						inProgressTime: status === ChatSessionStatus.InProgress ? Date.now() : undefined, // this is not accurate but best effort
+						inProgressTime: isSessionInProgressStatus(status) ? Date.now() : undefined, // this is not accurate but best effort
 					});
 				}
 
 				// State changed, update it
 				else if (status !== state.status) {
-					inProgressTime = status === ChatSessionStatus.InProgress ? Date.now() : state.inProgressTime;
-					finishedOrFailedTime = (status !== ChatSessionStatus.InProgress) ? Date.now() : state.finishedOrFailedTime;
+					inProgressTime = isSessionInProgressStatus(status) ? Date.now() : state.inProgressTime;
+					finishedOrFailedTime = !isSessionInProgressStatus(status) ? Date.now() : state.finishedOrFailedTime;
 
 					this.mapSessionToState.set(session.resource, {
 						status,
@@ -346,6 +368,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					label: session.label,
 					description: session.description,
 					icon,
+					badge: session.badge,
 					tooltip: session.tooltip,
 					status,
 					archived: session.archived,
@@ -394,7 +417,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	// see after updating to 1.107, we specify a fixed date that a
 	// session needs to be created after to be considered unread unless
 	// the user has explicitly marked it as read.
-	// TODO@bpasero remove this logic eventually
 	private static readonly READ_STATE_INITIAL_DATE = Date.UTC(2025, 11 /* December */, 8);
 
 	private readonly sessionStates: ResourceMap<IAgentSessionState>;

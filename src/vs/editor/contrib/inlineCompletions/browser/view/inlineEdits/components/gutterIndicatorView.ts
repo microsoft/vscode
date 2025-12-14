@@ -12,7 +12,6 @@ import { IObservable, ISettableObservable, autorun, constObservable, debouncedOb
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -34,6 +33,7 @@ import { InlineSuggestionItem } from '../../../model/inlineSuggestionItem.js';
 import { localize } from '../../../../../../../nls.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
 import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 
 export class InlineEditsGutterIndicatorData {
 	constructor(
@@ -81,6 +81,9 @@ export class SimpleInlineSuggestModel {
 		readonly jump: () => void,
 	) { }
 }
+
+const CODICON_SIZE_PX = 16;
+const CODICON_PADDING_PX = 2;
 
 export class InlineEditsGutterIndicator extends Disposable {
 	constructor(
@@ -317,14 +320,15 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const layout = this._editorObs.layoutInfo.read(reader);
 
 		const lineHeight = this._editorObs.observeLineHeightForLine(s.range.map(r => r.startLineNumber)).read(reader);
-		const gutterViewPortPadding = 2;
+		const gutterViewPortPaddingLeft = 1;
+		const gutterViewPortPaddingTop = 2;
 
 		// Entire gutter view from top left to bottom right
-		const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPadding;
-		const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPadding;
-		const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPadding, gutterViewPortPadding, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
+		const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPaddingLeft;
+		const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPaddingTop;
+		const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPaddingLeft, gutterViewPortPaddingTop, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
 		const gutterViewPortWithoutStickyScrollWithoutPaddingTop = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader));
-		const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPadding);
+		const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPaddingTop);
 
 		// The glyph margin area across all relevant lines
 		const verticalEditRange = s.lineOffsetRange.read(reader);
@@ -350,11 +354,10 @@ export class InlineEditsGutterIndicator extends Disposable {
 			return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
 		});
 
-		const idealIconWidth = 22;
-		const minimalIconWidth = 16; // codicon size
+		const idealIconAreaWidth = 22;
 		const iconWidth = (pillRect: Rect) => {
-			const availableWidth = this._availableWidthForIcon.read(undefined)(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPadding;
-			return Math.max(Math.min(availableWidth, idealIconWidth), minimalIconWidth);
+			const availableIconAreaWidth = this._availableWidthForIcon.read(undefined)(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPaddingLeft;
+			return Math.max(Math.min(availableIconAreaWidth, idealIconAreaWidth), CODICON_SIZE_PX);
 		};
 
 		if (pillIsFullyDocked) {
@@ -362,20 +365,23 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			let lineNumberWidth;
 			if (layout.lineNumbersWidth === 0) {
-				lineNumberWidth = Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconWidth);
+				lineNumberWidth = Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconAreaWidth);
 			} else {
 				lineNumberWidth = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
 			}
 
 			const lineNumberRect = pillRect.withWidth(lineNumberWidth);
-			const iconWidth = Math.max(Math.min(layout.decorationsWidth, idealIconWidth), minimalIconWidth);
-			const iconRect = pillRect.withWidth(iconWidth).translateX(lineNumberWidth);
+			const minimalIconWidthWithPadding = CODICON_SIZE_PX + CODICON_PADDING_PX;
+			const iconWidth = Math.min(layout.decorationsWidth, idealIconAreaWidth);
+			const iconRect = pillRect.withWidth(Math.max(iconWidth, minimalIconWidthWithPadding)).translateX(lineNumberWidth);
+			const iconVisible = iconWidth >= minimalIconWidthWithPadding;
 
 			return {
 				gutterEditArea,
 				icon: iconDocked,
 				iconDirection: 'right' as const,
 				iconRect,
+				iconVisible,
 				pillRect,
 				lineNumberRect,
 			};
@@ -397,6 +403,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				iconDirection: 'right' as const,
 				iconRect,
 				pillRect,
+				iconVisible: true,
 			};
 		}
 
@@ -416,6 +423,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			iconDirection,
 			iconRect,
 			pillRect,
+			iconVisible: true,
 		};
 	});
 
@@ -476,20 +484,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _indicator = n.div({
 		class: 'inline-edits-view-gutter-indicator',
-		onclick: () => {
-			const layout = this._layout.get();
-			const acceptOnClick = layout?.icon.get() === Codicon.check;
-
-			const data = this._data.get();
-			if (!data) { throw new BugIndicatingError('Gutter indicator data not available'); }
-
-			this._editorObs.editor.focus();
-			if (acceptOnClick) {
-				data.model.accept();
-			} else {
-				data.model.jump();
-			}
-		},
 		style: {
 			position: 'absolute',
 			overflow: 'visible',
@@ -506,6 +500,23 @@ export class InlineEditsGutterIndicator extends Disposable {
 		n.div({
 			class: 'icon',
 			ref: this._iconRef,
+
+			tabIndex: 0,
+			onclick: () => {
+				const layout = this._layout.get();
+				const acceptOnClick = layout?.icon.get() === Codicon.check;
+
+				const data = this._data.get();
+				if (!data) { throw new BugIndicatingError('Gutter indicator data not available'); }
+
+				this._editorObs.editor.focus();
+				if (acceptOnClick) {
+					data.model.accept();
+				} else {
+					data.model.jump();
+				}
+			},
+
 			onmouseenter: () => {
 				// TODO show hover when hovering ghost text etc.
 				this._showHover();
@@ -521,7 +532,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				boxSizing: 'border-box',
 				borderRadius: '4px',
 				display: 'flex',
-				justifyContent: 'flex-end',
+				justifyContent: layout.map(l => l.iconDirection === 'bottom' ? 'flex-start' : 'flex-end'),
 				transition: this._modifierPressed.map(m => m ? '' : 'background-color 0.2s ease-in-out, width 0.2s ease-in-out'),
 				...rectToProps(reader => layout.read(reader).pillRect),
 			}
@@ -542,17 +553,20 @@ export class InlineEditsGutterIndicator extends Disposable {
 			),
 			n.div({
 				style: {
-					rotate: layout.map(l => `${getRotationFromDirection(l.iconDirection)}deg`),
-					transition: 'rotate 0.2s ease-in-out',
+					transform: layout.map(l => `rotate(${getRotationFromDirection(l.iconDirection)}deg)`),
+					transition: 'rotate 0.2s ease-in-out, opacity 0.2s ease-in-out',
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 					height: '100%',
+					opacity: layout.map(l => l.iconVisible ? '1' : '0'),
 					marginRight: layout.map(l => l.pillRect.width - l.iconRect.width - (l.lineNumberRect?.width ?? 0)),
 					width: layout.map(l => l.iconRect.width),
+					position: 'relative',
+					right: layout.map(l => l.iconDirection === 'top' ? '1px' : '0'),
 				}
 			}, [
-				layout.map((l, reader) => renderIcon(l.icon.read(reader))),
+				layout.map((l, reader) => withStyles(renderIcon(l.icon.read(reader)), { fontSize: toPx(Math.min(l.iconRect.width - CODICON_PADDING_PX, CODICON_SIZE_PX)) })),
 			])
 		]),
 	]));
@@ -564,4 +578,16 @@ function getRotationFromDirection(direction: 'top' | 'bottom' | 'right'): number
 		case 'bottom': return -90;
 		case 'right': return 0;
 	}
+}
+
+function withStyles<T extends HTMLElement>(element: T, styles: { [key: string]: string }): T {
+	for (const key in styles) {
+		// eslint-disable-next-line local/code-no-any-casts
+		element.style[key as any] = styles[key];
+	}
+	return element;
+}
+
+function toPx(n: number): string {
+	return `${n}px`;
 }

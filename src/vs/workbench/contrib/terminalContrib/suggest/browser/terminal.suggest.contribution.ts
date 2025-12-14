@@ -113,6 +113,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
 		let lspTerminalObj = undefined;
+		// TODO: Change to always load after settings update for terminal suggest provider
 		if (!this._ctx.instance.shellType || !(lspTerminalObj = getTerminalLspSupportedLanguageObj(this._ctx.instance.shellType))) {
 			this._lspAddons.clearAndDisposeAll();
 			return;
