@@ -5,6 +5,7 @@
 
 /* Overall styles */
 .chat-viewpane {
+	display: flex;
 
 	.chat-controls-container {
 		height: 100%;
@@ -15,8 +16,6 @@
 
 /* Sessions control: either sidebar or compact */
 .chat-viewpane.has-sessions-control {
-
-	display: flex;
 
 	.chat-controls-container {
 		display: flex;

@@ -234,7 +234,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.telemetryService.publicLog2<{}, ChatViewPaneOpenedClassification>('chatViewPaneOpened');
 
 		this.viewPaneContainer = parent;
-		this.viewPaneContainer.classList.add('chat-viewpane');
+		this.viewPaneContainer.classList.add('chat-viewpane', 'has-sessions-control');
 		this.updateViewPaneClasses(false);
 
 		this.createControls(parent);
@@ -482,8 +482,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				newSessionsContainerVisible = !!this.lastDimensions && this.lastDimensions.width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH; // enough space
 			}
 		}
-
-		this.viewPaneContainer.classList.toggle('has-sessions-control', newSessionsContainerVisible);
 
 		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
 		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
