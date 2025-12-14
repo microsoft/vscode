@@ -263,7 +263,7 @@ export class PromptFilesLocator {
 		const searchOptions: IFileQuery = {
 			folderQueries: [{ folder, disregardIgnoreFiles }],
 			type: QueryType.File,
-			shouldGlobMatchFilePattern: true,
+			filePatternType: 'glob',
 			excludePattern: workspaceRoot ? getExcludePattern(workspaceRoot.uri) : undefined,
 			sortByScore: true,
 			filePattern
@@ -309,10 +309,9 @@ export class PromptFilesLocator {
 		const searchOptions: IFileQuery = {
 			folderQueries: [{ folder, disregardIgnoreFiles }],
 			type: QueryType.File,
-			shouldGlobMatchFilePattern: true,
+			filePatternType: 'globCaseInsensitive',
 			excludePattern: getExcludePattern(folder),
-			// Case-insensitive search for 'AGENTS.md'. Using character classes here for case-insensitivity until IFileQuery supports case-insensitive glob patterns.
-			filePattern: '**/[Aa][Gg][Ee][Nn][Tt][Ss].[Mm][Dd]',
+			filePattern: '**/AGENTS.md',
 		};
 
 		try {

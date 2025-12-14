@@ -600,7 +600,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 				disregardIgnoreFiles: !this.configurationService.getValue<boolean>('explorer.excludeGitIgnore'),
 			}],
 			type: QueryType.File,
-			shouldGlobMatchFilePattern: true,
+			filePatternType: 'glob',
 			cacheKey: `explorerfindprovider:${root.name}:${rootIndex}:${this.sessionId}`,
 			excludePattern: searchExcludePattern,
 		};
