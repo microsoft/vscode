@@ -5,7 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../base/common/errors.js';
-import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { isNative } from '../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -32,9 +32,8 @@ import { revive } from '../../../base/common/marshalling.js';
 import { ITextFileService } from '../../services/textfile/common/textfiles.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
-export class MainThreadWorkspace implements MainThreadWorkspaceShape {
+export class MainThreadWorkspace extends Disposable implements MainThreadWorkspaceShape {
 
-	private readonly _toDispose = new DisposableStore();
 	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 	private readonly _queryBuilder: QueryBuilder;
@@ -57,6 +56,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
+		super()
 		this._queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		const workspace = this._contextService.getWorkspace();
@@ -67,13 +67,13 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		} else {
 			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted()));
 		}
-		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
-		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
-		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this, this._toDispose);
+		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._store);
+		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._store);
+		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this, this._store);
 	}
 
-	dispose(): void {
-		this._toDispose.dispose();
+	override dispose(): void {
+		super.dispose()
 
 		for (const requestId in this._activeCancelTokens) {
 			const tokenSource = this._activeCancelTokens[requestId];
@@ -254,7 +254,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	// --- edit sessions ---
-	private registeredEditSessionProviders = new Map<number, IDisposable>();
+	private registeredEditSessionProviders = this._register(new DisposableMap<number, IDisposable>());
 
 	$registerEditSessionIdentityProvider(handle: number, scheme: string) {
 		const disposable = this._editSessionIdentityService.registerEditSessionIdentityProvider({
@@ -268,17 +268,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 
 		this.registeredEditSessionProviders.set(handle, disposable);
-		this._toDispose.add(disposable);
 	}
 
 	$unregisterEditSessionIdentityProvider(handle: number) {
-		const disposable = this.registeredEditSessionProviders.get(handle);
-		disposable?.dispose();
-		this.registeredEditSessionProviders.delete(handle);
+		this.registeredEditSessionProviders.deleteAndDispose(handle);
 	}
 
 	// --- canonical uri identities ---
-	private registeredCanonicalUriProviders = new Map<number, IDisposable>();
+	private registeredCanonicalUriProviders = this._register(new DisposableMap<number, IDisposable>());
 
 	$registerCanonicalUriProvider(handle: number, scheme: string) {
 		const disposable = this._canonicalUriService.registerCanonicalUriProvider({
@@ -293,13 +290,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 
 		this.registeredCanonicalUriProviders.set(handle, disposable);
-		this._toDispose.add(disposable);
 	}
 
 	$unregisterCanonicalUriProvider(handle: number) {
-		const disposable = this.registeredCanonicalUriProviders.get(handle);
-		disposable?.dispose();
-		this.registeredCanonicalUriProviders.delete(handle);
+		this.registeredCanonicalUriProviders.deleteAndDispose(handle);
 	}
 
 	// --- encodings
