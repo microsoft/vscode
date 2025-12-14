@@ -148,6 +148,7 @@ interface IAgentSessionState {
 export const enum AgentSessionSection {
 	Active = 'active',
 	Today = 'today',
+	Yesterday = 'yesterday',
 	Week = 'week',
 	Older = 'older',
 	Archived = 'archived',

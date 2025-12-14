@@ -496,7 +496,8 @@ export interface IAgentSessionsFilter {
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
 
-	private static readonly WEEK_THRESHOLD = 7 * 24 * 60 * 60 * 1000;
+	private static readonly DAY_THRESHOLD = 24 * 60 * 60 * 1000;
+	private static readonly WEEK_THRESHOLD = 7 * AgentSessionsDataSource.DAY_THRESHOLD;
 
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
@@ -568,10 +569,12 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 
 		const now = new Date();
 		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+		const startOfYesterday = startOfToday - AgentSessionsDataSource.DAY_THRESHOLD;
 		const weekThreshold = Date.now() - AgentSessionsDataSource.WEEK_THRESHOLD;
 
 		const activeSessions: IAgentSession[] = [];
 		const todaySessions: IAgentSession[] = [];
+		const yesterdaySessions: IAgentSession[] = [];
 		const weekSessions: IAgentSession[] = [];
 		const olderSessions: IAgentSession[] = [];
 		const archivedSessions: IAgentSession[] = [];
@@ -585,6 +588,8 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 				const sessionTime = session.timing.endTime || session.timing.startTime;
 				if (sessionTime >= startOfToday) {
 					todaySessions.push(session);
+				} else if (sessionTime >= startOfYesterday) {
+					yesterdaySessions.push(session);
 				} else if (sessionTime >= weekThreshold) {
 					weekSessions.push(session);
 				} else {
@@ -596,6 +601,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		// Sort each group
 		activeSessions.sort(this.sorter.compare.bind(this.sorter));
 		todaySessions.sort(this.sorter.compare.bind(this.sorter));
+		yesterdaySessions.sort(this.sorter.compare.bind(this.sorter));
 		weekSessions.sort(this.sorter.compare.bind(this.sorter));
 		olderSessions.sort(this.sorter.compare.bind(this.sorter));
 		archivedSessions.sort(this.sorter.compare.bind(this.sorter));
@@ -604,6 +610,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const orderedSections = [
 			{ sessions: activeSessions, section: AgentSessionSection.Active, label: localize('agentSessions.activeSection', "Active") },
 			{ sessions: todaySessions, section: AgentSessionSection.Today, label: localize('agentSessions.todaySection', "Today") },
+			{ sessions: yesterdaySessions, section: AgentSessionSection.Yesterday, label: localize('agentSessions.yesterdaySection', "Yesterday") },
 			{ sessions: weekSessions, section: AgentSessionSection.Week, label: localize('agentSessions.weekSection', "Week") },
 			{ sessions: olderSessions, section: AgentSessionSection.Older, label: localize('agentSessions.olderSection', "Older") },
 			{ sessions: archivedSessions, section: AgentSessionSection.Archived, label: localize('agentSessions.archivedSection', "Archived") },
