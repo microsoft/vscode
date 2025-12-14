@@ -146,18 +146,23 @@ interface IAgentSessionState {
 }
 
 export const enum AgentSessionSection {
-	Recent = 'recent',
+	Active = 'active',
+	Today = 'today',
+	Week = 'week',
+	Older = 'older',
 	Archived = 'archived',
-	Old = 'old',
 }
 
 export interface IAgentSessionSection {
 	readonly section: AgentSessionSection;
 	readonly label: string;
+	readonly sessions: IAgentSession[];
 }
 
 export function isAgentSessionSection(obj: IAgentSessionsModel | IAgentSession | IAgentSessionSection): obj is IAgentSessionSection {
-	return typeof (obj as IAgentSessionSection)?.section === 'string';
+	const candidate = obj as IAgentSessionSection;
+
+	return typeof candidate.section === 'string' && Array.isArray(candidate.sessions);
 }
 
 //#endregion

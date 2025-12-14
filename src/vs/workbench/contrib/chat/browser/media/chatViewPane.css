@@ -122,6 +122,10 @@
 
 	.agent-sessions-container {
 		border-bottom: 1px solid var(--vscode-panel-border);
+
+		.agent-session-section {
+			padding: 0 8px 0 18px; /* align with container title */
+		}
 	}
 }
 
