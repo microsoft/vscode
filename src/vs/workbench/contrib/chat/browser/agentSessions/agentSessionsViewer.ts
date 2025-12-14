@@ -567,10 +567,10 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
 		const result: AgentSessionListItem[] = [];
 
-		const now = new Date();
+		const now = Date.now();
 		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 		const startOfYesterday = startOfToday - AgentSessionsDataSource.DAY_THRESHOLD;
-		const weekThreshold = Date.now() - AgentSessionsDataSource.WEEK_THRESHOLD;
+		const weekThreshold = now - AgentSessionsDataSource.WEEK_THRESHOLD;
 
 		const activeSessions: IAgentSession[] = [];
 		const todaySessions: IAgentSession[] = [];
@@ -599,12 +599,13 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		}
 
 		// Sort each group
-		activeSessions.sort(this.sorter.compare.bind(this.sorter));
-		todaySessions.sort(this.sorter.compare.bind(this.sorter));
-		yesterdaySessions.sort(this.sorter.compare.bind(this.sorter));
-		weekSessions.sort(this.sorter.compare.bind(this.sorter));
-		olderSessions.sort(this.sorter.compare.bind(this.sorter));
-		archivedSessions.sort(this.sorter.compare.bind(this.sorter));
+		const sorter = this.sorter.compare.bind(this.sorter);
+		activeSessions.sort(sorter);
+		todaySessions.sort(sorter);
+		yesterdaySessions.sort(sorter);
+		weekSessions.sort(sorter);
+		olderSessions.sort(sorter);
+		archivedSessions.sort(sorter);
 
 		// Determine the first non-empty section to render without a parent node
 		const orderedSections = [
