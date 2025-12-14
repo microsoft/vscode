@@ -522,9 +522,6 @@ export interface IAgentSessionsFilter {
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
 
-	private static readonly DAY_THRESHOLD = 24 * 60 * 60 * 1000;
-	private static readonly WEEK_THRESHOLD = 7 * AgentSessionsDataSource.DAY_THRESHOLD;
-
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
@@ -593,59 +590,12 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
 		const result: AgentSessionListItem[] = [];
 
-		const now = Date.now();
-		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
-		const startOfYesterday = startOfToday - AgentSessionsDataSource.DAY_THRESHOLD;
-		const weekThreshold = now - AgentSessionsDataSource.WEEK_THRESHOLD;
-
-		const activeSessions: IAgentSession[] = [];
-		const todaySessions: IAgentSession[] = [];
-		const yesterdaySessions: IAgentSession[] = [];
-		const weekSessions: IAgentSession[] = [];
-		const olderSessions: IAgentSession[] = [];
-		const archivedSessions: IAgentSession[] = [];
-
-		for (const session of sessions) {
-			if (isSessionInProgressStatus(session.status)) {
-				activeSessions.push(session);
-			} else if (session.isArchived()) {
-				archivedSessions.push(session);
-			} else {
-				const sessionTime = session.timing.endTime || session.timing.startTime;
-				if (sessionTime >= startOfToday) {
-					todaySessions.push(session);
-				} else if (sessionTime >= startOfYesterday) {
-					yesterdaySessions.push(session);
-				} else if (sessionTime >= weekThreshold) {
-					weekSessions.push(session);
-				} else {
-					olderSessions.push(session);
-				}
-			}
-		}
-
-		// Sort each group
-		const sorter = this.sorter.compare.bind(this.sorter);
-		activeSessions.sort(sorter);
-		todaySessions.sort(sorter);
-		yesterdaySessions.sort(sorter);
-		weekSessions.sort(sorter);
-		olderSessions.sort(sorter);
-		archivedSessions.sort(sorter);
-
-		// Determine the first non-empty section to render without a parent node
-		const orderedSections = [
-			{ sessions: activeSessions, section: AgentSessionSection.Active, label: localize('agentSessions.activeSection', "Active") },
-			{ sessions: todaySessions, section: AgentSessionSection.Today, label: localize('agentSessions.todaySection', "Today") },
-			{ sessions: yesterdaySessions, section: AgentSessionSection.Yesterday, label: localize('agentSessions.yesterdaySection', "Yesterday") },
-			{ sessions: weekSessions, section: AgentSessionSection.Week, label: localize('agentSessions.weekSection', "Week") },
-			{ sessions: olderSessions, section: AgentSessionSection.Older, label: localize('agentSessions.olderSection', "Older") },
-			{ sessions: archivedSessions, section: AgentSessionSection.Archived, label: localize('agentSessions.archivedSection', "Archived") },
-		];
+		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
+		const groupedSessions = groupAgentSessions(sortedSessions);
 
 		let isFirstSection = true;
 		let firstSectionLabel: string | undefined;
-		for (const { sessions, section, label } of orderedSections) {
+		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
 				continue;
 			}
@@ -668,6 +618,60 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 
 		return result;
 	}
+}
+
+const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
+const WEEK_THRESHOLD = 7 * DAY_THRESHOLD;
+
+export const AgentSessionSectionLabels = {
+	[AgentSessionSection.Active]: localize('agentSessions.activeSection', "Active"),
+	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
+	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
+	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Week"),
+	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
+	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
+};
+
+export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+	const now = Date.now();
+	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+	const startOfYesterday = startOfToday - DAY_THRESHOLD;
+	const weekThreshold = now - WEEK_THRESHOLD;
+
+	const activeSessions: IAgentSession[] = [];
+	const todaySessions: IAgentSession[] = [];
+	const yesterdaySessions: IAgentSession[] = [];
+	const weekSessions: IAgentSession[] = [];
+	const olderSessions: IAgentSession[] = [];
+	const archivedSessions: IAgentSession[] = [];
+
+	for (const session of sessions) {
+		if (isSessionInProgressStatus(session.status)) {
+			activeSessions.push(session);
+		} else if (session.isArchived()) {
+			archivedSessions.push(session);
+		} else {
+			const sessionTime = session.timing.endTime || session.timing.startTime;
+			if (sessionTime >= startOfToday) {
+				todaySessions.push(session);
+			} else if (sessionTime >= startOfYesterday) {
+				yesterdaySessions.push(session);
+			} else if (sessionTime >= weekThreshold) {
+				weekSessions.push(session);
+			} else {
+				olderSessions.push(session);
+			}
+		}
+	}
+
+	return new Map<AgentSessionSection, IAgentSessionSection>([
+		[AgentSessionSection.Active, { section: AgentSessionSection.Active, label: AgentSessionSectionLabels[AgentSessionSection.Active], sessions: activeSessions }],
+		[AgentSessionSection.Today, { section: AgentSessionSection.Today, label: AgentSessionSectionLabels[AgentSessionSection.Today], sessions: todaySessions }],
+		[AgentSessionSection.Yesterday, { section: AgentSessionSection.Yesterday, label: AgentSessionSectionLabels[AgentSessionSection.Yesterday], sessions: yesterdaySessions }],
+		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
+		[AgentSessionSection.Older, { section: AgentSessionSection.Older, label: AgentSessionSectionLabels[AgentSessionSection.Older], sessions: olderSessions }],
+		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: AgentSessionSectionLabels[AgentSessionSection.Archived], sessions: archivedSessions }],
+	]);
 }
 
 export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSessionsModel | AgentSessionListItem> {
