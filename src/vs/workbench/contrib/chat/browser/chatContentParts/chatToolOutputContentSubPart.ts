@@ -157,7 +157,10 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		};
 		const editorReference = this._register(this.context.editorPool.get());
 		editorReference.object.render(data, this._currentWidth || 300);
-		this._register(editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+		this._register(editorReference.object.onDidChangeContentHeight(() => {
+			editorReference.object.layout(this._currentWidth || 300);
+			this._onDidChangeHeight.fire();
+		}));
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
 		this.codeblocks.push(part.codeBlockInfo);
