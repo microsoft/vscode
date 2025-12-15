@@ -172,7 +172,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private handleCopy(e: ClipboardEvent) {
-		CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
 		let id: string | null = null;
 		if (e.clipboardData) {
 			const [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
@@ -191,6 +190,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		// This is needed because on web, the browser clipboard is faked out using an in-memory store.
 		// This means the resources clipboard is not properly updated when copying from the editor.
 		this._clipboardService.clearInternalState?.();
+		CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
 
 		if (!e.clipboardData || !this.isPasteAsEnabled()) {
 			this._logService.trace('CopyPasteController#handleCopy/earlyReturn2');
@@ -264,7 +264,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
-		PasteOptions.electronBugWorkaroundPasteEventHasFired = true;
 		if (e.clipboardData) {
 			const [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
 			const metadataComputed = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
@@ -280,6 +279,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		MessageController.get(this._editor)?.closeMessage();
 		this._currentPasteOperation?.cancel();
 		this._currentPasteOperation = undefined;
+		PasteOptions.electronBugWorkaroundPasteEventHasFired = true;
 
 		const model = this._editor.getModel();
 		const selections = this._editor.getSelections();
