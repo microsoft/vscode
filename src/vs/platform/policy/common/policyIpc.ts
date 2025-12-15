@@ -10,6 +10,17 @@ import { PolicyName } from '../../../base/common/policy.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyMetadata, PolicySource, PolicyValue } from './policy.js';
 
+interface IPolicyData {
+	value: PolicyValue | null;
+	metadata: PolicyMetadata | null;
+}
+
+function createDefaultIpcMetadata(): PolicyMetadata {
+	return {
+		source: PolicySource.Device,
+		details: 'Set via IPC channel'
+	};
+}
 
 export class PolicyChannel implements IServerChannel {
 
@@ -57,16 +68,12 @@ export class PolicyChannelClient extends AbstractPolicyService implements IPolic
 			this.policyDefinitions[name] = definition;
 			if (value !== undefined) {
 				this.policies.set(name, value);
-				// Default metadata for IPC policies
-				this.policyMetadata.set(name, {
-					source: PolicySource.Device,
-					details: 'Set via IPC channel'
-				});
+				this.policyMetadata.set(name, createDefaultIpcMetadata());
 			}
 		}
-		this.channel.listen<object>('onDidChange')(policies => {
+		this.channel.listen<IStringDictionary<IPolicyData>>('onDidChange')(policies => {
 			for (const name in policies) {
-				const policyData = policies[name as keyof typeof policies] as { value: PolicyValue | null; metadata: PolicyMetadata | null };
+				const policyData = policies[name];
 
 				if (policyData.value === null) {
 					this.policies.delete(name);
@@ -75,6 +82,8 @@ export class PolicyChannelClient extends AbstractPolicyService implements IPolic
 					this.policies.set(name, policyData.value);
 					if (policyData.metadata) {
 						this.policyMetadata.set(name, policyData.metadata);
+					} else {
+						this.policyMetadata.set(name, createDefaultIpcMetadata());
 					}
 				}
 			}
@@ -87,11 +96,7 @@ export class PolicyChannelClient extends AbstractPolicyService implements IPolic
 		const result = await this.channel.call<{ [name: PolicyName]: PolicyValue }>('updatePolicyDefinitions', policyDefinitions);
 		for (const name in result) {
 			this.policies.set(name, result[name]);
-			// Default metadata for IPC policies
-			this.policyMetadata.set(name, {
-				source: PolicySource.Device,
-				details: 'Set via IPC channel'
-			});
+			this.policyMetadata.set(name, createDefaultIpcMetadata());
 		}
 	}
 }

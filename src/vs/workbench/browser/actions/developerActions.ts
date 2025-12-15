@@ -783,32 +783,23 @@ class PolicyDiagnosticsAction extends Action2 {
 				}
 			}
 
-			// Try to detect where the policy came from
-			const policySourceMemo = new Map<string, string>();
+			// Get policy source from metadata
 			const getPolicySource = (policyName: string): string => {
-				if (policySourceMemo.has(policyName)) {
-					return policySourceMemo.get(policyName)!;
-				}
-				try {
-					const policyServiceConstructorName = policyService.constructor.name;
-					if (policyServiceConstructorName === 'MultiplexPolicyService') {
-						// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-						const multiplexService = policyService as any;
-						if (multiplexService.policyServices) {
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any
-							const componentServices = multiplexService.policyServices as ReadonlyArray<any>;
-							for (const service of componentServices) {
-								if (service.getPolicyValue && service.getPolicyValue(policyName) !== undefined) {
-									policySourceMemo.set(policyName, service.constructor.name);
-									return service.constructor.name;
-								}
-							}
-						}
+				const metadata = policyService.getPolicyMetadata(policyName);
+				if (metadata) {
+					// Map PolicySource enum to user-friendly names
+					switch (metadata.source) {
+						case 'account':
+							return 'Account';
+						case 'device':
+							return 'Device';
+						case 'file':
+							return 'File';
+						default:
+							return metadata.source;
 					}
-					return '';
-				} catch {
-					return 'Unknown';
 				}
+				return 'Unknown';
 			};
 
 			content += '### Applied Policy\n\n';
@@ -821,8 +812,8 @@ class PolicyDiagnosticsAction extends Action2 {
 					const defaultValue = JSON.stringify(setting.property.default);
 					const currentValue = JSON.stringify(setting.inspection.value);
 					const policyValue = JSON.stringify(setting.inspection.policyValue);
-					const policySource = getPolicySource(setting.name);
 					const policyMetadata = policyService.getPolicyMetadata(setting.name);
+					const policySource = policyMetadata ? getPolicySource(setting.name) : 'Unknown';
 					const sourceDetails = policyMetadata?.details || 'N/A';
 
 					content += `| ${setting.key} | ${setting.name} | ${policySource} | ${sourceDetails} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
