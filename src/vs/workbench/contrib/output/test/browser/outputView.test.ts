@@ -10,6 +10,8 @@ suite('Output View Filters', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	// Note: This function duplicates the private parseFilters() method in FilterController
+	// for unit testing purposes. Keep in sync with the implementation.
 	function parseFilters(filterText: string): { positive: string[]; negative: string[] } {
 		const positive: string[] = [];
 		const negative: string[] = [];
