@@ -419,55 +419,31 @@ export class QuickDiffModel extends Disposable {
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true, providerId?: string): number {
-		const visibleQuickDiffIds = this.quickDiffs
-			.filter(quickDiff => (!providerId || quickDiff.id === providerId) &&
-				this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id))
-			.map(quickDiff => quickDiff.id);
-
-		if (!inclusive) {
-			// Next visible change
-			let nextChangeIndex = this.changes
-				.findIndex(change => visibleQuickDiffIds.includes(change.providerId) &&
-					change.change.modifiedStartLineNumber > lineNumber);
-
-			if (nextChangeIndex !== -1) {
-				return nextChangeIndex;
+		for (let i = 0; i < this.changes.length; i++) {
+			if (providerId && this.changes[i].providerId !== providerId) {
+				continue;
 			}
 
-			// First visible change
-			nextChangeIndex = this.changes
-				.findIndex(change => visibleQuickDiffIds.includes(change.providerId));
+			// Skip quick diffs that are not visible
+			const quickDiff = this.quickDiffs.find(quickDiff => quickDiff.id === this.changes[i].providerId);
+			if (!quickDiff || !this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id)) {
+				continue;
+			}
 
-			return nextChangeIndex !== -1 ? nextChangeIndex : 0;
+			const change = this.changes[i].change;
+
+			if (inclusive) {
+				if (getModifiedEndLineNumber(change) >= lineNumber) {
+					return i;
+				}
+			} else {
+				if (change.modifiedStartLineNumber > lineNumber) {
+					return i;
+				}
+			}
 		}
 
-		const primaryQuickDiffId = this.quickDiffs
-			.find(quickDiff => quickDiff.kind === 'primary')?.id;
-
-		const primaryInclusiveChangeIndex = this.changes
-			.findIndex(change => change.providerId === primaryQuickDiffId &&
-				change.change.modifiedStartLineNumber <= lineNumber &&
-				getModifiedEndLineNumber(change.change) >= lineNumber);
-
-		if (primaryInclusiveChangeIndex !== -1) {
-			return primaryInclusiveChangeIndex;
-		}
-
-		// Next visible change
-		let nextChangeIndex = this.changes
-			.findIndex(change => visibleQuickDiffIds.includes(change.providerId) &&
-				change.change.modifiedStartLineNumber <= lineNumber &&
-				getModifiedEndLineNumber(change.change) >= lineNumber);
-
-		if (nextChangeIndex !== -1) {
-			return nextChangeIndex;
-		}
-
-		// First visible change
-		nextChangeIndex = this.changes
-			.findIndex(change => visibleQuickDiffIds.includes(change.providerId));
-
-		return nextChangeIndex !== -1 ? nextChangeIndex : 0;
+		return 0;
 	}
 
 	findPreviousClosestChange(lineNumber: number, inclusive = true, providerId?: string): number {
