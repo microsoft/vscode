@@ -7,7 +7,6 @@ import * as browser from '../../../../base/browser/browser.js';
 import { getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
-import { StopWatch } from '../../../../base/common/stopwatch.js';
 import * as nls from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -15,8 +14,6 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { CopyOptions, generateDataToCopyAndStoreInMemory, InMemoryClipboardMetadataManager, PasteOptions } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
@@ -306,8 +303,6 @@ if (PasteAction) {
 		logService.trace('registerExecCommandImpl (addImplementation code-editor for : paste)');
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
-		const telemetryService = accessor.get(ITelemetryService);
-		const productService = accessor.get(IProductService);
 
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
@@ -321,7 +316,6 @@ if (PasteAction) {
 				}
 			}
 
-			const sw = StopWatch.create(true);
 			logService.trace('registerExecCommandImpl (before triggerPaste)');
 			PasteOptions.electronBugWorkaroundPasteEventHasFired = false;
 			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
@@ -332,22 +326,6 @@ if (PasteAction) {
 						return pasteWithNavigatorAPI(focusedEditor, clipboardService, logService);
 					}
 					logService.trace('registerExecCommandImpl (after triggerPaste)');
-					if (productService.quality !== 'stable') {
-						const duration = sw.elapsed();
-						type EditorAsyncPasteClassification = {
-							duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the paste operation.' };
-							owner: 'aiday-mar';
-							comment: 'Provides insight into the delay introduced by pasting async via keybindings.';
-						};
-						type EditorAsyncPasteEvent = {
-							duration: number;
-						};
-						telemetryService.publicLog2<EditorAsyncPasteEvent, EditorAsyncPasteClassification>(
-							'editorAsyncPaste',
-							{ duration }
-						);
-					}
-
 					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 				});
 			} else {

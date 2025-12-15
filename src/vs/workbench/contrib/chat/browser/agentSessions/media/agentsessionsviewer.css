@@ -96,7 +96,7 @@
 					color: var(--vscode-errorForeground);
 				}
 
-				&.codicon.codicon-info {
+				&.codicon.codicon-comment {
 					color: var(--vscode-textLink-foreground);
 				}
 
@@ -184,7 +184,7 @@
 				}
 
 				.codicon {
-					font-size: 14px;
+					font-size: 12px;
 				}
 			}
 		}
