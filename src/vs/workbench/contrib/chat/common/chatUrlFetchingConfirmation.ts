@@ -153,9 +153,14 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 
 			const treeItems: IPatternTreeItem[] = [];
 			const approvedUrls = this._getApprovedUrls();
+			const dedupedPatterns = new Set<string>();
 
 			for (const { uri, patterns } of urls) {
 				for (const pattern of patterns.slice().sort((a, b) => b.length - a.length)) {
+					if (dedupedPatterns.has(pattern)) {
+						continue;
+					}
+					dedupedPatterns.add(pattern);
 					const settings = approvedUrls[pattern];
 					const requestChecked = typeof settings === 'boolean' ? settings : (settings?.approveRequest ?? false);
 					const responseChecked = typeof settings === 'boolean' ? settings : (settings?.approveResponse ?? false);

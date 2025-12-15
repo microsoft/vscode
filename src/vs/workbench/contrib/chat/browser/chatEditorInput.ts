@@ -21,10 +21,9 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditi
 import { IChatModel } from '../common/chatModel.js';
 import { IChatModelReference, IChatService } from '../common/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../common/chatUri.js';
+import { LocalChatSessionUri, getChatSessionType } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
-import { showCloseActiveChatNotification } from './agentSessions/chatCloseNotification.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
@@ -77,7 +76,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -131,7 +129,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	override closeHandler = this;
 
 	showConfirm(): boolean {
-		return this.model?.editingSession ? shouldShowClearEditingSessionConfirmation(this.model.editingSession) : false;
+		return !!(this.model && shouldShowClearEditingSessionConfirmation(this.model));
 	}
 
 	transferOutEditingSession(): IChatEditingSession | undefined {
@@ -146,7 +144,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 		const titleOverride = nls.localize('chatEditorConfirmTitle', "Close Chat Editor");
 		const messageOverride = nls.localize('chat.startEditing.confirmation.pending.message.default', "Closing the chat editor will end your current edit session.");
-		const result = await showClearEditingSessionConfirmation(this.model.editingSession, this.dialogService, { titleOverride, messageOverride });
+		const result = await showClearEditingSessionConfirmation(this.model, this.dialogService, { titleOverride, messageOverride });
 		return result ? ConfirmResult.SAVE : ConfirmResult.CANCEL;
 	}
 
@@ -252,11 +250,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	 * Returns chat session type from a URI, or {@linkcode localChatSessionType} if not specified or cannot be determined.
 	 */
 	public getSessionType(): string {
-		if (this.resource.scheme === Schemas.vscodeChatEditor || this.resource.scheme === Schemas.vscodeLocalChatSession) {
-			return localChatSessionType;
-		}
-
-		return this.resource.scheme;
+		return getChatSessionType(this.resource);
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
@@ -269,10 +263,10 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 			// For local session only, if we find no existing session, create a new one
 			if (!this.model && LocalChatSessionUri.parseLocalSessionId(this._sessionResource)) {
-				this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, { canUseTools: true });
+				this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, { canUseTools: true });
 			}
 		} else if (!this.options.target) {
-			this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, { canUseTools: !inputType });
+			this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, { canUseTools: !inputType });
 		} else if (this.options.target.data) {
 			this.modelRef.value = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
@@ -318,14 +312,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return false;
 	}
 
-	override dispose(): void {
-		// Check if we're disposing a model with an active request
-		if (this.modelRef.value?.object.requestInProgress.get()) {
-			this.instantiationService.invokeFunction(showCloseActiveChatNotification);
-		}
-
-		super.dispose();
-	}
 }
 
 export class ChatEditorModel extends Disposable {
@@ -427,32 +413,34 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 	}
 }
 
-export async function showClearEditingSessionConfirmation(editingSession: IChatEditingSession, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
+export async function showClearEditingSessionConfirmation(model: IChatModel, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
+	const undecidedEdits = shouldShowClearEditingSessionConfirmation(model, options);
+	if (!undecidedEdits) {
+		return true; // safe to dispose without confirmation
+	}
+
 	const defaultPhrase = nls.localize('chat.startEditing.confirmation.pending.message.default1', "Starting a new chat will end your current edit session.");
 	const defaultTitle = nls.localize('chat.startEditing.confirmation.title', "Start new chat?");
 	const phrase = options?.messageOverride ?? defaultPhrase;
 	const title = options?.titleOverride ?? defaultTitle;
 
-	const currentEdits = editingSession.entries.get();
-	const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
-
 	const { result } = await dialogService.prompt({
 		title,
-		message: phrase + ' ' + nls.localize('chat.startEditing.confirmation.pending.message.2', "Do you want to keep pending edits to {0} files?", undecidedEdits.length),
+		message: phrase + ' ' + nls.localize('chat.startEditing.confirmation.pending.message.2', "Do you want to keep pending edits to {0} files?", undecidedEdits),
 		type: 'info',
 		cancelButton: true,
 		buttons: [
 			{
 				label: nls.localize('chat.startEditing.confirmation.acceptEdits', "Keep & Continue"),
 				run: async () => {
-					await editingSession.accept();
+					await model.editingSession!.accept();
 					return true;
 				}
 			},
 			{
 				label: nls.localize('chat.startEditing.confirmation.discardEdits', "Undo & Continue"),
 				run: async () => {
-					await editingSession.reject();
+					await model.editingSession!.reject();
 					return true;
 				}
 			}
@@ -462,14 +450,13 @@ export async function showClearEditingSessionConfirmation(editingSession: IChatE
 	return Boolean(result);
 }
 
-export function shouldShowClearEditingSessionConfirmation(editingSession: IChatEditingSession): boolean {
-	const currentEdits = editingSession.entries.get();
-	const currentEditCount = currentEdits.length;
-
-	if (currentEditCount) {
-		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
-		return !!undecidedEdits.length;
+/** Returns the number of files in the  model's modifications that need a prompt before saving */
+export function shouldShowClearEditingSessionConfirmation(model: IChatModel, options?: IClearEditingSessionConfirmationOptions): number {
+	if (!model.editingSession || (model.willKeepAlive && !options?.isArchiveAction)) {
+		return 0; // safe to dispose without confirmation
 	}
 
-	return false;
+	const currentEdits = model.editingSession.entries.get();
+	const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+	return undecidedEdits.length;
 }

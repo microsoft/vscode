@@ -85,17 +85,19 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			if (LocalChatSessionUri.parseLocalSessionId(e.sessionResource) === terminalToolSessionId) {
-				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
-				this._toolSessionIdByTerminalInstance.delete(instance);
-				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
-				// Clean up session auto approval state
-				const sessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
-				if (sessionId) {
-					this._sessionAutoApprovalEnabled.delete(sessionId);
+			for (const resource of e.sessionResource) {
+				if (LocalChatSessionUri.parseLocalSessionId(resource) === terminalToolSessionId) {
+					this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
+					this._toolSessionIdByTerminalInstance.delete(instance);
+					this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
+					// Clean up session auto approval state
+					const sessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+					if (sessionId) {
+						this._sessionAutoApprovalEnabled.delete(sessionId);
+					}
+					this._persistToStorage();
+					this._updateHasToolTerminalContextKeys();
 				}
-				this._persistToStorage();
-				this._updateHasToolTerminalContextKeys();
 			}
 		}));
 
@@ -202,6 +204,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined {
+		if (!this._mostRecentProgressPart || !this._activeProgressParts.has(this._mostRecentProgressPart)) {
+			this._mostRecentProgressPart = this._getLastActiveProgressPart();
+		}
 		return this._mostRecentProgressPart;
 	}
 
@@ -270,8 +275,14 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		try {
 			const entries: [string, number][] = [];
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId.entries()) {
-				if (isNumber(instance.persistentProcessId) && instance.shouldPersist) {
-					entries.push([toolSessionId, instance.persistentProcessId]);
+				// Use the live persistent process id when available, otherwise fall back to the id
+				// from the attached process so mappings survive early in the terminal lifecycle.
+				const persistentId = isNumber(instance.persistentProcessId)
+					? instance.persistentProcessId
+					: instance.shellLaunchConfig.attachPersistentProcess?.id;
+				const shouldPersist = instance.shouldPersist || instance.shellLaunchConfig.forcePersist;
+				if (isNumber(persistentId) && shouldPersist) {
+					entries.push([toolSessionId, persistentId]);
 				}
 			}
 			if (entries.length > 0) {

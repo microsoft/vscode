@@ -99,6 +99,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	) {
 		super();
 		this.element = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
+		this.attachClearButton();
 		this.label = contextResourceLabels.create(this.element, { supportIcons: true, hoverTargetOverride: this.element });
 		this._register(this.label);
 		this.element.tabIndex = 0;
@@ -238,8 +239,6 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 		});
 		this.addResourceOpenHandlers(resource, range);
-
-		this.attachClearButton();
 	}
 
 	private renderOmittedWarning(friendlyName: string, ariaLabel: string) {
@@ -288,8 +287,6 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 				await clickHandler();
 			}
 		}));
-
-		this.attachClearButton();
 	}
 }
 
@@ -357,10 +354,6 @@ function createTerminalCommandElements(
 		hoverElement.append(outputTitle, outputBlock);
 	}
 
-	const hint = dom.$('div', {}, localize('chat.terminalCommandHoverHint', "Click to focus this command in the terminal."));
-	hint.classList.add('attachment-additional-info');
-	hoverElement.appendChild(hint);
-
 	disposable.add(hoverService.setupDelayedHover(element, {
 		...commonHoverOptions,
 		content: hoverElement,
@@ -415,8 +408,6 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 				this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 			});
 		}
-
-		this.attachClearButton();
 	}
 }
 
@@ -546,8 +537,6 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(this.instantiationService.invokeFunction(hookUpResourceAttachmentDragAndContextMenu, this.element, copiedFromResource));
 			this.addResourceOpenHandlers(copiedFromResource, range);
 		}
-
-		this.attachClearButton();
 	}
 }
 
@@ -593,8 +582,6 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (resource) {
 			this.addResourceOpenHandlers(resource, range);
 		}
-
-		this.attachClearButton();
 	}
 }
 
@@ -624,8 +611,6 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, attachment.value));
 		});
 		this.addResourceOpenHandlers(attachment.value, undefined);
-
-		this.attachClearButton();
 	}
 
 	private updateLabel(attachment: IPromptFileVariableEntry) {
@@ -766,8 +751,6 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 				content: hoverContent,
 			}, commonHoverLifecycleOptions));
 		}
-
-		this.attachClearButton();
 	}
 
 
@@ -810,7 +793,6 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 		});
 		this.addResourceOpenHandlers(resource, undefined);
-		this.attachClearButton();
 	}
 	getAriaLabel(attachment: INotebookOutputVariableEntry): string {
 		return localize('chat.NotebookImageAttachment', "Attached Notebook output, {0}", attachment.name);
@@ -902,8 +884,6 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 				}
 			});
 		}));
-
-		this.attachClearButton();
 	}
 }
 
@@ -946,8 +926,6 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 				this._openAttachment(attachment);
 			}
 		}));
-
-		this.attachClearButton();
 	}
 
 	private async _openAttachment(attachment: ISCMHistoryItemVariableEntry): Promise<void> {
@@ -985,7 +963,6 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		this._store.add(disposables);
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
-		this.attachClearButton();
 	}
 
 	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: true): Promise<void>;
@@ -1024,7 +1001,6 @@ export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttac
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
-		this.attachClearButton();
 	}
 
 	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: true): Promise<void>;
@@ -1131,7 +1107,7 @@ function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService:
 	return resourceContextKey;
 }
 
-function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: any, updateContextKeys?: () => Promise<void>): IDisposable {
+function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: unknown, updateContextKeys?: () => Promise<void>): IDisposable {
 	const contextMenuService = accessor.get(IContextMenuService);
 	const menuService = accessor.get(IMenuService);
 

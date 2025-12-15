@@ -7,7 +7,6 @@ import type { IStringDictionary } from '../../../../../base/common/collections.j
 import { localize } from '../../../../../nls.js';
 import { IConfigurationPropertySchema, IConfigurationNode, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import product from '../../../../../platform/product/common/product.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum TerminalSuggestSettingId {
@@ -66,12 +65,9 @@ export interface ITerminalSuggestConfiguration {
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSuggestSettingId.Enabled]: {
 		restricted: true,
-		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`'),
+		markdownDescription: localize('suggest.enabled', "Enables terminal IntelliSense suggestions (also known as autocomplete) for supported shells ({0}). This requires {1} to be enabled and working or [manually installed](https://code.visualstudio.com/docs/terminal/shell-integration#_manual-installation-install).", 'Windows PowerShell, PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``),
 		type: 'boolean',
-		default: product.quality !== 'stable',
-		experiment: {
-			mode: 'auto',
-		},
+		default: true,
 	},
 	[TerminalSuggestSettingId.Providers]: {
 		restricted: true,
@@ -168,7 +164,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		enum: ['off', 'alwaysOnTopExceptExactMatch', 'alwaysOnTop'],
 		markdownEnumDescriptions: [
 			localize('suggest.inlineSuggestion.off', "Disable the feature."),
-			localize('suggest.inlineSuggestion.alwaysOnTopExceptExactMatch', "Enable the feature and sort the inline suggestion without forcing it to be on top. This means that exact matches will be will be above the inline suggestion."),
+			localize('suggest.inlineSuggestion.alwaysOnTopExceptExactMatch', "Enable the feature and sort the inline suggestion without forcing it to be on top. This means that exact matches will be above the inline suggestion."),
 			localize('suggest.inlineSuggestion.alwaysOnTop', "Enable the feature and always put the inline suggestion on top."),
 		],
 		default: 'alwaysOnTop',
@@ -210,7 +206,7 @@ export function registerTerminalSuggestProvidersConfiguration(providers?: Map<st
 	for (const id of Array.from(providers.keys()).sort()) {
 		providersProperties[id] = {
 			type: 'boolean',
-			default: true,
+			default: id === 'lsp' ? false : true,
 			description:
 				providers.get(id)?.description ??
 				localize('suggest.provider.title', "Show suggestions from {0}.", id)

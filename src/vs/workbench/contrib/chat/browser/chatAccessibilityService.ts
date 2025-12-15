@@ -57,6 +57,11 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		this._pendingSignalMap.set(this._requestId, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
 		return this._requestId;
 	}
+
+	disposeRequest(requestId: number): void {
+		this._pendingSignalMap.deleteAndDispose(requestId);
+	}
+
 	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void {
 		this._pendingSignalMap.deleteAndDispose(requestId);
 		const isPanelChat = typeof response !== 'string';

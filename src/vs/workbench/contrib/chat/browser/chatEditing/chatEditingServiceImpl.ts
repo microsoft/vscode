@@ -82,14 +82,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		// TODO@jrieken
 		// some ugly casting so that this service can pass itself as argument instad as service dependeny
-		// eslint-disable-next-line local/code-no-any-casts
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider as any, this)));
-		// eslint-disable-next-line local/code-no-any-casts
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		this._register(textModelService.registerTextModelContentProvider(Schemas.chatEditingSnapshotScheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider as any, this)));
 
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared') {
-				this.getEditingSession(e.sessionResource)?.stop();
+				for (const resource of e.sessionResource) {
+					this.getEditingSession(resource)?.stop();
+				}
 			}
 		}));
 
@@ -104,9 +106,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._register(extensionService.onDidChangeExtensions(setReadonlyFilesEnabled));
 
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		let storageTask: Promise<any> | undefined;
 
 		this._register(storageService.onWillSaveState(() => {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const tasks: Promise<any>[] = [];
 
 			for (const session of this.editingSessionsObs.get()) {

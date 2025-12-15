@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, ReferenceCollection } from '../../../../base/common/lifecycle.js';
 import { ObservableMap } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatEditingSession } from './chatEditingService.js';
-import { ChatModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { ChatModel, IExportableChatData, ISerializableChatData, ISerializableChatModelInputState } from './chatModel.js';
 import { ChatAgentLocation } from './constants.js';
 
 export interface IStartSessionProps {
 	readonly initialData?: IExportableChatData | ISerializableChatData;
 	readonly location: ChatAgentLocation;
-	readonly token: CancellationToken;
 	readonly sessionResource: URI;
 	readonly sessionId?: string;
 	readonly canUseTools: boolean;
 	readonly transferEditingSession?: IChatEditingSession;
 	readonly disableBackgroundKeepAlive?: boolean;
+	readonly inputState?: ISerializableChatModelInputState;
 }
 
 export interface ChatModelStoreDelegate {
