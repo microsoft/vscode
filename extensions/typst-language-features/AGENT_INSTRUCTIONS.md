@@ -8,7 +8,7 @@
 - `../../../tinymist` - Official Typst LSP (Rust)
 - `../latex-language-features` - Sister LaTeX extension (for feature parity)
 
-**Last Updated:** December 15, 2025 (Updated: Word Count implemented)
+**Last Updated:** December 15, 2025 (Updated: Code Actions implemented)
 
 ---
 
@@ -61,9 +61,9 @@ Ask yourself:
 ### Current Progress
 
 ```
-Implemented:     28 features (17%)
+Implemented:     29 features (18%)
 Partial:          3 features (2%)
-Not Implemented: 133 features (81%)
+Not Implemented: 132 features (80%)
 
 Overall: ~20% complete
 ```
@@ -150,7 +150,7 @@ All shortcuts work in both web and desktop, with smart detection of existing for
 |---------|--------|--------------|-------|
 | Rename Symbol | ❌ | `rename.rs` | Rename across files |
 | Prepare Rename | ❌ | `prepare_rename.rs` | Validate before rename |
-| Code Actions | ❌ | `code_action.rs` | Quick fixes |
+| Code Actions | ✅ | `code_action.rs` | Quick fixes (heading depth, equation conversion, wrap, create variable, path rewrite) |
 
 ### 2.3 Editing Commands
 

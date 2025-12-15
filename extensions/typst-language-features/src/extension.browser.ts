@@ -209,6 +209,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const textCommandsDisposables = registerTextCommands();
 	textCommandsDisposables.forEach(d => context.subscriptions.push(d));
 
+	// Register command to create missing files (used by code actions)
+	context.subscriptions.push(
+		vscode.commands.registerCommand('typst.createMissingFile', async (relativePath: string, sourceUri: vscode.Uri) => {
+			try {
+				// Resolve the path relative to the source document
+				const sourceDir = vscode.Uri.joinPath(sourceUri, '..');
+				const newFileUri = vscode.Uri.joinPath(sourceDir, relativePath);
+
+				// Create the file with empty content
+				await vscode.workspace.fs.writeFile(newFileUri, new Uint8Array());
+				vscode.window.showInformationMessage(`Created: ${relativePath}`);
+
+				// Open the new file
+				const doc = await vscode.workspace.openTextDocument(newFileUri);
+				await vscode.window.showTextDocument(doc);
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to create file: ${error}`);
+			}
+		})
+	);
+	logger.appendLine('Typst createMissingFile command registered');
+
 	// Register word count provider (status bar)
 	const wordCountDisposables = registerWordCountProvider(context);
 	wordCountDisposables.forEach(d => context.subscriptions.push(d));
