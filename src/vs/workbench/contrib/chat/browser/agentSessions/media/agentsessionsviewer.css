@@ -96,7 +96,7 @@
 					color: var(--vscode-errorForeground);
 				}
 
-				&.codicon.codicon-comment {
+				&.codicon.codicon-report {
 					color: var(--vscode-textLink-foreground);
 				}
 

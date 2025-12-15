@@ -252,7 +252,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		}
 
 		if (session.status === ChatSessionStatus.NeedsInput) {
-			return Codicon.comment;
+			return Codicon.report;
 		}
 
 		if (session.status === ChatSessionStatus.Failed) {
