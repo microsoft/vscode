@@ -168,4 +168,57 @@ suite('AccountPolicyService', () => {
 			assert.strictEqual(D, false);
 		}
 	});
+
+	test('should provide metadata for account policies', async () => {
+		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, chat_preview_features_enabled: false };
+		defaultAccountService.setDefaultAccount(defaultAccount);
+
+		await policyConfiguration.initialize();
+
+		{
+			const metadataB = policyService.getPolicyMetadata('PolicySettingB');
+			const metadataC = policyService.getPolicyMetadata('PolicySettingC');
+			const metadataD = policyService.getPolicyMetadata('PolicySettingD');
+
+			assert.ok(metadataB, 'Metadata should exist for PolicySettingB');
+			assert.strictEqual(metadataB.source, 'account');
+			assert.strictEqual(metadataB.accountSessionId, 'abc123');
+
+			assert.ok(metadataC, 'Metadata should exist for PolicySettingC');
+			assert.strictEqual(metadataC.source, 'account');
+			assert.strictEqual(metadataC.accountSessionId, 'abc123');
+
+			assert.ok(metadataD, 'Metadata should exist for PolicySettingD');
+			assert.strictEqual(metadataD.source, 'account');
+			assert.strictEqual(metadataD.accountSessionId, 'abc123');
+		}
+
+		{
+			// Metadata should not exist for non-active policies
+			const metadataA = policyService.getPolicyMetadata('PolicySettingA');
+			assert.strictEqual(metadataA, undefined);
+		}
+	});
+
+	test('should update metadata when account changes', async () => {
+		const defaultAccount1 = { ...BASE_DEFAULT_ACCOUNT, sessionId: 'session1', chat_preview_features_enabled: false };
+		defaultAccountService.setDefaultAccount(defaultAccount1);
+
+		await policyConfiguration.initialize();
+
+		const metadataB1 = policyService.getPolicyMetadata('PolicySettingB');
+		assert.ok(metadataB1);
+		assert.strictEqual(metadataB1.accountSessionId, 'session1');
+
+		// Change account
+		const defaultAccount2 = { ...BASE_DEFAULT_ACCOUNT, sessionId: 'session2', chat_preview_features_enabled: false };
+		defaultAccountService.setDefaultAccount(defaultAccount2);
+
+		// Wait for policy update
+		await new Promise(resolve => setTimeout(resolve, 100));
+
+		const metadataB2 = policyService.getPolicyMetadata('PolicySettingB');
+		assert.ok(metadataB2);
+		assert.strictEqual(metadataB2.accountSessionId, 'session2');
+	});
 });
