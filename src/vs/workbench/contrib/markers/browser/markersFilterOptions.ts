@@ -11,6 +11,8 @@ import { relativePath } from '../../../../base/common/resources.js';
 import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
+const SOURCE_FILTER_REGEX = /(-)?@source:("[^"]*"|[^\s,]+)(\s*)/i;
+
 export class ResourceGlobMatcher {
 
 	private readonly globalExpression: ParsedExpression;
@@ -49,9 +51,11 @@ export class FilterOptions {
 	readonly showErrors: boolean = false;
 	readonly showInfos: boolean = false;
 	readonly textFilter: { readonly text: string; readonly negate: boolean };
-	readonly sourceFilters: ReadonlyArray<{ readonly sources: readonly string[]; readonly negate: boolean }>;
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
+
+	readonly excludeSourceFilters: string[];
+	readonly includeSourceFilters: string[];
 
 	static EMPTY(uriIdentityService: IUriIdentityService) { return new FilterOptions('', [], false, false, false, uriIdentityService); }
 
@@ -80,35 +84,33 @@ export class FilterOptions {
 			}
 		}
 
-		// Extract source filters (e.g., "@source:eslint,ts" or "-@source:eslint @source:ts")
-		// Multiple @source: filters separated by space are AND logic
-		// Comma-separated sources within one @source: are OR logic
-		let effectiveFilter = filter;
-		const sourceFilters: { sources: string[]; negate: boolean }[] = [];
-		const sourceRegex = /(-)?@source:([^\s,]+(?:,[^\s,]+)*)/gi;
+		const excludeSourceFilters: string[] = [];
+		const includeSourceFilters: string[] = [];
 		let sourceMatch;
-		
-		while ((sourceMatch = sourceRegex.exec(filter)) !== null) {
-			const negate = !!sourceMatch[1]; // Check if there's a - prefix
-			const sourcesStr = sourceMatch[2];
-			// Split by comma for OR logic within a single filter
-			const sources = sourcesStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
-			sourceFilters.push({ sources, negate });
+		while ((sourceMatch = SOURCE_FILTER_REGEX.exec(filter)) !== null) {
+			const negate = !!sourceMatch[1];
+			let source = sourceMatch[2];
+			// Remove quotes if present
+			if (source.startsWith('"') && source.endsWith('"')) {
+				source = source.slice(1, -1);
+			}
+			if (negate) {
+				includeSourceFilters.push(source.toLowerCase());
+			} else {
+				excludeSourceFilters.push(source.toLowerCase());
+			}
+			// Remove the entire match (including trailing whitespace)
+			filter = (filter.substring(0, sourceMatch.index) + filter.substring(sourceMatch.index + sourceMatch[0].length)).trim();
 		}
-		
-		this.sourceFilters = sourceFilters;
-		
-		// Remove all source filters from the main filter text
-		if (sourceFilters.length > 0) {
-			effectiveFilter = filter.replace(/(-)?@source:([^\s,]+(?:,[^\s,]+)*)/gi, '').replace(/\s+/g, ' ').replace(/^,\s*|,\s*$/g, '').trim();
-		}
+		this.excludeSourceFilters = excludeSourceFilters;
+		this.includeSourceFilters = includeSourceFilters;
 
-		const negate = effectiveFilter.startsWith('!');
-		this.textFilter = { text: (negate ? strings.ltrim(effectiveFilter, '!') : effectiveFilter).trim(), negate };
+		const negate = filter.startsWith('!');
+		this.textFilter = { text: (negate ? strings.ltrim(filter, '!') : filter).trim(), negate };
 		const includeExpression: IExpression = getEmptyExpression();
 
-		if (effectiveFilter) {
-			const filters = splitGlobAware(effectiveFilter, ',').map(s => s.trim()).filter(s => !!s.length);
+		if (filter) {
+			const filters = splitGlobAware(filter, ',').map(s => s.trim()).filter(s => !!s.length);
 			for (const f of filters) {
 				if (f.startsWith('!')) {
 					const filterText = strings.ltrim(f, '!');
@@ -128,42 +130,26 @@ export class FilterOptions {
 	/**
 	 * Checks if a marker matches the source filters.
 	 * @param markerSource The source field from the marker (can be undefined)
-	 * @returns true if the marker passes all source filters, false otherwise
+	 * @returns true if the marker passes the source filters (OR logic)
 	 */
 	matchesSourceFilters(markerSource: string | undefined): boolean {
-		if (this.sourceFilters.length === 0) {
+		if (this.excludeSourceFilters.length === 0 && this.includeSourceFilters.length === 0) {
 			return true;
 		}
 
 		const source = markerSource?.toLowerCase();
 
-		// All source filters must pass (AND logic)
-		for (const sourceFilter of this.sourceFilters) {
-			if (!source) {
-				// If marker has no source, exclude it for positive filter, include it for negative filter
-				if (!sourceFilter.negate) {
-					return false;
-				}
-				continue;
-			}
-
-			// Check if any of the sources in this filter match (OR logic within filter)
-			const matchesAny = sourceFilter.sources.some(filterValue =>
-				source.includes(filterValue.toLowerCase())
-			);
-
-			// If negated, exclude matches; if not negated, require matches
-			if (sourceFilter.negate) {
-				if (matchesAny) {
-					return false;
-				}
-			} else {
-				if (!matchesAny) {
-					return false;
-				}
-			}
+		// Check negative filters first - if any match, exclude
+		if (source && this.includeSourceFilters.includes(source)) {
+			return false;
 		}
 
+		// If there are positive filters, check if any match (OR logic)
+		if (this.excludeSourceFilters.length > 0) {
+			return source ? this.excludeSourceFilters.includes(source) : false;
+		}
+
+		// No positive filters, only negative - passes if not excluded
 		return true;
 	}
 
