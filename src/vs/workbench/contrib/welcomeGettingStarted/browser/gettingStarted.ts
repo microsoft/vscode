@@ -1054,10 +1054,17 @@ export class GettingStartedPage extends EditorPane {
 				'title': localize('welcomePage.removeRecent', "Remove from Recently Opened"),
 				'aria-label': localize('welcomePage.removeRecentAriaLabel', "Remove {0} from Recently Opened", name),
 			});
-			deleteButton.addEventListener('click', async e => {
+			const handleDelete = async (e: Event) => {
 				e.preventDefault();
 				e.stopPropagation();
 				await this.workspacesService.removeRecentlyOpened([resourceUri]);
+			};
+			deleteButton.addEventListener('click', handleDelete);
+			deleteButton.addEventListener('keydown', async e => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
+					await handleDelete(e);
+				}
 			});
 			li.appendChild(deleteButton);
 
@@ -1088,10 +1095,7 @@ export class GettingStartedPage extends EditorPane {
 
 		recentlyOpenedList.onDidChange(() => this.registerDispatchListeners());
 		this.recentlyOpened.then(({ workspaces }) => {
-			// Filter out the current workspace
-			const workspacesWithID = workspaces
-				.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
-				.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
+			const workspacesWithID = this.filterRecentlyOpened(workspaces);
 
 			const updateEntries = () => {
 				recentlyOpenedList.setEntries(workspacesWithID);
@@ -1104,17 +1108,19 @@ export class GettingStartedPage extends EditorPane {
 		return recentlyOpenedList;
 	}
 
+	private filterRecentlyOpened(workspaces: (IRecentFolder | IRecentWorkspace)[]): RecentEntry[] {
+		return workspaces
+			.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
+			.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
+	}
+
 	private refreshRecentlyOpened(): void {
 		if (!this.recentlyOpenedList) {
 			return;
 		}
 
 		this.recentlyOpened.then(({ workspaces }) => {
-			// Filter out the current workspace
-			const workspacesWithID = workspaces
-				.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
-				.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
-
+			const workspacesWithID = this.filterRecentlyOpened(workspaces);
 			this.recentlyOpenedList?.setEntries(workspacesWithID);
 		}).catch(onUnexpectedError);
 	}
