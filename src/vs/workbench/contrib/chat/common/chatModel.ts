@@ -992,7 +992,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			return undefined;
 		});
 
-		this.isPendingConfirmation = _pendingInfo.map(pending => pending ? { startedWaitingAt: Date.now(), detail: pending.detail } : undefined);
+		const _startedWaitingAt = _pendingInfo.map(p => !!p).map(p => p ? Date.now() : undefined);
+		this.isPendingConfirmation = _startedWaitingAt.map((waiting, r) => waiting ? { startedWaitingAt: waiting, detail: _pendingInfo.read(r)?.detail } : undefined);
 
 		this.isInProgress = signal.map((_value, r) => {
 
