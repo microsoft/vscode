@@ -223,7 +223,7 @@ async function pasteWithNavigatorAPI(editor: IActiveCodeEditor, clipboardService
 			multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
 			mode = metadata.mode;
 		}
-		logService.trace('registerExecCommandImpl (clipboardText.length : ', clipboardText.length, ' id : ', metadata?.id, ')');
+		logService.trace('pasteWithNavigatorAPI with id : ', metadata?.id, ', clipboardText.length : ', clipboardText.length);
 		editor.trigger('keyboard', Handler.Paste, {
 			text: clipboardText,
 			pasteOnNewLine,
@@ -323,11 +323,12 @@ if (PasteAction) {
 
 			const sw = StopWatch.create(true);
 			logService.trace('registerExecCommandImpl (before triggerPaste)');
+			PasteOptions.electronBugWorkaroundPasteEventHasFired = false;
 			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 			if (triggerPaste) {
 				logService.trace('registerExecCommandImpl (triggerPaste defined)');
 				return triggerPaste.then(async () => {
-					if (!PasteOptions.electronBugWorkaroundPasteEventHasFired) {
+					if (PasteOptions.electronBugWorkaroundPasteEventHasFired === false) {
 						return pasteWithNavigatorAPI(focusedEditor, clipboardService, logService);
 					}
 					logService.trace('registerExecCommandImpl (after triggerPaste)');
