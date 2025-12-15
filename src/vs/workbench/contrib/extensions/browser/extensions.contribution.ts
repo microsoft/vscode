@@ -159,10 +159,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['usesOnlineServices']
 			},
-			'extensions.minimumReleaseAge': {
+			'extensions.autoUpdate.minimumReleaseAge': {
 				type: 'number',
 				minimum: 0,
-				description: localize('extensionsMinimumReleaseAge', "Minimum number of days an extension must be released before it appears in searches and is eligible for automatic updates. This setting helps protect against malicious extensions by allowing time for detection. Set to 0 to disable this feature."),
+				description: localize('extensionsAutoUpdateMinimumReleaseAge', "Minimum number of days an extension must be released before it is automatically updated. This setting helps protect against malicious extensions by allowing time for detection. Set to 0 to disable this feature. This only affects automatic updates, not manual updates."),
 				default: 0,
 				scope: ConfigurationScope.APPLICATION
 			},
