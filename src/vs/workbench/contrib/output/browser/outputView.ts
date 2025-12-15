@@ -92,7 +92,7 @@ export class OutputViewPane extends FilterViewPane {
 		super({
 			...options,
 			filterOptions: {
-				placeholder: localize('outputView.filter.placeholder', "Filter"),
+				placeholder: localize('outputView.filter.placeholder', "Filter (e.g. text, !exclude, error,warning)"),
 				focusContextKey: OUTPUT_FILTER_FOCUS_CONTEXT.key,
 				text: viewState.filter || '',
 				history: []
