@@ -465,14 +465,15 @@ interface ISerializedAgentSession {
 
 	readonly resource: UriComponents;
 
-	readonly icon: string;
+	readonly status: ChatSessionStatus;
 
-	readonly label: string;
-
-	readonly description?: string | IMarkdownString;
 	readonly tooltip?: string | IMarkdownString;
 
-	readonly status: ChatSessionStatus;
+	readonly label: string;
+	readonly description?: string | IMarkdownString;
+	readonly badge?: string | IMarkdownString;
+	readonly icon: string;
+
 	readonly archived: boolean | undefined;
 
 	readonly timing: {
@@ -512,6 +513,7 @@ class AgentSessionsCache {
 			icon: session.icon.id,
 			label: session.label,
 			description: session.description,
+			badge: session.badge,
 			tooltip: session.tooltip,
 
 			status: session.status,
@@ -523,7 +525,7 @@ class AgentSessionsCache {
 			},
 
 			changes: session.changes,
-		}));
+		} satisfies ISerializedAgentSession));
 
 		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
@@ -545,6 +547,7 @@ class AgentSessionsCache {
 				icon: ThemeIcon.fromId(session.icon),
 				label: session.label,
 				description: session.description,
+				badge: session.badge,
 				tooltip: session.tooltip,
 
 				status: session.status,
