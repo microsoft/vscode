@@ -313,7 +313,7 @@ configurationRegistry.registerConfiguration({
 			examples: [
 				{
 					'fetch': false,
-					'runTests': false
+					'runTask': false
 				}
 			],
 			policy: {
