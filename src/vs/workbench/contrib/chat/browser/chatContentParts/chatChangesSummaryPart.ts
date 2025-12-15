@@ -243,6 +243,7 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 
 interface ICollapsibleChangesSummaryListTemplate extends IDisposable {
 	readonly label: IResourceLabel;
+	changesElement?: HTMLElement;
 }
 
 class CollapsibleChangesSummaryListDelegate implements IListVirtualDelegate<IEditSessionEntryDiff> {
@@ -277,8 +278,8 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 			title: data.modifiedURI.path
 		});
 		const labelElement = label.element;
-		// eslint-disable-next-line no-restricted-syntax
-		labelElement.querySelector(`.${CollapsibleChangesSummaryListRenderer.CHANGES_SUMMARY_CLASS_NAME}`)?.remove();
+
+		templateData.changesElement?.remove();
 
 		if (!data.identical && !data.isBusy) {
 			const changesSummary = labelElement.appendChild($(`.${CollapsibleChangesSummaryListRenderer.CHANGES_SUMMARY_CLASS_NAME}`));
@@ -288,6 +289,8 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 
 			const removed = changesSummary.appendChild($(`.deletions`));
 			removed.textContent = `-${data.removed}`;
+
+			templateData.changesElement = changesSummary;
 		}
 	}
 
