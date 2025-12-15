@@ -354,17 +354,27 @@ export class ContextView extends Disposable {
 		// (the nearest positioned ancestor) and calculate the offset relative to it.
 		// Using the container's position would be incorrect if the container has
 		// position: static (the default), as the containing block would be different.
-		const offsetParent = this.view.offsetParent as HTMLElement | null;
-		const containingBlockPosition = !this.useFixedPosition && offsetParent
-			? DOM.getDomNodePagePosition(offsetParent)
-			: DOM.getDomNodePagePosition(this.container!);
+		let positionOffset: { top: number; left: number };
+		if (this.useFixedPosition) {
+			// For fixed positioning, we need to adjust for the view's current position
+			positionOffset = DOM.getDomNodePagePosition(this.view);
+		} else {
+			// For absolute positioning, find the actual containing block using offsetParent
+			const offsetParent = this.view.offsetParent as HTMLElement | null;
+			if (offsetParent) {
+				positionOffset = DOM.getDomNodePagePosition(offsetParent);
+			} else {
+				// When there's no offsetParent, the containing block is the initial containing block (viewport)
+				positionOffset = { top: 0, left: 0 };
+			}
+		}
 
 		// Account for container scroll when positioning the context view
 		const containerScrollTop = this.container!.scrollTop || 0;
 		const containerScrollLeft = this.container!.scrollLeft || 0;
 
-		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containingBlockPosition.top) + containerScrollTop}px`;
-		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containingBlockPosition.left) + containerScrollLeft}px`;
+		this.view.style.top = `${top - positionOffset.top + containerScrollTop}px`;
+		this.view.style.left = `${left - positionOffset.left + containerScrollLeft}px`;
 		this.view.style.width = 'initial';
 	}
 
