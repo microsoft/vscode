@@ -300,7 +300,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.updateAiSearchToggleVisibility();
 			}
 			if (e.affectsConfiguration(ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING)) {
-				this.onConfigUpdate(undefined, true);
+				this.onConfigUpdate(undefined, true, true);
 			}
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
@@ -1426,7 +1426,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsOrderByTocIndex = this.createSettingsOrderByTocIndex(resolvedSettingsRoot);
 	}
 
-	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, schemaChange = false): Promise<void> {
+	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, triggerSearch = false): Promise<void> {
 		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
 		}
@@ -1582,7 +1582,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.settingsTreeModel.value) {
 			this.refreshModels(resolvedSettingsRoot);
 
-			if (schemaChange && this.searchResultModel) {
+			if (triggerSearch && this.searchResultModel) {
 				// If an extension's settings were just loaded and a search is active, retrigger the search so it shows up
 				return await this.onSearchInputChanged(false);
 			}
