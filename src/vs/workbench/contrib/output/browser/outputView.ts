@@ -154,6 +154,10 @@ export class OutputViewPane extends FilterViewPane {
 			}
 		}));
 		this._register(codeEditor.onDidScrollChange((e) => {
+			if (!e.scrollTopChanged) {
+				return;
+			}
+
 			if (!this.configurationService.getValue('output.smartScroll.enabled')) {
 				return;
 			}

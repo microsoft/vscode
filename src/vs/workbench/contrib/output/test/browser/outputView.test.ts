@@ -54,11 +54,11 @@ suite('Output View - Smart Scroll', () => {
 		assert.strictEqual(scrollLock, true, 'scrollLock should be true when scrolled up (auto-scroll disabled)');
 	});
 
-	test('scrollLock should be false when at exact bottom', () => {
+	test('scrollLock should be false when exactly at bottom', () => {
 		// When scrollTop + height == scrollHeight, user is at exact bottom
 		// In this case, scrollLock should be false (auto-scroll enabled)
 		const e = {
-			scrollTop: 900,
+			scrollTop: 800,
 			scrollLeft: 0,
 			scrollWidth: 800,
 			scrollHeight: 1000,
@@ -67,11 +67,13 @@ suite('Output View - Smart Scroll', () => {
 			scrollWidthChanged: false,
 			scrollHeightChanged: false
 		};
-		const layoutInfo = { height: 100 } as any;
+		const layoutInfo = { height: 200 } as any;
 
 		const isAtBottom = e.scrollTop + layoutInfo.height >= e.scrollHeight;
 		const scrollLock = !isAtBottom;
 
+		// 800 + 200 = 1000, which equals scrollHeight
+		assert.strictEqual(e.scrollTop + layoutInfo.height, e.scrollHeight, 'Should calculate exact bottom correctly');
 		assert.strictEqual(isAtBottom, true, 'Should be at bottom when scrollTop + height == scrollHeight');
 		assert.strictEqual(scrollLock, false, 'scrollLock should be false at exact bottom (auto-scroll enabled)');
 	});
