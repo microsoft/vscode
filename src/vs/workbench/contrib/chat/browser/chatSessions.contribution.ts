@@ -915,9 +915,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					}
 				});
 				addedValues.forEach((added) => {
-					const changedSignal = added.lastRequestObs.map(last => last?.response && observableSignalFromEvent('chatSessions.modelChangeListener', last.response.onDidChange));
+					const requestChangeListener = added.lastRequestObs.map(last => last?.response && observableSignalFromEvent('chatSessions.modelRequestChangeListener', last.response.onDidChange));
+					const modelChangeListener = observableSignalFromEvent('chatSessions.modelChangeListener', added.onDidChange);
 					listeners.set(added.sessionResource, autorun(reader => {
-						changedSignal.read(reader)?.read(reader);
+						requestChangeListener.read(reader)?.read(reader);
+						modelChangeListener.read(reader);
 						onChange();
 					}));
 				});
