@@ -23,7 +23,6 @@ export class TypstDefinitionProvider implements vscode.DefinitionProvider {
 	): Promise<vscode.DefinitionLink[] | undefined> {
 		const line = document.lineAt(position.line);
 		const lineText = line.text;
-		const offset = document.offsetAt(position);
 
 		// Check if we're on a label reference (@label)
 		const labelRefMatch = this.findLabelReference(lineText, position.character);
