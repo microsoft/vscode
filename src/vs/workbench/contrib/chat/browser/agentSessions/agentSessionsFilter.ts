@@ -22,6 +22,9 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
+	readonly groupResults?: () => boolean | undefined;
+	notifyFirstGroupLabel?(label: string | undefined): void;
+
 	overrideExclude?(session: IAgentSession): boolean | undefined;
 }
 
@@ -48,6 +51,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	readonly onDidChange = this._onDidChange.event;
 
 	readonly limitResults = () => this.options.limitResults?.();
+	readonly groupResults = () => this.options.groupResults?.();
 
 	private excludes = DEFAULT_EXCLUDES;
 
@@ -165,6 +169,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		const states: { id: ChatSessionStatus; label: string }[] = [
 			{ id: ChatSessionStatus.Completed, label: localize('chatSessionStatus.completed', "Completed") },
 			{ id: ChatSessionStatus.InProgress, label: localize('chatSessionStatus.inProgress', "In Progress") },
+			{ id: ChatSessionStatus.NeedsInput, label: localize('chatSessionStatus.needsInput', "Input Needed") },
 			{ id: ChatSessionStatus.Failed, label: localize('chatSessionStatus.failed', "Failed") },
 		];
 
@@ -291,5 +296,9 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	notifyResults(count: number): void {
 		this.options.notifyResults?.(count);
+	}
+
+	notifyFirstGroupLabel(label: string | undefined): void {
+		this.options.notifyFirstGroupLabel?.(label);
 	}
 }

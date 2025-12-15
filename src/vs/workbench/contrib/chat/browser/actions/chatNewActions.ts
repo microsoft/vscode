@@ -160,20 +160,21 @@ export function registerNewChatActions() {
 	});
 	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
 
-	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
+	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleNavigationToolbar, {
 		command: {
 			id: ACTION_ID_NEW_CHAT,
 			title: localize2('chat.goBack', "Go Back"),
 			icon: Codicon.arrowLeft,
 		},
-		group: 'navigation'
+		group: 'navigation',
+		order: 1
 	});
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.undoEdit',
-				title: localize2('chat.undoEdit.label', "Undo Last Request"),
+				title: localize2('chat.undoEdit.label', "Undo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.discard,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanUndo, ChatContextKeys.enabled),
@@ -197,7 +198,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
-				title: localize2('chat.redoEdit.label', "Redo Last Request"),
+				title: localize2('chat.redoEdit.label', "Redo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled),
