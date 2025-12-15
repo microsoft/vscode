@@ -2137,8 +2137,18 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private async autoUpdateExtensions(): Promise<void> {
 		const toUpdate: IExtension[] = [];
 		const disabledAutoUpdate = [];
+		const blockedByMinimumAge = [];
 		const consentRequired = [];
+		const minimumReleaseAge = this.configurationService.getValue<number>(AutoUpdateMinimumReleaseAgeConfigurationKey);
+		
 		for (const extension of this.outdated) {
+			// Check minimum release age first to provide specific feedback
+			if (minimumReleaseAge > 0 && extension.gallery && !checkMinimumReleaseAge(extension.gallery.releaseDate, minimumReleaseAge)) {
+				const daysSinceRelease = Math.floor((Date.now() - extension.gallery.releaseDate) / MILLISECONDS_PER_DAY);
+				const daysRemaining = Math.ceil(minimumReleaseAge - daysSinceRelease);
+				blockedByMinimumAge.push({ id: extension.identifier.id, daysRemaining });
+				continue;
+			}
 			if (!this.shouldAutoUpdateExtension(extension)) {
 				disabledAutoUpdate.push(extension.identifier.id);
 				continue;
@@ -2148,6 +2158,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				continue;
 			}
 			toUpdate.push(extension);
+		}
+
+		if (blockedByMinimumAge.length) {
+			const extensionList = blockedByMinimumAge.map(e => `${e.id} (${e.daysRemaining} day${e.daysRemaining !== 1 ? 's' : ''} remaining)`).join(', ');
+			this.logService.info(`Auto update delayed due to minimum release age (${minimumReleaseAge} days): ${extensionList}`);
 		}
 
 		if (disabledAutoUpdate.length) {
@@ -2194,13 +2209,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		// Check minimum release age for auto-update
-		if (extension.gallery) {
-			const minimumReleaseAge = this.configurationService.getValue<number>(AutoUpdateMinimumReleaseAgeConfigurationKey);
-			if (!checkMinimumReleaseAge(extension.gallery.releaseDate, minimumReleaseAge)) {
-				return false;
-			}
-		}
+		// Note: minimum release age is checked separately in autoUpdateExtensions() 
+		// to provide specific feedback to users
 
 		const autoUpdateValue = this.getAutoUpdateValue();
 
