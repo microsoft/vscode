@@ -17,7 +17,8 @@ import * as Constants from '../common/constants.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 
 /**
- * Toggle widget for controlling whether to disregard exclude settings and ignore files in quick access searches.
+ * Toggle widget for controlling whether exclude settings and ignore files are used in quick access searches.
+ * When checked (default), exclude settings and ignore files are used. When unchecked, they are disregarded.
  */
 export class UseExcludesToggle extends Toggle {
 	constructor(@IKeybindingService keybindingService?: IKeybindingService) {
