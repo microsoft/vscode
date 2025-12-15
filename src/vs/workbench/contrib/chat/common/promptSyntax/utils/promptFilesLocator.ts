@@ -21,13 +21,14 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 
 /**
  * Utility class to locate prompt files.
  */
-export class PromptFilesLocator extends Disposable {
+export class PromptFilesLocator {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -36,9 +37,9 @@ export class PromptFilesLocator extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IPathService private readonly pathService: IPathService,
 	) {
-		super();
 	}
 
 	/**
@@ -287,8 +288,13 @@ export class PromptFilesLocator extends Disposable {
 		const { folders } = this.workspaceService.getWorkspace();
 		for (const folder of folders) {
 			const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
-			if (await this.fileService.exists(file)) {
-				result.push(file);
+			try {
+				const stat = await this.fileService.stat(file);
+				if (stat.isFile) {
+					result.push(file);
+				}
+			} catch (error) {
+				this.logService.trace(`[PromptFilesLocator] Skipping copilot-instructions.md at ${file.toString()}: ${error}`);
 			}
 		}
 		return result;
@@ -359,7 +365,52 @@ export class PromptFilesLocator extends Disposable {
 		}
 		return undefined;
 	}
+
+	private async findClaudeSkillsInFolder(uri: URI, token: CancellationToken): Promise<URI[]> {
+		const result = [];
+		try {
+			const stat = await this.fileService.resolve(joinPath(uri, '.claude/skills'));
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			if (stat.isDirectory && stat.children) {
+				for (const skillDir of stat.children) {
+					if (skillDir.isDirectory) {
+						const skillFile = joinPath(skillDir.resource, 'SKILL.md');
+						if (await this.fileService.exists(skillFile)) {
+							result.push(skillFile);
+						}
+					}
+				}
+			}
+		} catch (error) {
+			// no such folder, return empty list
+			return [];
+		}
+
+		return result;
+	}
+
+	/**
+	 * Searches for skills in `.claude/skills/` directories in the workspace.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findClaudeSkillsInWorkspace(token: CancellationToken): Promise<URI[]> {
+		const workspace = this.workspaceService.getWorkspace();
+		const results = await Promise.all(workspace.folders.map(f => this.findClaudeSkillsInFolder(f.uri, token)));
+		return results.flat();
+	}
+
+	/**
+	 * Searches for skills in `.claude/skills/` directories  in the home folder.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findClaudeSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
+		const userHome = await this.pathService.userHome();
+		return this.findClaudeSkillsInFolder(userHome, token);
+	}
 }
+
 
 /**
  * Checks if the provided `pattern` could be a valid glob pattern.

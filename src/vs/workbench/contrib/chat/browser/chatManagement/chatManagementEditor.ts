@@ -71,6 +71,7 @@ export class ModelsManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
+		this.modelsWidget?.render();
 	}
 
 	override layout(dimension: Dimension): void {

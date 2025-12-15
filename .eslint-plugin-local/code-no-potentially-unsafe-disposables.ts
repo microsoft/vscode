@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 
 /**
  * Checks for potentially unsafe usage of `DisposableStore` / `MutableDisposable`.
  *
  * These have been the source of leaks in the past.
  */
-export = new class implements eslint.Rule.RuleModule {
+export default new class implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		function checkVariableDeclaration(inNode: ESTree.Node) {

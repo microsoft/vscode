@@ -145,6 +145,14 @@ class CodeMain {
 					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
+				// Check if Inno Setup is running
+				const innoSetupActive = await this.checkInnoSetupMutex(productService);
+				if (innoSetupActive) {
+					const message = `${productService.nameShort} is currently being updated. Please wait for the update to complete before launching.`;
+					instantiationService.invokeFunction(this.quit, new Error(message));
+					return;
+				}
+
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
 			});
 		} catch (error) {
@@ -486,6 +494,21 @@ class CodeMain {
 		}
 
 		lifecycleMainService.kill(exitCode);
+	}
+
+	private async checkInnoSetupMutex(productService: IProductService): Promise<boolean> {
+		if (!isWindows || !productService.win32MutexName || productService.quality !== 'insider') {
+			return false;
+		}
+
+		try {
+			const readyMutexName = `${productService.win32MutexName}setup`;
+			const mutex = await import('@vscode/windows-mutex');
+			return mutex.isActive(readyMutexName);
+		} catch (error) {
+			console.error('Failed to check Inno Setup mutex:', error);
+			return false;
+		}
 	}
 
 	//#region Command line arguments utilities

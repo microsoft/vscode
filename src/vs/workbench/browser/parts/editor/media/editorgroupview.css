@@ -32,11 +32,20 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark  {
 	display: flex;
 	height: 100%;
-	max-width: 290px;
+	max-width: 272px;
 	margin: auto;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .watermark-container {
+	display: flex;
+	width: 100%;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 24px;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container:not(.empty) > .editor-group-watermark {
@@ -49,7 +58,7 @@
 	height: calc(100% - 70px);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .letterpress {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .letterpress {
 	width: 100%;
 	max-height: 100%;
 	aspect-ratio: 1/1;
@@ -57,52 +66,59 @@
 	background-size: contain;
 	background-position-x: center;
 	background-repeat: no-repeat;
+	max-width: 256px;
 }
 
-.monaco-workbench.vs-dark .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
+.monaco-workbench.vs-dark .part.editor > .content .editor-group-container .editor-group-watermark .letterpress {
 	background-image: url('./letterpress-dark.svg');
 }
 
-.monaco-workbench.hc-light .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
+.monaco-workbench.hc-light .part.editor > .content .editor-group-container .editor-group-watermark .letterpress {
 	background-image: url('./letterpress-hcLight.svg');
 }
 
-.monaco-workbench.hc-black .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
+.monaco-workbench.hc-black .part.editor > .content .editor-group-container .editor-group-watermark .letterpress {
 	background-image: url('./letterpress-hcDark.svg');
 }
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark > .shortcuts,
-.monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark > .shortcuts,
-.monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark > .shortcuts {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts {
+	width: 100%;
+}
+
+.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark .shortcuts,
+.monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark .shortcuts,
+.monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark .shortcuts {
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts > .watermark-box {
-	display: inline-table;
-	border-collapse: separate;
-	border-spacing: 11px 17px;
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts > .watermark-box {
+	display: flex;
+	flex-direction: column;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dl {
-	display: table-row;
-	opacity: .8;
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl {
+	display: flex;
+	justify-content: space-between;
+	margin: 4px 0;
 	cursor: default;
-	color: var(--vscode-editorWatermark-foreground);
+	color: var(--vscode-descriptionForeground);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dt {
-	text-align: right;
-	letter-spacing: 0.04em
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl:first-of-type {
+	margin-top: 0;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dd {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl:last-of-type {
+	margin-bottom: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dt {
+	letter-spacing: 0.04em;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dd {
 	text-align: left;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dt,
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dd {
-	display: table-cell;
-	vertical-align: middle;
+	margin-inline-start: 24px;
 }
 
 /* Title */

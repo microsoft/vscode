@@ -28,10 +28,7 @@ export namespace LocalChatSessionUri {
 		return parsed?.chatSessionType === localChatSessionType ? parsed.sessionId : undefined;
 	}
 
-	/**
-	 * @deprecated Legacy parser that supports non-local sessions.
-	 */
-	export function parse(resource: URI): ChatSessionIdentifier | undefined {
+	function parse(resource: URI): ChatSessionIdentifier | undefined {
 		if (resource.scheme !== scheme) {
 			return undefined;
 		}
@@ -64,4 +61,24 @@ export function chatSessionResourceToId(resource: URI): string {
 	}
 
 	return resource.toString();
+}
+
+/**
+ * Extracts the chat session type from a resource URI.
+ *
+ * @param resource - The chat session resource URI
+ * @returns The session type string. Returns `localChatSessionType` for local sessions
+ *          (vscodeChatEditor and vscodeLocalChatSession schemes), or the scheme/authority
+ *          for contributed sessions.
+ */
+export function getChatSessionType(resource: URI): string {
+	if (resource.scheme === Schemas.vscodeChatEditor) {
+		return localChatSessionType;
+	}
+
+	if (resource.scheme === LocalChatSessionUri.scheme) {
+		return resource.authority || localChatSessionType;
+	}
+
+	return resource.scheme;
 }

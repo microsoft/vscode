@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 
 /**
  * Ensures that localization keys in policy blocks match the keys used in nls.localize() calls.
@@ -22,7 +22,7 @@ import * as ESTree from 'estree';
  * The key property ('autoApprove2.description') must match the first argument
  * to nls.localize() ('autoApprove2.description').
  */
-export = new class PolicyLocalizationKeyMatch implements eslint.Rule.RuleModule {
+export default new class PolicyLocalizationKeyMatch implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {

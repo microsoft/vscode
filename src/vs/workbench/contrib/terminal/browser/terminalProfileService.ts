@@ -23,7 +23,7 @@ import { ITerminalContributionService } from '../common/terminalExtensionPoints.
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, isString } from '../../../../base/common/types.js';
 
 /*
  * Links TerminalService with TerminalProfileResolverService
@@ -116,7 +116,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		let defaultProfileName: string | undefined;
 		if (os) {
 			defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
-			if (!defaultProfileName || typeof defaultProfileName !== 'string') {
+			if (!defaultProfileName || !isString(defaultProfileName)) {
 				return undefined;
 			}
 		} else {

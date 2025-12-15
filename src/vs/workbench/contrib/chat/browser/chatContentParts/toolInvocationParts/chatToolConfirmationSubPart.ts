@@ -130,7 +130,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		const { message, disclaimer } = this.toolInvocation.confirmationMessages!;
 		const toolInvocation = this.toolInvocation as IChatToolInvocation;
 
-		if (typeof message === 'string') {
+		if (typeof message === 'string' && !disclaimer) {
 			return message;
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
@@ -313,7 +313,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart,
 			{
 				kind: 'markdownContent',
-				content: typeof message === 'string' ? new MarkdownString().appendMarkdown(message) : message
+				content: typeof message === 'string' ? new MarkdownString().appendMarkdown(message) : message,
 			},
 			this.context,
 			this.editorPool,

@@ -81,7 +81,7 @@ export interface ILanguageModelToolsConfirmationService extends ILanguageModelTo
 	readonly _serviceBrand: undefined;
 
 	/** Opens an IQuickTree to let the user manage their preferences.  */
-	manageConfirmationPreferences(tools: Readonly<IToolData>[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void;
+	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void;
 
 	/**
 	 * Registers a contribution that provides more specific confirmation logic

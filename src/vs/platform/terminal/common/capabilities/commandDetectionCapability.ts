@@ -123,6 +123,17 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			}
 		}));
 
+		this._register(this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+			if (params.length >= 1 && params[0] === 2) {
+				if (!this._terminal.options.scrollOnEraseInDisplay) {
+					this._clearCommandsInViewport();
+				}
+				this._currentCommand.wasCleared = true;
+			}
+			// We don't want to override xterm.js' default behavior, just augment it
+			return false;
+		}));
+
 		// Set up platform-specific behaviors
 		const that = this;
 		this._ptyHeuristicsHooks = new class implements ICommandDetectionHeuristicsHooks {
@@ -295,8 +306,17 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			lastCommand.endMarker = cloneMarker(this._terminal, lastCommand.executedMarker, 1);
 		}
 
-		this._currentCommand.promptStartMarker = options?.marker || (lastCommand?.endMarker ? cloneMarker(this._terminal, lastCommand.endMarker) : this._terminal.registerMarker(0));
-		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);
+		this._currentCommand.promptStartMarker = (
+			options?.marker ||
+			// Generally the prompt start should happen at the exact place the endmarker happened.
+			// However, after ctrl+l is used to clear the display, we want to ensure the actual
+			// prompt start marker position is used. This is mostly a workaround for Windows but we
+			// apply it generally.
+			(!this._currentCommand.wasCleared && lastCommand?.endMarker
+				? cloneMarker(this._terminal, lastCommand.endMarker)
+				: this._terminal.registerMarker(0))
+		);
+		this._currentCommand.wasCleared = false;
 	}
 
 	handleContinuationStart(): void {
@@ -353,9 +373,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
+		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 		this._ptyHeuristics.value.handleCommandExecuted(options);
 		this._currentCommand.markExecutedTime();
-		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
@@ -407,13 +427,15 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._handleCommandStartOptions = undefined;
 	}
 
-	private _ensureCurrentCommandId(commandLine: string | undefined): void {
-		if (this._nextCommandId?.commandId && isString(commandLine) && commandLine.trim() === this._nextCommandId.command.trim()) {
+	private _ensureCurrentCommandId(_commandLine: string | undefined): void {
+		if (this._nextCommandId?.commandId) {
+			// Assign the pre-set command ID to the current command. The timing of setNextCommandId
+			// (called right before runCommand) and _ensureCurrentCommandId (called on command
+			// executed) ensures we're matching the right command without needing string comparison.
 			if (this._currentCommand.id !== this._nextCommandId.commandId) {
 				this._currentCommand.id = this._nextCommandId.commandId;
 			}
 			this._nextCommandId = undefined;
-			return;
 		}
 	}
 
@@ -518,13 +540,6 @@ class UnixPtyHeuristics extends Disposable {
 		private readonly _logService: ILogService
 	) {
 		super();
-		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
-			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-				_hooks.clearCommandsInViewport();
-			}
-			// We don't want to override xterm.js' default behavior, just augment it
-			return false;
-		}));
 	}
 
 	handleCommandStart(options?: IHandleCommandOptions) {
@@ -589,15 +604,6 @@ class WindowsPtyHeuristics extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-
-		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
-			// Clear commands when the viewport is cleared
-			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-				this._hooks.clearCommandsInViewport();
-			}
-			// We don't want to override xterm.js' default behavior, just augment it
-			return false;
-		}));
 
 		this._register(this._capability.onBeforeCommandFinished(command => {
 			// For older Windows backends we cannot listen to CSI J, instead we assume running clear

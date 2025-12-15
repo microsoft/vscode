@@ -2130,7 +2130,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return false;
 		}
 
-		let container: any = activeSelection.commonAncestorContainer;
+		let container: Node | null = activeSelection.commonAncestorContainer;
 
 		if (!this._body.contains(container)) {
 			return false;
@@ -2993,7 +2993,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	//#region --- webview IPC ----
-	postMessage(message: any) {
+	postMessage(message: unknown) {
 		if (this._webview?.isResolved()) {
 			this._webview.postKernelMessage(message);
 		}

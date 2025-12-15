@@ -18,11 +18,12 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IToolInvocationContext } from '../../../../chat/common/languageModelToolsService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
+import { isNumber } from '../../../../../../base/common/types.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let monitor: OutputMonitor;
-	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText' | 'onData' | 'onDidInputData' | 'focus' | 'registerMarker'>; sessionId: string };
+	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText' | 'onData' | 'onDidInputData' | 'focus' | 'registerMarker' | 'onDisposed'>; sessionId: string };
 	let cts: CancellationTokenSource;
 	let instantiationService: TestInstantiationService;
 	let sendTextCalled: boolean;
@@ -38,6 +39,7 @@ suite('OutputMonitor', () => {
 				instanceId: 1,
 				sendText: async () => { sendTextCalled = true; },
 				onDidInputData: dataEmitter.event,
+				onDisposed: Event.None,
 				onData: dataEmitter.event,
 				focus: () => { },
 				// eslint-disable-next-line local/code-no-any-casts
@@ -181,7 +183,7 @@ suite('OutputMonitor', () => {
 			const res = monitor.pollingResult!;
 			assert.strictEqual(res.state, OutputMonitorState.Idle);
 			assert.strictEqual(res.output, 'test output');
-			assert.ok(typeof res.pollDurationMs === 'number');
+			assert.ok(isNumber(res.pollDurationMs));
 		});
 	});
 

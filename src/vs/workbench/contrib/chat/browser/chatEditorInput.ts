@@ -5,8 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { truncate } from '../../../../base/common/strings.js';
@@ -20,9 +19,9 @@ import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntyped
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
-import { IChatService } from '../common/chatService.js';
+import { IChatModelReference, IChatService } from '../common/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../common/chatUri.js';
+import { LocalChatSessionUri, getChatSessionType } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
@@ -39,25 +38,24 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	private readonly inputCount: number;
 	private readonly inputName: string;
 
-	private _sessionInfo: { readonly sessionId: string | undefined; readonly resource: URI } | undefined;
+	private _sessionResource: URI | undefined;
 
 	/**
 	 * Get the uri of the session this editor input is associated with.
 	 *
 	 * This should be preferred over using `resource` directly, as it handles cases where a chat editor becomes a session
 	 */
-	public get sessionResource(): URI | undefined { return this._sessionInfo?.resource; }
-
-	/**
-	 * @deprecated Use {@link sessionResource} instead.
-	 */
-	public get sessionId(): string | undefined { return this._sessionInfo?.sessionId; }
+	public get sessionResource(): URI | undefined { return this._sessionResource; }
 
 	private hasCustomTitle: boolean = false;
 	private didTransferOutEditingSession = false;
 	private cachedIcon: ThemeIcon | URI | undefined;
 
-	private model: IChatModel | undefined;
+	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
+
+	private get model(): IChatModel | undefined {
+		return this.modelRef.value?.object;
+	}
 
 	static getNewEditorUri(): URI {
 		return ChatEditorUri.getNewEditorUri();
@@ -91,15 +89,15 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			if (!localSessionId) {
 				throw new Error('Invalid local chat session URI');
 			}
-			this._sessionInfo = { resource, sessionId: localSessionId };
+			this._sessionResource = resource;
 		} else {
-			this._sessionInfo = { resource, sessionId: undefined };
+			this._sessionResource = resource;
 		}
 
 		// Check if we already have a custom title for this session
-		const hasExistingCustomTitle = this._sessionInfo?.sessionId && (
-			this.chatService.getSession(this._sessionInfo?.resource)?.title ||
-			this.chatService.getPersistedSessionTitle(this._sessionInfo?.resource)?.trim()
+		const hasExistingCustomTitle = this._sessionResource && (
+			this.chatService.getSession(this._sessionResource)?.title ||
+			this.chatService.getPersistedSessionTitle(this._sessionResource)?.trim()
 		);
 
 		this.hasCustomTitle = Boolean(hasExistingCustomTitle);
@@ -140,13 +138,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	async confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
-		if (!this.model?.editingSession || this.didTransferOutEditingSession) {
+		if (!this.model?.editingSession || this.didTransferOutEditingSession || this.getSessionType() !== localChatSessionType) {
 			return ConfirmResult.SAVE;
 		}
 
 		const titleOverride = nls.localize('chatEditorConfirmTitle', "Close Chat Editor");
 		const messageOverride = nls.localize('chat.startEditing.confirmation.pending.message.default', "Closing the chat editor will end your current edit session.");
-		const result = await showClearEditingSessionConfirmation(this.model.editingSession, this.dialogService, { titleOverride, messageOverride });
+		const result = await showClearEditingSessionConfirmation(this.model, this.dialogService, { titleOverride, messageOverride });
 		return result ? ConfirmResult.SAVE : ConfirmResult.CANCEL;
 	}
 
@@ -178,15 +176,15 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		}
 
 		// If we have a sessionId but no resolved model, try to get the title from persisted sessions
-		if (this._sessionInfo?.sessionId) {
+		if (this._sessionResource) {
 			// First try the active session registry
-			const existingSession = this.chatService.getSession(this._sessionInfo?.resource);
+			const existingSession = this.chatService.getSession(this._sessionResource);
 			if (existingSession?.title) {
 				return existingSession.title;
 			}
 
 			// If not in active registry, try persisted session data
-			const persistedTitle = this.chatService.getPersistedSessionTitle(this._sessionInfo?.resource);
+			const persistedTitle = this.chatService.getPersistedSessionTitle(this._sessionResource);
 			if (persistedTitle && persistedTitle.trim()) { // Only use non-empty persisted titles
 				return persistedTitle;
 			}
@@ -252,11 +250,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	 * Returns chat session type from a URI, or {@linkcode localChatSessionType} if not specified or cannot be determined.
 	 */
 	public getSessionType(): string {
-		if (this.resource.scheme === Schemas.vscodeChatEditor || this.resource.scheme === Schemas.vscodeLocalChatSession) {
-			return localChatSessionType;
-		}
-
-		return this.resource.scheme;
+		return getChatSessionType(this.resource);
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
@@ -264,25 +258,25 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const chatSessionType = searchParams.get('chatSessionType');
 		const inputType = chatSessionType ?? this.resource.authority;
 
-		if (this.resource.scheme !== Schemas.vscodeChatEditor) {
-			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Chat, CancellationToken.None);
-		} else if (this._sessionInfo?.sessionId) {
-			this.model = await this.chatService.getOrRestoreSession(this._sessionInfo.resource)
-				?? this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: false });
+		if (this._sessionResource) {
+			this.modelRef.value = await this.chatService.loadSessionForResource(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+
+			// For local session only, if we find no existing session, create a new one
+			if (!this.model && LocalChatSessionUri.parseLocalSessionId(this._sessionResource)) {
+				this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, { canUseTools: true });
+			}
 		} else if (!this.options.target) {
-			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: !inputType });
+			this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, { canUseTools: !inputType });
 		} else if (this.options.target.data) {
-			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
+			this.modelRef.value = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
 
 		if (!this.model || this.isDisposed()) {
 			return null;
 		}
 
-		this._sessionInfo = {
-			sessionId: this.model.sessionId,
-			resource: this.model.sessionResource,
-		};
+		this._sessionResource = this.model.sessionResource;
+
 		this._register(this.model.onDidChange((e) => {
 			// When a custom title is set, we no longer need the numeric count
 			if (e && e.kind === 'setCustomTitle' && !this.hasCustomTitle) {
@@ -318,19 +312,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return false;
 	}
 
-	override dispose(): void {
-		super.dispose();
-
-		if (this._sessionInfo) {
-			this.chatService.clearSession(this._sessionInfo.resource);
-		}
-	}
 }
 
 export class ChatEditorModel extends Disposable {
-	private _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
-
 	private _isResolved = false;
 
 	constructor(
@@ -382,13 +366,13 @@ namespace ChatEditorUri {
 
 interface ISerializedChatEditorInput {
 	readonly options: IChatEditorOptions;
-	readonly sessionId: string;
 	readonly resource: URI;
+	readonly sessionResource: URI | undefined;
 }
 
 export class ChatEditorInputSerializer implements IEditorSerializer {
-	canSerialize(input: EditorInput): input is ChatEditorInput & { readonly sessionId: string } {
-		return input instanceof ChatEditorInput && !!input.sessionId;
+	canSerialize(input: EditorInput): input is ChatEditorInput {
+		return input instanceof ChatEditorInput && !!input.sessionResource;
 	}
 
 	serialize(input: EditorInput): string | undefined {
@@ -398,30 +382,43 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 
 		const obj: ISerializedChatEditorInput = {
 			options: input.options,
-			sessionId: input.sessionId,
-			resource: input.resource
+			sessionResource: input.sessionResource,
+			resource: input.resource,
+
 		};
 		return JSON.stringify(obj);
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
-			const parsed: ISerializedChatEditorInput = JSON.parse(serializedEditor);
+			// Old inputs have a session id for local session
+			const parsed: ISerializedChatEditorInput & { readonly sessionId: string | undefined } = JSON.parse(serializedEditor);
 
+			// First if we have a modern session resource, use that
+			if (parsed.sessionResource) {
+				const sessionResource = URI.revive(parsed.sessionResource);
+				return instantiationService.createInstance(ChatEditorInput, sessionResource, parsed.options);
+			}
+
+			// Otherwise check to see if we're a chat editor with a local session id
 			let resource = URI.revive(parsed.resource);
-			if (resource.scheme === Schemas.vscodeChatEditor) {
-				// We don't have a sessionId in the URI, so we need to create a new one
+			if (resource.scheme === Schemas.vscodeChatEditor && parsed.sessionId) {
 				resource = LocalChatSessionUri.forSession(parsed.sessionId);
 			}
 
-			return instantiationService.createInstance(ChatEditorInput, resource, { ...parsed.options });
+			return instantiationService.createInstance(ChatEditorInput, resource, parsed.options);
 		} catch (err) {
 			return undefined;
 		}
 	}
 }
 
-export async function showClearEditingSessionConfirmation(editingSession: IChatEditingSession, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
+export async function showClearEditingSessionConfirmation(model: IChatModel, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
+	if (!model.editingSession || (model.willKeepAlive && !options?.isArchiveAction)) {
+		return true; // safe to dispose without confirmation
+	}
+
+	const editingSession = model.editingSession;
 	const defaultPhrase = nls.localize('chat.startEditing.confirmation.pending.message.default1', "Starting a new chat will end your current edit session.");
 	const defaultTitle = nls.localize('chat.startEditing.confirmation.title', "Start new chat?");
 	const phrase = options?.messageOverride ?? defaultPhrase;
@@ -429,6 +426,9 @@ export async function showClearEditingSessionConfirmation(editingSession: IChatE
 
 	const currentEdits = editingSession.entries.get();
 	const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+	if (!undecidedEdits.length) {
+		return true; // No pending edits, can just continue
+	}
 
 	const { result } = await dialogService.prompt({
 		title,

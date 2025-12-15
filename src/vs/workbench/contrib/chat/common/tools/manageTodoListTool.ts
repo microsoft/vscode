@@ -30,6 +30,7 @@ export const TodoListToolDescriptionFieldSettingId = 'chat.todoListTool.descript
 export const ManageTodoListToolToolId = 'manage_todo_list';
 
 export function createManageTodoListToolData(writeOnly: boolean, includeDescription: boolean = true): IToolData {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const baseProperties: any = {
 		todoList: {
 			type: 'array',
@@ -79,11 +80,12 @@ export function createManageTodoListToolData(writeOnly: boolean, includeDescript
 
 	return {
 		id: ManageTodoListToolToolId,
-		toolReferenceName: 'todos',
+		toolReferenceName: 'todo',
+		legacyToolReferenceFullNames: ['todos'],
 		canBeReferencedInPrompt: true,
 		icon: ThemeIcon.fromId(Codicon.checklist.id),
 		displayName: localize('tool.manageTodoList.displayName', 'Manage and track todo items for task planning'),
-		userDescription: localize('tool.manageTodoList.userDescription', 'Tool for managing and tracking todo items for task planning'),
+		userDescription: localize('tool.manageTodoList.userDescription', 'Manage and track todo items for task planning'),
 		modelDescription: 'Manage a structured todo list to track progress and plan tasks throughout your coding session. Use this tool VERY frequently to ensure task visibility and proper planning.\n\nWhen to use this tool:\n- Complex multi-step work requiring planning and tracking\n- When user provides multiple tasks or requests (numbered/comma-separated)\n- After receiving new instructions that require multiple steps\n- BEFORE starting work on any todo (mark as in-progress)\n- IMMEDIATELY after completing each todo (mark completed individually)\n- When breaking down larger tasks into smaller actionable steps\n- To give users visibility into your progress and planning\n\nWhen NOT to use:\n- Single, trivial tasks that can be completed in one step\n- Purely conversational/informational requests\n- When just reading files or performing simple searches\n\nCRITICAL workflow:\n1. Plan tasks by writing todo list with specific, actionable items\n2. Mark ONE todo as in-progress before starting work\n3. Complete the work for that specific todo\n4. Mark that todo as completed IMMEDIATELY\n5. Move to next todo and repeat\n\nTodo states:\n- not-started: Todo not yet begun\n- in-progress: Currently working (limit ONE at a time)\n- completed: Finished successfully\n\nIMPORTANT: Mark todos completed as soon as they are done. Do not batch completions.',
 		source: ToolDataSource.Internal,
 		inputSchema: {
@@ -119,6 +121,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		super();
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async invoke(invocation: IToolInvocation, _countTokens: any, _progress: any, _token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IManageTodoListToolInputParams;
 		// For: #263001 Use default sessionId

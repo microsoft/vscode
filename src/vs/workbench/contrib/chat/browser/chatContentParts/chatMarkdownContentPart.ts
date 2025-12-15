@@ -16,7 +16,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, autorunSelfDisposable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunSelfDisposable, derived } from '../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -79,6 +79,10 @@ export interface IChatMarkdownContentPartOptions {
 	};
 }
 
+interface IMarkdownPartCodeBlockInfo extends IChatCodeBlockInfo {
+	isStreamingEdit: boolean;
+}
+
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
 
 	private static ID_POOL = 0;
@@ -91,7 +95,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	readonly codeblocks: IChatCodeBlockInfo[] = [];
+	private readonly _codeblocks: IMarkdownPartCodeBlockInfo[] = [];
+	public get codeblocks(): IChatCodeBlockInfo[] {
+		return this._codeblocks;
+	}
 
 	private readonly mathLayoutParticipants = new Set<() => void>();
 
@@ -247,12 +254,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 
 						const ownerMarkdownPartId = this.codeblocksPartId;
-						const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
+						const info: IMarkdownPartCodeBlockInfo = new class implements IMarkdownPartCodeBlockInfo {
 							readonly ownerMarkdownPartId = ownerMarkdownPartId;
 							readonly codeBlockIndex = globalIndex;
 							readonly elementId = element.id;
 							readonly chatSessionResource = element.sessionResource;
 							readonly languageId = languageId;
+							readonly isStreamingEdit = false;
 							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 							codemapperUri = undefined; // will be set async
 							get uri() {
@@ -265,7 +273,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 								ref.object.focus();
 							}
 						}();
-						this.codeblocks.push(info);
+						this._codeblocks.push(info);
 						orderedDisposablesList.push(ref);
 						return ref.object.element;
 					} else {
@@ -275,18 +283,19 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 							this.codeBlockModelCollection.update(codeBlockInfo.element.sessionResource, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
 								// Update the existing object's codemapperUri
-								this.codeblocks[codeBlockInfo.codeBlockPartIndex].codemapperUri = e.codemapperUri;
+								this._codeblocks[codeBlockInfo.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 								this._onDidChangeHeight.fire();
 							});
 						}
 						this.allRefs.push(ref);
 						const ownerMarkdownPartId = this.codeblocksPartId;
-						const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
+						const info: IMarkdownPartCodeBlockInfo = new class implements IMarkdownPartCodeBlockInfo {
 							readonly ownerMarkdownPartId = ownerMarkdownPartId;
 							readonly codeBlockIndex = globalIndex;
 							readonly elementId = element.id;
 							readonly codemapperUri = codeblockEntry?.codemapperUri;
 							readonly chatSessionResource = element.sessionResource;
+							readonly isStreamingEdit = !isCodeBlockComplete;
 							get uri() {
 								return undefined;
 							}
@@ -297,7 +306,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							readonly languageId = languageId;
 							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 						}();
-						this.codeblocks.push(info);
+						this._codeblocks.push(info);
 						orderedDisposablesList.push(ref);
 						return ref.object.element;
 					}
@@ -310,7 +319,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 			// Ideally this would happen earlier, but we need to parse the markdown.
 			if (isResponseVM(element) && !element.model.codeBlockInfos && element.model.isComplete) {
-				element.model.initializeCodeBlockInfos(this.codeblocks.map(info => {
+				element.model.initializeCodeBlockInfos(this._codeblocks.map(info => {
 					return {
 						suggestionId: this.aiEditTelemetryService.createSuggestionId({
 							presentation: 'codeBlock',
@@ -391,7 +400,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		if (isResponseVM(data.element)) {
 			this.codeBlockModelCollection.update(data.element.sessionResource, data.element, data.codeBlockIndex, { text, languageId: data.languageId, isComplete }).then((e) => {
 				// Update the existing object's codemapperUri
-				this.codeblocks[data.codeBlockPartIndex].codemapperUri = e.codemapperUri;
+				this._codeblocks[data.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 				this._onDidChangeHeight.fire();
 			});
 		}
@@ -404,8 +413,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.content.value
-			|| this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```'));
+		if (other.kind !== 'markdownContent') {
+			return false;
+		}
+
+		if (other.content.value === this.markdown.content.value) {
+			return true;
+		}
+
+		// If we are streaming in code shown in an edit pill, do not re-render the entire content as long as it's coming in
+		const lastCodeblock = this._codeblocks.at(-1);
+		if (lastCodeblock && lastCodeblock.codemapperUri !== undefined && lastCodeblock.isStreamingEdit) {
+			return other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```');
+		}
+
+		return false;
 	}
 
 	layout(width: number): void {
@@ -415,7 +437,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			} else if (ref.object instanceof MarkdownDiffBlockPart) {
 				ref.object.layout(width);
 			} else if (ref.object instanceof CollapsedCodeBlock) {
-				const codeblockModel = this.codeblocks[index];
+				const codeblockModel = this._codeblocks[index];
 				if (codeblockModel.codemapperUri && ref.object.uri?.toString() !== codeblockModel.codemapperUri.toString()) {
 					ref.object.render(codeblockModel.codemapperUri);
 				}
@@ -438,6 +460,8 @@ export function codeblockHasClosingBackticks(str: string): boolean {
 export class CollapsedCodeBlock extends Disposable {
 
 	readonly element: HTMLElement;
+	private readonly pillElement: HTMLElement;
+	private readonly statusIndicatorContainer: HTMLElement;
 
 	private _uri: URI | undefined;
 	get uri(): URI | undefined { return this._uri; }
@@ -462,21 +486,29 @@ export class CollapsedCodeBlock extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
-		this.element = $('.chat-codeblock-pill-widget');
-		this.element.tabIndex = 0;
-		this.element.classList.add('show-file-icons');
-		this.element.role = 'button';
+		this.element = $('div.chat-codeblock-pill-container');
+
+		this.statusIndicatorContainer = $('div.status-indicator-container');
+
+		this.pillElement = $('.chat-codeblock-pill-widget');
+		this.pillElement.tabIndex = 0;
+		this.pillElement.classList.add('show-file-icons');
+		this.pillElement.role = 'button';
+
+		this.element.appendChild(this.statusIndicatorContainer);
+		this.element.appendChild(this.pillElement);
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this._register(registerOpenEditorListeners(this.element, e => this.showDiff(e)));
+		this._register(registerOpenEditorListeners(this.pillElement, e => this.showDiff(e)));
 
-		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, e => {
+		this._register(dom.addDisposableListener(this.pillElement, dom.EventType.CONTEXT_MENU, e => {
 			const event = new StandardMouseEvent(dom.getWindow(e), e);
 			dom.EventHelper.stop(e, true);
 
@@ -520,7 +552,7 @@ export class CollapsedCodeBlock extends Disposable {
 	 * @param isStreaming Whether the edit has completed (at the time of this being rendered)
 	 */
 	render(uri: URI, fromSubagent?: boolean): void {
-		this.element.classList.toggle('from-sub-agent', !!fromSubagent);
+		this.pillElement.classList.toggle('from-sub-agent', !!fromSubagent);
 
 		this.progressStore.clear();
 
@@ -529,50 +561,71 @@ export class CollapsedCodeBlock extends Disposable {
 		const session = this.chatService.getSession(this.sessionResource);
 		const iconText = this.labelService.getUriBasenameLabel(uri);
 
+		const statusIconEl = dom.$('span.status-icon');
+		const statusLabelEl = dom.$('span.status-label', {}, '');
+
+		this.statusIndicatorContainer.replaceChildren(statusIconEl, statusLabelEl);
+
 		const iconEl = dom.$('span.icon');
-		const children = [dom.$('span.icon-label', {}, iconText)];
+		const iconLabelEl = dom.$('span.icon-label', {}, iconText);
 		const labelDetail = dom.$('span.label-detail', {}, '');
-		children.push(labelDetail);
 
-		this.element.replaceChildren(iconEl, ...children);
-		this.updateTooltip(this.labelService.getUriLabel(uri, { relative: false }));
+		// Create a progress fill element for the animation
+		const progressFill = dom.$('span.progress-fill');
+		this.pillElement.replaceChildren(progressFill, iconEl, iconLabelEl, labelDetail);
+		const tooltipLabel = this.labelService.getUriLabel(uri, { relative: true });
+		this.updateTooltip(tooltipLabel);
 
-		const editSessionObservable = session?.editingSessionObs?.promiseResult.map(r => r?.data) || observableValue(this, undefined);
-		const editSessionEntry = editSessionObservable.map((es, r) => es?.readEntry(uri, r));
+		const editSession = session?.editingSession;
+		if (!editSession) {
+			return;
+		}
 
 		const diffObservable = derived(reader => {
-			const entry = editSessionEntry.read(reader);
-			const editSession = entry && editSessionObservable.read(reader);
-			return entry && editSession && editSession.getEntryDiffBetweenStops(entry.modifiedURI, this.requestId, this.inUndoStop);
+			const entry = editSession.readEntry(uri, reader);
+			return entry && editSession.getEntryDiffBetweenStops(entry.modifiedURI, this.requestId, this.inUndoStop);
 		}).map((d, r) => d?.read(r));
 
 		const isStreaming = derived(r => {
-			const entry = editSessionEntry.read(r);
+			const entry = editSession.readEntry(uri, r);
 			const currentlyModified = entry?.isCurrentlyBeingModifiedBy.read(r);
 			return !!currentlyModified && currentlyModified.responseModel.requestId === this.requestId && currentlyModified.undoStopId === this.inUndoStop;
 		});
 
 		// Set the icon/classes while edits are streaming
-		let iconClasses: string[] = [];
+		let statusIconClasses: string[] = [];
+		let pillIconClasses: string[] = [];
 		this.progressStore.add(autorun(r => {
-			iconEl.classList.remove(...iconClasses);
+			statusIconEl.classList.remove(...statusIconClasses);
+			iconEl.classList.remove(...pillIconClasses);
 			if (isStreaming.read(r)) {
 				const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
-				iconClasses = ThemeIcon.asClassNameArray(codicon);
-			} else {
-				iconEl.classList.remove(...iconClasses);
-				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
-				iconEl.classList.add(...getIconClasses(this.modelService, this.languageService, uri, fileKind));
-			}
-		}));
-
-		// Set the label detail for streaming progress
-		this.progressStore.add(autorun(r => {
-			if (isStreaming.read(r)) {
-				const entry = editSessionEntry.read(r);
+				statusIconClasses = ThemeIcon.asClassNameArray(codicon);
+				statusIconEl.classList.add(...statusIconClasses);
+				const entry = editSession.readEntry(uri, r);
 				const rwRatio = Math.floor((entry?.rewriteRatio.read(r) || 0) * 100);
-				labelDetail.textContent = rwRatio === 0 || !rwRatio ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", rwRatio);
+				statusLabelEl.textContent = localize('chat.codeblock.applyingEdits', 'Applying edits');
+
+				const showAnimation = this.configurationService.getValue<boolean>(ChatConfiguration.ShowCodeBlockProgressAnimation);
+				if (showAnimation) {
+					progressFill.style.width = `${rwRatio}%`;
+					this.pillElement.classList.add('progress-filling');
+					labelDetail.textContent = '';
+				} else {
+					progressFill.style.width = '0%';
+					this.pillElement.classList.remove('progress-filling');
+					labelDetail.textContent = rwRatio === 0 || !rwRatio ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "({0}%)...", rwRatio);
+				}
 			} else {
+				const statusCodeicon = Codicon.check;
+				statusIconClasses = ThemeIcon.asClassNameArray(statusCodeicon);
+				statusIconEl.classList.add(...statusIconClasses);
+				statusLabelEl.textContent = localize('chat.codeblock.edited', 'Edited');
+				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+				pillIconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
+				iconEl.classList.add(...pillIconClasses);
+				this.pillElement.classList.remove('progress-filling');
+				progressFill.style.width = '0%';
 				labelDetail.textContent = '';
 			}
 		}));
@@ -585,9 +638,9 @@ export class CollapsedCodeBlock extends Disposable {
 			}
 
 			// eslint-disable-next-line no-restricted-syntax
-			const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
+			const labelAdded = this.pillElement.querySelector('.label-added') ?? this.pillElement.appendChild(dom.$('span.label-added'));
 			// eslint-disable-next-line no-restricted-syntax
-			const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
+			const labelRemoved = this.pillElement.querySelector('.label-removed') ?? this.pillElement.appendChild(dom.$('span.label-removed'));
 			if (changes && !changes?.identical && !changes?.quitEarly) {
 				this.currentDiff = changes;
 				labelAdded.textContent = `+${changes.added}`;
@@ -596,7 +649,6 @@ export class CollapsedCodeBlock extends Disposable {
 				const deletionsFragment = changes.removed === 1 ? localize('chat.codeblock.deletions.one', "1 deletion") : localize('chat.codeblock.deletions', "{0} deletions", changes.removed);
 				const summary = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
 				this.element.ariaLabel = summary;
-				this.updateTooltip(summary);
 
 				// No need to keep updating once we get the diff info
 				if (changes.isFinal) {
@@ -610,7 +662,7 @@ export class CollapsedCodeBlock extends Disposable {
 		this.tooltip = tooltip;
 
 		if (!this.hover.value) {
-			this.hover.value = this.hoverService.setupDelayedHover(this.element, () => ({
+			this.hover.value = this.hoverService.setupDelayedHover(this.pillElement, () => ({
 				content: this.tooltip!,
 				style: HoverStyle.Pointer,
 				position: { hoverPosition: HoverPosition.BELOW },

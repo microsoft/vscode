@@ -93,7 +93,14 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			}];
 
 			// ARIA Label
-			picker.ariaLabel = label;
+			const cursor = editor.getPosition() ?? { lineNumber: 1, column: 1 };
+			picker.ariaLabel = localize(
+				{
+					key: 'gotoLine.ariaLabel',
+					comment: ['{0} is the line number, {1} is the column number, {2} is instructions for typing in the Go To Line picker']
+				},
+				"Current position: line {0}, column {1}. {2}", cursor.lineNumber, cursor.column, label
+			);
 
 			// Clear decorations for invalid range
 			if (!lineNumber) {
@@ -214,7 +221,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 					lineNumber,
 					column: 1,
 					label: parts.length < 2 ?
-						localize('gotoLine.lineColumnPrompt', "Press 'Enter' to go to line {0} or enter : to add a column number.", lineNumber) :
+						localize('gotoLine.lineColumnPrompt', "Press 'Enter' to go to line {0} or enter colon : to add a column number.", lineNumber) :
 						localize('gotoLine.columnPrompt', "Press 'Enter' to go to line {0} or enter a column number (from 1 to {1}).", lineNumber, maxColumn)
 				};
 			}
