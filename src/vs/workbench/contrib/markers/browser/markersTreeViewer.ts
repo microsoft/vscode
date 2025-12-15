@@ -506,36 +506,9 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return false;
 		}
 
-		// Check source filters if present (AND logic between multiple filters)
-		if (this.options.sourceFilters.length > 0) {
-			const markerSource = marker.marker.source?.toLowerCase();
-			
-			// All source filters must pass (AND logic)
-			for (const sourceFilter of this.options.sourceFilters) {
-				if (!markerSource) {
-					// If marker has no source, exclude it for positive filter, include it for negative filter
-					if (!sourceFilter.negate) {
-						return false;
-					}
-					continue;
-				}
-				
-				// Check if any of the sources in this filter match (OR logic within filter)
-				const matchesAny = sourceFilter.sources.some(filterValue => 
-					markerSource.includes(filterValue.toLowerCase())
-				);
-				
-				// If negated, exclude matches; if not negated, require matches
-				if (sourceFilter.negate) {
-					if (matchesAny) {
-						return false;
-					}
-				} else {
-					if (!matchesAny) {
-						return false;
-					}
-				}
-			}
+		// Check source filters if present
+		if (!this.options.matchesSourceFilters(marker.marker.source)) {
+			return false;
 		}
 
 		if (!this.options.textFilter.text) {

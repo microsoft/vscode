@@ -125,6 +125,48 @@ export class FilterOptions {
 		this.includesMatcher = new ResourceGlobMatcher(includeExpression, [], uriIdentityService);
 	}
 
+	/**
+	 * Checks if a marker matches the source filters.
+	 * @param markerSource The source field from the marker (can be undefined)
+	 * @returns true if the marker passes all source filters, false otherwise
+	 */
+	matchesSourceFilters(markerSource: string | undefined): boolean {
+		if (this.sourceFilters.length === 0) {
+			return true;
+		}
+
+		const source = markerSource?.toLowerCase();
+
+		// All source filters must pass (AND logic)
+		for (const sourceFilter of this.sourceFilters) {
+			if (!source) {
+				// If marker has no source, exclude it for positive filter, include it for negative filter
+				if (!sourceFilter.negate) {
+					return false;
+				}
+				continue;
+			}
+
+			// Check if any of the sources in this filter match (OR logic within filter)
+			const matchesAny = sourceFilter.sources.some(filterValue =>
+				source.includes(filterValue.toLowerCase())
+			);
+
+			// If negated, exclude matches; if not negated, require matches
+			if (sourceFilter.negate) {
+				if (matchesAny) {
+					return false;
+				}
+			} else {
+				if (!matchesAny) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
 	private setPattern(expression: IExpression, pattern: string) {
 		if (pattern[0] === '.') {
 			pattern = '*' + pattern; // convert ".js" to "*.js"

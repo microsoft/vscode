@@ -449,44 +449,9 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					continue;
 				}
 
-				// Source filters (AND logic between multiple filters)
-				if (this.filterOptions.sourceFilters.length > 0) {
-					const markerSource = marker.marker.source?.toLowerCase();
-					let shouldInclude = true;
-					
-					// All source filters must pass (AND logic)
-					for (const sourceFilter of this.filterOptions.sourceFilters) {
-						if (!markerSource) {
-							// If marker has no source, exclude it for positive filter, include it for negative filter
-							if (!sourceFilter.negate) {
-								shouldInclude = false;
-								break;
-							}
-							continue;
-						}
-						
-						// Check if any of the sources in this filter match (OR logic within filter)
-						const matchesAny = sourceFilter.sources.some(filterValue => 
-							markerSource.includes(filterValue.toLowerCase())
-						);
-						
-						// If negated, exclude matches; if not negated, require matches
-						if (sourceFilter.negate) {
-							if (matchesAny) {
-								shouldInclude = false;
-								break;
-							}
-						} else {
-							if (!matchesAny) {
-								shouldInclude = false;
-								break;
-							}
-						}
-					}
-					
-					if (!shouldInclude) {
-						continue;
-					}
+				// Source filters
+				if (!this.filterOptions.matchesSourceFilters(marker.marker.source)) {
+					continue;
 				}
 
 				// Text filter
