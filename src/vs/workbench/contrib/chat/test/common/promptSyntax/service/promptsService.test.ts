@@ -1060,10 +1060,10 @@ suite('PromptsService', () => {
 			const uri = URI.parse('file://extensions/my-extension/textMate.instructions.md');
 			const extension = {} as IExtensionDescription;
 			const registered = service.registerContributedFile(PromptsType.instructions,
+				uri,
+				extension,
 				'TextMate Instructions',
 				'Instructions to follow when authoring TextMate grammars',
-				uri,
-				extension
 			);
 
 			const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
@@ -1227,18 +1227,18 @@ suite('PromptsService', () => {
 			// Register both agents (one exists, one doesn't)
 			const registered1 = service.registerContributedFile(
 				PromptsType.agent,
+				nonExistentUri,
+				extension,
 				'NonExistent Agent',
 				'An agent that does not exist',
-				nonExistentUri,
-				extension
 			);
 
 			const registered2 = service.registerContributedFile(
 				PromptsType.agent,
+				existingUri,
+				extension,
 				'Existing Agent',
 				'An agent that exists',
-				existingUri,
-				extension
 			);
 
 			// Verify that getCustomAgents doesn't crash and returns only the valid agent
