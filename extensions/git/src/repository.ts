@@ -3160,6 +3160,37 @@ export class Repository implements Disposable {
 		return undefined;
 	}
 
+	/**
+	 * Checks if a file has partial staging (some hunks staged, some not).
+	 * Returns true if the file has BOTH staged AND unstaged changes.
+	 */
+	async isFilePartiallyStaged(relativePath: string): Promise<boolean> {
+		return this.repository.isFilePartiallyStaged(relativePath);
+	}
+
+	/**
+	 * Checks if a file is tracked by git using ls-files.
+	 * More robust than relying on extension state which may have timing issues.
+	 */
+	async isTracked(relativePath: string): Promise<boolean> {
+		return this.repository.isTracked(relativePath);
+	}
+
+	/**
+	 * Removes file from git index only (keeps the file on disk).
+	 * Equivalent to: git rm --cached <path>
+	 */
+	async rmCached(paths: string[]): Promise<void> {
+		return this.repository.rmCached(paths);
+	}
+
+	/**
+	 * Stage files by relative paths.
+	 */
+	async addByPath(paths: string[]): Promise<void> {
+		return this.repository.add(paths);
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
