@@ -112,7 +112,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 
 		this.excludesToggle = disposables.add(this._instantiationService.createInstance(UseExcludesToggle));
 		picker.toggles = [this.excludesToggle];
-		disposables.add(this.excludesToggle.onChange(() => picker.reload()));
+		disposables.add(this.excludesToggle.onChange(() => picker.refreshItems()));
 
 		if (TEXT_SEARCH_QUICK_ACCESS_PREFIX.length < picker.value.length) {
 			picker.valueSelection = [TEXT_SEARCH_QUICK_ACCESS_PREFIX.length, picker.value.length];

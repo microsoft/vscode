@@ -280,7 +280,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(quickpick.activeItems.length, 0);
 	});
 
-	test('reload - verify onDidChangeValue event is fired with current value', async () => {
+	test('refreshItems - verify onDidChangeValue event is fired with current value', async () => {
 		const quickpick = store.add(controller.createQuickPick());
 		const testValue = 'test search query';
 		quickpick.value = testValue;
@@ -291,9 +291,9 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		store.add(quickpick.onDidChangeValue(value => valueChanges.push(value)));
 
 		// Call reload multiple times
-		quickpick.reload();
-		quickpick.reload();
-		quickpick.reload();
+		quickpick.refreshItems();
+		quickpick.refreshItems();
+		quickpick.refreshItems();
 
 		assert.strictEqual(valueChanges.length, 3);
 		assert.strictEqual(valueChanges[0], testValue);
@@ -301,7 +301,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(valueChanges[2], testValue);
 	});
 
-	test('reload - verify it works with empty value', async () => {
+	test('refreshItems - verify it works with empty value', async () => {
 		const quickpick = store.add(controller.createQuickPick());
 		quickpick.value = '';
 		quickpick.show();
@@ -313,7 +313,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		}));
 
 		// Call reload with empty value
-		quickpick.reload();
+		quickpick.refreshItems();
 
 		assert.strictEqual(eventValue, '');
 	});

@@ -228,7 +228,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		this.excludesToggle = disposables.add(this.instantiationService.createInstance(UseExcludesToggle));
 		picker.toggles = [this.excludesToggle];
-		disposables.add(this.excludesToggle.onChange(() => picker.reload()));
+		disposables.add(this.excludesToggle.onChange(() => picker.refreshItems()));
 
 		// Add editor decorations for active editor symbol picks
 		const editorDecorationsDisposable = disposables.add(new MutableDisposable());
