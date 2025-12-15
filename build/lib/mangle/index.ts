@@ -620,18 +620,19 @@ export class Mangler {
 			renameResults.push(Promise.resolve(this.renameWorkerPool.exec<RenameFn>('findRenameLocations', [this.projectPath, fileName, pos, lineColumn]))
 				.then((locations) => {
 
-					try {
 						for (const location of locations) {
 							if (location.textRange) {
-								const source = service.getProgram()!.getSourceFile(location.fileName)!;
-								const start = source.getPositionOfLineAndCharacter(location.textRange.start.line, location.textRange.start.character);
-								const end = source.getPositionOfLineAndCharacter(location.textRange.end.line, location.textRange.end.character);
-								location.textSpan = { start, length: (end - start) };
+								try {
+									const source = service.getProgram()!.getSourceFile(location.fileName)!;
+									const start = source.getPositionOfLineAndCharacter(location.textRange.start.line, location.textRange.start.character);
+									const end = source.getPositionOfLineAndCharacter(location.textRange.end.line, location.textRange.end.character);
+									location.textSpan = { start, length: (end - start) };
+								} catch (error) {
+									console.error('ERROR processing rename locations for', newName, locations, error);
+									location.textSpan = { start: 0, length: 0 };
+								}
 							}
 						}
-					} catch (error) {
-						console.error('ERROR processing rename locations for', newName, locations, error);
-					}
 
 					allEditsLocation += locations.length;
 					return {
@@ -685,6 +686,9 @@ export class Mangler {
 		}
 
 		await Promise.all(renameResults).then((result) => {
+
+			this.log(`Done preparing rename edits`);
+
 			for (const { newName, locations } of result) {
 				for (const loc of locations) {
 					appendRename(newName, loc);

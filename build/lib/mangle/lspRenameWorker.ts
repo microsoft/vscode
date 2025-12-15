@@ -34,7 +34,9 @@ class LSPClient {
 	async start(): Promise<void> {
 		const lspPath = path.join(import.meta.dirname, '..', '..', '..', 'node_modules', '@typescript', 'native-preview', 'bin', 'tsgo.js');
 
-		this.process = spawn('node', [lspPath, '--lsp', '--stdio', '--pprofDir', '/Users/jrieken/Code/vscode/tsgo-perf'], {
+		this.process = spawn('node', [lspPath, '--lsp', '--stdio',
+			// '--pprofDir', '/Users/jrieken/Code/vscode/tsgo-perf'
+		], {
 			stdio: ['pipe', 'pipe', 'pipe'],
 		});
 
@@ -224,7 +226,8 @@ class LSPClient {
 
 	async dispose(): Promise<void> {
 		if (this.process) {
-			await this.sendRequest('shutdown', {});
+			this.sendRequest('shutdown', {});
+			// TODO@jrieken AWAIT shutdown
 			this.process.kill();
 			this.process = undefined;
 		}
