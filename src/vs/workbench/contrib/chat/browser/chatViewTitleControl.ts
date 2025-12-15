@@ -18,19 +18,15 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IViewContainerModel, IViewDescriptorService } from '../../../common/views.js';
-import { ActivityBarPosition, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatModel } from '../common/chatModel.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { ChatViewId } from './chat.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions/agentSessions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { AgentSessionsPicker } from './agentSessions/agentSessionsPicker.js';
 
 export interface IChatViewTitleDelegate {
-	updateTitle(title: string): void;
 	focusChat(): void;
 }
 
@@ -41,15 +37,6 @@ export class ChatViewTitleControl extends Disposable {
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
-	private get viewContainerModel(): IViewContainerModel | undefined {
-		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(ChatViewId);
-		if (viewContainer) {
-			return this.viewDescriptorService.getViewContainerModel(viewContainer);
-		}
-
-		return undefined;
-	}
 
 	private title: string | undefined = undefined;
 
@@ -69,7 +56,6 @@ export class ChatViewTitleControl extends Disposable {
 		private readonly container: HTMLElement,
 		private readonly delegate: IChatViewTitleDelegate,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -82,18 +68,9 @@ export class ChatViewTitleControl extends Disposable {
 
 	private registerListeners(): void {
 
-		// Update when views change in container
-		if (this.viewContainerModel) {
-			this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(() => this.doUpdate()));
-			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.doUpdate()));
-		}
-
 		// Update on configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (
-				e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) ||
-				e.affectsConfiguration(ChatConfiguration.ChatViewTitleEnabled)
-			) {
+			if (e.affectsConfiguration(ChatConfiguration.ChatViewTitleEnabled)) {
 				this.doUpdate();
 			}
 		}));
@@ -187,8 +164,6 @@ export class ChatViewTitleControl extends Disposable {
 		const markdownTitle = new MarkdownString(this.model?.title ?? '');
 		this.title = renderAsPlaintext(markdownTitle);
 
-		this.delegate.updateTitle(this.getTitleWithPrefix());
-
 		this.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
 		this.updateIcon();
 
@@ -262,38 +237,11 @@ export class ChatViewTitleControl extends Disposable {
 			return false; // title hidden via setting
 		}
 
-		if (this.viewContainerModel && this.viewContainerModel.visibleViewDescriptors.length > 1) {
-			return false; // multiple views visible, chat view shows a title already
-		}
-
-		if (this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT) {
-			return false; // activity bar not in default location, view title shown already
-		}
-
-		return !!this.model?.title;
+		return !!this.model?.title; // we need a chat showing and not being empty
 	}
 
 	private isEnabled(): boolean {
 		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled) === true;
-	}
-
-	getSingleViewPaneContainerTitle(): string | undefined {
-		if (
-			!this.isEnabled() ||	// title disabled
-			this.shouldRender()		// title is rendered in the view, do not repeat
-		) {
-			return undefined;
-		}
-
-		return this.getTitleWithPrefix();
-	}
-
-	private getTitleWithPrefix(): string {
-		if (this.title) {
-			return localize('chatTitleWithPrefixCustom', "Chat: {0}", this.title);
-		}
-
-		return ChatViewTitleControl.DEFAULT_TITLE;
 	}
 
 	getHeight(): number {

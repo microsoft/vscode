@@ -47,7 +47,7 @@ import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
 import { AgentSessionsListDelegate } from './agentSessions/agentSessionsViewer.js';
 import { ChatWidget } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
-import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions/agentSessions.js';
 import { Link } from '../../../../platform/opener/browser/link.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
@@ -164,6 +164,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const welcomeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled) !== false;
 		this.viewPaneContainer?.classList.toggle('chat-view-welcome-enabled', welcomeEnabled);
 
+		const activityBarLocationDefault = this.configurationService.getValue<string>(LayoutSettings.ACTIVITY_BAR_LOCATION) === 'default';
+		this.viewPaneContainer?.classList.toggle('activity-bar-location-default', activityBarLocationDefault);
+
 		if (fromEvent && this.lastDimensions) {
 			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 		}
@@ -180,7 +183,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))(() => this.updateContextKeys(true)));
 
 		// Settings changes
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewWelcomeEnabled))(() => this.updateViewPaneClasses(true)));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
+			return e.affectsConfiguration(ChatConfiguration.ChatViewWelcomeEnabled) || e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		})(() => this.updateViewPaneClasses(true)));
 	}
 
 	private onDidChangeAgents(): void {
@@ -249,7 +254,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Control
 		const sessionsControl = this.createSessionsControl(parent);
 
-		// Welcome Control
+		// Welcome Control (used to show chat specific extension provided welcome views via `chatViewsWelcome` contribution point)
 		const welcomeController = this.welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, ChatAgentLocation.Chat));
 
 		// Chat Control
@@ -572,7 +577,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.titleControl = this._register(this.instantiationService.createInstance(ChatViewTitleControl,
 			parent,
 			{
-				updateTitle: title => this.updateTitle(title),
 				focusChat: () => this._widget.focusInput()
 			}
 		));
@@ -933,16 +937,5 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			sessionResource: this._widget.viewModel.sessionResource,
 			$mid: MarshalledId.ChatViewContext
 		} : undefined;
-	}
-
-	override get singleViewPaneContainerTitle(): string | undefined {
-		if (this.titleControl) {
-			const titleControlTitle = this.titleControl.getSingleViewPaneContainerTitle();
-			if (titleControlTitle) {
-				return titleControlTitle;
-			}
-		}
-
-		return super.singleViewPaneContainerTitle;
 	}
 }

@@ -252,7 +252,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		}
 
 		if (session.status === ChatSessionStatus.NeedsInput) {
-			return Codicon.warning;
+			return Codicon.report;
 		}
 
 		if (session.status === ChatSessionStatus.Failed) {
@@ -497,7 +497,7 @@ export interface IAgentSessionsFilter {
 	readonly limitResults?: () => number | undefined;
 
 	/**
-	 * Whether to show section headers (Active, Older, Archived).
+	 * Whether to show section headers to group sessions.
 	 * When false, sessions are shown as a flat list.
 	 */
 	readonly groupResults?: () => boolean | undefined;
@@ -624,10 +624,10 @@ const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
 const WEEK_THRESHOLD = 7 * DAY_THRESHOLD;
 
 export const AgentSessionSectionLabels = {
-	[AgentSessionSection.Active]: localize('agentSessions.activeSection', "Active"),
+	[AgentSessionSection.InProgress]: localize('agentSessions.inProgressSection', "In Progress"),
 	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
 	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
-	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Week"),
+	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last Week"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
 };
@@ -638,7 +638,7 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
 	const weekThreshold = now - WEEK_THRESHOLD;
 
-	const activeSessions: IAgentSession[] = [];
+	const inProgressSessions: IAgentSession[] = [];
 	const todaySessions: IAgentSession[] = [];
 	const yesterdaySessions: IAgentSession[] = [];
 	const weekSessions: IAgentSession[] = [];
@@ -647,7 +647,7 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 
 	for (const session of sessions) {
 		if (isSessionInProgressStatus(session.status)) {
-			activeSessions.push(session);
+			inProgressSessions.push(session);
 		} else if (session.isArchived()) {
 			archivedSessions.push(session);
 		} else {
@@ -665,7 +665,7 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 	}
 
 	return new Map<AgentSessionSection, IAgentSessionSection>([
-		[AgentSessionSection.Active, { section: AgentSessionSection.Active, label: AgentSessionSectionLabels[AgentSessionSection.Active], sessions: activeSessions }],
+		[AgentSessionSection.InProgress, { section: AgentSessionSection.InProgress, label: AgentSessionSectionLabels[AgentSessionSection.InProgress], sessions: inProgressSessions }],
 		[AgentSessionSection.Today, { section: AgentSessionSection.Today, label: AgentSessionSectionLabels[AgentSessionSection.Today], sessions: todaySessions }],
 		[AgentSessionSection.Yesterday, { section: AgentSessionSection.Yesterday, label: AgentSessionSectionLabels[AgentSessionSection.Yesterday], sessions: yesterdaySessions }],
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
