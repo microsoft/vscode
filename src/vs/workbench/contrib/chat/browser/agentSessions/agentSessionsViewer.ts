@@ -627,7 +627,7 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.InProgress]: localize('agentSessions.inProgressSection', "In Progress"),
 	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
 	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
-	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Week"),
+	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last Week"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
 };
