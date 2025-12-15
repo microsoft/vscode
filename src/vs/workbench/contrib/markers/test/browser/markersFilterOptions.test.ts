@@ -33,27 +33,10 @@ suite('MarkersFilterOptions', () => {
 		assert.strictEqual(filterOptions.textFilter.text, '');
 	});
 
-	test('source filter with @ prefix', () => {
-		const filterOptions = new FilterOptions('@eslint', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.sourceFilter, 'eslint');
-		assert.strictEqual(filterOptions.textFilter.text, '');
-	});
-
-	test('source filter with brackets', () => {
-		const filterOptions = new FilterOptions('source:[ts]', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.sourceFilter, '[ts]');
-	});
-
 	test('source filter combined with text filter', () => {
 		const filterOptions = new FilterOptions('source:ts, error', [], true, true, true, uriIdentityService);
 		assert.strictEqual(filterOptions.sourceFilter, 'ts');
 		assert.strictEqual(filterOptions.textFilter.text, 'error');
-	});
-
-	test('source filter with @ combined with text filter', () => {
-		const filterOptions = new FilterOptions('@eslint, warning', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.sourceFilter, 'eslint');
-		assert.strictEqual(filterOptions.textFilter.text, 'warning');
 	});
 
 	test('no source filter when not specified', () => {
@@ -71,35 +54,5 @@ suite('MarkersFilterOptions', () => {
 		const filterOptions = new FilterOptions('text1, source:ts, text2', [], true, true, true, uriIdentityService);
 		assert.strictEqual(filterOptions.sourceFilter, 'ts');
 		assert.strictEqual(filterOptions.textFilter.text, 'text1, text2');
-	});
-
-	test('extension filter with @ext: prefix', () => {
-		const filterOptions = new FilterOptions('@ext:publisher.extensionName', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.extensionFilter, 'publisher.extensionName');
-		assert.strictEqual(filterOptions.sourceFilter, undefined);
-		assert.strictEqual(filterOptions.textFilter.text, '');
-	});
-
-	test('extension filter combined with text filter', () => {
-		const filterOptions = new FilterOptions('@ext:vscode.typescript, error', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.extensionFilter, 'vscode.typescript');
-		assert.strictEqual(filterOptions.textFilter.text, 'error');
-	});
-
-	test('extension filter combined with source filter', () => {
-		const filterOptions = new FilterOptions('@ext:pub.ext, source:ts', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.extensionFilter, 'pub.ext');
-		assert.strictEqual(filterOptions.sourceFilter, 'ts');
-		assert.strictEqual(filterOptions.textFilter.text, '');
-	});
-
-	test('extension filter case insensitive', () => {
-		const filterOptions = new FilterOptions('@EXT:Publisher.Extension', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.extensionFilter, 'Publisher.Extension');
-	});
-
-	test('no extension filter when not specified', () => {
-		const filterOptions = new FilterOptions('some text', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.extensionFilter, undefined);
 	});
 });

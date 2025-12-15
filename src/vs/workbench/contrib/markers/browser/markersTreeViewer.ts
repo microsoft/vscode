@@ -506,27 +506,14 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return false;
 		}
 
-		// Check extension filter if present (filters by marker.owner which is the extension ID)
-		if (this.options.extensionFilter) {
-			const ownerToMatch = marker.marker.owner.toLowerCase();
-			const filterValue = this.options.extensionFilter.toLowerCase();
-			if (!ownerToMatch.includes(filterValue)) {
-				return false;
-			}
-		}
-
 		// Check source filter if present
 		if (this.options.sourceFilter) {
 			if (!marker.marker.source) {
 				return false;
 			}
-			// Match source filter (case-insensitive, allows brackets like [ts] to match "ts")
+			// Match source filter (case-insensitive)
 			const sourceToMatch = marker.marker.source.toLowerCase();
-			let filterValue = this.options.sourceFilter.toLowerCase();
-			// Strip brackets if present (e.g., "[ts]" becomes "ts")
-			if (filterValue.startsWith('[') && filterValue.endsWith(']')) {
-				filterValue = filterValue.slice(1, -1);
-			}
+			const filterValue = this.options.sourceFilter.toLowerCase();
 			if (!sourceToMatch.includes(filterValue)) {
 				return false;
 			}
