@@ -461,9 +461,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	input(data: string, isBinary: boolean = false): void {
 		this._logService.trace('node-pty.IPty#write', data, isBinary);
 		if (isBinary) {
-			// TODO: node-pty's write should accept a Buffer, needs https://github.com/microsoft/node-pty/pull/812
-			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-			this._ptyProcess!.write(Buffer.from(data, 'binary') as any);
+			this._ptyProcess!.write(Buffer.from(data, 'binary'));
 		} else {
 			this._ptyProcess!.write(data);
 		}
