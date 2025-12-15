@@ -61,9 +61,8 @@ export class BaseDropdown extends ActionRunner {
 
 		for (const event of [EventType.MOUSE_DOWN, GestureEventType.Tap]) {
 			this._register(addDisposableListener(this._label, event, e => {
-				if (isMouseEvent(e) && (e.detail > 1 || e.button !== 0)) {
+				if (isMouseEvent(e) && e.button !== 0) {
 					// prevent right click trigger to allow separate context menu (https://github.com/microsoft/vscode/issues/151064)
-					// prevent multiple clicks to open multiple context menus (https://github.com/microsoft/vscode/issues/41363)
 					return;
 				}
 

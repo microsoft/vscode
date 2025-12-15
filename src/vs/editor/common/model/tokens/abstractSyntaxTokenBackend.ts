@@ -16,7 +16,7 @@ import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../../textM
 import { BackgroundTokenizationState } from '../../tokenizationTextModelPart.js';
 import { LineTokens } from '../../tokens/lineTokens.js';
 import { derivedOpts, IObservable, ISettableObservable, observableSignal, observableValueOpts } from '../../../../base/common/observable.js';
-import { equalsIfDefined, itemEquals, itemsEquals } from '../../../../base/common/equals.js';
+import { equalsIfDefinedC, thisEqualsC, arrayEqualsC } from '../../../../base/common/equals.js';
 
 /**
  * @internal
@@ -33,7 +33,7 @@ export class AttachedViews {
 	constructor() {
 		this.visibleLineRanges = derivedOpts({
 			owner: this,
-			equalsFn: itemsEquals(itemEquals())
+			equalsFn: arrayEqualsC(thisEqualsC())
 		}, reader => {
 			this._viewsChanged.read(reader);
 			const ranges = LineRange.joinMany(
@@ -89,7 +89,7 @@ class AttachedViewImpl implements IAttachedView {
 	constructor(
 		private readonly handleStateChange: (state: AttachedViewState) => void
 	) {
-		this._state = observableValueOpts<AttachedViewState | undefined>({ owner: this, equalsFn: equalsIfDefined((a, b) => a.equals(b)) }, undefined);
+		this._state = observableValueOpts<AttachedViewState | undefined>({ owner: this, equalsFn: equalsIfDefinedC((a, b) => a.equals(b)) }, undefined);
 	}
 
 	setVisibleLines(visibleLines: { startLineNumber: number; endLineNumber: number }[], stabilized: boolean): void {

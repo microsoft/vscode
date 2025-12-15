@@ -1,0 +1,90 @@
+parameters:
+  - name: artifactName
+    type: string
+  - name: targetPath
+    type: string
+  - name: displayName
+    type: string
+    default: "Publish artifact"
+  - name: sbomEnabled
+    type: boolean
+    default: true
+  - name: sbomBuildDropPath
+    type: string
+    default: ""
+  - name: sbomPackageName
+    type: string
+    default: ""
+  - name: sbomPackageVersion
+    type: string
+    default: ""
+  - name: condition
+    type: string
+    default: succeeded()
+  - name: continueOnError
+    type: boolean
+    default: false
+
+steps:
+  - powershell: |
+      $ArtifactName = "${{ parameters.artifactName }}"
+
+      if ("$(Agent.JobStatus)" -notin @('Succeeded', 'SucceededWithIssues')) {
+        $ArtifactName = "attempt$(System.JobAttempt)_$ArtifactName"
+      }
+
+      echo "##vso[task.setvariable variable=ARTIFACT_NAME]$ArtifactName"
+
+      $NormalizedArtifactName = $ArtifactName.Replace('-', '_')
+      echo "##vso[task.setvariable variable=NORMALIZED_ARTIFACT_NAME]$NormalizedArtifactName"
+    condition: ${{ parameters.condition }}
+    displayName: Generate artifact name
+
+  - powershell: |
+      $ErrorActionPreference = "Stop"
+
+      $Uri = "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts?api-version=6.0"
+
+      try {
+        $Headers = @{
+          Authorization = "Bearer $(System.AccessToken)"
+          'User-Agent' = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0'
+          'Accept' = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7'
+          'Accept-Encoding' = 'gzip, deflate, br'
+          'Accept-Language' = 'en-US,en;q=0.9'
+          'Referer' = 'https://dev.azure.com'
+        }
+        $Response = Invoke-RestMethod -Uri $Uri -Headers $Headers -Method Get
+        Write-Host "API Response: $($Response | ConvertTo-Json -Depth 3)"
+        $ArtifactExists = $Response.value | Where-Object { $_.name -eq "$(ARTIFACT_NAME)" }
+
+        if ($ArtifactExists) {
+          Write-Host "Artifact '$(ARTIFACT_NAME)' already exists, skipping publish"
+          echo "##vso[task.setvariable variable=SHOULD_PUBLISH_ARTIFACT_$(NORMALIZED_ARTIFACT_NAME)]false"
+        } else {
+          Write-Host "Artifact '$(ARTIFACT_NAME)' does not exist, will publish"
+          echo "##vso[task.setvariable variable=SHOULD_PUBLISH_ARTIFACT_$(NORMALIZED_ARTIFACT_NAME)]true"
+        }
+      } catch {
+        Write-Host "Failed to check artifacts, will attempt to publish: $_"
+        echo "##vso[task.setvariable variable=SHOULD_PUBLISH_ARTIFACT_$(NORMALIZED_ARTIFACT_NAME)]true"
+      }
+    condition: ${{ parameters.condition }}
+    displayName: Check if artifact exists
+
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: ${{ parameters.targetPath }}
+      artifactName: $(ARTIFACT_NAME)
+      sbomEnabled: ${{ parameters.sbomEnabled }}
+      isProduction: ${{ parameters.sbomEnabled }}
+      ${{ if ne(parameters.sbomBuildDropPath, '') }}:
+        sbomBuildDropPath: ${{ parameters.sbomBuildDropPath }}
+      ${{ if ne(parameters.sbomPackageName, '') }}:
+        sbomPackageName: ${{ parameters.sbomPackageName }}
+      ${{ if ne(parameters.sbomPackageVersion, '') }}:
+        sbomPackageVersion: ${{ parameters.sbomPackageVersion }}
+    condition: and(${{ parameters.condition }}, eq(variables[format('SHOULD_PUBLISH_ARTIFACT_{0}', variables.NORMALIZED_ARTIFACT_NAME)], 'true'))
+    ${{ if ne(parameters.continueOnError, false) }}:
+      continueOnError: ${{ parameters.continueOnError }}
+    displayName: ${{ parameters.displayName }}

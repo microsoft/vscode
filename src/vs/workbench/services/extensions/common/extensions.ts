@@ -112,6 +112,13 @@ export const enum ExtensionHostStartup {
 	LazyAutoStart = 3,
 }
 
+export interface IExtensionInspectInfo {
+	readonly port: number;
+	readonly host: string;
+	readonly devtoolsUrl?: string;
+	readonly devtoolsLabel?: string;
+}
+
 export interface IExtensionHost {
 	readonly pid: number | null;
 	readonly runningLocation: ExtensionRunningLocation;
@@ -126,7 +133,7 @@ export interface IExtensionHost {
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol>;
-	getInspectPort(): { port: number; host: string } | undefined;
+	getInspectPort(): IExtensionInspectInfo | undefined;
 	enableInspectPort(): Promise<boolean>;
 	disconnect?(): Promise<void>;
 	dispose(): void;
@@ -369,7 +376,7 @@ export interface IResponsiveStateChangeEvent {
 	/**
 	 * Return the inspect port or `0`. `0` means inspection is not possible.
 	 */
-	getInspectListener(tryEnableInspector: boolean): Promise<{ port: number; host: string } | undefined>;
+	getInspectListener(tryEnableInspector: boolean): Promise<IExtensionInspectInfo | undefined>;
 }
 
 export const enum ActivationKind {
@@ -411,19 +418,19 @@ export interface IExtensionService {
 	 *
 	 * @returns the extensions that got registered
 	 */
-	onDidRegisterExtensions: Event<void>;
+	readonly onDidRegisterExtensions: Event<void>;
 
 	/**
 	 * @event
 	 * Fired when extensions status changes.
 	 * The event contains the ids of the extensions that have changed.
 	 */
-	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]>;
+	readonly onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]>;
 
 	/**
 	 * Fired when the available extensions change (i.e. when extensions are added or removed).
 	 */
-	onDidChangeExtensions: Event<{ readonly added: readonly IExtensionDescription[]; readonly removed: readonly IExtensionDescription[] }>;
+	readonly onDidChangeExtensions: Event<{ readonly added: readonly IExtensionDescription[]; readonly removed: readonly IExtensionDescription[] }>;
 
 	/**
 	 * All registered extensions.
@@ -436,19 +443,19 @@ export interface IExtensionService {
 	/**
 	 * An event that is fired when activation happens.
 	 */
-	onWillActivateByEvent: Event<IWillActivateEvent>;
+	readonly onWillActivateByEvent: Event<IWillActivateEvent>;
 
 	/**
 	 * An event that is fired when an extension host changes its
 	 * responsive-state.
 	 */
-	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent>;
+	readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent>;
 
 	/**
 	 * Fired before stop of extension hosts happens. Allows listeners to veto against the
 	 * stop to prevent it from happening.
 	 */
-	onWillStop: Event<WillStopExtensionHostsEvent>;
+	readonly onWillStop: Event<WillStopExtensionHostsEvent>;
 
 	/**
 	 * Send an activation event and activate interested extensions.
@@ -512,7 +519,7 @@ export interface IExtensionService {
 	/**
 	 * Return the inspect ports (if inspection is possible) for extension hosts of kind `extensionHostKind`.
 	 */
-	getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<{ port: number; host: string }[]>;
+	getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<IExtensionInspectInfo[]>;
 
 	/**
 	 * Stops the extension hosts.
@@ -586,12 +593,12 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 
 export class NullExtensionService implements IExtensionService {
 	declare readonly _serviceBrand: undefined;
-	onDidRegisterExtensions: Event<void> = Event.None;
-	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
+	readonly onDidRegisterExtensions: Event<void> = Event.None;
+	readonly onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
 	onDidChangeExtensions = Event.None;
-	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
-	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
-	onWillStop: Event<WillStopExtensionHostsEvent> = Event.None;
+	readonly onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
+	readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
+	readonly onWillStop: Event<WillStopExtensionHostsEvent> = Event.None;
 	readonly extensions = [];
 	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
 	activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(undefined); }
@@ -600,7 +607,7 @@ export class NullExtensionService implements IExtensionService {
 	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus } { return Object.create(null); }
-	getInspectPorts(_extensionHostKind: ExtensionHostKind, _tryEnableInspector: boolean): Promise<{ port: number; host: string }[]> { return Promise.resolve([]); }
+	getInspectPorts(_extensionHostKind: ExtensionHostKind, _tryEnableInspector: boolean): Promise<IExtensionInspectInfo[]> { return Promise.resolve([]); }
 	async stopExtensionHosts(): Promise<boolean> { return true; }
 	async startExtensionHosts(): Promise<void> { }
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }

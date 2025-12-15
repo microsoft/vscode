@@ -233,6 +233,7 @@ suite('AuthenticationMcpAccessService', () => {
 
 		test('handles non-array product.json configuration gracefully', () => {
 			// Set up invalid configuration
+			// eslint-disable-next-line local/code-no-any-casts
 			productService.trustedMcpAuthAccess = 'invalid-string' as any;
 
 			const result = authenticationMcpAccessService.readAllowedMcpServers('github', 'user@example.com');

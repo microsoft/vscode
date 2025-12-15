@@ -6,6 +6,7 @@
 import * as arrays from '../../base/common/arrays.js';
 import { IScrollPosition, Scrollable } from '../../base/common/scrollable.js';
 import * as strings from '../../base/common/strings.js';
+import { ISimpleModel } from './viewModel/screenReaderSimpleModel.js';
 import { ICoordinatesConverter } from './coordinatesConverter.js';
 import { IPosition, Position } from './core/position.js';
 import { Range } from './core/range.js';
@@ -21,7 +22,7 @@ import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
 import { InlineDecoration, SingleLineInlineDecoration } from './viewModel/inlineDecorations.js';
 
-export interface IViewModel extends ICursorSimpleModel {
+export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 
 	readonly model: ITextModel;
 

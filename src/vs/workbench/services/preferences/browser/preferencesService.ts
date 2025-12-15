@@ -595,13 +595,17 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				if (isObject(setting.value) || Array.isArray(setting.value)) {
 					position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 					codeEditor.setPosition(position);
-					await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
+					await this.instantiationService.invokeFunction(accessor => {
+						return CoreEditingCommands.LineBreakInsert.runEditorCommand(accessor, codeEditor, null);
+					});
 					position = { lineNumber: position.lineNumber + 1, column: model.getLineMaxColumn(position.lineNumber + 1) };
 					const firstNonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(position.lineNumber);
 					if (firstNonWhiteSpaceColumn) {
 						// Line has some text. Insert another new line.
 						codeEditor.setPosition({ lineNumber: position.lineNumber, column: firstNonWhiteSpaceColumn });
-						await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
+						await this.instantiationService.invokeFunction(accessor => {
+							return CoreEditingCommands.LineBreakInsert.runEditorCommand(accessor, codeEditor, null);
+						});
 						position = { lineNumber: position.lineNumber, column: model.getLineMaxColumn(position.lineNumber) };
 					}
 				} else {

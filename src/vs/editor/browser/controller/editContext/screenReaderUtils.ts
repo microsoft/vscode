@@ -6,20 +6,18 @@
 import { EndOfLinePreference } from '../../../common/model.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
+import { Selection, SelectionDirection } from '../../../common/core/selection.js';
 import { EditorOption, IComputedEditorOptions } from '../../../common/config/editorOptions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 import * as nls from '../../../../nls.js';
+import { ISimpleModel } from '../../../common/viewModel/screenReaderSimpleModel.js';
 
-export interface ISimpleModel {
-	getLineCount(): number;
-	getLineMaxColumn(lineNumber: number): number;
-	getValueInRange(range: Range, eol: EndOfLinePreference): string;
-	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
-	modifyPosition(position: Position, offset: number): Position;
+export interface IPagedScreenReaderStrategy<T> {
+	fromEditorSelection(model: ISimpleModel, selection: Selection, linesPerPage: number, trimLongText: boolean): T;
 }
 
-export interface ScreenReaderContentState {
+export interface ISimpleScreenReaderContentState {
 	value: string;
 
 	/** the offset where selection starts inside `value` */
@@ -38,28 +36,28 @@ export interface ScreenReaderContentState {
 	newlineCountBeforeSelection: number;
 }
 
-export class PagedScreenReaderStrategy {
-	private static _getPageOfLine(lineNumber: number, linesPerPage: number): number {
+export class SimplePagedScreenReaderStrategy implements IPagedScreenReaderStrategy<ISimpleScreenReaderContentState> {
+	private _getPageOfLine(lineNumber: number, linesPerPage: number): number {
 		return Math.floor((lineNumber - 1) / linesPerPage);
 	}
 
-	private static _getRangeForPage(page: number, linesPerPage: number): Range {
+	private _getRangeForPage(page: number, linesPerPage: number): Range {
 		const offset = page * linesPerPage;
 		const startLineNumber = offset + 1;
 		const endLineNumber = offset + linesPerPage;
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public static fromEditorSelection(model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): ScreenReaderContentState {
+	public fromEditorSelection(model: ISimpleModel, selection: Selection, linesPerPage: number, trimLongText: boolean): ISimpleScreenReaderContentState {
 		// Chromium handles very poorly text even of a few thousand chars
 		// Cut text to avoid stalling the entire UI
 		const LIMIT_CHARS = 500;
 
-		const selectionStartPage = PagedScreenReaderStrategy._getPageOfLine(selection.startLineNumber, linesPerPage);
-		const selectionStartPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionStartPage, linesPerPage);
+		const selectionStartPage = this._getPageOfLine(selection.startLineNumber, linesPerPage);
+		const selectionStartPageRange = this._getRangeForPage(selectionStartPage, linesPerPage);
 
-		const selectionEndPage = PagedScreenReaderStrategy._getPageOfLine(selection.endLineNumber, linesPerPage);
-		const selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage, linesPerPage);
+		const selectionEndPage = this._getPageOfLine(selection.endLineNumber, linesPerPage);
+		const selectionEndPageRange = this._getRangeForPage(selectionEndPage, linesPerPage);
 
 		let pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn))!;
 		if (trimLongText && model.getValueLengthInRange(pretextRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
@@ -95,11 +93,20 @@ export class PagedScreenReaderStrategy {
 			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
 
+		let selectionStart: number;
+		let selectionEnd: number;
+		if (selection.getDirection() === SelectionDirection.LTR) {
+			selectionStart = pretext.length;
+			selectionEnd = pretext.length + text.length;
+		} else {
+			selectionEnd = pretext.length;
+			selectionStart = pretext.length + text.length;
+		}
 		return {
 			value: pretext + text + posttext,
 			selection: selection,
-			selectionStart: pretext.length,
-			selectionEnd: pretext.length + text.length,
+			selectionStart,
+			selectionEnd,
 			startPositionWithinEditor: pretextRange.getStartPosition(),
 			newlineCountBeforeSelection: pretextRange.endLineNumber - pretextRange.startLineNumber,
 		};

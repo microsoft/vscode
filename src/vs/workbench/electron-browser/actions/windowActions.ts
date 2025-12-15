@@ -21,7 +21,7 @@ import { INativeHostService } from '../../../platform/native/common/native.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
-import { Action2, IAction2Options, MenuId } from '../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../platform/actions/common/actions.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -65,14 +65,36 @@ export class CloseWindowAction extends Action2 {
 	}
 }
 
+export class CloseOtherWindowsAction extends Action2 {
+
+	private static readonly ID = 'workbench.action.closeOtherWindows';
+
+	constructor() {
+		super({
+			id: CloseOtherWindowsAction.ID,
+			title: localize2('closeOtherWindows', "Close Other Windows"),
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+
+		const currentWindowId = getActiveWindow().vscodeWindowId;
+		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: false });
+
+		for (const window of windows) {
+			if (window.id !== currentWindowId) {
+				nativeHostService.closeWindow({ targetWindowId: window.id });
+			}
+		}
+	}
+}
+
 abstract class BaseZoomAction extends Action2 {
 
 	private static readonly ZOOM_LEVEL_SETTING_KEY = 'window.zoomLevel';
 	private static readonly ZOOM_PER_WINDOW_SETTING_KEY = 'window.zoomPerWindow';
-
-	constructor(desc: Readonly<IAction2Options>) {
-		super(desc);
-	}
 
 	protected async setZoomLevel(accessor: ServicesAccessor, levelOrReset: number | true): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
@@ -220,9 +242,11 @@ abstract class BaseSwitchWindow extends Action2 {
 		alwaysVisible: true
 	};
 
-	constructor(desc: Readonly<IAction2Options>) {
-		super(desc);
-	}
+	private readonly closeActiveWindowAction: IQuickInputButton = {
+		iconClass: 'active-window ' + ThemeIcon.asClassName(Codicon.windowActive),
+		tooltip: localize('closeActive', "Close Active Window"),
+		alwaysVisible: true
+	};
 
 	protected abstract isQuickNavigate(): boolean;
 
@@ -277,7 +301,7 @@ abstract class BaseSwitchWindow extends Action2 {
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
 				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
-				buttons: currentWindowId !== window.id ? window.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
+				buttons: window.dirty ? [this.closeDirtyWindowAction] : currentWindowId === window.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 			};
 			picks.push(pick);
 
@@ -288,7 +312,7 @@ abstract class BaseSwitchWindow extends Action2 {
 						label: auxiliaryWindow.title,
 						iconClasses: getIconClasses(modelService, languageService, auxiliaryWindow.filename ? URI.file(auxiliaryWindow.filename) : undefined, FileKind.FILE),
 						description: (currentWindowId === auxiliaryWindow.id) ? localize('current', "Current Window") : undefined,
-						buttons: [this.closeWindowAction]
+						buttons: currentWindowId === auxiliaryWindow.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 					};
 					picks.push(pick);
 				}

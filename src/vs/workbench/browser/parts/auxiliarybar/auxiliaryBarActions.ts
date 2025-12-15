@@ -9,6 +9,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { AuxiliaryBarMaximizedContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
@@ -69,7 +70,15 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.setPartHidden(layoutService.isVisible(Parts.AUXILIARYBAR_PART), Parts.AUXILIARYBAR_PART);
+		const isCurrentlyVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+
+		layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
+
+		// Announce visibility change to screen readers
+		const alertMessage = isCurrentlyVisible
+			? localize('auxiliaryBarHidden', "Secondary Side Bar hidden")
+			: localize('auxiliaryBarVisible', "Secondary Side Bar shown");
+		alert(alertMessage);
 	}
 }
 

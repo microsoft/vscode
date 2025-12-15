@@ -5,6 +5,8 @@
 
 import { ArrayQueue, pushMany } from '../../../base/common/arrays.js';
 import { VSBuffer, VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { CharCode } from '../../../base/common/charCode.js';
+import { SetWithKey } from '../../../base/common/collections.js';
 import { Color } from '../../../base/common/color.js';
 import { BugIndicatingError, illegalArgument, onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -15,19 +17,30 @@ import * as strings from '../../../base/common/strings.js';
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Constants } from '../../../base/common/uint.js';
 import { URI } from '../../../base/common/uri.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { isDark } from '../../../platform/theme/common/theme.js';
+import { IColorTheme } from '../../../platform/theme/common/themeService.js';
+import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
 import { ISingleEditOperation } from '../core/editOperation.js';
+import { TextEdit } from '../core/edits/textEdit.js';
 import { countEOL } from '../core/misc/eolCounter.js';
 import { normalizeIndentation } from '../core/misc/indentation.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { IPosition, Position } from '../core/position.js';
 import { IRange, Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
 import { TextChange } from '../core/textChange.js';
-import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { IWordAtPosition } from '../core/wordHelper.js';
 import { FormattingOptions } from '../languages.js';
 import { ILanguageSelection, ILanguageService } from '../languages/language.js';
 import { ILanguageConfigurationService } from '../languages/languageConfigurationRegistry.js';
 import * as model from '../model.js';
+import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
+import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelFontChanged, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChanged, ModelLineHeightChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../textModelEvents.js';
+import { IGuidesTextModelPart } from '../textModelGuides.js';
+import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
+import { TokenArray } from '../tokens/lineTokens.js';
 import { BracketPairsTextModelPart } from './bracketPairsTextModelPart/bracketPairsImpl.js';
 import { ColorizedBracketPairsDecorationProvider } from './bracketPairsTextModelPart/colorizedBracketPairsDecorationProvider.js';
 import { EditStack } from './editStack.js';
@@ -37,19 +50,8 @@ import { IntervalNode, IntervalTree, recomputeMaxEnd } from './intervalTree.js';
 import { PieceTreeTextBuffer } from './pieceTreeTextBuffer/pieceTreeTextBuffer.js';
 import { PieceTreeTextBufferBuilder } from './pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { SearchParams, TextModelSearch } from './textModelSearch.js';
-import { TokenizationTextModelPart } from './tokens/tokenizationTextModelPart.js';
 import { AttachedViews } from './tokens/abstractSyntaxTokenBackend.js';
-import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged, ModelFontChangedEvent, ModelFontChanged, LineInjectedText } from '../textModelEvents.js';
-import { IGuidesTextModelPart } from '../textModelGuides.js';
-import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
-import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { IColorTheme } from '../../../platform/theme/common/themeService.js';
-import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
-import { TokenArray } from '../tokens/lineTokens.js';
-import { SetWithKey } from '../../../base/common/collections.js';
-import { EditReasons, TextModelEditReason } from '../textModelEditReason.js';
-import { TextEdit } from '../core/edits/textEdit.js';
+import { TokenizationTextModelPart } from './tokens/tokenizationTextModelPart.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -61,7 +63,7 @@ interface ITextStream {
 	on(event: 'data', callback: (data: string) => void): void;
 	on(event: 'error', callback: (err: Error) => void): void;
 	on(event: 'end', callback: () => void): void;
-	on(event: string, callback: any): void;
+	on(event: string, callback: (...args: unknown[]) => void): void;
 }
 
 export function createTextBufferFactoryFromStream(stream: ITextStream): Promise<model.ITextBufferFactory>;
@@ -225,18 +227,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public get onDidChangeTokens() { return this._tokenizationTextModelPart.onDidChangeTokens; }
 
 	private readonly _onDidChangeOptions: Emitter<IModelOptionsChangedEvent> = this._register(new Emitter<IModelOptionsChangedEvent>());
-	public readonly onDidChangeOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeOptions.event;
+	public get onDidChangeOptions(): Event<IModelOptionsChangedEvent> { return this._onDidChangeOptions.event; }
 
 	private readonly _onDidChangeAttached: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeAttached: Event<void> = this._onDidChangeAttached.event;
+	public get onDidChangeAttached(): Event<void> { return this._onDidChangeAttached.event; }
 
 	private readonly _onDidChangeInjectedText: Emitter<ModelInjectedTextChangedEvent> = this._register(new Emitter<ModelInjectedTextChangedEvent>());
 
 	private readonly _onDidChangeLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>());
-	public readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent> = this._onDidChangeLineHeight.event;
+	public get onDidChangeLineHeight(): Event<ModelLineHeightChangedEvent> { return this._onDidChangeLineHeight.event; }
 
 	private readonly _onDidChangeFont: Emitter<ModelFontChangedEvent> = this._register(new Emitter<ModelFontChangedEvent>());
-	public readonly onDidChangeFont: Event<ModelFontChangedEvent> = this._onDidChangeFont.event;
+	public get onDidChangeFont(): Event<ModelFontChangedEvent> { return this._onDidChangeFont.event; }
 
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
@@ -455,7 +457,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
 	}
 
-	public setValue(value: string | model.ITextSnapshot, reason = EditReasons.setValue()): void {
+	public setValue(value: string | model.ITextSnapshot, reason = EditSources.setValue()): void {
 		this._assertNotDisposed();
 
 		if (value === null || value === undefined) {
@@ -466,7 +468,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._setValueFromTextBuffer(textBuffer, disposable, reason);
 	}
 
-	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, rangeEndPosition: Position, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean, isEolChange: boolean, reason: TextModelEditReason): IModelContentChangedEvent {
+	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, rangeEndPosition: Position, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean, isEolChange: boolean, reason: TextModelEditSource): IModelContentChangedEvent {
 		return {
 			changes: [{
 				range: range,
@@ -485,7 +487,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		};
 	}
 
-	private _setValueFromTextBuffer(textBuffer: model.ITextBuffer, textBufferDisposable: IDisposable, reason: TextModelEditReason): void {
+	private _setValueFromTextBuffer(textBuffer: model.ITextBuffer, textBufferDisposable: IDisposable, reason: TextModelEditSource): void {
 		this._assertNotDisposed();
 		const oldFullModelRange = this.getFullModelRange();
 		const oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
@@ -545,7 +547,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				false,
 				false
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, false, true, EditReasons.eolChange())
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, false, true, EditSources.eolChange())
 		);
 	}
 
@@ -1149,18 +1151,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._buffer.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
 	}
 
-	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
+	public findMatches(searchString: string, rawSearchScope: boolean | IRange | IRange[] | null, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
 		this._assertNotDisposed();
 
 		let searchRanges: Range[] | null = null;
 
-		if (rawSearchScope !== null) {
+		if (rawSearchScope !== null && typeof rawSearchScope !== 'boolean') {
 			if (!Array.isArray(rawSearchScope)) {
 				rawSearchScope = [rawSearchScope];
 			}
 
-			if (rawSearchScope.every((searchScope: Range) => Range.isIRange(searchScope))) {
-				searchRanges = rawSearchScope.map((searchScope: Range) => this.validateRange(searchScope));
+			if (rawSearchScope.every((searchScope: IRange) => Range.isIRange(searchScope))) {
+				searchRanges = rawSearchScope.map((searchScope: IRange) => this.validateRange(searchScope));
 			}
 		}
 
@@ -1270,10 +1272,29 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (rawOperation instanceof model.ValidAnnotatedEditOperation) {
 			return rawOperation;
 		}
+
+		const validatedRange = this.validateRange(rawOperation.range);
+
+		// Normalize edit when replacement text ends with lone CR
+		// and the range ends right before a CRLF in the buffer.
+		// We strip the trailing CR from the replacement text.
+		let opText = rawOperation.text;
+		if (opText) {
+			const endsWithLoneCR = (
+				opText.length > 0 && opText.charCodeAt(opText.length - 1) === CharCode.CarriageReturn
+			);
+			const removeTrailingCR = (
+				this.getEOL() === '\r\n' && endsWithLoneCR && validatedRange.endColumn === this.getLineMaxColumn(validatedRange.endLineNumber)
+			);
+			if (removeTrailingCR) {
+				opText = opText.substring(0, opText.length - 1);
+			}
+		}
+
 		return new model.ValidAnnotatedEditOperation(
 			rawOperation.identifier || null,
-			this.validateRange(rawOperation.range),
-			rawOperation.text,
+			validatedRange,
+			opText,
 			rawOperation.forceMoveMarkers || false,
 			rawOperation.isAutoWhitespaceEdit || false,
 			rawOperation._isTracked || false
@@ -1288,11 +1309,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return result;
 	}
 
-	public edit(edit: TextEdit, options?: { reason?: TextModelEditReason }): void {
+	public edit(edit: TextEdit, options?: { reason?: TextModelEditSource }): void {
 		this.pushEditOperations(null, edit.replacements.map(r => ({ range: r.range, text: r.text })), null);
 	}
 
-	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup, reason?: TextModelEditReason): Selection[] | null {
+	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup, reason?: TextModelEditSource): Selection[] | null {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
@@ -1303,7 +1324,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup, reason?: TextModelEditReason): Selection[] | null {
+	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup, reason?: TextModelEditSource): Selection[] | null {
 		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
@@ -1438,23 +1459,23 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
 	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true): model.IValidEditOperation[];
 	/** @internal */
-	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false, reason: TextModelEditReason): void;
+	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false, reason: TextModelEditSource): void;
 	/** @internal */
-	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true, reason: TextModelEditReason): model.IValidEditOperation[];
-	public applyEdits(rawOperations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits?: boolean, reason?: TextModelEditReason): void | model.IValidEditOperation[] {
+	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true, reason: TextModelEditSource): model.IValidEditOperation[];
+	public applyEdits(rawOperations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits?: boolean, reason?: TextModelEditSource): void | model.IValidEditOperation[] {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
 			const operations = this._validateEditOperations(rawOperations);
 
-			return this._doApplyEdits(operations, computeUndoEdits ?? false, reason ?? EditReasons.applyEdits());
+			return this._doApplyEdits(operations, computeUndoEdits ?? false, reason ?? EditSources.applyEdits());
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
-	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean, reason: TextModelEditReason): void | model.IValidEditOperation[] {
+	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean, reason: TextModelEditSource): void | model.IValidEditOperation[] {
 
 		const oldLineCount = this._buffer.getLineCount();
 		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace, computeUndoEdits);
@@ -2286,7 +2307,7 @@ export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
 
 	public getColor(theme: IColorTheme): string {
 		if (!this._resolvedColor) {
-			if (theme.type !== 'light' && this.darkColor) {
+			if (isDark(theme.type) && this.darkColor) {
 				this._resolvedColor = this._resolveColor(this.darkColor, theme);
 			} else {
 				this._resolvedColor = this._resolveColor(this.color, theme);
@@ -2336,7 +2357,7 @@ export class ModelDecorationMinimapOptions extends DecorationOptions {
 
 	public getColor(theme: IColorTheme): Color | undefined {
 		if (!this._resolvedColor) {
-			if (theme.type !== 'light' && this.darkColor) {
+			if (isDark(theme.type) && this.darkColor) {
 				this._resolvedColor = this._resolveColor(this.darkColor, theme);
 			} else {
 				this._resolvedColor = this._resolveColor(this.color, theme);

@@ -13,7 +13,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
@@ -29,7 +29,6 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { TerminalCommandId } from '../../terminal/common/terminal.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { startupExpContext, StartupExperimentGroup } from '../../../services/coreExperimentation/common/coreExperimentationService.js';
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
@@ -48,10 +47,8 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
 		super();
-		const disposables = new DisposableStore();
-		this._register(disposables);
 
-		editorResolverService.registerEditor(
+		this._register(editorResolverService.registerEditor(
 			`${GettingStartedInput.RESOURCE.scheme}:/**`,
 			{
 				id: GettingStartedInput.ID,
@@ -59,13 +56,13 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 				priority: RegisteredEditorPriority.builtin,
 			},
 			{
-				singlePerResource: false,
+				singlePerResource: true,
 				canSupportResource: uri => uri.scheme === GettingStartedInput.RESOURCE.scheme,
 			},
 			{
-				createEditorInput: ({ resource, options }) => {
+				createEditorInput: ({ options }) => {
 					return {
-						editor: disposables.add(this.instantiationService.createInstance(GettingStartedInput, options as GettingStartedEditorOptions)),
+						editor: this.instantiationService.createInstance(GettingStartedInput, options as GettingStartedEditorOptions),
 						options: {
 							...options,
 							pinned: false
@@ -73,7 +70,7 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 					};
 				}
 			}
-		);
+		));
 	}
 }
 
@@ -141,12 +138,6 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 				if (startupEditorSetting.value === 'readme') {
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
-					if (this.storageService.isNew(StorageScope.APPLICATION)) {
-						const startupExpValue = startupExpContext.getValue(this.contextKeyService);
-						if (startupExpValue === StartupExperimentGroup.MaximizedChat || startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat) {
-							return;
-						}
-					}
 					await this.openGettingStarted(true);
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);

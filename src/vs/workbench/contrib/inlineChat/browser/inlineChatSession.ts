@@ -21,7 +21,7 @@ import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ChatModel, IChatRequestModel, IChatTextEditGroupState } from '../../chat/common/chatModel.js';
+import { IChatModel, IChatRequestModel, IChatTextEditGroupState } from '../../chat/common/chatModel.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IChatAgent } from '../../chat/common/chatAgents.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
@@ -139,7 +139,7 @@ export class Session {
 		readonly agent: IChatAgent,
 		readonly wholeRange: SessionWholeRange,
 		readonly hunkData: HunkData,
-		readonly chatModel: ChatModel,
+		readonly chatModel: IChatModel,
 		versionsByRequest?: [string, number][], // DEBT? this is needed when a chat model is "reused" for a new chat session
 	) {
 

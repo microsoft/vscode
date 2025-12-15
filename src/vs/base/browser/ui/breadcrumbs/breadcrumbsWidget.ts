@@ -65,6 +65,7 @@ export class BreadcrumbsWidget {
 	constructor(
 		container: HTMLElement,
 		horizontalScrollbarSize: number,
+		horizontalScrollbarVisibility: ScrollbarVisibility = ScrollbarVisibility.Auto,
 		separatorIcon: ThemeIcon,
 		styles: IBreadcrumbsWidgetStyles
 	) {
@@ -74,7 +75,7 @@ export class BreadcrumbsWidget {
 		this._domNode.setAttribute('role', 'list');
 		this._scrollable = new DomScrollableElement(this._domNode, {
 			vertical: ScrollbarVisibility.Hidden,
-			horizontal: ScrollbarVisibility.Auto,
+			horizontal: horizontalScrollbarVisibility,
 			horizontalScrollbarSize,
 			useShadows: false,
 			scrollYToX: true
@@ -96,6 +97,12 @@ export class BreadcrumbsWidget {
 	setHorizontalScrollbarSize(size: number) {
 		this._scrollable.updateOptions({
 			horizontalScrollbarSize: size
+		});
+	}
+
+	setHorizontalScrollbarVisibility(visibility: ScrollbarVisibility) {
+		this._scrollable.updateOptions({
+			horizontal: visibility
 		});
 	}
 
@@ -163,7 +170,7 @@ export class BreadcrumbsWidget {
 		if (style.breadcrumbsHoverForeground) {
 			content += `.monaco-breadcrumbs:not(.disabled	) .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { color: ${style.breadcrumbsHoverForeground}}\n`;
 		}
-		styleElement.innerText = content;
+		styleElement.textContent = content;
 	}
 
 	setEnabled(value: boolean) {
@@ -332,7 +339,7 @@ export class BreadcrumbsWidget {
 		try {
 			item.render(container);
 		} catch (err) {
-			container.innerText = '<<RENDER ERROR>>';
+			container.textContent = '<<RENDER ERROR>>';
 			console.error(err);
 		}
 		container.tabIndex = -1;

@@ -80,6 +80,7 @@ export interface IAction {
 	// an action is either a group of actions
 	group?: FuzzyAction[];
 
+	hasEmbeddedEndInCases?: boolean;
 	// or a function that returns a fresh action
 	test?: (id: string, matches: string[], state: string, eos: boolean) => FuzzyAction;
 

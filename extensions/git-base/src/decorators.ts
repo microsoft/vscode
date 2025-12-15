@@ -48,22 +48,10 @@ function _throttle<T>(fn: Function, key: string): Function {
 }
 
 function decorate(decorator: (fn: Function, key: string) => Function): Function {
-	return (_target: any, key: string, descriptor: any) => {
-		let fnKey: string | null = null;
-		let fn: Function | null = null;
-
-		if (typeof descriptor.value === 'function') {
-			fnKey = 'value';
-			fn = descriptor.value;
-		} else if (typeof descriptor.get === 'function') {
-			fnKey = 'get';
-			fn = descriptor.get;
-		}
-
-		if (!fn || !fnKey) {
+	return function (original: any, context: ClassMethodDecoratorContext) {
+		if (context.kind !== 'method') {
 			throw new Error('not supported');
 		}
-
-		descriptor[fnKey] = decorator(fn, key);
+		return decorator(original, context.name.toString());
 	};
 }

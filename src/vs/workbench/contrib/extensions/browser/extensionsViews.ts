@@ -85,7 +85,7 @@ class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 export interface ExtensionsListViewOptions {
 	server?: IExtensionManagementServer;
 	flexibleHeight?: boolean;
-	onDidChangeTitle?: Event<string>;
+	readonly onDidChangeTitle?: Event<string>;
 	hideBadge?: boolean;
 }
 
@@ -109,7 +109,11 @@ function isLocalSortBy(value: any): value is LocalSortBy {
 type SortBy = LocalSortBy | GallerySortBy;
 type IQueryOptions = Omit<IGalleryQueryOptions, 'sortBy'> & { sortBy?: SortBy };
 
-export class ExtensionsListView extends ViewPane {
+export abstract class AbstractExtensionsListView<T> extends ViewPane {
+	abstract show(query: string, refresh?: boolean): Promise<IPagedModel<T>>;
+}
+
+export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 
 	private static RECENT_UPDATE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -1561,6 +1565,10 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 	}>;
 
 	public readonly length: number;
+
+	get onDidIncrementLength(): Event<number> {
+		return Event.None;
+	}
 
 	constructor(
 		private readonly preferredExtensions: IExtension[],

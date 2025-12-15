@@ -97,19 +97,19 @@ export const inlineEditIndicatorSecondaryBackground = registerColor(
 	localize('inlineEdit.gutterIndicator.secondaryBackground', 'Background color for the secondary inline edit gutter indicator.')
 );
 
-export const inlineEditIndicatorsuccessfulForeground = registerColor(
+export const inlineEditIndicatorSuccessfulForeground = registerColor(
 	'inlineEdit.gutterIndicator.successfulForeground',
 	buttonForeground,
 	localize('inlineEdit.gutterIndicator.successfulForeground', 'Foreground color for the successful inline edit gutter indicator.')
 );
-export const inlineEditIndicatorsuccessfulBorder = registerColor(
+export const inlineEditIndicatorSuccessfulBorder = registerColor(
 	'inlineEdit.gutterIndicator.successfulBorder',
 	buttonBackground,
 	localize('inlineEdit.gutterIndicator.successfulBorder', 'Border color for the successful inline edit gutter indicator.')
 );
-export const inlineEditIndicatorsuccessfulBackground = registerColor(
+export const inlineEditIndicatorSuccessfulBackground = registerColor(
 	'inlineEdit.gutterIndicator.successfulBackground',
-	inlineEditIndicatorsuccessfulBorder,
+	inlineEditIndicatorSuccessfulBorder,
 	localize('inlineEdit.gutterIndicator.successfulBackground', 'Background color for the successful inline edit gutter indicator.')
 );
 
@@ -188,7 +188,7 @@ export function getEditorBlendedColor(colorIdentifier: ColorIdentifier | IObserv
 
 	const backgroundColor = observeColor(editorBackground, themeService);
 
-	return color.map((c, reader) => c.makeOpaque(backgroundColor.read(reader)));
+	return color.map((c, reader) => /** @description makeOpaque */ c.makeOpaque(backgroundColor.read(reader)));
 }
 
 export function observeColor(colorIdentifier: ColorIdentifier, themeService: IThemeService): IObservable<Color> {
@@ -196,6 +196,7 @@ export function observeColor(colorIdentifier: ColorIdentifier, themeService: ITh
 		{
 			owner: { observeColor: colorIdentifier },
 			equalsFn: (a: Color, b: Color) => a.equals(b),
+			debugName: () => `observeColor(${colorIdentifier})`
 		},
 		themeService.onDidColorThemeChange,
 		() => {
@@ -207,3 +208,6 @@ export function observeColor(colorIdentifier: ColorIdentifier, themeService: ITh
 		}
 	);
 }
+
+// Styles
+export const INLINE_EDITS_BORDER_RADIUS = 3; // also used in CSS file

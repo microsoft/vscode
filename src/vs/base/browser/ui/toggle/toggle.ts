@@ -11,10 +11,8 @@ import { ThemeIcon } from '../../../common/themables.js';
 import { $, addDisposableListener, EventType, isActiveElement } from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
-import type { IManagedHover } from '../hover/hover.js';
-import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import { HoverStyle, IHoverLifecycleOptions } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
-import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { Widget } from '../widget.js';
 import './toggle.css';
 
@@ -24,7 +22,7 @@ export interface IToggleOpts extends IToggleStyles {
 	readonly title: string;
 	readonly isChecked: boolean;
 	readonly notFocusable?: boolean;
-	readonly hoverDelegate?: IHoverDelegate;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
 
 export interface IToggleStyles {
@@ -40,7 +38,7 @@ export interface ICheckboxStyles {
 	readonly checkboxDisabledBackground: string | undefined;
 	readonly checkboxDisabledForeground: string | undefined;
 	readonly size?: number;
-	readonly hoverDelegate?: IHoverDelegate;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
 
 export const unthemedToggleStyles = {
@@ -66,7 +64,6 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 			inputActiveOptionBackground: options.toggleStyles?.inputActiveOptionBackground,
 			inputActiveOptionBorder: options.toggleStyles?.inputActiveOptionBorder,
 			inputActiveOptionForeground: options.toggleStyles?.inputActiveOptionForeground,
-			hoverDelegate: options.hoverDelegate
 		}));
 		this._register(this.toggle.onChange(() => {
 			this._action.checked = !!this.toggle && this.toggle.checked;
@@ -122,22 +119,23 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 export class Toggle extends Widget {
 
 	private readonly _onChange = this._register(new Emitter<boolean>());
-	readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
+	get onChange(): Event<boolean /* via keyboard */> { return this._onChange.event; }
 
 	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	get onKeyDown(): Event<IKeyboardEvent> { return this._onKeyDown.event; }
 
 	private readonly _opts: IToggleOpts;
+	private _title: string;
 	private _icon: ThemeIcon | undefined;
 	readonly domNode: HTMLElement;
 
 	private _checked: boolean;
-	private _hover: IManagedHover;
 
 	constructor(opts: IToggleOpts) {
 		super();
 
 		this._opts = opts;
+		this._title = this._opts.title;
 		this._checked = this._opts.isChecked;
 
 		const classes = ['monaco-custom-toggle'];
@@ -153,15 +151,18 @@ export class Toggle extends Widget {
 		}
 
 		this.domNode = document.createElement('div');
-		this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(opts.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.domNode, this._opts.title));
+		this._register(getBaseLayerHoverDelegate().setupDelayedHover(this.domNode, () => ({
+			content: this._title,
+			style: HoverStyle.Pointer,
+		}), this._opts.hoverLifecycleOptions));
 		this.domNode.classList.add(...classes);
 		if (!this._opts.notFocusable) {
 			this.domNode.tabIndex = 0;
 		}
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
-		this.domNode.setAttribute('aria-label', this._opts.title);
 
+		this.setTitle(this._opts.title);
 		this.applyStyles();
 
 		this.onclick(this.domNode, (ev) => {
@@ -228,7 +229,6 @@ export class Toggle extends Widget {
 
 	protected applyStyles(): void {
 		if (this.domNode) {
-			this.domNode.style.borderColor = (this._checked && this._opts.inputActiveOptionBorder) || '';
 			this.domNode.style.color = (this._checked && this._opts.inputActiveOptionForeground) || 'inherit';
 			this.domNode.style.backgroundColor = (this._checked && this._opts.inputActiveOptionBackground) || '';
 		}
@@ -245,7 +245,7 @@ export class Toggle extends Widget {
 	}
 
 	setTitle(newTitle: string): void {
-		this._hover.update(newTitle);
+		this._title = newTitle;
 		this.domNode.setAttribute('aria-label', newTitle);
 	}
 
@@ -258,47 +258,25 @@ export class Toggle extends Widget {
 	}
 }
 
-export class Checkbox extends Widget {
 
+abstract class BaseCheckbox extends Widget {
 	static readonly CLASS_NAME = 'monaco-checkbox';
 
-	private readonly _onChange = this._register(new Emitter<boolean>());
+	protected readonly _onChange = this._register(new Emitter<boolean>());
 	readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
 
-	private checkbox: Toggle;
-	private styles: ICheckboxStyles;
-
-	readonly domNode: HTMLElement;
-
-	constructor(private title: string, private isChecked: boolean, styles: ICheckboxStyles) {
+	constructor(
+		protected readonly checkbox: Toggle,
+		readonly domNode: HTMLElement,
+		protected readonly styles: ICheckboxStyles
+	) {
 		super();
 
-		this.checkbox = this._register(new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: Checkbox.CLASS_NAME, hoverDelegate: styles.hoverDelegate, ...unthemedToggleStyles }));
-
-		this.domNode = this.checkbox.domNode;
-
-		this.styles = styles;
-
 		this.applyStyles();
-
-		this._register(this.checkbox.onChange(keyboard => {
-			this.applyStyles();
-			this._onChange.fire(keyboard);
-		}));
-	}
-
-	get checked(): boolean {
-		return this.checkbox.checked;
 	}
 
 	get enabled(): boolean {
 		return this.checkbox.enabled;
-	}
-
-	set checked(newIsChecked: boolean) {
-		this.checkbox.checked = newIsChecked;
-
-		this.applyStyles();
 	}
 
 	focus(): void {
@@ -333,6 +311,105 @@ export class Checkbox extends Widget {
 			this.domNode.style.height =
 			this.domNode.style.fontSize = `${size}px`;
 		this.domNode.style.fontSize = `${size - 2}px`;
+	}
+}
+
+export class Checkbox extends BaseCheckbox {
+	constructor(title: string, isChecked: boolean, styles: ICheckboxStyles) {
+		const toggle = new Toggle({ title, isChecked, icon: Codicon.check, actionClassName: BaseCheckbox.CLASS_NAME, hoverLifecycleOptions: styles.hoverLifecycleOptions, ...unthemedToggleStyles });
+		super(toggle, toggle.domNode, styles);
+
+		this._register(toggle);
+		this._register(this.checkbox.onChange(keyboard => {
+			this.applyStyles();
+			this._onChange.fire(keyboard);
+		}));
+	}
+
+	get checked(): boolean {
+		return this.checkbox.checked;
+	}
+
+	set checked(newIsChecked: boolean) {
+		this.checkbox.checked = newIsChecked;
+		this.applyStyles();
+	}
+
+	protected override applyStyles(enabled?: boolean): void {
+		if (this.checkbox.checked) {
+			this.checkbox.setIcon(Codicon.check);
+		} else {
+			this.checkbox.setIcon(undefined);
+		}
+		super.applyStyles(enabled);
+	}
+}
+
+export class TriStateCheckbox extends BaseCheckbox {
+	constructor(
+		title: string,
+		private _state: boolean | 'mixed',
+		styles: ICheckboxStyles
+	) {
+		let icon: ThemeIcon | undefined;
+		switch (_state) {
+			case true:
+				icon = Codicon.check;
+				break;
+			case 'mixed':
+				icon = Codicon.dash;
+				break;
+			case false:
+				icon = undefined;
+				break;
+		}
+		const checkbox = new Toggle({
+			title,
+			isChecked: _state === true,
+			icon,
+			actionClassName: Checkbox.CLASS_NAME,
+			hoverLifecycleOptions: styles.hoverLifecycleOptions,
+			...unthemedToggleStyles
+		});
+		super(
+			checkbox,
+			checkbox.domNode,
+			styles
+		);
+
+		this._register(checkbox);
+		this._register(this.checkbox.onChange(keyboard => {
+			this._state = this.checkbox.checked;
+			this.applyStyles();
+			this._onChange.fire(keyboard);
+		}));
+	}
+
+	get checked(): boolean | 'mixed' {
+		return this._state;
+	}
+
+	set checked(newState: boolean | 'mixed') {
+		if (this._state !== newState) {
+			this._state = newState;
+			this.checkbox.checked = newState === true;
+			this.applyStyles();
+		}
+	}
+
+	protected override applyStyles(enabled?: boolean): void {
+		switch (this._state) {
+			case true:
+				this.checkbox.setIcon(Codicon.check);
+				break;
+			case 'mixed':
+				this.checkbox.setIcon(Codicon.dash);
+				break;
+			case false:
+				this.checkbox.setIcon(undefined);
+				break;
+		}
+		super.applyStyles(enabled);
 	}
 }
 

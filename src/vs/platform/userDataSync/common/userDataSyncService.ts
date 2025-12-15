@@ -50,11 +50,20 @@ type SyncErrorClassification = {
 	executionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync execution id for which this error has occurred' };
 };
 
+type SyncErrorEvent = {
+	code: string;
+	service: string;
+	serverCode?: string;
+	url?: string;
+	resource?: string;
+	executionId?: string;
+};
+
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
 	get status(): SyncStatus { return this._status; }
@@ -157,13 +166,29 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		const startTime = new Date().getTime();
 		const executionId = generateUuid();
 		const syncHeaders = createSyncHeaders(executionId);
-		let latestUserData: IUserDataSyncLatestData | null;
+		let latestUserDataOrManifest: IUserDataSyncLatestData | IUserDataManifest | null;
 		try {
-			latestUserData = await this.userDataSyncStoreService.getLatestData(syncHeaders);
+			latestUserDataOrManifest = await this.userDataSyncStoreService.getLatestData(syncHeaders);
 		} catch (error) {
 			const userDataSyncError = UserDataSyncError.toUserDataSyncError(error);
-			reportUserDataSyncError(userDataSyncError, executionId, this.userDataSyncStoreManagementService, this.telemetryService);
-			throw userDataSyncError;
+			this.telemetryService.publicLog2<SyncErrorEvent, SyncErrorClassification>('sync.download.latest',
+				{
+					code: userDataSyncError.code,
+					serverCode: userDataSyncError instanceof UserDataSyncStoreError ? String(userDataSyncError.serverCode) : undefined,
+					url: userDataSyncError instanceof UserDataSyncStoreError ? userDataSyncError.url : undefined,
+					resource: userDataSyncError.resource,
+					executionId,
+					service: this.userDataSyncStoreManagementService.userDataSyncStore!.url.toString()
+				});
+
+			// Fallback to manifest in stable
+			try {
+				latestUserDataOrManifest = await this.userDataSyncStoreService.manifest(null, syncHeaders);
+			} catch (error) {
+				const userDataSyncError = UserDataSyncError.toUserDataSyncError(error);
+				reportUserDataSyncError(userDataSyncError, executionId, this.userDataSyncStoreManagementService, this.telemetryService);
+				throw userDataSyncError;
+			}
 		}
 
 		/* Manual sync shall start on clean local state */
@@ -174,18 +199,18 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return {
 			id: executionId,
 			async merge(): Promise<void> {
-				return that.sync(latestUserData, true, executionId, cancellableToken.token);
+				return that.sync(latestUserDataOrManifest, true, executionId, cancellableToken.token);
 			},
 			async apply(): Promise<void> {
 				try {
 					try {
-						await that.applyManualSync(latestUserData, executionId, cancellableToken.token);
+						await that.applyManualSync(latestUserDataOrManifest, executionId, cancellableToken.token);
 					} catch (error) {
 						if (UserDataSyncError.toUserDataSyncError(error).code === UserDataSyncErrorCode.MethodNotFound) {
 							that.logService.info('Client is making invalid requests. Cleaning up data...');
 							await that.cleanUpRemoteData();
 							that.logService.info('Applying manual sync again...');
-							await that.applyManualSync(latestUserData, executionId, cancellableToken.token);
+							await that.applyManualSync(latestUserDataOrManifest, executionId, cancellableToken.token);
 						} else {
 							throw error;
 						}
@@ -824,7 +849,7 @@ class ProfileSynchronizer extends Disposable {
 		const local = this.getLocalUserDataSyncConfiguration();
 		const settingsSynchronizer = this.enabled.find(synchronizer => synchronizer instanceof SettingsSynchroniser);
 		if (settingsSynchronizer) {
-			const remote = await (<SettingsSynchroniser>settingsSynchronizer).getRemoteUserDataSyncConfiguration(getRefOrUserData(manifestOrLatestData, this.collection, SyncResource.Settings) ?? null);
+			const remote = await settingsSynchronizer.getRemoteUserDataSyncConfiguration(getRefOrUserData(manifestOrLatestData, this.collection, SyncResource.Settings) ?? null);
 			return { ...local, ...remote };
 		}
 		return local;
@@ -878,7 +903,7 @@ class ProfileSynchronizer extends Disposable {
 	}
 }
 
-function canBailout(e: any): boolean {
+function canBailout(e: unknown): boolean {
 	if (e instanceof UserDataSyncError) {
 		switch (e.code) {
 			case UserDataSyncErrorCode.MethodNotFound:
@@ -898,7 +923,7 @@ function canBailout(e: any): boolean {
 }
 
 function reportUserDataSyncError(userDataSyncError: UserDataSyncError, executionId: string, userDataSyncStoreManagementService: IUserDataSyncStoreManagementService, telemetryService: ITelemetryService): void {
-	telemetryService.publicLog2<{ code: string; service: string; serverCode?: string; url?: string; resource?: string; executionId?: string }, SyncErrorClassification>('sync/error',
+	telemetryService.publicLog2<SyncErrorEvent, SyncErrorClassification>('sync/error',
 		{
 			code: userDataSyncError.code,
 			serverCode: userDataSyncError instanceof UserDataSyncStoreError ? String(userDataSyncError.serverCode) : undefined,

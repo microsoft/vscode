@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, debouncedObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
-import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { PrefixSumComputer } from '../../../../../../editor/common/model/prefixSumComputer.js';
 import { localize } from '../../../../../../nls.js';
@@ -27,9 +28,7 @@ import { INotebookEditorService } from '../../../../notebook/browser/services/no
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
-import { IChatAgentService } from '../../../common/chatAgents.js';
 import { IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../../common/chatEditingService.js';
-import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from '../chatEditingCodeEditorIntegration.js';
 import { ChatEditingModifiedNotebookEntry } from '../chatEditingModifiedNotebookEntry.js';
 import { countChanges, ICellDiffInfo, sortCellChanges } from './notebookCellChanges.js';
@@ -118,7 +117,6 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		private readonly cellChanges: IObservable<ICellDiffInfo[]>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@ILogService private readonly logService: ILogService,
@@ -139,8 +137,8 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			if (!notebookEditor) {
 				return;
 			}
-			originalReadonly ??= notebookEditor.isReadOnly;
 			if (isReadOnly) {
+				originalReadonly ??= notebookEditor.isReadOnly;
 				notebookEditor.setOptions({ isReadOnly: true });
 			} else if (originalReadonly === false) {
 				notebookEditor.setOptions({ isReadOnly: false });
@@ -160,7 +158,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					disposable.dispose();
 				}, 100);
 				const disposable = toDisposable(() => clearTimeout(timeout));
-				this._register(disposable);
+				r.store.add(disposable);
 			}
 		}));
 
@@ -215,7 +213,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			onDidChangeVisibleRanges.read(r);
 			if (!changes.length) {
 				this.cellEditorIntegrations.forEach(({ diff }) => {
-					diff.set({ ...diff.get(), ...nullDocumentDiff }, undefined);
+					diff.set({ ...diff.read(undefined), ...nullDocumentDiff }, undefined);
 				});
 				return;
 			}
@@ -258,7 +256,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				const currentDiff = this.cellEditorIntegrations.get(cell);
 				if (currentDiff) {
 					// Do not unnecessarily trigger a change event
-					if (!areDocumentDiff2Equal(currentDiff.diff.get(), diff)) {
+					if (!areDocumentDiff2Equal(currentDiff.diff.read(undefined), diff)) {
 						currentDiff.diff.set(diff, undefined);
 					}
 				} else {
@@ -345,6 +343,16 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			className: 'chat-diff-change-content-widget',
 			telemetrySource: 'chatEditingNotebookHunk',
 			menuId: MenuId.ChatEditingEditorHunk,
+			actionViewItemProvider: (action, options) => {
+				if (!action.class) {
+					return new class extends ActionViewItem {
+						constructor() {
+							super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true /* hide keybinding for actions without icon */, icon: false, label: true });
+						}
+					};
+				}
+				return undefined;
+			},
 			argFactory: (deletedCellIndex: number) => {
 				return {
 					accept() {
@@ -655,13 +663,10 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 	}
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined, _show?: boolean): Promise<void> {
-		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 		const diffInput: IResourceDiffEditorInput = {
 			original: { resource: this._entry.originalURI },
 			modified: { resource: this._entry.modifiedURI },
-			label: defaultAgentName
-				? localize('diff.agent', '{0} (changes from {1})', basename(this._entry.modifiedURI), defaultAgentName)
-				: localize('diff.generic', '{0} (changes from chat)', basename(this._entry.modifiedURI))
+			label: localize('diff.generic', '{0} (changes from chat)', basename(this._entry.modifiedURI))
 		};
 		await this._editorService.openEditor(diffInput);
 

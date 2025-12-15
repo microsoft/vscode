@@ -115,7 +115,18 @@ export interface ISandboxContext {
 	resolveConfiguration(): Promise<ISandboxConfiguration>;
 }
 
-const vscodeGlobal = (globalThis as any).vscode;
+interface ISandboxGlobal {
+	vscode: {
+		readonly ipcRenderer: IpcRenderer;
+		readonly ipcMessagePort: IpcMessagePort;
+		readonly webFrame: WebFrame;
+		readonly process: ISandboxNodeProcess;
+		readonly context: ISandboxContext;
+		readonly webUtils: WebUtils;
+	};
+}
+
+const vscodeGlobal = (globalThis as unknown as ISandboxGlobal).vscode;
 export const ipcRenderer: IpcRenderer = vscodeGlobal.ipcRenderer;
 export const ipcMessagePort: IpcMessagePort = vscodeGlobal.ipcMessagePort;
 export const webFrame: WebFrame = vscodeGlobal.webFrame;

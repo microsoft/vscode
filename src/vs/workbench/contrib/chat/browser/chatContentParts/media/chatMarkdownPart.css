@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-markdown-part .katex-display {
-	overflow-x: scroll;
-}
 
 .chat-markdown-part {
 
@@ -16,5 +13,11 @@
 	h5,
 	h6 {
 		line-height: normal;
+	}
+
+	.katex-display .katex {
+		margin: auto;
+		width: fit-content;
+		overflow: hidden;
 	}
 }

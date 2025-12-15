@@ -36,10 +36,10 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AbstractEditContext } from '../editContext.js';
 import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from './textAreaEditContextInput.js';
-import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from '../screenReaderUtils.js';
-import { ClipboardDataToCopy, getDataToCopy } from '../clipboardUtils.js';
+import { ariaLabelForScreenReaderContent, newlinecount, SimplePagedScreenReaderStrategy } from '../screenReaderUtils.js';
 import { _debugComposition, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 import { getMapForWordSeparators, WordCharacterClass } from '../../../../common/core/wordCharacterClassifier.js';
+import { TextAreaEditContextRegistry } from './textAreaEditContextRegistry.js';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -126,7 +126,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 	private _contentHeight: number;
 	private _fontInfo: FontInfo;
 	private _emptySelectionClipboard: boolean;
-	private _copyWithSyntaxHighlighting: boolean;
 
 	/**
 	 * Defined only when the text area is visible (composition case).
@@ -146,6 +145,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 	private readonly _textAreaInput: TextAreaInput;
 
 	constructor(
+		ownerID: string,
 		context: ViewContext,
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
@@ -169,7 +169,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -203,28 +202,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 		overflowGuardContainer.appendChild(this.textArea);
 		overflowGuardContainer.appendChild(this.textAreaCover);
 
-		const simpleModel: ISimpleModel = {
-			getLineCount: (): number => {
-				return this._context.viewModel.getLineCount();
-			},
-			getLineMaxColumn: (lineNumber: number): number => {
-				return this._context.viewModel.getLineMaxColumn(lineNumber);
-			},
-			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
-				return this._context.viewModel.getValueInRange(range, eol);
-			},
-			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
-				return this._context.viewModel.getValueLengthInRange(range, eol);
-			},
-			modifyPosition: (position: Position, offset: number): Position => {
-				return this._context.viewModel.modifyPosition(position, offset);
-			}
-		};
-
+		const simplePagedScreenReaderStrategy = new SimplePagedScreenReaderStrategy();
 		const textAreaInputHost: ITextAreaInputHost = {
-			getDataToCopy: (): ClipboardDataToCopy => {
-				return getDataToCopy(this._context.viewModel, this._modelSelections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
-			},
+			context: this._context,
 			getScreenReaderContent: (): TextAreaState => {
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
@@ -248,8 +228,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 					// thousand chars
 					// (https://github.com/microsoft/vscode/issues/27799)
 					const LIMIT_CHARS = 500;
-					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
-						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
+					if (platform.isMacintosh && !selection.isEmpty() && this._context.viewModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
+						const text = this._context.viewModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
 						return new TextAreaState(text, 0, text.length, selection, 0);
 					}
 
@@ -280,7 +260,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 					return TextAreaState.EMPTY;
 				}
 
-				const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				const screenReaderContentState = simplePagedScreenReaderStrategy.fromEditorSelection(this._context.viewModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 				return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 			},
 
@@ -462,6 +442,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._register(IME.onDidChange(() => {
 			this._ensureReadOnlyAttribute();
 		}));
+
+		this._register(TextAreaEditContextRegistry.register(ownerID, this));
 	}
 
 	public get domNode() {
@@ -590,7 +572,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;

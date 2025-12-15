@@ -61,6 +61,7 @@ export interface IssueReporterExtensionData {
 	extensionTemplate?: string;
 	data?: string;
 	uri?: UriComponents;
+	privateUri?: UriComponents;
 }
 
 export interface IssueReporterData extends WindowData {
@@ -77,6 +78,7 @@ export interface IssueReporterData extends WindowData {
 	issueBody?: string;
 	data?: string;
 	uri?: UriComponents;
+	privateUri?: UriComponents;
 }
 
 export interface ISettingSearchResult {
