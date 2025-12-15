@@ -44,6 +44,10 @@ export class WordReplacementsViewData {
 }
 
 const BORDER_WIDTH = 1;
+const DOM_ID_OVERLAY = 'word-replacement-view-overlay';
+const DOM_ID_WIDGET = 'word-replacement-view-widget';
+const DOM_ID_REPLACEMENT = 'word-replacement-view-replacement';
+const DOM_ID_RENAME = 'word-replacement-view-rename';
 
 export class InlineEditsWordReplacementView extends Disposable implements IInlineEditsView {
 
@@ -203,6 +207,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 				// TODO@benibenj clicking the arrow does not accept suggestion anymore
 				return [
 					n.div({
+						id: DOM_ID_OVERLAY,
 						style: {
 							position: 'absolute',
 							...rectToProps((r) => getEditorValidOverlayRect(this._editor).read(r)),
@@ -215,17 +220,18 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH, BORDER_WIDTH, 0)),
 								background: asCssVariable(editorBackground),
+								cursor: 'pointer',
+								pointerEvents: 'auto',
 							},
-							onmousedown: e => {
-								e.preventDefault(); // This prevents that the editor loses focus
-							},
+							onmousedown: (e) => this._mouseDown(e),
 						}),
 						n.div({
+							id: DOM_ID_WIDGET,
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).modifiedLine.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH)),
 								width: undefined,
-								pointerEvents: 'none',
+								pointerEvents: 'auto',
 								boxSizing: 'border-box',
 								borderRadius: '4px',
 
@@ -235,8 +241,10 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 								outline: `2px solid ${asCssVariable(editorBackground)}`,
 							},
+							onmousedown: (e) => this._mouseDown(e),
 						}, [
 							n.div({
+								id: DOM_ID_REPLACEMENT,
 								style: {
 									fontFamily: this._editor.getOption(EditorOption.fontFamily),
 									fontSize: this._editor.getOption(EditorOption.fontSize),
@@ -254,7 +262,6 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 									pointerEvents: 'auto',
 									cursor: 'pointer',
 								},
-								onmouseup: (e) => this._onDidClick.fire(InlineEditClickEvent.create(e, false)),
 								obsRef: (elem) => {
 									this._primaryElement.set(elem, undefined);
 								}
@@ -269,6 +276,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								keybindingLabel.set(altAction.keybinding);
 
 								return n.div({
+									id: DOM_ID_RENAME,
 									style: {
 										position: 'relative',
 										borderRadius: '4px',
@@ -285,12 +293,10 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 										padding: '0 4px 0 1px',
 										marginLeft: '4px',
 										background: secondaryActionStyles.map(s => s.backgroundColor),
-										pointerEvents: 'auto',
 										cursor: 'pointer',
 										textWrap: 'nowrap',
 									},
 									class: 'inline-edit-alternative-action-label',
-									onmouseup: (e) => this._onDidClick.fire(InlineEditClickEvent.create(e, true)),
 									obsRef: (elem) => {
 										this._secondaryElement.set(elem, undefined);
 									},
@@ -328,7 +334,9 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								position: 'absolute',
 								left: layout.map(l => l.modifiedLine.left - 16),
 								top: layout.map(l => l.modifiedLine.top + Math.round((l.lineHeight - 14 - 5) / 2)),
-							}
+								pointerEvents: 'none',
+							},
+							onmousedown: (e) => this._mouseDown(e),
 						}, [
 							n.svgElem('path', {
 								d: 'M1 0C1 2.98966 1 5.92087 1 8.49952C1 9.60409 1.89543 10.5 3 10.5H10.5',
@@ -358,4 +366,24 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 	private readonly _layout;
 
 	private readonly _root;
+
+	private _mouseDown(e: MouseEvent): void {
+		const target_id = traverseParentsUntilId(e.target as HTMLElement, new Set([DOM_ID_WIDGET, DOM_ID_REPLACEMENT, DOM_ID_RENAME, DOM_ID_OVERLAY]));
+		if (!target_id) {
+			return;
+		}
+		e.preventDefault(); // This prevents that the editor loses focus
+		this._onDidClick.fire(InlineEditClickEvent.create(e, target_id === DOM_ID_RENAME));
+	}
+}
+
+function traverseParentsUntilId(element: HTMLElement, ids: Set<string>): string | null {
+	let current: HTMLElement | null = element;
+	while (current) {
+		if (ids.has(current.id)) {
+			return current.id;
+		}
+		current = current.parentElement;
+	}
+	return null;
 }
