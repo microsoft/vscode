@@ -744,7 +744,7 @@ export class SettingsEditor2 extends EditorPane {
 						return `@${EXTENSION_SETTING_TAG}${extensionId} `;
 					}).sort();
 					return installedExtensionsTags.filter(extFilter => !query.includes(extFilter));
-				} else if (queryParts[queryParts.length - 1].startsWith('@')) {
+				} else if (query === '' || queryParts[queryParts.length - 1].startsWith('@')) {
 					return SettingsEditor2.SUGGESTIONS.filter(tag => !query.includes(tag)).map(tag => tag.endsWith(':') ? tag : tag + ' ');
 				}
 				return [];
