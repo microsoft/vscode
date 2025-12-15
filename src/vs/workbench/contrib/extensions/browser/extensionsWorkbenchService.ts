@@ -601,6 +601,12 @@ function checkMinimumReleaseAge(releaseDate: number, minimumReleaseAgeDays: numb
 }
 
 function calculateDaysRemaining(releaseDate: number, minimumReleaseAgeDays: number): number {
+	if (!minimumReleaseAgeDays || minimumReleaseAgeDays <= 0) {
+		return 0;
+	}
+	if (!releaseDate || releaseDate <= 0) {
+		return 0; // Invalid release date, return 0 days remaining
+	}
 	const daysSinceRelease = Math.floor((Date.now() - releaseDate) / MILLISECONDS_PER_DAY);
 	const daysRemaining = Math.ceil(minimumReleaseAgeDays - daysSinceRelease);
 	return Math.max(0, daysRemaining); // Ensure non-negative value
