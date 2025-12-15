@@ -229,7 +229,6 @@ export class Toggle extends Widget {
 
 	protected applyStyles(): void {
 		if (this.domNode) {
-			this.domNode.style.borderColor = (this._checked && this._opts.inputActiveOptionBorder) || '';
 			this.domNode.style.color = (this._checked && this._opts.inputActiveOptionForeground) || 'inherit';
 			this.domNode.style.backgroundColor = (this._checked && this._opts.inputActiveOptionBackground) || '';
 		}
