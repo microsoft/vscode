@@ -185,7 +185,7 @@ export class TypstService implements vscode.Disposable {
 		}
 
 		try {
-			const errors = await validateSource(document.getText());
+			const errors = await validateSource(document.getText(), document);
 			const diagnostics = this.convertDiagnostics(document, errors);
 			this._diagnosticCollection.set(document.uri, diagnostics);
 		} catch (error) {
@@ -241,17 +241,33 @@ export class TypstService implements vscode.Disposable {
 		}
 
 		try {
-			const result = await compileToPdf(document.getText());
+			const result = await compileToPdf(document.getText(), document);
 
 			if (result.success && result.pdf) {
 				return { success: true, pdf: result.pdf };
 			} else {
+				// Filter out access model warnings - these are not real errors
+				const realErrors = result.errors?.filter(e =>
+					!e.message.includes('access model') &&
+					!e.message.includes('assess model') &&
+					e.severity !== 'warning'
+				) ?? [];
+
+				if (realErrors.length === 0) {
+					// Only warnings, no real errors - try to continue
+					this._logger.appendLine('Compilation had warnings but no errors - access model may be working');
+					// Return the original result - the PDF might still be available
+					if (result.pdf) {
+						return { success: true, pdf: result.pdf };
+					}
+				}
+
 				// Show all errors, not just the first one
-				const errorCount = result.errors?.length ?? 0;
-				const errorMsg = result.errors?.map((e, i) => {
+				const errorCount = realErrors.length;
+				const errorMsg = realErrors.map((e, i) => {
 					const location = e.range.start.line > 0 ? ` (line ${e.range.start.line + 1})` : '';
 					return `${i + 1}. ${e.message}${location}`;
-				}).join('\n') ?? 'Unknown error';
+				}).join('\n') || 'Unknown error';
 				const summary = errorCount > 1 ? `${errorCount} errors found:\n${errorMsg}` : errorMsg;
 				return { success: false, error: summary };
 			}
@@ -269,7 +285,7 @@ export class TypstService implements vscode.Disposable {
 		}
 
 		try {
-			const result = await compileToSvg(document.getText());
+			const result = await compileToSvg(document.getText(), document);
 
 			if (result.success && result.svg) {
 				return { success: true, svg: result.svg };

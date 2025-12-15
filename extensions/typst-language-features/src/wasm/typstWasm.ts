@@ -3,11 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
+
 /**
  * This module provides integration with the Typst WASM compiler.
  *
  * Uses @myriaddreamin/typst-ts-web-compiler for compilation
  * and @myriaddreamin/typst.ts as the high-level API.
+ *
+ * File references (#image, #include, #bibliography) are handled by loading
+ * referenced files using map_shadow/add_source before compilation.
  *
  * @see https://github.com/Myriad-Dreamin/typst.ts
  * @see https://www.npmjs.com/package/@myriaddreamin/typst-ts-web-compiler
@@ -17,6 +22,81 @@
 
 let typstInstance: any = null;
 let initPromise: Promise<void> | null = null;
+
+// Memory access model for file system access
+let memoryAccessModel: any = null;
+
+/**
+ * Create a simple in-memory file system model
+ * This is a fallback if the typst.ts MemoryAccessModel cannot be imported
+ */
+function createSimpleMemoryModel() {
+	const mTimes = new Map<string, Date | undefined>();
+	const mData = new Map<string, Uint8Array | undefined>();
+
+	return {
+		reset(): void {
+			mTimes.clear();
+			mData.clear();
+			console.log('[MemoryAccessModel] Reset - cleared all files');
+		},
+		insertFile(path: string, data: Uint8Array, mtime: Date): void {
+			mTimes.set(path, mtime);
+			mData.set(path, data);
+			console.log(`[MemoryAccessModel] insertFile: ${path} (${data.length} bytes)`);
+		},
+		removeFile(path: string): void {
+			mTimes.delete(path);
+			mData.delete(path);
+			console.log(`[MemoryAccessModel] removeFile: ${path}`);
+		},
+		getMTime(path: string): Date | undefined {
+			const result = mTimes.get(path);
+			console.log(`[MemoryAccessModel] getMTime: ${path} -> ${result}`);
+			return result;
+		},
+		isFile(path: string): boolean | undefined {
+			const result = mData.has(path);
+			console.log(`[MemoryAccessModel] isFile: ${path} -> ${result}`);
+			return result ? true : undefined;
+		},
+		getRealPath(path: string): string | undefined {
+			const result = mData.has(path) ? path : undefined;
+			console.log(`[MemoryAccessModel] getRealPath: ${path} -> ${result}`);
+			return result;
+		},
+		readAll(path: string): Uint8Array | undefined {
+			console.log(`[MemoryAccessModel] readAll called: ${path}`);
+			console.log(`[MemoryAccessModel] Available files:`, Array.from(mData.keys()));
+
+			// Try exact match first
+			let data = mData.get(path);
+			if (data) {
+				console.log(`[MemoryAccessModel] readAll: ${path} -> found (${data.length} bytes)`);
+				return data;
+			}
+
+			// Try without leading slash
+			const withoutSlash = path.startsWith('/') ? path.slice(1) : path;
+			data = mData.get(withoutSlash);
+			if (data) {
+				console.log(`[MemoryAccessModel] readAll: ${path} -> found as ${withoutSlash} (${data.length} bytes)`);
+				return data;
+			}
+
+			// Try with leading slash
+			const withSlash = path.startsWith('/') ? path : '/' + path;
+			data = mData.get(withSlash);
+			if (data) {
+				console.log(`[MemoryAccessModel] readAll: ${path} -> found as ${withSlash} (${data.length} bytes)`);
+				return data;
+			}
+
+			console.log(`[MemoryAccessModel] readAll: ${path} -> NOT FOUND`);
+			return undefined;
+		}
+	};
+}
 
 export interface CompileResult {
 	success: boolean;
@@ -89,12 +169,27 @@ async function doInitialize(options: TypstWasmOptions): Promise<void> {
 	try {
 		console.log('[Typst WASM] Loading typst.ts module...');
 
-		// Dynamic import of typst.ts snippet module
+		// Dynamic import of typst.ts modules
 		const snippetModule = await import('@myriaddreamin/typst.ts/contrib/snippet');
 		const $typst = snippetModule.$typst;
+		const TypstSnippet = snippetModule.TypstSnippet;
 
 		if (!$typst) {
 			throw new Error('Could not find $typst in typst.ts/contrib/snippet module');
+		}
+
+		// Create memory access model for file system access
+		memoryAccessModel = createSimpleMemoryModel();
+		console.log('[Typst WASM] Created memory access model for file system access');
+
+		// Configure the access model with $typst.use()
+		if (TypstSnippet && typeof TypstSnippet.withAccessModel === 'function') {
+			try {
+				$typst.use(TypstSnippet.withAccessModel(memoryAccessModel));
+				console.log('[Typst WASM] Configured access model with $typst.use()');
+			} catch (error) {
+				console.warn('[Typst WASM] Could not configure access model:', error);
+			}
 		}
 
 		const { readWasmFile, wasmBaseUri } = options;
@@ -171,9 +266,149 @@ export function isWasmLoaded(): boolean {
 }
 
 /**
- * Compile Typst source code to PDF
+ * Load referenced files into the compiler using MemoryAccessModel.insertFile
+ * This is the preferred method for multi-file compilation
  */
-export async function compileToPdf(source: string): Promise<CompileResult> {
+async function loadReferencedFiles(document: vscode.TextDocument): Promise<void> {
+	if (!memoryAccessModel) {
+		console.warn('[Typst WASM] No memory access model available, file references will not work');
+		return;
+	}
+
+	// Reset previous files
+	if (typeof memoryAccessModel.reset === 'function') {
+		memoryAccessModel.reset();
+		console.log('[Typst WASM] Reset memory access model');
+	}
+
+	// Get the document directory for resolving relative paths
+	const documentDir = vscode.Uri.joinPath(document.uri, '..');
+	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+
+	// Extract file references from the document
+	const source = document.getText();
+	const references = extractFileReferences(source);
+
+	console.log(`[Typst WASM] Found ${references.length} file references to load`);
+
+	for (const ref of references) {
+		try {
+			// Resolve the path relative to document directory
+			const cleanPath = ref.path.replace(/^["']|["']$/g, '');
+			let fileUri: vscode.Uri;
+
+			if (cleanPath.startsWith('/')) {
+				// Absolute path (relative to workspace)
+				if (workspaceRoot) {
+					fileUri = vscode.Uri.joinPath(workspaceRoot, cleanPath.slice(1));
+				} else {
+					fileUri = vscode.Uri.joinPath(documentDir, cleanPath.slice(1));
+				}
+			} else {
+				// Relative path (relative to document directory)
+				fileUri = vscode.Uri.joinPath(documentDir, cleanPath);
+			}
+
+			// Read the file
+			const stat = await vscode.workspace.fs.stat(fileUri);
+			const data = await vscode.workspace.fs.readFile(fileUri);
+
+			// Insert file into memory access model
+			// Use /tmp/ prefix since the compiler uses /tmp/ as default directory when mainFilePath is not specified
+			const virtualPath = '/tmp/' + cleanPath;
+			memoryAccessModel.insertFile(virtualPath, data, new Date(stat.mtime));
+			console.log(`[Typst WASM] Inserted file: ${virtualPath} -> ${fileUri.toString()} (${data.length} bytes)`);
+		} catch (error) {
+			console.warn(`[Typst WASM] Failed to load file ${ref.path}:`, error);
+		}
+	}
+}
+
+/**
+ * Extract file references from Typst source code
+ */
+function extractFileReferences(source: string): Array<{ path: string; type: 'image' | 'include' | 'bibliography' }> {
+	const references: Array<{ path: string; type: 'image' | 'include' | 'bibliography' }> = [];
+
+	// Remove comments before extracting references
+	const withoutComments = removeComments(source);
+
+	// Match image("path") - with or without # prefix (inside figures uses image without #)
+	const imagePattern = /#?image\s*\(\s*["']([^"']+)["']/g;
+	let match;
+	while ((match = imagePattern.exec(withoutComments)) !== null) {
+		references.push({ path: match[1], type: 'image' });
+	}
+
+	// Match include("path") - with or without # prefix
+	const includePattern = /#?include\s*\(\s*["']([^"']+)["']/g;
+	while ((match = includePattern.exec(withoutComments)) !== null) {
+		references.push({ path: match[1], type: 'include' });
+	}
+
+	// Match bibliography("path") - with or without # prefix
+	const bibPattern = /#?bibliography\s*\(\s*["']([^"']+)["']/g;
+	while ((match = bibPattern.exec(withoutComments)) !== null) {
+		references.push({ path: match[1], type: 'bibliography' });
+	}
+
+	return references;
+}
+
+/**
+ * Remove comments from Typst source code
+ */
+function removeComments(source: string): string {
+	const lines = source.split('\n');
+	const result: string[] = [];
+
+	for (const line of lines) {
+		// Check if line starts with // (line comment)
+		const trimmed = line.trim();
+		if (trimmed.startsWith('//')) {
+			continue;
+		}
+
+		// Remove // comments from the end of the line
+		let inString = false;
+		let stringChar = '';
+		let processed = '';
+
+		for (let i = 0; i < line.length; i++) {
+			const char = line[i];
+			const prevChar = i > 0 ? line[i - 1] : '';
+
+			// Handle string delimiters (double quote = 34, single quote = 39, backslash = 92)
+			if ((char.charCodeAt(0) === 34 || char.charCodeAt(0) === 39) && prevChar.charCodeAt(0) !== 92) {
+				if (!inString) {
+					inString = true;
+					stringChar = char;
+				} else if (char === stringChar) {
+					inString = false;
+					stringChar = '';
+				}
+			}
+
+			// Check for // comment (only if not in string)
+			if (!inString && char === '/' && i + 1 < line.length && line[i + 1] === '/') {
+				break;
+			}
+
+			processed += char;
+		}
+
+		result.push(processed);
+	}
+
+	return result.join('\n');
+}
+
+/**
+ * Compile Typst source code to PDF
+ * @param source The Typst source code
+ * @param document Optional document for file resolution context
+ */
+export async function compileToPdf(source: string, document?: vscode.TextDocument): Promise<CompileResult> {
 	if (!typstInstance) {
 		return {
 			success: false,
@@ -186,6 +421,11 @@ export async function compileToPdf(source: string): Promise<CompileResult> {
 	}
 
 	try {
+		// Load referenced files using map_shadow/add_source
+		if (document) {
+			await loadReferencedFiles(document);
+		}
+
 		const pdf = await typstInstance.pdf({
 			mainContent: source,
 		});
@@ -202,15 +442,18 @@ export async function compileToPdf(source: string): Promise<CompileResult> {
 				}]
 			};
 		}
-	} catch (error) {
+	} catch (error: any) {
+		console.error('[Typst WASM] Compilation error:', error);
 		return parseCompilationError(error, source);
 	}
 }
 
 /**
  * Compile Typst source code to SVG
+ * @param source The Typst source code
+ * @param document Optional document for file resolution context
  */
-export async function compileToSvg(source: string): Promise<CompileResult> {
+export async function compileToSvg(source: string, document?: vscode.TextDocument): Promise<CompileResult> {
 	if (!typstInstance) {
 		return {
 			success: false,
@@ -223,12 +466,17 @@ export async function compileToSvg(source: string): Promise<CompileResult> {
 	}
 
 	try {
+		// Load referenced files using map_shadow/add_source
+		if (document) {
+			await loadReferencedFiles(document);
+		}
+
 		const svg = await typstInstance.svg({
 			mainContent: source,
 		});
 
 		return { success: true, svg };
-	} catch (error) {
+	} catch (error: any) {
 		// Log the error for debugging
 		console.error('[Typst WASM] Compilation error:', error);
 		return parseCompilationError(error, source);
@@ -237,13 +485,20 @@ export async function compileToSvg(source: string): Promise<CompileResult> {
 
 /**
  * Validate Typst source code and get diagnostics with proper location information
+ * @param source The Typst source code
+ * @param document Optional document for file resolution context
  */
-export async function validateSource(source: string): Promise<DiagnosticInfo[]> {
+export async function validateSource(source: string, document?: vscode.TextDocument): Promise<DiagnosticInfo[]> {
 	if (!typstInstance) {
 		return [];
 	}
 
 	try {
+		// Load referenced files using map_shadow/add_source
+		if (document) {
+			await loadReferencedFiles(document);
+		}
+
 		// Check if getDiagnostics method is available (proper API)
 		if (typeof typstInstance.getDiagnostics === 'function') {
 			const diagnostics = await typstInstance.getDiagnostics({
@@ -305,9 +560,14 @@ export async function validateSource(source: string): Promise<DiagnosticInfo[]> 
 		}
 
 		// Fallback: Try to compile - if it fails, we get errors
-		await typstInstance.svg({
-			mainContent: source,
-		});
+		try {
+			await typstInstance.svg({
+				mainContent: source,
+			});
+		} catch (error: any) {
+			const result = parseCompilationError(error, source);
+			return result.errors ?? [];
+		}
 		return []; // No errors
 	} catch (error) {
 		const result = parseCompilationError(error, source);
@@ -320,6 +580,29 @@ export async function validateSource(source: string): Promise<DiagnosticInfo[]> 
  * Handles both string error messages and Rust diagnostic object formats
  */
 function parseCompilationError(error: unknown, source?: string): CompileResult {
+	// Filter out access model configuration errors - these are warnings, not real compilation errors
+	let errorMsg: string;
+	if (error && typeof error === 'object') {
+		const errorObj = error as { message?: unknown };
+		errorMsg = errorObj.message !== undefined ? String(errorObj.message) : String(error);
+	} else {
+		errorMsg = String(error);
+	}
+
+	if (errorMsg.includes('assess model') || errorMsg.includes('access model')) {
+		console.warn('[Typst WASM] Ignoring access model configuration warning:', errorMsg);
+		// Return a warning instead of an error - the compilation might have actually succeeded
+		// but we can't tell because the error was thrown
+		return {
+			success: false,
+			errors: [{
+				message: 'Access model configuration warning (compilation may have succeeded)',
+				severity: 'warning',
+				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }
+			}]
+		};
+	}
+
 	// Check if error is an array of diagnostic objects (structured format from Typst compiler)
 	if (Array.isArray(error)) {
 		const errors: DiagnosticInfo[] = [];
@@ -327,6 +610,12 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 			if (diagnostic && typeof diagnostic === 'object') {
 				const diag = diagnostic as TypstDiagnostic;
 				const message = diag.message || diag.msg || String(diagnostic);
+
+				// Filter out access model configuration errors
+				if (message.includes('assess model') || message.includes('access model')) {
+					console.warn('[Typst WASM] Ignoring access model configuration warning in diagnostics:', message);
+					continue;
+				}
 				const severity = (diag.severity || 'error').toLowerCase() === 'error' ? 'error' :
 					(diag.severity || 'error').toLowerCase() === 'warning' ? 'warning' : 'info';
 
@@ -372,21 +661,21 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 	}
 
 	// Handle different error types (fallback to string parsing)
-	let errorMessage: string;
+	let errorMsgStr: string;
 	if (error instanceof Error) {
-		errorMessage = error.message;
+		errorMsgStr = error.message;
 	} else if (typeof error === 'string') {
-		errorMessage = error;
+		errorMsgStr = error;
 	} else if (error && typeof error === 'object' && error !== null) {
 		// Check if object has toString method
 		const errorObj = error as { toString?: () => string };
 		if (errorObj.toString && typeof errorObj.toString === 'function') {
-			errorMessage = errorObj.toString();
+			errorMsgStr = errorObj.toString();
 		} else {
-			errorMessage = String(error);
+			errorMsgStr = String(error);
 		}
 	} else {
-		errorMessage = String(error);
+		errorMsgStr = String(error);
 	}
 
 	// Parse multiple errors if present
@@ -404,7 +693,7 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 	// Reset regex lastIndex to ensure we search from the beginning
 	diagnosticPattern.lastIndex = 0;
 
-	while ((match = diagnosticPattern.exec(errorMessage)) !== null) {
+	while ((match = diagnosticPattern.exec(errorMsgStr)) !== null) {
 		foundDiagnostics = true;
 		const severityStr = match[1].toLowerCase();
 		const severity = severityStr === 'error' ? 'error' :
@@ -712,9 +1001,9 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 	if (!foundDiagnostics) {
 		const flexiblePattern = /message:\s*"([^"]+)"/g;
 		flexiblePattern.lastIndex = 0;
-		while ((match = flexiblePattern.exec(errorMessage)) !== null) {
+		while ((match = flexiblePattern.exec(errorMsgStr)) !== null) {
 			// Check if this looks like a diagnostic message (appears near SourceDiagnostic)
-			const beforeMatch = errorMessage.substring(Math.max(0, match.index - 100), match.index);
+			const beforeMatch = errorMsgStr.substring(Math.max(0, match.index - 100), match.index);
 			if (beforeMatch.includes('SourceDiagnostic') || beforeMatch.includes('severity')) {
 				foundDiagnostics = true;
 				const message = match[1];
@@ -742,7 +1031,7 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 
 	// If we didn't find diagnostic objects, try to parse as plain text
 	if (!foundDiagnostics) {
-		const errorLines = errorMessage.split('\n');
+		const errorLines = errorMsgStr.split('\n');
 
 		for (const line of errorLines) {
 			if (line.trim()) {
@@ -767,7 +1056,7 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 	return {
 		success: false,
 		errors: errors.length > 0 ? errors : [{
-			message: foundDiagnostics ? 'Compilation error (see details above)' : errorMessage,
+			message: foundDiagnostics ? 'Compilation error (see details above)' : errorMsgStr,
 			severity: 'error',
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }
 		}]
@@ -790,18 +1079,25 @@ export async function resetCompiler(): Promise<void> {
  * @param source The Typst source code
  * @param selector The Typst selector string (e.g., "label(<name>)" for labels)
  * @param field Optional field to extract from the result
+ * @param document Optional document for file resolution context
  * @returns The query result, or undefined if query fails
  */
 export async function queryDocument<T = any>(
 	source: string,
 	selector: string,
-	field?: string
+	field?: string,
+	document?: vscode.TextDocument
 ): Promise<T | undefined> {
 	if (!typstInstance) {
 		return undefined;
 	}
 
 	try {
+		// Load referenced files if document is provided
+		if (document) {
+			await loadReferencedFiles(document);
+		}
+
 		const result = await typstInstance.query({
 			mainContent: source,
 			selector: selector,
