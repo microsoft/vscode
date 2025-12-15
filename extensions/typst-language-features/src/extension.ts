@@ -14,6 +14,8 @@ import { registerTextCommands } from './features/textCommands';
 import { TypstCodeActionProvider } from './features/codeActionProvider';
 import { TypstFoldingProvider } from './features/foldingProvider';
 import { TypstDefinitionProvider } from './features/definitionProvider';
+import { TypstDocumentHighlightProvider } from './features/documentHighlightProvider';
+import { TypstDocumentLinkProvider } from './features/documentLinkProvider';
 import { registerWordCountProvider } from './features/wordCountProvider';
 
 let typstService: TypstService | undefined;
@@ -105,6 +107,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		vscode.languages.registerDocumentFormattingEditProvider(
 			typstSelector,
 			new TypstFormattingProvider()
+		)
+	);
+
+	// Register document highlight provider (highlights same symbols)
+	context.subscriptions.push(
+		vscode.languages.registerDocumentHighlightProvider(
+			typstSelector,
+			new TypstDocumentHighlightProvider()
+		)
+	);
+
+	// Register document link provider (clickable links)
+	context.subscriptions.push(
+		vscode.languages.registerDocumentLinkProvider(
+			typstSelector,
+			new TypstDocumentLinkProvider()
 		)
 	);
 

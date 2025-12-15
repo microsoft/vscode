@@ -8,7 +8,7 @@
 - `../../../tinymist` - Official Typst LSP (Rust)
 - `../latex-language-features` - Sister LaTeX extension (for feature parity)
 
-**Last Updated:** December 15, 2025 (Updated: Reference Completion implemented)
+**Last Updated:** December 15, 2025 (Updated: Document Highlight and Document Link implemented)
 
 ---
 
@@ -61,11 +61,11 @@ Ask yourself:
 ### Current Progress
 
 ```
-Implemented:     30 features (19%)
+Implemented:     32 features (20%)
 Partial:          2 features (1%)
-Not Implemented: 132 features (80%)
+Not Implemented: 130 features (79%)
 
-Overall: ~21% complete
+Overall: ~22% complete
 ```
 
 ---
@@ -154,8 +154,8 @@ Features:
 |---------|--------|--------------|-------|
 | Selection Range | ❌ | `selection_range.rs` | Smart selection expansion |
 | Find References | ❌ | `references.rs` | Find all usages |
-| Document Highlight | ❌ | `document_highlight.rs` | Highlight same symbols |
-| Document Link | ❌ | `document_link.rs` | Clickable links |
+| Document Highlight | ✅ | `document_highlight.rs` | Labels (@label/<label>) and variables/functions |
+| Document Link | ✅ | `document_link.rs` | Import, include, image, bibliography paths, URLs |
 
 ### 2.2 Refactoring
 
@@ -290,6 +290,9 @@ typst-language-features/
 │       ├── documentSymbolProvider.ts # Regex-based symbols
 │       ├── foldingProvider.ts       # Code folding (headings, blocks, functions)
 │       ├── formattingProvider.ts  # Document formatting (typstyle WASM)
+│       ├── definitionProvider.ts  # Go to definition (labels, variables, imports)
+│       ├── documentHighlightProvider.ts # Highlight same symbols
+│       ├── documentLinkProvider.ts # Clickable links (imports, images, URLs)
 │       └── textCommands.ts        # Text formatting shortcuts (bold, italic, underline)
 ├── snippets/                      # ✅ Snippets implemented
 │   └── typst.json                 # 15 Typst snippets
