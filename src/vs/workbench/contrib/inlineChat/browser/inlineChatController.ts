@@ -1296,6 +1296,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
+			// assertType(this._editor.hasModel(), '[Illegal State] widget should only be created when the editor has a model');
 
 			const location: IChatWidgetLocationOptions = {
 				location: ChatAgentLocation.EditorInline,
@@ -1438,7 +1439,7 @@ export class InlineChatController2 implements IEditorContribution {
 			const session = visibleSessionObs.read(r);
 			if (!session) {
 				this._zone.rawValue?.hide();
-				this._zone.value.widget.chatWidget.setModel(undefined);
+				this._zone.rawValue?.widget.chatWidget.setModel(undefined);
 				_editor.focus();
 				ctxInlineChatVisible.reset();
 			} else {
@@ -1486,28 +1487,28 @@ export class InlineChatController2 implements IEditorContribution {
 		this._store.add(autorun(r => {
 			const response = lastResponseObs.read(r);
 
-			this._zone.value.widget.updateInfo('');
+			this._zone.rawValue?.widget.updateInfo('');
 
 			if (!response?.isInProgress.read(r)) {
 
 				if (response?.result?.errorDetails) {
 					// ERROR case
-					this._zone.value.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
+					this._zone.rawValue?.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
 					alert(response.result.errorDetails.message);
 				}
 
 				// no response or not in progress
-				this._zone.value.widget.domNode.classList.toggle('request-in-progress', false);
-				this._zone.value.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', false);
+				this._zone.rawValue?.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
 
 			} else {
-				this._zone.value.widget.domNode.classList.toggle('request-in-progress', true);
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', true);
 				let placeholder = response.request?.message.text;
 				const lastProgress = lastResponseProgressObs.read(r);
 				if (lastProgress) {
 					placeholder = renderAsPlaintext(lastProgress.content);
 				}
-				this._zone.value.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
+				this._zone.rawValue?.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
 			}
 
 		}));
