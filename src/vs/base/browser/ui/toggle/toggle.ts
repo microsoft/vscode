@@ -259,6 +259,9 @@ export class Toggle extends Widget {
 	}
 
 	toggle(): void {
+		if (!this.enabled) {
+			return;
+		}
 		this.checked = !this._checked;
 		this._onChange.fire(false);
 	}
