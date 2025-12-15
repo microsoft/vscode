@@ -6,29 +6,432 @@
 import * as vscode from 'vscode';
 
 /**
- * Provides completion items for Typst documents using static data.
+ * Provides completion items for Typst documents.
  *
- * For full LSP-based completions, tinymist-web would need to be integrated.
+ * Features:
+ * - Code completions (functions, keywords) after #
+ * - Math completions (greek letters, symbols) inside $ $
+ * - Label reference completion after @
+ * - Citation completion after @ (when bibliography exists)
+ * - File path completion inside #include(), #image(), #bibliography()
  */
 export class TypstCompletionProvider implements vscode.CompletionItemProvider {
 
-	provideCompletionItems(
+	async provideCompletionItems(
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		_token: vscode.CancellationToken,
 		_context: vscode.CompletionContext
-	): vscode.CompletionItem[] {
+	): Promise<vscode.CompletionItem[]> {
 		const line = document.lineAt(position.line).text;
 		const prefix = line.substring(0, position.character);
 
 		// Check context and provide appropriate completions
 		if (prefix.endsWith('#')) {
 			return this.getCodeCompletions();
-		} else if (prefix.match(/\$[^$]*$/)) {
+		}
+
+		if (prefix.match(/\$[^$]*$/)) {
 			return this.getMathCompletions();
 		}
 
+		// Check for @ reference (labels and citations)
+		const refMatch = prefix.match(/@([\w:-]*)$/);
+		if (refMatch) {
+			const partialRef = refMatch[1];
+			return await this.getReferenceCompletions(document, partialRef);
+		}
+
+		// Check for file path completion inside #include(), #image(), #bibliography()
+		const filePathContext = this.getFilePathContext(prefix);
+		if (filePathContext) {
+			return await this.getFilePathCompletions(document, filePathContext.partial, filePathContext.type);
+		}
+
 		return [];
+	}
+
+	/**
+	 * Check if cursor is inside a file path string for include/image/bibliography
+	 */
+	private getFilePathContext(prefix: string): { partial: string; type: 'include' | 'image' | 'bibliography' } | null {
+		// Match #include("partial or include("partial
+		const includeMatch = prefix.match(/#?include\s*\(\s*["']([^"']*)$/);
+		if (includeMatch) {
+			return { partial: includeMatch[1], type: 'include' };
+		}
+
+		// Match #image("partial or image("partial
+		const imageMatch = prefix.match(/#?image\s*\(\s*["']([^"']*)$/);
+		if (imageMatch) {
+			return { partial: imageMatch[1], type: 'image' };
+		}
+
+		// Match #bibliography("partial or bibliography("partial
+		const bibMatch = prefix.match(/#?bibliography\s*\(\s*["']([^"']*)$/);
+		if (bibMatch) {
+			return { partial: bibMatch[1], type: 'bibliography' };
+		}
+
+		return null;
+	}
+
+	/**
+	 * Get completions for @ references (labels and citations)
+	 */
+	private async getReferenceCompletions(document: vscode.TextDocument, partial: string): Promise<vscode.CompletionItem[]> {
+		const items: vscode.CompletionItem[] = [];
+		const text = document.getText();
+
+		// 1. Get label definitions from the document
+		const labels = this.extractLabels(text);
+		for (const label of labels) {
+			if (label.name.startsWith(partial)) {
+				const item = new vscode.CompletionItem(label.name, vscode.CompletionItemKind.Reference);
+				item.detail = `Label: ${label.context || label.name}`;
+				item.documentation = label.context ? new vscode.MarkdownString(`Reference to: ${label.context}`) : undefined;
+				item.sortText = `0_${label.name}`; // Labels first
+				items.push(item);
+			}
+		}
+
+		// 2. Get citations from bibliography files
+		const bibliographyPath = this.extractBibliographyPath(text);
+		if (bibliographyPath) {
+			const citations = await this.loadBibliographyCitations(document, bibliographyPath);
+			for (const citation of citations) {
+				if (citation.key.startsWith(partial)) {
+					const item = new vscode.CompletionItem(citation.key, vscode.CompletionItemKind.Value);
+					item.detail = `Citation: ${citation.title || citation.key}`;
+					if (citation.author || citation.year) {
+						const docParts: string[] = [];
+						if (citation.author) {
+							docParts.push(`**Author:** ${citation.author}`);
+						}
+						if (citation.year) {
+							docParts.push(`**Year:** ${citation.year}`);
+						}
+						if (citation.title) {
+							docParts.push(`**Title:** ${citation.title}`);
+						}
+						item.documentation = new vscode.MarkdownString(docParts.join('\n\n'));
+					}
+					item.sortText = `1_${citation.key}`; // Citations after labels
+					items.push(item);
+				}
+			}
+		}
+
+		return items;
+	}
+
+	/**
+	 * Extract labels from document text
+	 * Matches: <label-name> pattern
+	 */
+	private extractLabels(text: string): Array<{ name: string; context?: string }> {
+		const labels: Array<{ name: string; context?: string }> = [];
+		const lines = text.split('\n');
+
+		// Pattern for label definitions: <label-name>
+		const labelPattern = /<([\w:-]+)>/g;
+
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			let match: RegExpExecArray | null;
+
+			while ((match = labelPattern.exec(line)) !== null) {
+				const labelName = match[1];
+
+				// Get context: check previous line for heading or figure
+				let context: string | undefined;
+
+				// Check if on same line as heading
+				const headingMatch = line.match(/^(=+)\s+(.+?)(?:\s*<[\w:-]+>)?$/);
+				if (headingMatch) {
+					const level = headingMatch[1].length;
+					context = `${'='.repeat(level)} ${headingMatch[2]}`;
+				}
+
+				// Check if this is inside a figure or equation
+				if (!context && i > 0) {
+					const prevLine = lines[i - 1];
+					if (prevLine.match(/\$[^$]+\$/)) {
+						context = 'Equation';
+					} else if (prevLine.match(/#figure/)) {
+						context = 'Figure';
+					} else if (prevLine.match(/#table/)) {
+						context = 'Table';
+					}
+				}
+
+				// Check for equation label patterns like $ ... $ <eq:name>
+				const eqMatch = line.match(/\$[^$]+\$\s*<[\w:-]+>/);
+				if (eqMatch) {
+					context = 'Equation';
+				}
+
+				labels.push({ name: labelName, context });
+			}
+		}
+
+		return labels;
+	}
+
+	/**
+	 * Extract bibliography file path from document
+	 */
+	private extractBibliographyPath(text: string): string | null {
+		const bibMatch = text.match(/#?bibliography\s*\(\s*["']([^"']+)["']/);
+		return bibMatch ? bibMatch[1] : null;
+	}
+
+	/**
+	 * Load citations from a bibliography file (.bib, .yaml, .yml, .json)
+	 */
+	private async loadBibliographyCitations(
+		document: vscode.TextDocument,
+		bibPath: string
+	): Promise<Array<{ key: string; title?: string; author?: string; year?: string }>> {
+		const citations: Array<{ key: string; title?: string; author?: string; year?: string }> = [];
+
+		try {
+			const documentDir = vscode.Uri.joinPath(document.uri, '..');
+			const bibUri = vscode.Uri.joinPath(documentDir, bibPath);
+
+			const bibContent = await vscode.workspace.fs.readFile(bibUri);
+			const bibText = new TextDecoder().decode(bibContent);
+
+			// Determine format by extension
+			if (bibPath.endsWith('.bib')) {
+				return this.parseBibTeX(bibText);
+			} else if (bibPath.endsWith('.yaml') || bibPath.endsWith('.yml')) {
+				return this.parseYamlBib(bibText);
+			} else if (bibPath.endsWith('.json')) {
+				return this.parseJsonBib(bibText);
+			}
+		} catch (error) {
+			console.warn('[TypstCompletionProvider] Failed to load bibliography:', error);
+		}
+
+		return citations;
+	}
+
+	/**
+	 * Parse BibTeX format (.bib files)
+	 */
+	private parseBibTeX(text: string): Array<{ key: string; title?: string; author?: string; year?: string }> {
+		const citations: Array<{ key: string; title?: string; author?: string; year?: string }> = [];
+
+		// Match @type{key, ... }
+		const entryPattern = /@\w+\s*\{\s*([\w:-]+)\s*,([^}]*(?:\{[^}]*\}[^}]*)*)\}/g;
+		let match: RegExpExecArray | null;
+
+		while ((match = entryPattern.exec(text)) !== null) {
+			const key = match[1];
+			const content = match[2];
+
+			const citation: { key: string; title?: string; author?: string; year?: string } = { key };
+
+			// Extract fields
+			const titleMatch = content.match(/title\s*=\s*\{([^}]+)\}/i);
+			if (titleMatch) {
+				citation.title = titleMatch[1].trim();
+			}
+
+			const authorMatch = content.match(/author\s*=\s*\{([^}]+)\}/i);
+			if (authorMatch) {
+				citation.author = authorMatch[1].trim();
+			}
+
+			const yearMatch = content.match(/year\s*=\s*\{?(\d{4})\}?/i);
+			if (yearMatch) {
+				citation.year = yearMatch[1];
+			}
+
+			citations.push(citation);
+		}
+
+		return citations;
+	}
+
+	/**
+	 * Parse YAML bibliography format
+	 */
+	private parseYamlBib(text: string): Array<{ key: string; title?: string; author?: string; year?: string }> {
+		const citations: Array<{ key: string; title?: string; author?: string; year?: string }> = [];
+
+		// Simple YAML parsing - entries start with "- id:" or "key:"
+		const lines = text.split('\n');
+		let currentEntry: { key: string; title?: string; author?: string; year?: string } | null = null;
+
+		for (const line of lines) {
+			// Check for new entry
+			const idMatch = line.match(/^-?\s*id:\s*(.+)$/);
+			if (idMatch) {
+				if (currentEntry) {
+					citations.push(currentEntry);
+				}
+				currentEntry = { key: idMatch[1].trim() };
+				continue;
+			}
+
+			if (currentEntry) {
+				const titleMatch = line.match(/^\s*title:\s*(.+)$/);
+				if (titleMatch) {
+					currentEntry.title = titleMatch[1].trim().replace(/^["']|["']$/g, '');
+				}
+
+				const authorMatch = line.match(/^\s*author:\s*(.+)$/);
+				if (authorMatch) {
+					currentEntry.author = authorMatch[1].trim().replace(/^["']|["']$/g, '');
+				}
+
+				const yearMatch = line.match(/^\s*(?:year|issued|date):\s*(\d{4})/);
+				if (yearMatch) {
+					currentEntry.year = yearMatch[1];
+				}
+			}
+		}
+
+		if (currentEntry) {
+			citations.push(currentEntry);
+		}
+
+		return citations;
+	}
+
+	/**
+	 * Parse JSON bibliography format (CSL-JSON)
+	 */
+	private parseJsonBib(text: string): Array<{ key: string; title?: string; author?: string; year?: string }> {
+		const citations: Array<{ key: string; title?: string; author?: string; year?: string }> = [];
+
+		try {
+			const data = JSON.parse(text);
+			const entries = Array.isArray(data) ? data : [data];
+
+			for (const entry of entries) {
+				if (entry.id) {
+					const citation: { key: string; title?: string; author?: string; year?: string } = {
+						key: entry.id
+					};
+
+					if (entry.title) {
+						citation.title = entry.title;
+					}
+
+					if (entry.author && Array.isArray(entry.author)) {
+						const authors = entry.author.map((a: { family?: string; given?: string }) =>
+							a.family ? (a.given ? `${a.given} ${a.family}` : a.family) : ''
+						).filter(Boolean);
+						if (authors.length > 0) {
+							citation.author = authors.join(', ');
+						}
+					}
+
+					if (entry.issued && entry.issued['date-parts']) {
+						const year = entry.issued['date-parts'][0]?.[0];
+						if (year) {
+							citation.year = String(year);
+						}
+					}
+
+					citations.push(citation);
+				}
+			}
+		} catch {
+			console.warn('[TypstCompletionProvider] Failed to parse JSON bibliography');
+		}
+
+		return citations;
+	}
+
+	/**
+	 * Get file path completions for include/image/bibliography
+	 */
+	private async getFilePathCompletions(
+		document: vscode.TextDocument,
+		partial: string,
+		type: 'include' | 'image' | 'bibliography'
+	): Promise<vscode.CompletionItem[]> {
+		const items: vscode.CompletionItem[] = [];
+
+		try {
+			const documentDir = vscode.Uri.joinPath(document.uri, '..');
+
+			// Determine the directory to list
+			let searchDir = documentDir;
+			let pathPrefix = '';
+
+			if (partial.includes('/')) {
+				const lastSlash = partial.lastIndexOf('/');
+				pathPrefix = partial.substring(0, lastSlash + 1);
+				searchDir = vscode.Uri.joinPath(documentDir, pathPrefix);
+			}
+
+			const entries = await vscode.workspace.fs.readDirectory(searchDir);
+
+			// Define allowed extensions by type
+			const allowedExtensions: Record<string, string[]> = {
+				include: ['.typ'],
+				image: ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.pdf', '.webp'],
+				bibliography: ['.bib', '.yaml', '.yml', '.json']
+			};
+
+			const extensions = allowedExtensions[type];
+			const partialName = partial.substring(partial.lastIndexOf('/') + 1).toLowerCase();
+
+			for (const [name, fileType] of entries) {
+				// For directories, allow navigation
+				if (fileType === vscode.FileType.Directory) {
+					if (name.toLowerCase().startsWith(partialName) && !name.startsWith('.')) {
+						const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Folder);
+						item.insertText = pathPrefix + name + '/';
+						item.command = {
+							command: 'editor.action.triggerSuggest',
+							title: 'Re-trigger completions'
+						};
+						items.push(item);
+					}
+				}
+				// For files, filter by extension
+				else if (fileType === vscode.FileType.File) {
+					const ext = name.substring(name.lastIndexOf('.')).toLowerCase();
+					if (extensions.includes(ext) && name.toLowerCase().startsWith(partialName)) {
+						const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.File);
+						item.insertText = pathPrefix + name;
+						item.detail = this.getFileTypeDetail(ext);
+						items.push(item);
+					}
+				}
+			}
+		} catch (error) {
+			console.warn('[TypstCompletionProvider] Failed to list files:', error);
+		}
+
+		return items;
+	}
+
+	/**
+	 * Get detail description for file type
+	 */
+	private getFileTypeDetail(ext: string): string {
+		const details: Record<string, string> = {
+			'.typ': 'Typst file',
+			'.png': 'PNG image',
+			'.jpg': 'JPEG image',
+			'.jpeg': 'JPEG image',
+			'.gif': 'GIF image',
+			'.svg': 'SVG image',
+			'.pdf': 'PDF file',
+			'.webp': 'WebP image',
+			'.bib': 'BibTeX bibliography',
+			'.yaml': 'YAML bibliography',
+			'.yml': 'YAML bibliography',
+			'.json': 'JSON bibliography (CSL)'
+		};
+		return details[ext] || 'File';
 	}
 
 	private getCodeCompletions(): vscode.CompletionItem[] {

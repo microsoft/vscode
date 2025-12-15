@@ -53,11 +53,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	];
 
 	// Register language providers (static data, no WASM needed)
+	// Trigger characters: # (code), . (methods), @ (references/citations), quote chars (file paths)
+	const doubleQuote = String.fromCharCode(34); // " character
+	const singleQuote = String.fromCharCode(39); // ' character
 	context.subscriptions.push(
 		vscode.languages.registerCompletionItemProvider(
 			typstSelector,
 			new TypstCompletionProvider(),
-			'#', '.'
+			'#', '.', '@', doubleQuote, singleQuote
 		)
 	);
 

@@ -8,7 +8,7 @@
 - `../../../tinymist` - Official Typst LSP (Rust)
 - `../latex-language-features` - Sister LaTeX extension (for feature parity)
 
-**Last Updated:** December 15, 2025 (Updated: Code Actions implemented)
+**Last Updated:** December 15, 2025 (Updated: Reference Completion implemented)
 
 ---
 
@@ -61,11 +61,11 @@ Ask yourself:
 ### Current Progress
 
 ```
-Implemented:     29 features (18%)
-Partial:          3 features (2%)
+Implemented:     30 features (19%)
+Partial:          2 features (1%)
 Not Implemented: 132 features (80%)
 
-Overall: ~20% complete
+Overall: ~21% complete
 ```
 
 ---
@@ -125,11 +125,24 @@ Implemented in `src/features/textCommands.ts`:
 
 All shortcuts work in both web and desktop, with smart detection of existing formatting to toggle on/off.
 
-### 1.4 Reference Completion (❌ TODO)
+### 1.4 Reference Completion (✅ Done)
 
-- Complete `@label` with document labels
-- Complete `#bibliography()` citations
-- Complete file paths in `#include()`, `#image()`
+Implemented in `src/features/completionProvider.ts`:
+
+| Feature | Trigger | Output |
+|---------|---------|--------|
+| Label references | `@` | Completions for `<label>` definitions in document |
+| Citations | `@` | Completions from `.bib`, `.yaml`, `.yml`, `.json` bibliography files |
+| Include paths | `#include("` | Completions for `.typ` files |
+| Image paths | `#image("` | Completions for image files (`.png`, `.jpg`, `.svg`, etc.) |
+| Bibliography paths | `#bibliography("` | Completions for bibliography files |
+
+Features:
+- Label extraction with context detection (headings, figures, equations)
+- BibTeX parsing with author, title, year extraction
+- YAML/JSON bibliography support (CSL-JSON format)
+- Directory navigation in file path completions
+- Works in both web and desktop environments
 
 ---
 
