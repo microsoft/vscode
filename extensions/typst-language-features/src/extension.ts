@@ -14,6 +14,7 @@ import { registerTextCommands } from './features/textCommands';
 import { TypstCodeActionProvider } from './features/codeActionProvider';
 import { TypstFoldingProvider } from './features/foldingProvider';
 import { TypstDefinitionProvider } from './features/definitionProvider';
+import { registerWordCountProvider } from './features/wordCountProvider';
 
 let typstService: TypstService | undefined;
 
@@ -201,6 +202,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// Register text formatting commands (bold, italic, underline)
 	const textCommandsDisposables = registerTextCommands();
 	textCommandsDisposables.forEach(d => context.subscriptions.push(d));
+
+	// Register word count provider (status bar)
+	const wordCountDisposables = registerWordCountProvider(context);
+	wordCountDisposables.forEach(d => context.subscriptions.push(d));
+	logger.appendLine('Typst Word Count Provider registered');
 
 	// Listen for document saves to auto-refresh PDF preview with debounce
 	context.subscriptions.push(

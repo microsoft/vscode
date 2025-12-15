@@ -138,6 +138,12 @@
             "default": true,
             "description": "%typst.hover.preview.math.enabled.description%",
             "scope": "window"
+          },
+          "typst.wordCount.showInStatusBar": {
+            "type": "boolean",
+            "default": true,
+            "description": "%typst.wordCount.showInStatusBar.description%",
+            "scope": "window"
           }
         }
       }
@@ -177,6 +183,11 @@
         "command": "typst.shortcut.underline",
         "title": "%typst.shortcut.underline.title%",
         "category": "Typst"
+      },
+      {
+        "command": "typst.wordCount",
+        "title": "%typst.wordCount.title%",
+        "category": "Typst"
       }
     ],
     "menus": {
@@ -199,6 +210,10 @@
         },
         {
           "command": "typst.shortcut.underline",
+          "when": "editorLangId == typst"
+        },
+        {
+          "command": "typst.wordCount",
           "when": "editorLangId == typst"
         }
       ],

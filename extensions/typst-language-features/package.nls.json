@@ -16,5 +16,7 @@
 	"typst.exportPdf.title": "Export to PDF",
 	"typst.shortcut.bold.title": "Toggle Bold",
 	"typst.shortcut.italic.title": "Toggle Italic",
-	"typst.shortcut.underline.title": "Toggle Underline"
+	"typst.shortcut.underline.title": "Toggle Underline",
+	"typst.wordCount.title": "Count Words",
+	"typst.wordCount.showInStatusBar.description": "Show word count in the status bar"
 }

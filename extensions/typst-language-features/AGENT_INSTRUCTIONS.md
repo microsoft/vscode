@@ -8,7 +8,7 @@
 - `../../../tinymist` - Official Typst LSP (Rust)
 - `../latex-language-features` - Sister LaTeX extension (for feature parity)
 
-**Last Updated:** December 11, 2025 (Updated: Snippets, Text Shortcuts, and Diagnostics implemented)
+**Last Updated:** December 15, 2025 (Updated: Word Count implemented)
 
 ---
 
@@ -61,11 +61,11 @@ Ask yourself:
 ### Current Progress
 
 ```
-Implemented:     27 features (16%)
+Implemented:     28 features (17%)
 Partial:          3 features (2%)
-Not Implemented: 134 features (82%)
+Not Implemented: 133 features (81%)
 
-Overall: ~19% complete
+Overall: ~20% complete
 ```
 
 ---
@@ -191,7 +191,7 @@ All shortcuts work in both web and desktop, with smart detection of existing for
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Word Count | ❌ | Status bar counter |
+| Word Count | ✅ | Status bar counter with detailed popup on click |
 | Compile Status | ❌ | Status bar indicator |
 | Symbol View | ❌ | Visual symbol browser |
 | Font View | ❌ | Browse available fonts |
