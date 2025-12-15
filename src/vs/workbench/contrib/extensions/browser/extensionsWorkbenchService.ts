@@ -607,9 +607,11 @@ function calculateDaysRemaining(releaseDate: number, minimumReleaseAgeDays: numb
 	if (!releaseDate || releaseDate <= 0) {
 		return 0; // Invalid release date, return 0 days remaining
 	}
-	const daysSinceRelease = Math.floor((Date.now() - releaseDate) / MILLISECONDS_PER_DAY);
-	const daysRemaining = Math.ceil(minimumReleaseAgeDays - daysSinceRelease);
-	return Math.max(0, daysRemaining); // Ensure non-negative value
+	const now = Date.now();
+	const daysSinceRelease = (now - releaseDate) / MILLISECONDS_PER_DAY;
+	const daysRemaining = minimumReleaseAgeDays - daysSinceRelease;
+	// Round up to be conservative (show full days remaining)
+	return Math.max(0, Math.ceil(daysRemaining));
 }
 
 const EXTENSIONS_AUTO_UPDATE_KEY = 'extensions.autoUpdate';
@@ -2172,7 +2174,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (blockedByMinimumAge.length) {
-			const extensionList = blockedByMinimumAge.map(e => `${e.id} (${e.daysRemaining} day${e.daysRemaining !== 1 ? 's' : ''} remaining)`).join(', ');
+			const extensionList = blockedByMinimumAge.map(e => `${e.id} (${e.daysRemaining} day${e.daysRemaining === 1 ? '' : 's'} remaining)`).join(', ');
 			this.logService.info(`Auto update delayed due to minimum release age (${minimumReleaseAge} days): ${extensionList}`);
 		}
 
