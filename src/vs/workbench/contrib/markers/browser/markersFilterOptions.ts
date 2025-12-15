@@ -49,7 +49,7 @@ export class FilterOptions {
 	readonly showErrors: boolean = false;
 	readonly showInfos: boolean = false;
 	readonly textFilter: { readonly text: string; readonly negate: boolean };
-	readonly sourceFilter: { readonly text: string; readonly negate: boolean } | undefined;
+	readonly sourceFilters: ReadonlyArray<{ readonly sources: readonly string[]; readonly negate: boolean }>;
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
 
@@ -80,15 +80,27 @@ export class FilterOptions {
 			}
 		}
 
-		// Extract source filter if present (e.g., "@source:eslint" or "-@source:eslint")
+		// Extract source filters (e.g., "@source:eslint,ts" or "-@source:eslint @source:ts")
+		// Multiple @source: filters separated by space are AND logic
+		// Comma-separated sources within one @source: are OR logic
 		let effectiveFilter = filter;
-		const sourceMatch = filter.match(/(?:^|,\s*)(-)?@source:([^\s,]+)/i);
-		if (sourceMatch) {
+		const sourceFilters: { sources: string[]; negate: boolean }[] = [];
+		const sourceRegex = /(-)?@source:([^\s,]+(?:,[^\s,]+)*)/gi;
+		let sourceMatch;
+		
+		while ((sourceMatch = sourceRegex.exec(filter)) !== null) {
 			const negate = !!sourceMatch[1]; // Check if there's a - prefix
-			const sourceValue = sourceMatch[2];
-			this.sourceFilter = { text: sourceValue, negate };
-			// Remove the source filter from the main filter text
-			effectiveFilter = filter.replace(/(?:^|,\s*)(-)?@source:([^\s,]+)/gi, '').replace(/^,\s*|,\s*$/g, '').trim();
+			const sourcesStr = sourceMatch[2];
+			// Split by comma for OR logic within a single filter
+			const sources = sourcesStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
+			sourceFilters.push({ sources, negate });
+		}
+		
+		this.sourceFilters = sourceFilters;
+		
+		// Remove all source filters from the main filter text
+		if (sourceFilters.length > 0) {
+			effectiveFilter = filter.replace(/(-)?@source:([^\s,]+(?:,[^\s,]+)*)/gi, '').replace(/\s+/g, ' ').replace(/^,\s*|,\s*$/g, '').trim();
 		}
 
 		const negate = effectiveFilter.startsWith('!');
