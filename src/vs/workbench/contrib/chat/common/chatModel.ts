@@ -776,6 +776,7 @@ export interface IChatResponseModelParameters {
 
 type ResponseModelStateT =
 	| { value: ResponseModelState.Pending }
+	| { value: ResponseModelState.NeedsInput }
 	| { value: ResponseModelState.Complete | ResponseModelState.Cancelled | ResponseModelState.Failed; completedAt: number };
 
 export class ChatResponseModel extends Disposable implements IChatResponseModel {
@@ -1011,9 +1012,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		let lastStartedWaitingAt: number | undefined = undefined;
 		this.confirmationAdjustedTimestamp = derived(reader => {
 			const pending = this.isPendingConfirmation.read(reader);
-			if (pending && !lastStartedWaitingAt) {
-				lastStartedWaitingAt = pending.startedWaitingAt;
-			} else if (!pending && lastStartedWaitingAt) {
+			if (pending) {
+				this._modelState.set({ value: ResponseModelState.NeedsInput }, undefined);
+				if (!lastStartedWaitingAt) {
+					lastStartedWaitingAt = pending.startedWaitingAt;
+				}
+			} else if (lastStartedWaitingAt) {
 				this._timeSpentWaitingAccumulator += Date.now() - lastStartedWaitingAt;
 				lastStartedWaitingAt = undefined;
 			}
