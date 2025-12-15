@@ -1458,6 +1458,9 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private breakpointsActivated = true;
 	private readonly _onDidChangeBreakpoints = this._register(new Emitter<IBreakpointsChangeEvent | undefined>());
 	private readonly _onDidChangeCallStack = this._register(new Emitter<void>());
+	private _onDidChangeCallStackFire = new RunOnceScheduler(() => {
+		this._onDidChangeCallStack.fire(undefined);
+	}, 100);
 	private readonly _onDidChangeWatchExpressions = this._register(new Emitter<IExpression | undefined>());
 	private readonly _onDidChangeWatchExpressionValue = this._register(new Emitter<IExpression | undefined>());
 	private readonly _breakpointModes = new Map<string, IBreakpointModeInternal>();
@@ -1583,7 +1586,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 		if (session) {
 			session.clearThreads(removeThreads, reference);
-			this._onDidChangeCallStack.fire(undefined);
+			this._onDidChangeCallStackFire.schedule();
 		}
 	}
 
