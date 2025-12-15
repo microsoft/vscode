@@ -11,22 +11,26 @@ import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
-import { IListContextMenuEvent, IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { Orientation } from '../../../../base/browser/ui/splitview/splitview.js';
+import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
+import { ITreeContextMenuEvent, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { Action } from '../../../../base/common/actions.js';
-import { equals } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { DisposableStore, dispose } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as resources from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { getActionBarActions, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -38,7 +42,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
@@ -74,6 +78,31 @@ export function getExpandedBodySize(model: IDebugModel, sessionId: string | unde
 }
 type BreakpointItem = IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IExceptionBreakpoint | IInstructionBreakpoint;
 
+/**
+ * Represents a file node in the breakpoints tree that groups breakpoints by file.
+ */
+export class BreakpointsFolderItem {
+	constructor(
+		readonly uri: URI,
+		readonly breakpoints: IBreakpoint[]
+	) { }
+
+	getId(): string {
+		return this.uri.toString();
+	}
+
+	get enabled(): boolean {
+		return this.breakpoints.every(bp => bp.enabled);
+	}
+
+	get indeterminate(): boolean {
+		const enabledCount = this.breakpoints.filter(bp => bp.enabled).length;
+		return enabledCount > 0 && enabledCount < this.breakpoints.length;
+	}
+}
+
+type BreakpointTreeElement = BreakpointsFolderItem | BreakpointItem;
+
 interface InputBoxData {
 	breakpoint: IFunctionBreakpoint | IExceptionBreakpoint | IDataBreakpoint;
 	type: 'condition' | 'hitCount' | 'name';
@@ -86,7 +115,7 @@ function getModeKindForBreakpoint(breakpoint: IBreakpoint) {
 
 export class BreakpointsView extends ViewPane {
 
-	private list!: WorkbenchList<BreakpointItem>;
+	private tree!: WorkbenchCompressibleObjectTree<BreakpointTreeElement, void>;
 	private needsRefresh = false;
 	private needsStateChange = false;
 	private ignoreLayout = false;
@@ -98,9 +127,14 @@ export class BreakpointsView extends ViewPane {
 	private _inputBoxData: InputBoxData | undefined;
 	breakpointInputFocused: IContextKey<boolean>;
 	private autoFocusedIndex = -1;
+	private collapsedState = new Set<string>();
 
 	private hintContainer: IconLabel | undefined;
 	private hintDelayer: RunOnceScheduler;
+
+	private getPresentation(): 'tree' | 'list' {
+		return this.configurationService.getValue<'tree' | 'list'>('debug.breakpointsView.presentation');
+	}
 
 	constructor(
 		options: IViewletViewOptions,
@@ -140,43 +174,74 @@ export class BreakpointsView extends ViewPane {
 
 		this.element.classList.add('debug-pane');
 		container.classList.add('debug-breakpoints');
-		const delegate = new BreakpointsDelegate(this);
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
-			this.instantiationService.createInstance(BreakpointsRenderer, this.menu, this.breakpointHasMultipleModes, this.breakpointSupportsCondition, this.breakpointItemType),
-			new ExceptionBreakpointsRenderer(this.menu, this.breakpointHasMultipleModes, this.breakpointSupportsCondition, this.breakpointItemType, this.debugService, this.hoverService),
-			new ExceptionBreakpointInputRenderer(this, this.debugService, this.contextViewService),
-			this.instantiationService.createInstance(FunctionBreakpointsRenderer, this.menu, this.breakpointSupportsCondition, this.breakpointItemType),
-			new FunctionBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.hoverService, this.labelService),
-			this.instantiationService.createInstance(DataBreakpointsRenderer, this.menu, this.breakpointHasMultipleModes, this.breakpointSupportsCondition, this.breakpointItemType, this.breakpointIsDataBytes),
-			new DataBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.hoverService, this.labelService),
-			this.instantiationService.createInstance(InstructionBreakpointsRenderer),
-		], {
-			identityProvider: { getId: (element: IEnablement) => element.getId() },
-			multipleSelectionSupport: false,
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e },
-			accessibilityProvider: new BreakpointsAccessibilityProvider(this.debugService, this.labelService),
-			overrideStyles: this.getLocationBasedColors().listOverrideStyles
-		}) as WorkbenchList<BreakpointItem>;
-
-		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
-
-		this._register(this.list.onContextMenu(this.onListContextMenu, this));
-
-		this._register(this.list.onMouseMiddleClick(async ({ element }) => {
-			if (element instanceof Breakpoint) {
-				await this.debugService.removeBreakpoints(element.getId());
-			} else if (element instanceof FunctionBreakpoint) {
-				await this.debugService.removeFunctionBreakpoints(element.getId());
-			} else if (element instanceof DataBreakpoint) {
-				await this.debugService.removeDataBreakpoints(element.getId());
-			} else if (element instanceof InstructionBreakpoint) {
-				await this.debugService.removeInstructionBreakpoints(element.instructionReference, element.offset);
+		this.tree = this.instantiationService.createInstance(
+			WorkbenchCompressibleObjectTree<BreakpointTreeElement, void>,
+			'BreakpointsView',
+			container,
+			new BreakpointsDelegate(this),
+			[
+				this.instantiationService.createInstance(BreakpointsFolderRenderer),
+				this.instantiationService.createInstance(BreakpointsRenderer, this.menu, this.breakpointHasMultipleModes, this.breakpointSupportsCondition, this.breakpointItemType),
+				new ExceptionBreakpointsRenderer(this.menu, this.breakpointHasMultipleModes, this.breakpointSupportsCondition, this.breakpointItemType, this.debugService, this.hoverService),
+				new ExceptionBreakpointInputRenderer(this, this.debugService, this.contextViewService),
+				this.instantiationService.createInstance(FunctionBreakpointsRenderer, this.menu, this.breakpointSupportsCondition, this.breakpointItemType),
+				new FunctionBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.hoverService, this.labelService),
+				this.instantiationService.createInstance(DataBreakpointsRenderer, this.menu, this.breakpointHasMultipleModes, this.breakpointSupportsCondition, this.breakpointItemType, this.breakpointIsDataBytes),
+				new DataBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.hoverService, this.labelService),
+				this.instantiationService.createInstance(InstructionBreakpointsRenderer),
+			],
+			{
+				compressionEnabled: this.getPresentation() === 'tree',
+				hideTwistiesOfChildlessElements: true,
+				identityProvider: {
+					getId: (element: BreakpointTreeElement) => element.getId()
+				},
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (element: BreakpointTreeElement) => {
+						if (element instanceof BreakpointsFolderItem) {
+							return resources.basenameOrAuthority(element.uri);
+						}
+						if (element instanceof Breakpoint) {
+							return `${resources.basenameOrAuthority(element.uri)}:${element.lineNumber}`;
+						}
+						if (element instanceof FunctionBreakpoint) {
+							return element.name;
+						}
+						if (element instanceof DataBreakpoint) {
+							return element.description;
+						}
+						if (element instanceof ExceptionBreakpoint) {
+							return element.label || element.filter;
+						}
+						if (element instanceof InstructionBreakpoint) {
+							return `0x${element.address.toString(16)}`;
+						}
+						return '';
+					},
+					getCompressedNodeKeyboardNavigationLabel: (elements: BreakpointTreeElement[]) => {
+						return elements.map(e => {
+							if (e instanceof BreakpointsFolderItem) {
+								return resources.basenameOrAuthority(e.uri);
+							}
+							return '';
+						}).join('/');
+					}
+				},
+				accessibilityProvider: new BreakpointsAccessibilityProvider(this.debugService, this.labelService),
+				multipleSelectionSupport: false,
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
-		}));
+		);
+		this._register(this.tree);
 
-		this._register(this.list.onDidOpen(async e => {
-			if (!e.element) {
+		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.tree.contextKeyService);
+
+		this._register(this.tree.onContextMenu(this.onTreeContextMenu, this));
+
+		this._register(this.tree.onDidOpen(async e => {
+			const element = e.element;
+			if (!element) {
 				return;
 			}
 
@@ -184,21 +249,43 @@ export class BreakpointsView extends ViewPane {
 				return;
 			}
 
-			if (e.element instanceof Breakpoint) {
-				openBreakpointSource(e.element, e.sideBySide, e.editorOptions.preserveFocus || false, e.editorOptions.pinned || !e.editorOptions.preserveFocus, this.debugService, this.editorService);
+			if (element instanceof Breakpoint) {
+				openBreakpointSource(element, e.sideBySide, e.editorOptions.preserveFocus || false, e.editorOptions.pinned || !e.editorOptions.preserveFocus, this.debugService, this.editorService);
 			}
-			if (e.element instanceof InstructionBreakpoint) {
+			if (element instanceof InstructionBreakpoint) {
 				const disassemblyView = await this.editorService.openEditor(DisassemblyViewInput.instance);
 				// Focus on double click
-				(disassemblyView as DisassemblyView).goToInstructionAndOffset(e.element.instructionReference, e.element.offset, dom.isMouseEvent(e.browserEvent) && e.browserEvent.detail === 2);
+				(disassemblyView as DisassemblyView).goToInstructionAndOffset(element.instructionReference, element.offset, dom.isMouseEvent(e.browserEvent) && e.browserEvent.detail === 2);
 			}
-			if (dom.isMouseEvent(e.browserEvent) && e.browserEvent.detail === 2 && e.element instanceof FunctionBreakpoint && e.element !== this.inputBoxData?.breakpoint) {
+			if (dom.isMouseEvent(e.browserEvent) && e.browserEvent.detail === 2 && element instanceof FunctionBreakpoint && element !== this.inputBoxData?.breakpoint) {
 				// double click
-				this.renderInputBox({ breakpoint: e.element, type: 'name' });
+				this.renderInputBox({ breakpoint: element, type: 'name' });
 			}
 		}));
 
-		this.list.splice(0, this.list.length, this.elements);
+		// Track collapsed state and update size (items are collapsed by default)
+		this._register(this.tree.onDidChangeCollapseState(e => {
+			const element = e.node.element;
+			if (element instanceof BreakpointsFolderItem) {
+				if (e.node.collapsed) {
+					this.collapsedState.add(element.getId());
+				} else {
+					this.collapsedState.delete(element.getId());
+				}
+				this.updateSize();
+			}
+		}));
+
+		// React to configuration changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('debug.breakpointsView.presentation')) {
+				const presentation = this.getPresentation();
+				this.tree.updateOptions({ compressionEnabled: presentation === 'tree' });
+				this.onBreakpointsChange();
+			}
+		}));
+
+		this.setTreeInput();
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -233,7 +320,7 @@ export class BreakpointsView extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-		this.list?.domFocus();
+		this.tree?.domFocus();
 	}
 
 	renderInputBox(data: InputBoxData | undefined): void {
@@ -252,7 +339,7 @@ export class BreakpointsView extends ViewPane {
 		}
 
 		super.layoutBody(height, width);
-		this.list?.layout(height, width);
+		this.tree?.layout(height, width);
 		try {
 			this.ignoreLayout = true;
 			this.updateSize();
@@ -261,8 +348,20 @@ export class BreakpointsView extends ViewPane {
 		}
 	}
 
-	private onListContextMenu(e: IListContextMenuEvent<IEnablement>): void {
+	private onTreeContextMenu(e: ITreeContextMenuEvent<BreakpointTreeElement | null>): void {
 		const element = e.element;
+		if (element instanceof BreakpointsFolderItem) {
+			// For folder items, show file-level context menu
+			this.breakpointItemType.set('breakpointFolder');
+			const { secondary } = getContextMenuActions(this.menu.getActions({ arg: element, shouldForwardArgs: false }), 'inline');
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => secondary,
+				getActionsContext: () => element
+			});
+			return;
+		}
+
 		const type = element instanceof Breakpoint ? 'breakpoint' : element instanceof ExceptionBreakpoint ? 'exceptionBreakpoint' :
 			element instanceof FunctionBreakpoint ? 'functionBreakpoint' : element instanceof DataBreakpoint ? 'dataBreakpoint' :
 				element instanceof InstructionBreakpoint ? 'instructionBreakpoint' : undefined;
@@ -285,10 +384,12 @@ export class BreakpointsView extends ViewPane {
 	private updateSize(): void {
 		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 
-		// Adjust expanded body size
-		const sessionId = this.debugService.getViewModel().focusedSession?.getId();
-		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel(), sessionId, MAX_VISIBLE_BREAKPOINTS) : 170;
-		this.maximumBodySize = this.orientation === Orientation.VERTICAL && containerModel.visibleViewDescriptors.length > 1 ? getExpandedBodySize(this.debugService.getModel(), sessionId, Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+		// Calculate visible row count from tree's content height
+		// Each row is 22px high
+		const rowHeight = 22;
+
+		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? Math.min(MAX_VISIBLE_BREAKPOINTS * rowHeight, this.tree.contentHeight) : 170;
+		this.maximumBodySize = this.orientation === Orientation.VERTICAL && containerModel.visibleViewDescriptors.length > 1 ? this.tree.contentHeight : Number.POSITIVE_INFINITY;
 	}
 
 	private updateBreakpointsHint(delayed = false): void {
@@ -323,18 +424,12 @@ export class BreakpointsView extends ViewPane {
 
 	private onBreakpointsChange(): void {
 		if (this.isBodyVisible()) {
-			this.updateSize();
-			if (this.list) {
-				const lastFocusIndex = this.list.getFocus()[0];
-				// Check whether focused element was removed
-				const needsRefocus = lastFocusIndex && !this.elements.includes(this.list.element(lastFocusIndex));
-				this.list.splice(0, this.list.length, this.elements);
+			if (this.tree) {
+				this.setTreeInput();
 				this.needsRefresh = false;
-				if (needsRefocus) {
-					this.list.focusNth(Math.min(lastFocusIndex, this.list.length - 1));
-				}
 			}
 			this.updateBreakpointsHint();
+			this.updateSize();
 		} else {
 			this.needsRefresh = true;
 		}
@@ -347,25 +442,25 @@ export class BreakpointsView extends ViewPane {
 			let found = false;
 			if (thread && thread.stoppedDetails && thread.stoppedDetails.hitBreakpointIds && thread.stoppedDetails.hitBreakpointIds.length > 0) {
 				const hitBreakpointIds = thread.stoppedDetails.hitBreakpointIds;
-				const elements = this.elements;
-				const index = elements.findIndex(e => {
+				const elements = this.flatElements;
+				const hitElement = elements.find(e => {
 					const id = e.getIdFromAdapter(thread.session.getId());
 					return typeof id === 'number' && hitBreakpointIds.indexOf(id) !== -1;
 				});
-				if (index >= 0) {
-					this.list.setFocus([index]);
-					this.list.setSelection([index]);
+				if (hitElement) {
+					this.tree.setFocus([hitElement]);
+					this.tree.setSelection([hitElement]);
 					found = true;
-					this.autoFocusedIndex = index;
+					this.autoFocusedIndex = elements.indexOf(hitElement);
 				}
 			}
 			if (!found) {
 				// Deselect breakpoint in breakpoint view when no longer stopped on it #125528
-				const focus = this.list.getFocus();
-				const selection = this.list.getSelection();
-				if (this.autoFocusedIndex >= 0 && equals(focus, selection) && focus.indexOf(this.autoFocusedIndex) >= 0) {
-					this.list.setFocus([]);
-					this.list.setSelection([]);
+				const focus = this.tree.getFocus();
+				const selection = this.tree.getSelection();
+				if (this.autoFocusedIndex >= 0 && focus.length > 0 && selection.length > 0 && focus[0] === selection[0]) {
+					this.tree.setFocus([]);
+					this.tree.setSelection([]);
 				}
 				this.autoFocusedIndex = -1;
 			}
@@ -375,7 +470,88 @@ export class BreakpointsView extends ViewPane {
 		}
 	}
 
-	private get elements(): BreakpointItem[] {
+	private setTreeInput(): void {
+		const treeInput = this.getTreeElements();
+		this.tree.setChildren(null, treeInput);
+	}
+
+	private getTreeElements(): ICompressedTreeElement<BreakpointTreeElement>[] {
+		const model = this.debugService.getModel();
+		const sessionId = this.debugService.getViewModel().focusedSession?.getId();
+		const showAsTree = this.getPresentation() === 'tree';
+
+		const result: ICompressedTreeElement<BreakpointTreeElement>[] = [];
+
+		// Exception breakpoints at the top (root level)
+		for (const exBp of model.getExceptionBreakpointsForSession(sessionId)) {
+			result.push({ element: exBp, incompressible: true });
+		}
+
+		// Function breakpoints (root level)
+		for (const funcBp of model.getFunctionBreakpoints()) {
+			result.push({ element: funcBp, incompressible: true });
+		}
+
+		// Data breakpoints (root level)
+		for (const dataBp of model.getDataBreakpoints()) {
+			result.push({ element: dataBp, incompressible: true });
+		}
+
+		// Source breakpoints - group by file if showAsTree is enabled
+		const sourceBreakpoints = model.getBreakpoints();
+		if (showAsTree && sourceBreakpoints.length > 0) {
+			// Group breakpoints by URI
+			const breakpointsByUri = new Map<string, IBreakpoint[]>();
+			for (const bp of sourceBreakpoints) {
+				const key = bp.uri.toString();
+				if (!breakpointsByUri.has(key)) {
+					breakpointsByUri.set(key, []);
+				}
+				breakpointsByUri.get(key)!.push(bp);
+			}
+
+			// Create folder items for each file
+			for (const [uriStr, breakpoints] of breakpointsByUri) {
+				const uri = URI.parse(uriStr);
+				const folderItem = new BreakpointsFolderItem(uri, breakpoints);
+
+				// Sort breakpoints by line number
+				breakpoints.sort((a, b) => a.lineNumber - b.lineNumber);
+
+				const children: ICompressedTreeElement<BreakpointTreeElement>[] = breakpoints.map(bp => ({
+					element: bp,
+					incompressible: false
+				}));
+
+				result.push({
+					element: folderItem,
+					incompressible: false,
+					collapsed: this.collapsedState.has(folderItem.getId()) || !this.collapsedState.has(`_init_${folderItem.getId()}`),
+					children
+				});
+
+				// Mark as initialized (will be collapsed by default on first render)
+				if (!this.collapsedState.has(`_init_${folderItem.getId()}`)) {
+					this.collapsedState.add(`_init_${folderItem.getId()}`);
+					this.collapsedState.add(folderItem.getId());
+				}
+			}
+		} else {
+			// Flat mode - just add all source breakpoints
+			for (const bp of sourceBreakpoints) {
+				result.push({ element: bp, incompressible: true });
+			}
+		}
+
+		// Instruction breakpoints (root level)
+		for (const instrBp of model.getInstructionBreakpoints()) {
+			result.push({ element: instrBp, incompressible: true });
+		}
+
+		return result;
+	}
+
+	private get flatElements(): BreakpointItem[] {
 		const model = this.debugService.getModel();
 		const sessionId = this.debugService.getViewModel().focusedSession?.getId();
 		const elements = (<ReadonlyArray<IEnablement>>model.getExceptionBreakpointsForSession(sessionId)).concat(model.getFunctionBreakpoints()).concat(model.getDataBreakpoints()).concat(model.getBreakpoints()).concat(model.getInstructionBreakpoints());
@@ -384,17 +560,20 @@ export class BreakpointsView extends ViewPane {
 	}
 }
 
-class BreakpointsDelegate implements IListVirtualDelegate<BreakpointItem> {
+class BreakpointsDelegate implements IListVirtualDelegate<BreakpointTreeElement> {
 
 	constructor(private view: BreakpointsView) {
 		// noop
 	}
 
-	getHeight(_element: BreakpointItem): number {
+	getHeight(_element: BreakpointTreeElement): number {
 		return 22;
 	}
 
-	getTemplateId(element: BreakpointItem): string {
+	getTemplateId(element: BreakpointTreeElement): string {
+		if (element instanceof BreakpointsFolderItem) {
+			return BreakpointsFolderRenderer.ID;
+		}
 		if (element instanceof Breakpoint) {
 			return BreakpointsRenderer.ID;
 		}
@@ -495,8 +674,149 @@ interface IExceptionBreakpointInputTemplateData {
 	elementDisposables: DisposableStore;
 }
 
+interface IBreakpointsFolderTemplateData {
+	container: HTMLElement;
+	checkbox: HTMLInputElement;
+	name: HTMLElement;
+	actionBar: ActionBar;
+	context: BreakpointsFolderItem;
+	templateDisposables: DisposableStore;
+	elementDisposables: DisposableStore;
+}
+
 const breakpointIdToActionBarDomeNode = new Map<string, HTMLElement>();
-class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTemplateData> {
+
+class BreakpointsFolderRenderer implements ICompressibleTreeRenderer<BreakpointsFolderItem, void, IBreakpointsFolderTemplateData> {
+
+	static readonly ID = 'breakpointFolder';
+
+	constructor(
+		@IDebugService private readonly debugService: IDebugService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IHoverService private readonly hoverService: IHoverService,
+	) { }
+
+	get templateId() {
+		return BreakpointsFolderRenderer.ID;
+	}
+
+	renderTemplate(container: HTMLElement): IBreakpointsFolderTemplateData {
+		const data: IBreakpointsFolderTemplateData = Object.create(null);
+		data.elementDisposables = new DisposableStore();
+		data.templateDisposables = new DisposableStore();
+		data.templateDisposables.add(data.elementDisposables);
+
+		data.container = container;
+		container.classList.add('breakpoint', 'breakpoint-folder');
+
+		data.templateDisposables.add(toDisposable(() => {
+			container.classList.remove('breakpoint', 'breakpoint-folder');
+		}));
+
+		data.checkbox = createCheckbox(data.templateDisposables);
+		data.templateDisposables.add(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
+			const enabled = data.checkbox.checked;
+			for (const bp of data.context.breakpoints) {
+				this.debugService.enableOrDisableBreakpoints(enabled, bp);
+			}
+		}));
+
+		dom.append(data.container, data.checkbox);
+		data.name = dom.append(data.container, $('span.name'));
+		dom.append(data.container, $('span.file-path'));
+
+		data.actionBar = new ActionBar(data.container);
+		data.templateDisposables.add(data.actionBar);
+
+		return data;
+	}
+
+	renderElement(node: ITreeNode<BreakpointsFolderItem, void>, _index: number, data: IBreakpointsFolderTemplateData): void {
+		const folderItem = node.element;
+		data.context = folderItem;
+
+		data.name.textContent = this.labelService.getUriBasenameLabel(folderItem.uri);
+		data.container.classList.toggle('disabled', !this.debugService.getModel().areBreakpointsActivated());
+
+		const fullPath = this.labelService.getUriLabel(folderItem.uri, { relative: true });
+		data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.container, fullPath));
+
+		// Set checkbox state
+		if (folderItem.indeterminate) {
+			data.checkbox.checked = false;
+			data.checkbox.indeterminate = true;
+		} else {
+			data.checkbox.indeterminate = false;
+			data.checkbox.checked = folderItem.enabled;
+		}
+
+		// Add remove action
+		data.actionBar.clear();
+		const removeAction = new Action(
+			'debug.removeBreakpointsInFile',
+			localize('removeBreakpointsInFile', "Remove Breakpoints in File"),
+			ThemeIcon.asClassName(Codicon.close),
+			true,
+			async () => {
+				for (const bp of folderItem.breakpoints) {
+					await this.debugService.removeBreakpoints(bp.getId());
+				}
+			}
+		);
+		data.actionBar.push(removeAction, { icon: true, label: false });
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<BreakpointsFolderItem>, void>, _index: number, data: IBreakpointsFolderTemplateData): void {
+		const elements = node.element.elements;
+		const folderItem = elements[elements.length - 1];
+		data.context = folderItem;
+
+		// For compressed nodes, show the combined path
+		const names = elements.map(e => resources.basenameOrAuthority(e.uri));
+		data.name.textContent = names.join('/');
+
+		const fullPath = this.labelService.getUriLabel(folderItem.uri, { relative: true });
+		data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.container, fullPath));
+
+		// Set checkbox state
+		if (folderItem.indeterminate) {
+			data.checkbox.checked = false;
+			data.checkbox.indeterminate = true;
+		} else {
+			data.checkbox.indeterminate = false;
+			data.checkbox.checked = folderItem.enabled;
+		}
+
+		// Add remove action
+		data.actionBar.clear();
+		const removeAction = new Action(
+			'debug.removeBreakpointsInFile',
+			localize('removeBreakpointsInFile', "Remove Breakpoints in File"),
+			ThemeIcon.asClassName(Codicon.close),
+			true,
+			async () => {
+				for (const bp of folderItem.breakpoints) {
+					await this.debugService.removeBreakpoints(bp.getId());
+				}
+			}
+		);
+		data.actionBar.push(removeAction, { icon: true, label: false });
+	}
+
+	disposeElement(element: ITreeNode<BreakpointsFolderItem, void>, index: number, templateData: IBreakpointsFolderTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<BreakpointsFolderItem>, void>, index: number, templateData: IBreakpointsFolderTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeTemplate(templateData: IBreakpointsFolderTemplateData): void {
+		templateData.templateDisposables.dispose();
+	}
+}
+
+class BreakpointsRenderer implements ICompressibleTreeRenderer<IBreakpoint, void, IBreakpointTemplateData> {
 
 	constructor(
 		private menu: IMenu,
@@ -505,7 +825,8 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		private breakpointItemType: IContextKey<string | undefined>,
 		@IDebugService private readonly debugService: IDebugService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		// noop
 	}
@@ -522,7 +843,12 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		data.templateDisposables = new DisposableStore();
 		data.templateDisposables.add(data.elementDisposables);
 
-		data.breakpoint = dom.append(container, $('.breakpoint'));
+		data.breakpoint = container;
+		container.classList.add('breakpoint');
+
+		data.templateDisposables.add(toDisposable(() => {
+			container.classList.remove('breakpoint');
+		}));
 
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox(data.templateDisposables);
@@ -545,11 +871,28 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		return data;
 	}
 
-	renderElement(breakpoint: IBreakpoint, index: number, data: IBreakpointTemplateData): void {
+	renderElement(node: ITreeNode<IBreakpoint, void>, index: number, data: IBreakpointTemplateData): void {
+		const breakpoint = node.element;
 		data.context = breakpoint;
-		data.breakpoint.classList.toggle('disabled', !this.debugService.getModel().areBreakpointsActivated());
 
-		data.name.textContent = resources.basenameOrAuthority(breakpoint.uri);
+		if (node.depth > 1) {
+			this.renderBreakpointLineLabel(breakpoint, data);
+		} else {
+			this.renderBreakpointFileLabel(breakpoint, data);
+		}
+
+		this.renderBreakpointCommon(breakpoint, data);
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IBreakpoint>, void>, index: number, data: IBreakpointTemplateData): void {
+		const breakpoint = node.element.elements[node.element.elements.length - 1];
+		data.context = breakpoint;
+		this.renderBreakpointFileLabel(breakpoint, data);
+		this.renderBreakpointCommon(breakpoint, data);
+	}
+
+	private renderBreakpointCommon(breakpoint: IBreakpoint, data: IBreakpointTemplateData): void {
+		data.breakpoint.classList.toggle('disabled', !this.debugService.getModel().areBreakpointsActivated());
 		let badgeContent = breakpoint.lineNumber.toString();
 		if (breakpoint.column) {
 			badgeContent += `:${breakpoint.column}`;
@@ -558,7 +901,6 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 			badgeContent = `${breakpoint.modeLabel}: ${badgeContent}`;
 		}
 		data.badge.textContent = badgeContent;
-		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), { relative: true });
 		data.checkbox.checked = breakpoint.enabled;
 
 		const { message, icon } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), breakpoint, this.labelService, this.debugService.getModel());
@@ -580,7 +922,40 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		breakpointIdToActionBarDomeNode.set(breakpoint.getId(), data.actionBar.domNode);
 	}
 
-	disposeElement(a: IBreakpoint, index: number, template: IBreakpointTemplateData): void {
+	private renderBreakpointFileLabel(breakpoint: IBreakpoint, data: IBreakpointTemplateData): void {
+		data.name.textContent = resources.basenameOrAuthority(breakpoint.uri);
+		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), { relative: true });
+	}
+
+	private renderBreakpointLineLabel(breakpoint: IBreakpoint, data: IBreakpointTemplateData): void {
+		data.name.textContent = localize('loading', "Loading...");
+		data.filePath.textContent = '';
+
+		this.textModelService.createModelReference(breakpoint.uri).then(reference => {
+			if (data.context !== breakpoint) {
+				reference.dispose();
+				return;
+			}
+			data.elementDisposables.add(reference);
+			const model = reference.object.textEditorModel;
+			if (model && breakpoint.lineNumber <= model.getLineCount()) {
+				const lineContent = model.getLineContent(breakpoint.lineNumber).trim();
+				data.name.textContent = lineContent || localize('emptyLine', "(empty line)");
+			} else {
+				data.name.textContent = localize('lineNotFound', "(line not found)");
+			}
+		}).catch(() => {
+			if (data.context === breakpoint) {
+				data.name.textContent = localize('cannotLoadLine', "(cannot load line)");
+			}
+		});
+	}
+
+	disposeElement(node: ITreeNode<IBreakpoint, void>, index: number, template: IBreakpointTemplateData): void {
+		template.elementDisposables.clear();
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IBreakpoint>, void>, index: number, template: IBreakpointTemplateData): void {
 		template.elementDisposables.clear();
 	}
 
@@ -589,7 +964,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 	}
 }
 
-class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint, IExceptionBreakpointTemplateData> {
+class ExceptionBreakpointsRenderer implements ICompressibleTreeRenderer<IExceptionBreakpoint, void, IExceptionBreakpointTemplateData> {
 
 	constructor(
 		private menu: IMenu,
@@ -634,7 +1009,17 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 		return data;
 	}
 
-	renderElement(exceptionBreakpoint: IExceptionBreakpoint, index: number, data: IExceptionBreakpointTemplateData): void {
+	renderElement(node: ITreeNode<IExceptionBreakpoint, void>, index: number, data: IExceptionBreakpointTemplateData): void {
+		const exceptionBreakpoint = node.element;
+		this.renderExceptionBreakpoint(exceptionBreakpoint, data);
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IExceptionBreakpoint>, void>, index: number, data: IExceptionBreakpointTemplateData): void {
+		const exceptionBreakpoint = node.element.elements[node.element.elements.length - 1];
+		this.renderExceptionBreakpoint(exceptionBreakpoint, data);
+	}
+
+	private renderExceptionBreakpoint(exceptionBreakpoint: IExceptionBreakpoint, data: IExceptionBreakpointTemplateData): void {
 		data.context = exceptionBreakpoint;
 		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;
 		const exceptionBreakpointtitle = exceptionBreakpoint.verified ? (exceptionBreakpoint.description || data.name.textContent) : exceptionBreakpoint.message || localize('unverifiedExceptionBreakpoint', "Unverified Exception Breakpoint");
@@ -660,7 +1045,11 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 		breakpointIdToActionBarDomeNode.set(exceptionBreakpoint.getId(), data.actionBar.domNode);
 	}
 
-	disposeElement(element: IExceptionBreakpoint, index: number, templateData: IExceptionBreakpointTemplateData): void {
+	disposeElement(node: ITreeNode<IExceptionBreakpoint, void>, index: number, templateData: IExceptionBreakpointTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IExceptionBreakpoint>, void>, index: number, templateData: IExceptionBreakpointTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -669,7 +1058,7 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 	}
 }
 
-class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, IFunctionBreakpointTemplateData> {
+class FunctionBreakpointsRenderer implements ICompressibleTreeRenderer<FunctionBreakpoint, void, IFunctionBreakpointTemplateData> {
 
 	constructor(
 		private menu: IMenu,
@@ -715,7 +1104,15 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		return data;
 	}
 
-	renderElement(functionBreakpoint: FunctionBreakpoint, _index: number, data: IFunctionBreakpointTemplateData): void {
+	renderElement(node: ITreeNode<FunctionBreakpoint, void>, _index: number, data: IFunctionBreakpointTemplateData): void {
+		this.renderFunctionBreakpoint(node.element, data);
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<FunctionBreakpoint>, void>, _index: number, data: IFunctionBreakpointTemplateData): void {
+		this.renderFunctionBreakpoint(node.element.elements[node.element.elements.length - 1], data);
+	}
+
+	private renderFunctionBreakpoint(functionBreakpoint: FunctionBreakpoint, data: IFunctionBreakpointTemplateData): void {
 		data.context = functionBreakpoint;
 		data.name.textContent = functionBreakpoint.name;
 		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint, this.labelService, this.debugService.getModel());
@@ -751,7 +1148,11 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		breakpointIdToActionBarDomeNode.set(functionBreakpoint.getId(), data.actionBar.domNode);
 	}
 
-	disposeElement(element: FunctionBreakpoint, index: number, templateData: IFunctionBreakpointTemplateData): void {
+	disposeElement(node: ITreeNode<FunctionBreakpoint, void>, index: number, templateData: IFunctionBreakpointTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<FunctionBreakpoint>, void>, index: number, templateData: IFunctionBreakpointTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -760,7 +1161,7 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 	}
 }
 
-class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBreakpointTemplateData> {
+class DataBreakpointsRenderer implements ICompressibleTreeRenderer<DataBreakpoint, void, IDataBreakpointTemplateData> {
 
 	constructor(
 		private menu: IMenu,
@@ -809,7 +1210,15 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 		return data;
 	}
 
-	renderElement(dataBreakpoint: DataBreakpoint, _index: number, data: IDataBreakpointTemplateData): void {
+	renderElement(node: ITreeNode<DataBreakpoint, void>, _index: number, data: IDataBreakpointTemplateData): void {
+		this.renderDataBreakpoint(node.element, data);
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<DataBreakpoint>, void>, _index: number, data: IDataBreakpointTemplateData): void {
+		this.renderDataBreakpoint(node.element.elements[node.element.elements.length - 1], data);
+	}
+
+	private renderDataBreakpoint(dataBreakpoint: DataBreakpoint, data: IDataBreakpointTemplateData): void {
 		data.context = dataBreakpoint;
 		data.name.textContent = dataBreakpoint.description;
 		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), dataBreakpoint, this.labelService, this.debugService.getModel());
@@ -854,7 +1263,11 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 		this.breakpointIsDataBytes.reset();
 	}
 
-	disposeElement(element: DataBreakpoint, index: number, templateData: IDataBreakpointTemplateData): void {
+	disposeElement(node: ITreeNode<DataBreakpoint, void>, index: number, templateData: IDataBreakpointTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<DataBreakpoint>, void>, index: number, templateData: IDataBreakpointTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -863,7 +1276,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 	}
 }
 
-class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakpoint, IInstructionBreakpointTemplateData> {
+class InstructionBreakpointsRenderer implements ICompressibleTreeRenderer<IInstructionBreakpoint, void, IInstructionBreakpointTemplateData> {
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,
@@ -906,7 +1319,15 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		return data;
 	}
 
-	renderElement(breakpoint: IInstructionBreakpoint, index: number, data: IInstructionBreakpointTemplateData): void {
+	renderElement(node: ITreeNode<IInstructionBreakpoint, void>, index: number, data: IInstructionBreakpointTemplateData): void {
+		this.renderInstructionBreakpoint(node.element, data);
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IInstructionBreakpoint>, void>, index: number, data: IInstructionBreakpointTemplateData): void {
+		this.renderInstructionBreakpoint(node.element.elements[node.element.elements.length - 1], data);
+	}
+
+	private renderInstructionBreakpoint(breakpoint: IInstructionBreakpoint, data: IInstructionBreakpointTemplateData): void {
 		data.context = breakpoint;
 		data.breakpoint.classList.toggle('disabled', !this.debugService.getModel().areBreakpointsActivated());
 
@@ -931,8 +1352,11 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		}
 	}
 
+	disposeElement(node: ITreeNode<IInstructionBreakpoint, void>, index: number, templateData: IInstructionBreakpointTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
 
-	disposeElement(element: IInstructionBreakpoint, index: number, templateData: IInstructionBreakpointTemplateData): void {
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IInstructionBreakpoint>, void>, index: number, templateData: IInstructionBreakpointTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -941,7 +1365,7 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 	}
 }
 
-class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoint, IFunctionBreakpointInputTemplateData> {
+class FunctionBreakpointInputRenderer implements ICompressibleTreeRenderer<IFunctionBreakpoint, void, IFunctionBreakpointInputTemplateData> {
 
 	constructor(
 		private view: BreakpointsView,
@@ -1025,7 +1449,8 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		return template;
 	}
 
-	renderElement(functionBreakpoint: FunctionBreakpoint, _index: number, data: IFunctionBreakpointInputTemplateData): void {
+	renderElement(node: ITreeNode<FunctionBreakpoint, void>, _index: number, data: IFunctionBreakpointInputTemplateData): void {
+		const functionBreakpoint = node.element;
 		data.breakpoint = functionBreakpoint;
 		data.type = this.view.inputBoxData?.type || 'name'; // If there is no type set take the 'name' as the default
 		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint, this.labelService, this.debugService.getModel());
@@ -1056,7 +1481,15 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		}, 0);
 	}
 
-	disposeElement(element: IFunctionBreakpoint, index: number, templateData: IFunctionBreakpointInputTemplateData): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IFunctionBreakpoint>, void>, _index: number, data: IFunctionBreakpointInputTemplateData): void {
+		// Function breakpoints are not compressible
+	}
+
+	disposeElement(node: ITreeNode<IFunctionBreakpoint, void>, index: number, templateData: IFunctionBreakpointInputTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IFunctionBreakpoint>, void>, index: number, templateData: IFunctionBreakpointInputTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -1065,7 +1498,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 	}
 }
 
-class DataBreakpointInputRenderer implements IListRenderer<IDataBreakpoint, IDataBreakpointInputTemplateData> {
+class DataBreakpointInputRenderer implements ICompressibleTreeRenderer<IDataBreakpoint, void, IDataBreakpointInputTemplateData> {
 
 	constructor(
 		private view: BreakpointsView,
@@ -1141,7 +1574,8 @@ class DataBreakpointInputRenderer implements IListRenderer<IDataBreakpoint, IDat
 		return template;
 	}
 
-	renderElement(dataBreakpoint: DataBreakpoint, _index: number, data: IDataBreakpointInputTemplateData): void {
+	renderElement(node: ITreeNode<DataBreakpoint, void>, _index: number, data: IDataBreakpointInputTemplateData): void {
+		const dataBreakpoint = node.element;
 		data.breakpoint = dataBreakpoint;
 		data.type = this.view.inputBoxData?.type || 'condition'; // If there is no type set take the 'condition' as the default
 		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), dataBreakpoint, this.labelService, this.debugService.getModel());
@@ -1171,7 +1605,15 @@ class DataBreakpointInputRenderer implements IListRenderer<IDataBreakpoint, IDat
 		}, 0);
 	}
 
-	disposeElement(element: IDataBreakpoint, index: number, templateData: IDataBreakpointInputTemplateData): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IDataBreakpoint>, void>, _index: number, data: IDataBreakpointInputTemplateData): void {
+		// Data breakpoints are not compressible
+	}
+
+	disposeElement(node: ITreeNode<IDataBreakpoint, void>, index: number, templateData: IDataBreakpointInputTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IDataBreakpoint>, void>, index: number, templateData: IDataBreakpointInputTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -1180,7 +1622,7 @@ class DataBreakpointInputRenderer implements IListRenderer<IDataBreakpoint, IDat
 	}
 }
 
-class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakpoint, IExceptionBreakpointInputTemplateData> {
+class ExceptionBreakpointInputRenderer implements ICompressibleTreeRenderer<IExceptionBreakpoint, void, IExceptionBreakpointInputTemplateData> {
 
 	constructor(
 		private view: BreakpointsView,
@@ -1255,7 +1697,8 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 		return templateData;
 	}
 
-	renderElement(exceptionBreakpoint: ExceptionBreakpoint, _index: number, data: IExceptionBreakpointInputTemplateData): void {
+	renderElement(node: ITreeNode<ExceptionBreakpoint, void>, _index: number, data: IExceptionBreakpointInputTemplateData): void {
+		const exceptionBreakpoint = node.element;
 		const placeHolder = exceptionBreakpoint.conditionDescription || localize('exceptionBreakpointPlaceholder', "Break when expression evaluates to true");
 		data.inputBox.setPlaceHolder(placeHolder);
 		data.currentBreakpoint = exceptionBreakpoint;
@@ -1268,7 +1711,15 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 		}, 0);
 	}
 
-	disposeElement(element: IExceptionBreakpoint, index: number, templateData: IExceptionBreakpointInputTemplateData): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IExceptionBreakpoint>, void>, _index: number, data: IExceptionBreakpointInputTemplateData): void {
+		// Exception breakpoints are not compressible
+	}
+
+	disposeElement(node: ITreeNode<IExceptionBreakpoint, void>, index: number, templateData: IExceptionBreakpointInputTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IExceptionBreakpoint>, void>, index: number, templateData: IExceptionBreakpointInputTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -1277,7 +1728,7 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 	}
 }
 
-class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<BreakpointItem> {
+class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<BreakpointTreeElement> {
 
 	constructor(
 		private readonly debugService: IDebugService,
@@ -1292,11 +1743,18 @@ class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<Bre
 		return 'checkbox';
 	}
 
-	isChecked(breakpoint: IEnablement) {
-		return breakpoint.enabled;
+	isChecked(element: BreakpointTreeElement) {
+		if (element instanceof BreakpointsFolderItem) {
+			return element.enabled;
+		}
+		return element.enabled;
 	}
 
-	getAriaLabel(element: BreakpointItem): string | null {
+	getAriaLabel(element: BreakpointTreeElement): string | null {
+		if (element instanceof BreakpointsFolderItem) {
+			return localize('breakpointFolder', "Breakpoints in {0}, {1} breakpoints", resources.basenameOrAuthority(element.uri), element.breakpoints.length);
+		}
+
 		if (element instanceof ExceptionBreakpoint) {
 			return element.toString();
 		}
@@ -1838,6 +2296,30 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		await debugService.setBreakpointsActivated(true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.debug.viewlet.action.toggleBreakpointsPresentation',
+			title: localize2('toggleBreakpointsPresentation', "Toggle Breakpoints View Presentation"),
+			f1: true,
+			icon: icons.breakpointsViewIcon,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.equals('view', BREAKPOINTS_VIEW_ID)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const currentPresentation = configurationService.getValue<'list' | 'tree'>('debug.breakpointsView.showAsTree');
+		const newPresentation = currentPresentation === 'tree' ? 'list' : 'tree';
+		await configurationService.updateValue('debug.breakpointsView.presentation', newPresentation);
 	}
 });
 
