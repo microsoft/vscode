@@ -170,6 +170,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				return constObservable(undefined);
 			}
 
+			toDispose.push(quickDiffModelRef);
 			return observableFromEvent(this, quickDiffModelRef.object.onDidChange, () => {
 				return quickDiffModelRef.object.getQuickDiffResults()
 					.map(result => ({
