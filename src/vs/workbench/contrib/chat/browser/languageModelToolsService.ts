@@ -520,7 +520,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// TODO: This should be more detailed per tool.
 			prepared.confirmationMessages = {
 				...prepared.confirmationMessages,
-				title: localize('defaultToolConfirmation.title', 'Allow tool to execute?'),
+				title: localize('defaultToolConfirmation.title', 'Confirm tool execution'),
 				message: localize('defaultToolConfirmation.message', 'Run the \'{0}\' tool?', fullReferenceName),
 				disclaimer: new MarkdownString(localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted via {1}.', getToolFullReferenceName(tool.data), createMarkdownCommandLink({ title: '`' + ChatConfiguration.EligibleForAutoApproval + '`', id: 'workbench.action.openSettings', arguments: [ChatConfiguration.EligibleForAutoApproval] }, false)), { isTrusted: true }),
 				allowAutoConfirm: false,
