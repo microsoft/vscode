@@ -360,8 +360,8 @@ export class ContextView extends Disposable {
 			positionOffset = DOM.getDomNodePagePosition(this.view);
 		} else {
 			// For absolute positioning, find the actual containing block using offsetParent
-			const offsetParent = this.view.offsetParent as HTMLElement | null;
-			if (offsetParent) {
+			const offsetParent = this.view.offsetParent;
+			if (offsetParent && DOM.isHTMLElement(offsetParent)) {
 				positionOffset = DOM.getDomNodePagePosition(offsetParent);
 			} else {
 				// When there's no offsetParent, the containing block is the initial containing block (viewport)
