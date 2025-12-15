@@ -18,6 +18,7 @@ import * as strings from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as network from '../../../../base/common/network.js';
 import './media/searchview.css';
+import './media/fileTypeFilter.css';
 import { getCodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
@@ -62,6 +63,7 @@ import { searchDetailsIcon } from './searchIcons.js';
 import { renderSearchMessage } from './searchMessage.js';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, TextSearchResultRenderer } from './searchResultsView.js';
 import { SearchWidget } from './searchWidget.js';
+import { FileTypeFilter } from './fileTypeFilter.js';
 import * as Constants from '../common/constants.js';
 import { IReplaceService } from './replace.js';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from '../common/search.js';
@@ -85,6 +87,7 @@ import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { forcedExpandRecursively } from './searchActionsTopBar.js';
+import { processSearchShortcuts } from './searchShortcuts.js';
 
 const $ = dom.$;
 
@@ -170,6 +173,8 @@ export class SearchView extends ViewPane {
 	private toggleQueryDetailsButton!: HTMLElement;
 	private inputPatternExcludes!: ExcludePatternInputWidget;
 	private inputPatternIncludes!: IncludePatternInputWidget;
+	private fileTypeFilter!: FileTypeFilter;
+	private _isUpdatingFromFileTypeFilter = false;
 	private resultsElement!: HTMLElement;
 
 	private currentSelectedFileMatch: ISearchTreeFileMatch | undefined;
@@ -459,6 +464,9 @@ export class SearchView extends ViewPane {
 		this.searchWidgetsContainerElement = dom.append(this.container, $('.search-widgets-container'));
 		this.createSearchWidget(this.searchWidgetsContainerElement);
 
+		// Create file type filter
+		this.createFileTypeFilter(this.searchWidgetsContainerElement);
+
 		const history = this.searchHistoryService.load();
 		const filePatterns = this.viewletState.query?.filePatterns || '';
 		const patternExclusions = this.viewletState.query?.folderExclusions || '';
@@ -505,7 +513,8 @@ export class SearchView extends ViewPane {
 		}));
 
 		// folder includes list
-		const folderIncludesList = dom.append(this.queryDetails, $('.file-types.includes'));
+		// Create hidden includes list for shortcuts (not visible to user)
+		const folderIncludesList = dom.append(this.queryDetails, $('.file-types.includes', { style: 'display: none;' }));
 		const filesToIncludeTitle = nls.localize('searchScope.includes', "files to include");
 		dom.append(folderIncludesList, $('h4', undefined, filesToIncludeTitle));
 
@@ -523,10 +532,15 @@ export class SearchView extends ViewPane {
 		this._register(this.inputPatternIncludes.onCancel(() => this.cancelSearch(false)));
 		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerQueryChange()));
 
+		// Listen for manual changes to includes to sync file type filter
+		this._register(this.inputPatternIncludes.onSubmit(() => {
+			this.syncFileTypeFilterWithIncludes();
+		}));
+
 		this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocused);
 
-		// excludes list
-		const excludesList = dom.append(this.queryDetails, $('.file-types.excludes'));
+		// excludes list (hidden for cleaner UI)
+		const excludesList = dom.append(this.queryDetails, $('.file-types.excludes', { style: 'display: none;' }));
 		const excludesTitle = nls.localize('searchScope.excludes', "files to exclude");
 		dom.append(excludesList, $('h4', undefined, excludesTitle));
 		this.inputPatternExcludes = this._register(this.instantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
@@ -715,6 +729,177 @@ export class SearchView extends ViewPane {
 
 		this.trackInputBox(this.searchWidget.searchInputFocusTracker);
 		this.trackInputBox(this.searchWidget.replaceInputFocusTracker);
+	}
+
+	private createFileTypeFilter(container: HTMLElement): void {
+		// Check if file type filter is enabled
+		const fileTypeFilterEnabled = this.configurationService.getValue<boolean>('search.useFileTypeFilter') ?? true;
+
+		this.fileTypeFilter = this._register(new FileTypeFilter(container, {
+			enabled: fileTypeFilterEnabled,
+			contextViewService: this.contextViewService
+		}));
+
+		// Listen for file type changes
+		this._register(this.fileTypeFilter.onDidChangeSelection((pattern: string) => {
+			this.onFileTypeFilterChanged(pattern);
+		}));
+
+		// Listen for search input changes to handle shortcuts
+		if (this.searchWidget.searchInput) {
+			this._register(this.searchWidget.searchInput.onDidChange(() => {
+				this.handleSearchInputChange();
+			}));
+		}
+
+		// Initial sync with current includes pattern
+		if (this.inputPatternIncludes) {
+			this.syncFileTypeFilterWithIncludes();
+		}
+	}
+
+	private onFileTypeFilterChanged(pattern: string): void {
+		if (!this.inputPatternIncludes) {
+			return;
+		}
+
+		this._isUpdatingFromFileTypeFilter = true;
+		const currentIncludes = this.inputPatternIncludes.getValue() || '';
+
+		// Remove any existing file type patterns first
+		const fileTypePatterns = [
+			'*.ts', '*.js', '*.tsx', '*.jsx', '*.json', '*.css', '*.scss', '*.less',
+			'*.html', '*.xml', '*.md', '*.txt', '*.py', '*.java', '*.cs', '*.php',
+			'*.rb', '*.go', '*.rs', '*.swift', '*.kt', '*.dart', '*.vue', '*.svelte',
+			'*.{cpp,cc,cxx,h,hpp}', '*.{c,h}', '*.{yml,yaml}', '*.toml'
+		];
+
+		let cleanedIncludes = currentIncludes;
+		for (const typePattern of fileTypePatterns) {
+			// Escape special regex characters
+			const escapedPattern = typePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			// Remove pattern with optional commas and spaces around it
+			cleanedIncludes = cleanedIncludes.replace(new RegExp(`\\s*,?\\s*${escapedPattern}\\s*,?\\s*`, 'g'), ', ');
+		}
+		// Clean up multiple commas and trim
+		cleanedIncludes = cleanedIncludes.replace(/,\s*,/g, ',').replace(/^,\s*|,\s*$/g, '').trim();
+
+		// Add new pattern if provided
+		let newIncludes = cleanedIncludes;
+		if (pattern) {
+			if (cleanedIncludes) {
+				newIncludes = cleanedIncludes + ', ' + pattern;
+			} else {
+				newIncludes = pattern;
+			}
+		}
+
+		// Update the includes field
+		this.inputPatternIncludes.setValue(newIncludes);
+
+		// If search input is empty and we have a file type filter, start file-only search
+		const searchQuery = this.searchWidget.searchInput?.getValue() || '';
+		if (pattern && !searchQuery.trim()) {
+			// Trigger a file-only search when filter is applied without search query
+			this.triggerFileSearch();
+		} else {
+			// Trigger search with new filter
+			this.triggerQueryChange({ shouldKeepAIResults: true });
+		}
+
+		this._isUpdatingFromFileTypeFilter = false;
+	}
+
+	private handleSearchInputChange(): void {
+		const query = this.searchWidget.searchInput?.getValue() || '';
+		const result = FileTypeFilter.parseShortcutFromQuery(query);
+
+		if (result.typeId) {
+			// Apply shortcut
+			this.fileTypeFilter.setSelectedType(result.typeId);
+			this.searchWidget.searchInput?.setValue(result.cleanedQuery);
+			// The onDidChangeSelection event will handle updating the includes pattern
+		}
+	}
+
+	private triggerFileSearch(): void {
+		// For file-only search when no search query is provided,
+		// we use a common pattern that exists in most files
+		if (this.searchWidget.searchInput) {
+			// Search for common patterns that exist in most code files
+			// This will show all files of the selected type that contain these patterns
+			this.searchWidget.searchInput.setValue(' ');
+			// Trigger the search
+			this.triggerQueryChange({ shouldKeepAIResults: true });
+
+			// Show a message in the search box to indicate this is auto-generated
+			setTimeout(() => {
+				if (this.searchWidget.searchInput?.getValue() === ' ') {
+					this.searchWidget.searchInput.inputBox.setPlaceHolder('Showing all files of selected type...');
+				}
+			}, 50);
+		}
+	}
+
+	private syncFileTypeFilterWithIncludes(): void {
+		if (!this.inputPatternIncludes || !this.fileTypeFilter || this._isUpdatingFromFileTypeFilter) {
+			return;
+		}
+
+		const currentIncludes = this.inputPatternIncludes.getValue() || '';
+
+		// Check if the current includes pattern exactly matches a file type filter
+		const allPatterns = [
+			{ id: 'ts', pattern: '*.ts' },
+			{ id: 'js', pattern: '*.js' },
+			{ id: 'tsx', pattern: '*.tsx' },
+			{ id: 'jsx', pattern: '*.jsx' },
+			{ id: 'json', pattern: '*.json' },
+			{ id: 'css', pattern: '*.css' },
+			{ id: 'scss', pattern: '*.scss' },
+			{ id: 'less', pattern: '*.less' },
+			{ id: 'html', pattern: '*.html' },
+			{ id: 'xml', pattern: '*.xml' },
+			{ id: 'md', pattern: '*.md' },
+			{ id: 'txt', pattern: '*.txt' },
+			{ id: 'py', pattern: '*.py' },
+			{ id: 'java', pattern: '*.java' },
+			{ id: 'cs', pattern: '*.cs' },
+			{ id: 'cpp', pattern: '*.{cpp,cc,cxx,h,hpp}' },
+			{ id: 'c', pattern: '*.{c,h}' },
+			{ id: 'php', pattern: '*.php' },
+			{ id: 'rb', pattern: '*.rb' },
+			{ id: 'go', pattern: '*.go' },
+			{ id: 'rs', pattern: '*.rs' },
+			{ id: 'swift', pattern: '*.swift' },
+			{ id: 'kt', pattern: '*.kt' },
+			{ id: 'dart', pattern: '*.dart' },
+			{ id: 'vue', pattern: '*.vue' },
+			{ id: 'svelte', pattern: '*.svelte' },
+			{ id: 'yaml', pattern: '*.{yml,yaml}' },
+			{ id: 'toml', pattern: '*.toml' }
+		];
+
+		// Find exact match
+		for (const { id, pattern } of allPatterns) {
+			if (currentIncludes === pattern) {
+				this.fileTypeFilter.setSelectedType(id);
+				return;
+			}
+		}
+
+		// If no exact match, check if any pattern is included
+		for (const { id, pattern } of allPatterns) {
+			if (currentIncludes.includes(pattern)) {
+				this.fileTypeFilter.setSelectedType(id);
+				return;
+			}
+		}
+
+		// No pattern found, set to "all"
+		if (this.fileTypeFilter.getSelectedTypeId() !== 'all') {
+			this.fileTypeFilter.setSelectedType('all');
+		}
 	}
 
 	public shouldShowAIResults(): boolean {
@@ -1578,21 +1763,51 @@ export class SearchView extends ViewPane {
 
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
-		const contentPattern = this.searchWidget.searchInput.getValue();
+		const rawContentPattern = this.searchWidget.searchInput.getValue();
 		const excludePatternText = this._getExcludePattern();
 		const includePatternText = this._getIncludePattern();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 		const onlySearchInOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
 
-		if (contentPattern.length === 0) {
+		// Process shortcuts in the search query
+		const shortcutResult = processSearchShortcuts(rawContentPattern, includePatternText);
+		const contentPattern = shortcutResult.query;
+
+		// If a shortcut was found, update the include pattern
+		if (shortcutResult.hasShortcut && shortcutResult.filePatterns.length > 0) {
+			// Replace the include pattern instead of merging (reset previous shortcuts)
+			const newIncludePattern = shortcutResult.filePatterns.join(', ');
+			this.inputPatternIncludes.setValue(newIncludePattern);
+
+			// Show a brief message to the user about what happened
+			if (this.searchWidget.searchInput) {
+				const patterns = shortcutResult.filePatterns.join(', ');
+				const message = contentPattern.length === 0
+					? `Searching all content in ${patterns} files`
+					: `Added file filter: ${patterns}`;
+				this.searchWidget.searchInput.showMessage({
+					content: message,
+					type: MessageType.INFO
+				});
+			}
+		}
+
+		// Only clear results if there's no content AND no file patterns
+		if (contentPattern.length === 0 && !shortcutResult.hasShortcut) {
 			this.clearSearchResults(false);
 			this.clearMessage();
 			this.clearAIResults();
 			return;
 		}
 
+		// If we only have shortcuts (no text), add a wildcard pattern to search all files
+		let searchPattern = contentPattern;
+		if (contentPattern.length === 0 && shortcutResult.hasShortcut) {
+			searchPattern = '*'; // Search for any content in the specified file types
+		}
+
 		const content: IPatternInfo = {
-			pattern: contentPattern,
+			pattern: searchPattern,
 			isRegExp: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWordMatch: isWholeWords,
