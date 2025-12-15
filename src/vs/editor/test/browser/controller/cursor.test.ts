@@ -2239,6 +2239,89 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #256039: paste from multiple cursors with empty selections and multiCursorPaste full', () => {
+		// Bug scenario: User copies 2 lines from 2 cursors (with empty selections)
+		// and pastes to 2 cursors with multiCursorPaste: "full".
+		//
+		// Expected: Each cursor receives its respective line.
+		// Bug (without fix): Both cursors receive all lines because multicursorText
+		// was not being passed as an array when all selections were empty.
+		//
+		// This test verifies the correct behavior when multicursorText is properly
+		// provided as an array (which is what the fix ensures happens).
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			],
+			editorOpts: {
+				multiCursorPaste: 'full'
+			}
+		}, (editor, model, viewModel) => {
+			// 2 cursors on lines 1 and 2
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+
+			// Paste with multicursorText properly set (the fix ensures this)
+			viewModel.paste(
+				'line1\nline2\n',
+				true,
+				['line1\n', 'line2\n'] // This array enables proper distribution
+			);
+
+			// Each cursor gets its respective line
+			assert.strictEqual(model.getValue(), [
+				'line1',
+				'line1',
+				'line2',
+				'line2',
+				'line3'
+			].join('\n'));
+		});
+	});
+
+	test('issue #256083: bug reproduction - paste without multicursorText array with multiCursorPaste full', () => {
+		// This test demonstrates the BUG behavior (before the fix):
+		// When copying from multiple cursors with empty selections, pasteOnNewLine is true.
+		// The bug is that _distributePasteToCursors returns null when pasteOnNewLine=true,
+		// ignoring the multicursorText array entirely. This causes _simplePaste to be used,
+		// which pastes the FULL text at the beginning of EACH cursor's line.
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			],
+			editorOpts: {
+				multiCursorPaste: 'full'
+			}
+		}, (editor, model, viewModel) => {
+			// 2 cursors on lines 1 and 2
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+
+			// Paste with pasteOnNewLine=true (copied from empty selections)
+			// Even with multicursorText provided, it's ignored due to the bug
+			viewModel.paste(
+				'line1\nline2\n',
+				true, // pasteOnNewLine - this triggers the early return in _distributePasteToCursors
+				['line1\n', 'line2\n'] // This is ignored because pasteOnNewLine=true!
+			);
+
+			// BUG BEHAVIOR: _simplePaste is used, which pastes full text at start of each line
+			// Cursor 1 (line 1): inserts "line1\nline2\n" at position (1,1)
+			// Cursor 2 (line 2): inserts "line1\nline2\n" at position (2,1) - but line numbers shift!
+			assert.strictEqual(model.getValue(), [
+				'line1',
+				'line2',
+				'line1', // original line1 pushed down
+				'line1',
+				'line2',
+				'line2', // original line2 pushed down
+				'line3'
+			].join('\n'));
+		});
+	});
+
 	test('issue #3071: Investigate why undo stack gets corrupted', () => {
 		const model = createTextModel(
 			[

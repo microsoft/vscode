@@ -967,7 +967,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 
 		if (hasEmptyRange && emptySelectionClipboard) {
-			// mixed empty selections and non-empty selections
+			// some (maybe all) empty selections
 			const result: string[] = [];
 			let prevModelLineNumber = 0;
 			for (const modelRange of modelRanges) {
