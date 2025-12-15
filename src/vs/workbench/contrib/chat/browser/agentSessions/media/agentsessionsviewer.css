@@ -93,11 +93,11 @@
 				}
 
 				&.codicon.codicon-error {
-					color: var(--vscode-errorForeground);
+					color: var(--vscode-editorError-foreground);
 				}
 
-				&.codicon.codicon-info {
-					color: var(--vscode-textLink-foreground);
+				&.codicon.codicon-warning {
+					color: var(--vscode-editorWarning-foreground);
 				}
 
 				&.codicon.codicon-circle-filled {
