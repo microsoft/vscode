@@ -7,6 +7,7 @@ import { isStandalone } from '../../base/browser/browser.js';
 import { isLinux, isMacintosh, isNative, isWeb, isWindows } from '../../base/common/platform.js';
 import { localize } from '../../nls.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../platform/configuration/common/configurationRegistry.js';
+import product from '../../platform/product/common/product.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, ConfigurationMigrationWorkbenchContribution, DynamicWindowConfiguration, DynamicWorkbenchSecurityConfiguration, Extensions, IConfigurationMigrationRegistry, problemsConfigurationNodeBase, windowConfigurationNodeBase, workbenchConfigurationNodeBase } from '../common/configuration.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
@@ -532,6 +533,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'description': localize('openDefaultKeybindings', "Controls whether opening keybinding settings also opens an editor showing all default keybindings."),
 				'default': false
+			},
+			'workbench.settings.alwaysShowAdvancedSettings': {
+				'type': 'boolean',
+				'tags': ['advanced'],
+				'description': localize('alwaysShowAdvancedSettings', "Controls whether advanced settings are always shown without requiring the `@tag:advanced` filter."),
+				'default': typeof product.quality === 'string' && product.quality !== 'stable'
 			},
 			'workbench.sideBar.location': {
 				'type': 'string',

@@ -352,7 +352,8 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private canShowAdvancedSettings(): boolean {
-		return this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) ?? false;
+		const alwaysShowAdvanced = this.configurationService.getValue<boolean>('workbench.settings.alwaysShowAdvancedSettings') ?? false;
+		return alwaysShowAdvanced || (this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) ?? false);
 	}
 
 	/**
