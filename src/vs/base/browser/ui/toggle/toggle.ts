@@ -257,6 +257,11 @@ export class Toggle extends Widget {
 	get visible() {
 		return this.domNode.style.display !== 'none';
 	}
+
+	toggle(): void {
+		this.checked = !this._checked;
+		this._onChange.fire(false);
+	}
 }
 
 

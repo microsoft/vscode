@@ -57,6 +57,7 @@ import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQui
 import { IQuickChatService } from '../../chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
+import { UseExcludesToggle } from './useExcludesToggle.js';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -108,6 +109,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private static SYMBOL_PICKS_MERGE_DELAY = 200; // allow some time to merge fast and slow picks to reduce flickering
 
 	private readonly pickState: IAnythingPickState;
+
+	private excludesToggle?: UseExcludesToggle;
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
 		if (this.configuration.preserveInput) {
@@ -222,6 +225,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Update the pick state for this run
 		this.pickState.set(picker);
+
+		this.excludesToggle = disposables.add(this.instantiationService.createInstance(UseExcludesToggle));
+		picker.toggles = [this.excludesToggle];
+		disposables.add(this.excludesToggle.onChange(() => picker.reload()));
 
 		// Add editor decorations for active editor symbol picks
 		const editorDecorationsDisposable = disposables.add(new MutableDisposable());
@@ -713,13 +720,16 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private getFileQueryOptions(input: { filePattern?: string; cacheKey?: string; maxResults?: number }): IFileQueryBuilderOptions {
+		const disregardExcludes = !this.excludesToggle?.checked;
 		return {
 			_reason: 'openFileHandler', // used for telemetry - do not change
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			filePattern: input.filePattern || '',
-			cacheKey: input.cacheKey,
+			cacheKey: input.cacheKey ? `useExcludesAndIgnoreFiles:${!disregardExcludes}:${input.cacheKey}` : undefined,
 			maxResults: input.maxResults || 0,
-			sortByScore: true
+			sortByScore: true,
+			disregardIgnoreFiles: disregardExcludes,
+			disregardExcludeSettings: disregardExcludes
 		};
 	}
 

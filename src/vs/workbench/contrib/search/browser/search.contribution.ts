@@ -33,6 +33,7 @@ import { assertType } from '../../../../base/common/types.js';
 import { getWorkspaceSymbols, IWorkspaceSymbol } from '../common/search.js';
 import * as Constants from '../common/constants.js';
 import { SearchChatContextContribution } from './searchChatContext.js';
+import { useExcludesToggleContributions } from './useExcludesToggle.js';
 
 import './searchActionsCopy.js';
 import './searchActionsFind.js';
@@ -51,6 +52,7 @@ registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType
 replaceContributions();
 notebookSearchContributions();
 searchWidgetContributions();
+useExcludesToggleContributions();
 
 registerWorkbenchContribution2(SearchChatContextContribution.ID, SearchChatContextContribution, WorkbenchPhase.AfterRestored);
 

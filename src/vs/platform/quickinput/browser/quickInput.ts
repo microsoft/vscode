@@ -632,6 +632,8 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	filterValue = (value: string) => value;
 
+	reload = () => this.onDidChangeValueEmitter.fire(this._value);
+
 	set ariaLabel(ariaLabel: string | undefined) {
 		this._ariaLabel = ariaLabel;
 		this.update();

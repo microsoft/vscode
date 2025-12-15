@@ -35,6 +35,7 @@ import { SearchModelImpl } from '../searchTreeModel/searchModel.js';
 import { SearchModelLocation, RenderableMatch, ISearchTreeFileMatch, ISearchTreeMatch, ISearchResult } from '../searchTreeModel/searchTreeCommon.js';
 import { searchComparer } from '../searchCompare.js';
 import { IMatch } from '../../../../../base/common/filters.js';
+import { UseExcludesToggle } from '../useExcludesToggle.js';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -63,14 +64,18 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		messages: []
 	});
 	private readonly editorViewState: PickerEditorState;
+	private excludesToggle?: UseExcludesToggle;
 
 	private _getTextQueryBuilderOptions(charsPerLine: number): ITextQueryBuilderOptions {
+		const disregardExcludes = !this.excludesToggle?.checked;
 		return {
 			...DEFAULT_TEXT_QUERY_BUILDER_OPTIONS,
 			... {
 				extraFileResources: this._instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 				maxResults: this.configuration.maxResults ?? undefined,
 				isSmartCase: this.configuration.smartCase,
+				disregardExcludeSettings: disregardExcludes,
+				disregardIgnoreFiles: disregardExcludes,
 			},
 
 			previewOptions: {
@@ -104,6 +109,11 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 
 	override provide(picker: IQuickPick<ITextSearchQuickAccessItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
+
+		this.excludesToggle = disposables.add(this._instantiationService.createInstance(UseExcludesToggle));
+		picker.toggles = [this.excludesToggle];
+		disposables.add(this.excludesToggle.onChange(() => picker.reload()));
+
 		if (TEXT_SEARCH_QUICK_ACCESS_PREFIX.length < picker.value.length) {
 			picker.valueSelection = [TEXT_SEARCH_QUICK_ACCESS_PREFIX.length, picker.value.length];
 		}
@@ -122,7 +132,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			const [item] = picker.activeItems;
 
 			if (item?.match) {
-				// we must remember our curret view state to be able to restore (will automatically track if there is already stored state)
+				// we must remember our current view state to be able to restore (will automatically track if there is already stored state)
 				this.editorViewState.set();
 				const itemMatch = item.match;
 				this.editorSequencer.queue(async () => {
