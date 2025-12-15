@@ -38,41 +38,28 @@ function createSimpleMemoryModel() {
 		reset(): void {
 			mTimes.clear();
 			mData.clear();
-			console.log('[MemoryAccessModel] Reset - cleared all files');
 		},
 		insertFile(path: string, data: Uint8Array, mtime: Date): void {
 			mTimes.set(path, mtime);
 			mData.set(path, data);
-			console.log(`[MemoryAccessModel] insertFile: ${path} (${data.length} bytes)`);
 		},
 		removeFile(path: string): void {
 			mTimes.delete(path);
 			mData.delete(path);
-			console.log(`[MemoryAccessModel] removeFile: ${path}`);
 		},
 		getMTime(path: string): Date | undefined {
-			const result = mTimes.get(path);
-			console.log(`[MemoryAccessModel] getMTime: ${path} -> ${result}`);
-			return result;
+			return mTimes.get(path);
 		},
 		isFile(path: string): boolean | undefined {
-			const result = mData.has(path);
-			console.log(`[MemoryAccessModel] isFile: ${path} -> ${result}`);
-			return result ? true : undefined;
+			return mData.has(path) ? true : undefined;
 		},
 		getRealPath(path: string): string | undefined {
-			const result = mData.has(path) ? path : undefined;
-			console.log(`[MemoryAccessModel] getRealPath: ${path} -> ${result}`);
-			return result;
+			return mData.has(path) ? path : undefined;
 		},
 		readAll(path: string): Uint8Array | undefined {
-			console.log(`[MemoryAccessModel] readAll called: ${path}`);
-			console.log(`[MemoryAccessModel] Available files:`, Array.from(mData.keys()));
-
 			// Try exact match first
 			let data = mData.get(path);
 			if (data) {
-				console.log(`[MemoryAccessModel] readAll: ${path} -> found (${data.length} bytes)`);
 				return data;
 			}
 
@@ -80,7 +67,6 @@ function createSimpleMemoryModel() {
 			const withoutSlash = path.startsWith('/') ? path.slice(1) : path;
 			data = mData.get(withoutSlash);
 			if (data) {
-				console.log(`[MemoryAccessModel] readAll: ${path} -> found as ${withoutSlash} (${data.length} bytes)`);
 				return data;
 			}
 
@@ -88,11 +74,9 @@ function createSimpleMemoryModel() {
 			const withSlash = path.startsWith('/') ? path : '/' + path;
 			data = mData.get(withSlash);
 			if (data) {
-				console.log(`[MemoryAccessModel] readAll: ${path} -> found as ${withSlash} (${data.length} bytes)`);
 				return data;
 			}
 
-			console.log(`[MemoryAccessModel] readAll: ${path} -> NOT FOUND`);
 			return undefined;
 		}
 	};
@@ -278,7 +262,6 @@ async function loadReferencedFiles(document: vscode.TextDocument): Promise<void>
 	// Reset previous files
 	if (typeof memoryAccessModel.reset === 'function') {
 		memoryAccessModel.reset();
-		console.log('[Typst WASM] Reset memory access model');
 	}
 
 	// Get the document directory for resolving relative paths
@@ -288,8 +271,6 @@ async function loadReferencedFiles(document: vscode.TextDocument): Promise<void>
 	// Extract file references from the document
 	const source = document.getText();
 	const references = extractFileReferences(source);
-
-	console.log(`[Typst WASM] Found ${references.length} file references to load`);
 
 	for (const ref of references) {
 		try {
@@ -317,7 +298,6 @@ async function loadReferencedFiles(document: vscode.TextDocument): Promise<void>
 			// Use /tmp/ prefix since the compiler uses /tmp/ as default directory when mainFilePath is not specified
 			const virtualPath = '/tmp/' + cleanPath;
 			memoryAccessModel.insertFile(virtualPath, data, new Date(stat.mtime));
-			console.log(`[Typst WASM] Inserted file: ${virtualPath} -> ${fileUri.toString()} (${data.length} bytes)`);
 		} catch (error) {
 			console.warn(`[Typst WASM] Failed to load file ${ref.path}:`, error);
 		}
