@@ -263,6 +263,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		}));
 
 		addMatchMediaChangeListener(mainWindow, '(forced-colors: active)', () => {
+			// Update theme selection for auto-detecting high contrast
 			this._onOSSchemeChanged();
 		});
 	}
@@ -398,6 +399,11 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
+
+		// If the OS has forced-colors active, disable forced color adjustment for
+		// Monaco editor elements so that VS Code's built-in high contrast themes
+		// (hc-black / hc-light) are used instead of the OS forcing system colors.
+		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor, .monaco-component { forced-color-adjust: none; }`);
 
 		this._themeCSS = cssRules.join('\n');
 		this._updateCSS();

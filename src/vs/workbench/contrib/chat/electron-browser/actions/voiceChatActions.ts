@@ -27,7 +27,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { contrastBorder, focusBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { spinningLoading, syncing } from '../../../../../platform/theme/common/iconRegistry.js';
-import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
+import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { registerThemingParticipant } from '../../../../../platform/theme/common/themeService.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -36,7 +36,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
@@ -46,7 +45,7 @@ import { SearchContext } from '../../../search/common/constants.js';
 import { TextToSpeechInProgress as GlobalTextToSpeechInProgress, HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus } from '../../../speech/common/speechService.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
-import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService } from '../../browser/chat.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -103,7 +102,6 @@ class VoiceChatSessionControllerFactory {
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorService = accessor.get(IEditorService);
-		const viewsService = accessor.get(IViewsService);
 
 		switch (context) {
 			case 'focused': {
@@ -111,7 +109,7 @@ class VoiceChatSessionControllerFactory {
 				return controller ?? VoiceChatSessionControllerFactory.create(accessor, 'view'); // fallback to 'view'
 			}
 			case 'view': {
-				const chatWidget = await showChatView(viewsService);
+				const chatWidget = await chatWidgetService.revealWidget();
 				if (chatWidget) {
 					return VoiceChatSessionControllerFactory.doCreateForChatWidget('view', chatWidget);
 				}
@@ -150,7 +148,7 @@ class VoiceChatSessionControllerFactory {
 
 			let context: VoiceChatSessionContext;
 			if (layoutService.hasFocus(Parts.EDITOR_PART)) {
-				context = chatWidget.location === ChatAgentLocation.Panel ? 'editor' : 'inline';
+				context = chatWidget.location === ChatAgentLocation.Chat ? 'editor' : 'inline';
 			} else if (
 				[Parts.SIDEBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.TITLEBAR_PART, Parts.STATUSBAR_PART, Parts.BANNER_PART, Parts.ACTIVITYBAR_PART].some(part => layoutService.hasFocus(part))
 			) {
@@ -475,7 +473,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 
 		const instantiationService = accessor.get(IInstantiationService);
 		const keybindingService = accessor.get(IKeybindingService);
-		const viewsService = accessor.get(IViewsService);
+		const widgetService = accessor.get(IChatWidgetService);
 
 		const holdMode = keybindingService.enableKeybindingHoldMode(HoldToVoiceChatInChatViewAction.ID);
 
@@ -488,7 +486,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 			}
 		}, VOICE_KEY_HOLD_THRESHOLD);
 
-		(await showChatView(viewsService))?.focusInput();
+		(await widgetService.revealWidget())?.focusInput();
 
 		await holdMode;
 		handle.dispose();
@@ -540,13 +538,13 @@ const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined) => {
 	return [
 		{
 			id: MenuId.ChatExecute,
-			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), when),
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat), when),
 			group: 'navigation',
 			order: 3
 		},
 		{
 			id: MenuId.ChatExecute,
-			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), when),
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat).negate(), when),
 			group: 'navigation',
 			order: 2
 		}
@@ -685,8 +683,8 @@ class ChatSynthesizerSessionController {
 	private static doCreateForFocusedChat(accessor: ServicesAccessor, response: IChatResponseModel): IChatSynthesizerSessionController {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const contextKeyService = accessor.get(IContextKeyService);
-		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
-		if (chatWidget?.location === ChatAgentLocation.Editor) {
+		let chatWidget = chatWidgetService.getWidgetBySessionResource(response.session.sessionResource);
+		if (chatWidget?.location === ChatAgentLocation.EditorInline) {
 			// workaround for https://github.com/microsoft/vscode/issues/212785
 			chatWidget = chatWidgetService.lastFocusedWidget;
 		}
@@ -889,7 +887,7 @@ export class ReadChatResponseAloud extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const instantiationService = accessor.get(IInstantiationService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 
@@ -1000,7 +998,7 @@ export class StopReadChatItemAloud extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		ChatSynthesizerSessions.getInstance(accessor.get(IInstantiationService)).stop();
 	}
 }
@@ -1010,7 +1008,7 @@ export class StopReadChatItemAloud extends Action2 {
 //#region Keyword Recognition
 
 function supportsKeywordActivation(configurationService: IConfigurationService, speechService: ISpeechService, chatAgentService: IChatAgentService): boolean {
-	if (!speechService.hasSpeechProvider || !chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+	if (!speechService.hasSpeechProvider || !chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 		return false;
 	}
 
@@ -1056,7 +1054,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		}));
 
 		const onDidAddDefaultAgent = this._register(this.chatAgentService.onDidChangeAgents(() => {
-			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 				this.updateConfiguration();
 				this.handleKeywordActivation();
 
@@ -1075,7 +1073,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private updateConfiguration(): void {
-		if (!this.speechService.hasSpeechProvider || !this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+		if (!this.speechService.hasSpeechProvider || !this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 			return; // these settings require a speech and chat provider
 		}
 
@@ -1254,7 +1252,7 @@ class KeywordActivationStatusEntry extends Disposable {
 registerThemingParticipant((theme, collector) => {
 	let activeRecordingColor: Color | undefined;
 	let activeRecordingDimmedColor: Color | undefined;
-	if (theme.type === ColorScheme.LIGHT || theme.type === ColorScheme.DARK) {
+	if (!isHighContrast(theme.type)) {
 		activeRecordingColor = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND) ?? theme.getColor(focusBorder);
 		activeRecordingDimmedColor = activeRecordingColor?.transparent(0.38);
 	} else {
@@ -1264,8 +1262,8 @@ registerThemingParticipant((theme, collector) => {
 
 	// Show a "microphone" or "pulse" icon when speech-to-text or text-to-speech is in progress that glows via outline.
 	collector.addRule(`
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled),
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
+		.monaco-workbench.monaco-enable-motion .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled),
+		.monaco-workbench.monaco-enable-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
 			color: ${activeRecordingColor};
 			outline: 1px solid ${activeRecordingColor};
 			outline-offset: -1px;
@@ -1273,8 +1271,8 @@ registerThemingParticipant((theme, collector) => {
 			border-radius: 50%;
 		}
 
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled)::before,
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+		.monaco-workbench.monaco-enable-motion .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled)::before,
+		.monaco-workbench.monaco-enable-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
 			position: absolute;
 			outline: 1px solid ${activeRecordingColor};
 			outline-offset: 2px;
@@ -1283,21 +1281,11 @@ registerThemingParticipant((theme, collector) => {
 			height: 16px;
 		}
 
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled)::after,
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
+		.monaco-workbench.monaco-enable-motion .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled)::after,
+		.monaco-workbench.monaco-enable-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
 			outline: 2px solid ${activeRecordingColor};
 			outline-offset: -1px;
 			animation: pulseAnimation 1500ms cubic-bezier(0.75, 0, 0.25, 1) infinite;
-		}
-
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled)::before,
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
-			position: absolute;
-			outline: 1px solid ${activeRecordingColor};
-			outline-offset: 2px;
-			border-radius: 50%;
-			width: 16px;
-			height: 16px;
 		}
 
 		@keyframes pulseAnimation {

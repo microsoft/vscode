@@ -35,7 +35,6 @@ async function launchServer(options: LaunchOptions) {
 	const serverLogsPath = join(logsPath, 'server');
 	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
 	const agentFolder = userDataDir;
-	await measureAndLog(() => fs.promises.mkdir(agentFolder, { recursive: true }), `mkdirp(${agentFolder})`, logger);
 
 	const env = {
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
@@ -48,11 +47,16 @@ async function launchServer(options: LaunchOptions) {
 		'--disable-workspace-trust',
 		`--port=${port++}`,
 		'--enable-smoke-test-driver',
-		`--extensions-dir=${extensionsPath}`,
-		`--server-data-dir=${agentFolder}`,
 		'--accept-server-license-terms',
 		`--logsPath=${serverLogsPath}`
 	];
+	if (agentFolder) {
+		await measureAndLog(() => fs.promises.mkdir(agentFolder, { recursive: true }), `mkdirp(${agentFolder})`, logger);
+		args.push(`--server-data-dir=${agentFolder}`);
+	}
+	if (extensionsPath) {
+		args.push(`--extensions-dir=${extensionsPath}`);
+	}
 
 	if (options.verbose) {
 		args.push('--log=trace');
@@ -101,7 +105,17 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 
 	browser.on('disconnected', () => logger.log(`Playwright: browser disconnected`));
 
-	const context = await measureAndLog(() => browser.newContext(), 'browser.newContext', logger);
+	const context = await measureAndLog(
+		() => browser.newContext({
+			recordVideo: options.videosPath
+				? {
+					dir: options.videosPath,
+					size: { width: 1920, height: 1080 }
+				} : undefined,
+		}),
+		'browser.newContext',
+		logger
+	);
 
 	if (tracing) {
 		try {

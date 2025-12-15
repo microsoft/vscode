@@ -684,63 +684,76 @@ export abstract class MatchFindAction extends EditorAction {
 	protected abstract _run(controller: CommonFindController): boolean;
 }
 
-export class NextMatchFindAction extends MatchFindAction {
-
-	constructor() {
-		super({
-			id: FIND_IDS.NextMatchFindAction,
-			label: nls.localize2('findNextMatchAction', "Find Next"),
-			precondition: undefined,
-			kbOpts: [{
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyCode.F3,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG, secondary: [KeyCode.F3] },
-				weight: KeybindingWeight.EditorContrib
-			}, {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			}]
-		});
+async function matchFindAction(editor: ICodeEditor, next: boolean): Promise<void> {
+	const controller = CommonFindController.get(editor);
+	if (!controller) {
+		return;
 	}
 
-	protected _run(controller: CommonFindController): boolean {
-		const result = controller.moveToNextMatch();
+	const runMatch = (): boolean => {
+		const result = next ? controller.moveToNextMatch() : controller.moveToPrevMatch();
 		if (result) {
 			controller.editor.pushUndoStop();
 			return true;
 		}
-
 		return false;
-	}
-}
+	};
 
-
-export class PreviousMatchFindAction extends MatchFindAction {
-
-	constructor() {
-		super({
-			id: FIND_IDS.PreviousMatchFindAction,
-			label: nls.localize2('findPreviousMatchAction', "Find Previous"),
-			precondition: undefined,
-			kbOpts: [{
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyCode.F3,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG, secondary: [KeyMod.Shift | KeyCode.F3] },
-				weight: KeybindingWeight.EditorContrib
-			}, {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
-				primary: KeyMod.Shift | KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			}
-			]
+	if (!runMatch()) {
+		await controller.start({
+			forceRevealReplace: false,
+			seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
+			seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
+			seedSearchStringFromGlobalClipboard: true,
+			shouldFocus: FindStartFocusAction.NoFocusChange,
+			shouldAnimate: true,
+			updateSearchScope: false,
+			loop: editor.getOption(EditorOption.find).loop
 		});
-	}
-
-	protected _run(controller: CommonFindController): boolean {
-		return controller.moveToPrevMatch();
+		runMatch();
 	}
 }
+
+export const NextMatchFindAction = registerMultiEditorAction(new MultiEditorAction({
+	id: FIND_IDS.NextMatchFindAction,
+	label: nls.localize2('findNextMatchAction', "Find Next"),
+	precondition: undefined,
+	kbOpts: [{
+		kbExpr: EditorContextKeys.focus,
+		primary: KeyCode.F3,
+		mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG, secondary: [KeyCode.F3] },
+		weight: KeybindingWeight.EditorContrib
+	}, {
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
+		primary: KeyCode.Enter,
+		weight: KeybindingWeight.EditorContrib
+	}]
+}));
+
+NextMatchFindAction.addImplementation(0, async (accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> => {
+	return matchFindAction(editor, true);
+});
+
+
+export const PreviousMatchFindAction = registerMultiEditorAction(new MultiEditorAction({
+	id: FIND_IDS.PreviousMatchFindAction,
+	label: nls.localize2('findPreviousMatchAction', "Find Previous"),
+	precondition: undefined,
+	kbOpts: [{
+		kbExpr: EditorContextKeys.focus,
+		primary: KeyMod.Shift | KeyCode.F3,
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG, secondary: [KeyMod.Shift | KeyCode.F3] },
+		weight: KeybindingWeight.EditorContrib
+	}, {
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
+		primary: KeyMod.Shift | KeyCode.Enter,
+		weight: KeybindingWeight.EditorContrib
+	}]
+}));
+
+PreviousMatchFindAction.addImplementation(0, async (accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> => {
+	return matchFindAction(editor, false);
+});
 
 export class MoveToMatchFindAction extends EditorAction {
 
@@ -753,7 +766,7 @@ export class MoveToMatchFindAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		const controller = CommonFindController.get(editor);
 		if (!controller) {
 			return;
@@ -989,8 +1002,6 @@ registerEditorContribution(CommonFindController.ID, FindController, EditorContri
 
 registerEditorAction(StartFindWithArgsAction);
 registerEditorAction(StartFindWithSelectionAction);
-registerEditorAction(NextMatchFindAction);
-registerEditorAction(PreviousMatchFindAction);
 registerEditorAction(MoveToMatchFindAction);
 registerEditorAction(NextSelectionMatchFindAction);
 registerEditorAction(PreviousSelectionMatchFindAction);

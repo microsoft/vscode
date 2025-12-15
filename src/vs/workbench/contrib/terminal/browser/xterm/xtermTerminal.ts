@@ -45,6 +45,8 @@ import { XtermAddonImporter } from './xtermAddonImporter.js';
 import { equals } from '../../../../../base/common/objects.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { CommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { assert } from '../../../../../base/common/assert.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -82,6 +84,8 @@ export interface IXtermTerminalOptions {
 	disableShellIntegrationReporting?: boolean;
 	/** The object that imports xterm addons, set this to inject an importer in tests. */
 	xtermAddonImporter?: XtermAddonImporter;
+	/** Whether to disable the overview ruler. */
+	disableOverviewRuler?: boolean;
 }
 
 /**
@@ -172,6 +176,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	 * outside of this class such that {@link raw} is not nullable.
 	 */
 	constructor(
+		resource: URI | undefined,
 		xtermCtor: typeof RawXtermTerminal,
 		options: IXtermTerminalOptions,
 		private readonly _onDidExecuteText: Event<void> | undefined,
@@ -228,7 +233,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			scrollOnEraseInDisplay: true,
 			wordSeparator: config.wordSeparators,
-			overviewRuler: {
+			overviewRuler: options.disableOverviewRuler ? { width: 0 } : {
 				width: 14,
 				showTopBorder: true,
 			},
@@ -241,7 +246,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			},
 		}));
 		this._updateSmoothScrolling();
-		this._core = (this.raw as any)._core as IXtermCore;
+		interface ITerminalWithCore extends RawXtermTerminal {
+			_core: IXtermCore;
+		}
+		this._core = (this.raw as ITerminalWithCore)._core as IXtermCore;
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
@@ -274,7 +282,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._updateUnicodeVersion();
 		this._markNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, options.capabilities);
 		this.raw.loadAddon(this._markNavigationAddon);
-		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
+		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, resource, this._capabilities);
 		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
 		this._register(this._decorationAddon.onDidRequestCopyAsHtml(e => this._onDidRequestCopyAsHtml.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
@@ -363,6 +371,68 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return this._serializeAddon.serializeAsHTML();
 	}
 
+	async getCommandOutputAsHtml(command: ITerminalCommand, maxLines: number): Promise<{ text: string; truncated?: boolean }> {
+		if (!this._serializeAddon) {
+			const Addon = await this._xtermAddonLoader.importAddon('serialize');
+			this._serializeAddon = new Addon();
+			this.raw.loadAddon(this._serializeAddon);
+		}
+		let startLine: number;
+		let startCol: number;
+		if (command.executedMarker && command.executedMarker.line >= 0) {
+			startLine = command.executedMarker.line;
+			startCol = Math.max(command.executedX ?? 0, 0);
+		} else {
+			startLine = command.marker?.line !== undefined ? command.marker.line + 1 : 1;
+			startCol = Math.max(command.startX ?? 0, 0);
+		}
+
+		let endLine = command.endMarker?.line !== undefined ? command.endMarker.line - 1 : this.raw.buffer.active.length - 1;
+		if (endLine < startLine) {
+			return { text: '', truncated: false };
+		}
+		// Trim empty lines from the end
+		let emptyLinesFromEnd = 0;
+		for (let i = endLine; i >= startLine; i--) {
+			const line = this.raw.buffer.active.getLine(i);
+			if (line && line.translateToString(true).trim() === '') {
+				emptyLinesFromEnd++;
+			} else {
+				break;
+			}
+		}
+		endLine = endLine - emptyLinesFromEnd;
+
+		// Trim empty lines from the start
+		let emptyLinesFromStart = 0;
+		for (let i = startLine; i <= endLine; i++) {
+			const line = this.raw.buffer.active.getLine(i);
+			if (line && line.translateToString(true, i === startLine ? startCol : undefined).trim() === '') {
+				if (i === startLine) {
+					startCol = 0;
+				}
+				emptyLinesFromStart++;
+			} else {
+				break;
+			}
+		}
+		startLine = startLine + emptyLinesFromStart;
+
+		if (maxLines && endLine - startLine > maxLines) {
+			startLine = endLine - maxLines;
+			startCol = 0;
+		}
+
+		const bufferLine = this.raw.buffer.active.getLine(startLine);
+		if (bufferLine) {
+			startCol = Math.min(startCol, bufferLine.length);
+		}
+
+		const range = { startLine, endLine, startCol };
+		const result = this._serializeAddon.serializeAsHTML({ range });
+		return { text: result, truncated: (endLine - startLine) >= maxLines };
+	}
+
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._xtermAddonLoader.importAddon('serialize');
@@ -423,6 +493,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		this._attached = { container, options };
 		// Screen must be created at this point as xterm.open is called
+		// eslint-disable-next-line no-restricted-syntax
 		return this._attached?.container.querySelector('.xterm-screen')!;
 	}
 
@@ -437,6 +508,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	resize(columns: number, rows: number): void {
+		this._logService.debug('resizing', columns, rows);
 		this.raw.resize(columns, rows);
 	}
 
@@ -462,10 +534,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.customGlyphs = config.customGlyphs;
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
-		this.raw.options.overviewRuler = {
-			width: 14,
-			showTopBorder: true,
-		};
+
 		this._updateSmoothScrolling();
 		if (this._attached) {
 			if (this._attached.options.enableGpu) {
@@ -672,11 +741,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (this.hasSelection() || (asHtml && command)) {
 			if (asHtml) {
 				const textAsHtml = await this.getSelectionAsHtml(command);
-				function listener(e: any) {
-					if (!e.clipboardData.types.includes('text/plain')) {
-						e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+				function listener(e: ClipboardEvent) {
+					if (e.clipboardData) {
+						if (!e.clipboardData.types.includes('text/plain')) {
+							e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+						}
+						e.clipboardData.setData('text/html', textAsHtml);
 					}
-					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
 				}
 				const doc = dom.getDocument(this.raw.element);
@@ -819,6 +890,27 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// gets resized after the webgl addon is disposed
 		this._onDidRequestRefreshDimensions.fire();
 	}
+
+	async getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string> {
+		if (!this._serializeAddon) {
+			const Addon = await this._xtermAddonLoader.importAddon('serialize');
+			this._serializeAddon = new Addon();
+			this.raw.loadAddon(this._serializeAddon);
+		}
+
+		assert(startMarker.line !== -1);
+		let end = endMarker?.line ?? this.raw.buffer.active.length - 1;
+		if (skipLastLine) {
+			end = end - 1;
+		}
+		return this._serializeAddon.serialize({
+			range: {
+				start: startMarker.line,
+				end: end
+			}
+		});
+	}
+
 
 	getXtermTheme(theme?: IColorTheme): ITheme {
 		if (!theme) {

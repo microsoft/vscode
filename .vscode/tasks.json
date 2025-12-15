@@ -257,7 +257,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "node build/lib/preLaunch.js",
+			"command": "node build/lib/preLaunch.ts",
 			"label": "Ensure Prelaunch Dependencies",
 			"presentation": {
 				"reveal": "silent",
@@ -279,28 +279,18 @@
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		},
 		{
-			"label": "Launch Http Server",
+			"label": "Launch Monaco Editor Vite",
 			"type": "shell",
-			"command": "node_modules/.bin/ts-node -T ./scripts/playground-server",
-			"isBackground": true,
-			"problemMatcher": {
-				"pattern": {
-					"regexp": ""
-				},
-				"background": {
-					"activeOnStart": true,
-					"beginsPattern": "never match",
-					"endsPattern": ".*"
-				}
+			"command": "npm run dev",
+			"options": {
+				"cwd": "./build/vite/"
 			},
-			"dependsOn": [
-				"Core - Build"
-			]
+			"isBackground": true,
 		},
 		{
 			"label": "Launch MCP Server",
 			"type": "shell",
-			"command": "cd test/mcp && npm run compile && npm start-http",
+			"command": "cd test/mcp && npm run compile && npm run start-http",
 			"isBackground": true,
 			"problemMatcher": [
 				"$tsc"

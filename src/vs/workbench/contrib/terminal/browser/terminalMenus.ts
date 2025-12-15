@@ -18,6 +18,8 @@ import { TerminalContextKeys, TerminalContextKeyStrings } from '../common/termin
 import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { HasSpeechProvider } from '../../speech/common/speechService.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 export const enum TerminalContextMenuGroup {
 	Chat = '0_chat',
@@ -98,7 +100,7 @@ export function setupTerminalMenus(): void {
 					order: 4,
 					when: TerminalContextKeys.processSupported
 				}
-			}
+			},
 		]
 	);
 
@@ -408,6 +410,7 @@ export function setupTerminalMenus(): void {
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
+						ContextKeyExpr.not('hasHiddenChatTerminals'),
 						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.has(`config.${TerminalSettingId.TabsEnabled}`),
 						ContextKeyExpr.or(
@@ -518,7 +521,33 @@ export function setupTerminalMenus(): void {
 					order: 8,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
-				}
+				},
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.StartVoice,
+						title: localize('workbench.action.terminal.startVoice', "Start Dictation"),
+					},
+					group: 'navigation',
+					order: 9,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', TERMINAL_VIEW_ID), TerminalContextKeys.terminalDictationInProgress.toNegated()),
+					isHiddenByDefault: true
+				},
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.StopVoice,
+						title: localize('workbench.action.terminal.stopVoice', "Stop Dictation"),
+					},
+					group: 'navigation',
+					order: 9,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', TERMINAL_VIEW_ID), TerminalContextKeys.terminalDictationInProgress),
+					isHiddenByDefault: true
+				},
 			},
 		]
 	);
@@ -726,6 +755,28 @@ export function setupTerminalMenus(): void {
 			when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
 			isHiddenByDefault: true
 		});
+		MenuRegistry.appendMenuItem(menuId, {
+			command: {
+				id: TerminalCommandId.StartVoice,
+				title: localize('workbench.action.terminal.startVoiceEditor', "Start Dictation"),
+				icon: Codicon.mic
+			},
+			group: 'navigation',
+			order: 9,
+			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), TerminalContextKeys.terminalDictationInProgress.negate()),
+			isHiddenByDefault: true
+		});
+		MenuRegistry.appendMenuItem(menuId, {
+			command: {
+				id: TerminalCommandId.StopVoice,
+				title: localize('workbench.action.terminal.stopVoiceEditor', "Stop Dictation"),
+				icon: Codicon.run
+			},
+			group: 'navigation',
+			order: 10,
+			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), HasSpeechProvider, TerminalContextKeys.terminalDictationInProgress),
+			isHiddenByDefault: true
+		});
 	}
 }
 
@@ -737,7 +788,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 } {
 	const dropdownActions: IAction[] = [];
 	const submenuActions: IAction[] = [];
-	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && 'viewColumn' in location && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
+	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && hasKey(location, { viewColumn: true }) && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 
 	if (location === TerminalLocation.Editor) {
 		location = { viewColumn: ACTIVE_GROUP };

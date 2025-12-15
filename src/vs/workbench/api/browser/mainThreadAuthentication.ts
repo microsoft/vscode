@@ -6,15 +6,17 @@
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationSessionRequest, IAuthenticationConstraint } from '../../services/authentication/common/authentication.js';
-import { AuthenticationSessionRequest, ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
+import { ExtHostAuthenticationShape, ExtHostContext, IRegisterAuthenticationProviderDetails, IRegisterDynamicAuthenticationProviderDetails, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { ActivationKind, IExtensionService } from '../../services/extensions/common/extensions.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../services/authentication/browser/authenticationUsageService.js';
+import { getAuthenticationProviderActivationEvent } from '../../services/authentication/browser/authenticationService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -26,6 +28,7 @@ import { IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
 
 export interface AuthenticationInteractiveOptions {
 	detail?: string;
@@ -52,6 +55,7 @@ class MainThreadAuthenticationProvider extends Disposable implements IAuthentica
 		public readonly label: string,
 		public readonly supportsMultipleAccounts: boolean,
 		public readonly authorizationServers: ReadonlyArray<URI>,
+		public readonly resourceServer: URI | undefined,
 		onDidChangeSessionsEmitter: Emitter<AuthenticationSessionsChangeEvent>,
 	) {
 		super();
@@ -79,6 +83,7 @@ class MainThreadAuthenticationProviderWithChallenges extends MainThreadAuthentic
 		label: string,
 		supportsMultipleAccounts: boolean,
 		authorizationServers: ReadonlyArray<URI>,
+		resourceServer: URI | undefined,
 		onDidChangeSessionsEmitter: Emitter<AuthenticationSessionsChangeEvent>,
 	) {
 		super(
@@ -87,6 +92,7 @@ class MainThreadAuthenticationProviderWithChallenges extends MainThreadAuthentic
 			label,
 			supportsMultipleAccounts,
 			authorizationServers,
+			resourceServer,
 			onDidChangeSessionsEmitter
 		);
 	}
@@ -110,12 +116,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	constructor(
 		extHostContext: IExtHostContext,
+		@IProductService private readonly productService: IProductService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
 		@IAuthenticationAccessService private readonly authenticationAccessService: IAuthenticationAccessService,
 		@IAuthenticationUsageService private readonly authenticationUsageService: IAuthenticationUsageService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILogService private readonly logService: ILogService,
@@ -150,11 +158,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				// Auth Provider Id is a combination of the authorization server and the resource, if provided.
 				const authProviderId = resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
 				const clientDetails = await this.dynamicAuthProviderStorageService.getClientRegistration(authProviderId);
-				const clientId = clientDetails?.clientId;
+				let clientId = clientDetails?.clientId;
 				const clientSecret = clientDetails?.clientSecret;
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
 					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(authProviderId, clientId);
+					// If we don't already have a client id, check if the server supports the Client Id Metadata flow (see docs on the property)
+					// and add the "client id" if so.
+				} else if (serverMetadata.client_id_metadata_document_supported) {
+					clientId = this.productService.authClientIdMetadataUrl;
 				}
 				return await this._proxy.$registerDynamicAuthProvider(
 					authorizationServer,
@@ -168,7 +180,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}));
 	}
 
-	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedAuthorizationServer: UriComponents[] = [], supportsChallenges?: boolean): Promise<void> {
+	async $registerAuthenticationProvider({ id, label, supportsMultipleAccounts, resourceServer, supportedAuthorizationServers, supportsChallenges }: IRegisterAuthenticationProviderDetails): Promise<void> {
 		if (!this.authenticationService.declaredProviders.find(p => p.id === id)) {
 			// If telemetry shows that this is not happening much, we can instead throw an error here.
 			this.logService.warn(`Authentication provider ${id} was not declared in the Extension Manifest.`);
@@ -181,11 +193,27 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 		const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
 		this._registrations.set(id, emitter);
-		const supportedAuthorizationServerUris = supportedAuthorizationServer.map(i => URI.revive(i));
+		const supportedAuthorizationServerUris = (supportedAuthorizationServers ?? []).map(i => URI.revive(i));
 		const provider =
 			supportsChallenges
-				? new MainThreadAuthenticationProviderWithChallenges(this._proxy, id, label, supportsMultipleAccounts, supportedAuthorizationServerUris, emitter)
-				: new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, supportedAuthorizationServerUris, emitter);
+				? new MainThreadAuthenticationProviderWithChallenges(
+					this._proxy,
+					id,
+					label,
+					supportsMultipleAccounts,
+					supportedAuthorizationServerUris,
+					resourceServer ? URI.revive(resourceServer) : undefined,
+					emitter
+				)
+				: new MainThreadAuthenticationProvider(
+					this._proxy,
+					id,
+					label,
+					supportsMultipleAccounts,
+					supportedAuthorizationServerUris,
+					resourceServer ? URI.revive(resourceServer) : undefined,
+					emitter
+				);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
@@ -197,6 +225,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			this.authenticationService.unregisterAuthenticationProvider(id);
 		} finally {
 			this._suppressUnregisterEvent = false;
+		}
+	}
+
+	async $ensureProvider(id: string): Promise<void> {
+		if (!this.authenticationService.isAuthenticationProviderRegistered(id)) {
+			return await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id), ActivationKind.Immediate);
 		}
 	}
 
@@ -252,9 +286,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return deferredPromise.p;
 	}
 
-	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string, clientSecret?: string): Promise<void> {
-		await this.$registerAuthenticationProvider(id, label, true, [authorizationServer]);
-		await this.dynamicAuthProviderStorageService.storeClientRegistration(id, URI.revive(authorizationServer).toString(true), clientId, clientSecret, label);
+	async $registerDynamicAuthenticationProvider(details: IRegisterDynamicAuthenticationProviderDetails): Promise<void> {
+		await this.$registerAuthenticationProvider({
+			id: details.id,
+			label: details.label,
+			supportsMultipleAccounts: true,
+			supportedAuthorizationServers: [details.authorizationServer],
+			resourceServer: details.resourceServer,
+		});
+		await this.dynamicAuthProviderStorageService.storeClientRegistration(details.id, URI.revive(details.authorizationServer).toString(true), details.clientId, details.clientSecret, details.label);
 	}
 
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
@@ -345,7 +385,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return result.result === chosenAccountLabel;
 	}
 
-	private async doGetSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationSessionRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+	private async doGetSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const authorizationServer = URI.revive(options.authorizationServer);
 		const sessions = await this.authenticationService.getSessions(providerId, scopeListOrRequest, { account: options.account, authorizationServer }, true);
 		const provider = this.authenticationService.getProvider(providerId);
@@ -452,8 +492,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return undefined;
 	}
 
-	async $getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationSessionRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
-		const scopes = isAuthenticationSessionRequest(scopeListOrRequest) ? scopeListOrRequest.scopes : scopeListOrRequest;
+	async $getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+		const scopes = isAuthenticationWwwAuthenticateRequest(scopeListOrRequest) ? scopeListOrRequest.fallbackScopes : scopeListOrRequest;
 		if (scopes) {
 			this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);
 		}
@@ -461,8 +501,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		if (session) {
 			this.sendProviderUsageTelemetry(extensionId, providerId);
-			const scopes = isAuthenticationSessionRequest(scopeListOrRequest) ? scopeListOrRequest.scopes : scopeListOrRequest;
-			this.authenticationUsageService.addAccountUsage(providerId, session.account.label, scopes, extensionId, extensionName);
+			this.authenticationUsageService.addAccountUsage(providerId, session.account.label, session.scopes, extensionId, extensionName);
 		}
 
 		return session;
@@ -553,16 +592,25 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $promptForClientRegistration(authorizationServerUrl: string): Promise<{ clientId: string; clientSecret?: string } | undefined> {
+		const redirectUrls = 'http://127.0.0.1:33418\nhttps://vscode.dev/redirect';
+
 		// Show modal dialog first to explain the situation and get user consent
 		const result = await this.dialogService.prompt({
 			type: Severity.Info,
 			message: nls.localize('dcrNotSupported', "Dynamic Client Registration not supported"),
-			detail: nls.localize('dcrNotSupportedDetail', "The authorization server '{0}' does not support automatic client registration. Do you want to proceed by manually providing a client registration (client ID)?\n\nNote: When registering your OAuth application, make sure to include these redirect URIs:\nhttp://127.0.0.1:33418\nhttps://vscode.dev/redirect", authorizationServerUrl),
+			detail: nls.localize('dcrNotSupportedDetail', "The authorization server '{0}' does not support automatic client registration. Do you want to proceed by manually providing a client registration (client ID)?\n\nNote: When registering your OAuth application, make sure to include these redirect URIs:\n{1}", authorizationServerUrl, redirectUrls),
 			buttons: [
 				{
-					label: nls.localize('provideClientDetails', "Proceed"),
-					run: () => true
-				}
+					label: nls.localize('dcrCopyUrlsAndProceed', "Copy URIs & Proceed"),
+					run: async () => {
+						try {
+							await this.clipboardService.writeText(redirectUrls);
+						} catch (error) {
+							this.notificationService.error(nls.localize('dcrFailedToCopy', "Failed to copy redirect URIs to clipboard."));
+						}
+						return true;
+					}
+				},
 			],
 			cancelButton: {
 				label: nls.localize('cancel', "Cancel"),

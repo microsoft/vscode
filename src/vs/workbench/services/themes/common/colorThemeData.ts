@@ -647,6 +647,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					}
 					case 'themeTokenColors':
 					case 'id': case 'label': case 'settingsId': case 'watch': case 'themeSemanticHighlighting':
+						// eslint-disable-next-line local/code-no-any-casts
 						(theme as any)[key] = data[key];
 						break;
 					case 'semanticTokenRules': {

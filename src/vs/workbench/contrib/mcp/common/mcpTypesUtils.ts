@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../base/common/observable.js';
 import { ToolDataSource } from '../../chat/common/languageModelToolsService.js';
-import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState } from './mcpTypes.js';
+import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState, McpServerTransportType } from './mcpTypes.js';
+import { MCP } from './modelContextProtocol.js';
+
 
 /**
  * Waits up to `timeout` for a server passing the filter to be discovered,
@@ -45,37 +47,43 @@ export function startServerByFilter(mcpService: IMcpService, filter: (s: IMcpSer
  * Starts a server (if needed) and waits for its tools to be live. Returns
  * true/false whether this happened successfully.
  */
-export function startServerAndWaitForLiveTools(server: IMcpServer, opts?: IMcpServerStartOpts, token?: CancellationToken): Promise<boolean> {
+export async function startServerAndWaitForLiveTools(server: IMcpServer, opts?: IMcpServerStartOpts, token?: CancellationToken): Promise<boolean> {
+	const r = await server.start(opts);
+
 	const store = new DisposableStore();
-	return new Promise<boolean>(resolve => {
-		server.start(opts).catch(() => undefined).then(r => {
-			if (token?.isCancellationRequested || !r || r.state === McpConnectionState.Kind.Error || r.state === McpConnectionState.Kind.Stopped) {
-				return resolve(false);
-			}
+	const ok = await new Promise<boolean>(resolve => {
+		if (token?.isCancellationRequested || r.state === McpConnectionState.Kind.Error || r.state === McpConnectionState.Kind.Stopped) {
+			return resolve(false);
+		}
 
-			if (token) {
-				store.add(token.onCancellationRequested(() => {
-					resolve(false);
-				}));
-			}
-
-			store.add(autorun(reader => {
-				const connState = server.connectionState.read(reader).state;
-				if (connState === McpConnectionState.Kind.Error || connState === McpConnectionState.Kind.Stopped) {
-					resolve(false); // some error, don't block the request
-				}
-
-				const toolState = server.cacheState.read(reader);
-				if (toolState === McpServerCacheState.Live) {
-					resolve(true); // got tools, all done
-				}
+		if (token) {
+			store.add(token.onCancellationRequested(() => {
+				resolve(false);
 			}));
-		});
-	}).finally(() => store.dispose());
+		}
+
+		store.add(autorun(reader => {
+			const connState = server.connectionState.read(reader).state;
+			if (connState === McpConnectionState.Kind.Error || connState === McpConnectionState.Kind.Stopped) {
+				resolve(false); // some error, don't block the request
+			}
+
+			const toolState = server.cacheState.read(reader);
+			if (toolState === McpServerCacheState.Live) {
+				resolve(true); // got tools, all done
+			}
+		}));
+	});
+
+	if (ok) {
+		await timeout(0); // let the tools register in the language model contribution
+	}
+
+	return ok;
 }
 
-export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
-	const metadata = server.serverMetadata.get();
+export function mcpServerToSourceData(server: IMcpServer, reader?: IReader): ToolDataSource {
+	const metadata = server.serverMetadata.read(reader);
 	return {
 		type: 'mcp',
 		serverLabel: metadata?.serverName,
@@ -84,4 +92,29 @@ export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
 		collectionId: server.collection.id,
 		definitionId: server.definition.id
 	};
+}
+
+
+/**
+ * Validates whether the given HTTP or HTTPS resource is allowed for the specified MCP server.
+ *
+ * @param resource The URI of the resource to validate.
+ * @param server The MCP server instance to validate against, or undefined.
+ * @returns True if the resource request is valid for the server, false otherwise.
+ */
+export function canLoadMcpNetworkResourceDirectly(resource: URL, server: IMcpServer | undefined) {
+	let isResourceRequestValid = false;
+	if (resource.protocol === 'http:') {
+		const launch = server?.connection.get()?.launchDefinition;
+		if (launch && launch.type === McpServerTransportType.HTTP && launch.uri.authority.toLowerCase() === resource.host.toLowerCase()) {
+			isResourceRequestValid = true;
+		}
+	} else if (resource.protocol === 'https:') {
+		isResourceRequestValid = true;
+	}
+	return isResourceRequestValid;
+}
+
+export function isTaskResult(obj: MCP.Result | MCP.CreateTaskResult): obj is MCP.CreateTaskResult {
+	return (obj as MCP.CreateTaskResult).task !== undefined;
 }

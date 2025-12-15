@@ -20,10 +20,9 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
+import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { IToolData, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ToolsScope } from '../chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -42,8 +41,35 @@ type SelectedToolClassification = {
 };
 
 export const AcceptToolConfirmationActionId = 'workbench.action.chat.acceptTool';
+export const SkipToolConfirmationActionId = 'workbench.action.chat.skipTool';
+export const AcceptToolPostConfirmationActionId = 'workbench.action.chat.acceptToolPostExecution';
+export const SkipToolPostConfirmationActionId = 'workbench.action.chat.skipToolPostExecution';
 
-class AcceptToolConfirmation extends Action2 {
+abstract class ToolConfirmationAction extends Action2 {
+	protected abstract getReason(): ConfirmedReason;
+
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		const lastItem = widget?.viewModel?.getItems().at(-1);
+		if (!isResponseVM(lastItem)) {
+			return;
+		}
+
+		for (const item of lastItem.model.response.value) {
+			const state = item.kind === 'toolInvocation' ? item.state.get() : undefined;
+			if (state?.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state?.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				state.confirm(this.getReason());
+				break;
+			}
+		}
+
+		// Return focus to the chat input, in case it was in the tool confirmation editor
+		widget?.focusInput();
+	}
+}
+
+class AcceptToolConfirmation extends ToolConfirmationAction {
 	constructor() {
 		super({
 			id: AcceptToolConfirmationActionId,
@@ -59,21 +85,29 @@ class AcceptToolConfirmation extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
-		const lastItem = widget?.viewModel?.getItems().at(-1);
-		if (!isResponseVM(lastItem)) {
-			return;
-		}
+	protected override getReason(): ConfirmedReason {
+		return { type: ToolConfirmKind.UserAction };
+	}
+}
 
-		const unconfirmedToolInvocation = lastItem.model.response.value.find((item): item is IChatToolInvocation => item.kind === 'toolInvocation' && item.isConfirmed === undefined);
-		if (unconfirmedToolInvocation) {
-			unconfirmedToolInvocation.confirmed.complete({ type: ToolConfirmKind.UserAction });
-		}
+class SkipToolConfirmation extends ToolConfirmationAction {
+	constructor() {
+		super({
+			id: SkipToolConfirmationActionId,
+			title: localize2('chat.skip', "Skip"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			keybinding: {
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.Editing.hasToolConfirmation),
+				primary: KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt,
+				// Override chatEditor.action.accept
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+			},
+		});
+	}
 
-		// Return focus to the chat input, in case it was in the tool confirmation editor
-		widget?.focusInput();
+	protected override getReason(): ConfirmedReason {
+		return { type: ToolConfirmKind.Skipped };
 	}
 }
 
@@ -90,14 +124,14 @@ class ConfigureToolsAction extends Action2 {
 			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			menu: [{
 				when: ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.lockedToCodingAgent.negate()),
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 1,
+				order: 100,
 			}]
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
@@ -106,8 +140,8 @@ class ConfigureToolsAction extends Action2 {
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
 			type ChatActionContext = { widget: IChatWidget };
-			function isChatActionContext(obj: any): obj is ChatActionContext {
-				return obj && typeof obj === 'object' && (obj as ChatActionContext).widget;
+			function isChatActionContext(obj: unknown): obj is ChatActionContext {
+				return !!obj && typeof obj === 'object' && !!(obj as ChatActionContext).widget;
 			}
 			const context = args[0];
 			if (isChatActionContext(context)) {
@@ -125,31 +159,24 @@ class ConfigureToolsAction extends Action2 {
 		switch (entriesScope) {
 			case ToolsScope.Session:
 				placeholder = localize('chat.tools.placeholder.session', "Select tools for this chat session");
-				description = localize('chat.tools.description.session', "The selected tools were configured by a prompt command and only apply to this chat session.");
+				description = localize('chat.tools.description.session', "The selected tools were configured only for this chat session.");
 				break;
-			case ToolsScope.Mode:
-				placeholder = localize('chat.tools.placeholder.mode', "Select tools for this chat mode");
-				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' chat mode. Changes to the tools will be applied to the mode file as well.", widget.input.currentModeObs.get().label);
+			case ToolsScope.Agent:
+				placeholder = localize('chat.tools.placeholder.agent', "Select tools for this custom agent");
+				description = localize('chat.tools.description.agent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will be applied to the custom agent file as well.", widget.input.currentModeObs.get().label.get());
+				break;
+			case ToolsScope.Agent_ReadOnly:
+				placeholder = localize('chat.tools.placeholder.readOnlyAgent', "Select tools for this custom agent");
+				description = localize('chat.tools.description.readOnlyAgent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will only be used for this session and will not change the '{0}' custom agent.", widget.input.currentModeObs.get().label.get());
 				break;
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
-				description = undefined;
+				description = localize('chat.tools.description.global', "The selected tools will be applied globally for all chat sessions that use the default agent.");
 				break;
+
 		}
 
-		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, entriesMap.get(), newEntriesMap => {
-			const disableToolSets: ToolSet[] = [];
-			const disableTools: IToolData[] = [];
-			for (const [item, enabled] of newEntriesMap) {
-				if (!enabled) {
-					if (item instanceof ToolSet) {
-						disableToolSets.push(item);
-					} else {
-						disableTools.push(item);
-					}
-				}
-			}
-		});
+		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get());
 		if (result) {
 			widget.input.selectedToolsModel.set(result, false);
 		}
@@ -169,7 +196,7 @@ class ConfigureToolsActionRendering implements IWorkbenchContribution {
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
-		const disposable = actionViewItemService.register(MenuId.ChatExecute, ConfigureToolsAction.ID, (action, _opts, instantiationService) => {
+		const disposable = actionViewItemService.register(MenuId.ChatInput, ConfigureToolsAction.ID, (action, _opts, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -235,6 +262,7 @@ class ConfigureToolsActionRendering implements IWorkbenchContribution {
 
 export function registerChatToolActions() {
 	registerAction2(AcceptToolConfirmation);
+	registerAction2(SkipToolConfirmation);
 	registerAction2(ConfigureToolsAction);
 	registerWorkbenchContribution2(ConfigureToolsActionRendering.ID, ConfigureToolsActionRendering, WorkbenchPhase.BlockRestore);
 }

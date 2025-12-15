@@ -15,7 +15,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
 
 export class InlineCompletionLanguageStatusBarContribution extends Disposable implements IWorkbenchContribution {
-	public static readonly hot = createHotClass(InlineCompletionLanguageStatusBarContribution);
+	public static readonly hot = createHotClass(this);
 
 	public static Id = 'vs.contrib.inlineCompletionLanguageStatusBarContribution';
 	public static readonly languageStatusBarDisposables = new Set<DisposableStore>();

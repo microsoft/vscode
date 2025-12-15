@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isElectron } from '../../../../../base/common/platform.js';
 import { dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -23,12 +23,15 @@ import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../chatContextPickService.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
-import { IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState, toToolSetVariableEntry, toToolVariableEntry } from '../../common/chatVariableEntries.js';
+import { ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
-import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
+import { convertBufferToScreenshotVariable } from '../contrib/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
@@ -65,6 +68,10 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 	readonly icon: ThemeIcon = Codicon.tools;
 	readonly ordinal = -500;
 
+	isEnabled(widget: IChatWidget): boolean {
+		return !!widget.attachmentCapabilities.supportsToolAttachments;
+	}
+
 	asPicker(widget: IChatWidget): IChatContextPicker {
 
 		type Pick = IChatContextPickerPickItem & { toolInfo: { ordinal: number; label: string } };
@@ -77,14 +84,14 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 						toolInfo: ToolDataSource.classify(entry.source),
 						label: entry.referenceName,
 						description: entry.description,
-						asAttachment: (): IChatRequestToolSetEntry => this._asToolSetAttachment(entry)
+						asAttachment: (): IChatRequestToolSetEntry => toToolSetVariableEntry(entry)
 					});
 				} else {
 					items.push({
 						toolInfo: ToolDataSource.classify(entry.source),
 						label: entry.toolReferenceName ?? entry.displayName,
 						description: entry.userDescription ?? entry.modelDescription,
-						asAttachment: (): IChatRequestToolEntry => this._asToolAttachment(entry)
+						asAttachment: (): IChatRequestToolEntry => toToolVariableEntry(entry)
 					});
 				}
 			}
@@ -118,25 +125,7 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 		};
 	}
 
-	private _asToolAttachment(entry: IToolData): IChatRequestToolEntry {
-		return {
-			kind: 'tool',
-			id: entry.id,
-			icon: ThemeIcon.isThemeIcon(entry.icon) ? entry.icon : undefined,
-			name: entry.displayName,
-			value: undefined,
-		};
-	}
 
-	private _asToolSetAttachment(entry: ToolSet): IChatRequestToolSetEntry {
-		return {
-			kind: 'toolset',
-			id: entry.id,
-			icon: entry.icon,
-			name: entry.referenceName,
-			value: Array.from(entry.getTools()).map(t => this._asToolAttachment(t)),
-		};
-	}
 }
 
 
@@ -199,16 +188,16 @@ class RelatedFilesContextPickerPick implements IChatContextPickerItem {
 	asPicker(widget: IChatWidget): IChatContextPicker {
 
 		const picks = (async () => {
-			const chatSessionId = widget.viewModel?.sessionId;
-			if (!chatSessionId) {
+			const chatSessionResource = widget.viewModel?.sessionResource;
+			if (!chatSessionResource) {
 				return [];
 			}
-			const relatedFiles = await this._chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None);
+			const relatedFiles = await this._chatEditingService.getRelatedFiles(chatSessionResource, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None);
 			if (!relatedFiles) {
 				return [];
 			}
 			const attachments = widget.attachmentModel.getAttachmentIDs();
-			return this._chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
+			return this._chatEditingService.getRelatedFiles(chatSessionResource, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
 				.then((files) => (files ?? []).reduce<(IChatContextPickerPickItem | IQuickPickSeparator)[]>((acc, cur) => {
 					acc.push({ type: 'separator', label: cur.group });
 					for (const file of cur.files) {
@@ -250,6 +239,9 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
+		if (!widget.attachmentCapabilities.supportsImageAttachments) {
+			return false;
+		}
 		if (!widget.input.selectedLanguageModel?.metadata.capabilities?.vision) {
 			return false;
 		}
@@ -269,6 +261,73 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 	}
 }
 
+export class TerminalContext implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly icon = Codicon.terminal;
+	readonly label = localize('terminal', 'Terminal');
+	constructor(private readonly _resource: URI, @ITerminalService private readonly _terminalService: ITerminalService) {
+
+	}
+	isEnabled(widget: IChatWidget) {
+		const terminal = this._terminalService.getInstanceFromResource(this._resource);
+		return !!widget.attachmentCapabilities.supportsTerminalAttachments && terminal?.isDisposed === false;
+	}
+	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
+		const terminal = this._terminalService.getInstanceFromResource(this._resource);
+		if (!terminal) {
+			return;
+		}
+		const params = new URLSearchParams(this._resource.query);
+		const command = terminal.capabilities.get(TerminalCapability.CommandDetection)?.commands.find(cmd => cmd.id === params.get('command'));
+		if (!command) {
+			return;
+		}
+		const attachment: IChatRequestVariableEntry = {
+			kind: 'terminalCommand',
+			id: `terminalCommand:${Date.now()}}`,
+			value: this.asValue(command),
+			name: command.command,
+			command: command.command,
+			output: command.getOutput(),
+			exitCode: command.exitCode,
+			resource: this._resource
+		};
+		const cleanup = new DisposableStore();
+		let disposed = false;
+		const disposeCleanup = () => {
+			if (disposed) {
+				return;
+			}
+			disposed = true;
+			cleanup.dispose();
+		};
+		cleanup.add(widget.attachmentModel.onDidChange(e => {
+			if (e.deleted.includes(attachment.id)) {
+				disposeCleanup();
+			}
+		}));
+		cleanup.add(terminal.onDisposed(() => {
+			widget.attachmentModel.delete(attachment.id);
+			widget.refreshParsedInput();
+			disposeCleanup();
+		}));
+		return attachment;
+	}
+
+	private asValue(command: ITerminalCommand): string {
+		let value = `Command: ${command.command}`;
+		const output = command.getOutput();
+		if (output) {
+			value += `\nOutput:\n${output}`;
+		}
+		if (typeof command.exitCode === 'number') {
+			value += `\nExit Code: ${command.exitCode}`;
+		}
+		return value;
+	}
+}
+
 class ScreenshotContextValuePick implements IChatContextValueItem {
 
 	readonly type = 'valuePick';
@@ -282,7 +341,7 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
-		return !!widget.input.selectedLanguageModel?.metadata.capabilities?.vision;
+		return !!widget.attachmentCapabilities.supportsImageAttachments && !!widget.input.selectedLanguageModel?.metadata.capabilities?.vision;
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {

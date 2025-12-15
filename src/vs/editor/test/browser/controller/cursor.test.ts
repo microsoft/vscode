@@ -2457,6 +2457,40 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('Double-click on punctuation should select the character, not adjacent space', () => {
+		const model = createTextModel(
+			[
+				'// a b c 1 2 3 ~ ! @ # $ % ^ & * ( ) _ + \\ /'
+			].join('\n')
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			// Test double-click on '@' at position 20
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 20) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 20, 1, 21), 'Should select @ character');
+
+			// Test double-click on '#' at position 22
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 22) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 22, 1, 23), 'Should select # character');
+
+			// Test double-click on '!' at position 18
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 18) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 18, 1, 19), 'Should select ! character');
+
+			// Test double-click on first '/' in '//' at position 1
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 1) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 1, 1, 3), 'Should select // token');
+
+			// Test double-click on second '/' in '//' at position 2
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 2) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 1, 1, 3), 'Should select // token');
+
+			// Test double-click on '\' at position 42
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 42) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 42, 1, 43), 'Should select \\ character');
+		});
+	});
+
 	test('issue #9675: Undo/Redo adds a stop in between CHN Characters', () => {
 		withTestCodeEditor([], {}, (editor, viewModel) => {
 			const model = editor.getModel()!;
@@ -4514,8 +4548,8 @@ suite('Editor Controller', () => {
 				['(', ')']
 			],
 			indentationRules: {
-				increaseIndentPattern: new RegExp("(^.*\\{[^}]*$)"),
-				decreaseIndentPattern: new RegExp("^\\s*\\}")
+				increaseIndentPattern: new RegExp('(^.*\\{[^}]*$)'),
+				decreaseIndentPattern: new RegExp('^\\s*\\}')
 			}
 		}));
 
@@ -4599,8 +4633,8 @@ suite('Editor Controller', () => {
 				['(', ')']
 			],
 			indentationRules: {
-				increaseIndentPattern: new RegExp("({+(?=([^\"]*\"[^\"]*\")*[^\"}]*$))|(\\[+(?=([^\"]*\"[^\"]*\")*[^\"\\]]*$))"),
-				decreaseIndentPattern: new RegExp("^\\s*[}\\]],?\\s*$")
+				increaseIndentPattern: new RegExp('({+(?=([^"]*"[^"]*")*[^"}]*$))|(\\[+(?=([^"]*"[^"]*")*[^"\\]]*$))'),
+				decreaseIndentPattern: new RegExp('^\\s*[}\\]],?\\s*$')
 			}
 		}));
 

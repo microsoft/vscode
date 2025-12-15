@@ -323,7 +323,7 @@ export async function provideSuggestionItems(
 
 	if (token.isCancellationRequested) {
 		disposables.dispose();
-		return Promise.reject<any>(new CancellationError());
+		return Promise.reject(new CancellationError());
 	}
 
 	return new CompletionItemModel(
@@ -402,7 +402,7 @@ CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (access
 			suggestions: []
 		};
 
-		const resolving: Promise<any>[] = [];
+		const resolving: Promise<unknown>[] = [];
 		const actualPosition = ref.object.textEditorModel.validatePosition(position);
 		const completions = await provideSuggestionItems(completionProvider, ref.object.textEditorModel, actualPosition, undefined, { triggerCharacter: triggerCharacter ?? undefined, triggerKind: triggerCharacter ? languages.CompletionTriggerKind.TriggerCharacter : languages.CompletionTriggerKind.Invoke });
 		for (const item of completions.items) {

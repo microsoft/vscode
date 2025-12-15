@@ -1,0 +1,102 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
+  - name: VSCODE_QUALITY
+    type: string
+
+jobs:
+- job: AlpineCLI_${{ parameters.VSCODE_ARCH }}
+  displayName: Alpine (${{ upper(parameters.VSCODE_ARCH) }})
+  timeoutInMinutes: 60
+  pool:
+    name: 1es-ubuntu-22.04-x64
+    os: linux
+  variables:
+    VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+  templateContext:
+    outputs:
+      - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+        - output: pipelineArtifact
+          targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_alpine_$(VSCODE_ARCH)_cli.tar.gz
+          artifactName: vscode_cli_alpine_$(VSCODE_ARCH)_cli
+          displayName: Publish vscode_cli_alpine_$(VSCODE_ARCH)_cli artifact
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
+          sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) CLI"
+          sbomPackageVersion: $(Build.SourceVersion)
+  steps:
+    - template: ../common/checkout.yml@self
+
+    - task: NodeTool@0
+      inputs:
+        versionSource: fromFile
+        versionFilePath: .nvmrc
+
+    - template: ../cli/cli-apply-patches.yml@self
+
+    - script: |
+        set -e
+        npm ci
+      workingDirectory: build
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Install build dependencies
+
+    - task: Npm@1
+      displayName: Download openssl prebuilt
+      inputs:
+        command: custom
+        customCommand: pack @vscode-internal/openssl-prebuilt@0.0.11
+        customRegistry: useFeed
+        customFeed: "Monaco/openssl-prebuilt"
+        workingDir: $(Build.ArtifactStagingDirectory)
+
+    - script: |
+        set -e
+        mkdir $(Build.ArtifactStagingDirectory)/openssl
+        tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.11.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+      displayName: Extract openssl prebuilt
+
+    # inspired by: https://github.com/emk/rust-musl-builder/blob/main/Dockerfile
+    - bash: |
+        set -e
+        sudo apt-get update
+        sudo apt-get install -yq build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev lld
+        sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
+      displayName: Install musl build dependencies
+
+    - template: ../cli/install-rust-posix.yml@self
+      parameters:
+        targets:
+          - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+            - x86_64-unknown-linux-musl
+          - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+            - aarch64-unknown-linux-musl
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - template: ../cli/cli-compile.yml@self
+        parameters:
+          VSCODE_CLI_TARGET: x86_64-unknown-linux-musl
+          VSCODE_CLI_ARTIFACT: vscode_cli_alpine_x64_cli
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          VSCODE_CLI_ENV:
+            CXX_aarch64-unknown-linux-musl: musl-g++
+            CC_aarch64-unknown-linux-musl: musl-gcc
+            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux-musl/lib
+            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux-musl/include
+            OPENSSL_STATIC: "1"
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+      - template: ../cli/cli-compile.yml@self
+        parameters:
+          VSCODE_CLI_TARGET: aarch64-unknown-linux-musl
+          VSCODE_CLI_ARTIFACT: vscode_cli_alpine_arm64_cli
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          VSCODE_CLI_ENV:
+            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/lib
+            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/include
+            OPENSSL_STATIC: "1"
+            SYSROOT_ARCH: arm64
+            IS_MUSL: "1"

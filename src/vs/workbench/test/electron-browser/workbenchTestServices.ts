@@ -3,52 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../base/common/event.js';
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestFileService, TestLifecycleService, TestTextFileService } from '../browser/workbenchTestServices.js';
-import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
-import { INativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../../../platform/native/common/native.js';
+import { insert } from '../../../base/common/arrays.js';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
-import { IFileDialogService, INativeOpenDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
-import { IPartsSplash } from '../../../platform/theme/common/themeService.js';
-import { IOpenedMainWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IColorScheme, IRectangle, IPoint } from '../../../platform/window/common/window.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ModelService } from '../../../editor/common/services/modelService.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService, INativeOpenDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../platform/environment/common/environment.js';
-import { IFileService } from '../../../platform/files/common/files.js';
+import { IExtensionManagementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { AbstractNativeExtensionTipsService } from '../../../platform/extensionManagement/common/extensionTipsService.js';
+import { IExtensionRecommendationNotificationService } from '../../../platform/extensionRecommendations/common/extensionRecommendations.js';
+import { IFileService, IFileSystemProvider, FileSystemProviderCapabilities, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IStat, FileType, IWatchOptions } from '../../../platform/files/common/files.js';
+import { FileService } from '../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
+import { NullLogService } from '../../../platform/log/common/log.js';
+import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics } from '../../../platform/native/common/native.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
+import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { IPartsSplash } from '../../../platform/theme/common/themeService.js';
+import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
+import { FileUserDataProvider } from '../../../platform/userData/common/fileUserDataProvider.js';
+import { UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
+import { IColorScheme, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../../platform/window/common/window.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ILifecycleService } from '../../services/lifecycle/common/lifecycle.js';
 import { IPathService } from '../../services/path/common/pathService.js';
 import { ITextEditorService } from '../../services/textfile/common/textEditorService.js';
 import { ITextFileService } from '../../services/textfile/common/textfiles.js';
-import { AbstractNativeExtensionTipsService } from '../../../platform/extensionManagement/common/extensionTipsService.js';
-import { IExtensionManagementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
-import { IExtensionRecommendationNotificationService } from '../../../platform/extensionRecommendations/common/extensionRecommendations.js';
-import { IProductService } from '../../../platform/product/common/productService.js';
-import { IStorageService } from '../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { IModelService } from '../../../editor/common/services/model.js';
-import { ModelService } from '../../../editor/common/services/modelService.js';
-import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
-import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
-import { ILifecycleService } from '../../services/lifecycle/common/lifecycle.js';
+import { NativeTextFileService } from '../../services/textfile/electron-browser/nativeTextFileService.js';
+import { IWorkingCopyIdentifier } from '../../services/workingCopy/common/workingCopy.js';
 import { IWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackup.js';
 import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
-import { TestContextService } from '../common/workbenchTestServices.js';
-import { NativeTextFileService } from '../../services/textfile/electron-browser/nativeTextFileService.js';
-import { insert } from '../../../base/common/arrays.js';
-import { Schemas } from '../../../base/common/network.js';
-import { FileService } from '../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../platform/log/common/log.js';
-import { FileUserDataProvider } from '../../../platform/userData/common/fileUserDataProvider.js';
-import { IWorkingCopyIdentifier } from '../../services/workingCopy/common/workingCopy.js';
 import { NativeWorkingCopyBackupService } from '../../services/workingCopy/electron-browser/workingCopyBackupService.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
-import { UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
-import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestLifecycleService, TestTextFileService } from '../browser/workbenchTestServices.js';
+import { TestContextService, TestFileService } from '../common/workbenchTestServices.js';
+import { ReadableStreamEvents } from '../../../base/common/stream.js';
 
 export class TestSharedProcessService implements ISharedProcessService {
 
@@ -65,17 +66,17 @@ export class TestNativeHostService implements INativeHostService {
 
 	readonly windowId = -1;
 
-	onDidOpenMainWindow: Event<number> = Event.None;
-	onDidMaximizeWindow: Event<number> = Event.None;
-	onDidUnmaximizeWindow: Event<number> = Event.None;
-	onDidFocusMainWindow: Event<number> = Event.None;
-	onDidBlurMainWindow: Event<number> = Event.None;
-	onDidFocusMainOrAuxiliaryWindow: Event<number> = Event.None;
-	onDidBlurMainOrAuxiliaryWindow: Event<number> = Event.None;
-	onDidResumeOS: Event<unknown> = Event.None;
+	readonly onDidOpenMainWindow: Event<number> = Event.None;
+	readonly onDidMaximizeWindow: Event<number> = Event.None;
+	readonly onDidUnmaximizeWindow: Event<number> = Event.None;
+	readonly onDidFocusMainWindow: Event<number> = Event.None;
+	readonly onDidBlurMainWindow: Event<number> = Event.None;
+	readonly onDidFocusMainOrAuxiliaryWindow: Event<number> = Event.None;
+	readonly onDidBlurMainOrAuxiliaryWindow: Event<number> = Event.None;
+	readonly onDidResumeOS: Event<unknown> = Event.None;
 	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
-	onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
+	readonly onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
 	onDidChangeWindowFullScreen = Event.None;
 	onDidChangeWindowAlwaysOnTop = Event.None;
 	onDidChangeDisplay = Event.None;
@@ -107,6 +108,7 @@ export class TestNativeHostService implements INativeHostService {
 	async getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
 	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
+	async updateWindowAccentColor(color: string): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
 	async setBackgroundThrottling(throttling: boolean): Promise<void> { }
@@ -153,6 +155,7 @@ export class TestNativeHostService implements INativeHostService {
 	async stopTracing(): Promise<void> { }
 	async openDevToolsWindow(url: string): Promise<void> { }
 	async openGPUInfoWindow(): Promise<void> { }
+	async openContentTracingWindow(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
 	async lookupKerberosAuthorization(url: string): Promise<string | undefined> { return undefined; }
@@ -251,6 +254,7 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
 		const lifecycleService = new TestLifecycleService();
+		// eslint-disable-next-line local/code-no-any-casts
 		super(environmentService as any, fileService, logService, lifecycleService);
 
 		const inMemoryFileSystemProvider = this._register(new InMemoryFileSystemProvider());
@@ -322,4 +326,42 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 
 		return fileContents.value.toString();
 	}
+}
+
+export class TestIPCFileSystemProvider implements IFileSystemProvider {
+
+	readonly capabilities = FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.PathCaseSensitive;
+
+	readonly onDidChangeCapabilities = Event.None;
+	readonly onDidChangeFile = Event.None;
+
+	async stat(resource: URI): Promise<IStat> {
+		const { ipcRenderer } = require('electron');
+		const stats = await ipcRenderer.invoke('vscode:statFile', resource.fsPath);
+		return {
+			type: stats.isDirectory ? FileType.Directory : (stats.isFile ? FileType.File : FileType.Unknown),
+			ctime: stats.ctimeMs,
+			mtime: stats.mtimeMs,
+			size: stats.size,
+			permissions: stats.isReadonly ? 1 /* FilePermission.Readonly */ : undefined
+		};
+	}
+
+	async readFile(resource: URI): Promise<Uint8Array> {
+		const { ipcRenderer } = require('electron');
+		const result = await ipcRenderer.invoke('vscode:readFile', resource.fsPath);
+		return VSBuffer.wrap(result).buffer;
+	}
+
+	watch(resource: URI, opts: IWatchOptions): IDisposable { return { dispose: () => { } }; }
+	mkdir(resource: URI): Promise<void> { throw new Error('mkdir not implemented in test provider'); }
+	readdir(resource: URI): Promise<[string, FileType][]> { throw new Error('readdir not implemented in test provider'); }
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> { throw new Error('delete not implemented in test provider'); }
+	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> { throw new Error('rename not implemented in test provider'); }
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> { throw new Error('writeFile not implemented in test provider'); }
+	readFileStream?(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> { throw new Error('readFileStream not implemented in test provider'); }
+	open?(resource: URI, opts: IFileOpenOptions): Promise<number> { throw new Error('open not implemented in test provider'); }
+	close?(fd: number): Promise<void> { throw new Error('close not implemented in test provider'); }
+	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { throw new Error('read not implemented in test provider'); }
+	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { throw new Error('write not implemented in test provider'); }
 }

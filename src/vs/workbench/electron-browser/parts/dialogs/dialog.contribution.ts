@@ -21,6 +21,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { Lazy } from '../../../../base/common/lazy.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { createNativeAboutDialogDetails } from '../../../../platform/dialogs/electron-browser/dialog.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -42,11 +44,13 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@IProductService private productService: IProductService,
 		@IClipboardService clipboardService: IClipboardService,
 		@INativeHostService private nativeHostService: INativeHostService,
-		@IOpenerService openerService: IOpenerService
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@IOpenerService openerService: IOpenerService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
-		this.browserImpl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, clipboardService, openerService));
+		this.browserImpl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, clipboardService, openerService, markdownRendererService));
 		this.nativeImpl = new Lazy(() => new NativeDialogHandler(logService, nativeHostService, clipboardService));
 
 		this.model = (this.dialogService as DialogService).model;
@@ -109,7 +113,9 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	}
 
 	private get useCustomDialog(): boolean {
-		return this.configurationService.getValue('window.dialogStyle') === 'custom';
+		return this.configurationService.getValue('window.dialogStyle') === 'custom' ||
+			// Use the custom dialog while driven so that the driver can interact with it
+			!!this.environmentService.enableSmokeTestDriver;
 	}
 }
 

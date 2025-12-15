@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { sumBy } from '../../base/common/arrays.js';
+import { prefixedUuid } from '../../base/common/uuid.js';
+import { LineEdit } from './core/edits/lineEdit.js';
+import { BaseStringEdit } from './core/edits/stringEdit.js';
+import { StringText } from './core/text/abstractText.js';
+import { TextLength } from './core/text/textLength.js';
 import { ProviderId, VersionedExtensionId } from './languages.js';
 
 const privateSymbol = Symbol('TextModelEditSource');
@@ -50,6 +56,7 @@ export class TextModelEditSource {
 	}
 
 	public get props(): Record<ITextModelEditSourceMetadataKeys, string | undefined> {
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		return this.metadata as any;
 	}
 }
@@ -58,7 +65,9 @@ type TextModelEditSourceT<T> = TextModelEditSource & {
 	metadataT: T;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createEditSource<T extends Record<string, any>>(metadata: T): TextModelEditSourceT<T> {
+	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 	return new TextModelEditSource(metadata as any, privateSymbol) as any;
 }
 
@@ -89,9 +98,17 @@ export const EditSources = {
 		} as const);
 	},
 
-	rename: () => createEditSource({ source: 'rename' } as const),
+	rename: (oldName: string | undefined, newName: string) => createEditSource({ source: 'rename', $$$oldName: oldName, $$$newName: newName } as const),
 
-	chatApplyEdits(data: { modelId: string | undefined; sessionId: string | undefined; requestId: string | undefined; languageId: string; mode: string | undefined; extensionId: VersionedExtensionId | undefined }) {
+	chatApplyEdits(data: {
+		modelId: string | undefined;
+		sessionId: string | undefined;
+		requestId: string | undefined;
+		languageId: string;
+		mode: string | undefined;
+		extensionId: VersionedExtensionId | undefined;
+		codeBlockSuggestionId: EditSuggestionId | undefined;
+	}) {
 		return createEditSource({
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
@@ -101,39 +118,43 @@ export const EditSources = {
 			$$sessionId: data.sessionId,
 			$$requestId: data.requestId,
 			$$mode: data.mode,
+			$$codeBlockSuggestionId: data.codeBlockSuggestionId,
 		} as const);
 	},
 
 	chatUndoEdits: () => createEditSource({ source: 'Chat.undoEdits' } as const),
 	chatReset: () => createEditSource({ source: 'Chat.reset' } as const),
 
-	inlineCompletionAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId }) {
+	inlineCompletionAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; correlationId: string | undefined }) {
 		return createEditSource({
 			source: 'inlineCompletionAccept',
 			$nes: data.nes,
 			...toProperties(data.providerId),
+			$$correlationId: data.correlationId,
 			$$requestUuid: data.requestUuid,
 			$$languageId: data.languageId,
 		} as const);
 	},
 
-	inlineCompletionPartialAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; type: 'word' | 'line' }) {
+	inlineCompletionPartialAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; correlationId: string | undefined; type: 'word' | 'line' }) {
 		return createEditSource({
 			source: 'inlineCompletionPartialAccept',
 			type: data.type,
 			$nes: data.nes,
 			...toProperties(data.providerId),
+			$$correlationId: data.correlationId,
 			$$requestUuid: data.requestUuid,
 			$$languageId: data.languageId,
 		} as const);
 	},
 
-	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
+	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
 		return createEditSource({
 			source: 'inlineChat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
+			$$sessionId: data.sessionId,
 			$$requestId: data.requestId,
 			$$languageId: data.languageId,
 		} as const);
@@ -180,4 +201,64 @@ function avoidPathRedaction(str: string | undefined): string | undefined {
 	}
 	// To avoid false-positive file path redaction.
 	return str.replaceAll('/', '|');
+}
+
+
+export class EditDeltaInfo {
+	public static fromText(text: string): EditDeltaInfo {
+		const linesAdded = TextLength.ofText(text).lineCount;
+		const charsAdded = text.length;
+		return new EditDeltaInfo(linesAdded, 0, charsAdded, 0);
+	}
+
+	/** @internal */
+	public static fromEdit(edit: BaseStringEdit, originalString: StringText): EditDeltaInfo {
+		const lineEdit = LineEdit.fromStringEdit(edit, originalString);
+		const linesAdded = sumBy(lineEdit.replacements, r => r.newLines.length);
+		const linesRemoved = sumBy(lineEdit.replacements, r => r.lineRange.length);
+		const charsAdded = sumBy(edit.replacements, r => r.getNewLength());
+		const charsRemoved = sumBy(edit.replacements, r => r.replaceRange.length);
+		return new EditDeltaInfo(linesAdded, linesRemoved, charsAdded, charsRemoved);
+	}
+
+	public static tryCreate(
+		linesAdded: number | undefined,
+		linesRemoved: number | undefined,
+		charsAdded: number | undefined,
+		charsRemoved: number | undefined
+	): EditDeltaInfo | undefined {
+		if (linesAdded === undefined || linesRemoved === undefined || charsAdded === undefined || charsRemoved === undefined) {
+			return undefined;
+		}
+		return new EditDeltaInfo(linesAdded, linesRemoved, charsAdded, charsRemoved);
+	}
+
+	constructor(
+		public readonly linesAdded: number,
+		public readonly linesRemoved: number,
+		public readonly charsAdded: number,
+		public readonly charsRemoved: number
+	) { }
+}
+
+
+/**
+ * This is an opaque serializable type that represents a unique identity for an edit.
+ */
+export interface EditSuggestionId {
+	readonly _brand: 'EditIdentity';
+}
+
+export namespace EditSuggestionId {
+	/**
+	 * Use AiEditTelemetryServiceImpl to create a new id!
+	*/
+	export function newId(genPrefixedUuid?: (ns: string) => string): EditSuggestionId {
+		const id = genPrefixedUuid ? genPrefixedUuid('sgt') : prefixedUuid('sgt');
+		return toEditIdentity(id);
+	}
+}
+
+function toEditIdentity(id: string): EditSuggestionId {
+	return id as unknown as EditSuggestionId;
 }

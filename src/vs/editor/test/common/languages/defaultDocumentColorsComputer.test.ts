@@ -32,7 +32,7 @@ suite('Default Document Colors Computer', () => {
 
 	test('Hex colors in strings should be detected', () => {
 		// Test case from issue: hex color inside string is not detected
-		const model = new TestDocumentModel("const color = '#ff0000';");
+		const model = new TestDocumentModel(`const color = '#ff0000';`);
 		const colors = computeDefaultDocumentColors(model);
 
 		assert.strictEqual(colors.length, 1, 'Should detect one hex color');
@@ -53,7 +53,7 @@ suite('Default Document Colors Computer', () => {
 	});
 
 	test('Multiple hex colors in array should be detected', () => {
-		const model = new TestDocumentModel("const colors = ['#ff0000', '#00ff00', '#0000ff'];");
+		const model = new TestDocumentModel(`const colors = ['#ff0000', '#00ff00', '#0000ff'];`);
 		const colors = computeDefaultDocumentColors(model);
 
 		assert.strictEqual(colors.length, 3, 'Should detect three hex colors');
@@ -77,7 +77,7 @@ suite('Default Document Colors Computer', () => {
 	test('Existing functionality should still work', () => {
 		// Test cases that were already working
 		const testCases = [
-			{ content: "const color = ' #ff0000';", name: 'hex with space before' },
+			{ content: `const color = ' #ff0000';`, name: 'hex with space before' },
 			{ content: '#ff0000', name: 'hex at start of line' },
 			{ content: '  #ff0000', name: 'hex with whitespace before' }
 		];
@@ -90,7 +90,7 @@ suite('Default Document Colors Computer', () => {
 	});
 
 	test('8-digit hex colors should also work', () => {
-		const model = new TestDocumentModel("const color = '#ff0000ff';");
+		const model = new TestDocumentModel(`const color = '#ff0000ff';`);
 		const colors = computeDefaultDocumentColors(model);
 
 		assert.strictEqual(colors.length, 1, 'Should detect one 8-digit hex color');

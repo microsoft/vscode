@@ -10,7 +10,7 @@ import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { AsyncDataTree, IAsyncDataTreeViewState } from '../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ITreeContextMenuEvent, ITreeMouseEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
-import { Action, IAction } from '../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -230,16 +230,38 @@ export class VariablesView extends ViewPane implements IDebugViewWithVariables {
 			return !!e.treeItem.canEdit;
 		}
 
+		if (!session.capabilities?.supportsSetVariable && !session.capabilities?.supportsSetExpression) {
+			return false;
+		}
+
 		return e instanceof Variable && !e.presentationHint?.attributes?.includes('readOnly') && !e.presentationHint?.lazy;
 	}
 
 	private async onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): Promise<void> {
-		const variable = e.element;
-		if (!(variable instanceof Variable) || !variable.value) {
+		const element = e.element;
+
+		// Handle scope context menu
+		if (element instanceof Scope) {
+			return this.openContextMenuForScope(e, element);
+		}
+
+		// Handle variable context menu
+		if (!(element instanceof Variable) || !element.value) {
 			return;
 		}
 
 		return openContextMenuForVariableTreeElement(this.contextKeyService, this.menuService, this.contextMenuService, MenuId.DebugVariablesContext, e);
+	}
+
+	private openContextMenuForScope(e: ITreeContextMenuEvent<IExpression | IScope>, scope: Scope): void {
+		const context = { scope: { name: scope.name } };
+		const menu = this.menuService.getMenuActions(MenuId.DebugScopesContext, this.contextKeyService, { arg: context, shouldForwardArgs: false });
+		const { secondary } = getContextMenuActions(menu, 'inline');
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => secondary
+		});
 	}
 }
 
@@ -502,7 +524,9 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 		const { primary } = getContextMenuActions(menu, 'inline');
 
 		if (viz.original) {
-			const action = new Action('debugViz', localize('removeVisualizer', 'Remove Visualizer'), ThemeIcon.asClassName(Codicon.eye), true, () => this.debugService.getViewModel().setVisualizedExpression(viz.original!, undefined));
+			const action = toAction({
+				id: 'debugViz', label: localize('removeVisualizer', 'Remove Visualizer'), class: ThemeIcon.asClassName(Codicon.eye), run: () => this.debugService.getViewModel().setVisualizedExpression(viz.original!, undefined)
+			});
 			action.checked = true;
 			primary.push(action);
 			actionBar.domNode.style.display = 'initial';
@@ -588,13 +612,13 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 			data.elementDisposable.add(result);
 
 			const originalExpression = (expression instanceof VisualizedExpression && expression.original) || expression;
-			const actions = result.object.map(v => new Action('debugViz', v.name, v.iconClass || 'debug-viz-icon', undefined, this.useVisualizer(v, originalExpression, cts.token)));
+			const actions = result.object.map(v => toAction({ id: 'debugViz', label: v.name, class: v.iconClass || 'debug-viz-icon', run: this.useVisualizer(v, originalExpression, cts.token) }));
 			if (actions.length === 0) {
 				// no-op
 			} else if (actions.length === 1) {
 				actionBar.push(actions[0], { icon: true, label: false });
 			} else {
-				actionBar.push(new Action('debugViz', localize('useVisualizer', 'Visualize Variable...'), ThemeIcon.asClassName(Codicon.eye), undefined, () => this.pickVisualizer(actions, originalExpression, data)), { icon: true, label: false });
+				actionBar.push(toAction({ id: 'debugViz', label: localize('useVisualizer', 'Visualize Variable...'), class: ThemeIcon.asClassName(Codicon.eye), run: () => this.pickVisualizer(actions, originalExpression, data) }), { icon: true, label: false });
 			}
 		});
 	}
@@ -658,13 +682,6 @@ CommandsRegistry.registerCommand({
 	},
 	id: COPY_VALUE_ID,
 	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | IVariablesContext | undefined, ctx?: (Variable | Expression)[]) => {
-		if (!arg) {
-			const viewService = accessor.get(IViewsService);
-			const view = viewService.getActiveViewWithId(WATCH_VIEW_ID) || viewService.getActiveViewWithId(VARIABLES_VIEW_ID);
-			if (view) {
-
-			}
-		}
 		const debugService = accessor.get(IDebugService);
 		const clipboardService = accessor.get(IClipboardService);
 		let elementContext = '';
@@ -686,7 +703,7 @@ CommandsRegistry.registerCommand({
 			elements = view.treeSelection.filter(e => e instanceof Expression || e instanceof Variable);
 		} else if (arg instanceof Variable || arg instanceof Expression) {
 			elementContext = 'watch';
-			elements = ctx ? ctx : [];
+			elements = [arg];
 		} else {
 			elementContext = 'variables';
 			elements = variableInternalContext ? [variableInternalContext] : [];
@@ -791,9 +808,13 @@ CommandsRegistry.registerCommand({
 		description: COPY_EVALUATE_PATH_LABEL,
 	},
 	id: COPY_EVALUATE_PATH_ID,
-	handler: async (accessor: ServicesAccessor, context: IVariablesContext) => {
+	handler: async (accessor: ServicesAccessor, context: IVariablesContext | Variable) => {
 		const clipboardService = accessor.get(IClipboardService);
-		await clipboardService.writeText(context.variable.evaluateName!);
+		if (context instanceof Variable) {
+			await clipboardService.writeText(context.evaluateName!);
+		} else {
+			await clipboardService.writeText(context.variable.evaluateName!);
+		}
 	}
 });
 

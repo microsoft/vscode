@@ -62,6 +62,7 @@ import { IThemeService, registerThemingParticipant } from '../../../../platform/
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { TextModelEditSource, EditSources } from '../../../common/textModelEditSource.js';
 import { TextEdit } from '../../../common/core/edits/textEdit.js';
+import { isObject } from '../../../../base/common/types.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -598,8 +599,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return -1;
 		}
-		const maxCol = this._modelData.model.getLineMaxColumn(lineNumber);
-		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, Number.MAX_SAFE_INTEGER, includeViewZones);
 	}
 
 	public getLineHeightForPosition(position: IPosition): number {
@@ -675,6 +675,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const viewRange = this._modelData.viewModel.coordinatesConverter.convertModelRangeToViewRange(validatedModelRange);
 
 		this._modelData.viewModel.revealRange('api', revealHorizontal, viewRange, verticalType, scrollType);
+	}
+
+	public revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void {
+		if (!this._modelData) {
+			return;
+		}
+		this._modelData.viewModel.revealAllCursors('api', revealHorizontal, minimalReveal);
 	}
 
 	public revealLine(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
@@ -773,7 +780,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public setSelection(editorRange: Range, source?: string): void;
 	public setSelection(selection: ISelection, source?: string): void;
 	public setSelection(editorSelection: Selection, source?: string): void;
-	public setSelection(something: any, source: string = 'api'): void {
+	public setSelection(something: unknown, source?: string): void;
+	public setSelection(something: unknown, source: string = 'api'): void {
 		const isSelection = Selection.isISelection(something);
 		const isRange = Range.isIRange(something);
 
@@ -782,7 +790,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		if (isSelection) {
-			this._setSelectionImpl(<ISelection>something, source);
+			this._setSelectionImpl(something, source);
 		} else if (isRange) {
 			// act as if it was an IRange
 			const selection: ISelection = {
@@ -1029,7 +1037,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const codeEditorState = s as editorCommon.ICodeEditorViewState | null;
 		if (codeEditorState && codeEditorState.cursorState && codeEditorState.viewState) {
-			const cursorState = <any>codeEditorState.cursorState;
+			const cursorState = <unknown>codeEditorState.cursorState;
 			if (Array.isArray(cursorState)) {
 				if (cursorState.length > 0) {
 					this._modelData.viewModel.restoreCursorState(<editorCommon.ICursorState[]>cursorState);
@@ -1077,7 +1085,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._actions.get(id) || null;
 	}
 
-	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
+	public trigger(source: string | null | undefined, handlerId: string, payload: unknown): void {
 		payload = payload || {};
 
 		try {
@@ -1136,7 +1144,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 	}
 
-	protected _triggerCommand(handlerId: string, payload: any): void {
+	protected _triggerCommand(handlerId: string, payload: unknown): void {
 		this._commandService.executeCommand(handlerId, payload);
 	}
 
@@ -1202,11 +1210,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.viewModel.cut(source);
 	}
 
-	private _triggerEditorCommand(source: string | null | undefined, handlerId: string, payload: any): boolean {
+	private _triggerEditorCommand(source: string | null | undefined, handlerId: string, payload: unknown): boolean {
 		const command = EditorExtensionsRegistry.getEditorCommand(handlerId);
 		if (command) {
 			payload = payload || {};
-			payload.source = source;
+			if (isObject(payload)) {
+				(payload as { source: string | null | undefined }).source = source;
+			}
 			this._instantiationService.invokeFunction((accessor) => {
 				Promise.resolve(command.runEditorCommand(accessor, this, payload)).then(undefined, onUnexpectedError);
 			});
@@ -1303,7 +1313,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return new EditorDecorationsCollection(this, decorations);
 	}
 
-	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
+	public changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
 		if (!this._modelData) {
 			// callback will not be called
 			return null;
@@ -1432,7 +1442,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			delete this._decorationTypeKeysToIds[decorationTypeKey];
 		}
 		if (this._decorationTypeSubtypes.hasOwnProperty(decorationTypeKey)) {
+			const items = this._decorationTypeSubtypes[decorationTypeKey];
+			for (const subType of Object.keys(items)) {
+				this._removeDecorationType(decorationTypeKey + '-' + subType);
+			}
 			delete this._decorationTypeSubtypes[decorationTypeKey];
+
 		}
 	}
 
@@ -1656,6 +1671,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		return this._modelData.view.getOffsetForColumn(lineNumber, column);
+	}
+
+	public getWidthOfLine(lineNumber: number): number {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return -1;
+		}
+		return this._modelData.view.getLineWidth(lineNumber);
 	}
 
 	public render(forceRedraw: boolean = false): void {
@@ -1981,7 +2003,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._codeEditorService.resolveDecorationOptions(typeKey, writable);
 	}
 
-	public getTelemetryData(): { [key: string]: any } | undefined {
+	public getTelemetryData(): object | undefined {
 		return this._telemetryData;
 	}
 
@@ -2381,7 +2403,7 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 		}
 	}
 
-	public onDidChange(listener: (e: IModelDecorationsChangedEvent) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable {
+	public onDidChange(listener: (e: IModelDecorationsChangedEvent) => unknown, thisArgs?: unknown, disposables?: IDisposable[] | DisposableStore): IDisposable {
 		return this._editor.onDidChangeModelDecorations((e) => {
 			if (this._isChangingDecorations) {
 				return;

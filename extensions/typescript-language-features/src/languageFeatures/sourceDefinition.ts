@@ -80,12 +80,15 @@ class SourceDefinitionCommand implements Command {
 export function register(
 	client: ITypeScriptServiceClient,
 	commandManager: CommandManager
-) {
-	function updateContext() {
-		vscode.commands.executeCommand('setContext', SourceDefinitionCommand.context, client.apiVersion.gte(SourceDefinitionCommand.minVersion));
+): vscode.Disposable {
+	function updateContext(overrideValue?: boolean) {
+		vscode.commands.executeCommand('setContext', SourceDefinitionCommand.context, overrideValue ?? client.apiVersion.gte(SourceDefinitionCommand.minVersion));
 	}
 	updateContext();
 
 	commandManager.register(new SourceDefinitionCommand(client));
-	return client.onTsServerStarted(() => updateContext());
+	return vscode.Disposable.from(
+		client.onTsServerStarted(() => updateContext()),
+		new vscode.Disposable(() => updateContext(false)),
+	);
 }

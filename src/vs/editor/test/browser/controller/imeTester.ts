@@ -32,6 +32,10 @@ class SingleLineTestModel implements ISimpleModel {
 		this._line = text;
 	}
 
+	getLineContent(lineNumber: number): string {
+		return this._line;
+	}
+
 	getLineMaxColumn(lineNumber: number): number {
 		return this._line.length + 1;
 	}
@@ -108,15 +112,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	const model = new SingleLineTestModel('some  text');
 	const screenReaderStrategy = new SimplePagedScreenReaderStrategy();
 	const textAreaInputHost: ITextAreaInputHost = {
-		getDataToCopy: () => {
-			return {
-				isFromEmptySelection: false,
-				multicursorText: null,
-				text: '',
-				html: undefined,
-				mode: null
-			};
-		},
+		context: null,
 		getScreenReaderContent: (): TextAreaState => {
 			const selection = new Selection(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 

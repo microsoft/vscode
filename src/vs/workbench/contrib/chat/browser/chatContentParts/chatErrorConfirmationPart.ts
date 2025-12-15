@@ -8,7 +8,7 @@ import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/bu
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatErrorLevel, IChatResponseErrorDetailsConfirmationButton, IChatSendRequestOptions, IChatService } from '../../common/chatService.js';
@@ -30,7 +30,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 		content: IMarkdownString,
 		private readonly errorDetails: IChatErrorDetailsPart,
 		confirmationButtons: IChatResponseErrorDetailsConfirmationButton[],
-		renderer: MarkdownRenderer,
+		renderer: IMarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -59,10 +59,10 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 				options.agentId = element.agent?.id;
 				options.slashCommand = element.slashCommand?.name;
 				options.confirmation = buttonData.label;
-				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
+				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
 				options.userSelectedModelId = widget?.input.currentLanguageModel;
 				Object.assign(options, widget?.getModeRequestOptions());
-				if (await chatService.sendRequest(element.sessionId, prompt, options)) {
+				if (await chatService.sendRequest(element.sessionResource, prompt, options)) {
 					this._onDidChangeHeight.fire();
 				}
 			}));

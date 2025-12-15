@@ -9,8 +9,8 @@ import { MenuRegistry, MenuId, registerAction2 } from '../../platform/actions/co
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
 import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
 import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, StopTracing } from './actions/developerActions.js';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction } from './actions/windowActions.js';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, ShowContentTracingAction, StopTracing } from './actions/developerActions.js';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction, CloseOtherWindowsAction } from './actions/windowActions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { CommandsRegistry } from '../../platform/commands/common/commands.js';
@@ -28,8 +28,6 @@ import { NativeWindow } from './window.js';
 import { ModifierKeyEmitter } from '../../base/browser/dom.js';
 import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from '../common/configuration.js';
 import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-browser/window.js';
-import { DefaultAccountManagementContribution } from '../services/accounts/common/defaultAccount.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contributions.js';
 
 // Actions
 (function registerActions(): void {
@@ -43,6 +41,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 	registerAction2(SwitchWindowAction);
 	registerAction2(QuickSwitchWindowAction);
 	registerAction2(CloseWindowAction);
+	registerAction2(CloseOtherWindowsAction);
 	registerAction2(ToggleWindowAlwaysOnTopAction);
 	registerAction2(EnableWindowAlwaysOnTopAction);
 	registerAction2(DisableWindowAlwaysOnTopAction);
@@ -114,6 +113,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 	registerAction2(ToggleDevToolsAction);
 	registerAction2(OpenUserDataFolderAction);
 	registerAction2(ShowGPUInfoAction);
+	registerAction2(ShowContentTracingAction);
 	registerAction2(StopTracing);
 })();
 
@@ -293,7 +293,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'type': 'boolean',
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
+				'description': localize('window.nativeTabs', "Enables macOS native window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
 				'included': isMacintosh,
 			},
 			'window.nativeFullScreen': {
@@ -312,9 +312,19 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			},
 			'window.border': {
 				'type': 'string',
-				'scope': ConfigurationScope.APPLICATION,
 				'default': 'default',
-				'markdownDescription': localize('window.border', "Controls the border color of the window. Set to `default` to respect Windows settings, `off` to disable or to a specific color in Hex, RGB, RGBA, HSL, HSLA format. This requires Windows to have the 'Show accent color on title bars and window borders' enabled and is ignored when {0} is set to {1}.", '`#window.titleBarStyle#`', '`native`'),
+				'markdownDescription': (() => {
+					let windowBorderDescription = localize('window.border.prefix', "Controls the border color of the window:");
+					windowBorderDescription += '\n- ' + [
+						localize('window.border.default', "{0}: respect color theme settings, fallback to Windows settings", '`default`'),
+						localize('window.border.system', "{0}: respect Windows settings only", '`system`'),
+						localize('window.border.off', "{0}: disable border colors", '`off`'),
+						localize('window.border.color', "{0}: specific color in Hex, RGB, RGBA, HSL, HSLA format", '`<color>`'),
+					].join('\n- ');
+					windowBorderDescription += '\n\n' + localize('window.border.suffix', "Use {0} to set different colors for active and inactive windows. This setting is ignored when {1} is set to {2}.", '`#workbench.colorCustomizations#`', '`#window.titleBarStyle#`', '`native`');
+
+					return windowBorderDescription;
+				})(),
 				'included': isWindows
 			}
 		}
@@ -465,8 +475,4 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 	}
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
-})();
-
-(function registerWorkbenchContributions(): void {
-	registerWorkbenchContribution2('workbench.contributions.defaultAccountManagement', DefaultAccountManagementContribution, WorkbenchPhase.AfterRestored);
 })();

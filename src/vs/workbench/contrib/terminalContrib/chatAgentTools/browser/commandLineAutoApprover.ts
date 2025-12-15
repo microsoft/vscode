@@ -23,11 +23,13 @@ export interface IAutoApproveRule {
 export interface ICommandApprovalResultWithReason {
 	result: ICommandApprovalResult;
 	reason: string;
+	rule?: IAutoApproveRule;
 }
 
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
 
 const neverMatchRegex = /(?!.*)/;
+const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
 
 export class CommandLineAutoApprover extends Disposable {
 	private _denyListRules: IAutoApproveRule[] = [];
@@ -43,6 +45,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible)
 			) {
 				this.updateConfiguration();
@@ -73,7 +76,16 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string } {
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): ICommandApprovalResultWithReason {
+		// Check if the command has a transient environment variable assignment prefix which we
+		// always deny for now as it can easily lead to execute other commands
+		if (transientEnvVarRegex.test(command)) {
+			return {
+				result: 'denied',
+				reason: `Command '${command}' is denied because it contains transient environment variables`
+			};
+		}
+
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
@@ -105,7 +117,7 @@ export class CommandLineAutoApprover extends Disposable {
 		};
 	}
 
-	isCommandLineAutoApproved(commandLine: string): { result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string } {
+	isCommandLineAutoApproved(commandLine: string): ICommandApprovalResultWithReason {
 		// Check the deny list first to see if this command line requires explicit approval
 		for (const rule of this._denyListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
@@ -133,40 +145,16 @@ export class CommandLineAutoApprover extends Disposable {
 		};
 	}
 
-	private _removeEnvAssignments(command: string, shell: string, os: OperatingSystem): string {
-		const trimmedCommand = command.trimStart();
-
-		// PowerShell environment variable syntax is `$env:VAR='value';` and treated as a different
-		// command
-		if (isPowerShell(shell, os)) {
-			return trimmedCommand;
-		}
-
-		// For bash/sh/bourne shell and unknown shells (fallback to bourne shell syntax)
-		// Handle environment variable assignments like: VAR=value VAR2=value command
-		// This regex matches one or more environment variable assignments at the start
-		const envVarPattern = /^(\s*[A-Za-z_][A-Za-z0-9_]*=(?:[^\s'"]|'[^']*'|"[^"]*")*\s+)+/;
-		const match = trimmedCommand.match(envVarPattern);
-
-		if (match) {
-			const actualCommand = trimmedCommand.slice(match[0].length).trimStart();
-			return actualCommand || trimmedCommand; // Fallback to original if nothing left
-		}
-
-		return trimmedCommand;
-	}
-
 	private _commandMatchesRule(rule: IAutoApproveRule, command: string, shell: string, os: OperatingSystem): boolean {
-		const actualCommand = this._removeEnvAssignments(command, shell, os);
 		const isPwsh = isPowerShell(shell, os);
 
 		// PowerShell is case insensitive regardless of platform
-		if ((isPwsh ? rule.regexCaseInsensitive : rule.regex).test(actualCommand)) {
+		if ((isPwsh ? rule.regexCaseInsensitive : rule.regex).test(command)) {
 			return true;
-		} else if (isPwsh && actualCommand.startsWith('(')) {
+		} else if (isPwsh && command.startsWith('(')) {
 			// Allow ignoring of the leading ( for PowerShell commands as it's a command pattern to
 			// operate on the output of a command. For example `(Get-Content README.md) ...`
-			if (rule.regexCaseInsensitive.test(actualCommand.slice(1))) {
+			if (rule.regexCaseInsensitive.test(command.slice(1))) {
 				return true;
 			}
 		}
@@ -193,17 +181,19 @@ export class CommandLineAutoApprover extends Disposable {
 		const allowListCommandLineRules: IAutoApproveRule[] = [];
 		const denyListCommandLineRules: IAutoApproveRule[] = [];
 
-		Object.entries(config).forEach(([key, value]) => {
+		const ignoreDefaults = this._configurationService.getValue(TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules) === true;
+
+		for (const [key, value] of Object.entries(config)) {
 			const defaultValue = configInspectValue?.default?.value;
 			const isDefaultRule = !!(
 				isObject(defaultValue) &&
-				key in defaultValue &&
+				Object.prototype.hasOwnProperty.call(defaultValue, key) &&
 				structuralEquals((defaultValue as Record<string, unknown>)[key], value)
 			);
 			function checkTarget(inspectValue: Readonly<unknown> | undefined): boolean {
 				return (
 					isObject(inspectValue) &&
-					key in inspectValue &&
+					Object.prototype.hasOwnProperty.call(inspectValue, key) &&
 					structuralEquals((inspectValue as Record<string, unknown>)[key], value)
 				);
 			}
@@ -216,6 +206,12 @@ export class CommandLineAutoApprover extends Disposable {
 									: checkTarget(configInspectValue.applicationValue) ? ConfigurationTarget.APPLICATION
 										: ConfigurationTarget.DEFAULT
 			);
+
+			// If default rules are disabled, ignore entries that come from the default config
+			if (ignoreDefaults && isDefaultRule && sourceTarget === ConfigurationTarget.DEFAULT) {
+				continue;
+			}
+
 			if (typeof value === 'boolean') {
 				const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
 				// IMPORTANT: Only true and false are used, null entries need to be ignored
@@ -244,7 +240,7 @@ export class CommandLineAutoApprover extends Disposable {
 					}
 				}
 			}
-		});
+		}
 
 		return {
 			denyListRules,

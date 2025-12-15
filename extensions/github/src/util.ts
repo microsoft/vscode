@@ -74,7 +74,7 @@ export function repositoryHasGitHubRemote(repository: Repository) {
 	return !!repository.state.remotes.find(remote => remote.fetchUrl ? getRepositoryFromUrl(remote.fetchUrl) : undefined);
 }
 
-export function getRepositoryDefaultRemoteUrl(repository: Repository): string | undefined {
+export function getRepositoryDefaultRemoteUrl(repository: Repository, order: string[]): string | undefined {
 	const remotes = repository.state.remotes
 		.filter(remote => remote.fetchUrl && getRepositoryFromUrl(remote.fetchUrl));
 
@@ -82,15 +82,20 @@ export function getRepositoryDefaultRemoteUrl(repository: Repository): string | 
 		return undefined;
 	}
 
-	// origin -> upstream -> first
-	const remote = remotes.find(remote => remote.name === 'origin')
-		?? remotes.find(remote => remote.name === 'upstream')
-		?? remotes[0];
+	for (const name of order) {
+		const remote = remotes
+			.find(remote => remote.name === name);
 
-	return remote.fetchUrl;
+		if (remote) {
+			return remote.fetchUrl;
+		}
+	}
+
+	// Fallback to first remote
+	return remotes[0].fetchUrl;
 }
 
-export function getRepositoryDefaultRemote(repository: Repository): { owner: string; repo: string } | undefined {
-	const fetchUrl = getRepositoryDefaultRemoteUrl(repository);
+export function getRepositoryDefaultRemote(repository: Repository, order: string[]): { owner: string; repo: string } | undefined {
+	const fetchUrl = getRepositoryDefaultRemoteUrl(repository, order);
 	return fetchUrl ? getRepositoryFromUrl(fetchUrl) : undefined;
 }

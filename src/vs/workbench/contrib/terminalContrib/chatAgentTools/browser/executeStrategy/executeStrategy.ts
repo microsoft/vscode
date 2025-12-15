@@ -8,14 +8,20 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import type { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 export interface ITerminalExecuteStrategy {
 	readonly type: 'rich' | 'basic' | 'none';
 	/**
 	 * Executes a command line and gets a result designed to be passed directly to an LLM. The
 	 * result will include information about the exit code.
+	 * @param commandLine The command line to execute
+	 * @param token Cancellation token
+	 * @param commandId Optional predefined command ID to link the command
 	 */
-	execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult>;
+	execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult>;
+
+	readonly onDidCreateStartMarker: Event<IXtermMarker | undefined>;
 }
 
 export interface ITerminalExecuteStrategyResult {
@@ -159,6 +165,17 @@ export async function trackIdleOnPrompt(
 	const scheduler = store.add(new RunOnceScheduler(() => {
 		idleOnPrompt.complete();
 	}, idleDurationMs));
+	let state: TerminalState = TerminalState.Initial;
+
+	// Fallback in case prompt sequences are not seen but the terminal goes idle.
+	const promptFallbackScheduler = store.add(new RunOnceScheduler(() => {
+		if (state === TerminalState.Executing || state === TerminalState.PromptAfterExecuting) {
+			promptFallbackScheduler.cancel();
+			return;
+		}
+		state = TerminalState.PromptAfterExecuting;
+		scheduler.schedule();
+	}, 1000));
 	// Only schedule when a prompt sequence (A) is seen after an execute sequence (C). This prevents
 	// cases where the command is executed before the prompt is written. While not perfect, sitting
 	// on an A without a C following shortly after is a very good indicator that the command is done
@@ -171,7 +188,6 @@ export async function trackIdleOnPrompt(
 		Executing,
 		PromptAfterExecuting,
 	}
-	let state: TerminalState = TerminalState.Initial;
 	store.add(onData(e => {
 		// Update state
 		// p10k fires C as `133;C;`
@@ -189,9 +205,15 @@ export async function trackIdleOnPrompt(
 		}
 		// Re-schedule on every data event as we're tracking data idle
 		if (state === TerminalState.PromptAfterExecuting) {
+			promptFallbackScheduler.cancel();
 			scheduler.schedule();
 		} else {
 			scheduler.cancel();
+			if (state === TerminalState.Initial || state === TerminalState.Prompt) {
+				promptFallbackScheduler.schedule();
+			} else {
+				promptFallbackScheduler.cancel();
+			}
 		}
 	}));
 	return idleOnPrompt.p;

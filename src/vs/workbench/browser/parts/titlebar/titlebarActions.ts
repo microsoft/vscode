@@ -43,7 +43,7 @@ export class ToggleTitleBarConfigAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const configService = accessor.get(IConfigurationService);
 		const value = configService.getValue(this.section);
 		configService.updateValue(this.section, !value);
@@ -80,7 +80,7 @@ registerAction2(class ToggleCustomTitleBar extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const configService = accessor.get(IConfigurationService);
 		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.NEVER);
 	}
@@ -98,7 +98,7 @@ registerAction2(class ToggleCustomTitleBarWindowed extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const configService = accessor.get(IConfigurationService);
 		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.WINDOWED);
 	}
@@ -134,7 +134,7 @@ class ToggleCustomTitleBar extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const configService = accessor.get(IConfigurationService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const titleBarVisibility = configService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
@@ -170,7 +170,7 @@ registerAction2(class ShowCustomTitleBar extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const configService = accessor.get(IConfigurationService);
 		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
 	}
@@ -186,7 +186,7 @@ registerAction2(class HideCustomTitleBar extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const configService = accessor.get(IConfigurationService);
 		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.NEVER);
 	}
@@ -202,7 +202,7 @@ registerAction2(class HideCustomTitleBar extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const configService = accessor.get(IConfigurationService);
 		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.WINDOWED);
 	}
@@ -228,7 +228,7 @@ registerAction2(class ToggleEditorActions extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const configService = accessor.get(IConfigurationService);
 		const storageService = accessor.get(IStorageService);
 

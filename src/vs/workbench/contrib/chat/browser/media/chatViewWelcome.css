@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .pane-body.chat-view-welcome-visible {
+
 	& > .interactive-session {
 		display: none;
 	}
@@ -13,33 +14,15 @@
 	}
 }
 
-.interactive-session.experimental-welcome-view .interactive-input-part .dropdown-action-container {
-	display: none;
-}
-
-.interactive-session.experimental-welcome-view .interactive-input-part .chat-attachments-container {
-	display: none;
-}
-
-/* Container for chat widget welcome message */
+/* Chat welcome container */
 .interactive-session .chat-welcome-view-container {
 	display: flex;
+	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 	overflow: hidden;
-}
-
-.interactive-session .experimental-welcome-view & > .chat-welcome-view-input-part {
-	max-width: 650px;
-	margin-bottom: 48px;
-}
-
-.interactive-session.experimental-welcome-view .chat-input-toolbars > .chat-input-toolbar > div {
-	display: none;
-}
-
-.interactive-session.experimental-welcome-view .chat-input-toolbars .action-item:not(:has(.monaco-dropdown-with-primary)) {
-	display: none;
+	flex: 1;
+	position: relative; /* Allow absolute positioning of prompts */
 }
 
 /* Container for ChatViewPane welcome view */
@@ -55,6 +38,7 @@ div.chat-welcome-view {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+	padding: 12px;
 
 	& > .chat-welcome-view-icon {
 		min-height: 48px;
@@ -64,45 +48,54 @@ div.chat-welcome-view {
 		font-size: 40px;
 	}
 
+	& > .chat-welcome-view-icon.custom-icon {
+		mask-size: 40px;
+		-webkit-mask-size: 40px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon {
+		min-width: 72px;
+		min-height: 72px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon .codicon {
+		font-size: 72px;
+		width: 72px;
+		height: 72px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon.custom-icon {
+		mask-size: 72px !important;
+		-webkit-mask-size: 72px !important;
+		width: 72px;
+		height: 72px;
+	}
+
 	& > .chat-welcome-view-title {
 		font-size: 24px;
 		margin-top: 5px;
-		font-weight: 500;
 		text-align: center;
 		line-height: normal;
 		padding: 0 8px;
 	}
 
-	& > .chat-welcome-view-indicator-container {
-		display: flex;
-		flex-wrap: wrap;
-		margin-top: 5px;
-		gap: 9px;
-		justify-content: center;
-	}
-
 	& > .chat-welcome-view-message {
-		text-align: center;
-		max-width: 350px;
-		padding: 0 20px;
-		margin-top: 10px;
-
-		a {
-			color: var(--vscode-textLink-foreground);
-		}
-	}
-
-	& > .chat-welcome-view-message.experimental-empty-state {
 		position: relative;
 		text-align: center;
 		max-width: 100%;
+		padding: 0 20px;
 		margin: 0 auto;
 		color: var(--vscode-input-placeholderForeground);
 
 		a {
 			color: var(--vscode-textLink-foreground);
 		}
-		p{
+
+		a:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+		}
+
+		p {
 			margin-top: 8px;
 			margin-bottom: 8px;
 		}
@@ -136,64 +129,81 @@ div.chat-welcome-view {
 		}
 	}
 
-	& > .chat-welcome-experimental-view-message {
+	& > .chat-welcome-view-disclaimer {
+		color: var(--vscode-input-placeholderForeground);
 		text-align: center;
-		max-width: 350px;
-		padding: 0 20px 32px;
-		font-size: 16px;
+		margin: -16px auto;
+		max-width: 400px;
+		padding: 0 12px;
 
 		a {
-			color: var(--vscode-descriptionForeground);
+			color: var(--vscode-textLink-foreground);
+		}
+
+		a:focus {
+			outline: 1px solid var(--vscode-focusBorder);
 		}
 	}
+}
 
-	& > .chat-welcome-view-experimental-additional-message {
-		font-size: 12px;
-		color: var(--vscode-disabledForeground);
-		text-align: center;
-		max-width: 400px;
-		margin-top: 8px;
+/* Suggested prompts section - positioned at bottom of welcome container */
+.chat-welcome-view-suggested-prompts {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	gap: 8px;
+	padding: 32px 16px 8px 16px;
+	/* Extra top padding for title */
+
+	.chat-welcome-view-suggested-prompts-title {
+		position: absolute;
+		top: 8px;
+		left: 16px;
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--vscode-descriptionForeground);
+		margin: 0;
+		text-align: left;
 	}
 
-	& > .chat-welcome-view-suggested-prompts {
+	> .chat-welcome-view-suggested-prompt {
 		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		row-gap: 8px;
-		margin-top: 4px;
+		align-items: center;
+		gap: 6px;
+		height: 24px;
+		padding: 0 8px;
+		border-radius: 4px;
+		background-color: var(--vscode-editorWidget-background);
+		cursor: pointer;
+		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+		width: fit-content;
+		margin: 0;
+		box-sizing: border-box;
+		flex: 0 0 auto;
 
-		> .chat-welcome-view-suggested-prompt {
-			display: flex;
-			align-items: center;
-			padding: 2px;
-			border-radius: 8px;
-			background-color: var(--vscode-editorWidget-background);
-			cursor: pointer;
-			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-			border-radius: 4px;
-			max-width: 100%;
-			width: fit-content;
-			margin: 0 4px;
-
-			> .chat-welcome-view-suggested-prompt-icon {
-				display: flex;
-				align-items: center;
-				font-size: 4px;
-				color: var(--vscode-icon-foreground) !important;
-				align-items: center;
-				padding: 4px;
-			}
-
-			> .chat-welcome-view-suggested-prompt-label {
-				font-size: 14px;
-				color: var(--vscode-editorWidget-foreground);
-				padding: 4px 4px 4px 0;
-			}
+		& > .chat-welcome-view-suggested-prompt-title {
+			font-size: 13px;
+			color: var(--vscode-editorWidget-foreground);
+			white-space: nowrap;
 		}
 
-		> .chat-welcome-view-suggested-prompt:hover {
-			background-color: var(--vscode-list-hoverBackground);
-			border-color: var(--vscode-focusBorder);
+		& > .chat-welcome-view-suggested-prompt-description {
+			font-size: 13px;
+			color: var(--vscode-descriptionForeground);
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			flex: 0 1 auto;
+			min-width: 0;
 		}
+	}
+
+	> .chat-welcome-view-suggested-prompt:hover {
+		background-color: var(--vscode-list-hoverBackground);
 	}
 }

@@ -17,7 +17,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
-import { isNative, language } from '../../../../base/common/platform.js';
+import { isNative } from '../../../../base/common/platform.js';
 import { isUndefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -88,10 +88,9 @@ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/c
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
-
-function toDateString(date: Date) {
-	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
-}
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { fromNow } from '../../../../base/common/date.js';
 
 class NavBar extends Disposable {
 
@@ -771,7 +770,7 @@ export class ExtensionEditor extends EditorPane {
 		return this.renderBody(content);
 	}
 
-	private renderBody(body: string): string {
+	private renderBody(body: TrustedHTML): string {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
@@ -1083,36 +1082,38 @@ class AdditionalDetailsWidget extends Disposable {
 	}
 
 	private renderExtensionResources(container: HTMLElement, extension: IExtension): void {
-		const resources: [string, URI][] = [];
-		if (extension.url) {
-			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
+		const resources: [string, ThemeIcon, URI][] = [];
+		if (extension.repository) {
+			try {
+				resources.push([localize('repository', "Repository"), ThemeIcon.fromId(Codicon.repo.id), URI.parse(extension.repository)]);
+			} catch (error) {/* Ignore */ }
 		}
 		if (extension.supportUrl) {
 			try {
-				resources.push([localize('issues', "Issues"), URI.parse(extension.supportUrl)]);
-			} catch (error) {/* Ignore */ }
-		}
-		if (extension.repository) {
-			try {
-				resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
+				resources.push([localize('issues', "Issues"), ThemeIcon.fromId(Codicon.issues.id), URI.parse(extension.supportUrl)]);
 			} catch (error) {/* Ignore */ }
 		}
 		if (extension.licenseUrl) {
 			try {
-				resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
+				resources.push([localize('license', "License"), ThemeIcon.fromId(Codicon.linkExternal.id), URI.parse(extension.licenseUrl)]);
 			} catch (error) {/* Ignore */ }
 		}
 		if (extension.publisherUrl) {
-			resources.push([extension.publisherDisplayName, extension.publisherUrl]);
+			resources.push([extension.publisherDisplayName, ThemeIcon.fromId(Codicon.linkExternal.id), extension.publisherUrl]);
+		}
+		if (extension.url) {
+			resources.push([localize('Marketplace', "Marketplace"), ThemeIcon.fromId(Codicon.linkExternal.id), URI.parse(extension.url)]);
 		}
 		if (resources.length || extension.publisherSponsorLink) {
 			const extensionResourcesContainer = append(container, $('.resources-container.additional-details-element'));
 			append(extensionResourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
 			const resourcesElement = append(extensionResourcesContainer, $('.resources'));
-			for (const [label, uri] of resources) {
-				const resource = append(resourcesElement, $('a.resource', { tabindex: '0' }, label));
-				this.disposables.add(onClick(resource, () => this.openerService.open(uri)));
-				this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
+			for (const [label, icon, uri] of resources) {
+				const resourceElement = append(resourcesElement, $('.resource'));
+				append(resourceElement, $(ThemeIcon.asCSSSelector(icon)));
+				append(resourceElement, $('a', { tabindex: '0' }, label));
+				this.disposables.add(onClick(resourceElement, () => this.openerService.open(uri)));
+				this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resourceElement, uri.toString()));
 			}
 		}
 	}
@@ -1138,7 +1139,9 @@ class AdditionalDetailsWidget extends Disposable {
 			append(installInfo,
 				$('.more-info-entry', undefined,
 					$('div.more-info-entry-name', undefined, localize('last updated', "Last Updated")),
-					$('div', undefined, toDateString(new Date(extension.installedTimestamp)))
+					$('div', {
+						'title': new Date(extension.installedTimestamp).toString()
+					}, fromNow(extension.installedTimestamp, true, true, true))
 				)
 			);
 		}
@@ -1227,11 +1230,15 @@ class AdditionalDetailsWidget extends Disposable {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div.more-info-entry-name', undefined, localize('published', "Published")),
-					$('div', undefined, toDateString(new Date(gallery.releaseDate)))
+					$('div', {
+						'title': new Date(gallery.releaseDate).toString()
+					}, fromNow(gallery.releaseDate, true, true, true))
 				),
 				$('.more-info-entry', undefined,
 					$('div.more-info-entry-name', undefined, localize('last released', "Last Released")),
-					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
+					$('div', {
+						'title': new Date(gallery.lastUpdated).toString()
+					}, fromNow(gallery.lastUpdated, true, true, true))
 				)
 			);
 		}

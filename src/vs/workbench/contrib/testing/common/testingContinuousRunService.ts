@@ -33,7 +33,7 @@ export interface ITestingContinuousRunService {
 	 * Fired when a test is added or removed from continous run, or when
 	 * enablement is changed globally.
 	 */
-	onDidChange: Event<string | undefined>;
+	readonly onDidChange: Event<string | undefined>;
 
 	/**
 	 * Gets whether continous run is specifically enabled for the given test ID.
