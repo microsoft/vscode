@@ -23,7 +23,7 @@ import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from './chatAgents.js';
 import { IChatEditingSession } from './chatEditingService.js';
-import { IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
@@ -944,9 +944,7 @@ export interface IChatProviderInfo {
 }
 
 export interface IChatTransferredSessionData {
-	sessionId: string;
-	location: ChatAgentLocation;
-	inputState: IChatModelInputState | undefined;
+	sessionResource: URI;
 }
 
 export interface IChatSendRequestResponseState {
@@ -1075,7 +1073,7 @@ export interface IChatService {
 	notifyUserAction(event: IChatUserActionEvent): void;
 	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
 
-	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
+	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): Promise<void>;
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 

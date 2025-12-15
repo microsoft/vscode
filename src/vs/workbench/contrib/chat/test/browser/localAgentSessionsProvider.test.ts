@@ -144,7 +144,7 @@ class MockChatService implements IChatService {
 
 	notifyUserAction(_event: any): void { }
 
-	transferChatSession(): void { }
+	async transferChatSession(): Promise<void> { }
 
 	setChatSessionTitle(): void { }
 

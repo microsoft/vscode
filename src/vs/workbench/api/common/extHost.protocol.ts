@@ -1402,7 +1402,7 @@ export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDi
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
 
-	$transferActiveChatSession(toWorkspace: UriComponents): void;
+	$transferActiveChatSession(toWorkspace: UriComponents): Promise<void>;
 }
 
 export interface ICodeMapperTextEdit {

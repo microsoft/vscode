@@ -104,7 +104,7 @@ export class MockChatService implements IChatService {
 	}
 	readonly onDidDisposeSession: Event<{ sessionResource: URI[]; reason: 'cleared' }> = undefined!;
 
-	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
+	async transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 

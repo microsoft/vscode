@@ -310,13 +310,15 @@ abstract class OpenChatGlobalAction extends Action2 {
 		let resp: Promise<IChatResponseModel | undefined> | undefined;
 
 		if (opts?.query) {
-			chatWidget.setInput(opts.query);
 
-			if (!opts.isPartialQuery) {
+			if (opts.isPartialQuery) {
+				chatWidget.setInput(opts.query);
+			} else {
 				if (!chatWidget.viewModel) {
 					await Event.toPromise(chatWidget.onDidChangeViewModel);
 				}
 				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
+				chatWidget.setInput(opts.query); // wait until the model is restored before setting the input, or it will be cleared when the model is restored
 				resp = chatWidget.acceptInput();
 			}
 		}
