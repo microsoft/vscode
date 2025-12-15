@@ -2303,8 +2303,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (!checkMinimumReleaseAge(extension.gallery.releaseDate, minimumReleaseAge)) {
-			const daysSinceRelease = Math.floor((Date.now() - extension.gallery.releaseDate) / MILLISECONDS_PER_DAY);
-			const daysRemaining = Math.ceil(minimumReleaseAge - daysSinceRelease);
+			const daysRemaining = calculateDaysRemaining(extension.gallery.releaseDate, minimumReleaseAge);
 			const daysText = daysRemaining === 1 ? nls.localize('day', "day") : nls.localize('days', "days");
 			return nls.localize('autoUpdateDelayedDueToMinimumAge', "Automatic update is delayed by {0} {1} due to the minimum release age setting.", daysRemaining, daysText);
 		}
