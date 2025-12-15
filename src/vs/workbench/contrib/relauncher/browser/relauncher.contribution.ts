@@ -31,7 +31,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	window: IWindowSettings;
 	workbench?: { enableExperiments?: boolean };
 	telemetry?: { feedback?: { enabled?: boolean } };
-	chat?: { extensionUnification?: { enabled?: boolean }; disableAIFeatures?: boolean };
+	chat?: { extensionUnification?: { enabled?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
 }
@@ -53,8 +53,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'security.restrictUNCAccess',
 		'accessibility.verbosity.debug',
 		'telemetry.feedback.enabled',
-		'chat.extensionUnification.enabled',
-		'chat.disableAIFeatures'
+		'chat.extensionUnification.enabled'
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
@@ -72,7 +71,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
 	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
 	private readonly extensionUnificationEnabled = new ChangeObserver('boolean');
-	private readonly disableAIFeatures = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -167,9 +165,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 		// Extension Unification (only when turning on)
 		processChanged(this.extensionUnificationEnabled.handleChange(config.chat?.extensionUnification?.enabled) && config.chat?.extensionUnification?.enabled === true);
-
-		// Disable AI Features
-		processChanged(this.disableAIFeatures.handleChange(config.chat?.disableAIFeatures));
 
 		if (askToRelaunch && changed && this.hostService.hasFocus) {
 			this.doConfirm(

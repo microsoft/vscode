@@ -24,6 +24,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -641,7 +642,8 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 
@@ -659,12 +661,12 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 	private handleChatDisabled(fromEvent: boolean): void {
 		const chatDisabled = this.configurationService.inspect(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY);
 		if (chatDisabled.value === true) {
-			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.DisabledWorkspace : EnablementState.DisabledGlobally);
+			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.DisabledWorkspace : EnablementState.DisabledGlobally, fromEvent);
 			if (fromEvent) {
 				this.maybeHideAuxiliaryBar();
 			}
 		} else if (chatDisabled.value === false && fromEvent /* do not enable extensions unless its an explicit settings change */) {
-			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
+			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally, fromEvent);
 		}
 	}
 
@@ -693,14 +695,31 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private async maybeEnableOrDisableExtension(state: EnablementState.EnabledGlobally | EnablementState.EnabledWorkspace | EnablementState.DisabledGlobally | EnablementState.DisabledWorkspace): Promise<void> {
+	private async maybeEnableOrDisableExtension(state: EnablementState.EnabledGlobally | EnablementState.EnabledWorkspace | EnablementState.DisabledGlobally | EnablementState.DisabledWorkspace, fromEvent: boolean): Promise<void> {
 		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
 		if (!defaultChatExtension) {
 			return;
 		}
 
 		await this.extensionsWorkbenchService.setEnablement([defaultChatExtension], state);
-		await this.extensionsWorkbenchService.updateRunningExtensions(state === EnablementState.EnabledGlobally || state === EnablementState.EnabledWorkspace ? localize('restartExtensionHost.reason.enable', "Enabling AI features") : localize('restartExtensionHost.reason.disable', "Disabling AI features"));
+		
+		// Show prompt to restart extensions when the setting is changed by the user
+		if (fromEvent) {
+			const isEnabling = state === EnablementState.EnabledGlobally || state === EnablementState.EnabledWorkspace;
+			this.notificationService.prompt(
+				Severity.Info,
+				isEnabling 
+					? localize('enableAIFeatures', "AI features have been enabled. Restart extensions to apply the changes.")
+					: localize('disableAIFeatures', "AI features have been disabled. Restart extensions to apply the changes."),
+				[{
+					label: localize('restartExtensions', "Restart Extensions"),
+					run: () => this.extensionsWorkbenchService.updateRunningExtensions(isEnabling ? localize('restartExtensionHost.reason.enable', "Enabling AI features") : localize('restartExtensionHost.reason.disable', "Disabling AI features"))
+				}]
+			);
+		} else {
+			// When not from user action, just restart silently
+			await this.extensionsWorkbenchService.updateRunningExtensions(state === EnablementState.EnabledGlobally || state === EnablementState.EnabledWorkspace ? localize('restartExtensionHost.reason.enable', "Enabling AI features") : localize('restartExtensionHost.reason.disable', "Disabling AI features"));
+		}
 	}
 
 	private maybeHideAuxiliaryBar(): void {
