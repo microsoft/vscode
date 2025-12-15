@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -15,10 +14,12 @@ import { autorun, constObservable, IObservable, isObservable } from '../../../..
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
@@ -61,7 +62,6 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -138,34 +138,35 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 	private renderContributedButtons(container: HTMLElement): IDisposable {
 		const buttonsContainer = container.appendChild($('.chat-multidiff-contributed-buttons'));
 		const disposables = new DisposableStore();
-		const actionBar = disposables.add(new ActionBar(buttonsContainer, {
-			orientation: ActionsOrientation.HORIZONTAL
-		}));
-		const setupActionBar = () => {
-			actionBar.clear();
-			const type = getChatSessionType(this._element.sessionResource);
-			let marshalledUri: unknown | undefined = undefined;
-			let contextKeyService: IContextKeyService = this.contextKeyService;
 
-			contextKeyService = this.contextKeyService.createOverlay([
-				[ChatContextKeys.agentSessionType.key, type]
-			]);
-			marshalledUri = {
-				...this._element.sessionResource,
-				$mid: MarshalledId.Uri
-			};
+		const type = getChatSessionType(this._element.sessionResource);
+		const overlay = this.contextKeyService.createOverlay([
+			[ChatContextKeys.agentSessionType.key, type]
+		]);
+		const nestedInsta = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, overlay])));
 
-			const actions = this.menuService.getMenuActions(
-				MenuId.ChatMultiDiffContext,
-				contextKeyService,
-				{ arg: marshalledUri, shouldForwardArgs: true }
-			);
-			const allActions = actions.flatMap(([, actions]) => actions);
-			if (allActions.length > 0) {
-				actionBar.push(allActions, { icon: true, label: false });
-			}
+		const marshalledUri = {
+			...this._element.sessionResource,
+			$mid: MarshalledId.Uri
 		};
-		setupActionBar();
+
+		const toolbar = disposables.add(nestedInsta.createInstance(
+			MenuWorkbenchToolBar,
+			buttonsContainer,
+			MenuId.ChatMultiDiffContext,
+			{
+				menuOptions: {
+					arg: marshalledUri,
+					shouldForwardArgs: true,
+				},
+				toolbarOptions: {
+					primaryGroup: () => true,
+				},
+			}
+		));
+
+		disposables.add(toolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+
 		return disposables;
 	}
 
