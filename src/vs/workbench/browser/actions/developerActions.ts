@@ -814,16 +814,18 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += '### Applied Policy\n\n';
 			appliedPolicy.sort((a, b) => getPolicySource(a.name).localeCompare(getPolicySource(b.name)) || a.name.localeCompare(b.name));
 			if (appliedPolicy.length > 0) {
-				content += '| Setting Key | Policy Name | Policy Source | Default Value | Current Value | Policy Value |\n';
-				content += '|-------------|-------------|---------------|---------------|---------------|-------------|\n';
+				content += '| Setting Key | Policy Name | Policy Source | Source Details | Default Value | Current Value | Policy Value |\n';
+				content += '|-------------|-------------|---------------|----------------|---------------|---------------|-------------|\n';
 
 				for (const setting of appliedPolicy) {
 					const defaultValue = JSON.stringify(setting.property.default);
 					const currentValue = JSON.stringify(setting.inspection.value);
 					const policyValue = JSON.stringify(setting.inspection.policyValue);
 					const policySource = getPolicySource(setting.name);
+					const policyMetadata = policyService.getPolicyMetadata(setting.name);
+					const sourceDetails = policyMetadata?.details || 'N/A';
 
-					content += `| ${setting.key} | ${setting.name} | ${policySource} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
+					content += `| ${setting.key} | ${setting.name} | ${policySource} | ${sourceDetails} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
 				}
 				content += '\n';
 			} else {

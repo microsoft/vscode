@@ -8,7 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { PolicyName } from '../../../base/common/policy.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from './policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyMetadata, PolicySource, PolicyValue } from './policy.js';
 
 
 export class PolicyChannel implements IServerChannel {
@@ -21,7 +21,13 @@ export class PolicyChannel implements IServerChannel {
 		switch (event) {
 			case 'onDidChange': return Event.map(
 				this.service.onDidChange,
-				names => names.reduce<object>((r, name) => ({ ...r, [name]: this.service.getPolicyValue(name) ?? null }), {}),
+				names => names.reduce<object>((r, name) => ({ 
+					...r, 
+					[name]: { 
+						value: this.service.getPolicyValue(name) ?? null,
+						metadata: this.service.getPolicyMetadata(name) ?? null
+					}
+				}), {}),
 				this.disposables
 			);
 		}
@@ -51,16 +57,25 @@ export class PolicyChannelClient extends AbstractPolicyService implements IPolic
 			this.policyDefinitions[name] = definition;
 			if (value !== undefined) {
 				this.policies.set(name, value);
+				// Default metadata for IPC policies
+				this.policyMetadata.set(name, {
+					source: PolicySource.Device,
+					details: 'Set via IPC channel'
+				});
 			}
 		}
 		this.channel.listen<object>('onDidChange')(policies => {
 			for (const name in policies) {
-				const value = policies[name as keyof typeof policies];
+				const policyData = policies[name as keyof typeof policies] as { value: PolicyValue | null; metadata: PolicyMetadata | null };
 
-				if (value === null) {
+				if (policyData.value === null) {
 					this.policies.delete(name);
+					this.policyMetadata.delete(name);
 				} else {
-					this.policies.set(name, value);
+					this.policies.set(name, policyData.value);
+					if (policyData.metadata) {
+						this.policyMetadata.set(name, policyData.metadata);
+					}
 				}
 			}
 
@@ -72,6 +87,11 @@ export class PolicyChannelClient extends AbstractPolicyService implements IPolic
 		const result = await this.channel.call<{ [name: PolicyName]: PolicyValue }>('updatePolicyDefinitions', policyDefinitions);
 		for (const name in result) {
 			this.policies.set(name, result[name]);
+			// Default metadata for IPC policies
+			this.policyMetadata.set(name, {
+				source: PolicySource.Device,
+				details: 'Set via IPC channel'
+			});
 		}
 	}
 }

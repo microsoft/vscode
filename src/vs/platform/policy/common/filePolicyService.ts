@@ -11,7 +11,7 @@ import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AbstractPolicyService, IPolicyService, PolicyValue } from './policy.js';
+import { AbstractPolicyService, IPolicyService, PolicySource, PolicyValue } from './policy.js';
 
 function keysDiff<T>(a: Map<string, T>, b: Map<string, T>): string[] {
 	const result: string[] = [];
@@ -74,6 +74,21 @@ export class FilePolicyService extends AbstractPolicyService implements IPolicyS
 		const policies = await this.read();
 		const diff = keysDiff(this.policies, policies);
 		this.policies = policies;
+
+		// Update metadata for all policies
+		for (const [key] of policies) {
+			this.policyMetadata.set(key, {
+				source: PolicySource.File,
+				details: `Set via policy file (${this.file.toString()})`
+			});
+		}
+
+		// Remove metadata for deleted policies
+		for (const key of this.policyMetadata.keys()) {
+			if (!policies.has(key)) {
+				this.policyMetadata.delete(key);
+			}
+		}
 
 		if (diff.length > 0) {
 			this._onDidChange.fire(diff);
