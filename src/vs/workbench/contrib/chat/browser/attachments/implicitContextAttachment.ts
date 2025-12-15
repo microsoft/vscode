@@ -116,7 +116,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			}));
 		}
 
-		// Create label AFTER the button so it appears on the right
 		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
 
 		let title: string;
