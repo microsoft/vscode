@@ -13,19 +13,11 @@ suite('Output View - Smart Scroll', () => {
 	test('scrollLock should be false when at bottom', () => {
 		// When scrollTop + height >= scrollHeight, user is at bottom
 		// In this case, scrollLock should be false (auto-scroll enabled)
-		const e = {
-			scrollTop: 900,
-			scrollLeft: 0,
-			scrollWidth: 800,
-			scrollHeight: 1000,
-			scrollTopChanged: true,
-			scrollLeftChanged: false,
-			scrollWidthChanged: false,
-			scrollHeightChanged: false
-		};
-		const layoutInfo = { height: 100 } as any;
+		const scrollTop = 900;
+		const viewportHeight = 100;
+		const scrollHeight = 1000;
 
-		const isAtBottom = e.scrollTop + layoutInfo.height >= e.scrollHeight;
+		const isAtBottom = scrollTop + viewportHeight >= scrollHeight;
 		const scrollLock = !isAtBottom;
 
 		assert.strictEqual(isAtBottom, true, 'Should be at bottom when scrollTop + height >= scrollHeight');
@@ -35,19 +27,11 @@ suite('Output View - Smart Scroll', () => {
 	test('scrollLock should be true when scrolled up', () => {
 		// When scrollTop + height < scrollHeight, user is scrolled up
 		// In this case, scrollLock should be true (auto-scroll disabled)
-		const e = {
-			scrollTop: 500,
-			scrollLeft: 0,
-			scrollWidth: 800,
-			scrollHeight: 1000,
-			scrollTopChanged: true,
-			scrollLeftChanged: false,
-			scrollWidthChanged: false,
-			scrollHeightChanged: false
-		};
-		const layoutInfo = { height: 100 } as any;
+		const scrollTop = 500;
+		const viewportHeight = 100;
+		const scrollHeight = 1000;
 
-		const isAtBottom = e.scrollTop + layoutInfo.height >= e.scrollHeight;
+		const isAtBottom = scrollTop + viewportHeight >= scrollHeight;
 		const scrollLock = !isAtBottom;
 
 		assert.strictEqual(isAtBottom, false, 'Should not be at bottom when scrollTop + height < scrollHeight');
@@ -57,23 +41,15 @@ suite('Output View - Smart Scroll', () => {
 	test('scrollLock should be false when exactly at bottom', () => {
 		// When scrollTop + height == scrollHeight, user is at exact bottom
 		// In this case, scrollLock should be false (auto-scroll enabled)
-		const e = {
-			scrollTop: 800,
-			scrollLeft: 0,
-			scrollWidth: 800,
-			scrollHeight: 1000,
-			scrollTopChanged: true,
-			scrollLeftChanged: false,
-			scrollWidthChanged: false,
-			scrollHeightChanged: false
-		};
-		const layoutInfo = { height: 200 } as any;
+		const scrollTop = 800;
+		const viewportHeight = 200;
+		const scrollHeight = 1000;
 
-		const isAtBottom = e.scrollTop + layoutInfo.height >= e.scrollHeight;
+		const isAtBottom = scrollTop + viewportHeight >= scrollHeight;
 		const scrollLock = !isAtBottom;
 
 		// 800 + 200 = 1000, which equals scrollHeight
-		assert.strictEqual(e.scrollTop + layoutInfo.height, e.scrollHeight, 'Should calculate exact bottom correctly');
+		assert.strictEqual(scrollTop + viewportHeight, scrollHeight, 'Should calculate exact bottom correctly');
 		assert.strictEqual(isAtBottom, true, 'Should be at bottom when scrollTop + height == scrollHeight');
 		assert.strictEqual(scrollLock, false, 'scrollLock should be false at exact bottom (auto-scroll enabled)');
 	});
