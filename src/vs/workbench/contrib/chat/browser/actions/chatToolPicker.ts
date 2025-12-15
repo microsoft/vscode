@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { assertNever } from '../../../../../base/common/assert.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { createMarkdownCommandLink } from '../../../../../base/common/htmlContent.js';
@@ -183,6 +184,7 @@ function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService
  * @param placeHolder - Placeholder text shown in the picker
  * @param description - Optional description text shown in the picker
  * @param toolsEntries - Optional initial selection state for tools and toolsets
+ * @param modelId - Optional model ID to filter tools by supported models
  * @param onUpdate - Optional callback fired when the selection changes
  * @returns Promise resolving to the final selection map, or undefined if cancelled
  */
@@ -190,7 +192,8 @@ export async function showToolsPicker(
 	accessor: ServicesAccessor,
 	placeHolder: string,
 	description?: string,
-	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>
+	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>,
+	modelId?: string
 ): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
@@ -210,13 +213,40 @@ export async function showToolsPicker(
 		}
 	}
 
+	// Pre-compute which tools support the model (if modelId is provided)
+	const supportedTools = new Set<string>();
+	if (modelId) {
+		const allTools = Array.from(toolsService.getTools());
+		const checks = await Promise.all(
+			allTools.map(async (tool) => {
+				const supports = await toolsService.supportsModel(tool.id, modelId, CancellationToken.None);
+				// undefined means no supportsModel impl, treat as supported
+				// false means explicitly not supported
+				return { toolId: tool.id, supported: supports !== false };
+			})
+		);
+		for (const { toolId, supported } of checks) {
+			if (supported) {
+				supportedTools.add(toolId);
+			}
+		}
+	}
+
+	const isToolSupportedForModel = (toolId: string): boolean => {
+		// If no modelId specified, all tools are available
+		if (!modelId) {
+			return true;
+		}
+		return supportedTools.has(toolId);
+	};
+
 	function computeItems(previousToolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>) {
 		// Create default entries if none provided
 		let toolsEntries = getToolsEntries ? new Map(getToolsEntries()) : undefined;
 		if (!toolsEntries) {
 			const defaultEntries = new Map();
 			for (const tool of toolsService.getTools()) {
-				if (tool.canBeReferencedInPrompt) {
+				if (tool.canBeReferencedInPrompt && isToolSupportedForModel(tool.id)) {
 					defaultEntries.set(tool, false);
 				}
 			}
@@ -399,6 +429,9 @@ export async function showToolsPicker(
 				bucket.children.push(treeItem);
 				const children = [];
 				for (const tool of toolSet.getTools()) {
+					if (!isToolSupportedForModel(tool.id)) {
+						continue;
+					}
 					const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
 					const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
 					children.push(toolTreeItem);
@@ -410,6 +443,9 @@ export async function showToolsPicker(
 		}
 		for (const tool of toolsService.getTools()) {
 			if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool)) {
+				continue;
+			}
+			if (!isToolSupportedForModel(tool.id)) {
 				continue;
 			}
 			const bucket = getBucket(tool.source);

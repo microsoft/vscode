@@ -93,11 +93,16 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 					}
 				},
 				prepareToolInvocation: (context, token) => this._proxy.$prepareToolInvocation(id, context, token),
+				supportsModel: (modelId, token) => this._proxy.$supportsModel(id, modelId, token),
 			});
 		this._tools.set(id, disposable);
 	}
 
 	$unregisterTool(name: string): void {
 		this._tools.deleteAndDispose(name);
+	}
+
+	$supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined> {
+		return this._languageModelToolsService.supportsModel(toolId, modelId, token);
 	}
 }
