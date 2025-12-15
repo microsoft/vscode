@@ -2292,6 +2292,26 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return nls.localize('consentRequiredToUpdate', "The update for {0} extension introduces executable code, which is not present in the currently installed version.", extension.displayName);
 	}
 
+	getMinimumReleaseAgeStatus(extension: IExtension): string | undefined {
+		if (!extension.outdated || !extension.gallery) {
+			return undefined;
+		}
+
+		const minimumReleaseAge = this.configurationService.getValue<number>(AutoUpdateMinimumReleaseAgeConfigurationKey);
+		if (!minimumReleaseAge || minimumReleaseAge <= 0) {
+			return undefined;
+		}
+
+		if (!checkMinimumReleaseAge(extension.gallery.releaseDate, minimumReleaseAge)) {
+			const daysSinceRelease = Math.floor((Date.now() - extension.gallery.releaseDate) / MILLISECONDS_PER_DAY);
+			const daysRemaining = Math.ceil(minimumReleaseAge - daysSinceRelease);
+			const daysText = daysRemaining === 1 ? nls.localize('day', "day") : nls.localize('days', "days");
+			return nls.localize('autoUpdateDelayedDueToMinimumAge', "Automatic update is delayed by {0} {1} due to the minimum release age setting.", daysRemaining, daysText);
+		}
+
+		return undefined;
+	}
+
 	isAutoUpdateEnabledFor(extensionOrPublisher: IExtension | string): boolean {
 		if (isString(extensionOrPublisher)) {
 			if (EXTENSION_IDENTIFIER_REGEX.test(extensionOrPublisher)) {

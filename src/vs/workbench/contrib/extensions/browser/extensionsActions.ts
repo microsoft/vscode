@@ -2618,10 +2618,10 @@ export class ExtensionStatusAction extends ExtensionAction {
 		}
 
 		if (this.extension.outdated) {
-			const message = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
-			if (message) {
+			const consentMessage = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
+			if (consentMessage) {
 				const markdown = new MarkdownString();
-				markdown.appendMarkdown(`${message} `);
+				markdown.appendMarkdown(`${consentMessage} `);
 				markdown.appendMarkdown(
 					localize('auto update message', "Please [review the extension]({0}) and update it manually.",
 						this.extension.hasChangelog()
@@ -2631,6 +2631,13 @@ export class ExtensionStatusAction extends ExtensionAction {
 								: createCommandUri('extension.open', this.extension.identifier.id).toString()
 					));
 				this.updateStatus({ icon: warningIcon, message: markdown }, true);
+				return;
+			}
+
+			const minimumAgeMessage = this.extensionsWorkbenchService.getMinimumReleaseAgeStatus(this.extension);
+			if (minimumAgeMessage) {
+				this.updateStatus({ icon: infoIcon, message: new MarkdownString(minimumAgeMessage) }, true);
+				return;
 			}
 		}
 
