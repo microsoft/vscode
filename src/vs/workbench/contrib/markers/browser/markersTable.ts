@@ -452,13 +452,26 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 				// Source filter
 				if (this.filterOptions.sourceFilter) {
 					if (!marker.marker.source) {
-						continue;
-					}
-					// Match source filter (case-insensitive)
-					const sourceToMatch = marker.marker.source.toLowerCase();
-					const filterValue = this.filterOptions.sourceFilter.toLowerCase();
-					if (!sourceToMatch.includes(filterValue)) {
-						continue;
+						// If marker has no source, exclude it for positive filter, include it for negative filter
+						if (!this.filterOptions.sourceFilter.negate) {
+							continue;
+						}
+					} else {
+						// Match source filter (case-insensitive)
+						const sourceToMatch = marker.marker.source.toLowerCase();
+						const filterValue = this.filterOptions.sourceFilter.text.toLowerCase();
+						const matches = sourceToMatch.includes(filterValue);
+						
+						// If negated, exclude matches; if not negated, include only matches
+						if (this.filterOptions.sourceFilter.negate) {
+							if (matches) {
+								continue;
+							}
+						} else {
+							if (!matches) {
+								continue;
+							}
+						}
 					}
 				}
 

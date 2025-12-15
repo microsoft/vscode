@@ -49,7 +49,7 @@ export class FilterOptions {
 	readonly showErrors: boolean = false;
 	readonly showInfos: boolean = false;
 	readonly textFilter: { readonly text: string; readonly negate: boolean };
-	readonly sourceFilter: string | undefined;
+	readonly sourceFilter: { readonly text: string; readonly negate: boolean } | undefined;
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
 
@@ -80,13 +80,15 @@ export class FilterOptions {
 			}
 		}
 
-		// Extract source filter if present (e.g., "source:eslint")
+		// Extract source filter if present (e.g., "@source:eslint" or "-@source:eslint")
 		let effectiveFilter = filter;
-		const sourceMatch = filter.match(/(?:^|,\s*)source:([^\s,]+)/i);
+		const sourceMatch = filter.match(/(?:^|,\s*)(-)?@source:([^\s,]+)/i);
 		if (sourceMatch) {
-			this.sourceFilter = sourceMatch[1];
+			const negate = !!sourceMatch[1]; // Check if there's a - prefix
+			const sourceValue = sourceMatch[2];
+			this.sourceFilter = { text: sourceValue, negate };
 			// Remove the source filter from the main filter text
-			effectiveFilter = filter.replace(/(?:^|,\s*)source:([^\s,]+)/gi, '').replace(/^,\s*|,\s*$/g, '').trim();
+			effectiveFilter = filter.replace(/(?:^|,\s*)(-)?@source:([^\s,]+)/gi, '').replace(/^,\s*|,\s*$/g, '').trim();
 		}
 
 		const negate = effectiveFilter.startsWith('!');

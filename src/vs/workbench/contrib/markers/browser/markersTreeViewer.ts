@@ -509,13 +509,23 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 		// Check source filter if present
 		if (this.options.sourceFilter) {
 			if (!marker.marker.source) {
-				return false;
+				// If marker has no source, exclude it for positive filter, include it for negative filter
+				return this.options.sourceFilter.negate;
 			}
 			// Match source filter (case-insensitive)
 			const sourceToMatch = marker.marker.source.toLowerCase();
-			const filterValue = this.options.sourceFilter.toLowerCase();
-			if (!sourceToMatch.includes(filterValue)) {
-				return false;
+			const filterValue = this.options.sourceFilter.text.toLowerCase();
+			const matches = sourceToMatch.includes(filterValue);
+			
+			// If negated, exclude matches; if not negated, include matches
+			if (this.options.sourceFilter.negate) {
+				if (matches) {
+					return false;
+				}
+			} else {
+				if (!matches) {
+					return false;
+				}
 			}
 		}
 

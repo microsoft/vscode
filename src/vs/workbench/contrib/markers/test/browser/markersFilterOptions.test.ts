@@ -27,15 +27,31 @@ suite('MarkersFilterOptions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('source filter with source: prefix', () => {
-		const filterOptions = new FilterOptions('source:ts', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.sourceFilter, 'ts');
+	test('source filter with @source: prefix', () => {
+		const filterOptions = new FilterOptions('@source:ts', [], true, true, true, uriIdentityService);
+		assert.strictEqual(filterOptions.sourceFilter?.text, 'ts');
+		assert.strictEqual(filterOptions.sourceFilter?.negate, false);
+		assert.strictEqual(filterOptions.textFilter.text, '');
+	});
+
+	test('source filter with negation', () => {
+		const filterOptions = new FilterOptions('-@source:eslint', [], true, true, true, uriIdentityService);
+		assert.strictEqual(filterOptions.sourceFilter?.text, 'eslint');
+		assert.strictEqual(filterOptions.sourceFilter?.negate, true);
 		assert.strictEqual(filterOptions.textFilter.text, '');
 	});
 
 	test('source filter combined with text filter', () => {
-		const filterOptions = new FilterOptions('source:ts, error', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.sourceFilter, 'ts');
+		const filterOptions = new FilterOptions('@source:ts, error', [], true, true, true, uriIdentityService);
+		assert.strictEqual(filterOptions.sourceFilter?.text, 'ts');
+		assert.strictEqual(filterOptions.sourceFilter?.negate, false);
+		assert.strictEqual(filterOptions.textFilter.text, 'error');
+	});
+
+	test('negated source filter combined with text filter', () => {
+		const filterOptions = new FilterOptions('-@source:ts, error', [], true, true, true, uriIdentityService);
+		assert.strictEqual(filterOptions.sourceFilter?.text, 'ts');
+		assert.strictEqual(filterOptions.sourceFilter?.negate, true);
 		assert.strictEqual(filterOptions.textFilter.text, 'error');
 	});
 
@@ -46,13 +62,15 @@ suite('MarkersFilterOptions', () => {
 	});
 
 	test('source filter case insensitive', () => {
-		const filterOptions = new FilterOptions('SOURCE:TypeScript', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.sourceFilter, 'TypeScript');
+		const filterOptions = new FilterOptions('@SOURCE:TypeScript', [], true, true, true, uriIdentityService);
+		assert.strictEqual(filterOptions.sourceFilter?.text, 'TypeScript');
+		assert.strictEqual(filterOptions.sourceFilter?.negate, false);
 	});
 
 	test('source filter with multiple commas', () => {
-		const filterOptions = new FilterOptions('text1, source:ts, text2', [], true, true, true, uriIdentityService);
-		assert.strictEqual(filterOptions.sourceFilter, 'ts');
+		const filterOptions = new FilterOptions('text1, @source:ts, text2', [], true, true, true, uriIdentityService);
+		assert.strictEqual(filterOptions.sourceFilter?.text, 'ts');
+		assert.strictEqual(filterOptions.sourceFilter?.negate, false);
 		assert.strictEqual(filterOptions.textFilter.text, 'text1, text2');
 	});
 });
