@@ -9,7 +9,7 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageMo
 import { localize } from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
@@ -139,6 +139,8 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
  * Action view item for selecting a language model in the chat interface.
  */
 export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
+	private readonly tooltipDisposable = this._register(new MutableDisposable());
+
 	constructor(
 		action: IAction,
 		protected currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
@@ -185,7 +187,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 			const iconElement = renderIcon(statusIcon);
 			domChildren.push(iconElement);
 			if (tooltip) {
-				this._store.add(this.hoverService.setupDelayedHoverAtMouse(iconElement, () => ({ content: tooltip })));
+				this.tooltipDisposable.value = this.hoverService.setupDelayedHoverAtMouse(iconElement, () => ({ content: tooltip }));
 			}
 		}
 
