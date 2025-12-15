@@ -153,7 +153,7 @@ export class ChatSessionStore extends Disposable {
 		}
 	}
 
-	private static readonly TRANSFER_EXPIRATION_MS = 60 * 1000 * 5; // 1 minute
+	private static readonly TRANSFER_EXPIRATION_MS = 60 * 1000 * 5;
 
 	getTransferredSessionData(): URI | undefined {
 		try {
