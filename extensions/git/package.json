@@ -3828,6 +3828,11 @@
           "default": "${subject}, ${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameEditorDecoration.template%"
         },
+        "git.blame.editorDecoration.disablePreview": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameEditorDecoration.disablePreview%"
+        },
         "git.blame.statusBarItem.enabled": {
           "type": "boolean",
           "default": true,
@@ -3837,11 +3842,6 @@
           "type": "string",
           "default": "${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameStatusBarItem.template%"
-        },
-        "git.blame.editorDecoration.disablePreview": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%config.blameEditorDecoration.disablePreview%"
         },
         "git.commitShortHashLength": {
           "type": "number",
