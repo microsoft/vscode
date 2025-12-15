@@ -35,7 +35,7 @@ suite('MarkersFilterOptions', () => {
 	});
 
 	test('source filter with negation', () => {
-		const filterOptions = new FilterOptions('-@source:eslint', [], true, true, true, uriIdentityService);
+		const filterOptions = new FilterOptions('!@source:eslint', [], true, true, true, uriIdentityService);
 		assert.deepStrictEqual(filterOptions.includeSourceFilters, ['eslint']);
 		assert.deepStrictEqual(filterOptions.excludeSourceFilters, []);
 		assert.strictEqual(filterOptions.textFilter.text, '');
@@ -56,7 +56,7 @@ suite('MarkersFilterOptions', () => {
 	});
 
 	test('negated source filter combined with text filter', () => {
-		const filterOptions = new FilterOptions('-@source:ts error', [], true, true, true, uriIdentityService);
+		const filterOptions = new FilterOptions('!@source:ts error', [], true, true, true, uriIdentityService);
 		assert.deepStrictEqual(filterOptions.includeSourceFilters, ['ts']);
 		assert.deepStrictEqual(filterOptions.excludeSourceFilters, []);
 		assert.strictEqual(filterOptions.textFilter.text, 'error');
@@ -131,14 +131,14 @@ suite('MarkersFilterOptions', () => {
 	});
 
 	test('negated source filter at different positions', () => {
-		const filterOptions = new FilterOptions('foo -@source:eslint bar', [], true, true, true, uriIdentityService);
+		const filterOptions = new FilterOptions('foo !@source:eslint bar', [], true, true, true, uriIdentityService);
 		assert.deepStrictEqual(filterOptions.includeSourceFilters, ['eslint']);
 		assert.deepStrictEqual(filterOptions.excludeSourceFilters, []);
 		assert.strictEqual(filterOptions.textFilter.text, 'foo bar');
 	});
 
 	test('mixed negated and positive source filters', () => {
-		const filterOptions = new FilterOptions('@source:eslint -@source:ts foo', [], true, true, true, uriIdentityService);
+		const filterOptions = new FilterOptions('@source:eslint !@source:ts foo', [], true, true, true, uriIdentityService);
 		assert.deepStrictEqual(filterOptions.excludeSourceFilters, ['eslint']);
 		assert.deepStrictEqual(filterOptions.includeSourceFilters, ['ts']);
 		assert.strictEqual(filterOptions.textFilter.text, 'foo');
@@ -167,7 +167,7 @@ suite('MarkersFilterOptions', () => {
 	});
 
 	test('quoted source with negation', () => {
-		const filterOptions = new FilterOptions('-@source:"hello world"', [], true, true, true, uriIdentityService);
+		const filterOptions = new FilterOptions('!@source:"hello world"', [], true, true, true, uriIdentityService);
 		assert.deepStrictEqual(filterOptions.includeSourceFilters, ['hello world']);
 	});
 
@@ -178,7 +178,7 @@ suite('MarkersFilterOptions', () => {
 	});
 
 	test('complex filter with quoted and unquoted mixed', () => {
-		const filterOptions = new FilterOptions('@source:"TypeScript Compiler" @source:eslint -@source:"My Extension" text', [], true, true, true, uriIdentityService);
+		const filterOptions = new FilterOptions('@source:"TypeScript Compiler" @source:eslint !@source:"My Extension" text', [], true, true, true, uriIdentityService);
 		assert.deepStrictEqual(filterOptions.excludeSourceFilters, ['typescript compiler', 'eslint']);
 		assert.deepStrictEqual(filterOptions.includeSourceFilters, ['my extension']);
 		assert.strictEqual(filterOptions.textFilter.text, 'text');
@@ -205,14 +205,14 @@ suite('MarkersFilterOptions', () => {
 	});
 
 	test('negative filter - excludes exact source', () => {
-		const filterOptions = new FilterOptions('-@source:eslint', [], true, true, true, uriIdentityService);
+		const filterOptions = new FilterOptions('!@source:eslint', [], true, true, true, uriIdentityService);
 		assert.strictEqual(filterOptions.matchesSourceFilters('eslint'), false);
 		assert.strictEqual(filterOptions.matchesSourceFilters('ts'), true);
 		assert.strictEqual(filterOptions.matchesSourceFilters('eslint-plugin'), true);
 	});
 
 	test('negative filter - no source in marker', () => {
-		const filterOptions = new FilterOptions('-@source:eslint', [], true, true, true, uriIdentityService);
+		const filterOptions = new FilterOptions('!@source:eslint', [], true, true, true, uriIdentityService);
 		assert.strictEqual(filterOptions.matchesSourceFilters(undefined), true);
 	});
 
@@ -224,7 +224,7 @@ suite('MarkersFilterOptions', () => {
 	});
 
 	test('OR logic with negation', () => {
-		const filterOptions = new FilterOptions('@source:eslint @source:ts -@source:error', [], true, true, true, uriIdentityService);
+		const filterOptions = new FilterOptions('@source:eslint @source:ts !@source:error', [], true, true, true, uriIdentityService);
 		assert.strictEqual(filterOptions.matchesSourceFilters('eslint'), true);
 		assert.strictEqual(filterOptions.matchesSourceFilters('ts'), true);
 		assert.strictEqual(filterOptions.matchesSourceFilters('error'), false);
@@ -232,7 +232,7 @@ suite('MarkersFilterOptions', () => {
 	});
 
 	test('only negative filters - excludes specified sources', () => {
-		const filterOptions = new FilterOptions('-@source:eslint -@source:ts', [], true, true, true, uriIdentityService);
+		const filterOptions = new FilterOptions('!@source:eslint !@source:ts', [], true, true, true, uriIdentityService);
 		assert.strictEqual(filterOptions.matchesSourceFilters('eslint'), false);
 		assert.strictEqual(filterOptions.matchesSourceFilters('ts'), false);
 		assert.strictEqual(filterOptions.matchesSourceFilters('python'), true);

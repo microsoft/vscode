@@ -11,7 +11,7 @@ import { relativePath } from '../../../../base/common/resources.js';
 import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
-const SOURCE_FILTER_REGEX = /(-)?@source:("[^"]*"|[^\s,]+)(\s*)/i;
+const SOURCE_FILTER_REGEX = /(!)?@source:("[^"]*"|[^\s,]+)(\s*)/i;
 
 export class ResourceGlobMatcher {
 
