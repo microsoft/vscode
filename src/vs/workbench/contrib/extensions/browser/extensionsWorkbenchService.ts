@@ -602,7 +602,8 @@ function checkMinimumReleaseAge(releaseDate: number, minimumReleaseAgeDays: numb
 
 function calculateDaysRemaining(releaseDate: number, minimumReleaseAgeDays: number): number {
 	const daysSinceRelease = Math.floor((Date.now() - releaseDate) / MILLISECONDS_PER_DAY);
-	return Math.ceil(minimumReleaseAgeDays - daysSinceRelease);
+	const daysRemaining = Math.ceil(minimumReleaseAgeDays - daysSinceRelease);
+	return Math.max(0, daysRemaining); // Ensure non-negative value
 }
 
 const EXTENSIONS_AUTO_UPDATE_KEY = 'extensions.autoUpdate';
@@ -2213,8 +2214,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		// Note: minimum release age is checked separately in autoUpdateExtensions() 
-		// to provide specific feedback to users
+		// Note: minimum release age is checked separately in autoUpdateExtensions()
+		// to provide specific feedback to users.
 
 		const autoUpdateValue = this.getAutoUpdateValue();
 
