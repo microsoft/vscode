@@ -8,7 +8,7 @@
 - `../../../tinymist` - Official Typst LSP (Rust)
 - `../latex-language-features` - Sister LaTeX extension (for feature parity)
 
-**Last Updated:** December 15, 2025 (Updated: Document Highlight and Document Link implemented)
+**Last Updated:** December 15, 2025 (Updated: Package Support Architecture added)
 
 ---
 
@@ -55,6 +55,7 @@ Ask yourself:
 
 - ✅ **Done** - Feature is working
 - 🚧 **Partial** - Feature exists but incomplete
+- 📋 **Planned** - Architecture documented, ready for implementation
 - ❌ **TODO** - Needs implementation
 - ⏭️ **N/A** - Not applicable
 
@@ -208,7 +209,7 @@ Features:
 | Compile Status | ❌ | Status bar indicator |
 | Symbol View | ❌ | Visual symbol browser |
 | Font View | ❌ | Browse available fonts |
-| Package View | ❌ | Package manager UI |
+| Package View | 📋 | Package manager UI - **See "📦 Package Support" section** |
 | Template Gallery | ❌ | Project templates |
 
 ### 3.3 Productivity
@@ -218,6 +219,335 @@ Features:
 | Drag & Drop Images | ❌ | Insert `#image()` on drop |
 | Paste Images | ❌ | Save and insert pasted images |
 | Color Picker | ❌ | Visual color selection |
+
+---
+
+## 📦 Package Support - Architecture & Implementation Plan
+
+### Overview
+
+Typst supports importing packages from the **Typst Universe** registry using syntax like:
+```typst
+#import "@preview/charged-ieee:0.1.4": ieee
+```
+
+This section documents the analysis and implementation plan for adding package support to the extension.
+
+### Current State Analysis
+
+#### ❌ What We DON'T Support Currently
+
+1. **Package Resolution**: Imports starting with `@` are explicitly skipped:
+   ```typescript
+   // documentLinkProvider.ts line 57
+   if (path.startsWith('@')) {
+       continue;  // ← Packages are ignored
+   }
+   ```
+
+2. **Package Download**: No mechanism to fetch packages from `packages.typst.org`
+
+3. **Package Caching**: No persistent storage for downloaded packages
+
+4. **Offline Access**: Packages not available without internet
+
+#### ✅ What We HAVE Available (typst.ts API)
+
+The `@myriaddreamin/typst.ts` library already has **full package support**:
+
+| API | Purpose |
+|-----|---------|
+| `PackageSpec` | Interface: `{ namespace, name, version }` |
+| `PackageRegistry` | Interface for resolving packages |
+| `FetchPackageRegistry` | Built-in implementation that downloads from `packages.typst.org` |
+| `TypstSnippet.withPackageRegistry()` | Configure registry for compiler |
+| `TypstSnippet.fetchPackageRegistry()` | Helper to create fetch-based registry |
+| `TypstSnippet.fetchPackageBy()` | Custom fetcher support |
+
+#### Package Registry URL Pattern
+```
+https://packages.typst.org/preview/{name}-{version}.tar.gz
+```
+
+Example: `https://packages.typst.org/preview/charged-ieee-0.1.4.tar.gz`
+
+---
+
+### Proposed Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                        Package System                                 │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                    PackageManager                               │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────┐ │  │
+│  │  │ PackageCache │  │ PackageFetch │  │ PackageRegistry       │ │  │
+│  │  │ (IndexedDB/  │←→│ (async HTTP) │←→│ (typst.ts interface)  │ │  │
+│  │  │  Memento)    │  │              │  │                       │ │  │
+│  │  └──────────────┘  └──────────────┘  └───────────────────────┘ │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                │                                      │
+│                                ▼                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                 MemoryAccessModel                               │  │
+│  │         (Virtual file system with packages)                     │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                │                                      │
+│                                ▼                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │              Typst WASM Compiler ($typst)                       │  │
+│  │        Compiles documents with package imports                  │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### File Structure (Proposed)
+
+```
+src/
+├── wasm/
+│   ├── typstWasm.ts           # Existing - needs modification
+│   └── packageRegistry.ts     # NEW - Package management
+├── features/
+│   ├── packageCompletionProvider.ts  # NEW - @preview/ completions
+│   ├── packageHoverProvider.ts       # NEW - Package info on hover
+│   └── documentLinkProvider.ts       # MODIFY - Add package links
+└── views/
+    └── packageExplorer.ts     # NEW - Package manager UI (optional)
+```
+
+---
+
+### Implementation Phases
+
+#### Phase A: Basic Package Support (PRIORITY: HIGH)
+
+**Goal**: Enable compilation of documents that use `@preview/` packages
+
+**Tasks**:
+1. [ ] Create `src/wasm/packageRegistry.ts` with async-compatible registry
+2. [ ] Modify `typstWasm.ts` to initialize with PackageRegistry
+3. [ ] Handle package download errors gracefully
+4. [ ] Add loading indicator during package download
+5. [ ] Test with common packages (charged-ieee, cetz, etc.)
+
+**Code Changes Required**:
+
+```typescript
+// src/wasm/packageRegistry.ts (NEW FILE)
+import { PackageRegistry, PackageSpec, PackageResolveContext } from '@myriaddreamin/typst.ts';
+import { WritableAccessModel } from '@myriaddreamin/typst.ts/fs';
+
+export class AsyncPackageRegistry implements PackageRegistry {
+    private cache: Map<string, Uint8Array> = new Map();
+    
+    constructor(private am: WritableAccessModel) {}
+    
+    async fetchPackage(spec: PackageSpec): Promise<Uint8Array | undefined> {
+        const url = `https://packages.typst.org/preview/${spec.name}-${spec.version}.tar.gz`;
+        
+        try {
+            const response = await fetch(url);
+            if (!response.ok) return undefined;
+            return new Uint8Array(await response.arrayBuffer());
+        } catch (e) {
+            console.error(`Failed to fetch package ${spec.namespace}/${spec.name}@${spec.version}:`, e);
+            return undefined;
+        }
+    }
+    
+    resolve(spec: PackageSpec, context: PackageResolveContext): string | undefined {
+        // Implementation with cache check and async fetch
+    }
+}
+```
+
+```typescript
+// src/wasm/typstWasm.ts (MODIFICATION)
+// In doInitialize():
+$typst.use(
+    TypstSnippet.withAccessModel(memoryAccessModel),
+    TypstSnippet.fetchPackageRegistry(memoryAccessModel)  // ← ADD THIS
+);
+```
+
+**Web Compatibility Concern**: 
+- The built-in `FetchPackageRegistry` uses synchronous XHR which may not work in Web Workers
+- May need to implement custom async fetcher using `TypstSnippet.fetchPackageBy()`
+
+---
+
+#### Phase B: Persistent Cache (PRIORITY: HIGH for Offline-First)
+
+**Goal**: Cache packages locally so they work offline
+
+**Storage Options**:
+
+| Option | Web | Desktop | Persistence | Size Limit |
+|--------|-----|---------|-------------|------------|
+| `vscode.Memento` | ✅ | ✅ | ✅ | ~100KB per key |
+| IndexedDB | ✅ | ✅ | ✅ | Large (GB) |
+| `vscode.workspace.fs` | ✅ | ✅ | ✅ | Unlimited |
+
+**Recommended**: Use **IndexedDB** for web (large binary storage) with **vscode.workspace.fs** fallback for package cache directory.
+
+**Tasks**:
+1. [ ] Create `PackageCache` class with IndexedDB backend
+2. [ ] Implement cache key format: `@{namespace}/{name}@{version}`
+3. [ ] Add cache expiration/invalidation strategy
+4. [ ] Show cached packages in UI
+5. [ ] Add "Clear Package Cache" command
+
+**Cache Schema**:
+```typescript
+interface CachedPackage {
+    spec: PackageSpec;           // { namespace, name, version }
+    data: Uint8Array;            // tar.gz content
+    fetchedAt: number;           // timestamp
+    manifest?: PackageManifest;  // parsed typst.toml
+}
+```
+
+---
+
+#### Phase C: IDE Integration (PRIORITY: MEDIUM)
+
+**Goal**: Rich IDE features for packages
+
+**Features**:
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| Package Completions | Suggest `@preview/` packages after `#import "` | HIGH |
+| Package Hover | Show package description, version, author | MEDIUM |
+| Package Links | Click `@preview/pkg` → open Typst Universe | MEDIUM |
+| Package Quick Fix | "Install missing package" code action | MEDIUM |
+| Package Explorer | Tree view of installed packages | LOW |
+
+**Package Completions Implementation**:
+```typescript
+// Trigger: typing '@' after #import "
+// Source: Fetch package list from Typst Universe API or bundled list
+
+const POPULAR_PACKAGES = [
+    { name: 'charged-ieee', desc: 'IEEE conference paper template' },
+    { name: 'cetz', desc: 'Drawing library for Typst' },
+    { name: 'tablex', desc: 'More powerful tables' },
+    // ... more packages
+];
+```
+
+**Package Links** (modify `documentLinkProvider.ts`):
+```typescript
+// Currently skips @preview, should instead:
+if (path.startsWith('@')) {
+    // Parse: @preview/name:version
+    const match = path.match(/@(\w+)\/([^:]+):?(.*)?/);
+    if (match) {
+        const [, namespace, name, version] = match;
+        // Link to: https://typst.app/universe/package/{name}
+        const universeUrl = `https://typst.app/universe/package/${name}`;
+        links.push(new vscode.DocumentLink(range, vscode.Uri.parse(universeUrl)));
+    }
+}
+```
+
+---
+
+#### Phase D: Advanced Features (PRIORITY: LOW)
+
+**Goal**: Power user features
+
+| Feature | Description |
+|---------|-------------|
+| `@local/` packages | Support local package development |
+| Package updates | Notify when newer versions available |
+| Dependency tree | Show package dependencies |
+| Package search | Search Typst Universe from command palette |
+| Auto-import | Suggest import when using package function |
+
+---
+
+### Technical Challenges & Solutions
+
+#### Challenge 1: Synchronous XHR in Web Workers
+
+**Problem**: `FetchPackageRegistry` uses sync XHR which doesn't work in web workers
+
+**Solution**: Implement async-compatible registry:
+```typescript
+// Use TypstSnippet.fetchPackageBy() with async fetch
+$typst.use(TypstSnippet.fetchPackageBy(memoryAccessModel, async (spec, defaultUrl) => {
+    const response = await fetch(defaultUrl);
+    return new Uint8Array(await response.arrayBuffer());
+}));
+```
+
+#### Challenge 2: Offline-First vs Online Packages
+
+**Problem**: Extension is offline-first but packages require internet
+
+**Solution**: 
+1. Cache aggressively on first download
+2. Bundle popular packages with extension (optional)
+3. Clear error messages when offline and package not cached
+4. "Download for offline use" command
+
+#### Challenge 3: Large Package Sizes
+
+**Problem**: Some packages can be several MB
+
+**Solution**:
+1. Show download progress indicator
+2. Cache in IndexedDB (not memory)
+3. Lazy load - only download when needed
+4. Option to pre-download all packages in document
+
+#### Challenge 4: Package Version Resolution
+
+**Problem**: User may use `@preview/pkg:0.1.0` but `0.1.4` exists
+
+**Solution**:
+1. Download exact requested version (Typst requirement)
+2. Show code action: "Update to latest version (0.1.4)"
+3. Hover shows: "Newer version available"
+
+---
+
+### Testing Checklist
+
+- [ ] Document with `@preview/charged-ieee` compiles successfully
+- [ ] Package downloads on first use with progress indicator
+- [ ] Second compilation uses cached package (no network)
+- [ ] Works in web version (`./scripts/code-web.sh`)
+- [ ] Works in desktop version (`./scripts/code.sh`)
+- [ ] Offline mode with cached package works
+- [ ] Offline mode without cache shows clear error
+- [ ] Package completions appear after `#import "@`
+- [ ] Clicking package name opens Typst Universe
+
+---
+
+### Dependencies
+
+| Dependency | Status | Notes |
+|------------|--------|-------|
+| `@myriaddreamin/typst.ts` | ✅ Already installed | Has PackageRegistry API |
+| Network access | Required for download | Need to request `network` permission |
+| IndexedDB | Browser built-in | For cache storage |
+
+---
+
+### Estimated Effort
+
+| Phase | Effort | Dependencies |
+|-------|--------|--------------|
+| Phase A: Basic Support | 2-3 days | None |
+| Phase B: Persistent Cache | 2-3 days | Phase A |
+| Phase C: IDE Integration | 3-5 days | Phase A |
+| Phase D: Advanced | 5+ days | Phases A-C |
+
+**Recommended start**: Phase A + B together (offline-first requirement)
 
 ---
 
