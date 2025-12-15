@@ -19,7 +19,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
 import { IViewPaneOptions, FilterViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -154,21 +153,16 @@ export class OutputViewPane extends FilterViewPane {
 				this.editor.revealLastLine();
 			}
 		}));
-		this._register(codeEditor.onDidChangeCursorPosition((e) => {
-			if (e.reason !== CursorChangeReason.Explicit) {
-				return;
-			}
-
+		this._register(codeEditor.onDidScrollChange((e) => {
 			if (!this.configurationService.getValue('output.smartScroll.enabled')) {
 				return;
 			}
 
-			const model = codeEditor.getModel();
-			if (model) {
-				const newPositionLine = e.position.lineNumber;
-				const lastLine = model.getLineCount();
-				this.scrollLock = lastLine !== newPositionLine;
-			}
+			// Smart scroll is based on scroll position, not cursor position
+			// Enable auto-scroll when scrolled to the bottom, disable when scrolled up
+			const layoutInfo = codeEditor.getLayoutInfo();
+			const isAtBottom = e.scrollTop + layoutInfo.height >= e.scrollHeight;
+			this.scrollLock = !isAtBottom;
 		}));
 	}
 
