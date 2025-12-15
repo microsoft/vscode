@@ -54,13 +54,11 @@ suite('SettingsSync - Auto', () => {
 		const settingResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
-		let manifest = await client.getResourceManifest();
+		let manifest = await client.getLatestRef(SyncResource.Settings);
 		server.reset();
 		await testObject.sync(manifest);
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
-		]);
+		assert.deepStrictEqual(server.requests, []);
 		assert.ok(!await fileService.exists(settingResource));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
@@ -69,12 +67,12 @@ suite('SettingsSync - Auto', () => {
 		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
 		assert.strictEqual(lastSyncUserData!.syncData, null);
 
-		manifest = await client.getResourceManifest();
+		manifest = await client.getLatestRef(SyncResource.Settings);
 		server.reset();
 		await testObject.sync(manifest);
 		assert.deepStrictEqual(server.requests, []);
 
-		manifest = await client.getResourceManifest();
+		manifest = await client.getLatestRef(SyncResource.Settings);
 		server.reset();
 		await testObject.sync(manifest);
 		assert.deepStrictEqual(server.requests, []);
@@ -85,7 +83,7 @@ suite('SettingsSync - Auto', () => {
 		const settingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 		await fileService.writeFile(settingsResource, VSBuffer.fromString(''));
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
@@ -126,7 +124,7 @@ suite('SettingsSync - Auto', () => {
 		const settingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 		await fileService.writeFile(settingsResource, VSBuffer.fromString(''));
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
@@ -139,11 +137,11 @@ suite('SettingsSync - Auto', () => {
 		const fileService = client.instantiationService.get(IFileService);
 
 		const settingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 		await fileService.createFile(settingsResource, VSBuffer.fromString('{}'));
 
 		let lastSyncUserData = await testObject.getLastSyncUserData();
-		const manifest = await client.getResourceManifest();
+		const manifest = await client.getLatestRef(SyncResource.Settings);
 		server.reset();
 		await testObject.sync(manifest);
 
@@ -183,7 +181,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 
 		await updateSettings(expected, client);
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -207,7 +205,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -238,7 +236,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -269,7 +267,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -293,7 +291,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -311,7 +309,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -329,7 +327,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 
 		await updateSettings(content, client);
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		const promise = Event.toPromise(testObject.onDidChangeLocal);
 		await updateSettings(`{
@@ -363,7 +361,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -411,7 +409,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -459,7 +457,7 @@ suite('SettingsSync - Auto', () => {
 		await updateSettings(expected, client);
 
 		try {
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 			assert.fail('should fail with invalid content error');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncError);
@@ -470,7 +468,7 @@ suite('SettingsSync - Auto', () => {
 	test('sync throws invalid content error - content is an array', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await updateSettings('[]', client);
 		try {
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 			assert.fail('should fail with invalid content error');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncError);
@@ -493,7 +491,7 @@ suite('SettingsSync - Auto', () => {
 			'b': 1,
 			'settingsSync.ignoredSettings': ['a']
 		}), client);
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Settings));
 
 		assert.strictEqual(testObject.status, SyncStatus.HasConflicts);
 		assert.strictEqual(testObject.conflicts.conflicts[0].localResource.toString(), testObject.localResource.toString());
@@ -569,7 +567,7 @@ suite('SettingsSync - Manual', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		let preview = await testObject.sync(await client.getResourceManifest(), true);
+		let preview = await testObject.sync(await client.getLatestRef(SyncResource.Settings), true);
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);

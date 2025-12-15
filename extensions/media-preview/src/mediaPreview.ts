@@ -8,8 +8,8 @@ import { Utils } from 'vscode-uri';
 import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 import { Disposable } from './util/dispose';
 
-export function reopenAsText(resource: vscode.Uri, viewColumn: vscode.ViewColumn | undefined) {
-	vscode.commands.executeCommand('vscode.openWith', resource, 'default', viewColumn);
+export async function reopenAsText(resource: vscode.Uri, viewColumn: vscode.ViewColumn | undefined): Promise<void> {
+	await vscode.commands.executeCommand('vscode.openWith', resource, 'default', viewColumn);
 }
 
 export const enum PreviewState {
@@ -25,52 +25,56 @@ export abstract class MediaPreview extends Disposable {
 
 	constructor(
 		extensionRoot: vscode.Uri,
-		protected readonly resource: vscode.Uri,
-		protected readonly webviewEditor: vscode.WebviewPanel,
-		private readonly binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
+		protected readonly _resource: vscode.Uri,
+		protected readonly _webviewEditor: vscode.WebviewPanel,
+		private readonly _binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
 	) {
 		super();
 
-		webviewEditor.webview.options = {
+		_webviewEditor.webview.options = {
 			enableScripts: true,
 			enableForms: false,
 			localResourceRoots: [
-				Utils.dirname(resource),
+				Utils.dirname(_resource),
 				extensionRoot,
 			]
 		};
 
-		this._register(webviewEditor.onDidChangeViewState(() => {
+		this._register(_webviewEditor.onDidChangeViewState(() => {
 			this.updateState();
 		}));
 
-		this._register(webviewEditor.onDidDispose(() => {
+		this._register(_webviewEditor.onDidDispose(() => {
 			this.previewState = PreviewState.Disposed;
 			this.dispose();
 		}));
 
-		const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
+		const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(_resource, '*')));
 		this._register(watcher.onDidChange(e => {
-			if (e.toString() === this.resource.toString()) {
+			if (e.toString() === this._resource.toString()) {
 				this.updateBinarySize();
 				this.render();
 			}
 		}));
 
 		this._register(watcher.onDidDelete(e => {
-			if (e.toString() === this.resource.toString()) {
-				this.webviewEditor.dispose();
+			if (e.toString() === this._resource.toString()) {
+				this._webviewEditor.dispose();
 			}
 		}));
 	}
 
 	public override dispose() {
 		super.dispose();
-		this.binarySizeStatusBarEntry.hide(this);
+		this._binarySizeStatusBarEntry.hide(this);
+	}
+
+	public get resource() {
+		return this._resource;
 	}
 
 	protected updateBinarySize() {
-		vscode.workspace.fs.stat(this.resource).then(({ size }) => {
+		vscode.workspace.fs.stat(this._resource).then(({ size }) => {
 			this._binarySize = size;
 			this.updateState();
 		});
@@ -86,7 +90,7 @@ export abstract class MediaPreview extends Disposable {
 			return;
 		}
 
-		this.webviewEditor.webview.html = content;
+		this._webviewEditor.webview.html = content;
 	}
 
 	protected abstract getWebviewContents(): Promise<string>;
@@ -96,11 +100,11 @@ export abstract class MediaPreview extends Disposable {
 			return;
 		}
 
-		if (this.webviewEditor.active) {
+		if (this._webviewEditor.active) {
 			this.previewState = PreviewState.Active;
-			this.binarySizeStatusBarEntry.show(this, this._binarySize);
+			this._binarySizeStatusBarEntry.show(this, this._binarySize);
 		} else {
-			this.binarySizeStatusBarEntry.hide(this);
+			this._binarySizeStatusBarEntry.hide(this);
 			this.previewState = PreviewState.Visible;
 		}
 	}

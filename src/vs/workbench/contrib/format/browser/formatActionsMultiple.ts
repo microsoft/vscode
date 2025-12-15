@@ -14,7 +14,6 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { formatDocumentRangesWithProvider, formatDocumentWithProvider, getRealAndSyntheticDocumentFormattersOrdered, FormattingConflicts, FormattingMode, FormattingKind } from '../../../../editor/contrib/format/browser/format.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -65,6 +64,8 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 		this._store.add(_editorService.onDidActiveEditorChange(this._updateStatus, this));
 		this._store.add(_languageFeaturesService.documentFormattingEditProvider.onDidChange(this._updateStatus, this));
 		this._store.add(_languageFeaturesService.documentRangeFormattingEditProvider.onDidChange(this._updateStatus, this));
+		this._store.add(_languageFeaturesService.documentFormattingEditProvider.onDidChange(this._updateConfigValues, this));
+		this._store.add(_languageFeaturesService.documentRangeFormattingEditProvider.onDidChange(this._updateConfigValues, this));
 		this._store.add(_configService.onDidChangeConfiguration(e => e.affectsConfiguration(DefaultFormatter.configName) && this._updateStatus()));
 		this._updateConfigValues();
 	}
@@ -73,7 +74,34 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		let extensions = [...this._extensionService.extensions];
 
+		// Get all formatter providers to identify which extensions actually contribute formatters
+		const documentFormatters = this._languageFeaturesService.documentFormattingEditProvider.allNoModel();
+		const rangeFormatters = this._languageFeaturesService.documentRangeFormattingEditProvider.allNoModel();
+		const formatterExtensionIds = new Set<string>();
+
+		for (const formatter of documentFormatters) {
+			if (formatter.extensionId) {
+				formatterExtensionIds.add(ExtensionIdentifier.toKey(formatter.extensionId));
+			}
+		}
+		for (const formatter of rangeFormatters) {
+			if (formatter.extensionId) {
+				formatterExtensionIds.add(ExtensionIdentifier.toKey(formatter.extensionId));
+			}
+		}
+
 		extensions = extensions.sort((a, b) => {
+			// Ultimate boost: extensions that actually contribute formatters
+			const contributesFormatterA = formatterExtensionIds.has(ExtensionIdentifier.toKey(a.identifier));
+			const contributesFormatterB = formatterExtensionIds.has(ExtensionIdentifier.toKey(b.identifier));
+
+			if (contributesFormatterA && !contributesFormatterB) {
+				return -1;
+			} else if (!contributesFormatterA && contributesFormatterB) {
+				return 1;
+			}
+
+			// Secondary boost: category-based sorting
 			const boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 			const boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 
@@ -263,28 +291,6 @@ interface IIndexedPick extends IQuickPickItem {
 	index: number;
 }
 
-function logFormatterTelemetry<T extends { extensionId?: ExtensionIdentifier }>(telemetryService: ITelemetryService, mode: 'document' | 'range', options: T[], pick?: T) {
-	type FormatterPicks = {
-		mode: 'document' | 'range';
-		extensions: string[];
-		pick: string;
-	};
-	type FormatterPicksClassification = {
-		owner: 'jrieken';
-		comment: 'Information about resolving formatter conflicts';
-		mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Formatting mode: whole document or a range/selection' };
-		extensions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that got picked' };
-		pick: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The possible extensions to pick' };
-	};
-	function extKey(obj: T): string {
-		return obj.extensionId ? ExtensionIdentifier.toKey(obj.extensionId) : 'unknown';
-	}
-	telemetryService.publicLog2<FormatterPicks, FormatterPicksClassification>('formatterpick', {
-		mode,
-		extensions: options.map(extKey),
-		pick: pick ? extKey(pick) : 'none'
-	});
-}
 
 async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, formatters: FormattingEditProvider[]): Promise<number | undefined> {
 	const quickPickService = accessor.get(IQuickInputService);
@@ -357,12 +363,11 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): Promise<void> {
 		if (!editor.hasModel()) {
 			return;
 		}
 		const instaService = accessor.get(IInstantiationService);
-		const telemetryService = accessor.get(ITelemetryService);
 		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const model = editor.getModel();
 		const provider = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
@@ -370,7 +375,6 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		if (typeof pick === 'number') {
 			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick], editor, FormattingMode.Explicit, CancellationToken.None);
 		}
-		logFormatterTelemetry(telemetryService, 'document', provider, typeof pick === 'number' && provider[pick] || undefined);
 	}
 });
 
@@ -396,7 +400,6 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 		}
 		const instaService = accessor.get(IInstantiationService);
 		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-		const telemetryService = accessor.get(ITelemetryService);
 
 		const model = editor.getModel();
 		let range: Range = editor.getSelection();
@@ -409,7 +412,5 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 		if (typeof pick === 'number') {
 			await instaService.invokeFunction(formatDocumentRangesWithProvider, provider[pick], editor, range, CancellationToken.None, true);
 		}
-
-		logFormatterTelemetry(telemetryService, 'range', provider, typeof pick === 'number' && provider[pick] || undefined);
 	}
 });

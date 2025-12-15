@@ -10,20 +10,18 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from './mainThreadWebviews.js';
-import * as extHostProtocol from '../common/extHost.protocol.js';
 import { DiffEditorInput } from '../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
 import { ExtensionKeyedWebviewOriginStore, WebviewOptions } from '../../contrib/webview/browser/webview.js';
-import { WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
-import { WebviewIcons } from '../../contrib/webviewPanel/browser/webviewIconManager.js';
+import { WebviewIcons, WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IWebViewShowOptions, IWebviewWorkbenchService } from '../../contrib/webviewPanel/browser/webviewWorkbenchService.js';
 import { editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import * as extHostProtocol from '../common/extHost.protocol.js';
+import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from './mainThreadWebviews.js';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -98,7 +96,6 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		@IEditorService private readonly _editorService: IEditorService,
 		@IExtensionService extensionService: IExtensionService,
 		@IStorageService storageService: IStorageService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
 		super();
@@ -141,7 +138,9 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		this._webviewInputs.add(handle, input);
 		this._mainThreadWebviews.addWebview(handle, input.webview, options);
 
-		input.webview.onDidDispose(() => {
+		const disposeSub = input.webview.onDidDispose(() => {
+			disposeSub.dispose();
+
 			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
 				this._webviewInputs.delete(handle);
 			});
@@ -171,23 +170,9 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			options: reviveWebviewOptions(initData.panelOptions),
 			contentOptions: reviveWebviewContentOptions(initData.webviewOptions),
 			extension
-		}, this.webviewPanelViewType.fromExternal(viewType), initData.title, mainThreadShowOptions);
+		}, this.webviewPanelViewType.fromExternal(viewType), initData.title, undefined, mainThreadShowOptions);
 
 		this.addWebviewInput(handle, webview, { serializeBuffersForPostMessage: initData.serializeBuffersForPostMessage });
-
-		const payload = {
-			extensionId: extension.id.value,
-			viewType
-		} as const;
-
-		type Classification = {
-			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the extension that created the webview panel' };
-			viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the webview' };
-			owner: 'mjbvz';
-			comment: 'Triggered when a webview is created. Records the type of webview and the extension which created it';
-		};
-
-		this._telemetryService.publicLog2<typeof payload, Classification>('webviews:createWebviewPanel', payload);
 	}
 
 	public $disposeWebview(handle: extHostProtocol.WebviewHandle): void {
@@ -199,7 +184,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 
 	public $setTitle(handle: extHostProtocol.WebviewHandle, value: string): void {
-		this.tryGetWebviewInput(handle)?.setName(value);
+		this.tryGetWebviewInput(handle)?.setWebviewTitle(value);
 	}
 
 	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: extHostProtocol.IWebviewIconPath | undefined): void {

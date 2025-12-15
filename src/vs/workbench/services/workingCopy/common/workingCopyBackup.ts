@@ -39,11 +39,6 @@ export interface IWorkingCopyBackupService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Finds out if there are any working copy backups stored.
-	 */
-	hasBackups(): Promise<boolean>;
-
-	/**
 	 * Finds out if a working copy backup with the given identifier
 	 * and optional version exists.
 	 *

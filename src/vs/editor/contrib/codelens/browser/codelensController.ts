@@ -10,7 +10,8 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
 import { IActiveCodeEditor, ICodeEditor, IViewZoneChangeAccessor, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from '../../../common/config/editorOptions.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { IModelDecorationsChangeAccessor } from '../../../common/model.js';
@@ -41,7 +42,7 @@ export class CodeLensContribution implements IEditorContribution {
 	private _getCodeLensModelPromise: CancelablePromise<CodeLensModel> | undefined;
 	private readonly _oldCodeLensModels = new DisposableStore();
 	private _currentCodeLensModel: CodeLensModel | undefined;
-	private _resolveCodeLensesPromise: CancelablePromise<any> | undefined;
+	private _resolveCodeLensesPromise: CancelablePromise<void[]> | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -73,6 +74,7 @@ export class CodeLensContribution implements IEditorContribution {
 
 	dispose(): void {
 		this._localDispose();
+		this._localToDispose.dispose();
 		this._disposables.dispose();
 		this._oldCodeLensModels.dispose();
 		this._currentCodeLensModel?.dispose();
@@ -383,7 +385,7 @@ export class CodeLensContribution implements IEditorContribution {
 			return;
 		}
 
-		const toResolve: CodeLensItem[][] = [];
+		const toResolve: Array<ReadonlyArray<CodeLensItem>> = [];
 		const lenses: CodeLensWidget[] = [];
 		this._lenses.forEach((lens) => {
 			const request = lens.computeIfNecessary(model);
@@ -394,6 +396,7 @@ export class CodeLensContribution implements IEditorContribution {
 		});
 
 		if (toResolve.length === 0) {
+			this._oldCodeLensModels.clear();
 			return;
 		}
 
@@ -464,7 +467,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 		super({
 			id: 'codelens.showLensesInCurrentLine',
 			precondition: EditorContextKeys.hasCodeLensProvider,
-			label: localize2('showLensOnLine', "Show CodeLens Commands For Current Line"),
+			label: localize2('showLensOnLine', "Show CodeLens Commands for Current Line"),
 		});
 	}
 

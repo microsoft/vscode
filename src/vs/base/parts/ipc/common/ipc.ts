@@ -98,7 +98,7 @@ interface IHandler {
 
 export interface IMessagePassingProtocol {
 	send(buffer: VSBuffer): void;
-	onMessage: Event<VSBuffer>;
+	readonly onMessage: Event<VSBuffer>;
 	/**
 	 * Wait for the write buffer (if applicable) to become empty.
 	 */
@@ -260,9 +260,6 @@ const BufferPresets = {
 	Uint: createOneByteBuffer(DataType.Int),
 };
 
-declare const Buffer: any;
-const hasBuffer = (typeof Buffer !== 'undefined');
-
 export function serialize(writer: IWriter, data: any): void {
 	if (typeof data === 'undefined') {
 		writer.write(BufferPresets.Undefined);
@@ -271,7 +268,7 @@ export function serialize(writer: IWriter, data: any): void {
 		writer.write(BufferPresets.String);
 		writeInt32VQL(writer, buffer.byteLength);
 		writer.write(buffer);
-	} else if (hasBuffer && Buffer.isBuffer(data)) {
+	} else if (VSBuffer.isNativeBuffer(data)) {
 		const buffer = VSBuffer.wrap(data);
 		writer.write(BufferPresets.Buffer);
 		writeInt32VQL(writer, buffer.byteLength);
@@ -324,7 +321,7 @@ export function deserialize(reader: IReader): any {
 
 interface PendingRequest {
 	request: IRawPromiseRequest | IRawEventListenRequest;
-	timeoutTimer: any;
+	timeoutTimer: Timeout;
 }
 
 export class ChannelServer<TContext = string> implements IChannelServer<TContext>, IDisposable {
@@ -337,7 +334,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 	// They will timeout after `timeoutDelay`.
 	private pendingRequests = new Map<string, PendingRequest[]>();
 
-	constructor(private protocol: IMessagePassingProtocol, private ctx: TContext, private logger: IIPCLogger | null = null, private timeoutDelay: number = 1000) {
+	constructor(private protocol: IMessagePassingProtocol, private ctx: TContext, private logger: IIPCLogger | null = null, private timeoutDelay = 1000) {
 		this.protocolListener = this.protocol.onMessage(msg => this.onRawMessage(msg));
 		this.sendResponse({ type: ResponseType.Initialize });
 	}
@@ -368,7 +365,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 		}
 	}
 
-	private send(header: any, body: any = undefined): number {
+	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
 		serialize(writer, header);
 		serialize(writer, body);
@@ -535,11 +532,11 @@ export interface IIPCLogger {
 
 export class ChannelClient implements IChannelClient, IDisposable {
 
-	private isDisposed: boolean = false;
+	private isDisposed = false;
 	private state: State = State.Uninitialized;
 	private activeRequests = new Set<IDisposable>();
 	private handlers = new Map<number, IHandler>();
-	private lastRequestId: number = 0;
+	private lastRequestId = 0;
 	private protocolListener: IDisposable | null;
 	private logger: IIPCLogger | null;
 
@@ -599,7 +596,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 						case ResponseType.PromiseError: {
 							this.handlers.delete(id);
 							const error = new Error(response.data.message);
-							(<any>error).stack = Array.isArray(response.data.stack) ? response.data.stack.join('\n') : response.data.stack;
+							error.stack = Array.isArray(response.data.stack) ? response.data.stack.join('\n') : response.data.stack;
 							error.name = response.data.name;
 							e(error);
 							break;
@@ -649,7 +646,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		});
 
 		return result.finally(() => {
-			disposable.dispose();
+			disposable?.dispose(); // Seen as undefined in tests.
 			this.activeRequests.delete(disposableWithRequestCancel);
 		});
 	}
@@ -712,7 +709,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 	}
 
-	private send(header: any, body: any = undefined): number {
+	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
 		serialize(writer, header);
 		serialize(writer, body);
@@ -787,7 +784,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 export interface ClientConnectionEvent {
 	protocol: IMessagePassingProtocol;
-	onDidClientDisconnect: Event<void>;
+	readonly onDidClientDisconnect: Event<void>;
 }
 
 interface Connection<TContext> extends Client<TContext> {
@@ -998,7 +995,7 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		return this.channelClient.getChannel(channelName) as T;
+		return this.channelClient.getChannel(channelName);
 	}
 
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
@@ -1109,7 +1106,7 @@ export namespace ProxyChannel {
 
 	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
-		const disableMarshalling = options && options.disableMarshalling;
+		const disableMarshalling = options?.disableMarshalling;
 
 		// Buffer any event that should be supported by
 		// iterating over all property keys and finding them
@@ -1186,7 +1183,7 @@ export namespace ProxyChannel {
 	}
 
 	export function toService<T extends object>(channel: IChannel, options?: ICreateProxyServiceOptions): T {
-		const disableMarshalling = options && options.disableMarshalling;
+		const disableMarshalling = options?.disableMarshalling;
 
 		return new Proxy({}, {
 			get(_target: T, propKey: PropertyKey) {
@@ -1199,7 +1196,7 @@ export namespace ProxyChannel {
 
 					// Dynamic Event
 					if (propertyIsDynamicEvent(propKey)) {
-						return function (arg: any) {
+						return function (arg: unknown) {
 							return channel.listen(propKey, arg);
 						};
 					}
@@ -1252,7 +1249,7 @@ const colorTables = [
 	['#8B564C', '#E177C0', '#7F7F7F', '#BBBE3D', '#2EBECD']
 ];
 
-function prettyWithoutArrays(data: any): any {
+function prettyWithoutArrays(data: unknown): any {
 	if (Array.isArray(data)) {
 		return data;
 	}
@@ -1265,7 +1262,7 @@ function prettyWithoutArrays(data: any): any {
 	return data;
 }
 
-function pretty(data: any): any {
+function pretty(data: unknown): any {
 	if (Array.isArray(data)) {
 		return data.map(prettyWithoutArrays);
 	}

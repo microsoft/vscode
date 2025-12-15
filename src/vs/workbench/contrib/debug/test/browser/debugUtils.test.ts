@@ -25,6 +25,7 @@ suite('Debug - Utils', () => {
 
 	test('getExactExpressionStartAndEnd', () => {
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 2), { start: 1, end: 3 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('!foo', 2, 3), { start: 2, end: 4 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 3), { start: 1, end: 3 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 4), { start: 1, end: 3 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('this.name = "John"', 1, 10), { start: 1, end: 9 });
@@ -44,6 +45,10 @@ suite('Debug - Utils', () => {
 
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('var aøñéå文 = a.b.c-d.name', 5, 5), { start: 5, end: 10 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('aøñéå文.aøñéå文.aøñéå文', 9, 9), { start: 1, end: 13 });
+
+		// Spread syntax should extract just the identifier
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('[...bar]', 5, 7), { start: 5, end: 7 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('...variable', 5, 5), { start: 4, end: 11 });
 	});
 
 	test('config presentation', () => {

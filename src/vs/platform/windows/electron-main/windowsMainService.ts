@@ -20,7 +20,7 @@ import { getMarks, mark } from '../../../base/common/performance.js';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { cwd } from '../../../base/common/process.js';
 import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from '../../../base/common/resources.js';
-import { assertIsDefined } from '../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { getNLSLanguage, getNLSMessages, localize } from '../../../nls.js';
 import { IBackupMainService } from '../../backup/electron-main/backup.js';
@@ -160,6 +160,8 @@ interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 	label?: string;
 }
 
+const EMPTY_WINDOW: IPathToOpen = Object.create(null);
+
 interface IWorkspacePathToOpen extends IPathToOpen {
 	readonly workspace: IWorkspaceIdentifier;
 }
@@ -208,7 +210,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private readonly windows = new Map<number, ICodeWindow>();
 
-	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateService, this.lifecycleMainService, this.logService, this.configurationService));
+	private readonly windowsStateHandler: WindowsStateHandler;
 
 	constructor(
 		private readonly machineId: string,
@@ -217,7 +219,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
-		@IStateService private readonly stateService: IStateService,
+		@IStateService stateService: IStateService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
@@ -235,6 +237,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
 	) {
 		super();
+
+		this.windowsStateHandler = this._register(new WindowsStateHandler(this, stateService, this.lifecycleMainService, this.logService, this.configurationService));
 
 		this.registerListeners();
 	}
@@ -280,8 +284,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Bring window to front
 		window.focus();
 
-		// Handle --wait
+		// Handle `<app> --wait`
 		this.handleWaitMarkerFile(openConfig, [window]);
+
+		// Handle `<app> chat`
+		this.handleChatRequest(openConfig, [window]);
 	}
 
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
@@ -304,7 +311,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const emptyWindowsWithBackupsToRestore: IEmptyWindowBackupInfo[] = [];
 
 		let filesToOpen: IFilesToOpen | undefined;
-		let openOneEmptyWindow = false;
+		let maybeOpenEmptyWindow = false;
 
 		// Identify things to open from open config
 		const pathsToOpen = await this.getPathsToOpen(openConfig);
@@ -332,7 +339,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			} else if (path.backupPath) {
 				emptyWindowsWithBackupsToRestore.push({ backupFolder: basename(path.backupPath), remoteAuthority: path.remoteAuthority });
 			} else {
-				openOneEmptyWindow = true;
+				maybeOpenEmptyWindow = true; // depends on other parameters such as `forceEmpty` and how many windows have opened already
 			}
 		}
 
@@ -368,9 +375,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Open based on config
-		const { windows: usedWindows, filesOpenedInWindow } = await this.doOpen(openConfig, workspacesToOpen, foldersToOpen, emptyWindowsWithBackupsToRestore, openOneEmptyWindow, filesToOpen, foldersToAdd, foldersToRemove);
+		const { windows: usedWindows, filesOpenedInWindow } = await this.doOpen(openConfig, workspacesToOpen, foldersToOpen, emptyWindowsWithBackupsToRestore, maybeOpenEmptyWindow, filesToOpen, foldersToAdd, foldersToRemove);
 
-		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyWindowsWithBackupsToRestore.length}, openOneEmptyWindow: ${openOneEmptyWindow})`);
+		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyWindowsWithBackupsToRestore.length}, maybeOpenEmptyWindow: ${maybeOpenEmptyWindow})`);
 
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
@@ -382,7 +389,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Otherwise, find a good window based on open params
 			else {
-				const focusLastActive = this.windowsStateHandler.state.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
+				const focusLastActive = this.windowsStateHandler.state.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !openConfig.urisToOpen?.length;
 				let focusLastOpened = true;
 				let focusLastWindow = true;
 
@@ -439,8 +446,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this.workspacesHistoryMainService.addRecentlyOpened(recents);
 		}
 
-		// Handle --wait
+		// Handle `<app> --wait`
 		this.handleWaitMarkerFile(openConfig, usedWindows);
+
+		// Handle `<app> chat`
+		this.handleChatRequest(openConfig, usedWindows);
 
 		return usedWindows;
 	}
@@ -464,12 +474,33 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 	}
 
+	private handleChatRequest(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
+		if (openConfig.context !== OpenContext.CLI || !openConfig.cli.chat || usedWindows.length === 0) {
+			return;
+		}
+
+		let windowHandlingChatRequest: ICodeWindow | undefined;
+		if (usedWindows.length === 1) {
+			windowHandlingChatRequest = usedWindows[0];
+		} else {
+			const chatRequestFolder = openConfig.cli._[0]; // chat request gets cwd() as folder to open
+			if (chatRequestFolder) {
+				windowHandlingChatRequest = findWindowOnWorkspaceOrFolder(usedWindows, URI.file(chatRequestFolder));
+			}
+		}
+
+		if (windowHandlingChatRequest) {
+			windowHandlingChatRequest.sendWhenReady('vscode:handleChatRequest', CancellationToken.None, openConfig.cli.chat);
+			windowHandlingChatRequest.focus();
+		}
+	}
+
 	private async doOpen(
 		openConfig: IOpenConfiguration,
 		workspacesToOpen: IWorkspacePathToOpen[],
 		foldersToOpen: ISingleFolderWorkspacePathToOpen[],
 		emptyToRestore: IEmptyWindowBackupInfo[],
-		openOneEmptyWindow: boolean,
+		maybeOpenEmptyWindow: boolean,
 		filesToOpen: IFilesToOpen | undefined,
 		foldersToAdd: ISingleFolderWorkspacePathToOpen[],
 		foldersToRemove: ISingleFolderWorkspacePathToOpen[]
@@ -639,8 +670,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		// Open empty window either if enforced or when files still have to open
-		if (filesToOpen || openOneEmptyWindow) {
+		// Finally, open an empty window if
+		// - we still have files to open
+		// - user forces an empty window (e.g. via command line)
+		// - no window has opened yet
+		if (filesToOpen || (maybeOpenEmptyWindow && (openConfig.forceEmpty || usedWindows.length === 0))) {
 			const remoteAuthority = filesToOpen ? filesToOpen.remoteAuthority : openConfig.remoteAuthority;
 
 			addUsedWindow(await this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen), !!filesToOpen);
@@ -749,14 +783,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Check for force empty
 		else if (openConfig.forceEmpty) {
-			pathsToOpen = [Object.create(null)];
+			pathsToOpen = [EMPTY_WINDOW];
 		}
 
 		// Extract paths: from CLI
 		else if (openConfig.cli._.length || openConfig.cli['folder-uri'] || openConfig.cli['file-uri']) {
 			pathsToOpen = await this.doExtractPathsFromCLI(openConfig.cli);
 			if (pathsToOpen.length === 0) {
-				pathsToOpen.push(Object.create(null)); // add an empty window if we did not have windows to open from command line
+				pathsToOpen.push(EMPTY_WINDOW); // add an empty window if we did not have windows to open from command line
 			}
 
 			isCommandLineOrAPICall = true;
@@ -766,7 +800,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		else {
 			pathsToOpen = await this.doGetPathsFromLastSession();
 			if (pathsToOpen.length === 0) {
-				pathsToOpen.push(Object.create(null)); // add an empty window if we did not have windows to restore
+				pathsToOpen.push(EMPTY_WINDOW); // add an empty window if we did not have windows to restore
 			}
 
 			isRestoringPaths = true;
@@ -1159,13 +1193,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this.workspacesHistoryMainService.removeRecentlyOpened([fileUri]);
 
 			// assume this is a file that does not yet exist
-			if (options.ignoreFileNotFound) {
+			if (options.ignoreFileNotFound && error.code === 'ENOENT') {
 				return {
 					fileUri,
 					type: FileType.File,
 					exists: false
 				};
 			}
+
+			this.logService.error(`Invalid path provided: ${path}, ${error.message}`);
 		}
 
 		return undefined;
@@ -1284,7 +1320,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
-		let openFilesInNewWindow: boolean = false;
+		let openFilesInNewWindow = false;
 		if (openConfig.forceNewWindow || openConfig.forceReuseWindow) {
 			openFilesInNewWindow = !!openConfig.forceNewWindow && !openConfig.forceReuseWindow;
 		} else {
@@ -1374,7 +1410,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		cliArgs = cliArgs.filter(path => {
 			const uri = URI.file(path);
-			if (!!findWindowOnWorkspaceOrFolder(this.getWindows(), uri)) {
+			if (findWindowOnWorkspaceOrFolder(this.getWindows(), uri)) {
 				return false;
 			}
 
@@ -1383,7 +1419,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		folderUris = folderUris.filter(folderUriStr => {
 			const folderUri = this.cliArgToUri(folderUriStr);
-			if (folderUri && !!findWindowOnWorkspaceOrFolder(this.getWindows(), folderUri)) {
+			if (folderUri && findWindowOnWorkspaceOrFolder(this.getWindows(), folderUri)) {
 				return false;
 			}
 
@@ -1392,7 +1428,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		fileUris = fileUris.filter(fileUriStr => {
 			const fileUri = this.cliArgToUri(fileUriStr);
-			if (fileUri && !!findWindowOnWorkspaceOrFolder(this.getWindows(), fileUri)) {
+			if (fileUri && findWindowOnWorkspaceOrFolder(this.getWindows(), fileUri)) {
 				return false;
 			}
 
@@ -1489,10 +1525,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToWait: options.filesToOpen?.filesToWait,
 
 			logLevel: this.loggerService.getLogLevel(),
-			loggers: {
-				window: [],
-				global: this.loggerService.getRegisteredLoggers()
-			},
+			loggers: this.loggerService.getGlobalLoggers(),
 			logsPath: this.environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
 
 			product,
@@ -1549,7 +1582,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			disposables.add(createdWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire({ window: createdWindow, fullscreen: false })));
 			disposables.add(createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y })));
 
-			const webContents = assertIsDefined(createdWindow.win?.webContents);
+			const webContents = assertReturnsDefined(createdWindow.win?.webContents);
 			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
 			disposables.add(Event.fromNodeEventEmitter(webContents, 'devtools-reload-page')(() => this.lifecycleMainService.reload(createdWindow)));
 
@@ -1574,11 +1607,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration.extensionEnvironment = currentWindowConfig.extensionEnvironment;
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 				configuration['disable-extensions'] = currentWindowConfig['disable-extensions'];
+				configuration['disable-extension'] = currentWindowConfig['disable-extension'];
 			}
-			configuration.loggers = {
-				global: configuration.loggers.global,
-				window: currentWindowConfig?.loggers.window ?? configuration.loggers.window
-			};
 		}
 
 		// Update window identifier and session now
@@ -1704,19 +1734,19 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return getLastFocused(windows);
 	}
 
-	sendToFocused(channel: string, ...args: any[]): void {
+	sendToFocused(channel: string, ...args: unknown[]): void {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
 		focusedWindow?.sendWhenReady(channel, CancellationToken.None, ...args);
 	}
 
-	sendToOpeningWindow(channel: string, ...args: any[]): void {
+	sendToOpeningWindow(channel: string, ...args: unknown[]): void {
 		this._register(Event.once(this.onDidSignalReadyWindow)(window => {
 			window.sendWhenReady(channel, CancellationToken.None, ...args);
 		}));
 	}
 
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
+	sendToAll(channel: string, payload?: unknown, windowIdsToIgnore?: number[]): void {
 		for (const window of this.getWindows()) {
 			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(window.id) >= 0) {
 				continue; // do not send if we are instructed to ignore it

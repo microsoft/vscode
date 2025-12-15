@@ -1,32 +1,26 @@
 {
 	"compilerOptions": {
-		"target": "es2022",
+		"target": "es2024",
 		"lib": [
-			"ES2020"
+			"ES2024"
 		],
-		"module": "commonjs",
-		"alwaysStrict": true,
-		"removeComments": false,
-		"preserveConstEnums": true,
-		"sourceMap": true,
+		"module": "nodenext",
+		"noEmit": true,
+		"erasableSyntaxOnly": true,
+		"verbatimModuleSyntax": true,
+		"allowImportingTsExtensions": true,
 		"resolveJsonModule": true,
-		// enable JavaScript type checking for the language service
-		// use the tsconfig.build.json for compiling which disable JavaScript
-		// type checking so that JavaScript file are not transpiled
-		"allowJs": true,
+		"skipLibCheck": true,
 		"strict": true,
 		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
-		"noUnusedParameters": true,
-		"newLine": "lf",
-		"noEmit": true
+		"noUnusedParameters": true
 	},
-	"include": [
-		"**/*.ts",
-		"**/*.js"
-	],
 	"exclude": [
-		"node_modules/**"
+		"node_modules/**",
+		"monaco-editor-playground/**",
+		"builtin/**",
+		"vite/**"
 	]
 }

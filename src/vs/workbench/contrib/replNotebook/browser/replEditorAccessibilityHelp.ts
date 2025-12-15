@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
@@ -11,7 +11,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_LIST_FOCUSED } from '../../notebook/common/notebookContextKeys.js';
 
-export class ReplEditorInputAccessibilityHelp implements IAccessibleViewImplentation {
+export class ReplEditorInputAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 105;
 	readonly name = 'REPL Editor Input';
 	readonly when = ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_LIST_FOCUSED.negate());
@@ -33,7 +33,7 @@ function getAccessibilityInputHelpText(): string {
 	].join('\n');
 }
 
-export class ReplEditorHistoryAccessibilityHelp implements IAccessibleViewImplentation {
+export class ReplEditorHistoryAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 105;
 	readonly name = 'REPL Editor History';
 	readonly when = ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_LIST_FOCUSED);

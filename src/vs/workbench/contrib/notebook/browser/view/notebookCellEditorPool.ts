@@ -61,10 +61,11 @@ export class NotebookCellEditorPool extends Disposable {
 				handleMouseWheel: false,
 				useShadows: false,
 			},
+			allowVariableLineHeights: false,
 		}, {
 			contributions: this.notebookEditor.creationOptions.cellEditorContributions
 		}));
-
+		editorOptions.dispose();
 		this._isInitialized = true;
 	}
 

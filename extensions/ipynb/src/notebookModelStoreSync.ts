@@ -14,7 +14,7 @@ const noop = () => {
 };
 
 /**
- * Code here is used to ensure the Notebook Model is in sync the the ipynb JSON file.
+ * Code here is used to ensure the Notebook Model is in sync the ipynb JSON file.
  * E.g. assume you add a new cell, this new cell will not have any metadata at all.
  * However when we save the ipynb, the metadata will be an empty object `{}`.
  * Now thats completely different from the metadata os being `empty/undefined` in the model.
@@ -165,6 +165,13 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEventEx) {
 			metadata.execution_count = null;
 			metadataUpdated = true;
 			pendingCellUpdates.delete(e.cell);
+		} else if (!e.executionSummary?.executionOrder && !e.executionSummary?.success && !e.executionSummary?.timing
+			&& !e.metadata && !e.outputs && currentMetadata.execution_count && !pendingCellUpdates.has(e.cell)) {
+			// This is a result of the cell without outupts but has execution count being cleared
+			// Create two cells, one that produces output and one that doesn't. Run both and then clear the output or all cells.
+			// This condition will be satisfied for first cell without outputs.
+			metadata.execution_count = null;
+			metadataUpdated = true;
 		}
 
 		if (e.document?.languageId && e.document?.languageId !== preferredCellLanguage && e.document?.languageId !== languageIdInMetadata) {

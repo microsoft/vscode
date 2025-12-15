@@ -105,7 +105,7 @@ class DebugEditorGpuRendererAction extends EditorAction {
 					const atlas = ViewGpuContext.atlas;
 					const fontFamily = configurationService.getValue<string>('editor.fontFamily');
 					const fontSize = configurationService.getValue<number>('editor.fontSize');
-					const rasterizer = new GlyphRasterizer(fontSize, fontFamily, getActiveWindow().devicePixelRatio);
+					const rasterizer = new GlyphRasterizer(fontSize, fontFamily, getActiveWindow().devicePixelRatio, ViewGpuContext.decorationStyleCache);
 					let chars = await quickInputService.input({
 						prompt: 'Enter a character to draw (prefix with 0x for code point))'
 					});
@@ -118,7 +118,7 @@ class DebugEditorGpuRendererAction extends EditorAction {
 					}
 					const tokenMetadata = 0;
 					const charMetadata = 0;
-					const rasterizedGlyph = atlas.getGlyph(rasterizer, chars, tokenMetadata, charMetadata);
+					const rasterizedGlyph = atlas.getGlyph(rasterizer, chars, tokenMetadata, charMetadata, 0);
 					if (!rasterizedGlyph) {
 						return;
 					}

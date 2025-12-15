@@ -13,7 +13,7 @@ import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from '../../../../
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from './markersModel.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { FilterOptions } from './markersFilterOptions.js';
@@ -82,7 +82,7 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 		return { actionBar, icon };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerIconColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerIconColumnTemplateData): void {
 		const toggleQuickFix = (enabled?: boolean) => {
 			if (!isUndefinedOrNull(enabled)) {
 				const container = DOM.findParentWithClass(templateData.icon, 'monaco-table-td')!;
@@ -138,7 +138,7 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		return { codeColumn, sourceLabel, codeLabel, codeLink, templateDisposable };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData): void {
 		templateData.codeColumn.classList.remove('code-label');
 		templateData.codeColumn.classList.remove('code-link');
 
@@ -186,7 +186,7 @@ class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMa
 		return { columnElement, highlightedLabel };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData): void {
 		templateData.columnElement.title = element.marker.message;
 		templateData.highlightedLabel.set(element.marker.message, element.messageMatches);
 	}
@@ -216,7 +216,7 @@ class MarkerFileColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		return { columnElement, fileLabel, positionLabel };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerFileColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerFileColumnTemplateData): void {
 		const positionLabel = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.marker.startLineNumber, element.marker.startColumn);
 
 		templateData.columnElement.title = `${this.labelService.getUriLabel(element.marker.resource, { relative: false })} ${positionLabel}`;
@@ -230,21 +230,21 @@ class MarkerFileColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 	}
 }
 
-class MarkerOwnerColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerHighlightedLabelColumnTemplateData> {
+class MarkerSourceColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerHighlightedLabelColumnTemplateData> {
 
-	static readonly TEMPLATE_ID = 'owner';
+	static readonly TEMPLATE_ID = 'source';
 
-	readonly templateId: string = MarkerOwnerColumnRenderer.TEMPLATE_ID;
+	readonly templateId: string = MarkerSourceColumnRenderer.TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): IMarkerHighlightedLabelColumnTemplateData {
-		const columnElement = DOM.append(container, $('.owner'));
+		const columnElement = DOM.append(container, $('.source'));
 		const highlightedLabel = new HighlightedLabel(columnElement);
 		return { columnElement, highlightedLabel };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
-		templateData.columnElement.title = element.marker.owner;
-		templateData.highlightedLabel.set(element.marker.owner, element.ownerMatches);
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData): void {
+		templateData.columnElement.title = element.marker.source ?? '';
+		templateData.highlightedLabel.set(element.marker.source ?? '', element.sourceMatches);
 	}
 
 	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void {
@@ -252,12 +252,12 @@ class MarkerOwnerColumnRenderer implements ITableRenderer<MarkerTableItem, IMark
 	}
 }
 
-class MarkersTableVirtualDelegate implements ITableVirtualDelegate<any> {
+class MarkersTableVirtualDelegate implements ITableVirtualDelegate<MarkerTableItem> {
 	static readonly HEADER_ROW_HEIGHT = 24;
 	static readonly ROW_HEIGHT = 24;
 	readonly headerRowHeight = MarkersTableVirtualDelegate.HEADER_ROW_HEIGHT;
 
-	getHeight(item: any) {
+	getHeight(item: MarkerTableItem) {
 		return MarkersTableVirtualDelegate.ROW_HEIGHT;
 	}
 }
@@ -321,7 +321,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					weight: 1,
 					minimumWidth: 100,
 					maximumWidth: 300,
-					templateId: MarkerOwnerColumnRenderer.TEMPLATE_ID,
+					templateId: MarkerSourceColumnRenderer.TEMPLATE_ID,
 					project(row: Marker): Marker { return row; }
 				}
 			],
@@ -330,17 +330,18 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 				this.instantiationService.createInstance(MarkerCodeColumnRenderer),
 				this.instantiationService.createInstance(MarkerMessageColumnRenderer),
 				this.instantiationService.createInstance(MarkerFileColumnRenderer),
-				this.instantiationService.createInstance(MarkerOwnerColumnRenderer),
+				this.instantiationService.createInstance(MarkerSourceColumnRenderer),
 			],
 			options
 		) as WorkbenchTable<MarkerTableItem>;
 
+		// eslint-disable-next-line no-restricted-syntax
 		const list = this.table.domNode.querySelector('.monaco-list-rows')! as HTMLElement;
 
 		// mouseover/mouseleave event handlers
 		const onRowHover = Event.chain(this._register(new DomEmitter(list, 'mouseover')).event, $ =>
 			$.map(e => DOM.findParentWithClass(e.target as HTMLElement, 'monaco-list-row', 'monaco-list-rows'))
-				.filter<HTMLElement>(((e: HTMLElement | null) => !!e) as any)
+				.filter<HTMLElement>(e => !!e)
 				.map(e => parseInt(e.getAttribute('data-index')!))
 		);
 
@@ -454,11 +455,10 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					const codeMatches = marker.marker.code ? FilterOptions._filter(this.filterOptions.textFilter.text, typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value) ?? undefined : undefined;
 					const messageMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, marker.marker.message) ?? undefined;
 					const fileMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, this.labelService.getUriLabel(marker.resource, { relative: true })) ?? undefined;
-					const ownerMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, marker.marker.owner) ?? undefined;
 
-					const matched = sourceMatches || codeMatches || messageMatches || fileMatches || ownerMatches;
+					const matched = sourceMatches || codeMatches || messageMatches || fileMatches;
 					if ((matched && !this.filterOptions.textFilter.negate) || (!matched && this.filterOptions.textFilter.negate)) {
-						items.push(new MarkerTableItem(marker, sourceMatches, codeMatches, messageMatches, fileMatches, ownerMatches));
+						items.push(new MarkerTableItem(marker, sourceMatches, codeMatches, messageMatches, fileMatches));
 					}
 
 					continue;

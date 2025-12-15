@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { ILogger } from './logging';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { MarkdownPreviewConfiguration } from './preview/previewConfig';
-import { Slugifier } from './slugify';
+import { ISlugifier, SlugBuilder } from './slugify';
 import { ITextDocument } from './types/textDocument';
 import { WebviewResourceProvider } from './util/resources';
 import { isOfScheme, Schemes } from './util/schemes';
@@ -85,13 +85,14 @@ export interface RenderOutput {
 }
 
 interface RenderEnv {
-	containingImages: Set<string>;
-	currentDocument: vscode.Uri | undefined;
-	resourceProvider: WebviewResourceProvider | undefined;
+	readonly containingImages: Set<string>;
+	readonly currentDocument: vscode.Uri | undefined;
+	readonly resourceProvider: WebviewResourceProvider | undefined;
+	readonly slugifier: SlugBuilder;
 }
 
 export interface IMdParser {
-	readonly slugifier: Slugifier;
+	readonly slugifier: ISlugifier;
 
 	tokenize(document: ITextDocument): Promise<Token[]>;
 }
@@ -100,14 +101,13 @@ export class MarkdownItEngine implements IMdParser {
 
 	private _md?: Promise<MarkdownIt>;
 
-	private _slugCount = new Map<string, number>();
-	private _tokenCache = new TokenCache();
+	private readonly _tokenCache = new TokenCache();
 
-	public readonly slugifier: Slugifier;
+	public readonly slugifier: ISlugifier;
 
 	public constructor(
 		private readonly _contributionProvider: MarkdownContributionProvider,
-		slugifier: Slugifier,
+		slugifier: ISlugifier,
 		private readonly _logger: ILogger,
 	) {
 		this.slugifier = slugifier;
@@ -143,6 +143,7 @@ export class MarkdownItEngine implements IMdParser {
 				const frontMatterPlugin = await import('markdown-it-front-matter');
 				// Extract rules from front matter plugin and apply at a lower precedence
 				let fontMatterRule: any;
+				// eslint-disable-next-line local/code-no-any-casts
 				frontMatterPlugin.default(<any>{
 					block: {
 						ruler: {
@@ -182,24 +183,23 @@ export class MarkdownItEngine implements IMdParser {
 	): Token[] {
 		const cached = this._tokenCache.tryGetCached(document, config);
 		if (cached) {
-			this._resetSlugCount();
 			return cached;
 		}
 
-		this._logger.verbose('MarkdownItEngine', `tokenizeDocument - ${document.uri}`);
+		this._logger.trace('MarkdownItEngine', `tokenizeDocument - ${document.uri}`);
 		const tokens = this._tokenizeString(document.getText(), engine);
 		this._tokenCache.update(document, config, tokens);
 		return tokens;
 	}
 
 	private _tokenizeString(text: string, engine: MarkdownIt) {
-		this._resetSlugCount();
-
-		return engine.parse(text, {});
-	}
-
-	private _resetSlugCount(): void {
-		this._slugCount = new Map<string, number>();
+		const env: RenderEnv = {
+			currentDocument: undefined,
+			containingImages: new Set<string>(),
+			slugifier: this.slugifier.createBuilder(),
+			resourceProvider: undefined,
+		};
+		return engine.parse(text, env);
 	}
 
 	public async render(input: ITextDocument | string, resourceProvider?: WebviewResourceProvider): Promise<RenderOutput> {
@@ -214,6 +214,7 @@ export class MarkdownItEngine implements IMdParser {
 			containingImages: new Set<string>(),
 			currentDocument: typeof input === 'string' ? undefined : input.uri,
 			resourceProvider,
+			slugifier: this.slugifier.createBuilder(),
 		};
 
 		const html = engine.renderer.render(tokens, {
@@ -312,18 +313,9 @@ export class MarkdownItEngine implements IMdParser {
 
 	private _addNamedHeaders(md: MarkdownIt): void {
 		const original = md.renderer.rules.heading_open;
-		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options, env, self) => {
+		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options, env: unknown, self) => {
 			const title = this._tokenToPlainText(tokens[idx + 1]);
-			let slug = this.slugifier.fromHeading(title);
-
-			if (this._slugCount.has(slug.value)) {
-				const count = this._slugCount.get(slug.value)!;
-				this._slugCount.set(slug.value, count + 1);
-				slug = this.slugifier.fromHeading(slug.value + '-' + (count + 1));
-			} else {
-				this._slugCount.set(slug.value, 0);
-			}
-
+			const slug = (env as RenderEnv).slugifier ? (env as RenderEnv).slugifier.add(title) : this.slugifier.fromHeading(title);
 			tokens[idx].attrSet('id', slug.value);
 
 			if (original) {
@@ -433,7 +425,7 @@ async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Opti
 }
 
 function normalizeHighlightLang(lang: string | undefined) {
-	switch (lang && lang.toLowerCase()) {
+	switch (lang?.toLowerCase()) {
 		case 'shell':
 			return 'sh';
 

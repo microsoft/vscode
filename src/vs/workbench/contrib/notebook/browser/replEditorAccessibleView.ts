@@ -5,7 +5,7 @@
 
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { AccessibleViewType, AccessibleContentProvider, AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -16,7 +16,7 @@ import { getAllOutputsText } from './viewModel/cellOutputTextHelper.js';
 /**
  * The REPL input is already accessible, so we can show a view for the most recent execution output.
  */
-export class ReplEditorAccessibleView implements IAccessibleViewImplentation {
+export class ReplEditorAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
 	readonly name = 'replEditorInput';
 	readonly type = AccessibleViewType.View;

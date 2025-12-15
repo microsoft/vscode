@@ -19,7 +19,7 @@ import { IFilesConfiguration, SortOrder } from './files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ExplorerFileNestingTrie } from './explorerFileNestingTrie.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
@@ -355,7 +355,7 @@ export class ExplorerItem {
 					if (nestedItems !== undefined) {
 						fileEntryItem.nestedChildren = [];
 						for (const name of nestedItems.keys()) {
-							const child = assertIsDefined(this.children.get(name));
+							const child = assertReturnsDefined(this.children.get(name));
 							fileEntryItem.nestedChildren.push(child);
 							child.nestedParent = fileEntryItem;
 						}

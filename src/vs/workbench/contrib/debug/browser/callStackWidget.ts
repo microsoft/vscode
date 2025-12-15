@@ -372,7 +372,7 @@ abstract class AbstractFrameRenderer<T extends IAbstractFrameRendererTemplateDat
 
 	protected abstract finishRenderTemplate(data: IAbstractFrameRendererTemplateData): T;
 
-	renderElement(element: ListItem, index: number, template: T, height: number | undefined): void {
+	renderElement(element: ListItem, index: number, template: T): void {
 		const { elementStore } = template;
 		elementStore.clear();
 		const item = element as IFrameLikeItem;
@@ -393,7 +393,7 @@ abstract class AbstractFrameRenderer<T extends IAbstractFrameRendererTemplateDat
 		elementStore.add(dom.addDisposableListener(elements.title, 'click', toggleCollapse));
 	}
 
-	disposeElement(element: ListItem, index: number, templateData: T, height: number | undefined): void {
+	disposeElement(element: ListItem, index: number, templateData: T): void {
 		templateData.elementStore.clear();
 	}
 
@@ -453,8 +453,8 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 		return { ...data, editor, toolbar };
 	}
 
-	override renderElement(element: ListItem, index: number, template: IStackTemplateData, height: number | undefined): void {
-		super.renderElement(element, index, template, height);
+	override renderElement(element: ListItem, index: number, template: IStackTemplateData): void {
+		super.renderElement(element, index, template);
 
 		const { elementStore, editor } = template;
 
@@ -584,8 +584,8 @@ class CustomRenderer extends AbstractFrameRenderer<IAbstractFrameRendererTemplat
 		return data;
 	}
 
-	override renderElement(element: ListItem, index: number, template: IAbstractFrameRendererTemplateData, height: number | undefined): void {
-		super.renderElement(element, index, template, height);
+	override renderElement(element: ListItem, index: number, template: IAbstractFrameRendererTemplateData): void {
+		super.renderElement(element, index, template);
 
 		const item = element as WrappedCustomStackFrame;
 		const { elementStore, container, label } = template;
@@ -645,7 +645,7 @@ class SkippedRenderer implements IListRenderer<ListItem, ISkippedTemplateData> {
 		return data;
 	}
 
-	renderElement(element: ListItem, index: number, templateData: ISkippedTemplateData, height: number | undefined): void {
+	renderElement(element: ListItem, index: number, templateData: ISkippedTemplateData): void {
 		const cast = element as SkippedCallFrames;
 		templateData.button.enabled = true;
 		templateData.button.label = cast.label;

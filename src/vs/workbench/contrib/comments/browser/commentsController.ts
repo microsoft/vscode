@@ -463,7 +463,6 @@ export class CommentController implements IEditorContribution {
 	private _computeAndSetPromise: Promise<void> | undefined;
 	private _addInProgress!: boolean;
 	private _emptyThreadsToAddQueue: [Range | undefined, IEditorMouseEvent | undefined][] = [];
-	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingNewCommentCache: { [key: string]: { [key: string]: languages.PendingComment } };
 	private _pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: languages.PendingComment } } }; // uniqueOwner -> threadId -> uniqueIdInThread -> pending comment
@@ -558,7 +557,7 @@ export class CommentController implements IEditorContribution {
 		}));
 
 		this.onModelChanged();
-		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
+		this.globalToDispose.add(this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {}));
 		this.globalToDispose.add(
 			this.commentService.registerContinueOnCommentProvider({
 				provideContinueOnComments: () => {
@@ -694,11 +693,6 @@ export class CommentController implements IEditorContribution {
 
 	private beginComputeCommentingRanges() {
 		if (this._computeCommentingRangeScheduler) {
-			if (this._computeCommentingRangePromise) {
-				this._computeCommentingRangePromise.cancel();
-				this._computeCommentingRangePromise = null;
-			}
-
 			this._computeCommentingRangeScheduler.trigger(() => {
 				const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 
@@ -742,7 +736,7 @@ export class CommentController implements IEditorContribution {
 
 	public collapseAll(): void {
 		for (const widget of this._commentWidgets) {
-			widget.collapse();
+			widget.collapse(true);
 		}
 	}
 
@@ -1084,7 +1078,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = parseMouseDownInfoFromEvent(e);
+		this.mouseDownInfo = (e.target.element?.className.indexOf('comment-range-glyph') ?? -1) >= 0 ? parseMouseDownInfoFromEvent(e) : null;
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
@@ -1136,7 +1130,7 @@ export class CommentController implements IEditorContribution {
 			const existingCommentsAtLine = this.getCommentsAtLine(commentRange);
 			if (existingCommentsAtLine.length) {
 				const allExpanded = existingCommentsAtLine.every(widget => widget.expanded);
-				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand(true));
+				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse(true) : widget => widget.expand(true));
 				this.processNextThreadToAdd();
 				return;
 			} else {
@@ -1208,7 +1202,7 @@ export class CommentController implements IEditorContribution {
 				});
 			}
 		} else {
-			const { ownerId } = newCommentInfos[0]!.action;
+			const { ownerId } = newCommentInfos[0].action;
 			const clippedRange = range && newCommentInfos[0].range ? this.clipUserRangeToCommentRange(range, newCommentInfos[0].range) : range;
 			this.addCommentAtLine2(clippedRange, ownerId);
 		}
@@ -1380,7 +1374,7 @@ export class CommentController implements IEditorContribution {
 				await this.displayCommentThread(info.uniqueOwner, thread, false, pendingComment, pendingEdits);
 			}
 			for (const thread of info.pendingCommentThreads ?? []) {
-				this.resumePendingComment(this.editor!.getModel()!.uri, thread);
+				this.resumePendingComment(this.editor.getModel()!.uri, thread);
 			}
 		}
 

@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as tss from './treeshaking';
-
-const REPO_ROOT = path.join(__dirname, '../../');
-const SRC_DIR = path.join(REPO_ROOT, 'src');
+import fs from 'fs';
+import path from 'path';
+import * as tss from './treeshaking.ts';
+import ts from 'typescript';
 
 const dirCache: { [dir: string]: boolean } = {};
 
@@ -29,24 +27,24 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 	fs.writeFileSync(filePath, contents);
 }
 
-export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string }): void {
-	const ts = require('typescript') as typeof import('typescript');
-
+export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string; tsOutDir: string; additionalFilesToCopyOut?: string[] }): void {
 	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
 	let compilerOptions: { [key: string]: any };
 	if (tsConfig.extends) {
-		compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
+		const extendedConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, tsConfig.extends)).toString());
+		compilerOptions = Object.assign({}, extendedConfig.compilerOptions, tsConfig.compilerOptions);
 		delete tsConfig.extends;
 	} else {
 		compilerOptions = tsConfig.compilerOptions;
 	}
 	tsConfig.compilerOptions = compilerOptions;
+	tsConfig.compilerOptions.sourceMap = true;
+	tsConfig.compilerOptions.outDir = options.tsOutDir;
 
 	compilerOptions.noEmit = false;
 	compilerOptions.noUnusedLocals = false;
 	compilerOptions.preserveConstEnums = false;
 	compilerOptions.declaration = false;
-	compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
 
 
 	options.compilerOptions = compilerOptions;
@@ -54,37 +52,41 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	console.log(`Running tree shaker with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
 
 	// Take the extra included .d.ts files from `tsconfig.monaco.json`
-	options.typings = (<string[]>tsConfig.include).filter(includedFile => /\.d\.ts$/.test(includedFile));
-
-	// Add extra .d.ts files from `node_modules/@types/`
-	if (Array.isArray(options.compilerOptions?.types)) {
-		options.compilerOptions.types.forEach((type: string) => {
-			if (type === '@webgpu/types') {
-				options.typings.push(`../node_modules/${type}/dist/index.d.ts`);
-			} else {
-				options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
-			}
-		});
-	}
+	options.typings = (tsConfig.include as string[]).filter(includedFile => /\.d\.ts$/.test(includedFile));
 
 	const result = tss.shake(options);
 	for (const fileName in result) {
 		if (result.hasOwnProperty(fileName)) {
-			writeFile(path.join(options.destRoot, fileName), result[fileName]);
+			let fileContents = result[fileName];
+			// Replace .ts? with .js? in new URL() patterns
+			fileContents = fileContents.replace(
+				/(new\s+URL\s*\(\s*['"`][^'"`]*?)\.ts(\?[^'"`]*['"`])/g,
+				'$1.js$2'
+			);
+			const relativePath = path.relative(options.sourcesRoot, fileName);
+			writeFile(path.join(options.destRoot, relativePath), fileContents);
 		}
 	}
 	const copied: { [fileName: string]: boolean } = {};
-	const copyFile = (fileName: string) => {
+	const copyFile = (fileName: string, toFileName?: string) => {
 		if (copied[fileName]) {
 			return;
 		}
 		copied[fileName] = true;
-		const srcPath = path.join(options.sourcesRoot, fileName);
-		const dstPath = path.join(options.destRoot, fileName);
-		writeFile(dstPath, fs.readFileSync(srcPath));
+
+		if (path.isAbsolute(fileName)) {
+			const relativePath = path.relative(options.sourcesRoot, fileName);
+			const dstPath = path.join(options.destRoot, toFileName ?? relativePath);
+			writeFile(dstPath, fs.readFileSync(fileName));
+		} else {
+			const srcPath = path.join(options.sourcesRoot, fileName);
+			const dstPath = path.join(options.destRoot, toFileName ?? fileName);
+			writeFile(dstPath, fs.readFileSync(srcPath));
+		}
 	};
 	const writeOutputFile = (fileName: string, contents: string | Buffer) => {
-		writeFile(path.join(options.destRoot, fileName), contents);
+		const relativePath = path.isAbsolute(fileName) ? path.relative(options.sourcesRoot, fileName) : fileName;
+		writeFile(path.join(options.destRoot, relativePath), contents);
 	};
 	for (const fileName in result) {
 		if (result.hasOwnProperty(fileName)) {
@@ -114,128 +116,13 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	delete tsConfig.compilerOptions.moduleResolution;
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
 
-	[
-		'vs/loader.js'
-	].forEach(copyFile);
-}
+	options.additionalFilesToCopyOut?.forEach((file) => {
+		copyFile(file);
+	});
 
-export interface IOptions2 {
-	srcFolder: string;
-	outFolder: string;
-	outResourcesFolder: string;
-	ignores: string[];
-	renames: { [filename: string]: string };
-}
-
-export function createESMSourcesAndResources2(options: IOptions2): void {
-
-	const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
-	const OUT_FOLDER = path.join(REPO_ROOT, options.outFolder);
-	const OUT_RESOURCES_FOLDER = path.join(REPO_ROOT, options.outResourcesFolder);
-
-	const getDestAbsoluteFilePath = (file: string): string => {
-		const dest = options.renames[file.replace(/\\/g, '/')] || file;
-		if (dest === 'tsconfig.json') {
-			return path.join(OUT_FOLDER, `tsconfig.json`);
-		}
-		if (/\.ts$/.test(dest)) {
-			return path.join(OUT_FOLDER, dest);
-		}
-		return path.join(OUT_RESOURCES_FOLDER, dest);
-	};
-
-	const allFiles = walkDirRecursive(SRC_FOLDER);
-	for (const file of allFiles) {
-
-		if (options.ignores.indexOf(file.replace(/\\/g, '/')) >= 0) {
-			continue;
-		}
-
-		if (file === 'tsconfig.json') {
-			const tsConfig = JSON.parse(fs.readFileSync(path.join(SRC_FOLDER, file)).toString());
-			tsConfig.compilerOptions.module = 'es2022';
-			tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs').replace(/\\/g, '/');
-			write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
-			continue;
-		}
-
-		if (/\.ts$/.test(file) || /\.d\.ts$/.test(file) || /\.css$/.test(file) || /\.js$/.test(file) || /\.ttf$/.test(file)) {
-			// Transport the files directly
-			write(getDestAbsoluteFilePath(file), fs.readFileSync(path.join(SRC_FOLDER, file)));
-			continue;
-		}
-
-		console.log(`UNKNOWN FILE: ${file}`);
-	}
-
-
-	function walkDirRecursive(dir: string): string[] {
-		if (dir.charAt(dir.length - 1) !== '/' || dir.charAt(dir.length - 1) !== '\\') {
-			dir += '/';
-		}
-		const result: string[] = [];
-		_walkDirRecursive(dir, result, dir.length);
-		return result;
-	}
-
-	function _walkDirRecursive(dir: string, result: string[], trimPos: number): void {
-		const files = fs.readdirSync(dir);
-		for (let i = 0; i < files.length; i++) {
-			const file = path.join(dir, files[i]);
-			if (fs.statSync(file).isDirectory()) {
-				_walkDirRecursive(file, result, trimPos);
-			} else {
-				result.push(file.substr(trimPos));
-			}
-		}
-	}
-
-	function write(absoluteFilePath: string, contents: string | Buffer): void {
-		if (/(\.ts$)|(\.js$)/.test(absoluteFilePath)) {
-			contents = toggleComments(contents.toString());
-		}
-		writeFile(absoluteFilePath, contents);
-
-		function toggleComments(fileContents: string): string {
-			const lines = fileContents.split(/\r\n|\r|\n/);
-			let mode = 0;
-			for (let i = 0; i < lines.length; i++) {
-				const line = lines[i];
-				if (mode === 0) {
-					if (/\/\/ ESM-comment-begin/.test(line)) {
-						mode = 1;
-						continue;
-					}
-					if (/\/\/ ESM-uncomment-begin/.test(line)) {
-						mode = 2;
-						continue;
-					}
-					continue;
-				}
-
-				if (mode === 1) {
-					if (/\/\/ ESM-comment-end/.test(line)) {
-						mode = 0;
-						continue;
-					}
-					lines[i] = '// ' + line;
-					continue;
-				}
-
-				if (mode === 2) {
-					if (/\/\/ ESM-uncomment-end/.test(line)) {
-						mode = 0;
-						continue;
-					}
-					lines[i] = line.replace(/^(\s*)\/\/ ?/, function (_, indent) {
-						return indent;
-					});
-				}
-			}
-
-			return lines.join('\n');
-		}
-	}
+	copyFile('vs/loader.js');
+	copyFile('typings/css.d.ts');
+	copyFile('../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter.d.ts', '@vscode/tree-sitter-wasm.d.ts');
 }
 
 function transportCSS(module: string, enqueue: (module: string) => void, write: (path: string, contents: string | Buffer) => void): boolean {
@@ -244,8 +131,7 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 		return false;
 	}
 
-	const filename = path.join(SRC_DIR, module);
-	const fileContents = fs.readFileSync(filename).toString();
+	const fileContents = fs.readFileSync(module).toString();
 	const inlineResources = 'base64'; // see https://github.com/microsoft/monaco-editor/issues/148
 
 	const newContents = _rewriteOrInlineUrls(fileContents, inlineResources === 'base64');
@@ -263,7 +149,7 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 			}
 
 			const imagePath = path.join(path.dirname(module), url);
-			const fileContents = fs.readFileSync(path.join(SRC_DIR, imagePath));
+			const fileContents = fs.readFileSync(imagePath);
 			const MIME = /\.svg$/.test(url) ? 'image/svg+xml' : 'image/png';
 			let DATA = ';base64,' + fileContents.toString('base64');
 

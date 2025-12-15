@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from '@xterm/xterm';
+import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel, IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
-import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
+import type { ILigatureOptions, LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
@@ -30,7 +30,7 @@ import { ShellIntegrationAddon } from '../../../../../platform/terminal/common/x
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DecorationAddon } from './decorationAddon.js';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TerminalContextKeys } from '../../common/terminalContextKey.js';
@@ -42,6 +42,11 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { XtermAddonImporter } from './xtermAddonImporter.js';
+import { equals } from '../../../../../base/common/objects.js';
+import type { IProgressState } from '@xterm/addon-progress';
+import type { CommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { assert } from '../../../../../base/common/assert.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -79,6 +84,8 @@ export interface IXtermTerminalOptions {
 	disableShellIntegrationReporting?: boolean;
 	/** The object that imports xterm addons, set this to inject an importer in tests. */
 	xtermAddonImporter?: XtermAddonImporter;
+	/** Whether to disable the overview ruler. */
+	disableOverviewRuler?: boolean;
 }
 
 /**
@@ -98,6 +105,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _isPhysicalMouseWheel = MouseWheelClassifier.INSTANCE.isPhysicalMouseWheel();
 	private _lastInputEvent: string | undefined;
 	get lastInputEvent(): string | undefined { return this._lastInputEvent; }
+	private _progressState: IProgressState = { state: 0, value: 0 };
+	get progressState(): IProgressState { return this._progressState; }
 
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
@@ -114,6 +123,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
 	private readonly _ligaturesAddon: MutableDisposable<LigaturesAddonType> = this._register(new MutableDisposable());
+	private readonly _ligaturesAddonConfig?: ILigatureOptions;
 
 	private readonly _attachedDisposables = this._register(new DisposableStore());
 	private readonly _anyTerminalFocusContextKey: IContextKey<boolean>;
@@ -139,6 +149,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	readonly onDidChangeFocus = this._onDidChangeFocus.event;
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
+	private readonly _onDidChangeProgress = this._register(new Emitter<IProgressState>());
+	readonly onDidChangeProgress = this._onDidChangeProgress.event;
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
@@ -164,8 +176,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	 * outside of this class such that {@link raw} is not nullable.
 	 */
 	constructor(
+		resource: URI | undefined,
 		xtermCtor: typeof RawXtermTerminal,
 		options: IXtermTerminalOptions,
+		private readonly _onDidExecuteText: Event<void> | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
@@ -217,8 +231,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: config.fastScrollSensitivity,
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
+			scrollOnEraseInDisplay: true,
 			wordSeparator: config.wordSeparators,
-			overviewRuler: {
+			overviewRuler: options.disableOverviewRuler ? { width: 0 } : {
 				width: 14,
 				showTopBorder: true,
 			},
@@ -231,7 +246,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			},
 		}));
 		this._updateSmoothScrolling();
-		this._core = (this.raw as any)._core as IXtermCore;
+		interface ITerminalWithCore extends RawXtermTerminal {
+			_core: IXtermCore;
+		}
+		this._core = (this.raw as ITerminalWithCore)._core as IXtermCore;
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
@@ -264,11 +282,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._updateUnicodeVersion();
 		this._markNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, options.capabilities);
 		this.raw.loadAddon(this._markNavigationAddon);
-		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
+		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, resource, this._capabilities);
 		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
 		this._register(this._decorationAddon.onDidRequestCopyAsHtml(e => this._onDidRequestCopyAsHtml.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._telemetryService, this._logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._onDidExecuteText, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._xtermAddonLoader.importAddon('clipboard').then(ClipboardAddon => {
 			if (this._store.isDisposed) {
@@ -284,19 +302,63 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			});
 			this.raw.loadAddon(this._clipboardAddon);
 		});
+		this._xtermAddonLoader.importAddon('progress').then(ProgressAddon => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			const progressAddon = this._instantiationService.createInstance(ProgressAddon);
+			this.raw.loadAddon(progressAddon);
+			const updateProgress = () => {
+				if (!equals(this._progressState, progressAddon.progress)) {
+					this._progressState = progressAddon.progress;
+					this._onDidChangeProgress.fire(this._progressState);
+				}
+			};
+			this._register(progressAddon.onChange(() => updateProgress()));
+			updateProgress();
+			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+			if (commandDetection) {
+				this._register(commandDetection.onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 }));
+			} else {
+				const disposable = this._capabilities.onDidAddCapability(e => {
+					if (e.id === TerminalCapability.CommandDetection) {
+						this._register((e.capability as CommandDetectionCapability).onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 }));
+						this._store.delete(disposable);
+					}
+				});
+				this._store.add(disposable);
+			}
+		});
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
 		this._anyFocusedTerminalHasSelection = TerminalContextKeys.textSelectedInFocused.bindTo(contextKeyService);
 	}
 
 	*getBufferReverseIterator(): IterableIterator<string> {
-		for (let i = this.raw.buffer.active.length; i >= 0; i--) {
+		for (let i = this.raw.buffer.active.length - 1; i >= 0; i--) {
 			const { lineData, lineIndex } = getFullBufferLineAsString(i, this.raw.buffer.active);
 			if (lineData) {
 				i = lineIndex;
 				yield lineData;
 			}
 		}
+	}
+
+	getContentsAsText(startMarker?: IXtermMarker, endMarker?: IXtermMarker): string {
+		const lines: string[] = [];
+		const buffer = this.raw.buffer.active;
+		if (startMarker?.line === -1) {
+			throw new Error('Cannot get contents of a disposed startMarker');
+		}
+		if (endMarker?.line === -1) {
+			throw new Error('Cannot get contents of a disposed endMarker');
+		}
+		const startLine = startMarker?.line ?? 0;
+		const endLine = endMarker?.line ?? buffer.length - 1;
+		for (let y = startLine; y <= endLine; y++) {
+			lines.push(buffer.getLine(y)?.translateToString(true) ?? '');
+		}
+		return lines.join('\n');
 	}
 
 	async getContentsAsHtml(): Promise<string> {
@@ -307,6 +369,68 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 
 		return this._serializeAddon.serializeAsHTML();
+	}
+
+	async getCommandOutputAsHtml(command: ITerminalCommand, maxLines: number): Promise<{ text: string; truncated?: boolean }> {
+		if (!this._serializeAddon) {
+			const Addon = await this._xtermAddonLoader.importAddon('serialize');
+			this._serializeAddon = new Addon();
+			this.raw.loadAddon(this._serializeAddon);
+		}
+		let startLine: number;
+		let startCol: number;
+		if (command.executedMarker && command.executedMarker.line >= 0) {
+			startLine = command.executedMarker.line;
+			startCol = Math.max(command.executedX ?? 0, 0);
+		} else {
+			startLine = command.marker?.line !== undefined ? command.marker.line + 1 : 1;
+			startCol = Math.max(command.startX ?? 0, 0);
+		}
+
+		let endLine = command.endMarker?.line !== undefined ? command.endMarker.line - 1 : this.raw.buffer.active.length - 1;
+		if (endLine < startLine) {
+			return { text: '', truncated: false };
+		}
+		// Trim empty lines from the end
+		let emptyLinesFromEnd = 0;
+		for (let i = endLine; i >= startLine; i--) {
+			const line = this.raw.buffer.active.getLine(i);
+			if (line && line.translateToString(true).trim() === '') {
+				emptyLinesFromEnd++;
+			} else {
+				break;
+			}
+		}
+		endLine = endLine - emptyLinesFromEnd;
+
+		// Trim empty lines from the start
+		let emptyLinesFromStart = 0;
+		for (let i = startLine; i <= endLine; i++) {
+			const line = this.raw.buffer.active.getLine(i);
+			if (line && line.translateToString(true, i === startLine ? startCol : undefined).trim() === '') {
+				if (i === startLine) {
+					startCol = 0;
+				}
+				emptyLinesFromStart++;
+			} else {
+				break;
+			}
+		}
+		startLine = startLine + emptyLinesFromStart;
+
+		if (maxLines && endLine - startLine > maxLines) {
+			startLine = endLine - maxLines;
+			startCol = 0;
+		}
+
+		const bufferLine = this.raw.buffer.active.getLine(startLine);
+		if (bufferLine) {
+			startCol = Math.min(startCol, bufferLine.length);
+		}
+
+		const range = { startLine, endLine, startCol };
+		const result = this._serializeAddon.serializeAsHTML({ range });
+		return { text: result, truncated: (endLine - startLine) >= maxLines };
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -369,6 +493,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		this._attached = { container, options };
 		// Screen must be created at this point as xterm.open is called
+		// eslint-disable-next-line no-restricted-syntax
 		return this._attached?.container.querySelector('.xterm-screen')!;
 	}
 
@@ -383,6 +508,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	resize(columns: number, rows: number): void {
+		this._logService.debug('resizing', columns, rows);
 		this.raw.resize(columns, rows);
 	}
 
@@ -408,10 +534,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.customGlyphs = config.customGlyphs;
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
-		this.raw.options.overviewRuler = {
-			width: 14,
-			showTopBorder: true,
-		};
+
 		this._updateSmoothScrolling();
 		if (this._attached) {
 			if (this._attached.options.enableGpu) {
@@ -618,11 +741,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (this.hasSelection() || (asHtml && command)) {
 			if (asHtml) {
 				const textAsHtml = await this.getSelectionAsHtml(command);
-				function listener(e: any) {
-					if (!e.clipboardData.types.includes('text/plain')) {
-						e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+				function listener(e: ClipboardEvent) {
+					if (e.clipboardData) {
+						if (!e.clipboardData.types.includes('text/plain')) {
+							e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+						}
+						e.clipboardData.setData('text/html', textAsHtml);
 					}
-					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
 				}
 				const doc = dom.getDocument(this.raw.element);
@@ -700,18 +825,37 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (!this.raw.element) {
 			return;
 		}
-		if (this._terminalConfigurationService.config.fontLigatures) {
+		const ligaturesConfig = this._terminalConfigurationService.config.fontLigatures;
+		let shouldRecreateWebglRenderer = false;
+		if (ligaturesConfig?.enabled) {
+			if (this._ligaturesAddon.value && !equals(ligaturesConfig, this._ligaturesAddonConfig)) {
+				this._ligaturesAddon.clear();
+			}
 			if (!this._ligaturesAddon.value) {
-				this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
-					if (this._store.isDisposed) {
-						return;
-					}
-					this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon);
-					this.raw.loadAddon(this._ligaturesAddon.value);
+				const LigaturesAddon = await this._xtermAddonLoader.importAddon('ligatures');
+				if (this._store.isDisposed) {
+					return;
+				}
+				this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon, {
+					fontFeatureSettings: ligaturesConfig.featureSettings,
+					fallbackLigatures: ligaturesConfig.fallbackLigatures,
 				});
+				this.raw.loadAddon(this._ligaturesAddon.value);
+				shouldRecreateWebglRenderer = true;
 			}
 		} else {
+			if (!this._ligaturesAddon.value) {
+				return;
+			}
 			this._ligaturesAddon.clear();
+			shouldRecreateWebglRenderer = true;
+		}
+
+		if (shouldRecreateWebglRenderer && this._webglAddon) {
+			// Re-create the webgl addon when ligatures state changes to so the texture atlas picks up
+			// styles from the DOM.
+			this._disposeOfWebglRenderer();
+			await this._enableWebglRenderer();
 		}
 	}
 
@@ -746,6 +890,27 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// gets resized after the webgl addon is disposed
 		this._onDidRequestRefreshDimensions.fire();
 	}
+
+	async getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string> {
+		if (!this._serializeAddon) {
+			const Addon = await this._xtermAddonLoader.importAddon('serialize');
+			this._serializeAddon = new Addon();
+			this.raw.loadAddon(this._serializeAddon);
+		}
+
+		assert(startMarker.line !== -1);
+		let end = endMarker?.line ?? this.raw.buffer.active.length - 1;
+		if (skipLastLine) {
+			end = end - 1;
+		}
+		return this._serializeAddon.serialize({
+			range: {
+				start: startMarker.line,
+				end: end
+			}
+		});
+	}
+
 
 	getXtermTheme(theme?: IColorTheme): ITheme {
 		if (!theme) {

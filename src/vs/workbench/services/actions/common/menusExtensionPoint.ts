@@ -106,6 +106,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugVariablesContext', "The debug variables view context menu")
 	},
 	{
+		key: 'debug/watch/context',
+		id: MenuId.DebugWatchContext,
+		description: localize('menus.debugWatchContext', "The debug watch view context menu")
+	},
+	{
 		key: 'debug/toolBar',
 		id: MenuId.DebugToolBar,
 		description: localize('menus.debugToolBar', "The debug toolbar menu")
@@ -144,10 +149,15 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.scmSourceControl', "The Source Control menu")
 	},
 	{
-		key: 'scm/sourceControl/title',
+		key: 'scm/repositories/title',
 		id: MenuId.SCMSourceControlTitle,
-		description: localize('menus.scmSourceControlTitle', "The Source Control title menu"),
+		description: localize('menus.scmSourceControlTitle', "The Source Control Repositories title menu"),
 		proposed: 'contribSourceControlTitleMenu'
+	},
+	{
+		key: 'scm/repository',
+		id: MenuId.SCMSourceControlInline,
+		description: localize('menus.scmSourceControlInline', "The Source Control repository menu"),
 	},
 	{
 		key: 'scm/resourceState/context',
@@ -183,7 +193,7 @@ const apiMenus: IAPIMenu[] = [
 	},
 	{
 		key: 'scm/historyItem/context',
-		id: MenuId.SCMChangesContext,
+		id: MenuId.SCMHistoryItemContext,
 		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
 	},
@@ -192,6 +202,18 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.SCMHistoryItemRefContext,
 		description: localize('menus.historyItemRefContext', "The Source Control history item reference context menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/artifactGroup/context',
+		id: MenuId.SCMArtifactGroupContext,
+		description: localize('menus.artifactGroupContext', "The Source Control artifact group context menu"),
+		proposed: 'contribSourceControlArtifactGroupMenu'
+	},
+	{
+		key: 'scm/artifact/context',
+		id: MenuId.SCMArtifactContext,
+		description: localize('menus.artifactContext', "The Source Control artifact context menu"),
+		proposed: 'contribSourceControlArtifactMenu'
 	},
 	{
 		key: 'statusBar/remoteIndicator',
@@ -416,6 +438,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribMergeEditorMenus'
 	},
 	{
+		key: 'multiDiffEditor/content',
+		id: MenuId.MultiDiffEditorContent,
+		description: localize('menus.multiDiffEditorContent', "A prominent button overlaying the multi diff editor"),
+		proposed: 'contribEditorContentMenu'
+	},
+	{
 		key: 'multiDiffEditor/resource/title',
 		id: MenuId.MultiDiffEditorFileToolbar,
 		description: localize('menus.multiDiffEditorResource', "The resource toolbar in the multi diff editor"),
@@ -432,7 +460,47 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.DiffEditorSelectionToolbar,
 		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
 		proposed: 'contribDiffEditorGutterToolBarMenus'
-	}
+	},
+	{
+		key: 'searchPanel/aiResults/commands',
+		id: MenuId.SearchActionMenu,
+		description: localize('searchPanel.aiResultsCommands', "The commands that will contribute to the menu rendered as buttons next to the AI search title"),
+	},
+	{
+		key: 'editor/context/chat',
+		id: MenuId.ChatTextEditorMenu,
+		description: localize('menus.chatTextEditor', "The Chat submenu in the text editor context menu."),
+		supportsSubmenus: false,
+		proposed: 'chatParticipantPrivate'
+	},
+	{
+		key: 'chat/input/editing/sessionToolbar',
+		id: MenuId.ChatEditingSessionChangesToolbar,
+		description: localize('menus.chatEditingSessionChangesToolbar', "The Chat Editing widget toolbar menu for session changes."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		// TODO: rename this to something like: `chatSessions/item/inline`
+		key: 'chat/chatSessions',
+		id: MenuId.AgentSessionsContext,
+		description: localize('menus.chatSessions', "The Chat Sessions menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chatSessions/newSession',
+		id: MenuId.AgentSessionsCreateSubMenu,
+		description: localize('menus.chatSessionsNewSession', "Menu for new chat sessions."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chat/multiDiff/context',
+		id: MenuId.ChatMultiDiffContext,
+		description: localize('menus.chatMultiDiffContext', "The Chat Multi-Diff context menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider',
+	},
 ];
 
 namespace schema {
@@ -594,7 +662,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize({ key: 'vscode.extension.contributes.submenu.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.submenu.icon', comment: ['do not translate or change "\\$(zap)", \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like "\\$(zap)"'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -730,7 +798,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change "\\$(zap)", \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like "\\$(zap)"'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -768,10 +836,10 @@ const _commandRegistrations = new DisposableStore();
 export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
 	extensionPoint: 'commands',
 	jsonSchema: schema.commandsContribution,
-	activationEventsGenerator: (contribs: schema.IUserFriendlyCommand[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly schema.IUserFriendlyCommand[]) {
 		for (const contrib of contribs) {
 			if (contrib.command) {
-				result.push(`onCommand:${contrib.command}`);
+				yield `onCommand:${contrib.command}`;
 			}
 		}
 	}
@@ -779,7 +847,7 @@ export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<
 
 commandsExtensionPoint.setHandler(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<unknown>) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;

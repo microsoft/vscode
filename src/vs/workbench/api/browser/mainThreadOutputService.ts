@@ -49,7 +49,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 			this._proxy.$setVisibleChannel(visibleChannel ? visibleChannel.id : null);
 			this._outputStatusItem.value = undefined;
 		};
-		this._register(Event.any<any>(this._outputService.onActiveOutputChannel, Event.filter(this._viewsService.onDidChangeViewVisibility, ({ id }) => id === OUTPUT_VIEW_ID))(() => setVisibleChannel()));
+		this._register(Event.any<unknown>(this._outputService.onActiveOutputChannel, Event.filter(this._viewsService.onDidChangeViewVisibility, ({ id }) => id === OUTPUT_VIEW_ID))(() => setVisibleChannel()));
 		setVisibleChannel();
 	}
 
@@ -59,7 +59,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		const id = `extension-output-${extensionId}-#${idCounter}-${label}`;
 		const resource = URI.revive(file);
 
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: resource, log: false, languageId, extensionId });
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, source: { resource }, log: false, languageId, extensionId });
 		this._register(toDisposable(() => this.$dispose(id)));
 		return id;
 	}
@@ -106,7 +106,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 				statusProperties,
 				'status.view.showQuietly',
 				StatusbarAlignment.RIGHT,
-				{ id: 'status.notifications', alignment: StatusbarAlignment.LEFT }
+				{ location: { id: 'status.notifications', priority: Number.NEGATIVE_INFINITY }, alignment: StatusbarAlignment.LEFT }
 			);
 		} else {
 			this._outputStatusItem.value.update(statusProperties);

@@ -171,10 +171,10 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
+		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false, disableRulers: true });
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
-		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
+		this._register(codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {}));
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateInputHint, this));
 		this._register(this._notebookExecutionStateService.onDidChangeExecution((e) => {
 			if (e.type === NotebookExecutionType.cell && isEqual(e.notebook, this._notebookWidget.value?.viewModel?.notebookDocument.uri)) {
@@ -296,8 +296,9 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 					bottom: INPUT_EDITOR_PADDING
 				},
 				hover: {
-					enabled: true
-				}
+					enabled: 'on' as const
+				},
+				rulers: []
 			}
 		});
 
@@ -407,7 +408,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 					ContentHoverController.ID,
 					GlyphHoverController.ID,
 					MarkerController.ID,
-					INLINE_CHAT_ID
+					INLINE_CHAT_ID,
 				])
 			}
 		});

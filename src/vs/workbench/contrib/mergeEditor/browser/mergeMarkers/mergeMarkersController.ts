@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { LineRange } from '../model/lineRange.js';
+import { MergeEditorLineRange } from '../model/lineRange.js';
 import { MergeEditorViewModel } from '../view/viewModel.js';
 import * as nls from '../../../../../nls.js';
 
@@ -42,7 +42,7 @@ export class MergeMarkersController extends Disposable {
 		const model = this.editor.getModel();
 		const blocks = model ? getBlocks(model, { blockToRemoveStartLinePrefix: conflictMarkers.start, blockToRemoveEndLinePrefix: conflictMarkers.end }) : { blocks: [] };
 
-		this.editor.setHiddenAreas(blocks.blocks.map(b => b.lineRange.deltaEnd(-1).toRange()), this);
+		this.editor.setHiddenAreas(blocks.blocks.map(b => b.lineRange.deltaEnd(-1).toExclusiveRange()), this);
 		this.editor.changeViewZones(c => {
 			this.disposableStore.clear();
 			for (const id of this.viewZoneIds) {
@@ -54,7 +54,7 @@ export class MergeMarkersController extends Disposable {
 				const startLine = model!.getLineContent(b.lineRange.startLineNumber).substring(0, 20);
 				const endLine = model!.getLineContent(b.lineRange.endLineNumberExclusive - 1).substring(0, 20);
 
-				const conflictingLinesCount = b.lineRange.lineCount - 2;
+				const conflictingLinesCount = b.lineRange.length - 2;
 
 				const domNode = h('div', [
 					h('div.conflict-zone-root', [
@@ -100,7 +100,7 @@ export class MergeMarkersController extends Disposable {
 
 					if (activeRange) {
 						const activeRangeInResult = vm.model.getLineRangeInResult(activeRange.baseRange, reader);
-						if (activeRangeInResult.intersects(b.lineRange)) {
+						if (activeRangeInResult.intersectsOrTouches(b.lineRange)) {
 							classNames.push('focused');
 						}
 					}
@@ -133,7 +133,7 @@ function getBlocks(document: ITextModel, configuration: ProjectionConfiguration)
 		} else {
 			if (line.startsWith(configuration.blockToRemoveEndLinePrefix)) {
 				inBlock = false;
-				blocks.push(new Block(new LineRange(startLineNumber, curLine - startLineNumber + 1)));
+				blocks.push(new Block(MergeEditorLineRange.fromLength(startLineNumber, curLine - startLineNumber + 1)));
 				transformedContent.push('');
 			}
 		}
@@ -146,7 +146,7 @@ function getBlocks(document: ITextModel, configuration: ProjectionConfiguration)
 }
 
 class Block {
-	constructor(public readonly lineRange: LineRange) { }
+	constructor(public readonly lineRange: MergeEditorLineRange) { }
 }
 
 interface ProjectionConfiguration {

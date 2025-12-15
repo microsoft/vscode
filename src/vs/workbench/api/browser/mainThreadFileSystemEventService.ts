@@ -208,6 +208,11 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions, correlate: boolean): Promise<void> {
 		const uri = URI.revive(resource);
 
+		const canHandleWatcher = await this._fileService.canHandleResource(uri);
+		if (!canHandleWatcher) {
+			this._logService.warn(`MainThreadFileSystemEventService#$watch(): cannot watch resource as its scheme is not handled by the file service (extension: ${extensionId}, path: ${uri.toString(true)})`);
+		}
+
 		const opts: IWatchOptions = {
 			...unvalidatedOpts
 		};
@@ -228,11 +233,12 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		}
 
 		// Correlated file watching: use an exclusive `createWatcher()`
-		if (correlate) {
+		// Note: currently not enabled for extensions (but leaving in in case of future usage)
+		if (correlate && !opts.recursive) {
 			this._logService.trace(`MainThreadFileSystemEventService#$watch(): request to start watching correlated (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session}, excludes: ${JSON.stringify(opts.excludes)}, includes: ${JSON.stringify(opts.includes)})`);
 
 			const watcherDisposables = new DisposableStore();
-			const subscription = watcherDisposables.add(this._fileService.createWatcher(uri, opts));
+			const subscription = watcherDisposables.add(this._fileService.createWatcher(uri, { ...opts, recursive: false }));
 			watcherDisposables.add(subscription.onDidChange(event => {
 				this._proxy.$onFileEvent({
 					session,

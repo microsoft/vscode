@@ -5,7 +5,7 @@
 
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { TwoKeyMap } from '../../../../base/common/map.js';
+import { NKeyMap } from '../../../../base/common/map.js';
 import { ensureNonNullable } from '../gpuUtils.js';
 import type { IRasterizedGlyph } from '../raster/raster.js';
 import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasPageGlyph } from './atlas.js';
@@ -29,7 +29,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 	private readonly _ctx: OffscreenCanvasRenderingContext2D;
 
 	private readonly _slabs: ITextureAtlasSlab[] = [];
-	private readonly _activeSlabsByDims: TwoKeyMap<number, number, ITextureAtlasSlab> = new TwoKeyMap();
+	private readonly _activeSlabsByDims: NKeyMap<ITextureAtlasSlab, [number, number]> = new NKeyMap();
 
 	private readonly _unusedRects: ITextureAtlasSlabUnusedRect[] = [];
 
@@ -243,7 +243,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 					});
 				}
 				this._slabs.push(slab);
-				this._activeSlabsByDims.set(desiredSlabSize.w, desiredSlabSize.h, slab);
+				this._activeSlabsByDims.set(slab, desiredSlabSize.w, desiredSlabSize.h);
 			}
 
 			const glyphsPerRow = Math.floor(this._slabW / slab.entryW);

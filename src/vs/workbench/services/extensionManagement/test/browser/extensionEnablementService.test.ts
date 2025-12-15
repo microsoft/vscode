@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata, InstallOperation, IAllowedExtensionsService, AllowedExtensionsConfigKey } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from '../../common/extensionManagement.js';
+import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata, InstallOperation, IAllowedExtensionsService, AllowedExtensionsConfigKey, IExtensionsControlManifest } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from '../../common/extensionManagement.js';
 import { ExtensionEnablementService } from '../../browser/extensionEnablementService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
+import { productService, TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
 import { GlobalExtensionEnablementService } from '../../../../../platform/extensionManagement/common/extensionEnablementService.js';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from '../../../../../platform/userDataSync/common/userDataSyncAccount.js';
 import { IUserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSync.js';
@@ -41,6 +41,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { AllowedExtensionsService } from '../../../../../platform/extensionManagement/common/allowedExtensionsService.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 
 function createStorageService(instantiationService: TestInstantiationService, disposableStore: DisposableStore): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -72,6 +73,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onDidUninstallExtension: disposables.add(new Emitter<DidUninstallExtensionEvent>()).event,
 					onDidChangeProfile: disposables.add(new Emitter<DidChangeProfileEvent>()).event,
 					onDidUpdateExtensionMetadata: disposables.add(new Emitter<DidUpdateExtensionMetadata>()).event,
+					onProfileAwareDidInstallExtensions: Event.None,
 				},
 			}, null, null));
 		const extensionManagementService = disposables.add(instantiationService.createInstance(ExtensionManagementService));
@@ -95,7 +97,9 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			workspaceTrustManagementService,
 			new class extends mock<IWorkspaceTrustRequestService>() { override requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> { return Promise.resolve(true); } },
 			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, disposables.add(new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService()))),
-			instantiationService
+			instantiationService,
+			new NullLogService(),
+			productService
 		);
 		this._register(disposables);
 	}
@@ -124,12 +128,13 @@ suite('ExtensionEnablementService Test', () => {
 	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
-	let testObject: IWorkbenchExtensionEnablementService;
+	let testObject: TestExtensionEnablementService;
 
 	const didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
 	const didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 	const didChangeProfileExtensionsEvent = new Emitter<DidChangeProfileEvent>();
 	const installed: ILocalExtension[] = [];
+	const malicious: IExtensionIdentifier[] = [];
 
 	setup(() => {
 		installed.splice(0, installed.length);
@@ -147,7 +152,15 @@ suite('ExtensionEnablementService Test', () => {
 				onDidInstallExtensions: didInstallEvent.event,
 				onDidUninstallExtension: didUninstallEvent.event,
 				onDidChangeProfile: didChangeProfileExtensionsEvent.event,
-				getInstalled: () => Promise.resolve(installed)
+				onProfileAwareDidInstallExtensions: Event.None,
+				getInstalled: () => Promise.resolve(installed),
+				async getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
+					return {
+						malicious: malicious.map(e => ({ extensionOrPublisher: e })),
+						deprecated: {},
+						search: []
+					};
+				}
 			},
 		}, null, null));
 		instantiationService.stub(ILogService, NullLogService);
@@ -1163,6 +1176,28 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByAllowlist);
 	});
 
+	test('test extension is disabled by malicious', async () => {
+		malicious.push({ id: 'malicious.extensionA' });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		const target = aLocalExtension2('malicious.extensionA');
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByMalicious);
+	});
+
+	test('test installed malicious extension triggers change event', async () => {
+		testObject.dispose();
+		malicious.push({ id: 'malicious.extensionB' });
+		const local = aLocalExtension2('malicious.extensionB');
+		installed.push(local);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		assert.strictEqual(testObject.getEnablementState(local), EnablementState.EnabledGlobally);
+		const promise = Event.toPromise(testObject.onEnablementChanged);
+
+		const result = await promise;
+		assert.deepStrictEqual(result[0], local);
+		assert.strictEqual(testObject.getEnablementState(local), EnablementState.DisabledByMalicious);
+	});
+
 });
 
 function anExtensionManagementServer(authority: string, instantiationService: TestInstantiationService): IExtensionManagementServer {
@@ -1207,7 +1242,7 @@ function aLocalExtension(id: string, contributes?: IExtensionContributions, type
 	return aLocalExtension2(id, contributes ? { contributes } : {}, isUndefinedOrNull(type) ? {} : { type });
 }
 
-function aLocalExtension2(id: string, manifest: Partial<IExtensionManifest> = {}, properties: any = {}): ILocalExtension {
+function aLocalExtension2(id: string, manifest: Partial<IExtensionManifest> = {}, properties: IStringDictionary<unknown> = {}): ILocalExtension {
 	const [publisher, name] = id.split('.');
 	manifest = { name, publisher, ...manifest };
 	properties = {

@@ -24,6 +24,7 @@ import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from '
 import { equals } from '../../../../base/common/arrays.js';
 import { arrayContainsElementOrParent, RenderableMatch, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeMatch, isSearchResult, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
+import { AITextSearchHeadingImpl } from './AISearch/aiSearchModel.js';
 
 
 //#region Interfaces
@@ -76,6 +77,7 @@ registerAction2(class RemoveAction extends Action2 {
 				{
 					id: MenuId.SearchActionMenu,
 					group: 'inline',
+					when: ContextKeyExpr.or(Constants.SearchContext.FileFocusKey, Constants.SearchContext.MatchFocusKey, Constants.SearchContext.FolderFocusKey),
 					order: 2,
 				},
 			]
@@ -127,7 +129,8 @@ registerAction2(class RemoveAction extends Action2 {
 
 		if (focusElement && shouldRefocusMatch) {
 			if (!nextFocusElement) {
-				nextFocusElement = await getLastNodeFromSameType(viewer, focusElement);
+				// Ignore error if there are no elements left
+				nextFocusElement = await getLastNodeFromSameType(viewer, focusElement).catch(() => { });
 			}
 
 			if (nextFocusElement && !arrayContainsElementOrParent(nextFocusElement, elementsToRemove)) {
@@ -374,10 +377,18 @@ export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibl
 		while (!!navigator.next() && (!isSearchTreeFolderMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
 	} else if (isSearchTreeFileMatch(element)) {
 		while (!!navigator.next() && (!isSearchTreeFileMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+			// Never expand AI search results by default
+			if (navigator.current() instanceof AITextSearchHeadingImpl) {
+				return navigator.current();
+			}
 			await viewer.expand(navigator.current());
 		}
 	} else {
 		while (navigator.next() && (!isSearchTreeMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+			// Never expand AI search results by default
+			if (navigator.current() instanceof AITextSearchHeadingImpl) {
+				return navigator.current();
+			}
 			await viewer.expand(navigator.current());
 		}
 	}

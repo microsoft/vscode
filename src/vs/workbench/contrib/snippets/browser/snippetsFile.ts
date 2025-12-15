@@ -149,7 +149,7 @@ interface JsonSerializedSnippet {
 	description: string;
 }
 
-function isJsonSerializedSnippet(thing: any): thing is JsonSerializedSnippet {
+function isJsonSerializedSnippet(thing: unknown): thing is JsonSerializedSnippet {
 	return isObject(thing) && Boolean((<JsonSerializedSnippet>thing).body);
 }
 

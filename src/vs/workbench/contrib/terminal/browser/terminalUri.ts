@@ -7,6 +7,12 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITerminalInstance, TerminalDataTransfers } from './terminal.js';
 
+export interface ITerminalUriMetadata {
+	title?: string;
+	commandId?: string;
+	commandLine?: string;
+}
+
 export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 	const [, workspaceId, instanceId] = resource.path.split('/');
 	if (!workspaceId || !Number.parseInt(instanceId)) {
@@ -15,13 +21,19 @@ export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 	return { workspaceId, instanceId: Number.parseInt(instanceId) };
 }
 
-export function getTerminalUri(workspaceId: string, instanceId: number, title?: string): URI {
+export function getTerminalUri(workspaceId: string, instanceId: number, title?: string, commandId?: string): URI {
+	const params = new URLSearchParams();
+	if (commandId) {
+		params.set('command', commandId);
+	}
 	return URI.from({
 		scheme: Schemas.vscodeTerminal,
 		path: `/${workspaceId}/${instanceId}`,
 		fragment: title || undefined,
+		query: commandId ? params.toString() : undefined
 	});
 }
+
 
 export interface ITerminalIdentifier {
 	workspaceId: string;

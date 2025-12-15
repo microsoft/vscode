@@ -12,7 +12,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -33,8 +33,11 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { checkGlobFileExists } from '../../../services/extensions/common/workspaceContains.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
+import { asWebviewUri } from '../../webview/common/webview.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { extensionDefaultIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { GettingStartedInput } from './gettingStartedInput.js';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -83,7 +86,8 @@ export interface IWalkthroughStep {
 	media:
 	| { type: 'image'; path: { hcDark: URI; hcLight: URI; light: URI; dark: URI }; altText: string }
 	| { type: 'svg'; path: URI; altText: string }
-	| { type: 'markdown'; path: URI; base: URI; root: URI };
+	| { type: 'markdown'; path: URI; base: URI; root: URI }
+	| { type: 'video'; path: { hcDark: URI; hcLight: URI; light: URI; dark: URI }; poster?: { hcDark: URI; hcLight: URI; light: URI; dark: URI }; root: URI; altText: string };
 }
 
 type StepProgress = { done: boolean };
@@ -126,7 +130,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private readonly _onDidProgressStep = new Emitter<IResolvedWalkthroughStep>();
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep> = this._onDidProgressStep.event;
 
-	private memento: Memento;
+	private memento: Memento<Record<string, StepProgress | undefined>>;
 	private stepProgress: Record<string, StepProgress | undefined>;
 
 	private sessionEvents = new Set<string>();
@@ -156,7 +160,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService,
-		@IProductService private readonly productService: IProductService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
@@ -205,12 +210,20 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 										altText: step.media.altText,
 										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) })
 									}
-									: {
-										type: 'markdown',
-										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) }),
-										base: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
-										root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
-									},
+									: step.media.type === 'markdown'
+										? {
+											type: 'markdown',
+											path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) }),
+											base: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
+											root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
+										}
+										: {
+											type: 'video',
+											path: convertRelativeMediaPathsToWebviewURIs(FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'), step.media.path),
+											altText: step.media.altText,
+											root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
+											poster: step.media.poster ? convertRelativeMediaPathsToWebviewURIs(FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'), step.media.poster) : undefined
+										},
 						});
 					})
 			});
@@ -230,14 +243,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		});
 
 		this._register(this.extensionManagementService.onDidInstallExtensions((result) => {
-
-			if (result.some(e => ExtensionIdentifier.equals(this.productService.defaultChatAgent?.extensionId, e.identifier.id) && !e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT])) {
-				result.forEach(e => {
-					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
-					this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
-				});
-				return;
-			}
 
 			for (const e of result) {
 				const skipWalkthrough = e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT] || e?.context?.[EXTENSION_INSTALL_DEP_PACK_CONTEXT];
@@ -368,6 +373,16 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 						altText: step.media.svg,
 					};
 				}
+				else if (step.media.video) {
+					const baseURI = FileAccess.uriToFileUri(extension.extensionLocation);
+					media = {
+						type: 'video',
+						path: convertRelativeMediaPathsToWebviewURIs(baseURI, step.media.video),
+						root: FileAccess.uriToFileUri(extension.extensionLocation),
+						altText: step.media.altText,
+						poster: step.media.poster ? convertRelativeMediaPathsToWebviewURIs(baseURI, step.media.poster) : undefined
+					};
+				}
 
 				// Throw error for unknown walkthrough format
 				else {
@@ -404,11 +419,12 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				order: 0,
 				walkthroughPageTitle: extension.displayName ?? extension.name,
 				steps,
-				icon: {
+				icon: iconStr ? {
 					type: 'image',
-					path: iconStr
-						? FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
-						: DefaultIconPath
+					path: FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
+				} : {
+					icon: extensionDefaultIcon,
+					type: 'icon'
 				},
 				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
 			} as const;
@@ -424,7 +440,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		if (hadLastFoucs && sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			type GettingStartedAutoOpenClassification = {
 				owner: 'lramos15';
-				comment: 'When a walkthrthrough is opened upon extension installation';
+				comment: 'When a walkthrough is opened upon extension installation';
 				id: {
 					classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight';
 					owner: 'lramos15';
@@ -435,7 +451,13 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				id: string;
 			};
 			this.telemetryService.publicLog2<GettingStartedAutoOpenEvent, GettingStartedAutoOpenClassification>('gettingStarted.didAutoOpenWalkthrough', { id: sectionToOpen });
-			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
+			const activeEditor = this.editorService.activeEditor;
+			if (activeEditor instanceof GettingStartedInput) {
+				this.commandService.executeCommand('workbench.action.keepEditor');
+			}
+			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen, {
+				inactive: this.layoutService.hasFocus(Parts.EDITOR_PART) // do not steal the active editor away
+			});
 		}
 	}
 
@@ -476,6 +498,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				};
 			})
 			.filter(category => category.content.type !== 'steps' || category.content.steps.length)
+			.filter(category => category.id !== 'NewWelcomeExperience')
 			.map(category => this.resolveWalkthrough(category));
 
 		return categoriesWithCompletion;
@@ -574,6 +597,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	}
 
 	private registerDoneListeners(step: IWalkthroughStep) {
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((step as any).doneOn) {
 			console.error(`wakthrough step`, step, `uses deprecated 'doneOn' property. Adopt 'completionEvents' to silence this warning`);
 			return;
@@ -680,6 +704,25 @@ const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string; hcL
 		};
 	}
 };
+
+const convertRelativeMediaPathsToWebviewURIs = (basePath: URI, path: string | { hc: string; hcLight?: string; dark: string; light: string }): { hcDark: URI; hcLight: URI; dark: URI; light: URI } => {
+	const convertPath = (path: string) => path.startsWith('https://')
+		? URI.parse(path, true)
+		: asWebviewUri(joinPath(basePath, path));
+
+	if (typeof path === 'string') {
+		const converted = convertPath(path);
+		return { hcDark: converted, hcLight: converted, dark: converted, light: converted };
+	} else {
+		return {
+			hcDark: convertPath(path.hc),
+			hcLight: convertPath(path.hcLight ?? path.light),
+			light: convertPath(path.light),
+			dark: convertPath(path.dark)
+		};
+	}
+};
+
 
 registerAction2(class extends Action2 {
 	constructor() {

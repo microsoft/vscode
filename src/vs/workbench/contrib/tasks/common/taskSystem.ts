@@ -12,6 +12,10 @@ import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspac
 import { Task, ITaskEvent, KeyedTaskIdentifier } from './tasks.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 
+import { IShellLaunchConfig } from '../../../../platform/terminal/common/terminal.js';
+import { IMarkerData } from '../../../../platform/markers/common/markers.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
+
 export const enum TaskErrors {
 	NotConfigured,
 	RunningTask,
@@ -21,6 +25,38 @@ export const enum TaskErrors {
 	TaskNotFound,
 	NoValidTaskRunner,
 	UnknownError
+}
+
+export class VerifiedTask {
+	readonly task: Task;
+	readonly resolver: ITaskResolver;
+	readonly trigger: string;
+	resolvedVariables?: IResolvedVariables;
+	systemInfo?: ITaskSystemInfo;
+	workspaceFolder?: IWorkspaceFolder;
+	shellLaunchConfig?: IShellLaunchConfig;
+
+	constructor(task: Task, resolver: ITaskResolver, trigger: string) {
+		this.task = task;
+		this.resolver = resolver;
+		this.trigger = trigger;
+	}
+
+	public verify(): boolean {
+		let verified = false;
+		if (this.trigger && this.resolvedVariables && this.workspaceFolder && (this.shellLaunchConfig !== undefined)) {
+			verified = true;
+		}
+		return verified;
+	}
+
+	public getVerifiedTask(): { task: Task; resolver: ITaskResolver; trigger: string; resolvedVariables: IResolvedVariables; systemInfo: ITaskSystemInfo; workspaceFolder: IWorkspaceFolder; shellLaunchConfig: IShellLaunchConfig } {
+		if (this.verify()) {
+			return { task: this.task, resolver: this.resolver, trigger: this.trigger, resolvedVariables: this.resolvedVariables!, systemInfo: this.systemInfo!, workspaceFolder: this.workspaceFolder!, shellLaunchConfig: this.shellLaunchConfig! };
+		} else {
+			throw new Error('VerifiedTask was not checked. verify must be checked before getVerifiedTask.');
+		}
+	}
 }
 
 export class TaskError {
@@ -101,7 +137,7 @@ export interface ITaskSystemInfoResolver {
 }
 
 export interface ITaskSystem {
-	onDidStateChange: Event<ITaskEvent>;
+	readonly onDidStateChange: Event<ITaskEvent>;
 	reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	rerun(): ITaskExecuteResult | undefined;
@@ -116,4 +152,10 @@ export interface ITaskSystem {
 	revealTask(task: Task): boolean;
 	customExecutionComplete(task: Task, result: number): Promise<void>;
 	isTaskVisible(task: Task): boolean;
+	getTaskForTerminal(instanceId: number): Promise<Task | undefined>;
+	getTerminalsForTasks(tasks: SingleOrMany<Task>): URI[] | undefined;
+	getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined;
+	getFirstInstance(task: Task): Task | undefined;
+	get lastTask(): VerifiedTask | undefined;
+	set lastTask(task: VerifiedTask);
 }

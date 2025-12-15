@@ -8,7 +8,7 @@ import { DeferredPromise, generateUuid } from './helper';
 import { NotebookSerializerBase } from './notebookSerializer';
 
 export class NotebookSerializer extends NotebookSerializerBase {
-	private experimentalSave = vscode.workspace.getConfiguration('ipynb').get('experimental.serialization', false);
+	private experimentalSave = vscode.workspace.getConfiguration('ipynb').get('experimental.serialization', true);
 	private worker?: Worker;
 	private tasks = new Map<string, DeferredPromise<Uint8Array>>();
 
@@ -16,7 +16,7 @@ export class NotebookSerializer extends NotebookSerializerBase {
 		super(context);
 		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('ipynb.experimental.serialization')) {
-				this.experimentalSave = vscode.workspace.getConfiguration('ipynb').get('experimental.serialization', false);
+				this.experimentalSave = vscode.workspace.getConfiguration('ipynb').get('experimental.serialization', true);
 			}
 		}));
 	}

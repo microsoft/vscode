@@ -9,8 +9,8 @@ import { HorizontalRange, RenderingContext } from '../../view/renderingContext.j
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
 import * as viewEvents from '../../../common/viewEvents.js';
-import { ViewModelDecoration } from '../../../common/viewModel.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
 
 export class DecorationsOverlay extends DynamicViewOverlay {
 

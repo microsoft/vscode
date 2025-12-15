@@ -16,6 +16,7 @@ export class UriHandlerLoopbackClient implements ILoopbackClientAndOpener {
 	constructor(
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _redirectUri: string,
+		private readonly _callbackUri: Uri,
 		private readonly _logger: LogOutputChannel
 	) { }
 
@@ -23,7 +24,6 @@ export class UriHandlerLoopbackClient implements ILoopbackClientAndOpener {
 		const url = await toPromise(this._uriHandler.event);
 		this._logger.debug(`Received URL event. Authority: ${url.authority}`);
 		const result = new URL(url.toString(true));
-
 		return {
 			code: result.searchParams.get('code') ?? undefined,
 			state: result.searchParams.get('state') ?? undefined,
@@ -44,9 +44,7 @@ export class UriHandlerLoopbackClient implements ILoopbackClientAndOpener {
 	}
 
 	async openBrowser(url: string): Promise<void> {
-		const callbackUri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://vscode.microsoft-authentication`));
-
-		const uri = Uri.parse(url + `&state=${encodeURI(callbackUri.toString(true))}`);
+		const uri = Uri.parse(url + `&state=${encodeURI(this._callbackUri.toString(true))}`);
 		await env.openExternal(uri);
 	}
 }

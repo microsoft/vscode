@@ -9,27 +9,31 @@ import { ICachedPublicClientApplication } from '../common/publicClientCache';
 import { UriHandlerLoopbackClient } from '../common/loopbackClientAndOpener';
 import { UriEventHandler } from '../UriEventHandler';
 import { loopbackTemplate } from './loopbackTemplate';
+import { Config } from '../common/config';
 
-const redirectUri = 'https://vscode.dev/redirect';
+const DEFAULT_REDIRECT_URI = 'https://vscode.dev/redirect';
 
 export const enum ExtensionHost {
-	WebWorker,
 	Remote,
 	Local
 }
 
 interface IMsalFlowOptions {
 	supportsRemoteExtensionHost: boolean;
-	supportsWebWorkerExtensionHost: boolean;
+	supportsUnsupportedClient: boolean;
+	supportsBroker: boolean;
 }
 
 interface IMsalFlowTriggerOptions {
 	cachedPca: ICachedPublicClientApplication;
+	authority: string;
 	scopes: string[];
+	callbackUri: Uri;
 	loginHint?: string;
 	windowHandle?: Buffer;
 	logger: LogOutputChannel;
 	uriHandler: UriEventHandler;
+	claims?: string;
 }
 
 interface IMsalFlow {
@@ -41,20 +45,28 @@ interface IMsalFlow {
 class DefaultLoopbackFlow implements IMsalFlow {
 	label = 'default';
 	options: IMsalFlowOptions = {
-		supportsRemoteExtensionHost: true,
-		supportsWebWorkerExtensionHost: true
+		supportsRemoteExtensionHost: false,
+		supportsUnsupportedClient: true,
+		supportsBroker: true
 	};
 
-	async trigger({ cachedPca, scopes, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying default msal flow...');
+		let redirectUri: string | undefined;
+		if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
+			redirectUri = Config.macOSBrokerRedirectUri;
+		}
 		return await cachedPca.acquireTokenInteractive({
 			openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
 			scopes,
+			authority,
 			successTemplate: loopbackTemplate,
 			errorTemplate: loopbackTemplate,
 			loginHint,
 			prompt: loginHint ? undefined : 'select_account',
-			windowHandle
+			windowHandle,
+			claims,
+			redirectUri
 		});
 	}
 }
@@ -62,44 +74,74 @@ class DefaultLoopbackFlow implements IMsalFlow {
 class UrlHandlerFlow implements IMsalFlow {
 	label = 'protocol handler';
 	options: IMsalFlowOptions = {
-		supportsRemoteExtensionHost: false,
-		supportsWebWorkerExtensionHost: false
+		supportsRemoteExtensionHost: true,
+		supportsUnsupportedClient: false,
+		supportsBroker: false
 	};
 
-	async trigger({ cachedPca, scopes, loginHint, windowHandle, logger, uriHandler }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger, uriHandler, callbackUri }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying protocol handler flow...');
-		const loopbackClient = new UriHandlerLoopbackClient(uriHandler, redirectUri, logger);
+		const loopbackClient = new UriHandlerLoopbackClient(uriHandler, DEFAULT_REDIRECT_URI, callbackUri, logger);
+		let redirectUri: string | undefined;
+		if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
+			redirectUri = Config.macOSBrokerRedirectUri;
+		}
 		return await cachedPca.acquireTokenInteractive({
 			openBrowser: (url: string) => loopbackClient.openBrowser(url),
 			scopes,
+			authority,
 			loopbackClient,
 			loginHint,
 			prompt: loginHint ? undefined : 'select_account',
-			windowHandle
+			windowHandle,
+			claims,
+			redirectUri
 		});
+	}
+}
+
+class DeviceCodeFlow implements IMsalFlow {
+	label = 'device code';
+	options: IMsalFlowOptions = {
+		supportsRemoteExtensionHost: true,
+		supportsUnsupportedClient: true,
+		supportsBroker: false
+	};
+
+	async trigger({ cachedPca, authority, scopes, claims, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+		logger.info('Trying device code flow...');
+		const result = await cachedPca.acquireTokenByDeviceCode({ scopes, authority, claims });
+		if (!result) {
+			throw new Error('Device code flow did not return a result');
+		}
+		return result;
 	}
 }
 
 const allFlows: IMsalFlow[] = [
 	new DefaultLoopbackFlow(),
-	new UrlHandlerFlow()
+	new UrlHandlerFlow(),
+	new DeviceCodeFlow()
 ];
 
 export interface IMsalFlowQuery {
 	extensionHost: ExtensionHost;
+	supportedClient: boolean;
+	isBrokerSupported: boolean;
 }
 
 export function getMsalFlows(query: IMsalFlowQuery): IMsalFlow[] {
-	return allFlows.filter(flow => {
+	const flows = [];
+	for (const flow of allFlows) {
 		let useFlow: boolean = true;
-		switch (query.extensionHost) {
-			case ExtensionHost.Remote:
-				useFlow &&= flow.options.supportsRemoteExtensionHost;
-				break;
-			case ExtensionHost.WebWorker:
-				useFlow &&= flow.options.supportsWebWorkerExtensionHost;
-				break;
+		if (query.extensionHost === ExtensionHost.Remote) {
+			useFlow &&= flow.options.supportsRemoteExtensionHost;
 		}
-		return useFlow;
-	});
+		useFlow &&= flow.options.supportsBroker || !query.isBrokerSupported;
+		useFlow &&= flow.options.supportsUnsupportedClient || query.supportedClient;
+		if (useFlow) {
+			flows.push(flow);
+		}
+	}
+	return flows;
 }

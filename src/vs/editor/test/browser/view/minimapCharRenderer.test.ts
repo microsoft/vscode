@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MinimapCharRendererFactory } from '../../../browser/viewParts/minimap/minimapCharRendererFactory.js';
 import { Constants } from '../../../browser/viewParts/minimap/minimapCharSheet.js';
-import { RGBA8 } from '../../../common/core/rgba.js';
+import { RGBA8 } from '../../../common/core/misc/rgba.js';
 
 suite('MinimapCharRenderer', () => {
 

@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { CommandManager } from '../commandManager';
+import { isMarkdownFile } from '../util/file';
 
 
 // Copied from markdown language service
@@ -50,6 +51,7 @@ class AddToIgnoreLinksQuickFixProvider implements vscode.CodeActionProvider {
 				case DiagnosticCode.link_noSuchHeaderInOwnFile:
 				case DiagnosticCode.link_noSuchFile:
 				case DiagnosticCode.link_noSuchHeaderInFile: {
+					// eslint-disable-next-line local/code-no-any-casts
 					const hrefText = (diagnostic as any).data?.hrefText;
 					if (hrefText) {
 						const fix = new vscode.CodeAction(
@@ -87,11 +89,11 @@ function registerMarkdownStatusItem(selector: vscode.DocumentSelector, commandMa
 
 	const update = () => {
 		const activeDoc = vscode.window.activeTextEditor?.document;
-		const markdownDoc = activeDoc?.languageId === 'markdown' ? activeDoc : undefined;
+		const markdownDoc = activeDoc && isMarkdownFile(activeDoc) ? activeDoc : undefined;
 
 		const enabled = vscode.workspace.getConfiguration('markdown', markdownDoc).get(enabledSettingId);
 		if (enabled) {
-			statusItem.text = vscode.l10n.t('Link validation enabled');
+			statusItem.text = vscode.l10n.t('Markdown link validation enabled');
 			statusItem.command = {
 				command: commandId,
 				arguments: [false],
@@ -99,7 +101,7 @@ function registerMarkdownStatusItem(selector: vscode.DocumentSelector, commandMa
 				tooltip: vscode.l10n.t('Disable validation of Markdown links'),
 			};
 		} else {
-			statusItem.text = vscode.l10n.t('Link validation disabled');
+			statusItem.text = vscode.l10n.t('Markdown link validation disabled');
 			statusItem.command = {
 				command: commandId,
 				arguments: [true],

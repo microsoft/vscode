@@ -12,7 +12,7 @@ import { DeferredPromise, runWhenGlobalIdle } from '../../../../../../base/commo
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { getExtensionForMimeType } from '../../../../../../base/common/mime.js';
+import { getExtensionForMimeType, isTextStreamMime } from '../../../../../../base/common/mime.js';
 import { FileAccess, Schemas, matchesScheme, matchesSomeScheme } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import * as osPath from '../../../../../../base/common/path.js';
@@ -57,6 +57,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../services/edit
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages.js';
+import { getOutputText, getOutputStreamText, TEXT_BASED_MIMETYPES } from '../../viewModel/cellOutputTextHelper.js';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
@@ -121,6 +122,7 @@ interface BacklayerWebviewOptions {
 	readonly outputLineLimit: number;
 	readonly outputLinkifyFilePaths: boolean;
 	readonly minimalError: boolean;
+	readonly markupFontFamily: string;
 }
 
 
@@ -281,6 +283,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				key: 'notebook.error.rendererFallbacksExhausted',
 				comment: ['$0 is a placeholder for the mime type']
 			}, "Could not render content for '$0'"),
+			'notebook-markup-font-family': this.options.markupFontFamily,
 		};
 	}
 
@@ -341,6 +344,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						width: 100%;
 					}
 
+					#container .cell_container.nb-insertHighlight div.output_container div.output {
+						background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
+					}
+
 					#container > div > div > div.output {
 						font-size: var(--notebook-cell-output-font-size);
 						width: var(--notebook-output-width);
@@ -370,6 +377,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						font-size: var(--notebook-markup-font-size);
 						line-height: var(--notebook-markdown-line-height);
 						color: var(--theme-ui-foreground);
+						font-family: var(--notebook-markup-font-family);
 					}
 
 					#container div.preview.draggable {
@@ -395,6 +403,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 					#container .markup > div.nb-symbolHighlight {
 						background-color: var(--theme-notebook-symbol-highlight-background);
+					}
+
+					#container .markup > div.nb-insertHighlight {
+						background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
 					}
 
 					#container .nb-symbolHighlight .output_container .output {
@@ -751,7 +763,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								}
 							}
 
-							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
+							this.openerService.open(CellUri.generateCellOutputUriWithId(this.documentUri, outputId));
 							return;
 						}
 						if (uri.path === 'cellOutput.enableScrolling') {
@@ -783,7 +795,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								'workbench.action.openSettings',
 								'_notebook.selectKernel',
 								// TODO@rebornix explore open output channel with name command
-								'jupyter.viewOutput'
+								'jupyter.viewOutput',
+								'jupyter.createPythonEnvAndSelectController',
 							],
 						});
 						return;
@@ -923,8 +936,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				}
 				case 'notebookPerformanceMessage': {
 					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
-					if (data.mimeType && data.outputSize && data.rendererId === 'vscode.builtin-renderer') {
-						this._sendPerformanceData(data.mimeType, data.outputSize, data.duration);
+					if (data.outputSize && data.rendererId === 'vscode.builtin-renderer') {
+						this._sendPerformanceData(data.outputSize, data.duration);
 					}
 					break;
 				}
@@ -944,23 +957,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return initializePromise.p;
 	}
 
-	private _sendPerformanceData(mimeType: string, outputSize: number, renderTime: number) {
+	private _sendPerformanceData(outputSize: number, renderTime: number) {
 		type NotebookOutputRenderClassification = {
 			owner: 'amunger';
 			comment: 'Track performance data for output rendering';
-			mimeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Presentation type of the output.' };
 			outputSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Size of the output data buffer.'; isMeasurement: true };
 			renderTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time spent rendering output.'; isMeasurement: true };
 		};
 
 		type NotebookOutputRenderEvent = {
-			mimeType: string;
 			outputSize: number;
 			renderTime: number;
 		};
 
 		const telemetryData = {
-			mimeType,
 			outputSize,
 			renderTime
 		};
@@ -1669,10 +1679,27 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	async copyImage(output: ICellOutputViewModel): Promise<void> {
+		// Collect text alternates from the same cell output
+		const textAlternates: { mimeType: string; content: string }[] = [];
+		const cellOutput = output.model;
+
+		for (const outputItem of cellOutput.outputs) {
+			if (TEXT_BASED_MIMETYPES.includes(outputItem.mime)) {
+				const text = isTextStreamMime(outputItem.mime) ?
+					getOutputStreamText(output).text :
+					getOutputText(outputItem.mime, outputItem);
+				textAlternates.push({
+					mimeType: outputItem.mime,
+					content: text
+				});
+			}
+		}
+
 		this._sendMessageToWebview({
 			type: 'copyImage',
 			outputId: output.model.outputId,
-			altOutputId: output.model.alternativeOutputId
+			altOutputId: output.model.alternativeOutputId,
+			textAlternates: textAlternates.length > 0 ? textAlternates : undefined
 		});
 	}
 
@@ -1846,14 +1873,24 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 
-	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
 		this._sendMessageToWebview({
 			type: 'decorations',
 			cellId,
 			addedClassNames: added,
 			removedClassNames: removed
 		});
+	}
 
+	deltaMarkupPreviewClassNames(cellId: string, added: string[], removed: string[]) {
+		if (this.markupPreviewMapping.get(cellId)) {
+			this._sendMessageToWebview({
+				type: 'markupDecorations',
+				cellId,
+				addedClassNames: added,
+				removedClassNames: removed
+			});
+		}
 	}
 
 	updateOutputRenderers() {
