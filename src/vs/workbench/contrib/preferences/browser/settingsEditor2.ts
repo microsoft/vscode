@@ -299,6 +299,10 @@ export class SettingsEditor2 extends EditorPane {
 				|| e.affectedKeys.has(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch)) {
 				this.updateAiSearchToggleVisibility();
 			}
+			if (e.affectedKeys.has('workbench.settings.alwaysShowAdvancedSettings')) {
+				// Force refresh when the always show advanced settings toggle changes
+				this.onConfigUpdate(undefined, true);
+			}
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
 			}
