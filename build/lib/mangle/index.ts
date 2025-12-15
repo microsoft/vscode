@@ -433,7 +433,7 @@ export class Mangler {
 
 		const workerScript = config.useLspRename ? 'lspRenameWorker.ts' : 'renameWorker.ts';
 		this.renameWorkerPool = workerpool.pool(path.join(import.meta.dirname, workerScript), {
-			maxWorkers: 4,
+			maxWorkers: config.useLspRename ? 1 : 4,
 			minWorkers: 'max'
 		});
 		this.log(`Mangler using worker: ${workerScript}`);
@@ -628,7 +628,8 @@ export class Mangler {
 									const end = source.getPositionOfLineAndCharacter(location.textRange.end.line, location.textRange.end.character);
 									location.textSpan = { start, length: (end - start) };
 								} catch (error) {
-									console.error('ERROR processing rename locations for', newName, locations, error);
+									// TODO@jrieken: investigate
+									// console.error('ERROR processing rename locations for', newName, locations, error);
 									location.textSpan = { start: 0, length: 0 };
 								}
 							}

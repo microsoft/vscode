@@ -35,7 +35,7 @@ class LSPClient {
 		const lspPath = path.join(import.meta.dirname, '..', '..', '..', 'node_modules', '@typescript', 'native-preview', 'bin', 'tsgo.js');
 
 		this.process = spawn('node', [lspPath, '--lsp', '--stdio',
-			// '--pprofDir', '/Users/jrieken/Code/vscode/tsgo-perf'
+			'--pprofDir', '/Users/jrieken/Code/vscode/tsgo-perf'
 		], {
 			stdio: ['pipe', 'pipe', 'pipe'],
 		});
