@@ -248,10 +248,8 @@
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before {
-	mask-size: 11px;
-	-webkit-mask-size: 11px;
-	top: 3px;
-	left: 1px;
+	mask-size: 13px;
+	-webkit-mask-size: 13px;
 }
 
 /* active item indicator */

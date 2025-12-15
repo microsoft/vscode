@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-terminal-content-part {
-	width: 100%;
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 .chat-terminal-content-part .chat-terminal-content-title {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
-	padding: 5px 9px;
+	padding: 0px 9px 0px 5px;
 	max-width: 100%;
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: row;
 	align-items: flex-start;
-	gap: 10px;
+	gap: 12px;
 
 	.rendered-markdown {
 		display: flex;
@@ -30,6 +31,76 @@
 			background: transparent !important;
 		}
 	}
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block {
+	display: flex;
+	gap: 0px;
+	align-items: flex-start;
+	flex: 1 1 auto;
+	min-width: 0;
+	padding-top: 1px;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block > .rendered-markdown {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	column-gap: 4px;
+	align-items: center;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block > .rendered-markdown p {
+	display: inline-flex;
+	align-items: center;
+	column-gap: 4px;
+	margin: 0 !important;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block > .rendered-markdown .monaco-tokenized-source {
+	background: transparent !important;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block > .rendered-markdown code {
+	font-size: var(--vscode-chat-font-size-body-xs);
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration,
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .terminal-command-decoration {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 13px;
+	width: 16px;
+	height: 16px;
+	flex-shrink: 0;
+	margin-top: 2px;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration.success,
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .terminal-command-decoration.success {
+	color: var(--vscode-terminalCommandDecoration-successBackground) !important;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration.default-color,
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .terminal-command-decoration.default-color {
+	color: var(--vscode-terminalCommandDecoration-defaultBackground) !important;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration.error,
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .terminal-command-decoration.error {
+	color: var(--vscode-terminalCommandDecoration-errorBackground) !important;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration.default,
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .terminal-command-decoration.default {
+	pointer-events: none;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration:focus-visible,
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .terminal-command-decoration:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 .chat-terminal-content-part .chat-terminal-action-bar {
@@ -58,22 +129,18 @@
 
 .chat-terminal-output-container.collapsed { display: none; }
 .chat-terminal-output-container {
-	margin-right: 18px;
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-bottom-left-radius: 4px;
 	border-bottom-right-radius: 4px;
-	background: var(--vscode-panel-background);
 	max-height: 300px;
-	font-family: var(--monaco-monospace-font);
 	box-sizing: border-box;
 	overflow: hidden;
 	position: relative;
 	max-width: 100%;
-	padding: 5px 9px;
+	padding: 0;
 }
 
-.chat-terminal-content-title.expanded {
-	margin-right: 18px;
+.chat-terminal-content-part .chat-terminal-content-title.chat-terminal-content-title-no-bottom-radius {
 	border-bottom-left-radius: 0px;
 	border-bottom-right-radius: 0px;
 	border-bottom: 0;
@@ -82,16 +149,41 @@
 .chat-terminal-output-container.expanded { display: block; }
 .chat-terminal-output-container > .monaco-scrollable-element {
 	width: 100%;
+	background: inherit;
+}
+.chat-terminal-output-container.chat-terminal-output-container-no-output .chat-terminal-output-body {
+	padding-bottom: 5px;
+}
+.chat-terminal-output-container:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+div.chat-terminal-content-part.progress-step > div.chat-terminal-output-container.expanded > div > div.chat-terminal-output-body > div > div.chat-terminal-output-terminal > div > div.xterm-scrollable-element {
+	margin-left: -12px;
+	margin-right: -12px;
+	padding-left: 12px;
+	padding-right: 12px;
+	box-sizing: border-box;
+	background: inherit;
 }
 .chat-terminal-output-body {
-	padding: 4px 6px;
+	padding: 5px 0px 1px;
 	max-width: 100%;
-	height: 100%;
+	box-sizing: border-box;
+	min-height: 0;
+	background: inherit;
 }
 .chat-terminal-output-content {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
+	background: inherit;
+}
+.chat-terminal-output-terminal {
+	background: inherit;
+}
+.chat-terminal-output-terminal .xterm-viewport {
+	background: inherit !important;
+}
+.chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
+	display: none;
 }
 .chat-terminal-output {
 	margin: 0;
@@ -100,9 +192,18 @@
 }
 
 .chat-terminal-output-empty {
+	display: none;
 	font-style: italic;
 	color: var(--vscode-descriptionForeground);
 	line-height: normal;
+	padding-left: 12px;
+}
+.chat-terminal-output-terminal.chat-terminal-output-terminal-no-output ~ .chat-terminal-output-empty {
+	display: block;
+}
+
+.chat-terminal-output-container .xterm-scrollable-element .scrollbar {
+	display: none;
 }
 
 .chat-terminal-output div,

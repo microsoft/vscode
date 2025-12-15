@@ -200,7 +200,7 @@ export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
 	readonly pattern?: string | string[];
-	readonly sort?: 'alphabetically' | 'committerdate';
+	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
 }
 
 export interface BranchQuery extends RefQuery {
@@ -242,6 +242,7 @@ export interface Repository {
 	diffWith(ref: string, path: string): Promise<string>;
 	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
+	diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat>;
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffBlobs(object1: string, object2: string): Promise<string>;
@@ -263,7 +264,7 @@ export interface Repository {
 
 	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;
 
-	tag(name: string, upstream: string): Promise<void>;
+	tag(name: string, message: string, ref?: string | undefined): Promise<void>;
 	deleteTag(name: string): Promise<void>;
 
 	status(): Promise<void>;
@@ -288,6 +289,11 @@ export interface Repository {
 	applyStash(index?: number): Promise<void>;
 	popStash(index?: number): Promise<void>;
 	dropStash(index?: number): Promise<void>;
+
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string>;
+	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void>;
+
+	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void>;
 }
 
 export interface RemoteSource {

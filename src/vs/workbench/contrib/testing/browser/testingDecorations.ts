@@ -158,7 +158,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
-		codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined);
+		this._register(codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined));
 
 		this._register(modelService.onModelRemoved(e => this.decorationCache.delete(e.uri)));
 
@@ -394,7 +394,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	) {
 		super();
 
-		codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined, editor);
+		this._register(codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined, editor));
 
 		this.attachModel(editor.getModel()?.uri);
 		this._register(decorations.onDidChange(() => {
@@ -459,7 +459,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				}
 			}
 		}));
-		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, this._store)(evts => {
+		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, undefined, this._store)(evts => {
 			const model = editor.getModel();
 			if (!this._currentUri || !model) {
 				return;

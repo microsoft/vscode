@@ -4,10 +4,7 @@
 		"outDir": "./out",
 		"noFallthroughCasesInSwitch": true,
 		"noUnusedLocals": false,
-		"skipLibCheck": true,
-		"lib": [
-			"WebWorker"
-		]
+		"skipLibCheck": true
 	},
 	"include": [
 		"src/**/*",

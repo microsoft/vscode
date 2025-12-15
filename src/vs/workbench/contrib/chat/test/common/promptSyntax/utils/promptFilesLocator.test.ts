@@ -160,7 +160,6 @@ suite('PromptFilesLocator', () => {
 				return locator.getConfigBasedSourceFolders(type);
 			},
 			async disposeAsync(): Promise<void> {
-				locator.dispose();
 				await mockFs.delete();
 			}
 		};

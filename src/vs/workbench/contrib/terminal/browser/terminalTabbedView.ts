@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LayoutPriority, Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
-import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -15,7 +15,7 @@ import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { openContextMenu } from './terminalContextMenu.js';
@@ -96,17 +96,11 @@ export class TerminalTabbedView extends Disposable {
 		tabListContainer.appendChild(this._tabListElement);
 		this._tabContainer.appendChild(tabListContainer);
 
-		this._register(dom.addDisposableListener(this._tabContainer, dom.EventType.DBLCLICK, async () => {
-			const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-			this._terminalGroupService.setActiveInstance(instance);
-			await instance.focusWhenReady();
-		}));
-
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
-		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement, this._register(new DisposableStore())));
+		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement));
 		this._tabListDomElement = this._tabList.getHTMLElement();
 		this._chatEntry = this._register(this._instantiationService.createInstance(TerminalTabsChatEntry, tabListContainer, this._tabContainer));
 
@@ -181,22 +175,20 @@ export class TerminalTabbedView extends Disposable {
 			return true;
 		}
 
-		if (hide === 'never') {
-			return true;
+		switch (hide) {
+			case 'never':
+				return true;
+			case 'singleTerminal':
+				if (this._terminalGroupService.instances.length > 1) {
+					return true;
+				}
+				break;
+			case 'singleGroup':
+				if (this._terminalGroupService.groups.length > 1) {
+					return true;
+				}
+				break;
 		}
-
-		if (this._terminalGroupService.instances.length) {
-			return true;
-		}
-
-		if (hide === 'singleTerminal' && this._terminalGroupService.instances.length > 1) {
-			return true;
-		}
-
-		if (hide === 'singleGroup' && this._terminalGroupService.groups.length > 1) {
-			return true;
-		}
-
 		return false;
 	}
 

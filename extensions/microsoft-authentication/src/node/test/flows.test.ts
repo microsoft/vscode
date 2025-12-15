@@ -43,16 +43,6 @@ suite('getMsalFlows', () => {
 		assert.strictEqual(flows[1].label, 'device code');
 	});
 
-	test('should return no flows for web worker extension host', () => {
-		const query: IMsalFlowQuery = {
-			extensionHost: ExtensionHost.WebWorker,
-			supportedClient: true,
-			isBrokerSupported: false
-		};
-		const flows = getMsalFlows(query);
-		assert.strictEqual(flows.length, 0);
-	});
-
 	test('should return only default and device code flows for local extension host with unsupported client and no broker', () => {
 		const query: IMsalFlowQuery = {
 			extensionHost: ExtensionHost.Local,

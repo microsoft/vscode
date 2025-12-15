@@ -75,6 +75,10 @@
 	border-left-color: var(--vscode-textBlockQuote-border);
 }
 
+.review-widget .body .review-comment blockquote {
+	background: var(--vscode-textBlockQuote-background);
+}
+
 .review-widget .body .review-comment .avatar-container {
 	margin-top: 4px !important;
 }
@@ -194,6 +198,7 @@
 
 .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label {
 	border: 1px solid;
+	border-color: var(--vscode-panel-border);
 }
 
 .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.disabled {
@@ -210,6 +215,16 @@
 }
 .review-widget .body .review-comment .review-comment-contents .comment-body a {
 	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+}
+
+.review-widget .body .comment-body a:hover,
+.review-widget .body .comment-body a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.review-widget .body .comment-body a:focus {
+	outline: 1px solid var(--vscode-focusBorder);
 }
 
 .review-widget .body .comment-body p,
@@ -269,6 +284,12 @@
 	margin-top: -1px;
 	margin-left: -1px;
 	word-wrap: break-word;
+	border: 1px solid var(--vscode-inputValidation-errorBorder);
+	background: var(--vscode-inputValidation-errorBackground);
+}
+
+.review-widget .body .comment-form .validation-error {
+	color: var(--vscode-inputValidation-errorForeground);
 }
 
 
@@ -310,6 +331,11 @@
 	color: var(--vscode-editor-foreground);
 }
 
+.review-widget .body code {
+	font-family: var(--comment-thread-editor-font-family);
+	font-weight: var(--comment-thread-editor-font-weight);
+}
+
 .review-widget .body .comment-form-container .comment-form {
 	display: flex;
 	flex-direction: row;
@@ -342,6 +368,7 @@
 	white-space: nowrap;
 	border: 0px;
 	outline: 1px solid transparent;
+	outline-color: var(--vscode-contrastBorder);
 	background-color: var(--vscode-editorCommentsWidget-replyInputBackground);
 	color: var(--vscode-editor-foreground);
 	font-size: inherit;
@@ -368,6 +395,11 @@
 	border: 0px;
 	box-sizing: content-box;
 	padding: 6px 0 6px 12px;
+	outline: 1px solid var(--vscode-contrastBorder);
+}
+
+.review-widget .body .monaco-editor.focused {
+	outline: 1px solid var(--vscode-focusBorder);
 }
 
 .review-widget .body .comment-form-container .monaco-editor,
@@ -454,6 +486,14 @@
 	margin: 0;
 }
 
+.monaco-editor .review-widget > .body {
+	border-top: 1px solid var(--comment-thread-state-color);
+}
+
+.monaco-editor .review-widget > .head {
+	background-color: var(--comment-thread-state-background-color);
+}
+
 .review-widget > .body {
 	border-top: 1px solid;
 	position: relative;
@@ -486,7 +526,8 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .comment-thread:before,
-.monaco-editor .comment-thread-unresolved:before {
+.monaco-editor .comment-thread-unresolved:before,
+.monaco-editor .comment-thread-draft:before {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
 
@@ -500,14 +541,16 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover,
 .monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread,
-.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread-unresolved {
+.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread-unresolved,
+.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread-draft {
 	margin-left: 13px;
 }
 
 .monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before,
 .monaco-editor .comment-range-glyph.comment-thread:before,
-.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before,
+.monaco-editor .comment-range-glyph.comment-thread-draft:before {
 	position: absolute;
 	height: 100%;
 	width: 9px;
@@ -523,6 +566,10 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
 	color: var(--vscode-editorGutter-commentUnresolvedGlyphForeground);
+}
+
+.monaco-editor .comment-range-glyph.comment-thread-draft:before {
+	color: var(--vscode-editorGutter-commentDraftGlyphForeground);
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.multiline-add {
@@ -544,12 +591,14 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .comment-range-glyph.comment-thread,
-.monaco-editor .comment-range-glyph.comment-thread-unresolved {
+.monaco-editor .comment-range-glyph.comment-thread-unresolved,
+.monaco-editor .comment-range-glyph.comment-thread-draft {
 	z-index: 20;
 }
 
 .monaco-editor .comment-range-glyph.comment-thread:before,
-.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before,
+.monaco-editor .comment-range-glyph.comment-thread-draft:before {
 	font-family: "codicon";
 	font-size: 13px;
 	width: 18px !important;
@@ -569,6 +618,10 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
 	content: var(--vscode-icon-comment-unresolved-content);
 	font-family: var(--vscode-icon-comment-unresolved-font-family);
+}
+.monaco-editor .comment-range-glyph.comment-thread-draft:before {
+	content: var(--vscode-icon-comment-draft-content);
+	font-family: var(--vscode-icon-comment-draft-font-family);
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .codicon-folding-expanded,

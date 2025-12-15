@@ -29,8 +29,9 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, isStringImplicitContextValue } from '../../common/chatVariableEntries.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatWidget } from '../chat.js';
 import { ChatAttachmentModel } from '../chatAttachmentModel.js';
+import { IChatContextService } from '../chatContextService.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -38,6 +39,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
+		private readonly widgetRef: () => IChatWidget | undefined,
 		private readonly attachment: IChatRequestImplicitVariableEntry,
 		private readonly resourceLabels: ResourceLabels,
 		private readonly attachmentModel: ChatAttachmentModel,
@@ -49,8 +51,8 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IConfigurationService private readonly configService: IConfigurationService
+		@IConfigurationService private readonly configService: IConfigurationService,
+		@IChatContextService private readonly chatContextService: IChatContextService,
 	) {
 		super();
 
@@ -63,31 +65,22 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.renderDisposables.clear();
 
 		this.domNode.classList.toggle('disabled', !this.attachment.enabled);
-		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
 		const file: URI | undefined = this.attachment.uri;
 		const attachmentTypeName = file?.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
 
-		let title: string;
-		if (isStringImplicitContextValue(this.attachment.value)) {
-			title = this.renderString(label);
-		} else {
-			title = this.renderResource(this.attachment.value, label);
-		}
-
 		const isSuggestedEnabled = this.configService.getValue('chat.implicitContext.suggestedContext');
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.domNode, title));
 
-
+		// Create toggle button BEFORE the label so it appears on the left
 		if (isSuggestedEnabled) {
 			if (!this.attachment.isSelection) {
 				const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : '';
 				const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
 				toggleButton.icon = this.attachment.enabled ? Codicon.x : Codicon.plus;
-				this.renderDisposables.add(toggleButton.onDidClick((e) => {
+				this.renderDisposables.add(toggleButton.onDidClick(async (e) => {
 					e.stopPropagation();
 					e.preventDefault();
 					if (!this.attachment.enabled) {
-						this.convertToRegularAttachment();
+						await this.convertToRegularAttachment();
 					}
 					this.attachment.enabled = false;
 				}));
@@ -97,19 +90,19 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				this.domNode.classList.remove('disabled');
 			}
 
-			this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, e => {
+			this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, async (e) => {
 				if (!this.attachment.enabled && !this.attachment.isSelection) {
-					this.convertToRegularAttachment();
+					await this.convertToRegularAttachment();
 				}
 			}));
 
-			this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, e => {
+			this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, async (e) => {
 				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 					if (!this.attachment.enabled && !this.attachment.isSelection) {
 						e.preventDefault();
 						e.stopPropagation();
-						this.convertToRegularAttachment();
+						await this.convertToRegularAttachment();
 					}
 				}
 			}));
@@ -122,6 +115,17 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				this.attachment.enabled = !this.attachment.enabled;
 			}));
 		}
+
+		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
+
+		let title: string;
+		if (isStringImplicitContextValue(this.attachment.value)) {
+			title = this.renderString(label);
+		} else {
+			title = this.renderResource(this.attachment.value, label);
+		}
+
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.domNode, title));
 
 		// Context menu
 		const scopedContextKeyService = this.renderDisposables.add(this.contextKeyService.createScoped(this.domNode));
@@ -181,11 +185,14 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		return title;
 	}
 
-	private convertToRegularAttachment(): void {
+	private async convertToRegularAttachment(): Promise<void> {
 		if (!this.attachment.value) {
 			return;
 		}
 		if (isStringImplicitContextValue(this.attachment.value)) {
+			if (this.attachment.value.value === undefined) {
+				await this.chatContextService.resolveChatContext(this.attachment.value);
+			}
 			const context: IChatRequestStringVariableEntry = {
 				kind: 'string',
 				value: this.attachment.value.value,
@@ -200,6 +207,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value.uri;
 			this.attachmentModel.addFile(file);
 		}
-		this.chatWidgetService.lastFocusedWidget?.focusInput();
+		this.widgetRef()?.focusInput();
 	}
 }

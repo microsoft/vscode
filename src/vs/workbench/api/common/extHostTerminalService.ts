@@ -84,7 +84,7 @@ export class ExtHostTerminal extends Disposable {
 	private _disposed: boolean = false;
 	private _pidPromise: Promise<number | undefined>;
 	private _cols: number | undefined;
-	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
+	private _pidPromiseComplete: ((value: number | undefined) => unknown) | undefined;
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
 	private _state: vscode.TerminalState = { isInteractedWith: false, shell: undefined };
@@ -311,7 +311,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessReady = new Emitter<IProcessReadyEvent>();
 	public get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
-	private readonly _onDidChangeProperty = new Emitter<IProcessProperty<any>>();
+	private readonly _onDidChangeProperty = new Emitter<IProcessProperty>();
 	public readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = new Emitter<number | undefined>();
 	public readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
@@ -362,10 +362,6 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
 		// No-op, xterm-headless isn't used for extension owned terminals.
-	}
-
-	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
-		// No-op, command IDs are only tracked on the renderer for extension terminals.
 	}
 
 	getInitialCwd(): Promise<string> {
@@ -470,9 +466,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		this._proxy.$registerProcessSupport(supportsProcesses);
 		this._extHostCommands.registerArgumentProcessor({
 			processArgument: arg => {
-				const deserialize = (arg: any) => {
-					const cast = arg as ISerializedTerminalInstanceContext;
-					return this.getTerminalById(cast.instanceId)?.value;
+				const deserialize = (arg: ISerializedTerminalInstanceContext) => {
+					return this.getTerminalById(arg.instanceId)?.value;
 				};
 				switch (arg?.$mid) {
 					case MarshalledId.TerminalContext: return deserialize(arg);
@@ -1223,7 +1218,7 @@ class ScopedEnvironmentVariableCollection implements IEnvironmentVariableCollect
 		return this.collection.get(variable, this.scope);
 	}
 
-	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
+	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => unknown, thisArg?: unknown): void {
 		this.collection.getVariableMap(this.scope).forEach((value, variable) => callback.call(thisArg, variable, value, this), this.scope);
 	}
 
@@ -1289,7 +1284,5 @@ function convertMutator(mutator: IEnvironmentVariableMutator): vscode.Environmen
 	const newMutator = { ...mutator };
 	delete newMutator.scope;
 	newMutator.options = newMutator.options ?? undefined;
-	// eslint-disable-next-line local/code-no-any-casts
-	delete (newMutator as any).variable;
 	return newMutator as vscode.EnvironmentVariableMutator;
 }

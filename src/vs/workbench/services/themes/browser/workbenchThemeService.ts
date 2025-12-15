@@ -283,7 +283,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		}));
 	}
 
-	private installRegistryListeners(): Promise<any> {
+	private installRegistryListeners(): Promise<void> {
 
 		let prevColorId: string | undefined = undefined;
 

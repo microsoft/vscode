@@ -229,14 +229,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const webviewEditor = this.findActiveWebviewEditor();
 		if (webviewEditor?.input?.resource) {
 			const webviewContext = await this.chatContextService.contextForResource(webviewEditor.input.resource);
-			if (webviewContext?.value) {
-				newValue = {
-					value: webviewContext.value,
-					name: webviewContext.label,
-					icon: webviewContext.icon,
-					uri: webviewEditor.input.resource,
-					modelDescription: webviewContext.modelDescription
-				};
+			if (webviewContext) {
+				newValue = webviewContext;
 			}
 		}
 
@@ -375,7 +369,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 					kind: 'string',
 					id: this.id,
 					name: this.name,
-					value: this.value.value,
+					value: this.value.value ?? this.name,
 					modelDescription: this.modelDescription,
 					icon: this.value.icon,
 					uri: this.value.uri

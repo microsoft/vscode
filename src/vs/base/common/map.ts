@@ -116,7 +116,7 @@ export class ResourceMap<T> implements Map<URI, T> {
 		return this.map.delete(this.toKey(resource));
 	}
 
-	forEach(clb: (value: T, key: URI, map: Map<URI, T>) => void, thisArg?: any): void {
+	forEach(clb: (value: T, key: URI, map: Map<URI, T>) => void, thisArg?: object): void {
 		if (typeof thisArg !== 'undefined') {
 			clb = clb.bind(thisArg);
 		}
@@ -185,7 +185,7 @@ export class ResourceSet implements Set<URI> {
 		return this._map.delete(value);
 	}
 
-	forEach(callbackfn: (value: URI, value2: URI, set: Set<URI>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: URI, value2: URI, set: Set<URI>) => void, thisArg?: unknown): void {
 		this._map.forEach((_value, key) => callbackfn.call(thisArg, key, key, this));
 	}
 
@@ -340,7 +340,7 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		return item.value;
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: unknown): void {
 		const state = this._state;
 		let current = this._head;
 		while (current) {
@@ -789,7 +789,7 @@ export class BidirectionalMap<K, V> {
 		return true;
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: BidirectionalMap<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: BidirectionalMap<K, V>) => void, thisArg?: unknown): void {
 		this._m1.forEach((value, key) => {
 			callbackfn.call(thisArg, value, key, this);
 		});
@@ -894,10 +894,12 @@ export class NKeyMap<TValue, TKeys extends (string | boolean | number)[]> {
 	public set(value: TValue, ...keys: [...TKeys]): void {
 		let currentMap = this._data;
 		for (let i = 0; i < keys.length - 1; i++) {
-			if (!currentMap.has(keys[i])) {
-				currentMap.set(keys[i], new Map());
+			let nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
+				nextMap = new Map();
+				currentMap.set(keys[i], nextMap);
 			}
-			currentMap = currentMap.get(keys[i]);
+			currentMap = nextMap;
 		}
 		currentMap.set(keys[keys.length - 1], value);
 	}
@@ -905,10 +907,11 @@ export class NKeyMap<TValue, TKeys extends (string | boolean | number)[]> {
 	public get(...keys: [...TKeys]): TValue | undefined {
 		let currentMap = this._data;
 		for (let i = 0; i < keys.length - 1; i++) {
-			if (!currentMap.has(keys[i])) {
+			const nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
 				return undefined;
 			}
-			currentMap = currentMap.get(keys[i]);
+			currentMap = nextMap;
 		}
 		return currentMap.get(keys[keys.length - 1]);
 	}

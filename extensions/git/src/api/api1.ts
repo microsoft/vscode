@@ -179,6 +179,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.diffIndexWithHEAD(path);
 	}
 
+	diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.#repository.diffIndexWithHEADShortStats(path);
+	}
+
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
@@ -313,6 +317,18 @@ export class ApiRepository implements Repository {
 
 	dropStash(index?: number): Promise<void> {
 		return this.#repository.dropStash(index);
+	}
+
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+		return this.#repository.createWorktree(options);
+	}
+
+	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+		return this.#repository.deleteWorktree(path, options);
+	}
+
+	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void> {
+		return this.#repository.migrateChanges(sourceRepositoryPath, options);
 	}
 }
 

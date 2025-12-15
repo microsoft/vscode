@@ -542,8 +542,7 @@ export class TunnelModel extends Disposable {
 
 	private async onTunnelClosed(address: { host: string; port: number }, reason: TunnelCloseReason) {
 		const key = makeAddress(address.host, address.port);
-		if (this.forwarded.has(key)) {
-			this.forwarded.delete(key);
+		if (this.forwarded.delete(key)) {
 			await this.storeForwarded();
 			this._onClosePort.fire(address);
 		}
@@ -907,9 +906,7 @@ export class TunnelModel extends Disposable {
 				detail: value.detail,
 				pid: value.pid
 			});
-			if (removedCandidates.has(addressKey)) {
-				removedCandidates.delete(addressKey);
-			}
+			removedCandidates.delete(addressKey);
 			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, value.host, value.port);
 			if (forwardedValue) {
 				forwardedValue.runningProcess = value.detail;

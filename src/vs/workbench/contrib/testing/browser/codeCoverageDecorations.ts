@@ -672,7 +672,7 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 	public getPosition(): IOverlayWidgetPosition | null {
 		return {
 			preference: OverlayWidgetPositionPreference.TOP_CENTER,
-			stackOridinal: 9,
+			stackOrdinal: 9,
 		};
 	}
 

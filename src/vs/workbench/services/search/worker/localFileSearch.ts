@@ -173,7 +173,7 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 
 	}
 
-	private async walkFolderQuery(handle: IWorkerFileSystemDirectoryHandle, queryProps: ICommonQueryProps<URI>, folderQuery: IFolderQuery<URI>, extUri: ExtUri, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
+	private async walkFolderQuery(handle: IWorkerFileSystemDirectoryHandle, queryProps: ICommonQueryProps<URI>, folderQuery: IFolderQuery<URI>, extUri: ExtUri, onFile: (file: FileNode) => Promise<unknown> | unknown, token: CancellationToken): Promise<void> {
 
 		const folderExcludes = folderQuery.excludePattern?.map(excludePattern => glob.parse(excludePattern.pattern ?? {}, { trimForExclusions: true }) as glob.ParsedExpression);
 
@@ -276,7 +276,7 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 			};
 		};
 
-		const resolveDirectory = async (directory: DirNode, onFile: (f: FileNode) => any) => {
+		const resolveDirectory = async (directory: DirNode, onFile: (f: FileNode) => Promise<unknown> | unknown) => {
 			if (token.isCancellationRequested) { return; }
 
 			await Promise.all(

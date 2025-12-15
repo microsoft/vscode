@@ -18,7 +18,7 @@ import { IPickerQuickAccessItem } from '../../../../platform/quickinput/browser/
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
 import { basename } from '../../../../base/common/path.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, isString } from '../../../../base/common/types.js';
 
 
 type DefaultProfileName = string;
@@ -112,7 +112,7 @@ export class TerminalProfileQuickpick {
 				if (hasKey(context.item.profile, { id: true })) {
 					return;
 				}
-				const configProfiles: { [key: string]: any } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
+				const configProfiles: { [key: string]: ITerminalExecutable | null | undefined } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
 				const existingProfiles = !!configProfiles ? Object.keys(configProfiles) : [];
 				const name = await this._quickInputService.input({
 					prompt: nls.localize('enterTerminalProfileName', "Enter terminal profile name"),
@@ -127,7 +127,7 @@ export class TerminalProfileQuickpick {
 				if (!name) {
 					return;
 				}
-				const newConfigValue: { [key: string]: ITerminalExecutable } = {
+				const newConfigValue: { [key: string]: ITerminalExecutable | null | undefined } = {
 					...configProfiles,
 					[name]: this._createNewProfileConfig(context.item.profile)
 				};
@@ -150,7 +150,7 @@ export class TerminalProfileQuickpick {
 		const contributedProfiles: IProfileQuickPickItem[] = [];
 		for (const contributed of this._terminalProfileService.contributedProfiles) {
 			let icon: ThemeIcon | undefined;
-			if (typeof contributed.icon === 'string') {
+			if (isString(contributed.icon)) {
 				if (contributed.icon.startsWith('$(')) {
 					icon = ThemeIcon.fromString(contributed.icon);
 				} else {
@@ -266,7 +266,7 @@ export class TerminalProfileQuickpick {
 		}
 
 		if (profile.args) {
-			if (typeof profile.args === 'string') {
+			if (isString(profile.args)) {
 				return { label, description: `${profile.path} ${profile.args}`, profile, profileName: profile.profileName, buttons, iconClasses };
 			}
 			const argsString = profile.args.map(e => {

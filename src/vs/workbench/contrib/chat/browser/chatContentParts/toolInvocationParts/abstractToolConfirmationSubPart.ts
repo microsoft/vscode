@@ -60,6 +60,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const skipTooltip = skipKeybinding ? `${config.skipLabel} (${skipKeybinding})` : config.skipLabel;
 
 
+		const additionalActions = this.additionalPrimaryActions();
 		const buttons: IChatConfirmationButton<(() => void)>[] = [
 			{
 				label: config.allowLabel,
@@ -67,7 +68,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 				data: () => {
 					this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction });
 				},
-				moreActions: this.additionalPrimaryActions(),
+				moreActions: additionalActions.length > 0 ? additionalActions : undefined,
 			},
 			{
 				label: localize('skip', "Skip"),

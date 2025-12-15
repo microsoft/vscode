@@ -192,6 +192,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		await this._proxy.updateIcon(id, userInitiated, icon, color);
 	}
 
+	async setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		await this._proxy.setNextCommandId(id, commandLine, commandId);
+	}
+
 	async updateProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._proxy.updateProperty(id, property, value);
 	}

@@ -8,7 +8,7 @@ import { isUriComponents, URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from './terminal.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { isObject, type SingleOrMany } from '../../../base/common/types.js';
+import { isObject, isString, type SingleOrMany } from '../../../base/common/types.js';
 
 export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], extensionProfiles?: readonly IExtensionTerminalProfile[]): {
 	values: (string | null)[] | undefined;
@@ -41,7 +41,7 @@ export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], e
 function createProfileDescription(profile: ITerminalProfile): string {
 	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
 	if (profile.args) {
-		if (typeof profile.args === 'string') {
+		if (isString(profile.args)) {
 			description += `\n- args: "${profile.args}"`;
 		} else {
 			description += `\n- args: [${profile.args.length === 0 ? '' : `'${profile.args.join(`','`)}'`}]`;
@@ -68,7 +68,7 @@ function createExtensionProfileDescription(profile: IExtensionTerminalProfile): 
 export function terminalProfileArgsMatch(args1: SingleOrMany<string> | undefined, args2: SingleOrMany<string> | undefined): boolean {
 	if (!args1 && !args2) {
 		return true;
-	} else if (typeof args1 === 'string' && typeof args2 === 'string') {
+	} else if (isString(args1) && isString(args2)) {
 		return args1 === args2;
 	} else if (Array.isArray(args1) && Array.isArray(args2)) {
 		if (args1.length !== args2.length) {

@@ -142,8 +142,8 @@ export interface ITreeModel<T, TFilterData, TRef> {
 
 	getListIndex(location: TRef): number;
 	getListRenderCount(location: TRef): number;
-	getNode(location?: TRef): ITreeNode<T, any>;
-	getNodeLocation(node: ITreeNode<T, any>): TRef;
+	getNode(location?: TRef): ITreeNode<T, TFilterData>;
+	getNodeLocation(node: ITreeNode<T, TFilterData>): TRef;
 	getParentNodeLocation(location: TRef): TRef | undefined;
 
 	getFirstElementChild(location: TRef): T | undefined;

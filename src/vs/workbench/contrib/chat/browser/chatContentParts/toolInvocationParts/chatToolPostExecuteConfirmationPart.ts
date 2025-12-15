@@ -19,7 +19,6 @@ import { ILanguageModelToolsService, IToolResultDataPart, IToolResultPromptTsxPa
 import { AcceptToolPostConfirmationActionId, SkipToolPostConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
-import { EditorPool } from '../chatMarkdownContentPart.js';
 import { ChatCollapsibleIOPart } from '../chatToolInputOutputContentPart.js';
 import { ChatToolOutputContentSubPart } from '../chatToolOutputContentSubPart.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
@@ -33,8 +32,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 	constructor(
 		toolInvocation: IChatToolInvocation,
 		context: IChatContentPartRenderContext,
-		private readonly editorPool: EditorPool,
-		private readonly currentWidthDelegate: () => number,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private readonly modelService: IModelService,
@@ -183,7 +180,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 				// Check if it's an image
 				if (mimeType?.startsWith('image/')) {
 					const permalinkBasename = getExtensionForMimeType(mimeType) ? `image${getExtensionForMimeType(mimeType)}` : 'image.bin';
-					const permalinkUri = ChatResponseResource.createUri(this.context.element.sessionId, toolInvocation.toolCallId, i, permalinkBasename);
+					const permalinkUri = ChatResponseResource.createUri(this.context.element.sessionResource, toolInvocation.toolCallId, i, permalinkBasename);
 					parts.push({ kind: 'data', value: data.buffer, mimeType, uri: permalinkUri, audience: part.audience });
 				} else {
 					// Try to display as UTF-8 text, otherwise base64
@@ -260,9 +257,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 			const outputSubPart = this._register(this.instantiationService.createInstance(
 				ChatToolOutputContentSubPart,
 				this.context,
-				this.editorPool,
 				parts,
-				this.currentWidthDelegate()
 			));
 
 			this._codeblocks.push(...outputSubPart.codeblocks);

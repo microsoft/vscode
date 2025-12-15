@@ -33,12 +33,12 @@ steps:
         archiveFilePatterns: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/*.zip
         destinationFolder: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
 
-  - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Build.ArtifactStagingDirectory)/pkg "*.zip"
+  - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Build.ArtifactStagingDirectory)/pkg "*.zip"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: ✍️ Codesign
 
-  - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Build.ArtifactStagingDirectory)/pkg "*.zip"
+  - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Build.ArtifactStagingDirectory)/pkg "*.zip"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: ✍️ Notarize

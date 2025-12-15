@@ -10,6 +10,7 @@ import { IExtensionTerminalProfile, ITerminalCompletionProviderContribution, ITe
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { isObject, isString } from '../../../../base/common/types.js';
 
 // terminal extension point
 const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
@@ -63,13 +64,16 @@ export class TerminalContributionService implements ITerminalContributionService
 }
 
 function hasValidTerminalIcon(profile: ITerminalProfileContribution): boolean {
-	return !profile.icon ||
-		(
-			typeof profile.icon === 'string' ||
-			URI.isUri(profile.icon) ||
-			(
-				(<{ light: URI; dark: URI }>profile.icon).light && URI.isUri(profile.icon.light) &&
-				(<{ light: URI; dark: URI }>profile.icon).dark && URI.isUri(profile.icon.dark)
-			)
+	function isValidDarkLightIcon(obj: unknown): obj is { light: URI; dark: URI } {
+		return (
+			isObject(obj) &&
+			'light' in obj && URI.isUri(obj.light) &&
+			'dark' in obj && URI.isUri(obj.dark)
 		);
+	}
+	return !profile.icon || (
+		isString(profile.icon) ||
+		URI.isUri(profile.icon) ||
+		isValidDarkLightIcon(profile.icon)
+	);
 }

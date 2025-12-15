@@ -235,6 +235,7 @@ export class ChatTodoListWidget extends Disposable {
 		if (!isEqual(this._currentSessionResource, sessionResource)) {
 			this._userManuallyExpanded = false;
 			this._currentSessionResource = sessionResource;
+			this.hideWidget();
 		}
 
 		this.updateTodoDisplay();
@@ -249,8 +250,6 @@ export class ChatTodoListWidget extends Disposable {
 		const shouldClear = force || (currentTodos.length > 0 && !currentTodos.some(todo => todo.status !== 'completed'));
 		if (shouldClear) {
 			this.clearAllTodos();
-		} else {
-			this.hideWidget();
 		}
 	}
 

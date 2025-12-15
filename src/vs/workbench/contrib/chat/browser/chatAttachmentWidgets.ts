@@ -42,6 +42,7 @@ import { FileKind, IFileService } from '../../../../platform/files/common/files.
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
@@ -52,6 +53,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
+import { toHistoryItemHoverContent } from '../../scm/browser/scmHistory.js';
 import { getHistoryItemEditorTitle } from '../../scm/browser/util.js';
 import { ITerminalService } from '../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../common/chatService.js';
@@ -97,6 +99,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	) {
 		super();
 		this.element = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
+		this.attachClearButton();
 		this.label = contextResourceLabels.create(this.element, { supportIcons: true, hoverTargetOverride: this.element });
 		this._register(this.label);
 		this.element.tabIndex = 0;
@@ -236,8 +239,6 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 		});
 		this.addResourceOpenHandlers(resource, range);
-
-		this.attachClearButton();
 	}
 
 	private renderOmittedWarning(friendlyName: string, ariaLabel: string) {
@@ -286,8 +287,6 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 				await clickHandler();
 			}
 		}));
-
-		this.attachClearButton();
 	}
 }
 
@@ -355,19 +354,6 @@ function createTerminalCommandElements(
 		hoverElement.append(outputTitle, outputBlock);
 	}
 
-	const hint = dom.$('div', {}, localize('chat.terminalCommandHoverHint', "Click to focus this command in the terminal."));
-	hint.classList.add('attachment-additional-info');
-	hoverElement.appendChild(hint);
-
-	const separator = dom.$('div.chat-attached-context-url-separator');
-	const openLink = dom.$('a.chat-attached-context-url', {}, localize('chat.terminalCommandHoverOpen', "Open in terminal"));
-	disposable.add(dom.addDisposableListener(openLink, 'click', e => {
-		e.preventDefault();
-		e.stopPropagation();
-		void clickHandler();
-	}));
-	hoverElement.append(separator, openLink);
-
 	disposable.add(hoverService.setupDelayedHover(element, {
 		...commonHoverOptions,
 		content: hoverElement,
@@ -422,8 +408,6 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 				this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 			});
 		}
-
-		this.attachClearButton();
 	}
 }
 
@@ -553,8 +537,6 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(this.instantiationService.invokeFunction(hookUpResourceAttachmentDragAndContextMenu, this.element, copiedFromResource));
 			this.addResourceOpenHandlers(copiedFromResource, range);
 		}
-
-		this.attachClearButton();
 	}
 }
 
@@ -600,8 +582,6 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (resource) {
 			this.addResourceOpenHandlers(resource, range);
 		}
-
-		this.attachClearButton();
 	}
 }
 
@@ -631,8 +611,6 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, attachment.value));
 		});
 		this.addResourceOpenHandlers(attachment.value, undefined);
-
-		this.attachClearButton();
 	}
 
 	private updateLabel(attachment: IPromptFileVariableEntry) {
@@ -773,8 +751,6 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 				content: hoverContent,
 			}, commonHoverLifecycleOptions));
 		}
-
-		this.attachClearButton();
 	}
 
 
@@ -817,7 +793,6 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 		});
 		this.addResourceOpenHandlers(resource, undefined);
-		this.attachClearButton();
 	}
 	getAriaLabel(attachment: INotebookOutputVariableEntry): string {
 		return localize('chat.NotebookImageAttachment', "Attached Notebook output, {0}", attachment.name);
@@ -909,8 +884,6 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 				}
 			});
 		}));
-
-		this.attachClearButton();
 	}
 }
 
@@ -922,6 +895,7 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IHoverService hoverService: IHoverService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService
@@ -933,12 +907,12 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		this.element.style.cursor = 'pointer';
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-		const historyItem = attachment.historyItem;
-		const hoverContent = historyItem.tooltip ?? historyItem.message;
+		const { content, disposables } = toHistoryItemHoverContent(markdownRendererService, attachment.historyItem, false);
 		this._store.add(hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
-			content: hoverContent,
+			content,
 		}, commonHoverLifecycleOptions));
+		this._store.add(disposables);
 
 		this._store.add(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
@@ -952,8 +926,6 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 				this._openAttachment(attachment);
 			}
 		}));
-
-		this.attachClearButton();
 	}
 
 	private async _openAttachment(attachment: ISCMHistoryItemVariableEntry): Promise<void> {
@@ -972,6 +944,7 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IHoverService hoverService: IHoverService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -983,15 +956,13 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-		const historyItem = attachment.historyItem;
-		const hoverContent = historyItem.tooltip ?? historyItem.message;
+		const { content, disposables } = toHistoryItemHoverContent(markdownRendererService, attachment.historyItem, false);
 		this._store.add(hoverService.setupDelayedHover(this.element, {
-			...commonHoverOptions,
-			content: hoverContent,
+			...commonHoverOptions, content,
 		}, commonHoverLifecycleOptions));
+		this._store.add(disposables);
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
-		this.attachClearButton();
 	}
 
 	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: true): Promise<void>;
@@ -1030,7 +1001,6 @@ export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttac
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
-		this.attachClearButton();
 	}
 
 	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: true): Promise<void>;
@@ -1137,7 +1107,7 @@ function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService:
 	return resourceContextKey;
 }
 
-function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: any, updateContextKeys?: () => Promise<void>): IDisposable {
+function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: unknown, updateContextKeys?: () => Promise<void>): IDisposable {
 	const contextMenuService = accessor.get(IContextMenuService);
 	const menuService = accessor.get(IMenuService);
 

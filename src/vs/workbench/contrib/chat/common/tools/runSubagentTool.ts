@@ -5,17 +5,18 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService } from '../chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../chatModel.js';
 import { IChatModeService } from '../chatModes.js';
 import { IChatProgress, IChatService } from '../chatService.js';
-import { LocalChatSessionUri } from '../chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../languageModels.js';
 import {
@@ -32,6 +33,7 @@ import {
 	ToolSet,
 	VSCodeToolReference
 } from '../languageModelToolsService.js';
+import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
 
 export const RunSubagentToolId = 'runSubagent';
@@ -47,10 +49,12 @@ const BaseModelDescription = `Launch a new agent to handle complex, multi-step t
 interface IRunSubagentToolInputParams {
 	prompt: string;
 	description: string;
-	subagentType?: string;
+	agentName?: string;
 }
 
 export class RunSubagentTool extends Disposable implements IToolImpl {
+
+	readonly onDidUpdateToolData: Event<IConfigurationChangeEvent>;
 
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
@@ -63,44 +67,43 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+		this.onDidUpdateToolData = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents));
 	}
 
 	getToolData(): IToolData {
-		const runSubagentToolData: IToolData = {
-			id: RunSubagentToolId,
-			toolReferenceName: VSCodeToolReference.runSubagent,
-			canBeReferencedInPrompt: true,
-			icon: ThemeIcon.fromId(Codicon.organization.id),
-			displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),
-			userDescription: localize('tool.runSubagent.userDescription', 'Runs a task within an isolated subagent context. Enables efficient organization of tasks and context window management.'),
-			modelDescription: BaseModelDescription,
-			source: ToolDataSource.Internal,
-			inputSchema: {
-				type: 'object',
-				properties: {
-					prompt: {
-						type: 'string',
-						description: 'A detailed description of the task for the agent to perform'
-					},
-					description: {
-						type: 'string',
-						description: 'A short (3-5 word) description of the task'
-					}
+		let modelDescription = BaseModelDescription;
+		const inputSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
+			type: 'object',
+			properties: {
+				prompt: {
+					type: 'string',
+					description: 'A detailed description of the task for the agent to perform'
 				},
-				required: ['prompt', 'description']
-			}
+				description: {
+					type: 'string',
+					description: 'A short (3-5 word) description of the task'
+				}
+			},
+			required: ['prompt', 'description']
 		};
 
 		if (this.configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
-			runSubagentToolData.inputSchema!.properties!['subagentType'] = {
+			inputSchema.properties.agentName = {
 				type: 'string',
-				description: 'Optional ID of a specific agent to invoke. If not provided, uses the current agent.'
+				description: 'Optional name of a specific agent to invoke. If not provided, uses the current agent.'
 			};
-			runSubagentToolData.modelDescription += `\n- If the user asks for a certain agent by name, you MUST provide that EXACT subagentType (case-sensitive) to invoke that specific agent.`;
+			modelDescription += `\n- If the user asks for a certain agent, you MUST provide that EXACT agent name (case-sensitive) to invoke that specific agent.`;
 		}
-
-
-
+		const runSubagentToolData: IToolData = {
+			id: RunSubagentToolId,
+			toolReferenceName: VSCodeToolReference.runSubagent,
+			icon: ThemeIcon.fromId(Codicon.organization.id),
+			displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),
+			userDescription: localize('tool.runSubagent.userDescription', 'Run a task within an isolated subagent context to enable efficient organization of tasks and context window management.'),
+			modelDescription: modelDescription,
+			source: ToolDataSource.Internal,
+			inputSchema: inputSchema
+		};
 		return runSubagentToolData;
 	}
 
@@ -114,7 +117,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		}
 
 		// Get the chat model and request for writing progress
-		const model = this.chatService.getSession(LocalChatSessionUri.forSession(invocation.context.sessionId)) as ChatModel | undefined;
+		const model = this.chatService.getSession(invocation.context.sessionResource) as ChatModel | undefined;
 		if (!model) {
 			throw new Error('Chat model not found for session');
 		}
@@ -133,8 +136,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			let modeTools = invocation.userSelectedTools;
 			let modeInstructions: IChatRequestModeInstructions | undefined;
 
-			if (args.subagentType) {
-				const mode = this.chatModeService.findModeByName(args.subagentType);
+			if (args.agentName) {
+				const mode = this.chatModeService.findModeByName(args.agentName);
 				if (mode) {
 					// Use mode-specific model if available
 					const modeModelQualifiedName = mode.model?.get();
@@ -172,7 +175,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						metadata: instructions.metadata,
 					};
 				} else {
-					this.logService.warn(`RunSubagentTool: Agent '${args.subagentType}' not found, using current configuration`);
+					this.logService.warn(`RunSubagentTool: Agent '${args.agentName}' not found, using current configuration`);
 				}
 			}
 
@@ -206,9 +209,14 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				}
 			};
 
+			if (modeTools) {
+				modeTools[RunSubagentToolId] = false;
+				modeTools[ManageTodoListToolToolId] = false;
+			}
+
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {
-				sessionId: invocation.context.sessionId,
+				sessionResource: invocation.context.sessionResource,
 				requestId: invocation.callId ?? `subagent-${Date.now()}`,
 				agentId: defaultAgent.id,
 				message: args.prompt,

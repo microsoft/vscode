@@ -125,9 +125,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		this.selectElement = document.createElement('select');
-
-		// Use custom CSS vars for padding calculation
-		this.selectElement.className = 'monaco-select-box monaco-select-box-dropdown-padding';
+		this.selectElement.className = 'monaco-select-box';
 
 		if (typeof this.selectBoxOptions.ariaLabel === 'string') {
 			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
@@ -176,8 +174,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		// SetUp ContextView container to hold select Dropdown
 		this.contextViewProvider = contextViewProvider;
 		this.selectDropDownContainer = dom.$('.monaco-select-box-dropdown-container');
-		// Use custom CSS vars for padding calculation (shared with parent select)
-		this.selectDropDownContainer.classList.add('monaco-select-box-dropdown-padding');
 
 		// Setup container for select option details
 		this.selectionDetailsPane = dom.append(this.selectDropDownContainer, $('.select-box-details-pane'));
@@ -472,7 +468,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			},
 			onHide: () => {
 				this.selectDropDownContainer.classList.remove('visible');
-				this.selectElement.classList.remove('synthetic-focus');
 			},
 			anchorPosition: this._dropDownPosition
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
@@ -487,7 +482,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			layout: () => this.layoutSelectDropDown(),
 			onHide: () => {
 				this.selectDropDownContainer.classList.remove('visible');
-				this.selectElement.classList.remove('synthetic-focus');
 			},
 			anchorPosition: this._dropDownPosition
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
@@ -559,15 +553,13 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 			const window = dom.getWindow(this.selectElement);
 			const selectPosition = dom.getDomNodePagePosition(this.selectElement);
-			const styles = dom.getWindow(this.selectElement).getComputedStyle(this.selectElement);
-			const verticalPadding = parseFloat(styles.getPropertyValue('--dropdown-padding-top')) + parseFloat(styles.getPropertyValue('--dropdown-padding-bottom'));
 			const maxSelectDropDownHeightBelow = (window.innerHeight - selectPosition.top - selectPosition.height - (this.selectBoxOptions.minBottomMargin || 0));
 			const maxSelectDropDownHeightAbove = (selectPosition.top - SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN);
 
 			// Determine optimal width - min(longest option), opt(parent select, excluding margins), max(ContextView controlled)
 			const selectWidth = this.selectElement.offsetWidth;
 			const selectMinWidth = this.setWidthControlElement(this.widthControlElement);
-			const selectOptimalWidth = Math.max(selectMinWidth, Math.round(selectWidth)).toString() + 'px';
+			const selectOptimalWidth = `${Math.max(selectMinWidth, Math.round(selectWidth))}px`;
 
 			this.selectDropDownContainer.style.width = selectOptimalWidth;
 
@@ -581,9 +573,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			}
 			const maxDetailsPaneHeight = this._hasDetails ? this._cachedMaxDetailsHeight! : 0;
 
-			const minRequiredDropDownHeight = listHeight + verticalPadding + maxDetailsPaneHeight;
-			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - verticalPadding - maxDetailsPaneHeight) / this.getHeight())));
-			const maxVisibleOptionsAbove = ((Math.floor((maxSelectDropDownHeightAbove - verticalPadding - maxDetailsPaneHeight) / this.getHeight())));
+			const minRequiredDropDownHeight = listHeight + maxDetailsPaneHeight;
+			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - maxDetailsPaneHeight) / this.getHeight())));
+			const maxVisibleOptionsAbove = ((Math.floor((maxSelectDropDownHeightAbove - maxDetailsPaneHeight) / this.getHeight())));
 
 			// If we are only doing pre-layout check/adjust position only
 			// Calculate vertical space available, flip up if insufficient
@@ -673,20 +665,16 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 			if (this._hasDetails) {
 				// Leave the selectDropDownContainer to size itself according to children (list + details) - #57447
-				this.selectList.getHTMLElement().style.height = (listHeight + verticalPadding) + 'px';
+				this.selectList.getHTMLElement().style.height = `${listHeight}px`;
 				this.selectDropDownContainer.style.height = '';
 			} else {
-				this.selectDropDownContainer.style.height = (listHeight + verticalPadding) + 'px';
+				this.selectDropDownContainer.style.height = `${listHeight}px`;
 			}
 
 			this.updateDetail(this.selected);
 
 			this.selectDropDownContainer.style.width = selectOptimalWidth;
-
-			// Maintain focus outline on parent select as well as list container - tabindex for focus
 			this.selectDropDownListContainer.setAttribute('tabindex', '0');
-			this.selectElement.classList.add('synthetic-focus');
-			this.selectDropDownContainer.classList.add('synthetic-focus');
 
 			return true;
 		} else {
@@ -713,7 +701,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			});
 
 
-			container.textContent = this.options[longest].text + (!!this.options[longest].decoratorRight ? (this.options[longest].decoratorRight + ' ') : '');
+			container.textContent = this.options[longest].text + (!!this.options[longest].decoratorRight ? `${this.options[longest].decoratorRight} ` : '');
 			elementWidth = dom.getTotalWidth(container);
 		}
 

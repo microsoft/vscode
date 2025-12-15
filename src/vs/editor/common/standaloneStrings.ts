@@ -51,6 +51,7 @@ export namespace InspectTokensNLS {
 
 export namespace GoToLineNLS {
 	export const gotoLineActionLabel = nls.localize('gotoLineActionLabel', "Go to Line/Column...");
+	export const gotoOffsetActionLabel = nls.localize('gotoOffsetActionLabel', "Go to Offset...");
 }
 
 export namespace QuickHelpNLS {

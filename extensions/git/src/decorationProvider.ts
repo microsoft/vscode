@@ -32,7 +32,7 @@ class GitIgnoreDecorationProvider implements FileDecorationProvider {
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
-		const onDidChangeRepository = anyEvent<any>(
+		const onDidChangeRepository = anyEvent<unknown>(
 			filterEvent(workspace.onDidSaveTextDocument, e => /\.gitignore$|\.git\/info\/exclude$/.test(e.uri.path)),
 			model.onDidOpenRepository,
 			model.onDidCloseRepository
