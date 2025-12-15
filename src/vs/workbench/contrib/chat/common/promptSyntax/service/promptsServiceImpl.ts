@@ -282,10 +282,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
 		const result: IPromptPath[] = [];
 
-		// Add User Data Dir first (primary use case)
-		const userHome = this.userDataService.currentProfile.promptsHome;
-		result.push({ uri: userHome, storage: PromptsStorage.user, type });
-
 		if (type === PromptsType.agent) {
 			const folders = this.fileLocator.getAgentSourceFolder();
 			for (const uri of folders) {
@@ -296,6 +292,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 				result.push({ uri, storage: PromptsStorage.local, type });
 			}
 		}
+
+		const userHome = this.userDataService.currentProfile.promptsHome;
+		result.push({ uri: userHome, storage: PromptsStorage.user, type });
 
 		return result;
 	}
