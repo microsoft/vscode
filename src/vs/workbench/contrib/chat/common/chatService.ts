@@ -715,6 +715,10 @@ export interface IChatPrepareToolInvocationPart {
 	readonly toolName: string;
 }
 
+export interface IChatClearWidget {
+	readonly kind: 'clearWidget';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -741,6 +745,7 @@ export type IChatProgress =
 	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
+	| IChatClearWidget
 	| IChatThinkingPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest

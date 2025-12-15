@@ -3232,6 +3232,12 @@ export class ChatResponseWarningPart {
 	}
 }
 
+export class ChatResponseClearWidgetPart {
+	constructor() {
+		// No properties needed - this is a signal part
+	}
+}
+
 export class ChatResponseCommandButtonPart {
 	value: vscode.Command;
 	constructor(value: vscode.Command) {
