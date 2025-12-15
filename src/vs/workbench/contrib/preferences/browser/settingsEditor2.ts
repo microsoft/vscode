@@ -55,7 +55,7 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
+import { ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING, IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { SettingsEditor2Input } from '../../../services/preferences/common/preferencesEditorInput.js';
 import { nullRange, Settings2EditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
@@ -299,8 +299,7 @@ export class SettingsEditor2 extends EditorPane {
 				|| e.affectedKeys.has(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch)) {
 				this.updateAiSearchToggleVisibility();
 			}
-			if (e.affectedKeys.has('workbench.settings.alwaysShowAdvancedSettings')) {
-				// Force refresh when the always show advanced settings toggle changes
+			if (e.affectsConfiguration(ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING)) {
 				this.onConfigUpdate(undefined, true);
 			}
 			if (e.source !== ConfigurationTarget.DEFAULT) {
@@ -356,8 +355,10 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private canShowAdvancedSettings(): boolean {
-		const alwaysShowAdvanced = this.configurationService.getValue<boolean>('workbench.settings.alwaysShowAdvancedSettings') ?? false;
-		return alwaysShowAdvanced || (this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) ?? false);
+		if (this.configurationService.getValue<boolean>(ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING) ?? false) {
+			return true;
+		}
+		return this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) ?? false;
 	}
 
 	/**

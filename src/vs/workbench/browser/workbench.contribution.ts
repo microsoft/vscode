@@ -537,8 +537,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.settings.alwaysShowAdvancedSettings': {
 				'type': 'boolean',
 				'tags': ['advanced'],
-				'description': localize('alwaysShowAdvancedSettings', "Controls whether advanced settings are always shown without requiring the `@tag:advanced` filter."),
-				'default': typeof product.quality === 'string' && product.quality !== 'stable'
+				'description': localize('alwaysShowAdvancedSettings', "Controls whether advanced settings are always shown in the settings editor."),
+				'default': product.quality !== 'stable'
 			},
 			'workbench.sideBar.location': {
 				'type': 'string',
