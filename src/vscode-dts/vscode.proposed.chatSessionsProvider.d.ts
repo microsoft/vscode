@@ -96,6 +96,11 @@ declare module 'vscode' {
 		description?: string | MarkdownString;
 
 		/**
+		 * An optional badge that provides additional context about the chat session.
+		 */
+		badge?: string | MarkdownString;
+
+		/**
 		 * An optional status indicating the current state of the session.
 		 */
 		status?: ChatSessionStatus;

@@ -316,8 +316,6 @@ export interface IChatConfirmation {
 	message: string | IMarkdownString;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	data: any;
-	/** Indicates whether this came from a current chat session (true/undefined) or a restored historic session (false) */
-	isLive?: boolean;
 	buttons?: string[];
 	isUsed?: boolean;
 	kind: 'confirmation';
@@ -916,12 +914,27 @@ export interface IChatSessionStats {
 	removed: number;
 }
 
+export interface IChatSessionTiming {
+	startTime: number;
+	endTime?: number;
+}
+
+export const enum ResponseModelState {
+	Pending,
+	Complete,
+	Cancelled,
+	Failed,
+	NeedsInput,
+}
+
 export interface IChatDetail {
 	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
+	timing: IChatSessionTiming;
 	isActive: boolean;
 	stats?: IChatSessionStats;
+	lastResponseState: ResponseModelState;
 }
 
 export interface IChatProviderInfo {
@@ -1058,7 +1071,7 @@ export interface IChatService {
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
-	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI; readonly reason: 'cleared' }>;
+	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 
