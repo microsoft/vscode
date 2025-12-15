@@ -600,6 +600,11 @@ function checkMinimumReleaseAge(releaseDate: number, minimumReleaseAgeDays: numb
 	return daysSinceRelease >= minimumReleaseAgeDays;
 }
 
+function calculateDaysRemaining(releaseDate: number, minimumReleaseAgeDays: number): number {
+	const daysSinceRelease = Math.floor((Date.now() - releaseDate) / MILLISECONDS_PER_DAY);
+	return Math.ceil(minimumReleaseAgeDays - daysSinceRelease);
+}
+
 const EXTENSIONS_AUTO_UPDATE_KEY = 'extensions.autoUpdate';
 const EXTENSIONS_DONOT_AUTO_UPDATE_KEY = 'extensions.donotAutoUpdate';
 const EXTENSIONS_DISMISSED_NOTIFICATIONS_KEY = 'extensions.dismissedNotifications';
@@ -2144,8 +2149,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		for (const extension of this.outdated) {
 			// Check minimum release age first to provide specific feedback
 			if (minimumReleaseAge > 0 && extension.gallery && !checkMinimumReleaseAge(extension.gallery.releaseDate, minimumReleaseAge)) {
-				const daysSinceRelease = Math.floor((Date.now() - extension.gallery.releaseDate) / MILLISECONDS_PER_DAY);
-				const daysRemaining = Math.ceil(minimumReleaseAge - daysSinceRelease);
+				const daysRemaining = calculateDaysRemaining(extension.gallery.releaseDate, minimumReleaseAge);
 				blockedByMinimumAge.push({ id: extension.identifier.id, daysRemaining });
 				continue;
 			}
