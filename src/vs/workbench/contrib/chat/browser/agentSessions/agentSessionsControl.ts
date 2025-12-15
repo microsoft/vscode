@@ -21,7 +21,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Separator } from '../../../../../base/common/actions.js';
-import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -107,6 +107,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				expandOnlyOnTwistieClick: true,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 				collapseByDefault: () => false,
+				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
 
