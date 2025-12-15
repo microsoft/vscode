@@ -279,6 +279,7 @@ class ChatMultiDiffListDelegate implements IListVirtualDelegate<IChatMultiDiffIt
 
 interface IChatMultiDiffItemTemplate extends IDisposable {
 	readonly label: IResourceLabel;
+	changesElement?: HTMLElement;
 }
 
 class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, IChatMultiDiffItemTemplate> {
@@ -305,8 +306,7 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 		});
 
 		const labelElement = templateData.label.element;
-		// eslint-disable-next-line no-restricted-syntax
-		labelElement.querySelector(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`)?.remove();
+		templateData.changesElement?.remove();
 
 		if (element.diff?.added || element.diff?.removed) {
 			const changesSummary = labelElement.appendChild($(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`));
@@ -318,6 +318,8 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 			removedElement.textContent = `-${element.diff.removed}`;
 
 			changesSummary.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', element.diff.added, element.diff.removed));
+
+			templateData.changesElement = changesSummary;
 		}
 	}
 
