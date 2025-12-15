@@ -96,7 +96,7 @@ export function computePasteData(e: ClipboardEvent, context: ViewContext, logSer
 		return;
 	}
 	let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
-	logService.trace('getPasteData with id : ', metadata?.id, ' with text.length: ', text.length);
+	logService.trace('computePasteData with id : ', metadata?.id, ' with text.length: ', text.length);
 	if (!text) {
 		return;
 	}
