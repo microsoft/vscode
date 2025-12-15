@@ -350,14 +350,21 @@ export class ContextView extends Disposable {
 		this.view.classList.add(anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
 		this.view.classList.toggle('fixed', this.useFixedPosition);
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container!);
+		// For absolute positioning, we need to find the actual containing block
+		// (the nearest positioned ancestor) and calculate the offset relative to it.
+		// Using the container's position would be incorrect if the container has
+		// position: static (the default), as the containing block would be different.
+		const offsetParent = this.view.offsetParent as HTMLElement | null;
+		const containingBlockPosition = !this.useFixedPosition && offsetParent
+			? DOM.getDomNodePagePosition(offsetParent)
+			: DOM.getDomNodePagePosition(this.container!);
 
 		// Account for container scroll when positioning the context view
 		const containerScrollTop = this.container!.scrollTop || 0;
 		const containerScrollLeft = this.container!.scrollLeft || 0;
 
-		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top) + containerScrollTop}px`;
-		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containerPosition.left) + containerScrollLeft}px`;
+		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containingBlockPosition.top) + containerScrollTop}px`;
+		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containingBlockPosition.left) + containerScrollLeft}px`;
 		this.view.style.width = 'initial';
 	}
 
