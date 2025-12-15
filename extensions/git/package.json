@@ -3838,6 +3838,11 @@
           "default": "${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameStatusBarItem.template%"
         },
+        "git.blame.editorDecoration.disablePreview": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameEditorDecoration.disablePreview%"
+        },
         "git.commitShortHashLength": {
           "type": "number",
           "default": 7,
