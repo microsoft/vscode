@@ -1578,13 +1578,24 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	clearThreads(id: string, removeThreads: boolean, reference: number | undefined = undefined): void {
 		const session = this.sessions.find(p => p.getId() === id);
-		this.schedulers.forEach(entry => {
-			entry.scheduler.dispose();
-			entry.completeDeferred.complete();
-		});
-		this.schedulers.clear();
-
 		if (session) {
+			let threads: IThread[];
+			if (reference === undefined) {
+				threads = session.getAllThreads();
+			} else {
+				const thread = session.getThread(reference);
+				threads = thread !== undefined ? [thread] : [];
+			}
+			for (const thread of threads) {
+				const threadId = thread.getId();
+				const entry = this.schedulers.get(threadId);
+				if (entry !== undefined) {
+					entry.scheduler.dispose();
+					entry.completeDeferred.complete();
+					this.schedulers.delete(threadId);
+				}
+			}
+
 			session.clearThreads(removeThreads, reference);
 			this._onDidChangeCallStackFire.schedule();
 		}
