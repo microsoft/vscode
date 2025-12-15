@@ -39,7 +39,6 @@
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--vscode-descriptionForeground);
-		padding: 8px;
 
 		.agent-sessions-title {
 			cursor: pointer;
@@ -99,6 +98,14 @@
 		}
 	}
 
+	&:not(.activity-bar-location-default) .agent-sessions-title-container {
+		padding: 0 4px 0 8px; /* align with container title and actions */
+	}
+
+	&.activity-bar-location-default .agent-sessions-title-container {
+		padding: 0 8px; /* align with container title and actions */
+	}
+
 	.agent-sessions-link-container {
 		display: none; /* hide link to show more when side by side */
 	}
@@ -107,8 +114,12 @@
 /* Sessions control: compact */
 .chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
 
-	.agent-sessions-title-container {
-		padding: 8px 8px 8px 18px; /* align with container title */
+	&:not(.activity-bar-location-default) .agent-sessions-title-container {
+		padding: 0 4px 0 20px; /* align with container title and actions */
+	}
+
+	&.activity-bar-location-default .agent-sessions-title-container {
+		padding: 0 8px 0 20px; /* align with container title and actions */
 	}
 
 	.agent-sessions-container {

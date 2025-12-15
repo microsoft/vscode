@@ -5,10 +5,16 @@
 
 .chat-viewpane {
 
+	&:not(.activity-bar-location-default) .chat-view-title-container {
+		padding: 0 8px 0 16px; /* try to align with the sessions view title */
+	}
+
+	&.activity-bar-location-default .chat-view-title-container {
+		padding: 0 12px 0 16px; /* try to align with the sessions view title */
+	}
+
 	.chat-view-title-container {
 		display: none;
-		/* try to align with the sessions view title */
-		padding: 8px 12px 8px 16px;
 		align-items: center;
 		cursor: pointer;
 
