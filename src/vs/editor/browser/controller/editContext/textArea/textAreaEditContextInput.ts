@@ -383,6 +383,7 @@ export class TextAreaInput extends Disposable {
 			if (!pasteData) {
 				return;
 			}
+			this._logService.trace(`TextAreaInput#onPaste (before onPaste)`);
 			this._onPaste.fire(pasteData);
 		}));
 
