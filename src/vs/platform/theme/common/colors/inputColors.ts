@@ -219,3 +219,21 @@ export const keybindingLabelBorder = registerColor('keybindingLabel.border',
 export const keybindingLabelBottomBorder = registerColor('keybindingLabel.bottomBorder',
 	{ dark: new Color(new RGBA(68, 68, 68, 0.6)), light: new Color(new RGBA(187, 187, 187, 0.4)), hcDark: new Color(new RGBA(111, 195, 223)), hcLight: foreground },
 	nls.localize('keybindingLabelBottomBorder', "Keybinding label border bottom color. The keybinding label is used to represent a keyboard shortcut."));
+
+// ------ toggle button
+
+export const toggleButtonActiveBorder = registerColor('inputOption.activeBorder',
+	{ dark: Color.transparent, light: Color.transparent, hcDark: contrastBorder, hcLight: contrastBorder },
+	nls.localize('inputBoxActiveOptionBorder', "Border color of activated options in input fields."));
+
+export const toggleButtonHoverBackground = registerColor('inputOption.hoverBackground',
+	inputActiveOptionHoverBackground,
+	nls.localize('inputOption.hoverBackground', "Background color of activated options in input fields."));
+
+export const toggleButtonActiveBackground = registerColor('inputOption.activeBackground',
+	inputActiveOptionBackground,
+	nls.localize('inputOption.activeBackground', "Background hover color of options in input fields."));
+
+export const toggleButtonActiveForeground = registerColor('inputOption.activeForeground',
+	inputActiveOptionForeground,
+	nls.localize('inputOption.activeForeground', "Foreground color of activated options in input fields."));
