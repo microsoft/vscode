@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { IAgentSession } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, isAgentSessionSection } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -32,6 +32,8 @@ import { AgentSessionsPicker } from './agentSessionsPicker.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 
 //#region Chat View
 
@@ -215,14 +217,56 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 	}
 }
 
+export class ArchiveAgentSessionSectionAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionSection.archive',
+			title: localize2('archiveSection', "Archive All"),
+			icon: Codicon.archive,
+			menu: {
+				id: MenuId.AgentSessionSectionToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IAgentSessionSection): Promise<void> {
+		if (!context || !isAgentSessionSection(context)) {
+			return;
+		}
+
+		const dialogService = accessor.get(IDialogService);
+
+		const confirmed = await dialogService.confirm({
+			message: context.sessions.length === 1
+				? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to archive 1 agent session from '{0}'?", context.label)
+				: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} agent sessions from '{1}'?", context.sessions.length, context.label),
+			detail: localize('archiveSectionSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
+			primaryButton: localize('archiveSectionSessions.archive', "Archive All")
+		});
+
+		if (!confirmed.confirmed) {
+			return;
+		}
+
+		for (const session of context.sessions) {
+			session.setArchived(true);
+		}
+	}
+}
+
 //#endregion
 
-//#region Session Title Actions
+//#region Session Actions
 
 abstract class BaseAgentSessionAction extends Action2 {
 
-	run(accessor: ServicesAccessor, context: IAgentSession | IMarshalledChatSessionContext): void {
+	run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledChatSessionContext): void {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
+		const viewsService = accessor.get(IViewsService);
 
 		let session: IAgentSession | undefined;
 		if (isMarshalledChatSessionContext(context)) {
@@ -231,205 +275,17 @@ abstract class BaseAgentSessionAction extends Action2 {
 			session = context;
 		}
 
+		if (!session) {
+			const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
+			session = chatView?.getFocusedSessions().at(0);
+		}
+
 		if (session) {
 			this.runWithSession(session, accessor);
 		}
 	}
 
 	abstract runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> | void;
-}
-
-export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
-
-	constructor() {
-		super({
-			id: 'agentSession.archive',
-			title: localize2('archive', "Archive"),
-			icon: Codicon.archive,
-			menu: [{
-				id: MenuId.AgentSessionItemToolbar,
-				group: 'navigation',
-				order: 1,
-				when: ChatContextKeys.isArchivedAgentSession.negate(),
-			}, {
-				id: MenuId.AgentSessionsContext,
-				group: 'edit',
-				order: 2,
-				when: ChatContextKeys.isArchivedAgentSession.negate()
-			}]
-		});
-	}
-
-	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
-		const chatService = accessor.get(IChatService);
-		const chatModel = chatService.getSession(session.resource);
-		const dialogService = accessor.get(IDialogService);
-
-		if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
-			isArchiveAction: true,
-			titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
-			messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
-		})) {
-			return;
-		}
-
-		session.setArchived(true);
-	}
-}
-
-export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
-
-	constructor() {
-		super({
-			id: 'agentSession.unarchive',
-			title: localize2('unarchive', "Unarchive"),
-			icon: Codicon.unarchive,
-			menu: [{
-				id: MenuId.AgentSessionItemToolbar,
-				group: 'navigation',
-				order: 1,
-				when: ChatContextKeys.isArchivedAgentSession,
-			}, {
-				id: MenuId.AgentSessionsContext,
-				group: 'edit',
-				order: 2,
-				when: ChatContextKeys.isArchivedAgentSession,
-			}]
-		});
-	}
-
-	runWithSession(session: IAgentSession): void {
-		session.setArchived(false);
-	}
-}
-
-export class RenameAgentSessionAction extends BaseAgentSessionAction {
-
-	constructor() {
-		super({
-			id: 'agentSession.rename',
-			title: localize2('rename', "Rename..."),
-			icon: Codicon.edit,
-			menu: {
-				id: MenuId.AgentSessionsContext,
-				group: 'edit',
-				order: 3,
-				when: ChatContextKeys.agentSessionType.isEqualTo(localChatSessionType)
-			}
-		});
-	}
-
-	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-		const chatService = accessor.get(IChatService);
-
-		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
-		if (title) {
-			chatService.setChatSessionTitle(session.resource, title);
-		}
-	}
-}
-
-//#endregion
-
-//#region Session Context Actions
-
-abstract class BaseOpenAgentSessionAction extends Action2 {
-
-	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
-		if (!context) {
-			return;
-		}
-
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const uri = context.session.resource;
-
-		await chatWidgetService.openSession(uri, this.getTargetGroup(), {
-			...this.getOptions(),
-			pinned: true
-		});
-	}
-
-	protected abstract getTargetGroup(): PreferredGroup;
-
-	protected abstract getOptions(): IChatEditorOptions;
-}
-
-export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAction {
-
-	static readonly id = 'workbench.action.chat.openSessionInEditorGroup';
-
-	constructor() {
-		super({
-			id: OpenAgentSessionInEditorGroupAction.id,
-			title: localize2('chat.openSessionInEditorGroup.label', "Open as Editor"),
-			menu: {
-				id: MenuId.AgentSessionsContext,
-				order: 1,
-				group: 'navigation'
-			}
-		});
-	}
-
-	protected getTargetGroup(): PreferredGroup {
-		return ACTIVE_GROUP;
-	}
-
-	protected getOptions(): IChatEditorOptions {
-		return {};
-	}
-}
-
-export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSessionAction {
-
-	static readonly id = 'workbench.action.chat.openSessionInNewEditorGroup';
-
-	constructor() {
-		super({
-			id: OpenAgentSessionInNewEditorGroupAction.id,
-			title: localize2('chat.openSessionInNewEditorGroup.label', "Open to the Side"),
-			menu: {
-				id: MenuId.AgentSessionsContext,
-				order: 2,
-				group: 'navigation'
-			}
-		});
-	}
-
-	protected getTargetGroup(): PreferredGroup {
-		return SIDE_GROUP;
-	}
-
-	protected getOptions(): IChatEditorOptions {
-		return {};
-	}
-}
-
-export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionAction {
-
-	static readonly id = 'workbench.action.chat.openSessionInNewWindow';
-
-	constructor() {
-		super({
-			id: OpenAgentSessionInNewWindowAction.id,
-			title: localize2('chat.openSessionInNewWindow.label', "Open in New Window"),
-			menu: {
-				id: MenuId.AgentSessionsContext,
-				order: 3,
-				group: 'navigation'
-			}
-		});
-	}
-
-	protected getTargetGroup(): PreferredGroup {
-		return AUX_WINDOW_GROUP;
-	}
-
-	protected getOptions(): IChatEditorOptions {
-		return {
-			auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
-		};
-	}
 }
 
 export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
@@ -475,6 +331,239 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 
 	runWithSession(session: IAgentSession): void {
 		session.setRead(true);
+	}
+}
+
+export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.archive',
+			title: localize2('archive', "Archive"),
+			icon: Codicon.archive,
+			keybinding: {
+				primary: KeyCode.Delete,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.agentSessionsViewerFocused,
+					ChatContextKeys.isArchivedAgentSession.negate()
+				)
+			},
+			menu: [{
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.isArchivedAgentSession.negate(),
+			}, {
+				id: MenuId.AgentSessionsContext,
+				group: 'edit',
+				order: 2,
+				when: ChatContextKeys.isArchivedAgentSession.negate()
+			}]
+		});
+	}
+
+	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
+		const chatService = accessor.get(IChatService);
+		const chatModel = chatService.getSession(session.resource);
+		const dialogService = accessor.get(IDialogService);
+
+		if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
+			isArchiveAction: true,
+			titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
+			messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
+		})) {
+			return;
+		}
+
+		session.setArchived(true);
+	}
+}
+
+export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.unarchive',
+			title: localize2('unarchive', "Unarchive"),
+			icon: Codicon.unarchive,
+			keybinding: {
+				primary: KeyMod.Shift | KeyCode.Delete,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
+				},
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.agentSessionsViewerFocused,
+					ChatContextKeys.isArchivedAgentSession
+				)
+			},
+			menu: [{
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.isArchivedAgentSession,
+			}, {
+				id: MenuId.AgentSessionsContext,
+				group: 'edit',
+				order: 2,
+				when: ChatContextKeys.isArchivedAgentSession,
+			}]
+		});
+	}
+
+	runWithSession(session: IAgentSession): void {
+		session.setArchived(false);
+	}
+}
+
+export class RenameAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.rename',
+			title: localize2('rename', "Rename..."),
+			icon: Codicon.edit,
+			keybinding: {
+				primary: KeyCode.F2,
+				mac: {
+					primary: KeyCode.Enter
+				},
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.agentSessionsViewerFocused,
+					ChatContextKeys.agentSessionType.isEqualTo(localChatSessionType)
+				),
+			},
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				group: 'edit',
+				order: 3,
+				when: ChatContextKeys.agentSessionType.isEqualTo(localChatSessionType)
+			}
+		});
+	}
+
+	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const chatService = accessor.get(IChatService);
+
+		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
+		if (title) {
+			chatService.setChatSessionTitle(session.resource, title);
+		}
+	}
+}
+
+abstract class BaseOpenAgentSessionAction extends BaseAgentSessionAction {
+
+	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+
+		const uri = session.resource;
+
+		await chatWidgetService.openSession(uri, this.getTargetGroup(), {
+			...this.getOptions(),
+			pinned: true
+		});
+	}
+
+	protected abstract getTargetGroup(): PreferredGroup;
+
+	protected abstract getOptions(): IChatEditorOptions;
+}
+
+export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAction {
+
+	static readonly id = 'workbench.action.chat.openSessionInEditorGroup';
+
+	constructor() {
+		super({
+			id: OpenAgentSessionInEditorGroupAction.id,
+			title: localize2('chat.openSessionInEditorGroup.label', "Open as Editor"),
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyCode.Enter
+				},
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ChatContextKeys.agentSessionsViewerFocused,
+			},
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				order: 1,
+				group: 'navigation'
+			}
+		});
+	}
+
+	protected getTargetGroup(): PreferredGroup {
+		return ACTIVE_GROUP;
+	}
+
+	protected getOptions(): IChatEditorOptions {
+		return {};
+	}
+}
+
+export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSessionAction {
+
+	static readonly id = 'workbench.action.chat.openSessionInNewEditorGroup';
+
+	constructor() {
+		super({
+			id: OpenAgentSessionInNewEditorGroupAction.id,
+			title: localize2('chat.openSessionInNewEditorGroup.label', "Open to the Side"),
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
+				},
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ChatContextKeys.agentSessionsViewerFocused,
+			},
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				order: 2,
+				group: 'navigation'
+			}
+		});
+	}
+
+	protected getTargetGroup(): PreferredGroup {
+		return SIDE_GROUP;
+	}
+
+	protected getOptions(): IChatEditorOptions {
+		return {};
+	}
+}
+
+export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionAction {
+
+	static readonly id = 'workbench.action.chat.openSessionInNewWindow';
+
+	constructor() {
+		super({
+			id: OpenAgentSessionInNewWindowAction.id,
+			title: localize2('chat.openSessionInNewWindow.label', "Open in New Window"),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				order: 3,
+				group: 'navigation'
+			}
+		});
+	}
+
+	protected getTargetGroup(): PreferredGroup {
+		return AUX_WINDOW_GROUP;
+	}
+
+	protected getOptions(): IChatEditorOptions {
+		return {
+			auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
+		};
 	}
 }
 
@@ -613,7 +702,8 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			title: ShowAgentSessionsSidebar.TITLE,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked)
+				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -636,7 +726,8 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			title: HideAgentSessionsSidebar.TITLE,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide)
+				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -648,6 +739,39 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 	}
 }
 
+export class ToggleAgentSessionsSidebar extends Action2 {
+
+	static readonly ID = 'agentSessions.toggleAgentSessionsSidebar';
+	static readonly TITLE = localize2('toggleAgentSessionsSidebar', "Toggle Agent Sessions Sidebar");
+
+	constructor() {
+		super({
+			id: ToggleAgentSessionsSidebar.ID,
+			title: ToggleAgentSessionsSidebar.TITLE,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
+			),
+			f1: true,
+			category: CHAT_CATEGORY,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const viewsService = accessor.get(IViewsService);
+
+		const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
+		const currentOrientation = chatView?.getSessionsViewerOrientation();
+
+		if (currentOrientation === AgentSessionsViewerOrientation.SideBySide) {
+			await commandService.executeCommand(HideAgentSessionsSidebar.ID);
+		} else {
+			await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
+		}
+	}
+}
+
 export class FocusAgentSessionsAction extends Action2 {
 
 	static readonly id = 'workbench.action.chat.focusAgentSessionsViewer';
@@ -656,7 +780,10 @@ export class FocusAgentSessionsAction extends Action2 {
 		super({
 			id: FocusAgentSessionsAction.id,
 			title: localize2('chat.focusAgentSessionsViewer.label', "Focus Agent Sessions"),
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
+			),
 			category: CHAT_CATEGORY,
 			f1: true,
 		});

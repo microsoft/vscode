@@ -15,7 +15,7 @@ import { IChatService } from '../../common/chatService.js';
 import { openSession } from './agentSessionsOpener.js';
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsSorter } from './agentSessionsViewer.js';
+import { AgentSessionsSorter, groupAgentSessions } from './agentSessionsViewer.js';
 
 interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
@@ -96,53 +96,13 @@ export class AgentSessionsPicker {
 		const sessions = this.agentSessionsService.model.sessions.sort(this.sorter.compare.bind(this.sorter));
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
 
-		const now = Date.now();
-		const todayStart = new Date(now).setHours(0, 0, 0, 0);
-		const recentThreshold = now - 7 * 24 * 60 * 60 * 1000; // 7 days ago
+		const groupedSessions = groupAgentSessions(sessions);
 
-		// Separate sessions into groups
-		const todaySessions: IAgentSession[] = [];
-		const recentSessions: IAgentSession[] = [];
-		const olderSessions: IAgentSession[] = [];
-		const archivedSessions: IAgentSession[] = [];
-
-		for (const session of sessions) {
-			if (session.isArchived()) {
-				archivedSessions.push(session);
-			} else {
-				const sessionTime = session.timing.endTime || session.timing.startTime;
-				if (sessionTime >= todayStart) {
-					todaySessions.push(session);
-				} else if (sessionTime >= recentThreshold) {
-					recentSessions.push(session);
-				} else {
-					olderSessions.push(session);
-				}
+		for (const group of groupedSessions.values()) {
+			if (group.sessions.length > 0) {
+				items.push({ type: 'separator', label: group.label });
+				items.push(...group.sessions.map(session => this.toPickItem(session)));
 			}
-		}
-
-		// Today's sessions
-		if (todaySessions.length > 0) {
-			items.push({ type: 'separator', label: localize('todaySessions', "Today") });
-			items.push(...todaySessions.map(session => this.toPickItem(session)));
-		}
-
-		// Recent sessions (last 7 days)
-		if (recentSessions.length > 0) {
-			items.push({ type: 'separator', label: localize('recentSessions', "Recent") });
-			items.push(...recentSessions.map(session => this.toPickItem(session)));
-		}
-
-		// Older sessions
-		if (olderSessions.length > 0) {
-			items.push({ type: 'separator', label: localize('olderSessions', "Older") });
-			items.push(...olderSessions.map(session => this.toPickItem(session)));
-		}
-
-		// Archived sessions
-		if (archivedSessions.length > 0) {
-			items.push({ type: 'separator', label: localize('archivedSessions', "Archived") });
-			items.push(...archivedSessions.map(session => this.toPickItem(session)));
 		}
 
 		return items;

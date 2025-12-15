@@ -13,7 +13,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionsModel, isAgentSession, isAgentSessionsModel } from './agentSessionsModel.js';
+import { AgentSessionSection, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -39,7 +39,11 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
+
+export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
+
+//#region Agent Session Renderer
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -57,6 +61,7 @@ interface IAgentSessionItemTemplate {
 	readonly diffAddedSpan: HTMLSpanElement;
 	readonly diffRemovedSpan: HTMLSpanElement;
 
+	readonly badge: HTMLElement;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
 
@@ -106,6 +111,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 								h('span.agent-session-diff-added@addedSpan'),
 								h('span.agent-session-diff-removed@removedSpan')
 							]),
+						h('div.agent-session-badge@badge'),
 						h('div.agent-session-description@description'),
 						h('div.agent-session-status@status')
 					])
@@ -130,6 +136,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			diffFilesSpan: elements.filesSpan,
 			diffAddedSpan: elements.addedSpan,
 			diffRemovedSpan: elements.removedSpan,
+			badge: elements.badge,
 			description: elements.description,
 			status: elements.status,
 			contextKeyService,
@@ -145,6 +152,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.diffFilesSpan.textContent = '';
 		template.diffAddedSpan.textContent = '';
 		template.diffRemovedSpan.textContent = '';
+		template.badge.textContent = '';
 		template.description.textContent = '';
 
 		// Archived
@@ -164,18 +172,25 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.titleToolbar.context = session.element;
 
 		// Diff information
+		let hasDiff = false;
 		const { changes: diff } = session.element;
 		if (!isSessionInProgressStatus(session.element.status) && diff && hasValidDiff(diff)) {
 			if (this.renderDiff(session, template)) {
-				template.diffContainer.classList.add('has-diff');
+				hasDiff = true;
 			}
 		}
+		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
-		// Description otherwise
-		else {
-			template.diffContainer.classList.remove('has-diff');
+		// Badge
+		let hasBadge = false;
+		if (!isSessionInProgressStatus(session.element.status)) {
+			hasBadge = this.renderBadge(session, template);
+		}
+		template.badge.classList.toggle('has-badge', hasBadge);
 
-			this.renderDescription(session, template);
+		// Description (unless diff is shown)
+		if (!hasDiff) {
+			this.renderDescription(session, template, hasBadge);
 		}
 
 		// Status
@@ -183,6 +198,31 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Hover
 		this.renderHover(session, template);
+	}
+
+	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
+		const badge = session.element.badge;
+		if (badge) {
+			this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
+		}
+
+		return !!badge;
+	}
+
+	private renderMarkdownOrText(content: string | IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
+		if (typeof content === 'string') {
+			container.textContent = content;
+		} else {
+			disposables.add(this.markdownRendererService.render(content, {
+				sanitizerConfig: {
+					replaceWithPlaintext: true,
+					allowedTags: {
+						override: allowedChatMarkdownHtmlTags,
+					},
+					allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
+				},
+			}, container));
+		}
 	}
 
 	private renderDiff(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
@@ -226,30 +266,20 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		return Codicon.circleSmallFilled;
 	}
 
-	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate, hasBadge: boolean): void {
 		const description = session.element.description;
 		if (description) {
-
-			// Support description as string
-			if (typeof description === 'string') {
-				template.description.textContent = description;
-			} else {
-				template.elementDisposable.add(this.markdownRendererService.render(description, {
-					sanitizerConfig: {
-						replaceWithPlaintext: true,
-						allowedTags: {
-							override: allowedChatMarkdownHtmlTags,
-						},
-						allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
-					},
-				}, template.description));
-			}
+			this.renderMarkdownOrText(description, template.description, template.elementDisposable);
 		}
 
 		// Fallback to state label
 		else {
 			if (isSessionInProgressStatus(session.element.status)) {
 				template.description.textContent = localize('chat.session.status.inProgress', "Working...");
+			} else if (session.element.status === ChatSessionStatus.NeedsInput) {
+				template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
+			} else if (hasBadge && session.element.status === ChatSessionStatus.Completed) {
+				template.description.textContent = ''; // no description if completed and has badge
 			} else if (
 				session.element.timing.finishedOrFailedTime &&
 				session.element.timing.inProgressTime &&
@@ -288,6 +318,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			if (!timeLabel) {
 				timeLabel = fromNow(session.timing.endTime || session.timing.startTime);
 			}
+
 			return `${session.providerLabel} • ${timeLabel}`;
 		};
 
@@ -324,26 +355,115 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 }
 
-export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSession> {
+//#endregion
+
+//#region Section Header Renderer
+
+interface IAgentSessionSectionTemplate {
+	readonly container: HTMLElement;
+	readonly label: HTMLSpanElement;
+	readonly toolbar: MenuWorkbenchToolBar;
+	readonly contextKeyService: IContextKeyService;
+	readonly disposables: IDisposable;
+}
+
+export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IAgentSessionSection, FuzzyScore, IAgentSessionSectionTemplate> {
+
+	static readonly TEMPLATE_ID = 'agent-session-section';
+
+	readonly templateId = AgentSessionSectionRenderer.TEMPLATE_ID;
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+	) { }
+
+	renderTemplate(container: HTMLElement): IAgentSessionSectionTemplate {
+		const disposables = new DisposableStore();
+
+		const elements = h(
+			'div.agent-session-section@container',
+			[
+				h('span.agent-session-section-label@label'),
+				h('div.agent-session-section-toolbar@toolbar')
+			]
+		);
+
+		const contextKeyService = disposables.add(this.contextKeyService.createScoped(elements.container));
+		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.AgentSessionSectionToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+		}));
+
+		container.appendChild(elements.container);
+
+		return {
+			container: elements.container,
+			label: elements.label,
+			toolbar,
+			contextKeyService,
+			disposables
+		};
+	}
+
+	renderElement(element: ITreeNode<IAgentSessionSection, FuzzyScore>, index: number, template: IAgentSessionSectionTemplate, details?: ITreeElementRenderDetails): void {
+
+		// Label
+		template.label.textContent = element.element.label;
+
+		// Toolbar
+		ChatContextKeys.agentSessionSection.bindTo(template.contextKeyService).set(element.element.section);
+		template.toolbar.context = element.element;
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSessionSection>, FuzzyScore>, index: number, templateData: IAgentSessionSectionTemplate, details?: ITreeElementRenderDetails): void {
+		throw new Error('Should never happen since section header is incompressible');
+	}
+
+	disposeElement(element: ITreeNode<IAgentSessionSection, FuzzyScore>, index: number, template: IAgentSessionSectionTemplate, details?: ITreeElementRenderDetails): void {
+		// noop
+	}
+
+	disposeTemplate(templateData: IAgentSessionSectionTemplate): void {
+		templateData.disposables.dispose();
+	}
+}
+
+//#endregion
+
+export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSessionListItem> {
 
 	static readonly ITEM_HEIGHT = 52;
+	static readonly SECTION_HEIGHT = 26;
 
-	getHeight(element: IAgentSession): number {
+	getHeight(element: AgentSessionListItem): number {
+		if (isAgentSessionSection(element)) {
+			return AgentSessionsListDelegate.SECTION_HEIGHT;
+		}
+
 		return AgentSessionsListDelegate.ITEM_HEIGHT;
 	}
 
-	getTemplateId(element: IAgentSession): string {
+	getTemplateId(element: AgentSessionListItem): string {
+		if (isAgentSessionSection(element)) {
+			return AgentSessionSectionRenderer.TEMPLATE_ID;
+		}
+
 		return AgentSessionRenderer.TEMPLATE_ID;
 	}
 }
 
-export class AgentSessionsAccessibilityProvider implements IListAccessibilityProvider<IAgentSession> {
+export class AgentSessionsAccessibilityProvider implements IListAccessibilityProvider<AgentSessionListItem> {
 
 	getWidgetAriaLabel(): string {
 		return localize('agentSessions', "Agent Sessions");
 	}
 
-	getAriaLabel(element: IAgentSession): string | null {
+	getAriaLabel(element: AgentSessionListItem): string | null {
+		if (isAgentSessionSection(element)) {
+			return localize('agentSessionSectionAriaLabel', "{0} sessions section", element.label);
+		}
+
 		let statusLabel: string;
 		switch (element.status) {
 			case ChatSessionStatus.NeedsInput:
@@ -359,13 +479,17 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 				statusLabel = localize('agentSessionCompleted', "completed");
 		}
 
-		return localize('agentSessionItemAriaLabel', "Agent session {0} ({1}), created {2}", element.label, statusLabel, new Date(element.timing.startTime).toLocaleString());
+		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, statusLabel, new Date(element.timing.startTime).toLocaleString());
 	}
 }
 
 export interface IAgentSessionsFilter {
 
-	readonly onDidChange?: Event<void>;
+	/**
+	 * An event that fires when the filter changes and sessions
+	 * should be re-evaluated.
+	 */
+	readonly onDidChange: Event<void>;
 
 	/**
 	 * Optional limit on the number of sessions to show.
@@ -373,50 +497,190 @@ export interface IAgentSessionsFilter {
 	readonly limitResults?: () => number | undefined;
 
 	/**
+	 * Whether to show section headers (Active, Older, Archived).
+	 * When false, sessions are shown as a flat list.
+	 */
+	readonly groupResults?: () => boolean | undefined;
+
+	/**
+	 * A callback to notify the filter about the label of the
+	 * first section when grouping is enabled.
+	 */
+	notifyFirstGroupLabel?(label: string | undefined): void;
+
+	/**
 	 * A callback to notify the filter about the number of
 	 * results after filtering.
 	 */
 	notifyResults?(count: number): void;
 
-	exclude?(session: IAgentSession): boolean;
+	/**
+	 * The logic to exclude sessions from the view.
+	 */
+	exclude(session: IAgentSession): boolean;
 }
 
-export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, IAgentSession> {
+export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
 
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
 	) { }
 
-	hasChildren(element: IAgentSessionsModel | IAgentSession): boolean {
-		return isAgentSessionsModel(element);
+	hasChildren(element: IAgentSessionsModel | AgentSessionListItem): boolean {
+
+		// Sessions model
+		if (isAgentSessionsModel(element)) {
+			return true;
+		}
+
+		// Sessions	section
+		else if (isAgentSessionSection(element)) {
+			return element.sessions.length > 0;
+		}
+
+		// Session element
+		else {
+			return false;
+		}
 	}
 
-	getChildren(element: IAgentSessionsModel | IAgentSession): Iterable<IAgentSession> {
-		if (!isAgentSessionsModel(element)) {
+	getChildren(element: IAgentSessionsModel | AgentSessionListItem): Iterable<AgentSessionListItem> {
+
+		// Sessions model
+		if (isAgentSessionsModel(element)) {
+
+			// Apply filter if configured
+			let filteredSessions = element.sessions.filter(session => !this.filter?.exclude(session));
+
+			// Apply sorter unless we group into sections or we are to limit results
+			const limitResultsCount = this.filter?.limitResults?.();
+			if (!this.filter?.groupResults?.() || typeof limitResultsCount === 'number') {
+				filteredSessions.sort(this.sorter.compare.bind(this.sorter));
+			}
+
+			// Apply limiter if configured (requires sorting)
+			if (typeof limitResultsCount === 'number') {
+				filteredSessions = filteredSessions.slice(0, limitResultsCount);
+			}
+
+			// Callback results count
+			this.filter?.notifyResults?.(filteredSessions.length);
+
+			// Group sessions into sections if enabled
+			if (this.filter?.groupResults?.()) {
+				return this.groupSessionsIntoSections(filteredSessions);
+			}
+
+			// Otherwise return flat sorted list
+			return filteredSessions;
+		}
+
+		// Sessions	section
+		else if (isAgentSessionSection(element)) {
+			return element.sessions;
+		}
+
+		// Session element
+		else {
 			return [];
 		}
+	}
 
-		// Apply filter if configured
-		let filteredSessions = element.sessions.filter(session => !this.filter?.exclude?.(session));
+	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
+		const result: AgentSessionListItem[] = [];
 
-		// Apply limiter if configured (requires sorting)
-		const limitResultsCount = this.filter?.limitResults?.();
-		if (typeof limitResultsCount === 'number') {
-			filteredSessions.sort(this.sorter.compare.bind(this.sorter));
-			filteredSessions = filteredSessions.slice(0, limitResultsCount);
+		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
+		const groupedSessions = groupAgentSessions(sortedSessions);
+
+		let isFirstSection = true;
+		let firstSectionLabel: string | undefined;
+		for (const { sessions, section, label } of groupedSessions.values()) {
+			if (sessions.length === 0) {
+				continue;
+			}
+
+			// First section: add sessions directly without a parent node
+			if (isFirstSection) {
+				result.push(...sessions);
+				isFirstSection = false;
+				firstSectionLabel = label;
+			}
+
+			// Subsequent sections: add as parent nodes with children
+			else {
+				result.push({ section, label, sessions });
+			}
 		}
 
-		// Callback results count
-		this.filter?.notifyResults?.(filteredSessions.length);
+		// Notify the first section label
+		this.filter?.notifyFirstGroupLabel?.(firstSectionLabel);
 
-		return filteredSessions;
+		return result;
 	}
 }
 
-export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSessionsModel | IAgentSession> {
+const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
+const WEEK_THRESHOLD = 7 * DAY_THRESHOLD;
 
-	getId(element: IAgentSessionsModel | IAgentSession): string {
+export const AgentSessionSectionLabels = {
+	[AgentSessionSection.Active]: localize('agentSessions.activeSection', "Active"),
+	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
+	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
+	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Week"),
+	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
+	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
+};
+
+export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+	const now = Date.now();
+	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+	const startOfYesterday = startOfToday - DAY_THRESHOLD;
+	const weekThreshold = now - WEEK_THRESHOLD;
+
+	const activeSessions: IAgentSession[] = [];
+	const todaySessions: IAgentSession[] = [];
+	const yesterdaySessions: IAgentSession[] = [];
+	const weekSessions: IAgentSession[] = [];
+	const olderSessions: IAgentSession[] = [];
+	const archivedSessions: IAgentSession[] = [];
+
+	for (const session of sessions) {
+		if (isSessionInProgressStatus(session.status)) {
+			activeSessions.push(session);
+		} else if (session.isArchived()) {
+			archivedSessions.push(session);
+		} else {
+			const sessionTime = session.timing.endTime || session.timing.startTime;
+			if (sessionTime >= startOfToday) {
+				todaySessions.push(session);
+			} else if (sessionTime >= startOfYesterday) {
+				yesterdaySessions.push(session);
+			} else if (sessionTime >= weekThreshold) {
+				weekSessions.push(session);
+			} else {
+				olderSessions.push(session);
+			}
+		}
+	}
+
+	return new Map<AgentSessionSection, IAgentSessionSection>([
+		[AgentSessionSection.Active, { section: AgentSessionSection.Active, label: AgentSessionSectionLabels[AgentSessionSection.Active], sessions: activeSessions }],
+		[AgentSessionSection.Today, { section: AgentSessionSection.Today, label: AgentSessionSectionLabels[AgentSessionSection.Today], sessions: todaySessions }],
+		[AgentSessionSection.Yesterday, { section: AgentSessionSection.Yesterday, label: AgentSessionSectionLabels[AgentSessionSection.Yesterday], sessions: yesterdaySessions }],
+		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
+		[AgentSessionSection.Older, { section: AgentSessionSection.Older, label: AgentSessionSectionLabels[AgentSessionSection.Older], sessions: olderSessions }],
+		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: AgentSessionSectionLabels[AgentSessionSection.Archived], sessions: archivedSessions }],
+	]);
+}
+
+export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSessionsModel | AgentSessionListItem> {
+
+	getId(element: IAgentSessionsModel | AgentSessionListItem): string {
+		if (isAgentSessionSection(element)) {
+			return `section-${element.section}`;
+		}
+
 		if (isAgentSession(element)) {
 			return element.resource.toString();
 		}
@@ -425,9 +689,9 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 	}
 }
 
-export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegate<IAgentSession> {
+export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegate<AgentSessionListItem> {
 
-	isIncompressible(element: IAgentSession): boolean {
+	isIncompressible(element: AgentSessionListItem): boolean {
 		return true;
 	}
 }
@@ -486,18 +750,22 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 	}
 }
 
-export class AgentSessionsKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<IAgentSession> {
+export class AgentSessionsKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<AgentSessionListItem> {
 
-	getKeyboardNavigationLabel(element: IAgentSession): string {
+	getKeyboardNavigationLabel(element: AgentSessionListItem): string {
+		if (isAgentSessionSection(element)) {
+			return element.label;
+		}
+
 		return element.label;
 	}
 
-	getCompressedNodeKeyboardNavigationLabel(elements: IAgentSession[]): { toString(): string | undefined } | undefined {
+	getCompressedNodeKeyboardNavigationLabel(elements: AgentSessionListItem[]): { toString(): string | undefined } | undefined {
 		return undefined; // not enabled
 	}
 }
 
-export class AgentSessionsDragAndDrop extends Disposable implements ITreeDragAndDrop<IAgentSession> {
+export class AgentSessionsDragAndDrop extends Disposable implements ITreeDragAndDrop<AgentSessionListItem> {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -506,26 +774,31 @@ export class AgentSessionsDragAndDrop extends Disposable implements ITreeDragAnd
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const elements = data.getData() as IAgentSession[];
+		const elements = (data.getData() as AgentSessionListItem[]).filter(e => isAgentSession(e));
 		const uris = coalesce(elements.map(e => e.resource));
 		this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, uris, originalEvent));
 	}
 
-	getDragURI(element: IAgentSession): string | null {
+	getDragURI(element: AgentSessionListItem): string | null {
+		if (isAgentSessionSection(element)) {
+			return null; // section headers are not draggable
+		}
+
 		return element.resource.toString();
 	}
 
-	getDragLabel?(elements: IAgentSession[], originalEvent: DragEvent): string | undefined {
-		if (elements.length === 1) {
-			return elements[0].label;
+	getDragLabel?(elements: AgentSessionListItem[], originalEvent: DragEvent): string | undefined {
+		const sessions = elements.filter(e => isAgentSession(e));
+		if (sessions.length === 1) {
+			return sessions[0].label;
 		}
 
-		return localize('agentSessions.dragLabel', "{0} agent sessions", elements.length);
+		return localize('agentSessions.dragLabel', "{0} agent sessions", sessions.length);
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: IAgentSession | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetElement: AgentSessionListItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		return false;
 	}
 
-	drop(data: IDragAndDropData, targetElement: IAgentSession | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void { }
+	drop(data: IDragAndDropData, targetElement: AgentSessionListItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void { }
 }
