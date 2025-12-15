@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
-	<mime-type type="application/x-@@NAME@@-workspace">
-		<comment>@@NAME_LONG@@ Workspace</comment>
-		<glob pattern="*.code-workspace"/>
-	</mime-type>
-</mime-info>

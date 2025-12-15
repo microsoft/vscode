@@ -1,9 +1,0 @@
-.DS_Store
-npm-debug.log
-Thumbs.db
-node_modules/
-out/
-keybindings.*.json
-test_data/
-src/vscode/driver.d.ts
-vscode-server*/

@@ -1,7 +1,0 @@
-{
-	"editor.formatOnSave": true,
-	"editor.defaultFormatter": "vscode.typescript-language-features",
-	"editor.codeActionsOnSave": {
-		"source.organizeImports": "always"
-	}
-}

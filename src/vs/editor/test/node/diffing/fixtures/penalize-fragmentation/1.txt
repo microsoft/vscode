@@ -1,1 +1,0 @@
-import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';

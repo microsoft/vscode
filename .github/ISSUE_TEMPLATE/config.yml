@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Question
-    url: https://stackoverflow.com/questions/tagged/visual-studio-code
-    about: Please ask and answer questions here.
-  - name: Extension Development
-    url: https://github.com/microsoft/vscode-discussions/discussions
-    about: Please use this for extension development questions and ideas.
