@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as objects from 'vs/base/common/objects';
+import assert from 'assert';
+import * as objects from '../../common/objects.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 const check = (one: any, other: any, msg: string) => {
 	assert(objects.equals(one, other), msg);
@@ -16,6 +17,8 @@ const checkNot = (one: any, other: any, msg: string) => {
 };
 
 suite('Objects', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('equals', () => {
 		check(null, null, 'null');
@@ -110,7 +113,8 @@ suite('Objects', () => {
 			c: [
 				obj1, obj2
 			],
-			d: null
+			d: null,
+			e: BigInt(42)
 		};
 
 		arr.push(circular);
@@ -132,7 +136,8 @@ suite('Objects', () => {
 				},
 				'[Circular]'
 			],
-			d: [1, '[Circular]', '[Circular]']
+			d: [1, '[Circular]', '[Circular]'],
+			e: '[BigInt 42]'
 		});
 	});
 
@@ -226,5 +231,21 @@ suite('Objects', () => {
 
 		assert.strictEqual(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'MIXEDCASE'));
 		assert.strictEqual(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'mixedcase'));
+	});
+});
+
+test('mapValues', () => {
+	const obj = {
+		a: 1,
+		b: 2,
+		c: 3
+	};
+
+	const result = objects.mapValues(obj, (value, key) => `${key}: ${value * 2}`);
+
+	assert.deepStrictEqual(result, {
+		a: 'a: 2',
+		b: 'b: 4',
+		c: 'c: 6',
 	});
 });

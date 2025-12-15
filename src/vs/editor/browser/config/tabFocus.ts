@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
-class TabFocusImpl {
+class TabFocusImpl extends Disposable {
 	private _tabFocus: boolean = false;
-	private readonly _onDidChangeTabFocus = new Emitter<boolean>();
+	private readonly _onDidChangeTabFocus = this._register(new Emitter<boolean>());
 	public readonly onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
 
 	public getTabFocusMode(): boolean {

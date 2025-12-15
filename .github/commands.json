@@ -35,7 +35,7 @@
 		"name": "*dev-question",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "We have a great extension developer community over on [GitHub discussions](https://github.com/microsoft/vscode-discussions/discussions) and [Slack](https://aka.ms/vscode-dev-community) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
+		"comment": "We have a great extension developer community over on [GitHub discussions](https://github.com/microsoft/vscode-discussions/discussions) and [Slack](https://vscode-dev-community.slack.com/) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -57,6 +57,13 @@
 		"action": "close",
 		"reason": "not_planned",
 		"comment": "We closed this issue because we [don't plan to address it](https://aka.ms/vscode-out-of-scope) in the foreseeable future. If you disagree and feel that this issue is crucial: we are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nThanks for your understanding, and happy coding!"
+	},
+	{
+		"type": "label",
+		"name": "wont-fix",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "We closed this issue because we [don't plan to address it](https://github.com/microsoft/vscode/wiki/Issue-Grooming#wont-fix-bugs).\n\nThanks for your understanding, and happy coding!"
 	},
 	{
 		"type": "comment",
@@ -194,28 +201,17 @@
 		"addLabel": "unreleased"
 	},
 	{
-		"type": "label",
-		"name": "~info-needed",
-		"action": "updateLabels",
-		"addLabel": "info-needed",
-		"removeLabel": "~info-needed",
-		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
-	},
-	{
-		"type": "label",
-		"name": "~version-info-needed",
-		"action": "updateLabels",
-		"addLabel": "info-needed",
-		"removeLabel": "~version-info-needed",
-		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
-	},
-	{
-		"type": "label",
-		"name": "~confirmation-needed",
-		"action": "updateLabels",
-		"addLabel": "info-needed",
-		"removeLabel": "~confirmation-needed",
-		"comment": "Please diagnose the root cause of the issue by running the command `F1 > Help: Troubleshoot Issue` and following the instructions. Once you have done that, please update the issue with the results.\n\nHappy Coding!"
+		"type": "comment",
+		"name": "spam",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"reason": "not_planned",
+		"addLabel": "invalid"
 	},
 	{
 		"type": "comment",
@@ -518,5 +514,161 @@
 		"addLabel": "verification-steps-needed",
 		"removeLabel": "~verification-steps-needed",
 		"comment": "Friendly ping! Looks like this issue requires some further steps to be verified. Please provide us with the steps necessary to verify this issue."
+	},
+	{
+		"type": "label",
+		"name": "~info-needed",
+		"action": "updateLabels",
+		"addLabel": "info-needed",
+		"removeLabel": "~info-needed",
+		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nFor Copilot Issues, be sure to visit our [Copilot-specific guidelines](https://github.com/microsoft/vscode/wiki/Copilot-Issues) page for details on the necessary information.\n\nHappy Coding!"
+	},
+	{
+		"type": "label",
+		"name": "~version-info-needed",
+		"action": "updateLabels",
+		"addLabel": "info-needed",
+		"removeLabel": "~version-info-needed",
+		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
+	},
+	{
+		"type": "label",
+		"name": "~confirmation-needed",
+		"action": "updateLabels",
+		"addLabel": "info-needed",
+		"removeLabel": "~confirmation-needed",
+		"comment": "Please diagnose the root cause of the issue by running the command `F1 > Help: Troubleshoot Issue` and following the instructions. Once you have done that, please update the issue with the results.\n\nHappy Coding!"
+	},
+	{
+		"type": "label",
+		"name": "~chat-rate-limiting",
+		"removeLabel": "~chat-rate-limiting",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253124. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-request-failed",
+		"removeLabel": "~chat-request-failed",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253136. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-rai-content-filters",
+		"removeLabel": "~chat-rai-content-filters",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253130. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-public-code-blocking",
+		"removeLabel": "~chat-public-code-blocking",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253129. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-lm-unavailable",
+		"removeLabel": "~chat-lm-unavailable",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253137. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-authentication",
+		"removeLabel": "~chat-authentication",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253132, if the bug you are experiencing is not there, please comment on this closed issue thread so we can re-open it.",
+		"assign": [
+			"TylerLeonhardt"
+		]
+	},
+	{
+		"type": "label",
+		"name": "~chat-no-response-returned",
+		"removeLabel": "~chat-no-response-returned",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253126. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-billing",
+		"removeLabel": "~chat-billing",
+		"addLabel": "chat-billing",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/252230. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-infinite-response-loop",
+		"removeLabel": "~chat-infinite-response-loop",
+		"addLabel": "chat-infinite-response-loop",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253134. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~spam",
+		"removeLabel": "~spam",
+		"addLabel": "spam",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "Thank you for your submission. This issue has been closed as it doesn't meet our community guidelines or appears to be spam.\n\n**If you believe this was closed in error:**\n- Please review our [Code of Conduct](https://opensource.microsoft.com/codeofconduct/)\n- Ensure your issue contains a clear description of the problem or feature request\n- Feel free to open a new issue with appropriate detail if this was a legitimate concern\n\n**For legitimate issues, please include:**\n- Clear description of the problem\n- Steps to reproduce (for bugs)\n- Expected vs actual behavior\n- VS Code version and environment details\n\nThank you for helping us maintain a welcoming and productive community."
+	},
+	{
+		"type": "label",
+		"name": "~capi",
+		"addLabel": "capi",
+		"removeLabel": "~capi",
+		"assign": [
+			"samvantran",
+			"sharonlo"
+		],
+		"comment": "Thank you for creating this issue! Please provide one or more `requestIds` to help the platform team investigate. You can follow instructions [found here](https://github.com/microsoft/vscode/wiki/Copilot-Issues#language-model-requests-and-responses) to locate the `requestId` value.\n\nHappy Coding!"
+	},
+	{
+		"type": "label",
+		"name": "*edu",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "We closed this issue because it seems to be about coursework or grading. This issue tracker is for issues about VS Code itself. For coursework-related issues, or issues related to your course's specific VS Code setup, please consider engaging directly with your course instructor.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "edu",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "updateLabels",
+		"addLabel": "*edu"
+	},
+	{
+		"type": "label",
+		"name": "~agent-behavior",
+		"action": "close",
+		"reason": "not_planned",
+		"addLabel": "agent-behavior",
+		"removeLabel": "~agent-behavior",
+		"comment": "Unfortunately I think you are hitting a AI quality issue that is not actionable enough for us to track a bug. We would recommend that you try other available models and look at the [Tips and tricks for Copilot in VS Code](https://code.visualstudio.com/docs/copilot/copilot-tips-and-tricks) doc page.\n\nWe are constantly improving AI quality in every release, thank you for the feedback! If you believe this is a technical bug, we recommend you report a new issue including logs described on the [Copilot Issues](https://github.com/microsoft/vscode/wiki/Copilot-Issues) wiki page."
+	},
+	{
+		"type": "label",
+		"name": "~accessibility-sla",
+		"addLabel": "accessibility-sla",
+		"removeLabel": "~accessibility-sla",
+		"comment": "The Visual Studio and VS Code teams have an agreement with the Accessibility team that 3:1 contrast is enough for inside the editor."
 	}
 ]

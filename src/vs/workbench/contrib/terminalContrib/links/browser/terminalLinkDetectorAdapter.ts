@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
-import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
-import type { IBufferLine, ILink, ILinkProvider, IViewportRange } from 'xterm';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from './links.js';
+import { TerminalLink } from './terminalLink.js';
+import { XtermLinkMatcherHandler } from './terminalLinkManager.js';
+import type { IBufferLine, ILink, ILinkProvider, IViewportRange } from '@xterm/xterm';
 
 export interface IActivateLinkEvent {
 	link: ITerminalSimpleLink;
@@ -28,7 +28,7 @@ export interface IShowHoverEvent {
  * Wrap a link detector object so it can be used in xterm.js
  */
 export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProvider {
-	private _activeLinks: TerminalLink[] | undefined;
+	private readonly _activeLinksStore = this._register(new DisposableStore());
 
 	private readonly _onDidActivateLink = this._register(new Emitter<IActivateLinkEvent>());
 	readonly onDidActivateLink = this._onDidActivateLink.event;
@@ -46,20 +46,16 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 	async provideLinks(bufferLineNumber: number, callback: (links: ILink[] | undefined) => void) {
 		let activeRequest = this._activeProvideLinkRequests.get(bufferLineNumber);
 		if (activeRequest) {
-			await activeRequest;
-			callback(this._activeLinks);
+			const links = await activeRequest;
+			callback(links);
 			return;
 		}
-		if (this._activeLinks) {
-			for (const link of this._activeLinks) {
-				link.dispose();
-			}
-		}
+		this._activeLinksStore.clear();
 		activeRequest = this._provideLinks(bufferLineNumber);
 		this._activeProvideLinkRequests.set(bufferLineNumber, activeRequest);
-		this._activeLinks = await activeRequest;
+		const links = await activeRequest;
 		this._activeProvideLinkRequests.delete(bufferLineNumber);
-		callback(this._activeLinks);
+		callback(links);
 	}
 
 	private async _provideLinks(bufferLineNumber: number): Promise<TerminalLink[]> {
@@ -76,7 +72,8 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 		// Cap the maximum context on either side of the line being provided, by taking the context
 		// around the line being provided for this ensures the line the pointer is on will have
 		// links provided.
-		const maxLineContext = Math.max(this._detector.maxLinkLength / this._detector.xterm.cols);
+		const maxCharacterContext = Math.max(this._detector.maxLinkLength, this._detector.xterm.cols);
+		const maxLineContext = Math.ceil(maxCharacterContext / this._detector.xterm.cols);
 		const minStartLine = Math.max(startLine - maxLineContext, 0);
 		const maxEndLine = Math.min(endLine + maxLineContext, this._detector.xterm.buffer.active.length);
 
@@ -92,9 +89,9 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 
 		const detectedLinks = await this._detector.detect(lines, startLine, endLine);
 		for (const link of detectedLinks) {
-			links.push(this._createTerminalLink(link, async (event) => {
-				this._onDidActivateLink.fire({ link, event });
-			}));
+			const terminalLink = this._createTerminalLink(link, async (event) => this._onDidActivateLink.fire({ link, event }));
+			links.push(terminalLink);
+			this._activeLinksStore.add(terminalLink);
 		}
 
 		return links;
@@ -110,6 +107,8 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			this._detector.xterm,
 			l.bufferRange,
 			l.text,
+			l.uri,
+			l.parsedLink,
 			l.actions,
 			this._detector.xterm.buffer.active.viewportY,
 			activateCallback,

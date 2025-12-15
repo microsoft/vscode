@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vfs from 'vinyl-fs';
-import * as filter from 'gulp-filter';
-import * as _ from 'underscore';
-import * as util from './util';
-import { getVersion } from './getVersion';
+import fs from 'fs';
+import path from 'path';
+import vfs from 'vinyl-fs';
+import filter from 'gulp-filter';
+import * as util from './util.ts';
+import { getVersion } from './getVersion.ts';
+import electron from '@vscode/gulp-electron';
+import json from 'gulp-json-editor';
 
 type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
 type DarwinDocumentType = {
@@ -25,11 +26,19 @@ function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
 	return str === 'document' || str === 'script' || str === 'file' || str === 'source code';
 }
 
-const root = path.dirname(path.dirname(__dirname));
+const root = path.dirname(path.dirname(import.meta.dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 const commit = getVersion(root);
 
-const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
+function createTemplate(input: string): (params: Record<string, string>) => string {
+	return (params: Record<string, string>) => {
+		return input.replace(/<%=\s*([^\s]+)\s*%>/g, (match, key) => {
+			return params[key] || match;
+		});
+	};
+}
+
+const darwinCreditsTemplate = product.darwinCredits && createTemplate(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
 /**
  * Generate a `DarwinDocumentType` given a list of file extensions, an icon name, and an optional suffix or file type name.
@@ -61,7 +70,7 @@ function darwinBundleDocumentType(extensions: string[], icon: string, nameOrSuff
 		role: 'Editor',
 		ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
 		extensions,
-		iconFile: 'resources/darwin/' + icon + '.icns',
+		iconFile: 'resources/darwin/' + icon.toLowerCase() + '.icns',
 		utis
 	};
 }
@@ -86,7 +95,7 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 			ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
 			extensions: Array.isArray(extensions) ? extensions : [extensions],
 			iconFile: 'resources/darwin/' + icon + '.icns'
-		} as DarwinDocumentType;
+		};
 	});
 }
 
@@ -97,7 +106,7 @@ export const config = {
 	tag: product.electronRepository ? `v${electronVersion}-${msBuildId}` : undefined,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2023 Microsoft. All rights reserved',
+	copyright: 'Copyright (C) 2025 Microsoft. All rights reserved',
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
@@ -169,7 +178,7 @@ export const config = {
 			'F# source code': 'fs',
 			'F# signature file': 'fsi',
 			'F# script': ['fsx', 'fsscript'],
-			'SVG document': ['svg', 'svgz'],
+			'SVG document': ['svg'],
 			'TOML document': 'toml',
 			'Swift source code': 'swift',
 		}, 'default'),
@@ -198,15 +207,13 @@ export const config = {
 
 function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	return () => {
-		const electron = require('@vscode/gulp-electron');
-		const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
-
-		const electronOpts = _.extend({}, config, {
+		const electronOpts = {
+			...config,
 			platform: process.platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
 			ffmpegChromium: false,
 			keepDefaultApp: true
-		});
+		};
 
 		return vfs.src('package.json')
 			.pipe(json({ name: product.nameShort }))
@@ -228,7 +235,7 @@ async function main(arch: string = process.arch): Promise<void> {
 	}
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main(process.argv[2]).catch(err => {
 		console.error(err);
 		process.exit(1);

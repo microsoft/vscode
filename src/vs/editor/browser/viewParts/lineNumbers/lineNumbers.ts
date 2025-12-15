@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./lineNumbers';
-import * as platform from 'vs/base/common/platform';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { RenderLineNumbersType, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorDimmedLineNumber, editorLineNumbers } from 'vs/editor/common/core/editorColorRegistry';
+import './lineNumbers.css';
+import * as platform from '../../../../base/common/platform.js';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
+import { RenderLineNumbersType, EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { RenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { editorDimmedLineNumber, editorLineNumbers } from '../../../common/core/editorColorRegistry.js';
 
+/**
+ * Renders line numbers to the left of the main view lines content.
+ */
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	public static readonly CLASS_NAME = 'line-numbers';
@@ -28,7 +32,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _lineNumbersWidth!: number;
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[] | null;
-	private _activeLineNumber: number;
+	private _activeModelLineNumber: number;
 
 	constructor(context: ViewContext) {
 		super();
@@ -38,7 +42,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 		this._lastCursorModelPosition = new Position(1, 1);
 		this._renderResult = null;
-		this._activeLineNumber = 1;
+		this._activeModelLineNumber = 1;
 		this._context.addEventHandler(this);
 	}
 
@@ -71,8 +75,8 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._lastCursorModelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(primaryViewPosition);
 
 		let shouldRender = false;
-		if (this._activeLineNumber !== primaryViewPosition.lineNumber) {
-			this._activeLineNumber = primaryViewPosition.lineNumber;
+		if (this._activeModelLineNumber !== this._lastCursorModelPosition.lineNumber) {
+			this._activeModelLineNumber = this._lastCursorModelPosition.lineNumber;
 			shouldRender = true;
 		}
 		if (this._renderLineNumbers === RenderLineNumbersType.Relative || this._renderLineNumbers === RenderLineNumbersType.Interval) {
@@ -97,6 +101,9 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	}
 	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
+	}
+	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		return e.affectsLineNumber;
 	}
 
 	// --- end event handlers
@@ -127,6 +134,10 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			if (modelLineNumber % 10 === 0) {
 				return String(modelLineNumber);
 			}
+			const finalLineNumber = this._context.viewModel.getLineCount();
+			if (modelLineNumber === finalLineNumber) {
+				return String(modelLineNumber);
+			}
 			return '';
 		}
 
@@ -143,36 +154,51 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 
+		const lineNoDecorations = this._context.viewModel.getDecorationsInViewport(ctx.visibleRange).filter(d => !!d.options.lineNumberClassName);
+		lineNoDecorations.sort((a, b) => Range.compareRangesUsingEnds(a.range, b.range));
+		let decorationStartIndex = 0;
+
 		const lineCount = this._context.viewModel.getLineCount();
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
+			const modelLineNumber: number = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1)).lineNumber;
 
-			const renderLineNumber = this._getLineRenderLineNumber(lineNumber);
+			let renderLineNumber = this._getLineRenderLineNumber(lineNumber);
+			let extraClassNames = '';
 
-			if (!renderLineNumber) {
+			// skip decorations whose end positions we've already passed
+			while (decorationStartIndex < lineNoDecorations.length && lineNoDecorations[decorationStartIndex].range.endLineNumber < lineNumber) {
+				decorationStartIndex++;
+			}
+			for (let i = decorationStartIndex; i < lineNoDecorations.length; i++) {
+				const { range, options } = lineNoDecorations[i];
+				if (range.startLineNumber <= lineNumber) {
+					extraClassNames += ' ' + options.lineNumberClassName;
+				}
+			}
+
+			if (!renderLineNumber && !extraClassNames) {
 				output[lineIndex] = '';
 				continue;
 			}
 
-			let extraClassName = '';
-
 			if (lineNumber === lineCount && this._context.viewModel.getLineLength(lineNumber) === 0) {
 				// this is the last line
 				if (this._renderFinalNewline === 'off') {
-					output[lineIndex] = '';
-					continue;
+					renderLineNumber = '';
 				}
 				if (this._renderFinalNewline === 'dimmed') {
-					extraClassName = ' dimmed-line-number';
+					extraClassNames += ' dimmed-line-number';
 				}
 			}
-			if (lineNumber === this._activeLineNumber) {
-				extraClassName = ' active-line-number';
+			if (modelLineNumber === this._activeModelLineNumber) {
+				extraClassNames += ' active-line-number';
 			}
 
+
 			output[lineIndex] = (
-				`<div class="${LineNumbersOverlay.CLASS_NAME}${lineHeightClassName}${extraClassName}" style="left:${this._lineNumbersLeft}px;width:${this._lineNumbersWidth}px;">${renderLineNumber}</div>`
+				`<div class="${LineNumbersOverlay.CLASS_NAME}${lineHeightClassName}${extraClassNames}" style="left:${this._lineNumbersLeft}px;width:${this._lineNumbersWidth}px;">${renderLineNumber}</div>`
 			);
 		}
 

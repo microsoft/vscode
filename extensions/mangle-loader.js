@@ -8,7 +8,7 @@ const fs = require('fs');
 const webpack = require('webpack');
 const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
-const { Mangler } = require('../build/lib/mangle/index');
+const { Mangler } = require('../build/lib/mangle/index.js');
 
 /**
  * Map of project paths to mangled file contents
@@ -39,6 +39,10 @@ function getMangledFileContents(projectPath) {
 module.exports = async function (source, sourceMap, meta) {
 	if (this.mode !== 'production') {
 		// Only enable mangling in production builds
+		return source;
+	}
+	if (true) {
+		// disable mangling for now, SEE https://github.com/microsoft/vscode/issues/204692
 		return source;
 	}
 	const options = this.getOptions();

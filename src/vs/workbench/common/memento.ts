@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isEmptyObject } from 'vs/base/common/types';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
+import { isEmptyObject } from '../../base/common/types.js';
+import { onUnexpectedError } from '../../base/common/errors.js';
+import { DisposableStore } from '../../base/common/lifecycle.js';
+import { Event } from '../../base/common/event.js';
 
-export type MementoObject = { [key: string]: any };
+export class Memento<T extends object> {
 
-export class Memento {
-
-	private static readonly applicationMementos = new Map<string, ScopedMemento>();
-	private static readonly profileMementos = new Map<string, ScopedMemento>();
-	private static readonly workspaceMementos = new Map<string, ScopedMemento>();
+	private static readonly applicationMementos = new Map<string, ScopedMemento<unknown>>();
+	private static readonly profileMementos = new Map<string, ScopedMemento<unknown>>();
+	private static readonly workspaceMementos = new Map<string, ScopedMemento<unknown>>();
 
 	private static readonly COMMON_PREFIX = 'memento/';
 
@@ -23,10 +23,8 @@ export class Memento {
 		this.id = Memento.COMMON_PREFIX + id;
 	}
 
-	getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
+	getMemento(scope: StorageScope, target: StorageTarget): Partial<T> {
 		switch (scope) {
-
-			// Scope by Workspace
 			case StorageScope.WORKSPACE: {
 				let workspaceMemento = Memento.workspaceMementos.get(this.id);
 				if (!workspaceMemento) {
@@ -37,7 +35,6 @@ export class Memento {
 				return workspaceMemento.getMemento();
 			}
 
-			// Scope Profile
 			case StorageScope.PROFILE: {
 				let profileMemento = Memento.profileMementos.get(this.id);
 				if (!profileMemento) {
@@ -48,7 +45,6 @@ export class Memento {
 				return profileMemento.getMemento();
 			}
 
-			// Scope Application
 			case StorageScope.APPLICATION: {
 				let applicationMemento = Memento.applicationMementos.get(this.id);
 				if (!applicationMemento) {
@@ -61,10 +57,31 @@ export class Memento {
 		}
 	}
 
+	onDidChangeValue(scope: StorageScope, disposables: DisposableStore): Event<IStorageValueChangeEvent> {
+		return this.storageService.onDidChangeValue(scope, this.id, disposables);
+	}
+
 	saveMemento(): void {
 		Memento.workspaceMementos.get(this.id)?.save();
 		Memento.profileMementos.get(this.id)?.save();
 		Memento.applicationMementos.get(this.id)?.save();
+	}
+
+	reloadMemento(scope: StorageScope): void {
+		let memento: ScopedMemento<unknown> | undefined;
+		switch (scope) {
+			case StorageScope.APPLICATION:
+				memento = Memento.applicationMementos.get(this.id);
+				break;
+			case StorageScope.PROFILE:
+				memento = Memento.profileMementos.get(this.id);
+				break;
+			case StorageScope.WORKSPACE:
+				memento = Memento.workspaceMementos.get(this.id);
+				break;
+		}
+
+		memento?.reload();
 	}
 
 	static clear(scope: StorageScope): void {
@@ -82,38 +99,46 @@ export class Memento {
 	}
 }
 
-class ScopedMemento {
+class ScopedMemento<T> {
 
-	private readonly mementoObj: MementoObject;
+	private mementoObj: Partial<T>;
 
 	constructor(private id: string, private scope: StorageScope, private target: StorageTarget, private storageService: IStorageService) {
-		this.mementoObj = this.load();
+		this.mementoObj = this.doLoad();
 	}
 
-	getMemento(): MementoObject {
-		return this.mementoObj;
-	}
-
-	private load(): MementoObject {
-		const memento = this.storageService.get(this.id, this.scope);
-		if (memento) {
-			try {
-				return JSON.parse(memento);
-			} catch (error) {
-				// Seeing reports from users unable to open editors
-				// from memento parsing exceptions. Log the contents
-				// to diagnose further
-				// https://github.com/microsoft/vscode/issues/102251
-				onUnexpectedError(`[memento]: failed to parse contents: ${error} (id: ${this.id}, scope: ${this.scope}, contents: ${memento})`);
-			}
+	private doLoad(): Partial<T> {
+		try {
+			return this.storageService.getObject(this.id, this.scope, {});
+		} catch (error) {
+			// Seeing reports from users unable to open editors
+			// from memento parsing exceptions. Log the contents
+			// to diagnose further
+			// https://github.com/microsoft/vscode/issues/102251
+			onUnexpectedError(`[memento]: failed to parse contents: ${error} (id: ${this.id}, scope: ${this.scope}, contents: ${this.storageService.get(this.id, this.scope)})`);
 		}
 
 		return {};
 	}
 
+	getMemento(): Partial<T> {
+		return this.mementoObj;
+	}
+
+	reload(): void {
+
+		// Clear old
+		for (const name of Object.getOwnPropertyNames(this.mementoObj)) {
+			delete this.mementoObj[name as keyof Partial<T>];
+		}
+
+		// Assign new
+		Object.assign(this.mementoObj, this.doLoad());
+	}
+
 	save(): void {
 		if (!isEmptyObject(this.mementoObj)) {
-			this.storageService.store(this.id, JSON.stringify(this.mementoObj), this.scope, this.target);
+			this.storageService.store(this.id, this.mementoObj, this.scope, this.target);
 		} else {
 			this.storageService.remove(this.id, this.scope);
 		}

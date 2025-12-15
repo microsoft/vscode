@@ -9,8 +9,9 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-less grammars/less.cson ./syntaxes/less.tmLanguage.json"
+    "update-grammar": "node ./build/update-grammar.js"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {

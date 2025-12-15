@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { ProgressBar } from '../../browser/ui/progressbar/progressbar.js';
+import { mainWindow } from '../../browser/window.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('ProgressBar', () => {
 	let fixture: HTMLElement;
 
 	setup(() => {
 		fixture = document.createElement('div');
-		document.body.appendChild(fixture);
+		mainWindow.document.body.appendChild(fixture);
 	});
 
 	teardown(() => {
-		document.body.removeChild(fixture);
+		fixture.remove();
 	});
 
 	test('Progress Bar', function () {

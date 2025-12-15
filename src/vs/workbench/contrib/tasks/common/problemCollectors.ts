@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary, INumberDictionary } from 'vs/base/common/collections';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IStringDictionary, INumberDictionary } from '../../../../base/common/collections.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { IDisposable, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
 
-import { IModelService } from 'vs/editor/common/services/model';
+import { IModelService } from '../../../../editor/common/services/model.js';
 
-import { ILineMatcher, createLineMatcher, ProblemMatcher, IProblemMatch, ApplyToKind, IWatchingPattern, getResource } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isWindows } from 'vs/base/common/platform';
+import { ILineMatcher, createLineMatcher, ProblemMatcher, IProblemMatch, ApplyToKind, IWatchingPattern, getResource } from './problemMatcher.js';
+import { IMarkerService, IMarkerData, MarkerSeverity, IMarker } from '../../../../platform/markers/common/markers.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 export const enum ProblemCollectorEventKind {
 	BackgroundProcessingBegins = 'backgroundProcessingBegins',
@@ -35,7 +35,7 @@ export interface IProblemMatcher {
 	processLine(line: string): void;
 }
 
-export abstract class AbstractProblemCollector implements IDisposable {
+export abstract class AbstractProblemCollector extends Disposable implements IDisposable {
 
 	private matchers: INumberDictionary<ILineMatcher[]>;
 	private activeMatcher: ILineMatcher | null;
@@ -61,13 +61,14 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	protected readonly _onDidFindFirstMatch = new Emitter<void>();
 	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
 
-	protected readonly _onDidFindErrors = new Emitter<void>();
+	protected readonly _onDidFindErrors = new Emitter<IMarker[]>();
 	readonly onDidFindErrors = this._onDidFindErrors.event;
 
 	protected readonly _onDidRequestInvalidateLastMarker = new Emitter<void>();
 	readonly onDidRequestInvalidateLastMarker = this._onDidRequestInvalidateLastMarker.event;
 
 	constructor(public readonly problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
+		super();
 		this.matchers = Object.create(null);
 		this.bufferLength = 1;
 		problemMatchers.map(elem => createLineMatcher(elem, fileService)).forEach((matcher) => {
@@ -99,12 +100,12 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		this.resourcesToClean = new Map<string, Map<string, URI>>();
 		this.markers = new Map<string, Map<string, Map<string, IMarkerData>>>();
 		this.deliveredMarkers = new Map<string, Map<string, number>>();
-		this.modelService.onModelAdded((model) => {
+		this._register(this.modelService.onModelAdded((model) => {
 			this.openModels[model.uri.toString()] = true;
-		}, this, this.modelListeners);
-		this.modelService.onModelRemoved((model) => {
+		}, this, this.modelListeners));
+		this._register(this.modelService.onModelRemoved((model) => {
 			delete this.openModels[model.uri.toString()];
-		}, this, this.modelListeners);
+		}, this, this.modelListeners));
 		this.modelService.getModels().forEach(model => this.openModels[model.uri.toString()] = true);
 
 		this._onDidStateChange = new Emitter();
@@ -127,7 +128,8 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	protected abstract processLineInternal(line: string): Promise<void>;
 
-	public dispose() {
+	public override dispose() {
+		super.dispose();
 		this.modelListeners.dispose();
 	}
 
@@ -360,6 +362,8 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 	private currentOwner: string | undefined;
 	private currentResource: string | undefined;
 
+	private _hasStarted: boolean = false;
+
 	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, _strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean, fileService?: IFileService) {
 		super(problemMatchers, markerService, modelService, fileService);
 		const ownerSet: { [key: string]: boolean } = Object.create(null);
@@ -371,6 +375,10 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 	}
 
 	protected async processLineInternal(line: string): Promise<void> {
+		if (!this._hasStarted) {
+			this._hasStarted = true;
+			this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
+		}
 		const markerMatch = this.tryFindMarker(line);
 		if (!markerMatch) {
 			return;
@@ -433,23 +441,30 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		});
 
 		this.modelListeners.add(this.modelService.onModelRemoved(modelEvent => {
-			let markerChanged: IDisposable | undefined =
-				Event.debounce(this.markerService.onMarkerChanged, (last: readonly URI[] | undefined, e: readonly URI[]) => {
-					return (last ?? []).concat(e);
-				}, 500)(async (markerEvent) => {
-					markerChanged?.dispose();
+			let markerChanged: IDisposable | undefined = Event.debounce(
+				this.markerService.onMarkerChanged,
+				(last: readonly URI[] | undefined, e: readonly URI[]) => (last ?? []).concat(e),
+				500,
+				false,
+				true
+			)(async (markerEvent: readonly URI[]) => {
+				if (!markerEvent || !markerEvent.includes(modelEvent.uri) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
+					return;
+				}
+				const oldLines = Array.from(this.lines);
+				for (const line of oldLines) {
+					await this.processLineInternal(line);
+				}
+			});
+
+			this._register(markerChanged); // Ensures markerChanged is tracked and disposed of properly
+
+			setTimeout(() => {
+				if (markerChanged) {
+					const _markerChanged = markerChanged;
 					markerChanged = undefined;
-					if (!markerEvent.includes(modelEvent.uri) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
-						return;
-					}
-					const oldLines = Array.from(this.lines);
-					for (const line of oldLines) {
-						await this.processLineInternal(line);
-					}
-				});
-			setTimeout(async () => {
-				markerChanged?.dispose();
-				markerChanged = undefined;
+					_markerChanged.dispose();
+				}
 			}, 600);
 		}));
 	}
@@ -527,12 +542,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			const matches = background.end.regexp.exec(line);
 			if (matches) {
 				if (this._numberOfMatches > 0) {
-					this._onDidFindErrors.fire();
+					this._onDidFindErrors.fire(this.markerService.read({ owner: background.matcher.owner }));
 				} else {
 					this._onDidRequestInvalidateLastMarker.fire();
 				}
-				if (this._activeBackgroundMatchers.has(background.key)) {
-					this._activeBackgroundMatchers.delete(background.key);
+				if (this._activeBackgroundMatchers.delete(background.key)) {
 					this.resetCurrentResource();
 					this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
 					result = true;

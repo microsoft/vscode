@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { joinPath } from 'vs/base/common/resources';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFileService } from 'vs/platform/files/common/files';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
-import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { isExportableSessionData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { CHAT_CATEGORY } from './chatActions.js';
+import { IChatWidgetService } from '../chat.js';
+import { IChatEditorOptions } from '../chatEditor.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { isExportableSessionData } from '../../common/chatModel.js';
+import { IChatService } from '../../common/chatService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { revive } from '../../../../../base/common/marshalling.js';
 
 const defaultFileName = 'chat.json';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
@@ -28,15 +29,12 @@ export function registerChatExportActions() {
 			super({
 				id: 'workbench.action.chat.export',
 				category: CHAT_CATEGORY,
-				title: {
-					value: localize('chat.export.label', "Export Session") + '...',
-					original: 'Export Session...'
-				},
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				title: localize2('chat.export.label', "Export Chat..."),
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, outputPath?: URI) {
 			const widgetService = accessor.get(IChatWidgetService);
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
@@ -47,23 +45,26 @@ export function registerChatExportActions() {
 				return;
 			}
 
-			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
-			const result = await fileDialogService.showSaveDialog({
-				defaultUri,
-				filters
-			});
-			if (!result) {
-				return;
+			if (!outputPath) {
+				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
+				const result = await fileDialogService.showSaveDialog({
+					defaultUri,
+					filters
+				});
+				if (!result) {
+					return;
+				}
+				outputPath = result;
 			}
 
-			const model = chatService.getSession(widget.viewModel.sessionId);
+			const model = chatService.getSession(widget.viewModel.sessionResource);
 			if (!model) {
 				return;
 			}
 
 			// Using toJSON on the model
 			const content = VSBuffer.fromString(JSON.stringify(model.toExport(), undefined, 2));
-			await fileService.writeFile(result, content);
+			await fileService.writeFile(outputPath, content);
 		}
 	});
 
@@ -71,19 +72,16 @@ export function registerChatExportActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.import',
-				title: {
-					value: localize('chat.import.label', "Import Session") + '...',
-					original: 'Import Session...'
-				},
+				title: localize2('chat.import.label', "Import Chat..."),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
-			const editorService = accessor.get(IEditorService);
+			const widgetService = accessor.get(IChatWidgetService);
 
 			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
 			const result = await fileDialogService.showOpenDialog({
@@ -97,12 +95,13 @@ export function registerChatExportActions() {
 
 			const content = await fileService.readFile(result[0]);
 			try {
-				const data = JSON.parse(content.value.toString());
+				const data = revive(JSON.parse(content.value.toString()));
 				if (!isExportableSessionData(data)) {
 					throw new Error('Invalid chat session data');
 				}
 
-				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { data }, pinned: true } });
+				const options: IChatEditorOptions = { target: { data }, pinned: true };
+				await widgetService.openSession(ChatEditorInput.getNewEditorUri(), undefined, options);
 			} catch (err) {
 				throw err;
 			}

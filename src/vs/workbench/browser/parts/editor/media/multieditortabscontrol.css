@@ -28,7 +28,7 @@
 
 	[z-index] 	[kind]
 			12  drag and drop overlay
-			11 	scrollbar
+			11 	scrollbar / tabs dnd border
 			10	active-tab border-bottom
 			9	tabs, title border bottom
 			8	sticky-tab
@@ -39,11 +39,15 @@
 	##########################################################################################
 */
 
-/* Title Container */
+/* Tabs and Actions Container */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
 	display: flex;
 	position: relative; /* position tabs border bottom or editor actions (when tabs wrap) relative to this container */
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty {
+	display: none;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom::after {
@@ -100,6 +104,44 @@
 	height: var(--editor-group-tab-height);
 	box-sizing: border-box;
 	padding-left: 10px;
+	outline-offset: -2px;
+}
+
+/* Tab Background Color in/active group/tab */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	background-color: var(--vscode-tab-unfocusedInactiveBackground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab {
+	background-color: var(--vscode-tab-inactiveBackground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	background-color: var(--vscode-tab-unfocusedActiveBackground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active {
+	background-color: var(--vscode-tab-activeBackground);
+}
+
+/* Tab Foreground Color in/active group/tab */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	color: var(--vscode-tab-unfocusedInactiveForeground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab {
+	color: var(--vscode-tab-inactiveForeground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	color: var(--vscode-tab-unfocusedActiveForeground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active {
+	color: var(--vscode-tab-activeForeground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.selected:not(.active) {
+	background-color: var(--vscode-tab-selectedBackground);
+	color: var(--vscode-tab-selectedForeground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) {
+	box-shadow: none;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
@@ -111,9 +153,9 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.tab-actions-right,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.tab-actions-off:not(.sticky-compact),
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.close-action-off:not(.sticky-compact),
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.has-icon.tab-actions-right,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.has-icon.tab-actions-off:not(.sticky-compact) {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.has-icon.close-action-off:not(.sticky-compact) {
 	padding-left: 5px; /* reduce padding when we show icons and are in shrinking mode and tab actions is not left (unless sticky-compact) */
 }
 
@@ -189,14 +231,25 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-fit.sticky-shrink,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-shrink.sticky-shrink,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-fixed.sticky-shrink {
-	position: static; /** disable sticky positions for sticky compact/shrink/fixed tabs if the available space is too little */
+
+	/**
+	 * If sticky tabs are explicitly disabled, because width is too little, make sure
+	 * to reset all styles associated with sticky tabs. This includes position, z-index
+	 * and left property (which is set on the element itself, hence important is needed).
+	 */
+	position: relative;
+	z-index: unset;
+	left: unset !important;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-off::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.tab-actions-left::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.tab-actions-off::after {
-	content: '';
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-fade-hider {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left .tab-fade-hider,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.close-action-off .tab-fade-hider,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.tab-actions-left .tab-fade-hider,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.close-action-off .tab-fade-hider {
 	display: flex;
 	flex: 0;
 	width: 5px; /* reserve space to hide tab fade when close button is left or off (fixes https://github.com/microsoft/vscode/issues/45728) */
@@ -208,15 +261,7 @@
 	padding-right: 5px; /* we need less room when sizing is shrink/fixed */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dragged {
-	transform: translate3d(0px, 0px, 0px); /* forces tab to be drawn on a separate layer (fixes https://github.com/microsoft/vscode/issues/18733) */
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dragged-over div {
-	pointer-events: none; /* prevents cursor flickering (fixes https://github.com/microsoft/vscode/issues/38753) */
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
 	flex-direction: row-reverse;
 	padding-left: 0;
 	padding-right: 10px;
@@ -230,7 +275,9 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected.tab-border-top > .tab-border-top-container,
+.monaco-workbench .part.editor > .content .editor-group-container > .title:not(.two-tab-bars) .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
+.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars .tabs-and-actions-container:not(:first-child)  .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
 	display: block;
 	position: absolute;
@@ -239,7 +286,8 @@
 	width: 100%;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top:not(:focus) > .tab-border-top-container,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected.tab-border-top:not(:focus) > .tab-border-top-container {
 	z-index: 6;
 	top: 0;
 	height: 1px;
@@ -253,7 +301,7 @@
 	background-color: var(--tab-border-bottom-color);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top:not(:focus) > .tab-border-top-container {
 	z-index: 6;
 	top: 0;
 	height: 2px;
@@ -294,10 +342,10 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label.tab-label-has-badge::after,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-fixed > .tab-label.tab-label-has-badge::after {
-	padding-right: 5px; /* with tab sizing shrink/fixed and badges, we want a right-padding because the close button is hidden */
+	margin-right: 5px; /* with tab sizing shrink/fixed and badges, we want a right-margin because the close button is hidden. Use margin instead of padding to support animating the badge (https://github.com/microsoft/vscode/issues/242661) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.tab-actions-left):not(.tab-actions-off) .tab-label {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.tab-actions-left):not(.close-action-off) .tab-label {
 	padding-right: 5px; /* ensure that the gradient does not show when tab actions show https://github.com/microsoft/vscode/issues/189625*/
 }
 
@@ -307,7 +355,13 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-container {
-	overflow: visible; /* fixes https://github.com/microsoft/vscode/issues/20182 */
+	overflow-x: visible; /* fixes https://github.com/microsoft/vscode/issues/20182 by ensuring the horizontal overflow is visible */
+
+	scrollbar-width: none; /* Firefox */
+	-ms-overflow-style: none; /* Internet Explorer 10+ */
+	&::-webkit-scrollbar {
+		display: none; /* Chrome, Safari, and Opera */
+	}
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-container,
@@ -321,6 +375,18 @@
 .monaco-workbench.hc-black .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed > .monaco-icon-label > .monaco-icon-label-container,
 .monaco-workbench.hc-light .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed > .monaco-icon-label > .monaco-icon-label-container {
 	text-overflow: ellipsis;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .monaco-icon-label.italic > .monaco-icon-label-container {
+	/**
+	 * Browser rendering engines seem to have trouble to render italic labels
+	 * fully without clipping in case the parent container has `overflow: hidden`
+	 * and/or `flex: none`. We added those styles to fix other issues so a pragmatic
+	 * solution is to give the label container a bit more room to fully render.
+	 *
+	 * Refs: https://github.com/microsoft/vscode/issues/207409
+	 */
+	padding-right: 1px;
 }
 
 /* Tab Actions */
@@ -352,16 +418,16 @@
 	overflow: visible; /* ...but still show the tab actions on hover, focus and when dirty or sticky */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off:not(.dirty):not(.sticky) > .tab-actions,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.sticky-compact > .tab-actions {
-	display: none; /* hide the tab actions when we are configured to hide it (unless dirty or sticky, but always when sticky-compact) */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-action-off:not(.dirty) > .tab-actions,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky-compact > .tab-actions {
+	display: none; /* hide the tab actions when we are configured to hide it (unless dirty, but always when sticky-compact) */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active > .tab-actions .action-label,		/* always show tab actions for active tab */
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab > .tab-actions .action-label:focus,		/* always show tab actions on focus */
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover > .tab-actions .action-label,		/* always show tab actions on hover */
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,	/* always show tab actions on hover */
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.sticky > .tab-actions .action-label,		/* always show tab actions for sticky tabs */
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.sticky:not(.pinned-action-off) > .tab-actions .action-label,		/* always show tab actions for sticky tabs */
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-actions .action-label {		/* always show tab actions for dirty tabs */
 	opacity: 1;
 }
@@ -380,18 +446,22 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before {
-	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
+	/* use `pinned-dirty` icon unicode for sticky-dirty indication */
+	content: var(--vscode-icon-pinned-dirty-content);
+	font-family: var(--vscode-icon-pinned-dirty-font-family);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before {
-	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
+	/* use `circle-filled` icon unicode for dirty indication */
+	content: var(--vscode-icon-circle-filled-content);
+	font-family: var(--vscode-icon-circle-filled-font-family);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky > .tab-actions .action-label,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky:not(.pinned-action-off) > .tab-actions .action-label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-actions .action-label {
 	opacity: 0.5; /* show tab actions dimmed for inactive group */
 }
@@ -402,25 +472,24 @@
 
 /* Tab Actions: Off */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-action-off {
 	padding-right: 10px; /* give a little bit more room if tab actions is off */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-off:not(.sticky-compact),
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.tab-actions-off:not(.sticky-compact) {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.close-action-off:not(.sticky-compact),
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.close-action-off:not(.sticky-compact) {
 	padding-right: 5px; /* we need less room when sizing is shrink/fixed (unless tab is sticky-compact) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.dirty-border-top > .tab-actions {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-action-off.dirty-border-top > .tab-actions {
 	display: none; /* hide dirty state when highlightModifiedTabs is enabled and when running without tab actions */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.dirty:not(.dirty-border-top):not(.sticky-compact),
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.sticky:not(.sticky-compact) {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-action-off.dirty:not(.dirty-border-top):not(.sticky-compact) {
 	padding-right: 0; /* remove extra padding when we are running without tab actions (unless tab is sticky-compact) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off > .tab-actions {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-action-off > .tab-actions {
 	pointer-events: none; /* don't allow tab actions to be clicked when running without tab actions */
 }
 
@@ -433,6 +502,10 @@
 	height: var(--editor-group-tab-height);
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions.hidden {
+	display: none;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-item {
 	margin-right: 4px;
 }
@@ -443,4 +516,45 @@
 	position: absolute;
 	bottom: 0;
 	right: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-actions {
+
+	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
+	display: none;
+}
+
+/* Drag and drop target */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left::after,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-right::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	height: 100%;
+	width: 1px;
+	background-color: var(--vscode-tab-dragAndDropBorder);
+	pointer-events: none;
+	z-index: 11;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-right::before {
+	left: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left::after {
+	right: -1px; /* -1 to connect with drop-target-right */
+}
+
+/* Make drop target edge cases more visible (wrapped tabs & first/last) */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left:not(:last-child)::after {
+	right: 0px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left::after,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row + .tab.drop-target-right::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:last-child.drop-target-left::after,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:first-child.drop-target-right::before {
+	width: 2px;
 }

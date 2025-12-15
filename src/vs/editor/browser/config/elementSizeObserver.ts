@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IDimension } from '../../common/core/2d/dimension.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { getWindow, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 
 export class ElementSizeObserver extends Disposable {
 
@@ -46,10 +47,10 @@ export class ElementSizeObserver extends Disposable {
 			// Otherwise we will postpone to the next animation frame.
 			// We'll use `observeContentRect` to store the content rect we received.
 
-			let observeContentRect: DOMRectReadOnly | null = null;
+			let observedDimension: IDimension | null = null;
 			const observeNow = () => {
-				if (observeContentRect) {
-					this.observe({ width: observeContentRect.width, height: observeContentRect.height });
+				if (observedDimension) {
+					this.observe({ width: observedDimension.width, height: observedDimension.height });
 				} else {
 					this.observe();
 				}
@@ -65,7 +66,7 @@ export class ElementSizeObserver extends Disposable {
 						alreadyObservedThisAnimationFrame = true;
 						observeNow();
 					} finally {
-						requestAnimationFrame(() => {
+						scheduleAtNextAnimationFrame(getWindow(this._referenceDomElement), () => {
 							alreadyObservedThisAnimationFrame = false;
 							update();
 						});
@@ -74,7 +75,11 @@ export class ElementSizeObserver extends Disposable {
 			};
 
 			this._resizeObserver = new ResizeObserver((entries) => {
-				observeContentRect = (entries && entries[0] && entries[0].contentRect ? entries[0].contentRect : null);
+				if (entries && entries[0] && entries[0].contentRect) {
+					observedDimension = { width: entries[0].contentRect.width, height: entries[0].contentRect.height };
+				} else {
+					observedDimension = null;
+				}
 				shouldObserve = true;
 				update();
 			});

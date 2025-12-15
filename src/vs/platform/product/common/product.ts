@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals } from 'vs/base/common/platform';
-import { env } from 'vs/base/common/process';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+import { env } from '../../../base/common/process.js';
+import { IProductConfiguration } from '../../../base/common/product.js';
+import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 
 /**
- * @deprecated You MUST use `IProductService` if possible.
+ * @deprecated It is preferred that you use `IProductService` if you can. This
+ * allows web embedders to override our defaults. But for things like `product.quality`,
+ * the use is fine because that property is not overridable.
  */
 let product: IProductConfiguration;
 
 // Native sandbox environment
-if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.context !== 'undefined') {
-	const configuration: ISandboxConfiguration | undefined = globals.vscode.context.configuration();
+const vscodeGlobal = (globalThis as { vscode?: { context?: { configuration(): ISandboxConfiguration | undefined } } }).vscode;
+if (typeof vscodeGlobal !== 'undefined' && typeof vscodeGlobal.context !== 'undefined') {
+	const configuration: ISandboxConfiguration | undefined = vscodeGlobal.context.configuration();
 	if (configuration) {
 		product = configuration.product;
 	} else {
@@ -53,12 +55,13 @@ else if (globalThis._VSCODE_PRODUCT_JSON && globalThis._VSCODE_PACKAGE_JSON) {
 else {
 
 	// Built time configuration (do NOT modify)
-	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as IProductConfiguration;
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
+	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as unknown as IProductConfiguration;
 
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.82.0-dev',
+			version: '1.104.0-dev',
 			nameShort: 'Code - OSS Dev',
 			nameLong: 'Code - OSS Dev',
 			applicationName: 'code-oss',
@@ -72,7 +75,4 @@ else {
 	}
 }
 
-/**
- * @deprecated You MUST use `IProductService` if possible.
- */
 export default product;

@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExceptionBreakpoint, Expression, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IEvaluate, IExpression, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILogService } from 'vs/platform/log/common/log';
-import { observableValue } from 'vs/base/common/observable';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IDebugModel, IEvaluate, IExpression } from './debug.js';
+import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, Expression, FunctionBreakpoint } from './debugModel.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { mapValues } from '../../../../base/common/objects.js';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -21,12 +22,17 @@ const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 const DEBUG_CHOSEN_ENVIRONMENTS_KEY = 'debug.chosenenvironment';
 const DEBUG_UX_STATE_KEY = 'debug.uxstate';
 
+export interface IChosenEnvironment {
+	type: string;
+	dynamicLabel?: string;
+}
+
 export class DebugStorage extends Disposable {
-	public readonly breakpoints = observableValue(this, this.loadBreakpoints());
-	public readonly functionBreakpoints = observableValue(this, this.loadFunctionBreakpoints());
-	public readonly exceptionBreakpoints = observableValue(this, this.loadExceptionBreakpoints());
-	public readonly dataBreakpoints = observableValue(this, this.loadDataBreakpoints());
-	public readonly watchExpressions = observableValue(this, this.loadWatchExpressions());
+	public readonly breakpoints: ISettableObservable<Breakpoint[]>;
+	public readonly functionBreakpoints: ISettableObservable<FunctionBreakpoint[]>;
+	public readonly exceptionBreakpoints: ISettableObservable<ExceptionBreakpoint[]>;
+	public readonly dataBreakpoints: ISettableObservable<DataBreakpoint[]>;
+	public readonly watchExpressions: ISettableObservable<Expression[]>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -35,6 +41,11 @@ export class DebugStorage extends Disposable {
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+		this.breakpoints = observableValue(this, this.loadBreakpoints());
+		this.functionBreakpoints = observableValue(this, this.loadFunctionBreakpoints());
+		this.exceptionBreakpoints = observableValue(this, this.loadExceptionBreakpoints());
+		this.dataBreakpoints = observableValue(this, this.loadDataBreakpoints());
+		this.watchExpressions = observableValue(this, this.loadWatchExpressions());
 
 		this._register(storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this._store)(e => {
 			if (e.external) {
@@ -65,8 +76,9 @@ export class DebugStorage extends Disposable {
 	private loadBreakpoints(): Breakpoint[] {
 		let result: Breakpoint[] | undefined;
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new Breakpoint(URI.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition, breakpoint.logMessage, breakpoint.adapterData, this.textFileService, this.uriIdentityService, this.logService, breakpoint.id);
+			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: ReturnType<Breakpoint['toJSON']>) => {
+				breakpoint.uri = URI.revive(breakpoint.uri);
+				return new Breakpoint(breakpoint, this.textFileService, this.uriIdentityService, this.logService, breakpoint.id);
 			});
 		} catch (e) { }
 
@@ -76,8 +88,8 @@ export class DebugStorage extends Disposable {
 	private loadFunctionBreakpoints(): FunctionBreakpoint[] {
 		let result: FunctionBreakpoint[] | undefined;
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
-				return new FunctionBreakpoint(fb.name, fb.enabled, fb.hitCondition, fb.condition, fb.logMessage, fb.id);
+			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: ReturnType<FunctionBreakpoint['toJSON']>) => {
+				return new FunctionBreakpoint(fb, fb.id);
 			});
 		} catch (e) { }
 
@@ -87,8 +99,8 @@ export class DebugStorage extends Disposable {
 	private loadExceptionBreakpoints(): ExceptionBreakpoint[] {
 		let result: ExceptionBreakpoint[] | undefined;
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
-				return new ExceptionBreakpoint(exBreakpoint.filter, exBreakpoint.label, exBreakpoint.enabled, exBreakpoint.supportsCondition, exBreakpoint.condition, exBreakpoint.description, exBreakpoint.conditionDescription, !!exBreakpoint.fallback);
+			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: ReturnType<ExceptionBreakpoint['toJSON']>) => {
+				return new ExceptionBreakpoint(exBreakpoint, exBreakpoint.id);
 			});
 		} catch (e) { }
 
@@ -98,8 +110,8 @@ export class DebugStorage extends Disposable {
 	private loadDataBreakpoints(): DataBreakpoint[] {
 		let result: DataBreakpoint[] | undefined;
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((dbp: any) => {
-				return new DataBreakpoint(dbp.description, dbp.dataId, true, dbp.enabled, dbp.hitCondition, dbp.condition, dbp.logMessage, dbp.accessTypes, dbp.accessType, dbp.id);
+			result = JSON.parse(this.storageService.get(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((dbp: ReturnType<DataBreakpoint['toJSON']>) => {
+				return new DataBreakpoint(dbp, dbp.id);
 			});
 		} catch (e) { }
 
@@ -117,11 +129,13 @@ export class DebugStorage extends Disposable {
 		return result || [];
 	}
 
-	loadChosenEnvironments(): { [key: string]: string } {
-		return JSON.parse(this.storageService.get(DEBUG_CHOSEN_ENVIRONMENTS_KEY, StorageScope.WORKSPACE, '{}'));
+	loadChosenEnvironments(): Record<string, IChosenEnvironment> {
+		const obj = JSON.parse(this.storageService.get(DEBUG_CHOSEN_ENVIRONMENTS_KEY, StorageScope.WORKSPACE, '{}'));
+		// back compat from when this was a string map:
+		return mapValues(obj, (value): IChosenEnvironment => typeof value === 'string' ? { type: value } : value);
 	}
 
-	storeChosenEnvironments(environments: { [key: string]: string }): void {
+	storeChosenEnvironments(environments: Record<string, IChosenEnvironment>): void {
 		this.storageService.store(DEBUG_CHOSEN_ENVIRONMENTS_KEY, JSON.stringify(environments), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 

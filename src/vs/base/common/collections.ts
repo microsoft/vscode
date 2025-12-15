@@ -19,8 +19,8 @@ export type INumberDictionary<V> = Record<number, V>;
  * Groups the collection into a dictionary based on the provided
  * group function.
  */
-export function groupBy<K extends string | number | symbol, V>(data: V[], groupFn: (element: V) => K): Record<K, V[]> {
-	const result: Record<K, V[]> = Object.create(null);
+export function groupBy<K extends string | number | symbol, V>(data: readonly V[], groupFn: (element: V) => K): Partial<Record<K, V[]>> {
+	const result: Partial<Record<K, V[]>> = Object.create(null);
 	for (const element of data) {
 		const key = groupFn(element);
 		let target = result[key];
@@ -32,7 +32,21 @@ export function groupBy<K extends string | number | symbol, V>(data: V[], groupF
 	return result;
 }
 
-export function diffSets<T>(before: Set<T>, after: Set<T>): { removed: T[]; added: T[] } {
+export function groupByMap<K, V>(data: V[], groupFn: (element: V) => K): Map<K, V[]> {
+	const result = new Map<K, V[]>();
+	for (const element of data) {
+		const key = groupFn(element);
+		let target = result.get(key);
+		if (!target) {
+			target = [];
+			result.set(key, target);
+		}
+		target.push(element);
+	}
+	return result;
+}
+
+export function diffSets<T>(before: ReadonlySet<T>, after: ReadonlySet<T>): { removed: T[]; added: T[] } {
 	const removed: T[] = [];
 	const added: T[] = [];
 	for (const element of before) {
@@ -63,50 +77,78 @@ export function diffMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: 
 	}
 	return { removed, added };
 }
-export class SetMap<K, V> {
 
-	private map = new Map<K, Set<V>>();
-
-	add(key: K, value: V): void {
-		let values = this.map.get(key);
-
-		if (!values) {
-			values = new Set<V>();
-			this.map.set(key, values);
-		}
-
-		values.add(value);
-	}
-
-	delete(key: K, value: V): void {
-		const values = this.map.get(key);
-
-		if (!values) {
-			return;
-		}
-
-		values.delete(value);
-
-		if (values.size === 0) {
-			this.map.delete(key);
+/**
+ * Computes the intersection of two sets.
+ *
+ * @param setA - The first set.
+ * @param setB - The second iterable.
+ * @returns A new set containing the elements that are in both `setA` and `setB`.
+ */
+export function intersection<T>(setA: Set<T>, setB: Iterable<T>): Set<T> {
+	const result = new Set<T>();
+	for (const elem of setB) {
+		if (setA.has(elem)) {
+			result.add(elem);
 		}
 	}
+	return result;
+}
 
-	forEach(key: K, fn: (value: V) => void): void {
-		const values = this.map.get(key);
+export class SetWithKey<T> implements Set<T> {
+	private _map = new Map<unknown, T>();
 
-		if (!values) {
-			return;
+	constructor(values: T[], private toKey: (t: T) => unknown) {
+		for (const value of values) {
+			this.add(value);
 		}
-
-		values.forEach(fn);
 	}
 
-	get(key: K): ReadonlySet<V> {
-		const values = this.map.get(key);
-		if (!values) {
-			return new Set<V>();
-		}
-		return values;
+	get size(): number {
+		return this._map.size;
 	}
+
+	add(value: T): this {
+		const key = this.toKey(value);
+		this._map.set(key, value);
+		return this;
+	}
+
+	delete(value: T): boolean {
+		return this._map.delete(this.toKey(value));
+	}
+
+	has(value: T): boolean {
+		return this._map.has(this.toKey(value));
+	}
+
+	*entries(): IterableIterator<[T, T]> {
+		for (const entry of this._map.values()) {
+			yield [entry, entry];
+		}
+	}
+
+	keys(): IterableIterator<T> {
+		return this.values();
+	}
+
+	*values(): IterableIterator<T> {
+		for (const entry of this._map.values()) {
+			yield entry;
+		}
+	}
+
+	clear(): void {
+		this._map.clear();
+	}
+
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: unknown): void {
+		this._map.forEach(entry => callbackfn.call(thisArg, entry, entry, this));
+	}
+
+	[Symbol.iterator](): IterableIterator<T> {
+		return this.values();
+	}
+
+	[Symbol.toStringTag]: string = 'SetWithKey';
 }

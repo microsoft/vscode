@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import { argv } from 'process';
-import { Mapping, SourceMapGenerator } from 'source-map';
-import * as ts from 'typescript';
+import v8 from 'node:v8';
+import fs from 'fs';
+import path from 'path';
+import { type Mapping, SourceMapGenerator } from 'source-map';
+import ts from 'typescript';
 import { pathToFileURL } from 'url';
-import * as workerpool from 'workerpool';
-import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
-const buildfile = require('../../../src/buildfile');
+import workerpool from 'workerpool';
+import { StaticLanguageServiceHost } from './staticLanguageServiceHost.ts';
+import * as buildfile from '../../buildfile.ts';
 
 class ShortIdent {
 
@@ -23,10 +23,13 @@ class ShortIdent {
 	private static _alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890$_'.split('');
 
 	private _value = 0;
+	private readonly prefix: string;
 
 	constructor(
-		private readonly prefix: string
-	) { }
+		prefix: string
+	) {
+		this.prefix = prefix;
+	}
 
 	next(isNameTaken?: (name: string) => boolean): string {
 		const candidate = this.prefix + ShortIdent.convert(this._value);
@@ -50,11 +53,12 @@ class ShortIdent {
 	}
 }
 
-const enum FieldType {
-	Public,
-	Protected,
-	Private
-}
+const FieldType = Object.freeze({
+	Public: 0,
+	Protected: 1,
+	Private: 2
+});
+type FieldType = typeof FieldType[keyof typeof FieldType];
 
 class ClassData {
 
@@ -65,10 +69,15 @@ class ClassData {
 	parent: ClassData | undefined;
 	children: ClassData[] | undefined;
 
+	readonly fileName: string;
+	readonly node: ts.ClassDeclaration | ts.ClassExpression;
+
 	constructor(
-		readonly fileName: string,
-		readonly node: ts.ClassDeclaration | ts.ClassExpression,
+		fileName: string,
+		node: ts.ClassDeclaration | ts.ClassExpression,
 	) {
+		this.fileName = fileName;
+		this.node = node;
 		// analyse all fields (properties and methods). Find usages of all protected and
 		// private ones and keep track of all public ones (to prevent naming collisions)
 
@@ -268,8 +277,14 @@ class ClassData {
 	}
 }
 
+declare module 'typescript' {
+	interface SourceFile {
+		identifiers?: Map<string, true>;
+	}
+}
+
 function isNameTakenInFile(node: ts.Node, name: string): boolean {
-	const identifiers = (<any>node.getSourceFile()).identifiers;
+	const identifiers = node.getSourceFile().identifiers;
 	if (identifiers instanceof Map) {
 		if (identifiers.has(name)) {
 			return true;
@@ -278,11 +293,7 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 	return false;
 }
 
-
 const skippedExportMangledFiles = [
-	// Build
-	'css.build',
-	'nls.build',
 
 	// Monaco
 	'editorCommon',
@@ -300,17 +311,18 @@ const skippedExportMangledFiles = [
 
 	// entry points
 	...[
-		buildfile.entrypoint('vs/server/node/server.main', []),
-		buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
-		buildfile.base,
+		buildfile.workerEditor,
 		buildfile.workerExtensionHost,
 		buildfile.workerNotebook,
 		buildfile.workerLanguageDetection,
 		buildfile.workerLocalFileSearch,
 		buildfile.workerProfileAnalysis,
+		buildfile.workerOutputLinks,
+		buildfile.workerBackgroundTokenization,
 		buildfile.workbenchDesktop,
 		buildfile.workbenchWeb,
-		buildfile.code
+		buildfile.code,
+		buildfile.codeWeb
 	].flat().map(x => x.name),
 ];
 
@@ -334,21 +346,24 @@ const skippedExportMangledSymbols = [
 class DeclarationData {
 
 	readonly replacementName: string;
+	readonly fileName: string;
+	readonly node: ts.FunctionDeclaration | ts.ClassDeclaration | ts.EnumDeclaration | ts.VariableDeclaration;
 
 	constructor(
-		readonly fileName: string,
-		readonly node: ts.FunctionDeclaration | ts.ClassDeclaration | ts.EnumDeclaration | ts.VariableDeclaration,
-		private readonly service: ts.LanguageService,
+		fileName: string,
+		node: ts.FunctionDeclaration | ts.ClassDeclaration | ts.EnumDeclaration | ts.VariableDeclaration,
 		fileIdents: ShortIdent,
 	) {
+		this.fileName = fileName;
+		this.node = node;
 		// Todo: generate replacement names based on usage count, with more used names getting shorter identifiers
 		this.replacementName = fileIdents.next();
 	}
 
-	get locations(): Iterable<{ fileName: string; offset: number }> {
+	getLocations(service: ts.LanguageService): Iterable<{ fileName: string; offset: number }> {
 		if (ts.isVariableDeclaration(this.node)) {
 			// If the const aliases any types, we need to rename those too
-			const definitionResult = this.service.getDefinitionAndBoundSpan(this.fileName, this.node.name.getStart());
+			const definitionResult = service.getDefinitionAndBoundSpan(this.fileName, this.node.name.getStart());
 			if (definitionResult?.definitions && definitionResult.definitions.length > 1) {
 				return definitionResult.definitions.map(x => ({ fileName: x.fileName, offset: x.textSpan.start }));
 			}
@@ -399,23 +414,30 @@ export class Mangler {
 	private readonly allClassDataByKey = new Map<string, ClassData>();
 	private readonly allExportedSymbols = new Set<DeclarationData>();
 
-	private readonly service: ts.LanguageService;
 	private readonly renameWorkerPool: workerpool.WorkerPool;
 
-	constructor(
-		private readonly projectPath: string,
-		private readonly log: typeof console.log = () => { },
-		private readonly config: { readonly manglePrivateFields: boolean; readonly mangleExports: boolean },
-	) {
-		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
+	private readonly projectPath: string;
+	private readonly log: typeof console.log;
+	private readonly config: { readonly manglePrivateFields: boolean; readonly mangleExports: boolean };
 
-		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
-			maxWorkers: 1,
+	constructor(
+		projectPath: string,
+		log: typeof console.log = () => { },
+		config: { readonly manglePrivateFields: boolean; readonly mangleExports: boolean },
+	) {
+		this.projectPath = projectPath;
+		this.log = log;
+		this.config = config;
+
+		this.renameWorkerPool = workerpool.pool(path.join(import.meta.dirname, 'renameWorker.ts'), {
+			maxWorkers: 4,
 			minWorkers: 'max'
 		});
 	}
 
 	async computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Promise<Map<string, MangleOutput>> {
+
+		const service = ts.createLanguageService(new StaticLanguageServiceHost(this.projectPath));
 
 		// STEP:
 		// - Find all classes and their field info.
@@ -471,14 +493,14 @@ export class Mangler {
 						return;
 					}
 
-					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, this.service, fileIdents));
+					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, fileIdents));
 				}
 			}
 
 			ts.forEachChild(node, visit);
 		};
 
-		for (const file of this.service.getProgram()!.getSourceFiles()) {
+		for (const file of service.getProgram()!.getSourceFiles()) {
 			if (!file.isDeclarationFile) {
 				ts.forEachChild(file, visit);
 			}
@@ -495,7 +517,7 @@ export class Mangler {
 				return;
 			}
 
-			const info = this.service.getDefinitionAtPosition(data.fileName, extendsClause.types[0].expression.getEnd());
+			const info = service.getDefinitionAtPosition(data.fileName, extendsClause.types[0].expression.getEnd());
 			if (!info || info.length === 0) {
 				// throw new Error('SUPER type not found');
 				return;
@@ -620,7 +642,7 @@ export class Mangler {
 			}
 
 			const newText = data.replacementName;
-			for (const { fileName, offset } of data.locations) {
+			for (const { fileName, offset } of data.getLocations(service)) {
 				queueRename(fileName, offset, newText);
 			}
 		}
@@ -641,9 +663,9 @@ export class Mangler {
 		const result = new Map<string, MangleOutput>();
 		let savedBytes = 0;
 
-		for (const item of this.service.getProgram()!.getSourceFiles()) {
+		for (const item of service.getProgram()!.getSourceFiles()) {
 
-			const { mapRoot, sourceRoot } = this.service.getProgram()!.getCompilerOptions();
+			const { mapRoot, sourceRoot } = service.getProgram()!.getCompilerOptions();
 			const projectDir = path.dirname(this.projectPath);
 			const sourceMapRoot = mapRoot ?? pathToFileURL(sourceRoot ?? projectDir).toString();
 
@@ -721,7 +743,10 @@ export class Mangler {
 			result.set(item.fileName, { out: newFullText, sourceMap: generator?.toString() });
 		}
 
-		this.log(`Done: ${savedBytes / 1000}kb saved`);
+		service.dispose();
+		this.renameWorkerPool.terminate();
+
+		this.log(`Done: ${savedBytes / 1000}kb saved, memory-usage: ${JSON.stringify(v8.getHeapStatistics())}`);
 		return result;
 	}
 }
@@ -747,7 +772,7 @@ function normalize(path: string): string {
 }
 
 async function _run() {
-	const root = path.join(__dirname, '..', '..', '..');
+	const root = path.join(import.meta.dirname, '..', '..', '..');
 	const projectBase = path.join(root, 'src');
 	const projectPath = path.join(projectBase, 'tsconfig.json');
 	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '2');
@@ -768,6 +793,6 @@ async function _run() {
 	}
 }
 
-if (__filename === argv[1]) {
+if (import.meta.main) {
 	_run();
 }

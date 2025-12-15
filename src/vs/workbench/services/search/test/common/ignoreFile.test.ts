@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IgnoreFile } from '../../common/ignoreFile.js';
 
-function runAssert(input: string, ignoreFile: string, ignoreFileLocation: string, shouldMatch: boolean, traverse: boolean) {
+function runAssert(input: string, ignoreFile: string, ignoreFileLocation: string, shouldMatch: boolean, traverse: boolean, ignoreCase: boolean) {
 	return (prefix: string) => {
 		const isDir = input.endsWith('/');
 		const rawInput = isDir ? input.slice(0, input.length - 1) : input;
 
-		const matcher = new IgnoreFile(ignoreFile, prefix + ignoreFileLocation);
+		const matcher = new IgnoreFile(ignoreFile, prefix + ignoreFileLocation, undefined, ignoreCase);
 		if (traverse) {
 			const traverses = matcher.isPathIncludedInTraversal(prefix + rawInput, isDir);
 
@@ -33,35 +34,36 @@ function runAssert(input: string, ignoreFile: string, ignoreFileLocation: string
 	};
 }
 
-function assertNoTraverses(ignoreFile: string, ignoreFileLocation: string, input: string) {
-	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, false, true);
+function assertNoTraverses(ignoreFile: string, ignoreFileLocation: string, input: string, ignoreCase = false) {
+	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, false, true, ignoreCase);
 
 	runWithPrefix('');
 	runWithPrefix('/someFolder');
 }
 
-function assertTraverses(ignoreFile: string, ignoreFileLocation: string, input: string) {
-	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, true, true);
+function assertTraverses(ignoreFile: string, ignoreFileLocation: string, input: string, ignoreCase = false) {
+	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, true, true, ignoreCase);
 
 	runWithPrefix('');
 	runWithPrefix('/someFolder');
 }
 
-function assertIgnoreMatch(ignoreFile: string, ignoreFileLocation: string, input: string) {
-	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, true, false);
+function assertIgnoreMatch(ignoreFile: string, ignoreFileLocation: string, input: string, ignoreCase = false) {
+	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, true, false, ignoreCase);
 
 	runWithPrefix('');
 	runWithPrefix('/someFolder');
 }
 
-function assertNoIgnoreMatch(ignoreFile: string, ignoreFileLocation: string, input: string) {
-	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, false, false);
+function assertNoIgnoreMatch(ignoreFile: string, ignoreFileLocation: string, input: string, ignoreCase = false) {
+	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, false, false, ignoreCase);
 
 	runWithPrefix('');
 	runWithPrefix('/someFolder');
 }
 
 suite('Parsing .gitignore files', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('paths with trailing slashes do not match files', () => {
 		const i = 'node_modules/\n';
@@ -563,5 +565,24 @@ suite('Parsing .gitignore files', () => {
 			included: [],
 		});
 
+	});
+
+	test('case-insensitive ignore files', () => {
+		const f1 = 'node_modules/\n';
+		assertNoIgnoreMatch(f1, '/', '/Node_Modules/', false);
+		assertIgnoreMatch(f1, '/', '/Node_Modules/', true);
+
+		const f2 = 'NODE_MODULES/\n';
+		assertNoIgnoreMatch(f2, '/', '/Node_Modules/', false);
+		assertIgnoreMatch(f2, '/', '/Node_Modules/', true);
+
+		const f3 = `
+			temp/*
+			!temp/keep
+		`;
+		assertNoIgnoreMatch(f3, '/', '/TEMP/other', false);
+		assertIgnoreMatch(f3, '/', '/temp/KEEP', false);
+		assertIgnoreMatch(f3, '/', '/TEMP/other', true);
+		assertNoIgnoreMatch(f3, '/', '/TEMP/KEEP', true);
 	});
 });

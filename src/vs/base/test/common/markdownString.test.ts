@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import assert from 'assert';
+import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { URI } from '../../common/uri.js';
 
 suite('MarkdownString', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Escape leading whitespace', function () {
 		const mds = new MarkdownString();
@@ -62,6 +66,79 @@ suite('MarkdownString', () => {
 		);
 	});
 
+	test('lift', () => {
+		const dto: IMarkdownString = {
+			value: 'hello',
+			baseUri: URI.file('/foo/bar'),
+			supportThemeIcons: true,
+			isTrusted: true,
+			supportHtml: true,
+			uris: {
+				[URI.file('/foo/bar2').toString()]: URI.file('/foo/bar2'),
+				[URI.file('/foo/bar3').toString()]: URI.file('/foo/bar3')
+			}
+		};
+		const mds = MarkdownString.lift(dto);
+		assert.strictEqual(mds.value, dto.value);
+		assert.strictEqual(mds.baseUri?.toString(), dto.baseUri?.toString());
+		assert.strictEqual(mds.supportThemeIcons, dto.supportThemeIcons);
+		assert.strictEqual(mds.isTrusted, dto.isTrusted);
+		assert.strictEqual(mds.supportHtml, dto.supportHtml);
+		assert.deepStrictEqual(mds.uris, dto.uris);
+	});
+
+	test('lift returns new instance', () => {
+		const instance = new MarkdownString('hello');
+		const mds2 = MarkdownString.lift(instance).appendText('world');
+		assert.strictEqual(mds2.value, 'helloworld');
+		assert.strictEqual(instance.value, 'hello');
+	});
+
+	suite('appendCodeBlock', () => {
+		function assertCodeBlock(lang: string, code: string, result: string) {
+			const mds = new MarkdownString();
+			mds.appendCodeblock(lang, code);
+			assert.strictEqual(mds.value, result);
+		}
+
+		test('common cases', () => {
+			// no backticks
+			assertCodeBlock('ts', 'const a = 1;', `\n${[
+				'```ts',
+				'const a = 1;',
+				'```'
+			].join('\n')}\n`);
+			// backticks
+			assertCodeBlock('ts', 'const a = `1`;', `\n${[
+				'```ts',
+				'const a = `1`;',
+				'```'
+			].join('\n')}\n`);
+		});
+
+		// @see https://github.com/microsoft/vscode/issues/193746
+		test('escape fence', () => {
+			// fence in the first line
+			assertCodeBlock('md', '```\n```', `\n${[
+				'````md',
+				'```\n```',
+				'````'
+			].join('\n')}\n`);
+			// fence in the middle of code
+			assertCodeBlock('md', '\n\n```\n```', `\n${[
+				'````md',
+				'\n\n```\n```',
+				'````'
+			].join('\n')}\n`);
+			// longer fence at the end of code
+			assertCodeBlock('md', '```\n```\n````\n````', `\n${[
+				'`````md',
+				'```\n```\n````\n````',
+				'`````'
+			].join('\n')}\n`);
+		});
+	});
+
 	suite('ThemeIcons', () => {
 
 		suite('Support On', () => {
@@ -113,6 +190,5 @@ suite('MarkdownString', () => {
 			});
 
 		});
-
 	});
 });

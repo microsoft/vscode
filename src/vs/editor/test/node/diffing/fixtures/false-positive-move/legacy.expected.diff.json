@@ -1,0 +1,17 @@
+{
+	"original": {
+		"content": "includeIssuesWithoutMilestone: boolean = false,\n): Promise<ItemsResponseResult<MilestoneModel>> {\n\tconst milestones: ItemsResponseResult<MilestoneModel> = await this.fetchPagedData<MilestoneModel>(\n\t\toptions,\n\t\t'milestoneIssuesKey',\n\t\tPagedDataType.Milestones,\n\t\tPRType.All\n\t);\n\tif (includeIssuesWithoutMilestone) {\n\t\tconst additionalIssues: ItemsResponseResult<Issue> = await this.fetchPagedData<Issue>(\n\t\t\toptions,\n\t\t\t'noMilestoneIssuesKey',\n\t\t\tPagedDataType.IssuesWithoutMilestone,\n\t\t\tPRType.All\n\t\t);\n\t\tmilestones.items.push({\n\t\t\tmilestone: {\n\t\t\t\tcreatedAt: new Date(0).toDateString(),\n\t\t\t\tid: '',\n\t\t\t\ttitle: NO_MILESTONE,\n\t\t\t},\n\t\t\tissues: await Promise.all(additionalIssues.items.map(async (issue) => {\n\t\t\t\tconst githubRepository = await this.getRepoForIssue(issue);\n\t\t\t\treturn new IssueModel(githubRepository, githubRepository.remote, issue);\n\t\t\t})),\n\t\t});\n\t}\n\treturn milestones;\n}",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "includeIssuesWithoutMilestone: boolean = false,\n): Promise<ItemsResponseResult<MilestoneModel>> {\n\ttry {\n\t\tconst milestones: ItemsResponseResult<MilestoneModel> = await this.fetchPagedData<MilestoneModel>(\n\t\t\toptions,\n\t\t\t'milestoneIssuesKey',\n\t\t\tPagedDataType.Milestones,\n\t\t\tPRType.All\n\t\t);\n\t\tif (includeIssuesWithoutMilestone) {\n\t\t\tconst additionalIssues: ItemsResponseResult<Issue> = await this.fetchPagedData<Issue>(\n\t\t\t\toptions,\n\t\t\t\t'noMilestoneIssuesKey',\n\t\t\t\tPagedDataType.IssuesWithoutMilestone,\n\t\t\t\tPRType.All\n\t\t\t);\n\t\t\tmilestones.items.push({\n\t\t\t\tmilestone: {\n\t\t\t\t\tcreatedAt: new Date(0).toDateString(),\n\t\t\t\t\tid: '',\n\t\t\t\t\ttitle: NO_MILESTONE,\n\t\t\t\t},\n\t\t\t\tissues: await Promise.all(additionalIssues.items.map(async (issue) => {\n\t\t\t\t\tconst githubRepository = await this.getRepoForIssue(issue);\n\t\t\t\t\treturn new IssueModel(githubRepository, githubRepository.remote, issue);\n\t\t\t\t})),\n\t\t\t});\n\t\t}\n\t\treturn milestones;\n\t} catch (e) {\n\t\tLogger.error(`Error fetching milestone issues: ${e instanceof Error ? e.message : e}`, FolderRepositoryManager.ID);\n\t\treturn { hasMorePages: false, hasUnsearchedRepositories: false, items: [] };\n\t}\n}\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[3,30)",
+			"modifiedRange": "[3,36)",
+			"innerChanges": null
+		}
+	]
+}

@@ -3,38 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inspectEditorTokens';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { CharCode } from 'vs/base/common/charCode';
-import { Color } from 'vs/base/common/color';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/languages';
-import { FontStyle, ColorId, StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
-import { ITextMateTokenizationService } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
+import './inspectEditorTokens.css';
+import * as nls from '../../../../../nls.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { CharCode } from '../../../../../base/common/charCode.js';
+import { Color } from '../../../../../base/common/color.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, EditorContributionInstantiation } from '../../../../../editor/browser/editorExtensions.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { SemanticTokensLegend, SemanticTokens } from '../../../../../editor/common/languages.js';
+import { FontStyle, ColorId, StandardTokenType, TokenMetadata } from '../../../../../editor/common/encodedTokenAttributes.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { findMatchingThemeRule } from '../../../../services/textMate/common/TMHelper.js';
+import { ITextMateTokenizationService } from '../../../../services/textMate/browser/textMateTokenizationFeature.js';
 import type { IGrammar, IToken, StateStack } from 'vscode-textmate';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
-import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/contrib/semanticTokens/common/semanticTokensConfig';
-import { Schemas } from 'vs/base/common/network';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IWorkbenchThemeService } from '../../../../services/themes/common/workbenchThemeService.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from '../../../../services/themes/common/colorThemeData.js';
+import { SemanticTokenRule, TokenStyleData, TokenStyle } from '../../../../../platform/theme/common/tokenClassificationRegistry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from '../../../../../editor/contrib/semanticTokens/common/semanticTokensConfig.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import type * as TreeSitter from '@vscode/tree-sitter-wasm';
+import { TreeSitterSyntaxTokenBackend } from '../../../../../editor/common/model/tokens/treeSitter/treeSitterSyntaxTokenBackend.js';
+import { TokenizationTextModelPart } from '../../../../../editor/common/model/tokens/tokenizationTextModelPart.js';
+import { TreeSitterTree } from '../../../../../editor/common/model/tokens/treeSitter/treeSitterTree.js';
 
 const $ = dom.$;
 
-class InspectEditorTokensController extends Disposable implements IEditorContribution {
+export class InspectEditorTokensController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.inspectEditorTokens';
 
@@ -115,8 +119,7 @@ class InspectEditorTokens extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inspectTMScopes',
-			label: nls.localize('inspectEditorTokens', "Developer: Inspect Editor Tokens and Scopes"),
-			alias: 'Developer: Inspect Editor Tokens and Scopes',
+			label: nls.localize2('inspectEditorTokens', "Developer: Inspect Editor Tokens and Scopes"),
 			precondition: undefined
 		});
 	}
@@ -238,6 +241,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private _beginCompute(position: Position): void {
 		const grammar = this._textMateService.createTokenizer(this._model.getLanguageId());
 		const semanticTokens = this._computeSemanticTokens(position);
+		const backend = (this._model.tokenization as TokenizationTextModelPart).tokens.get();
+		const asTreeSitterBackend = backend instanceof TreeSitterSyntaxTokenBackend ? backend : undefined;
 
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
@@ -246,7 +251,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (this._isDisposed) {
 				return;
 			}
-			this._compute(grammar, semanticTokens, position);
+			const treeSitterTree = asTreeSitterBackend?.tree.get();
+			this._compute(grammar, semanticTokens, treeSitterTree, position);
 			this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 			this._editor.layoutContentWidget(this);
 		}, (err) => {
@@ -267,10 +273,11 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return this._themeService.getColorTheme().semanticHighlighting;
 	}
 
-	private _compute(grammar: IGrammar | null, semanticTokens: SemanticTokensResult | null, position: Position) {
+	private _compute(grammar: IGrammar | null, semanticTokens: SemanticTokensResult | null, tree: TreeSitterTree | undefined, position: Position) {
 		const textMateTokenInfo = grammar && this._getTokensAtPosition(grammar, position);
 		const semanticTokenInfo = semanticTokens && this._getSemanticTokenAtPosition(semanticTokens, position);
-		if (!textMateTokenInfo && !semanticTokenInfo) {
+		const treeSitterTokenInfo = tree && this._getTreeSitterTokenAtPosition(tree, position);
+		if (!textMateTokenInfo && !semanticTokenInfo && !treeSitterTokenInfo) {
 			dom.reset(this._domNode, 'No grammar or semantic tokens available.');
 			return;
 		}
@@ -280,13 +287,16 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 		const semTokenText = semanticTokenInfo && renderTokenText(this._model.getValueInRange(semanticTokenInfo.range));
 		const tmTokenText = textMateTokenInfo && renderTokenText(this._model.getLineContent(position.lineNumber).substring(textMateTokenInfo.token.startIndex, textMateTokenInfo.token.endIndex));
+		const semTokenLength = semanticTokenInfo && this._model.getValueLengthInRange(semanticTokenInfo.range);
+		const tmTokenLength = textMateTokenInfo && (textMateTokenInfo.token.endIndex - textMateTokenInfo.token.startIndex);
 
 		const tokenText = semTokenText || tmTokenText || '';
+		const tokenLength = semTokenLength || tmTokenLength || 0;
 
 		dom.reset(this._domNode,
 			$('h2.tiw-token', undefined,
 				tokenText,
-				$('span.tiw-token-length', undefined, `${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'}`)));
+				$('span.tiw-token-length', undefined, `${tokenLength} ${tokenLength === 1 ? 'char' : 'chars'}`)));
 		dom.append(this._domNode, $('hr.tiw-metadata-separator', { 'style': 'clear:both' }));
 		dom.append(this._domNode, $('table.tiw-metadata-table', undefined,
 			$('tbody', undefined,
@@ -326,7 +336,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 					if (semanticTokenInfo.metadata[property] !== undefined) {
 						const definition = semanticTokenInfo.definitions[property];
 						const defValue = this._renderTokenStyleDefinition(definition, property);
-						const defValueStr = defValue.map(el => el instanceof HTMLElement ? el.outerHTML : el).join();
+						const defValueStr = defValue.map(el => dom.isHTMLElement(el) ? el.outerHTML : el).join();
 						let properties = propertiesByDefValue[defValueStr];
 						if (!properties) {
 							propertiesByDefValue[defValueStr] = properties = [];
@@ -386,6 +396,42 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				dom.append(tbody, $('tr', undefined,
 					$('td.tiw-metadata-key', undefined, 'foreground'),
 					$('td.tiw-metadata-value', undefined, 'No theme selector' as string),
+				));
+			}
+		}
+
+		if (treeSitterTokenInfo) {
+			const lastTokenInfo = treeSitterTokenInfo[treeSitterTokenInfo.length - 1];
+			dom.append(this._domNode, $('hr.tiw-metadata-separator'));
+			const table = dom.append(this._domNode, $('table.tiw-metadata-table'));
+			const tbody = dom.append(table, $('tbody'));
+
+			dom.append(tbody, $('tr', undefined,
+				$('td.tiw-metadata-key', undefined, `tree-sitter token ${lastTokenInfo.id}` as string),
+				$('td.tiw-metadata-value', undefined, `${lastTokenInfo.text}`)
+			));
+			const scopes = new Array<HTMLElement | string>();
+			let i = treeSitterTokenInfo.length - 1;
+			let node = treeSitterTokenInfo[i];
+			while (node.parent || i > 0) {
+				scopes.push(node.type);
+				node = node.parent ?? treeSitterTokenInfo[--i];
+				if (node) {
+					scopes.push($('br'));
+				}
+			}
+
+			dom.append(tbody, $('tr', undefined,
+				$('td.tiw-metadata-key', undefined, 'tree-sitter tree' as string),
+				$('td.tiw-metadata-value.tiw-metadata-scopes', undefined, ...scopes),
+			));
+
+			const tokenizationSupport = ((this._model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tokenizationImpl.get();
+			const captures = tokenizationSupport?.captureAtPosition(position.lineNumber, position.column);
+			if (captures && captures.length > 0) {
+				dom.append(tbody, $('tr', undefined,
+					$('td.tiw-metadata-key', undefined, 'foreground'),
+					$('td.tiw-metadata-value', undefined, captures.map(cap => cap.name).join(' ')),
 				));
 			}
 		}
@@ -601,6 +647,41 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			lastCharacter = character;
 		}
 		return null;
+	}
+
+	private _walkTreeforPosition(cursor: TreeSitter.TreeCursor, pos: Position): TreeSitter.Node | null {
+		const offset = this._model.getOffsetAt(pos);
+		cursor.gotoFirstChild();
+		let goChild: boolean = false;
+		let lastGoodNode: TreeSitter.Node | null = null;
+		do {
+			if (cursor.currentNode.startIndex <= offset && offset < cursor.currentNode.endIndex) {
+				goChild = true;
+				lastGoodNode = cursor.currentNode;
+			} else {
+				goChild = false;
+			}
+		} while (goChild ? cursor.gotoFirstChild() : cursor.gotoNextSibling());
+		return lastGoodNode;
+	}
+
+	private _getTreeSitterTokenAtPosition(treeSitterTree: TreeSitterTree | undefined, pos: Position): TreeSitter.Node[] | null {
+		const nodes: TreeSitter.Node[] = [];
+
+		let tree = treeSitterTree?.tree.get();
+		while (tree) {
+			const cursor = tree.walk();
+			const node = this._walkTreeforPosition(cursor, pos);
+			cursor.delete();
+			if (node) {
+				nodes.push(node);
+				treeSitterTree = treeSitterTree?.getInjectionTrees(node.startIndex, treeSitterTree.languageId);
+				tree = treeSitterTree?.tree.get();
+			} else {
+				tree = undefined;
+			}
+		}
+		return nodes.length > 0 ? nodes : null;
 	}
 
 	private _renderTokenStyleDefinition(definition: TokenStyleDefinition | undefined, property: keyof TokenStyleData): Array<HTMLElement | string> {

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { AiRelatedInformationService } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformationService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { CommandInformationResult, IAiRelatedInformationProvider, RelatedInformationType, SettingInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import * as sinon from 'sinon';
+import { AiRelatedInformationService } from '../../common/aiRelatedInformationService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { CommandInformationResult, IAiRelatedInformationProvider, RelatedInformationType, SettingInformationResult } from '../../common/aiRelatedInformation.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('AiRelatedInformationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -65,5 +66,29 @@ suite('AiRelatedInformationService', () => {
 		assert.strictEqual(result.length, 2);
 		assert.strictEqual((result[0] as CommandInformationResult).command, command);
 		assert.strictEqual((result[1] as SettingInformationResult).setting, setting);
+	});
+
+	test('should return empty array on timeout', async () => {
+		const clock = sinon.useFakeTimers({
+			shouldAdvanceTime: true,
+		});
+		const provider: IAiRelatedInformationProvider = {
+			provideAiRelatedInformation: () => new Promise((resolve) => {
+				setTimeout(() => {
+					resolve([{ type: RelatedInformationType.CommandInformation, command: 'command', weight: 1 }]);
+				}, AiRelatedInformationService.DEFAULT_TIMEOUT + 100);
+			})
+		};
+
+		service.registerAiRelatedInformationProvider(RelatedInformationType.CommandInformation, provider);
+
+		try {
+			const promise = service.getRelatedInformation('query', [RelatedInformationType.CommandInformation], CancellationToken.None);
+			clock.tick(AiRelatedInformationService.DEFAULT_TIMEOUT + 200);
+			const result = await promise;
+			assert.strictEqual(result.length, 0);
+		} finally {
+			clock.restore();
+		}
 	});
 });

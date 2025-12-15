@@ -3,29 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditorGroupModel, IGroupEditorChangeEvent, IGroupEditorCloseEvent, IGroupEditorMoveEvent, IGroupEditorOpenEvent, ISerializedEditorGroupModel, isGroupEditorChangeEvent, isGroupEditorCloseEvent, isGroupEditorMoveEvent, isGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor, EditorCloseContext, GroupModelChangeKind } from 'vs/workbench/common/editor';
-import { URI } from 'vs/base/common/uri';
-import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { isEqual } from 'vs/base/common/resources';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { EditorGroupModel, IGroupEditorChangeEvent, IGroupEditorCloseEvent, IGroupEditorMoveEvent, IGroupEditorOpenEvent, ISerializedEditorGroupModel, isGroupEditorChangeEvent, isGroupEditorCloseEvent, isGroupEditorMoveEvent, isGroupEditorOpenEvent } from '../../../../common/editor/editorGroupModel.js';
+import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor, EditorCloseContext, GroupModelChangeKind } from '../../../../common/editor.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TestLifecycleService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { TestContextService, TestStorageService } from '../../../common/workbenchTestServices.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('EditorGroupModel', () => {
 
@@ -101,6 +100,7 @@ suite('EditorGroupModel', () => {
 		locked: number[];
 		active: number[];
 		index: number[];
+		label: number[];
 		opened: IGroupEditorOpenEvent[];
 		activated: IGroupEditorChangeEvent[];
 		closed: IGroupEditorCloseEvent[];
@@ -108,6 +108,7 @@ suite('EditorGroupModel', () => {
 		unpinned: IGroupEditorChangeEvent[];
 		sticky: IGroupEditorChangeEvent[];
 		unsticky: IGroupEditorChangeEvent[];
+		transient: IGroupEditorChangeEvent[];
 		moved: IGroupEditorMoveEvent[];
 		disposed: IGroupEditorChangeEvent[];
 	}
@@ -116,6 +117,7 @@ suite('EditorGroupModel', () => {
 		const groupEvents: GroupEvents = {
 			active: [],
 			index: [],
+			label: [],
 			locked: [],
 			opened: [],
 			closed: [],
@@ -124,6 +126,7 @@ suite('EditorGroupModel', () => {
 			unpinned: [],
 			sticky: [],
 			unsticky: [],
+			transient: [],
 			moved: [],
 			disposed: []
 		};
@@ -137,6 +140,9 @@ suite('EditorGroupModel', () => {
 				return;
 			} else if (e.kind === GroupModelChangeKind.GROUP_INDEX) {
 				groupEvents.index.push(group.id);
+				return;
+			} else if (e.kind === GroupModelChangeKind.GROUP_LABEL) {
+				groupEvents.label.push(group.id);
 				return;
 			}
 			if (!e.editor) {
@@ -168,6 +174,11 @@ suite('EditorGroupModel', () => {
 						group.isSticky(e.editor) ? groupEvents.sticky.push(e) : groupEvents.unsticky.push(e);
 					}
 					break;
+				case GroupModelChangeKind.EDITOR_TRANSIENT:
+					if (isGroupEditorChangeEvent(e)) {
+						groupEvents.transient.push(e);
+					}
+					break;
 				case GroupModelChangeKind.EDITOR_MOVE:
 					if (isGroupEditorMoveEvent(e)) {
 						groupEvents.moved.push(e);
@@ -193,7 +204,7 @@ suite('EditorGroupModel', () => {
 			super();
 		}
 		override get typeId() { return 'testEditorInputForGroups'; }
-		override async resolve(): Promise<IEditorModel> { return null!; }
+		override async resolve(): Promise<IDisposable> { return null!; }
 
 		override matches(other: TestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof TestEditorInput;
@@ -216,7 +227,7 @@ suite('EditorGroupModel', () => {
 			super();
 		}
 		override get typeId() { return 'testEditorInputForGroups-nonSerializable'; }
-		override async resolve(): Promise<IEditorModel | null> { return null; }
+		override async resolve(): Promise<IDisposable | null> { return null; }
 
 		override matches(other: NonSerializableTestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
@@ -225,14 +236,16 @@ suite('EditorGroupModel', () => {
 
 	class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
-		readonly preferredResource = this.resource;
+		readonly preferredResource;
 
 		constructor(public id: string, public resource: URI) {
 			super();
+
+			this.preferredResource = this.resource;
 		}
 		override get typeId() { return 'testFileEditorInputForGroups'; }
 		override get editorId() { return this.id; }
-		override async resolve(): Promise<IEditorModel | null> { return null; }
+		override async resolve(): Promise<IDisposable | null> { return null; }
 		setPreferredName(name: string): void { }
 		setPreferredDescription(description: string): void { }
 		setPreferredResource(resource: URI): void { }
@@ -805,6 +818,17 @@ suite('EditorGroupModel', () => {
 		group.setIndex(4);
 
 		assert.strictEqual(events.index.length, 1);
+	});
+
+	test('label', function () {
+		const group = createEditorGroupModel();
+		const events = groupListener(group);
+
+		assert.strictEqual(events.label.length, 0);
+
+		group.setLabel('Window 1');
+
+		assert.strictEqual(events.label.length, 1);
 	});
 
 	test('active', function () {
@@ -1517,7 +1541,7 @@ suite('EditorGroupModel', () => {
 
 		// Close Left
 		assert.strictEqual(group.activeEditor, input3);
-		closeEditors(group, group.activeEditor!, CloseDirection.LEFT);
+		closeEditors(group, group.activeEditor, CloseDirection.LEFT);
 		assert.strictEqual(group.activeEditor, input3);
 		assert.strictEqual(group.count, 3);
 		assert.strictEqual(group.getEditors(EditorsOrder.SEQUENTIAL)[0], input3);
@@ -1534,7 +1558,7 @@ suite('EditorGroupModel', () => {
 
 		// Close Right
 		assert.strictEqual(group.activeEditor, input3);
-		closeEditors(group, group.activeEditor!, CloseDirection.RIGHT);
+		closeEditors(group, group.activeEditor, CloseDirection.RIGHT);
 		assert.strictEqual(group.activeEditor, input3);
 		assert.strictEqual(group.count, 3);
 		assert.strictEqual(group.getEditors(EditorsOrder.SEQUENTIAL)[0], input1);
@@ -2018,6 +2042,8 @@ suite('EditorGroupModel', () => {
 		// Stick last editor should move it first and pin
 		group.stick(input3);
 		assert.strictEqual(group.stickyCount, 1);
+		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: true }).length, 2);
+		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: false }).length, 3);
 		assert.strictEqual(group.isSticky(input1), false);
 		assert.strictEqual(group.isSticky(input2), false);
 		assert.strictEqual(group.isSticky(input3), true);
@@ -2388,6 +2414,193 @@ suite('EditorGroupModel', () => {
 		group2.moveEditor(input1group2, 1);
 		assert.strictEqual(group2Events.unsticky[0].editor, input1group2);
 		assert.strictEqual(group2Events.unsticky[0].editorIndex, 1);
+	});
+
+	function assertSelection(group: EditorGroupModel, activeEditor: EditorInput, selectedEditors: EditorInput[]): void {
+		assert.strictEqual(group.activeEditor, activeEditor);
+		assert.strictEqual(group.selectedEditors.length, selectedEditors.length);
+		for (let i = 0; i < selectedEditors.length; i++) {
+			assert.strictEqual(group.selectedEditors[i], selectedEditors[i]);
+		}
+	}
+
+	test('editor selection: selectedEditors', () => {
+		const group = createEditorGroupModel();
+
+		const activeEditor = group.activeEditor;
+		const selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, null);
+		assert.strictEqual(selectedEditors.length, 0);
+
+		// active editor: input1, selection: [input1]
+		const input1 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+		assertSelection(group, input1, [input1]);
+
+		// active editor: input3, selection: [input3]
+		const input2 = input();
+		const input3 = input();
+		group.openEditor(input2, { pinned: true, active: true, index: 1 });
+		group.openEditor(input3, { pinned: true, active: true, index: 2 });
+		assertSelection(group, input3, [input3]);
+
+		// active editor: input2, selection: [input1, input2] (in sequential order)
+		group.setSelection(input2, [input1]);
+		assertSelection(group, input2, [input1, input2]);
+	});
+
+	test('editor selection: openEditor with inactive selection', () => {
+		const group = createEditorGroupModel();
+
+		// active editor: input3, selection: [input3]
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+		group.openEditor(input2, { pinned: true, active: true, index: 1 });
+		group.openEditor(input3, { pinned: true, active: true, index: 2 });
+
+		// active editor: input2, selection: [input1, input2, input3] (in sequential order)
+		group.openEditor(input2, { active: true, inactiveSelection: [input3, input1] });
+		assertSelection(group, input2, [input1, input2, input3]);
+
+		// active editor: input1, selection: [input1, input3] (in sequential order)
+		// test duplicate entries
+		group.openEditor(input1, { active: true, inactiveSelection: [input3, input1, input3] });
+		assertSelection(group, input1, [input1, input3]);
+
+		// active editor: input1, selection: [input1, input2] (in sequential order)
+		// open new Editor as inactive with selection
+		const input4 = input();
+		group.openEditor(input4, { pinned: true, active: false, inactiveSelection: [input2], index: 3 });
+		assertSelection(group, input1, [input1, input2]);
+
+		// active editor: input5, selection: [input4, input5] (in sequential order)
+		// open new Editor as active with selection
+		const input5 = input();
+		group.openEditor(input5, { pinned: true, active: true, inactiveSelection: [input4], index: 4 });
+		assertSelection(group, input5, [input4, input5]);
+	});
+
+	test('editor selection: closeEditor keeps selection', () => {
+		const group = createEditorGroupModel();
+
+		// active editor: input3, selection: [input3]
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+		group.openEditor(input2, { pinned: true, active: true, index: 1 });
+		group.openEditor(input3, { pinned: true, active: true, index: 2 });
+
+		group.setSelection(input2, [input3, input1]);
+		group.closeEditor(input3);
+		assertSelection(group, input2, [input1, input2]);
+	});
+
+	test('editor selection: setSeletion', () => {
+		const group = createEditorGroupModel();
+
+		// active editor: input3, selection: [input3]
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+		group.openEditor(input2, { pinned: true, active: true, index: 1 });
+		group.openEditor(input3, { pinned: true, active: true, index: 2 });
+
+		// active editor: input2, selection: [input1, input2, input3] (in sequential order)
+		group.setSelection(input2, [input3, input1]);
+		assertSelection(group, input2, [input1, input2, input3]);
+
+		// active editor: input3, selection: [input3]
+		group.setSelection(input3, []);
+		assertSelection(group, input3, [input3]);
+
+		// active editor: input2, selection: [input1, input2]
+		// test duplicate entries
+		group.setSelection(input2, [input1, input2, input1]);
+		assertSelection(group, input2, [input1, input2]);
+	});
+
+	test('editor selection: isSelected', () => {
+		const group = createEditorGroupModel();
+
+		// active editor: input3, selection: [input3]
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+		group.openEditor(input2, { pinned: true, active: true, index: 1 });
+		group.openEditor(input3, { pinned: true, active: true, index: 2 });
+
+		// active editor: input2, selection: [input1, input2, input3] (in sequential order)
+		group.setSelection(input2, [input3, input1]);
+
+		assert.strictEqual(group.isSelected(input1), true);
+		assert.strictEqual(group.isSelected(input2), true);
+		assert.strictEqual(group.isSelected(input3), true);
+
+		// active editor: input3, selection: [input3]
+		group.setSelection(input3, []);
+
+		assert.strictEqual(group.isSelected(input1), false);
+		assert.strictEqual(group.isSelected(input2), false);
+		assert.strictEqual(group.isSelected(input3), true);
+
+		// use index
+		assert.strictEqual(group.isSelected(0), false);
+		assert.strictEqual(group.isSelected(1), false);
+		assert.strictEqual(group.isSelected(2), true);
+	});
+
+	test('editor selection: select invalid editor', () => {
+		const group = createEditorGroupModel();
+
+		const input1 = input();
+		const input2 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+
+		group.setSelection(input2, [input1]);
+
+		assert.strictEqual(group.activeEditor, input1);
+		assert.strictEqual(group.selectedEditors.length, 1);
+		assert.strictEqual(group.isSelected(input1), true);
+		assert.strictEqual(group.isSelected(input1), true);
+		assert.strictEqual(group.isSelected(input2), false);
+
+		group.setSelection(input1, [input2]);
+
+		assert.strictEqual(group.activeEditor, input1);
+		assert.strictEqual(group.selectedEditors.length, 1);
+		assert.strictEqual(group.isSelected(input1), true);
+		assert.strictEqual(group.isSelected(input1), true);
+		assert.strictEqual(group.isSelected(input2), false);
+	});
+
+	test('editor transient: basics', () => {
+		const group = createEditorGroupModel();
+		const events = groupListener(group);
+
+		const input1 = input();
+		const input2 = input();
+		group.openEditor(input1, { pinned: true, active: true });
+
+		assert.strictEqual(group.isTransient(input1), false);
+		assert.strictEqual(events.transient.length, 0);
+
+		group.openEditor(input2, { pinned: true, active: true, transient: true });
+		assert.strictEqual(events.transient[0].editor, input2);
+
+		assert.strictEqual(group.isTransient(input2), true);
+
+		group.setTransient(input1, true);
+		assert.strictEqual(group.isTransient(input1), true);
+		assert.strictEqual(events.transient[1].editor, input1);
+
+		group.setTransient(input2, false);
+		assert.strictEqual(group.isTransient(input2), false);
+		assert.strictEqual(events.transient[2].editor, input2);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

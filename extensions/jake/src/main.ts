@@ -120,9 +120,9 @@ class FolderDetector {
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
-		const jakeTask = (<any>_task.definition).task;
+		const jakeTask = _task.definition.task;
 		if (jakeTask) {
-			const kind: JakeTaskDefinition = (<any>_task.definition);
+			const kind = _task.definition as JakeTaskDefinition;
 			const options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
 			const task = new vscode.Task(kind, this.workspaceFolder, jakeTask, 'jake', new vscode.ShellExecution(await this._jakeCommand, [jakeTask], options));
 			return task;
@@ -290,7 +290,7 @@ class TaskDetector {
 		if (this.detectors.size === 0) {
 			return Promise.resolve([]);
 		} else if (this.detectors.size === 1) {
-			return this.detectors.values().next().value.getTasks();
+			return this.detectors.values().next().value!.getTasks();
 		} else {
 			const promises: Promise<vscode.Task[]>[] = [];
 			for (const detector of this.detectors.values()) {
@@ -312,7 +312,7 @@ class TaskDetector {
 		if (this.detectors.size === 0) {
 			return undefined;
 		} else if (this.detectors.size === 1) {
-			return this.detectors.values().next().value.getTask(task);
+			return this.detectors.values().next().value!.getTask(task);
 		} else {
 			if ((task.scope === vscode.TaskScope.Workspace) || (task.scope === vscode.TaskScope.Global)) {
 				// Not supported, we don't have enough info to create the task.

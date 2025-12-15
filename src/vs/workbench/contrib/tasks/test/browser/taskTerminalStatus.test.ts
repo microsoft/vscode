@@ -4,17 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok } from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
-import { AbstractProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
-import { CommonTask, ITaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalStatusList, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from '../../browser/taskTerminalStatus.js';
+import { AbstractProblemCollector } from '../../common/problemCollectors.js';
+import { CommonTask, ITaskEvent, TaskEventKind, TaskRunType } from '../../common/tasks.js';
+import { ITaskService, Task } from '../../common/taskService.js';
+import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { ITerminalStatusList, TerminalStatusList } from '../../../terminal/browser/terminalStatusList.js';
+import { ITerminalStatus } from '../../../terminal/common/terminal.js';
+import { IMarker } from '../../../../../platform/markers/common/markers.js';
 
 class TestTaskService implements Partial<ITaskService> {
 	private readonly _onDidStateChange: Emitter<ITaskEvent> = new Emitter();
@@ -26,14 +29,20 @@ class TestTaskService implements Partial<ITaskService> {
 	}
 }
 
-class TestAudioCueService implements Partial<IAudioCueService> {
-	async playAudioCue(cue: AudioCue): Promise<void> {
+class TestaccessibilitySignalService implements Partial<IAccessibilitySignalService> {
+	async playSignal(cue: AccessibilitySignal): Promise<void> {
 		return;
 	}
 }
 
-class TestTerminal implements Partial<ITerminalInstance> {
-	statusList: TerminalStatusList = new TerminalStatusList(new TestConfigurationService());
+class TestTerminal extends Disposable implements Partial<ITerminalInstance> {
+	statusList: TerminalStatusList = this._register(new TerminalStatusList(new TestConfigurationService()));
+	constructor() {
+		super();
+	}
+	override dispose(): void {
+		super.dispose();
+	}
 }
 
 class TestTask extends CommonTask {
@@ -50,10 +59,10 @@ class TestTask extends CommonTask {
 	}
 }
 
-class TestProblemCollector implements Partial<AbstractProblemCollector> {
+class TestProblemCollector extends Disposable implements Partial<AbstractProblemCollector> {
 	protected readonly _onDidFindFirstMatch = new Emitter<void>();
 	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
-	protected readonly _onDidFindErrors = new Emitter<void>();
+	protected readonly _onDidFindErrors = new Emitter<IMarker[]>();
 	readonly onDidFindErrors = this._onDidFindErrors.event;
 	protected readonly _onDidRequestInvalidateLastMarker = new Emitter<void>();
 	readonly onDidRequestInvalidateLastMarker = this._onDidRequestInvalidateLastMarker.event;
@@ -66,18 +75,19 @@ suite('Task Terminal Status', () => {
 	let testTerminal: ITerminalInstance;
 	let testTask: Task;
 	let problemCollector: AbstractProblemCollector;
-	let audioCueService: TestAudioCueService;
+	let accessibilitySignalService: TestaccessibilitySignalService;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	setup(() => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		taskService = new TestTaskService();
-		audioCueService = new TestAudioCueService();
-		taskTerminalStatus = new TaskTerminalStatus(taskService as any, audioCueService as any);
-		testTerminal = instantiationService.createInstance(TestTerminal) as any;
+		accessibilitySignalService = new TestaccessibilitySignalService();
+		// eslint-disable-next-line local/code-no-any-casts
+		taskTerminalStatus = store.add(new TaskTerminalStatus(taskService as any, accessibilitySignalService as any));
+		// eslint-disable-next-line local/code-no-any-casts
+		testTerminal = store.add(instantiationService.createInstance(TestTerminal) as any);
 		testTask = instantiationService.createInstance(TestTask) as unknown as Task;
-		problemCollector = instantiationService.createInstance(TestProblemCollector) as any;
-	});
-	teardown(() => {
-		instantiationService.dispose();
+		// eslint-disable-next-line local/code-no-any-casts
+		problemCollector = store.add(instantiationService.createInstance(TestProblemCollector) as any);
 	});
 	test('Should add failed status when there is an exit code on task end', async () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);

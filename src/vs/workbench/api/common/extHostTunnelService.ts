@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { DisposableTunnel, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId } from 'vs/platform/tunnel/common/tunnel';
-import { ExtHostTunnelServiceShape, MainContext, MainThreadTunnelServiceShape, PortAttributesSelector, TunnelDto } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import * as nls from '../../../nls.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { DisposableTunnel, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId } from '../../../platform/tunnel/common/tunnel.js';
+import { ExtHostTunnelServiceShape, MainContext, MainThreadTunnelServiceShape, PortAttributesSelector, TunnelDto } from './extHost.protocol.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import * as types from './extHostTypes.js';
+import { CandidatePort } from '../../services/remote/common/tunnelModel.js';
 import * as vscode from 'vscode';
 
 class ExtensionTunnel extends DisposableTunnel implements vscode.Tunnel { }
@@ -57,6 +57,7 @@ export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined, managedRemoteAuthority: vscode.ManagedResolvedAuthority | undefined): Promise<IDisposable>;
 	registerPortsAttributesProvider(portSelector: PortAttributesSelector, provider: vscode.PortAttributesProvider): IDisposable;
 	registerTunnelProvider(provider: vscode.TunnelProvider, information: vscode.TunnelInformation): Promise<IDisposable>;
+	hasTunnelProvider(): Promise<boolean>;
 }
 
 export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');
@@ -103,6 +104,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	registerPortsAttributesProvider(portSelector: PortAttributesSelector, provider: vscode.PortAttributesProvider): vscode.Disposable {
+		if (portSelector.portRange === undefined && portSelector.commandPattern === undefined) {
+			this.logService.error('PortAttributesProvider must specify either a portRange or a commandPattern');
+		}
 		const providerHandle = this.nextPortAttributesProviderHandle();
 		this._portAttributesProviders.set(providerHandle, { selector: portSelector, provider });
 
@@ -126,7 +130,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 					providedAttributes = await provider.provider.providePortAttributes({ port, pid, commandLine }, cancellationToken);
 				} catch (e) {
 					// Call with old signature for breaking API change
-					providedAttributes = await (provider.provider.providePortAttributes as any as (port: number, pid: number | undefined, commandLine: string | undefined, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.PortAttributes>)(port, pid, commandLine, cancellationToken);
+					providedAttributes = await (provider.provider.providePortAttributes as unknown as (port: number, pid: number | undefined, commandLine: string | undefined, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.PortAttributes>)(port, pid, commandLine, cancellationToken);
 				}
 				return { providedAttributes, port };
 			}))));
@@ -149,20 +153,25 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			throw new Error('A tunnel provider has already been registered. Only the first tunnel provider to be registered will be used.');
 		}
 		this._forwardPortProvider = async (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
-			const result = await provider.provideTunnel(tunnelOptions, tunnelCreationOptions, new CancellationTokenSource().token);
+			const result = await provider.provideTunnel(tunnelOptions, tunnelCreationOptions, CancellationToken.None);
 			return result ?? undefined;
 		};
 
 		const tunnelFeatures = information.tunnelFeatures ? {
 			elevation: !!information.tunnelFeatures?.elevation,
-			privacyOptions: information.tunnelFeatures?.privacyOptions
+			privacyOptions: information.tunnelFeatures?.privacyOptions,
+			protocol: information.tunnelFeatures.protocol === undefined ? true : information.tunnelFeatures.protocol,
 		} : undefined;
 
-		this._proxy.$setTunnelProvider(tunnelFeatures);
+		this._proxy.$setTunnelProvider(tunnelFeatures, true);
 		return Promise.resolve(toDisposable(() => {
 			this._forwardPortProvider = undefined;
-			this._proxy.$setTunnelProvider(undefined);
+			this._proxy.$setTunnelProvider(undefined, false);
 		}));
+	}
+
+	hasTunnelProvider(): Promise<boolean> {
+		return this._proxy.$hasTunnelProvider();
 	}
 
 	/**
@@ -206,10 +215,11 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				const tunnelFeatures = provider.tunnelFeatures ? {
 					elevation: !!provider.tunnelFeatures?.elevation,
 					public: !!provider.tunnelFeatures?.public,
-					privacyOptions
+					privacyOptions,
+					protocol: true
 				} : undefined;
 
-				this._proxy.$setTunnelProvider(tunnelFeatures);
+				this._proxy.$setTunnelProvider(tunnelFeatures, !!provider.tunnelFactory);
 			}
 		} else {
 			this._forwardPortProvider = undefined;

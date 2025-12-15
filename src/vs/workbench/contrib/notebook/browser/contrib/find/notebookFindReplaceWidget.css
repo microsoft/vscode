@@ -21,7 +21,7 @@
 	border-bottom-right-radius: 4px;
 }
 
-.monaco-workbench.reduce-motion .simple-fr-find-part-wrapper {
+.monaco-workbench.monaco-reduce-motion .simple-fr-find-part-wrapper {
 	transition: top 0ms linear;
 }
 
@@ -60,13 +60,8 @@
 }
 
 .monaco-workbench .simple-fr-find-part-wrapper .find-replace-progress .monaco-progress-container {
-	height: 2px;
 	top: 0px !important;
 	z-index: 100 !important;
-}
-
-.monaco-workbench .simple-fr-find-part-wrapper .find-replace-progress .monaco-progress-container .progress-bit {
-	height: 2px;
 }
 
 .monaco-workbench .simple-fr-find-part-wrapper .monaco-findInput {

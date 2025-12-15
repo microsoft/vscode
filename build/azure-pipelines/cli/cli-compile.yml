@@ -1,0 +1,163 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+  - name: VSCODE_CLI_TARGET
+    type: string
+  - name: VSCODE_CLI_ARTIFACT
+    type: string
+  - name: VSCODE_CLI_ENV
+    type: object
+    default: {}
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
+
+steps:
+  - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
+    - pwsh: Write-Host "##vso[task.setvariable variable=VSCODE_CLI_PRODUCT_JSON]$(Build.SourcesDirectory)/.build/distro/mixin/${{ parameters.VSCODE_QUALITY }}/product.json"
+      displayName: Set product.json path
+  - ${{ else }}:
+    - script: echo "##vso[task.setvariable variable=VSCODE_CLI_PRODUCT_JSON]$(Build.SourcesDirectory)/.build/distro/mixin/${{ parameters.VSCODE_QUALITY }}/product.json"
+      displayName: Set product.json path
+
+  - ${{ if parameters.VSCODE_CHECK_ONLY }}:
+    - script: cargo clippy --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+      displayName: Lint ${{ parameters.VSCODE_CLI_TARGET }}
+      workingDirectory: $(Build.SourcesDirectory)/cli
+      env:
+        CARGO_NET_GIT_FETCH_WITH_CLI: true
+        ${{ each pair in parameters.VSCODE_CLI_ENV }}:
+          ${{ pair.key }}: ${{ pair.value }}
+
+  - ${{ else }}:
+    - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-linux-') }}:
+      - script: |
+          set -e
+          if [ -n "$SYSROOT_ARCH" ]; then
+            export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
+            node -e 'import { getVSCodeSysroot } from "../build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"], process.env["IS_MUSL"] === "1"); })()'
+            if [ "$SYSROOT_ARCH" == "arm64" ]; then
+              if [ -n "$IS_MUSL" ]; then
+                export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$VSCODE_SYSROOT_DIR/output/bin/aarch64-linux-musl-gcc"
+                export CC_aarch64_unknown_linux_musl="$VSCODE_SYSROOT_DIR/output/bin/aarch64-linux-musl-gcc"
+                export CXX_aarch64_unknown_linux_musl="$VSCODE_SYSROOT_DIR/output/bin/aarch64-linux-musl-g++"
+              else
+                export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc"
+                export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+                export CC_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc --sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+                export PKG_CONFIG_LIBDIR_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/lib/aarch64-linux-gnu/pkgconfig:$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/share/pkgconfig"
+                export PKG_CONFIG_SYSROOT_DIR_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+                export OBJDUMP="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/bin/objdump"
+              fi
+            elif [ "$SYSROOT_ARCH" == "amd64" ]; then
+              export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc"
+              export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot -C link-arg=-L$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu"
+              export CC_x86_64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc --sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+              export PKG_CONFIG_LIBDIR_x86_64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu/pkgconfig:$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/share/pkgconfig"
+              export PKG_CONFIG_SYSROOT_DIR_x86_64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+              export OBJDUMP="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/bin/objdump"
+            elif [ "$SYSROOT_ARCH" == "armhf" ]; then
+              export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-gcc"
+              export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
+              export CC_armv7_unknown_linux_gnueabihf="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-gcc --sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
+              export PKG_CONFIG_LIBDIR_armv7_unknown_linux_gnueabihf="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot/usr/lib/arm-rpi-linux-gnueabihf/pkgconfig:$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot/usr/share/pkgconfig"
+              export PKG_CONFIG_SYSROOT_DIR_armv7_unknown_linux_gnueabihf="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
+              export OBJDUMP="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/bin/objdump"
+            fi
+          fi
+
+          cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+
+          # verify glibc requirement
+          if [ -n "$SYSROOT_ARCH" ] && [ -n "$OBJDUMP" ]; then
+            glibc_version="2.28"
+            while IFS= read -r line; do
+              if [[ $line == *"GLIBC_"* ]]; then
+                version=$(echo "$line" | awk '{print $5}' | tr -d '()')
+                version=${version#*_}
+                if [[ $(printf "%s\n%s" "$version" "$glibc_version" | sort -V | tail -n1) == "$version" ]]; then
+                  glibc_version=$version
+                fi
+              fi
+            done < <("$OBJDUMP" -T "$PWD/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code")
+            if [[ "$glibc_version" != "2.28" ]]; then
+              echo "Error: binary has dependency on GLIBC > 2.28, found $glibc_version"
+              exit 1
+            else
+              echo "Maximum GLIBC version is $glibc_version as expected."
+            fi
+          fi
+        displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
+        workingDirectory: $(Build.SourcesDirectory)/cli
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+          VSCODE_CLI_COMMIT: $(Build.SourceVersion)
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          ${{ each pair in parameters.VSCODE_CLI_ENV }}:
+            ${{ pair.key }}: ${{ pair.value }}
+
+    - ${{ else }}:
+      - script: cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+        displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
+        workingDirectory: $(Build.SourcesDirectory)/cli
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+          VSCODE_CLI_COMMIT: $(Build.SourceVersion)
+          ${{ each pair in parameters.VSCODE_CLI_ENV }}:
+            ${{ pair.key }}: ${{ pair.value }}
+
+    - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
+      - task: PublishSymbols@2
+        inputs:
+          IndexSources: false
+          SymbolsFolder: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release
+          SearchPattern: 'code.pdb'
+          SymbolServerType: TeamServices
+          SymbolsProduct: 'code'
+          ArtifactServices.Symbol.AccountName: microsoft
+          ArtifactServices.Symbol.PAT: $(System.AccessToken)
+          ArtifactServices.Symbol.UseAAD: false
+        displayName: Publish Symbols
+
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          $AppProductJson = Get-Content -Raw -Path "$env:VSCODE_CLI_PRODUCT_JSON" | ConvertFrom-Json
+          $env:VSCODE_CLI_APPLICATION_NAME = $AppProductJson.applicationName
+
+          Write-Host "##vso[task.setvariable variable=VSCODE_CLI_APPLICATION_NAME]$env:VSCODE_CLI_APPLICATION_NAME"
+
+          New-Item -ItemType Directory -Force -Path "$(Build.ArtifactStagingDirectory)/cli"
+          Move-Item -Path $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code.exe -Destination "$(Build.ArtifactStagingDirectory)/cli/${env:VSCODE_CLI_APPLICATION_NAME}.exe"
+        displayName: Stage CLI
+
+      - task: ArchiveFiles@2
+        displayName: Archive CLI
+        inputs:
+          rootFolderOrFile: $(Build.ArtifactStagingDirectory)/cli/$(VSCODE_CLI_APPLICATION_NAME).exe
+          includeRootFolder: false
+          archiveType: zip
+          archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
+
+    - ${{ else }}:
+      - script: |
+          set -e
+          VSCODE_CLI_APPLICATION_NAME=$(node -p "require(\"$VSCODE_CLI_PRODUCT_JSON\").applicationName")
+          echo "##vso[task.setvariable variable=VSCODE_CLI_APPLICATION_NAME]$VSCODE_CLI_APPLICATION_NAME"
+
+          mkdir -p $(Build.ArtifactStagingDirectory)/cli
+          mv $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code $(Build.ArtifactStagingDirectory)/cli/$VSCODE_CLI_APPLICATION_NAME
+        displayName: Stage CLI
+
+      - task: ArchiveFiles@2
+        displayName: Archive CLI
+        inputs:
+          rootFolderOrFile: $(Build.ArtifactStagingDirectory)/cli/$(VSCODE_CLI_APPLICATION_NAME)
+          includeRootFolder: false
+          ${{ if contains(parameters.VSCODE_CLI_TARGET, '-darwin') }}:
+            archiveType: zip
+            archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
+          ${{ else }}:
+            archiveType: tar
+            tarCompression: gz
+            archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz

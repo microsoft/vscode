@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
+import { Emitter, Event } from './event.js';
+import { Disposable, IDisposable } from './lifecycle.js';
+import * as nls from '../../nls.js';
 
 export interface ITelemetryData {
 	readonly from?: string;
@@ -17,7 +17,7 @@ export type WorkbenchActionExecutedClassification = {
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run.' };
 	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the component the action was run from.' };
 	detail?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Optional details about how the action was run, e.g which keybinding was used.' };
-	owner: 'bpasero';
+	owner: 'isidorn';
 	comment: 'Provides insight into actions that are executed within the workbench.';
 };
 
@@ -52,10 +52,15 @@ export interface IActionChangeEvent {
 	readonly checked?: boolean;
 }
 
+/**
+ * A concrete implementation of {@link IAction}.
+ *
+ * Note that in most cases you should use the lighter-weight {@linkcode toAction} function instead.
+ */
 export class Action extends Disposable implements IAction {
 
 	protected _onDidChange = this._register(new Emitter<IActionChangeEvent>());
-	readonly onDidChange = this._onDidChange.event;
+	get onDidChange() { return this._onDidChange.event; }
 
 	protected readonly _id: string;
 	protected _label: string;
@@ -168,10 +173,10 @@ export interface IRunEvent {
 export class ActionRunner extends Disposable implements IActionRunner {
 
 	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
-	readonly onWillRun = this._onWillRun.event;
+	get onWillRun() { return this._onWillRun.event; }
 
 	private readonly _onDidRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidRun = this._onDidRun.event;
+	get onDidRun() { return this._onDidRun.event; }
 
 	async run(action: IAction, context?: unknown): Promise<void> {
 		if (!action.enabled) {
@@ -258,14 +263,14 @@ export class EmptySubmenuAction extends Action {
 	}
 }
 
-export function toAction(props: { id: string; label: string; enabled?: boolean; checked?: boolean; run: Function }): IAction {
+export function toAction(props: { id: string; label: string; tooltip?: string; enabled?: boolean; checked?: boolean; class?: string; run: Function }): IAction {
 	return {
 		id: props.id,
 		label: props.label,
-		class: undefined,
+		tooltip: props.tooltip ?? props.label,
+		class: props.class,
 		enabled: props.enabled ?? true,
-		checked: props.checked ?? false,
-		run: async (...args: unknown[]) => props.run(),
-		tooltip: props.label
+		checked: props.checked,
+		run: async (...args: unknown[]) => props.run(...args),
 	};
 }

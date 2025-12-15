@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOMPurify from 'dompurify';
+import DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
 import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
@@ -135,9 +135,9 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		linkify: true,
 		highlight: (str: string, lang?: string) => {
 			if (lang) {
-				return `<code class="vscode-code-block" data-vscode-code-block-lang="${markdownIt.utils.escapeHtml(lang)}">${markdownIt.utils.escapeHtml(str)}</code>`;
+				return `<div class="vscode-code-block" data-vscode-code-block-lang="${markdownIt.utils.escapeHtml(lang)}">${markdownIt.utils.escapeHtml(str)}</div>`;
 			}
-			return `<code>${markdownIt.utils.escapeHtml(str)}</code>`;
+			return markdownIt.utils.escapeHtml(str);
 		}
 	});
 	markdownIt.linkify.set({ fuzzyLink: false });
@@ -281,6 +281,16 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		pre code {
 			line-height: 1.357em;
 			white-space: pre-wrap;
+			padding: 0;
+		}
+
+		li p {
+			margin-bottom: 0.7em;
+		}
+
+		ul,
+		ol {
+			margin-bottom: 0.7em;
 		}
 	`;
 	const template = document.createElement('template');
@@ -332,7 +342,11 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
-			f(markdownIt);
+			try {
+				f(markdownIt);
+			} catch (err) {
+				console.error('Error extending markdown-it', err);
+			}
 		}
 	};
 };
@@ -366,6 +380,7 @@ function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
 	const originalRender = md.render;
 	md.render = function () {
 		slugCounter.clear();
+		// eslint-disable-next-line local/code-no-any-casts
 		return originalRender.apply(this, arguments as any);
 	};
 }

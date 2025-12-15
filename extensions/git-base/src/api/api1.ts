@@ -14,7 +14,7 @@ export class ApiImpl implements API {
 	constructor(private _model: Model) { }
 
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<PickRemoteSourceResult | string | undefined> {
-		return pickRemoteSource(this._model, options as any);
+		return pickRemoteSource(this._model, options);
 	}
 
 	getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]> {
@@ -30,11 +30,11 @@ export function registerAPICommands(extension: GitBaseExtensionImpl): Disposable
 	const disposables: Disposable[] = [];
 
 	disposables.push(commands.registerCommand('git-base.api.getRemoteSources', (opts?: PickRemoteSourceOptions) => {
-		if (!extension.model) {
+		if (!extension.model || !opts) {
 			return;
 		}
 
-		return pickRemoteSource(extension.model, opts as any);
+		return pickRemoteSource(extension.model, opts);
 	}));
 
 	return Disposable.from(...disposables);

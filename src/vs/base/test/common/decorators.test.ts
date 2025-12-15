@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { memoize, throttle } from 'vs/base/common/decorators';
+import { memoize, throttle } from '../../common/decorators.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Decorators', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('memoize should memoize methods', () => {
 		class Foo {
 			count = 0;
@@ -124,6 +127,7 @@ suite('Decorators', () => {
 		assert.strictEqual(foo.answer, 42);
 
 		try {
+			// eslint-disable-next-line local/code-no-any-casts
 			(foo as any)['$memoize$answer'] = 1337;
 			assert(false);
 		} catch (e) {

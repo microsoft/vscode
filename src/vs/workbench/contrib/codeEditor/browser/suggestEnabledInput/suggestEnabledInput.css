@@ -26,5 +26,5 @@
 
 .suggest-input-container .monaco-editor,
 .suggest-input-container .monaco-editor .lines-content {
-	background: none;
+	background: none !important;
 }

@@ -1,0 +1,21 @@
+		for (extendToBottom = 0; extendToBottom < linesBelow; extendToBottom++) {
+			const origLine = move.original.endLineNumberExclusive + extendToBottom;
+			const modLine = move.modified.endLineNumberExclusive + extendToBottom;
+			if (origLine > originalLines.length || modLine > modifiedLines.length) {
+				break;
+			}
+			if (modifiedSet.contains(modLine) || originalSet.contains(origLine)) {
+				break;
+			}
+			if (!areLinesSimilar(originalLines[origLine - 1], modifiedLines[modLine - 1], timeout)) {
+				break;
+			}
+			if (originalLines[origLine - 1].trim().length !== 0) {
+				extendToBottomWithoutEmptyLines = extendToBottom + 1;
+			}
+		}
+
+		if (extendToBottomWithoutEmptyLines > 0) {
+			originalSet.addRange(new LineRange(move.original.endLineNumberExclusive, move.original.endLineNumberExclusive + extendToBottomWithoutEmptyLines));
+			modifiedSet.addRange(new LineRange(move.modified.endLineNumberExclusive, move.modified.endLineNumberExclusive + extendToBottomWithoutEmptyLines));
+		}

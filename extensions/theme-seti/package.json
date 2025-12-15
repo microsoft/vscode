@@ -13,6 +13,7 @@
   "engines": {
     "vscode": "*"
   },
+  "categories": ["Themes"],
   "contributes": {
     "iconThemes": [
       {

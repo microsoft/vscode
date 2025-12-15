@@ -4,33 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import { Emitter, Event } from 'vs/base/common/event';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
-import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IPtyHostService, IShellLaunchConfig, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
-import { CLIServerBase, ICommandsExecuter } from 'vs/workbench/api/node/extHostCLIServer';
-import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
-import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IWorkspaceFolderData, RemoteTerminalChannelEvent, RemoteTerminalChannelRequest } from 'vs/workbench/contrib/terminal/common/remote/terminal';
-import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { buildUserEnvironment } from 'vs/server/node/extensionHostConnection';
-import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
+import { Emitter, Event } from '../../base/common/event.js';
+import { cloneAndChange } from '../../base/common/objects.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import * as path from '../../base/common/path.js';
+import * as platform from '../../base/common/platform.js';
+import { URI } from '../../base/common/uri.js';
+import { IURITransformer } from '../../base/common/uriIpc.js';
+import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
+import { createRandomIPCHandle } from '../../base/parts/ipc/node/ipc.net.js';
+import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
+import { IPtyHostService, IShellLaunchConfig, ITerminalProfile } from '../../platform/terminal/common/terminal.js';
+import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from '../../platform/terminal/common/terminalProcess.js';
+import { IWorkspaceFolder } from '../../platform/workspace/common/workspace.js';
+import { createURITransformer } from '../../base/common/uriTransformer.js';
+import { CLIServerBase, ICommandsExecuter } from '../../workbench/api/node/extHostCLIServer.js';
+import { IEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariable.js';
+import { MergedEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariableCollection.js';
+import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariableShared.js';
+import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IWorkspaceFolderData, RemoteTerminalChannelEvent, RemoteTerminalChannelRequest } from '../../workbench/contrib/terminal/common/remote/terminal.js';
+import * as terminalEnvironment from '../../workbench/contrib/terminal/common/terminalEnvironment.js';
+import { AbstractVariableResolverService } from '../../workbench/services/configurationResolver/common/variableResolver.js';
+import { buildUserEnvironment } from './extensionHostConnection.js';
+import { IServerEnvironmentService } from './serverEnvironmentService.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { IExtensionManagementService } from '../../platform/extensionManagement/common/extensionManagement.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { promiseWithResolvers } from '../../base/common/async.js';
+import { shouldUseEnvironmentVariableCollection } from '../../platform/terminal/common/terminalEnvironment.js';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -72,6 +74,9 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 			getLineNumber: (): string | undefined => {
 				return resolvedVariables['lineNumber'];
 			},
+			getColumnNumber: (): string | undefined => {
+				return resolvedVariables['columnNumber'];
+			},
 			getExtension: async id => {
 				const installed = await extensionService.getInstalled();
 				const found = installed.find(e => e.identifier.id === id);
@@ -85,12 +90,12 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 
 	private _lastReqId = 0;
 	private readonly _pendingCommands = new Map<number, {
-		resolve: (data: any) => void;
-		reject: (err: any) => void;
+		resolve: (value: unknown) => void;
+		reject: (err?: unknown) => void;
 		uriTransformer: IURITransformer;
 	}>();
 
-	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }>());
+	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: unknown[] }>());
 	readonly onExecuteCommand = this._onExecuteCommand.event;
 
 	constructor(
@@ -104,6 +109,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		super();
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async call(ctx: RemoteAgentConnectionContext, command: RemoteTerminalChannelRequest, args?: any): Promise<any> {
 		switch (command) {
 			case RemoteTerminalChannelRequest.RestartPtyHost: return this._ptyHostService.restartPtyHost.apply(this._ptyHostService, args);
@@ -123,6 +129,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 
 			case RemoteTerminalChannelRequest.Start: return this._ptyHostService.start.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.Input: return this._ptyHostService.input.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.SendSignal: return this._ptyHostService.sendSignal.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.AcknowledgeDataEvent: return this._ptyHostService.acknowledgeDataEvent.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.Shutdown: return this._ptyHostService.shutdown.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.Resize: return this._ptyHostService.resize.apply(this._ptyHostService, args);
@@ -145,6 +152,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case RemoteTerminalChannelRequest.ReviveTerminalProcesses: return this._ptyHostService.reviveTerminalProcesses.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.GetRevivedPtyNewId: return this._ptyHostService.getRevivedPtyNewId.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.SetUnicodeVersion: return this._ptyHostService.setUnicodeVersion.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.SetNextCommandId: return this._ptyHostService.setNextCommandId.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.ReduceConnectionGraceTime: return this._reduceConnectionGraceTime();
 			case RemoteTerminalChannelRequest.UpdateIcon: return this._ptyHostService.updateIcon.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.UpdateTitle: return this._ptyHostService.updateTitle.apply(this._ptyHostService, args);
@@ -160,21 +168,21 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		throw new Error(`IPC Command ${command} not found`);
 	}
 
-	listen(_: any, event: RemoteTerminalChannelEvent, arg: any): Event<any> {
+	listen<T>(_: unknown, event: RemoteTerminalChannelEvent, _arg: unknown): Event<T> {
 		switch (event) {
-			case RemoteTerminalChannelEvent.OnPtyHostExitEvent: return this._ptyHostService.onPtyHostExit || Event.None;
-			case RemoteTerminalChannelEvent.OnPtyHostStartEvent: return this._ptyHostService.onPtyHostStart || Event.None;
-			case RemoteTerminalChannelEvent.OnPtyHostUnresponsiveEvent: return this._ptyHostService.onPtyHostUnresponsive || Event.None;
-			case RemoteTerminalChannelEvent.OnPtyHostResponsiveEvent: return this._ptyHostService.onPtyHostResponsive || Event.None;
-			case RemoteTerminalChannelEvent.OnPtyHostRequestResolveVariablesEvent: return this._ptyHostService.onPtyHostRequestResolveVariables || Event.None;
-			case RemoteTerminalChannelEvent.OnProcessDataEvent: return this._ptyHostService.onProcessData;
-			case RemoteTerminalChannelEvent.OnProcessReadyEvent: return this._ptyHostService.onProcessReady;
-			case RemoteTerminalChannelEvent.OnProcessExitEvent: return this._ptyHostService.onProcessExit;
-			case RemoteTerminalChannelEvent.OnProcessReplayEvent: return this._ptyHostService.onProcessReplay;
-			case RemoteTerminalChannelEvent.OnProcessOrphanQuestion: return this._ptyHostService.onProcessOrphanQuestion;
-			case RemoteTerminalChannelEvent.OnExecuteCommand: return this.onExecuteCommand;
-			case RemoteTerminalChannelEvent.OnDidRequestDetach: return this._ptyHostService.onDidRequestDetach || Event.None;
-			case RemoteTerminalChannelEvent.OnDidChangeProperty: return this._ptyHostService.onDidChangeProperty;
+			case RemoteTerminalChannelEvent.OnPtyHostExitEvent: return (this._ptyHostService.onPtyHostExit || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnPtyHostStartEvent: return (this._ptyHostService.onPtyHostStart || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnPtyHostUnresponsiveEvent: return (this._ptyHostService.onPtyHostUnresponsive || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnPtyHostResponsiveEvent: return (this._ptyHostService.onPtyHostResponsive || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnPtyHostRequestResolveVariablesEvent: return (this._ptyHostService.onPtyHostRequestResolveVariables || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnProcessDataEvent: return (this._ptyHostService.onProcessData) as Event<T>;
+			case RemoteTerminalChannelEvent.OnProcessReadyEvent: return (this._ptyHostService.onProcessReady) as Event<T>;
+			case RemoteTerminalChannelEvent.OnProcessExitEvent: return (this._ptyHostService.onProcessExit) as Event<T>;
+			case RemoteTerminalChannelEvent.OnProcessReplayEvent: return (this._ptyHostService.onProcessReplay) as Event<T>;
+			case RemoteTerminalChannelEvent.OnProcessOrphanQuestion: return (this._ptyHostService.onProcessOrphanQuestion) as Event<T>;
+			case RemoteTerminalChannelEvent.OnExecuteCommand: return (this.onExecuteCommand) as Event<T>;
+			case RemoteTerminalChannelEvent.OnDidRequestDetach: return (this._ptyHostService.onDidRequestDetach || Event.None) as Event<T>;
+			case RemoteTerminalChannelEvent.OnDidChangeProperty: return (this._ptyHostService.onDidChangeProperty) as Event<T>;
 		}
 
 		// @ts-expect-error Assert event is the `never` type to ensure all messages are handled
@@ -195,7 +203,9 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment,
 			reconnectionProperties: args.shellLaunchConfig.reconnectionProperties,
 			type: args.shellLaunchConfig.type,
-			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal
+			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal,
+			tabActions: args.shellLaunchConfig.tabActions,
+			shellIntegrationEnvironmentReporting: args.shellLaunchConfig.shellIntegrationEnvironmentReporting,
 		};
 
 
@@ -234,7 +244,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		);
 
 		// Apply extension environment variable collections to the environment
-		if (!shellLaunchConfig.strictEnv) {
+		if (shouldUseEnvironmentVariableCollection(shellLaunchConfig)) {
 			const entries: [string, IEnvironmentVariableCollection][] = [];
 			for (const [k, v, d] of args.envVariableCollections) {
 				entries.push([k, { map: deserializeEnvironmentVariableCollection(v), descriptionMap: deserializeEnvironmentDescriptionMap(d) }]);
@@ -254,7 +264,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 
 		const persistentProcessId = await this._ptyHostService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
 		const commandsExecuter: ICommandsExecuter = {
-			executeCommand: <T>(id: string, ...args: any[]): Promise<T> => this._executeCommand(persistentProcessId, id, args, uriTransformer)
+			executeCommand: <T>(id: string, ...args: unknown[]): Promise<T> => this._executeCommand(persistentProcessId, id, args, uriTransformer)
 		};
 		const cliServer = new CLIServerBase(commandsExecuter, this._logService, ipcHandlePath);
 		this._ptyHostService.onProcessExit(e => e.id === persistentProcessId && cliServer.dispose());
@@ -265,16 +275,11 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		};
 	}
 
-	private _executeCommand<T>(persistentProcessId: number, commandId: string, commandArgs: any[], uriTransformer: IURITransformer): Promise<T> {
-		let resolve!: (data: any) => void;
-		let reject!: (err: any) => void;
-		const result = new Promise<T>((_resolve, _reject) => {
-			resolve = _resolve;
-			reject = _reject;
-		});
+	private _executeCommand<T>(persistentProcessId: number, commandId: string, commandArgs: unknown[], uriTransformer: IURITransformer): Promise<T> {
+		const { resolve, reject, promise } = promiseWithResolvers<T>();
 
 		const reqId = ++this._lastReqId;
-		this._pendingCommands.set(reqId, { resolve, reject, uriTransformer });
+		this._pendingCommands.set(reqId, { resolve: resolve as (value: unknown) => void, reject, uriTransformer });
 
 		const serializedCommandArgs = cloneAndChange(commandArgs, (obj) => {
 			if (obj && obj.$mid === 1) {
@@ -293,10 +298,10 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			commandArgs: serializedCommandArgs
 		});
 
-		return result;
+		return promise;
 	}
 
-	private _sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
+	private _sendCommandResult(reqId: number, isError: boolean, serializedPayload: unknown): void {
 		const data = this._pendingCommands.get(reqId);
 		if (!data) {
 			return;

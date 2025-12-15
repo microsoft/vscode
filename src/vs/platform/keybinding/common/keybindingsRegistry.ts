@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeKeybinding, Keybinding } from 'vs/base/common/keybindings';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
+import { decodeKeybinding, Keybinding } from '../../../base/common/keybindings.js';
+import { OperatingSystem, OS } from '../../../base/common/platform.js';
+import { CommandsRegistry, ICommandHandler, ICommandMetadata } from '../../commands/common/commands.js';
+import { ContextKeyExpression } from '../../contextkey/common/contextkey.js';
+import { Registry } from '../../registry/common/platform.js';
+import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
 
 export interface IKeybindingItem {
 	keybinding: Keybinding | null;
@@ -43,6 +43,9 @@ export interface IKeybindingRule extends IKeybindings {
 	id: string;
 	weight: number;
 	args?: any;
+	/**
+	 * Keybinding is disabled if expression returns false.
+	 */
 	when?: ContextKeyExpression | null | undefined;
 }
 
@@ -64,15 +67,15 @@ export const enum KeybindingWeight {
 	ExternalExtension = 400
 }
 
-export interface ICommandAndKeybindingRule extends IKeybindingRule {
-	handler: ICommandHandler;
-	description?: ICommandHandlerDescription | null;
+export interface ICommandAndKeybindingRule<Args extends unknown[] = unknown[]> extends IKeybindingRule {
+	handler: ICommandHandler<Args>;
+	metadata?: ICommandMetadata | null;
 }
 
 export interface IKeybindingsRegistry {
 	registerKeybindingRule(rule: IKeybindingRule): IDisposable;
 	setExtensionKeybindings(rules: IExtensionKeybindingRule[]): void;
-	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): IDisposable;
+	registerCommandAndKeybindingRule<Args extends unknown[] = unknown[]>(desc: ICommandAndKeybindingRule<Args>): IDisposable;
 	getDefaultKeybindings(): IKeybindingItem[];
 }
 

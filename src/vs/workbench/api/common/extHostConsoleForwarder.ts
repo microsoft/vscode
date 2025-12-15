@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStackArgument } from 'vs/base/common/console';
-import { safeStringify } from 'vs/base/common/objects';
-import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IStackArgument } from '../../../base/common/console.js';
+import { safeStringify } from '../../../base/common/objects.js';
+import { MainContext, MainThreadConsoleShape } from './extHost.protocol.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
 
 export abstract class AbstractExtHostConsoleForwarder {
 
@@ -27,6 +27,7 @@ export abstract class AbstractExtHostConsoleForwarder {
 		this._wrapConsoleMethod('info', 'log');
 		this._wrapConsoleMethod('log', 'log');
 		this._wrapConsoleMethod('warn', 'warn');
+		this._wrapConsoleMethod('debug', 'debug');
 		this._wrapConsoleMethod('error', 'error');
 	}
 
@@ -39,7 +40,7 @@ export abstract class AbstractExtHostConsoleForwarder {
 	 * The wrapped property is not defined with `writable: false` to avoid
 	 * throwing errors, but rather a no-op setting. See https://github.com/microsoft/vscode-extension-telemetry/issues/88
 	 */
-	private _wrapConsoleMethod(method: 'log' | 'info' | 'warn' | 'error', severity: 'log' | 'warn' | 'error') {
+	private _wrapConsoleMethod(method: 'log' | 'info' | 'warn' | 'error' | 'debug', severity: 'log' | 'warn' | 'error' | 'debug') {
 		const that = this;
 		const original = console[method];
 
@@ -51,7 +52,7 @@ export abstract class AbstractExtHostConsoleForwarder {
 		});
 	}
 
-	private _handleConsoleCall(method: 'log' | 'info' | 'warn' | 'error', severity: 'log' | 'warn' | 'error', original: (...args: any[]) => void, args: IArguments): void {
+	private _handleConsoleCall(method: 'log' | 'info' | 'warn' | 'error' | 'debug', severity: 'log' | 'warn' | 'error' | 'debug', original: (...args: any[]) => void, args: IArguments): void {
 		this._mainThreadConsole.$logExtensionHostMessage({
 			type: '__$console',
 			severity,
@@ -62,7 +63,7 @@ export abstract class AbstractExtHostConsoleForwarder {
 		}
 	}
 
-	protected abstract _nativeConsoleLogMessage(method: 'log' | 'info' | 'warn' | 'error', original: (...args: any[]) => void, args: IArguments): void;
+	protected abstract _nativeConsoleLogMessage(method: 'log' | 'info' | 'warn' | 'error' | 'debug', original: (...args: any[]) => void, args: IArguments): void;
 
 }
 
@@ -106,7 +107,7 @@ function safeStringifyArgumentsToArray(args: IArguments, includeStack: boolean):
 	if (includeStack) {
 		const stack = new Error().stack;
 		if (stack) {
-			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') } as IStackArgument);
+			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') } satisfies IStackArgument);
 		}
 	}
 

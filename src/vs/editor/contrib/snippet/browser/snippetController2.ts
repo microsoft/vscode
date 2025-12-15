@@ -3,27 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
-import { localize } from 'vs/nls';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ISnippetEdit, SnippetSession } from './snippetSession';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { assertType } from '../../../../base/common/types.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider } from '../../../common/languages.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { Choice } from './snippetParser.js';
+import { showSimpleSuggestions } from '../../suggest/browser/suggest.js';
+import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCapturer.js';
+import { localize } from '../../../../nls.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ISnippetEdit, SnippetSession } from './snippetSession.js';
+import { TextModelEditSource } from '../../../common/textModelEditSource.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;
@@ -33,6 +35,7 @@ export interface ISnippetInsertOptions {
 	undoStopAfter: boolean;
 	clipboardText: string | undefined;
 	overtypingCapturer: OvertypingCapturer | undefined;
+	reason?: TextModelEditSource;
 }
 
 const _defaultOptions: ISnippetInsertOptions = {
@@ -58,11 +61,12 @@ export class SnippetController2 implements IEditorContribution {
 	static readonly HasPrevTabstop = new RawContextKey('hasPrevTabstop', false, localize('hasPrevTabstop', "Whether there is a previous tab stop when in snippet mode"));
 
 	private readonly _inSnippet: IContextKey<boolean>;
+	private readonly _inSnippetObservable = observableValue(this, false);
 	private readonly _hasNextTabstop: IContextKey<boolean>;
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
 	private _session?: SnippetSession;
-	private _snippetListener = new DisposableStore();
+	private readonly _snippetListener = new DisposableStore();
 	private _modelVersionId: number = -1;
 	private _currentChoice?: Choice;
 
@@ -82,6 +86,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	dispose(): void {
 		this._inSnippet.reset();
+		this._inSnippetObservable.set(false, undefined);
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
 		this._session?.dispose();
@@ -122,7 +127,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	private _doInsert(
 		template: string | ISnippetEdit[],
-		opts: ISnippetInsertOptions
+		opts: ISnippetInsertOptions,
 	): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -144,7 +149,7 @@ export class SnippetController2 implements IEditorContribution {
 		if (!this._session) {
 			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
 			this._session = new SnippetSession(this._editor, template, opts, this._languageConfigurationService);
-			this._session.insert();
+			this._session.insert(opts.reason);
 		} else {
 			assertType(typeof template === 'string');
 			this._session.merge(template, opts);
@@ -242,6 +247,7 @@ export class SnippetController2 implements IEditorContribution {
 		}
 
 		this._inSnippet.set(true);
+		this._inSnippetObservable.set(true, undefined);
 		this._hasPrevTabstop.set(!this._session.isAtFirstPlaceholder);
 		this._hasNextTabstop.set(!this._session.isAtLastPlaceholder);
 
@@ -281,6 +287,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	cancel(resetSelection: boolean = false): void {
 		this._inSnippet.reset();
+		this._inSnippetObservable.set(false, undefined);
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
 		this._snippetListener.clear();
@@ -312,6 +319,10 @@ export class SnippetController2 implements IEditorContribution {
 		return Boolean(this._inSnippet.get());
 	}
 
+	get isInSnippetObservable(): IObservable<boolean> {
+		return this._inSnippetObservable;
+	}
+
 	getSessionEnclosingRange(): Range | undefined {
 		if (this._session) {
 			return this._session.getEnclosingRange();
@@ -331,7 +342,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.next(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.Tab
 	}
 }));
@@ -341,7 +352,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.prev(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
 }));
@@ -351,7 +362,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.cancel(true),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}

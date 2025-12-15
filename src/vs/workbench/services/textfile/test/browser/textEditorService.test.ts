@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IResourceDiffEditorInput, IResourceSideBySideEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, registerTestResourceEditor, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { isLinux } from 'vs/base/common/platform';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { IResourceDiffEditorInput, IResourceSideBySideEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput } from '../../../../common/editor.js';
+import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, registerTestResourceEditor, registerTestSideBySideEditor } from '../../../../test/browser/workbenchTestServices.js';
+import { TextResourceEditorInput } from '../../../../common/editor/textResourceEditorInput.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { FileEditorInput } from '../../../../contrib/files/browser/editors/fileEditorInput.js';
+import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { UntitledTextEditorModel } from '../../../untitled/common/untitledTextEditorModel.js';
+import { NullFileSystemProvider } from '../../../../../platform/files/test/common/nullFileSystemProvider.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { isLinux } from '../../../../../base/common/platform.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
+import { ITextFileEditorModel } from '../../common/textfiles.js';
+import { TextEditorService } from '../../common/textEditorService.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 
 suite('TextEditorService', () => {
 
@@ -129,14 +129,14 @@ suite('TextEditorService', () => {
 		// Untyped Input (untitled with file path)
 		input = disposables.add(service.createTextEditor({ resource: URI.file('/some/path.txt'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } }));
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
+		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		// Untyped Input (untitled with untitled resource)
 		untypedInput = { resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } };
 		assert.ok(isUntitledResourceEditorInput(untypedInput));
 		input = disposables.add(service.createTextEditor(untypedInput));
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok(!(input as UntitledTextEditorInput).model.hasAssociatedFilePath);
+		assert.ok(!(input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		// Untyped input (untitled with custom resource, but forceUntitled)
 		untypedInput = { resource: URI.file('/fake'), forceUntitled: true };
@@ -149,7 +149,7 @@ suite('TextEditorService', () => {
 
 		input = disposables.add(service.createTextEditor({ resource: URI.parse('untitled-custom://some/path'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } }));
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
+		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		provider.dispose();
 

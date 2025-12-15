@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/browser/findModel';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CoreNavigationCommands } from '../../../../browser/coreCommands.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { PieceTreeTextBufferBuilder } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
+import { FindModelBoundToEditorModel } from '../../browser/findModel.js';
+import { FindReplaceState } from '../../browser/findState.js';
+import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
 suite('FindModel', () => {
 
@@ -1643,7 +1643,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		editor!.getModel()!.setValue('hello\nhi');
+		editor.getModel()!.setValue('hello\nhi');
 		assertFindState(
 			editor,
 			[1, 1, 1, 1],
@@ -1674,7 +1674,7 @@ suite('FindModel', () => {
 
 		findModel.selectAllMatches();
 
-		assert.deepStrictEqual(editor!.getSelections()!.map(s => s.toString()), [
+		assert.deepStrictEqual(editor.getSelections()!.map(s => s.toString()), [
 			new Selection(6, 14, 6, 19),
 			new Selection(6, 27, 6, 32),
 			new Selection(7, 14, 7, 19),
@@ -1718,14 +1718,14 @@ suite('FindModel', () => {
 
 		findModel.selectAllMatches();
 
-		assert.deepStrictEqual(editor!.getSelections()!.map(s => s.toString()), [
+		assert.deepStrictEqual(editor.getSelections()!.map(s => s.toString()), [
 			new Selection(7, 14, 7, 19),
 			new Selection(6, 14, 6, 19),
 			new Selection(6, 27, 6, 32),
 			new Selection(8, 14, 8, 19)
 		].map(s => s.toString()));
 
-		assert.deepStrictEqual(editor!.getSelection()!.toString(), new Selection(7, 14, 7, 19).toString());
+		assert.deepStrictEqual(editor.getSelection()!.toString(), new Selection(7, 14, 7, 19).toString());
 
 		assertFindState(
 			editor,
@@ -2156,7 +2156,7 @@ suite('FindModel', () => {
 		for (let i = 0; i < 1100; i++) {
 			initialText += 'line' + i + '\n';
 		}
-		editor!.getModel()!.setValue(initialText);
+		editor.getModel()!.setValue(initialText);
 		const findState = disposables.add(new FindReplaceState());
 		findState.change({ searchString: '^', replaceString: 'a ', isRegex: true }, false);
 		const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
@@ -2168,7 +2168,7 @@ suite('FindModel', () => {
 			expectedText += 'a line' + i + '\n';
 		}
 		expectedText += 'a ';
-		assert.strictEqual(editor!.getModel()!.getValue(), expectedText);
+		assert.strictEqual(editor.getModel()!.getValue(), expectedText);
 
 		findModel.dispose();
 		findState.dispose();

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import * as languages from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ViewLineData } from 'vs/editor/common/viewModel';
-import { IModelLineProjection, ISimpleModel, createModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
-import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import * as languages from '../../../common/languages.js';
+import { NullState } from '../../../common/languages/nullTokenize.js';
+import { EndOfLinePreference } from '../../../common/model.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
+import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
+import { ViewLineData } from '../../../common/viewModel.js';
+import { IModelLineProjection, ISimpleModel, createModelLineProjection } from '../../../common/viewModel/modelLineProjection.js';
+import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
+import { ViewModelLinesFromProjectedModel } from '../../../common/viewModel/viewModelLines.js';
+import { TestConfiguration } from '../config/testConfiguration.js';
+import { createTextModel } from '../../common/testTextModel.js';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 
@@ -101,16 +101,10 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
 		const wordBreak = config.options.get(EditorOption.wordBreak);
+		const wrapOnEscapedLineFeeds = config.options.get(EditorOption.wrapOnEscapedLineFeeds);
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
-		const model = createTextModel([
-			'int main() {',
-			'\tprintf("Hello world!");',
-			'}',
-			'int main() {',
-			'\tprintf("Hello world!");',
-			'}',
-		].join('\n'));
+		const model = createTextModel(text);
 
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
@@ -122,7 +116,8 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			'simple',
 			wrappingInfo.wrappingColumn,
 			wrappingIndent,
-			wordBreak
+			wordBreak,
+			wrapOnEscapedLineFeeds
 		);
 
 		callback(model, linesCollection);
@@ -439,7 +434,7 @@ suite('SplitLinesCollection', () => {
 	}
 
 	test('getViewLinesData - no wrapping', () => {
-		withSplitLinesCollection(model, 'off', 0, (splitLinesCollection) => {
+		withSplitLinesCollection(model, 'off', 0, false, (splitLinesCollection) => {
 			assert.strictEqual(splitLinesCollection.getViewLineCount(), 8);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), true);
@@ -573,7 +568,7 @@ suite('SplitLinesCollection', () => {
 	});
 
 	test('getViewLinesData - with wrapping', () => {
-		withSplitLinesCollection(model, 'wordWrapColumn', 30, (splitLinesCollection) => {
+		withSplitLinesCollection(model, 'wordWrapColumn', 30, false, (splitLinesCollection) => {
 			assert.strictEqual(splitLinesCollection.getViewLineCount(), 12);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), true);
@@ -758,7 +753,7 @@ suite('SplitLinesCollection', () => {
 			}
 		}]);
 
-		withSplitLinesCollection(model, 'wordWrapColumn', 30, (splitLinesCollection) => {
+		withSplitLinesCollection(model, 'wordWrapColumn', 30, false, (splitLinesCollection) => {
 			assert.strictEqual(splitLinesCollection.getViewLineCount(), 14);
 
 			assert.strictEqual(splitLinesCollection.getViewLineMaxColumn(1), 24);
@@ -944,7 +939,7 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
-	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: ViewModelLinesFromProjectedModel) => void): void {
+	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, wrapOnEscapedLineFeeds: boolean, callback: (splitLinesCollection: ViewModelLinesFromProjectedModel) => void): void {
 		const configuration = new TestConfiguration({
 			wordWrap: wordWrap,
 			wordWrapColumn: wordWrapColumn,
@@ -969,7 +964,8 @@ suite('SplitLinesCollection', () => {
 			'simple',
 			wrappingInfo.wrappingColumn,
 			wrappingIndent,
-			wordBreak
+			wordBreak,
+			wrapOnEscapedLineFeeds
 		);
 
 		callback(linesCollection);

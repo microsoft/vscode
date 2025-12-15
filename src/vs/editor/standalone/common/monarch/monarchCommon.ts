@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+
 /*
  * This module exports common types and functionality shared between
  * the Monarch compiler that compiles JSON to ILexer, and the Monarch
@@ -68,16 +70,17 @@ export function isIAction(what: FuzzyAction): what is IAction {
 }
 
 export interface IRule {
-	regex: RegExp;
 	action: FuzzyAction;
 	matchOnlyAtLineStart: boolean;
 	name: string;
+	resolveRegex(state: string): RegExp;
 }
 
 export interface IAction {
 	// an action is either a group of actions
 	group?: FuzzyAction[];
 
+	hasEmbeddedEndInCases?: boolean;
 	// or a function that returns a fresh action
 	test?: (id: string, matches: string[], state: string, eos: boolean) => FuzzyAction;
 
@@ -170,6 +173,26 @@ export function substituteMatches(lexer: ILexerMin, str: string, id: string, mat
 		}
 		if (!empty(s) && s < stateMatches.length) {
 			return fixCase(lexer, stateMatches[s]); //$Sn
+		}
+		return '';
+	});
+}
+
+/**
+ * substituteMatchesRe is used on lexer regex rules and can substitutes predefined patterns:
+ * 		$Sn => n'th part of state
+ *
+ */
+export function substituteMatchesRe(lexer: ILexerMin, str: string, state: string): string {
+	const re = /\$[sS](\d\d?)/g;
+	let stateMatches: string[] | null = null;
+	return str.replace(re, function (full, s) {
+		if (stateMatches === null) { // split state on demand
+			stateMatches = state.split('.');
+			stateMatches.unshift(state);
+		}
+		if (!empty(s) && s < stateMatches.length) {
+			return escapeRegExpCharacters(fixCase(lexer, stateMatches[s])); //$Sn
 		}
 		return '';
 	});

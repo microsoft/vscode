@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Lazy } from 'vs/base/common/lazy';
+import assert from 'assert';
+import { Lazy } from '../../common/lazy.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Lazy', () => {
 
@@ -27,4 +28,12 @@ suite('Lazy', () => {
 		assert.strictEqual(value.hasValue, true);
 		assert.throws(() => value.value, /\b1\b/);
 	});
+
+	test('Should throw when accessing lazy value in initializer', () => {
+		const value = new Lazy<string>((): string => { return value.value; });
+
+		assert.throws(() => value.value, /Cannot read the value of a lazy that is being initialized/);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

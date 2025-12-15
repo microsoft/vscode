@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
-import { computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { FoldingMarkers } from '../../../../common/languages/languageConfiguration.js';
+import { computeRanges } from '../../browser/indentRangeProvider.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
 
 interface ExpectedIndentRange {
 	startLineNumber: number;
@@ -31,6 +32,7 @@ function r(startLineNumber: number, endLineNumber: number, parentIndex: number, 
 }
 
 suite('Indentation Folding', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('Fold one level', () => {
 		const range = [
 			'A',
@@ -151,6 +153,7 @@ const markers: FoldingMarkers = {
 };
 
 suite('Folding with regions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('Inside region, indented', () => {
 		assertRanges([
 		/* 1*/	'class A {',

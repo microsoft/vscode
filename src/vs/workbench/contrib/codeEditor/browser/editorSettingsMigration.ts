@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorSettingMigration, ISettingsWriter } from 'vs/editor/browser/config/migrateOptions';
-import { ConfigurationKeyValuePairs, Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorSettingMigration, ISettingsWriter } from '../../../../editor/browser/config/migrateOptions.js';
+import { ConfigurationKeyValuePairs, Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations(EditorSettingMigration.items.map(item => ({

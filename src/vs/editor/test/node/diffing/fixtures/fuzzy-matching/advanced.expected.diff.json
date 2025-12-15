@@ -17,32 +17,32 @@
 					"modifiedRange": "[1,1 -> 1,1]"
 				},
 				{
-					"originalRange": "[2,15 -> 2,15]",
-					"modifiedRange": "[1,15 -> 1,16]"
+					"originalRange": "[2,15 -> 2,15 EOL]",
+					"modifiedRange": "[1,15 -> 1,16 EOL]"
 				},
 				{
-					"originalRange": "[3,15 -> 3,15]",
-					"modifiedRange": "[2,15 -> 2,16]"
+					"originalRange": "[3,15 -> 3,15 EOL]",
+					"modifiedRange": "[2,15 -> 2,16 EOL]"
 				},
 				{
-					"originalRange": "[4,15 -> 4,15]",
-					"modifiedRange": "[3,15 -> 3,16]"
+					"originalRange": "[4,15 -> 4,15 EOL]",
+					"modifiedRange": "[3,15 -> 3,16 EOL]"
 				},
 				{
-					"originalRange": "[5,15 -> 5,15]",
-					"modifiedRange": "[4,15 -> 5,1]"
+					"originalRange": "[5,15 -> 5,15 EOL]",
+					"modifiedRange": "[4,15 -> 5,1 EOL]"
 				},
 				{
-					"originalRange": "[6,15 -> 6,15]",
-					"modifiedRange": "[6,15 -> 6,16]"
+					"originalRange": "[6,15 -> 6,15 EOL]",
+					"modifiedRange": "[6,15 -> 6,16 EOL]"
 				},
 				{
-					"originalRange": "[7,15 -> 7,15]",
-					"modifiedRange": "[7,15 -> 7,16]"
+					"originalRange": "[7,15 -> 7,15 EOL]",
+					"modifiedRange": "[7,15 -> 7,16 EOL]"
 				},
 				{
-					"originalRange": "[8,15 -> 8,15]",
-					"modifiedRange": "[8,15 -> 9,1]"
+					"originalRange": "[8,15 -> 8,15 EOL]",
+					"modifiedRange": "[8,15 -> 9,1 EOL]"
 				}
 			]
 		}

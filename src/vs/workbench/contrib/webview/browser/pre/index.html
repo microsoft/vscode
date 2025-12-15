@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-QA1gXilHYAUFCvp7MpjgcmyBCFzSKV0SpiecMU8aUVc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-TaWGDzV7c9rUH2q/5ygOyYUHSyHIqBMYfucPh3lnKvU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -37,6 +37,24 @@
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
 		/**
+		 * @param {string} name
+		 * @param {Record<string, string>} [options]
+		 */
+		const perfMark = (name, options = {}) => {
+			performance.mark(`webview/index.html/${name}`, {
+				detail: {
+					id: ID,
+					...options
+				}
+			});
+		}
+
+		perfMark('scriptStart');
+
+		/** @type {MessageChannel | undefined} */
+		let outerIframeMessageChannel;
+
+		/**
 		 * Use polling to track focus of main webview and iframes within the webview
 		 *
 		 * @param {Object} handlers
@@ -47,7 +65,8 @@
 			const interval = 250;
 			let isFocused = document.hasFocus();
 			setInterval(() => {
-				const isCurrentlyFocused = document.hasFocus();
+				const target = getActiveFrame();
+				const isCurrentlyFocused = document.hasFocus() || !!(target && target.contentDocument && target.contentDocument.body.classList.contains('vscode-context-menu-visible'));
 				if (isCurrentlyFocused === isFocused) {
 					return;
 				}
@@ -85,6 +104,7 @@
 		const defaultStyles = document.createElement('style');
 		defaultStyles.id = '_defaultStyles';
 		defaultStyles.textContent = `
+		@layer vscode-default {
 			html {
 				scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
 			}
@@ -109,6 +129,10 @@
 				color: var(--vscode-textLink-foreground);
 			}
 
+			p > a {
+				text-decoration: var(--text-link-decoration);
+			}
+
 			a:hover {
 				color: var(--vscode-textLink-activeForeground);
 			}
@@ -122,7 +146,15 @@
 			}
 
 			code {
+				font-family: var(--monaco-monospace-font);
 				color: var(--vscode-textPreformat-foreground);
+				background-color: var(--vscode-textPreformat-background);
+				padding: 1px 3px;
+				border-radius: 4px;
+			}
+
+			pre code {
+				padding: 0;
 			}
 
 			blockquote {
@@ -166,7 +198,8 @@
 			}
 			::highlight(current-find-highlight) {
 				background-color: var(--vscode-editor-findMatchBackground);
-			}`;
+			}
+		}`;
 
 		/**
 		 * @param {boolean} allowMultipleAPIAcquire
@@ -206,9 +239,9 @@
 							});
 						};
 					})();
-					delete window.parent;
-					delete window.top;
-					delete window.frameElement;
+					window.parent = window;
+					window.top = window;
+					window.frameElement = null;
 				`;
 		}
 
@@ -223,7 +256,7 @@
 			}
 
 			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`);
-			navigator.serviceWorker.register(swPath)
+			navigator.serviceWorker.register(swPath, { type: 'module' })
 				.then(async registration => {
 					/**
 					 * @param {MessageEvent} event
@@ -251,7 +284,8 @@
 					navigator.serviceWorker.addEventListener('message', versionHandler);
 
 					const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
-						controller.postMessage({ channel: 'version' });
+						outerIframeMessageChannel = new MessageChannel();
+						controller.postMessage({ channel: 'version' }, [outerIframeMessageChannel.port2]);
 					};
 
 					// At this point, either the service worker is ready and
@@ -328,6 +362,7 @@
 
 			async signalReady() {
 				const start = (/** @type {string} */ parentOrigin) => {
+					perfMark('signalingReady');
 					window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
 				};
 
@@ -593,7 +628,7 @@
 				} else {
 					return; // let the browser handle this
 				}
-			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e))) {
+			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e) || isHelp(e) || isRefresh(e))) {
 				// Prevent Ctrl+W closing window / Ctrl+N opening new window in PWA.
 				// (No effect in a regular browser tab.)
 				e.preventDefault();
@@ -698,6 +733,24 @@
 			return hasMeta && e.keyCode === 78;
 		}
 
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isHelp(e) {
+			// 112: keyCode of "F1"
+			return e.keyCode === 112;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isRefresh(e) {
+			// 116: keyCode of "F5"
+			return e.keyCode === 116;
+		}
+
 		let isHandlingScroll = false;
 
 		/**
@@ -762,6 +815,32 @@
 			if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
 				hostMessaging.postMessage('drag-start', undefined);
 			}
+		}
+
+
+		function handleInnerDragEvent(/** @type {DragEvent} */ e) {
+			/**
+			 * To ensure that the drop event always fires as expected, you should always include a preventDefault() call in the part of your code which handles the dragover event.
+			 * source: https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/drop_event
+			 **/
+			e.preventDefault();
+
+			if (!e.dataTransfer) {
+				return;
+			}
+
+
+			// Only handle drags from outside editor for now
+			if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
+				hostMessaging.postMessage('drag', {
+					shiftKey: e.shiftKey
+				});
+			}
+
+		}
+
+		function handleInnerDropEvent(/**@type {DragEvent} */e) {
+			e.preventDefault();
 		}
 
 		/**
@@ -854,7 +933,10 @@
 		window.addEventListener('keydown', handleInnerKeydown);
 		window.addEventListener('keyup', handleInnerKeyup);
 		window.addEventListener('dragenter', handleInnerDragStartEvent);
-		window.addEventListener('dragover', handleInnerDragStartEvent);
+		window.addEventListener('dragover', handleInnerDragEvent);
+		window.addEventListener('drag', handleInnerDragEvent);
+		window.addEventListener('drop', handleInnerDropEvent);
+
 
 		onDomReady(() => {
 			if (!document.body) {
@@ -902,9 +984,12 @@
 			// update iframe-contents
 			let updateId = 0;
 			hostMessaging.onMessage('content', async (_event, /** @type {import('../webviewMessages').UpdateContentEvent} */ data) => {
+				perfMark('content/started');
+
 				const currentUpdateId = ++updateId;
 				try {
 					await workerReady;
+					perfMark('content/workerReady');
 				} catch (e) {
 					console.error(`Webview fatal error: ${e}`);
 					hostMessaging.postMessage('fatal-error', { message: e + '' });
@@ -947,7 +1032,7 @@
 				const previousPendingFrame = getPendingFrame();
 				if (previousPendingFrame) {
 					previousPendingFrame.setAttribute('id', '');
-					document.body.removeChild(previousPendingFrame);
+					previousPendingFrame.remove();
 				}
 				if (!wasFirstLoad) {
 					pendingMessages = [];
@@ -968,7 +1053,7 @@
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 
-				const allowRules = ['cross-origin-isolated;', 'autoplay;'];
+				const allowRules = ['cross-origin-isolated;', 'autoplay;', 'local-network-access;'];
 				if (!isFirefox && options.allowScripts) {
 					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}
@@ -993,12 +1078,15 @@
 				 * @param {Document} contentDocument
 				 */
 				function onFrameLoaded(contentDocument) {
+					perfMark('content/innerFrameLoaded')
+
 					// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
 					setTimeout(() => {
 						contentDocument.open();
 						contentDocument.write(newDocument);
 						contentDocument.close();
 						hookupOnLoadHandlers(newFrame);
+						perfMark('content/wroteInnerContent')
 
 						if (initialStyleVersion !== styleVersion) {
 							applyStyles(contentDocument, contentDocument.body);
@@ -1044,9 +1132,7 @@
 					if (newFrame && newFrame.contentDocument && newFrame.contentDocument === contentDocument) {
 						const wasFocused = document.hasFocus();
 						const oldActiveFrame = getActiveFrame();
-						if (oldActiveFrame) {
-							document.body.removeChild(oldActiveFrame);
-						}
+						oldActiveFrame?.remove();
 						// Styles may have changed since we created the element. Make sure we re-style
 						if (initialStyleVersion !== styleVersion) {
 							applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
@@ -1059,6 +1145,21 @@
 
 						if (wasFocused) {
 							contentWindow.focus();
+						}
+
+						// Get body size
+						const docEl = contentDocument.documentElement;
+						if (docEl) {
+							const postSize = () => {
+								hostMessaging.postMessage('updated-intrinsic-content-size', {
+									width: docEl.offsetWidth,
+									height: docEl.offsetHeight
+								});
+							};
+
+							const resizeObserver = new ResizeObserver(postSize);
+							resizeObserver.observe(docEl);
+							postSize();
 						}
 
 						pendingMessages.forEach((message) => {
@@ -1138,9 +1239,22 @@
 					});
 
 					contentWindow.addEventListener('dragenter', handleInnerDragStartEvent);
-					contentWindow.addEventListener('dragover', handleInnerDragStartEvent);
+					contentWindow.addEventListener('dragover', handleInnerDragEvent);
+					contentWindow.addEventListener('drag', handleInnerDragEvent);
+					contentWindow.addEventListener('drop', handleInnerDropEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
+				}
+
+				if (!disableServiceWorker && outerIframeMessageChannel) {
+					outerIframeMessageChannel.port1.onmessage = event => {
+						switch (event.data.channel) {
+							case 'load-resource':
+							case 'load-localhost':
+								hostMessaging.postMessage(event.data.channel, event.data);
+								return;
+						}
+					};
 				}
 			});
 

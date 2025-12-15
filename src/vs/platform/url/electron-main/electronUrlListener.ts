@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, Event as ElectronEvent } from 'electron';
-import { disposableTimeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { IProtocolUrl } from 'vs/platform/url/electron-main/url';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { disposableTimeout } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IURLService } from '../common/url.js';
+import { IProtocolUrl } from './url.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 
 /**
  * A listener for URLs that are opened from the OS and handled by VSCode.
@@ -26,12 +26,10 @@ import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
  *            that calls VSCode with the `open-url` command line argument
  *            (https://github.com/microsoft/vscode/pull/56727)
  */
-export class ElectronURLListener {
+export class ElectronURLListener extends Disposable {
 
 	private uris: IProtocolUrl[] = [];
 	private retryCount = 0;
-	private flushDisposable: IDisposable = Disposable.None;
-	private readonly disposables = new DisposableStore();
 
 	constructor(
 		initialProtocolUrls: IProtocolUrl[] | undefined,
@@ -41,6 +39,8 @@ export class ElectronURLListener {
 		productService: IProductService,
 		private readonly logService: ILogService
 	) {
+		super();
+
 		if (initialProtocolUrls) {
 			logService.trace('ElectronURLListener initialUrisToHandle:', initialProtocolUrls.map(url => url.originalUrl));
 
@@ -64,7 +64,7 @@ export class ElectronURLListener {
 				return url;
 			});
 
-		this.disposables.add(onOpenElectronUrl(url => {
+		this._register(onOpenElectronUrl(url => {
 			const uri = this.uriFromRawUrl(url);
 			if (!uri) {
 				return;
@@ -85,7 +85,7 @@ export class ElectronURLListener {
 		} else {
 			logService.trace('ElectronURLListener: waiting for window to be ready to handle URLs...');
 
-			Event.once(windowsMainService.onDidSignalReadyWindow)(this.flush, this, this.disposables);
+			this._register(Event.once(windowsMainService.onDidSignalReadyWindow)(() => this.flush()));
 		}
 	}
 
@@ -124,11 +124,6 @@ export class ElectronURLListener {
 		}
 
 		this.uris = uris;
-		this.flushDisposable = disposableTimeout(() => this.flush(), 500);
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		this.flushDisposable.dispose();
+		disposableTimeout(() => this.flush(), 500, this._store);
 	}
 }

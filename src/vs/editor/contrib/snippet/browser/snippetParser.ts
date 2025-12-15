@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
+import { CharCode } from '../../../../base/common/charCode.js';
 
 export const enum TokenType {
 	Dollar,
@@ -129,7 +129,7 @@ export class Scanner {
 
 export abstract class Marker {
 
-	readonly _markerBrand: any;
+	readonly _markerBrand: undefined;
 
 	public parent!: Marker;
 	protected _children: Marker[] = [];
@@ -252,7 +252,7 @@ export class Placeholder extends TransformableMarker {
 
 	get choice(): Choice | undefined {
 		return this._children.length === 1 && this._children[0] instanceof Choice
-			? this._children[0] as Choice
+			? this._children[0]
 			: undefined;
 	}
 

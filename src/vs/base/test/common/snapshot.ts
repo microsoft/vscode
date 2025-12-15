@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
-import { FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { Lazy } from '../../common/lazy.js';
+import { FileAccess } from '../../common/network.js';
+import { URI } from '../../common/uri.js';
 
 declare const __readFileInTests: (path: string) => Promise<string>;
 declare const __writeFileInTests: (path: string, contents: string) => Promise<void>;
@@ -44,14 +44,14 @@ export class SnapshotContext {
 			throw new Error('currentTest.file is not set, please open an issue with the test you\'re trying to run');
 		}
 
-		const src = FileAccess.asFileUri('');
+		const src = URI.joinPath(FileAccess.asFileUri(''), '../src');
 		const parts = test.file.split(/[/\\]/g);
 
-		this.namePrefix = sanitizeName(test.fullTitle()) + '_';
+		this.namePrefix = sanitizeName(test.fullTitle()) + '.';
 		this.snapshotsDir = URI.joinPath(src, ...[...parts.slice(0, -1), '__snapshots__']);
 	}
 
-	public async assert(value: any, options?: ISnapshotOptions) {
+	public async assert(value: unknown, options?: ISnapshotOptions) {
 		const originalStack = new Error().stack!; // save to make the stack nicer on failure
 		const nameOrIndex = (options?.name ? sanitizeName(options.name) : this.nextIndex++);
 		const fileName = this.namePrefix + nameOrIndex + '.' + (options?.extension || 'snap');
@@ -120,7 +120,9 @@ function formatValue(value: unknown, level = 0, seen: unknown[] = []): string {
 			if (seen.includes(value)) {
 				return '[Circular]';
 			}
+			// eslint-disable-next-line local/code-no-any-casts
 			if (debugDescriptionSymbol in value && typeof (value as any)[debugDescriptionSymbol] === 'function') {
+				// eslint-disable-next-line local/code-no-any-casts
 				return (value as any)[debugDescriptionSymbol]();
 			}
 			const oi = '  '.repeat(level);
@@ -176,7 +178,7 @@ teardown(async function () {
  * in a `__snapshots__` directory next to the test file, which is expected to
  * be the first `.test.js` file in the callstack.
  */
-export function assertSnapshot(value: any, options?: ISnapshotOptions): Promise<void> {
+export function assertSnapshot(value: unknown, options?: ISnapshotOptions): Promise<void> {
 	if (!context) {
 		throw new Error('assertSnapshot can only be used in a test');
 	}

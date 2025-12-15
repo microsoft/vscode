@@ -16,14 +16,18 @@
 .monaco-workbench .activitybar .menubar.compact > .menubar-menu-button.open,
 .monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus,
 .monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
-.monaco-workbench .activitybar .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
+.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button.open .toolbar-toggle-more,
 .monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
 .monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
 	color: var(--vscode-activityBar-foreground);
 }
 
+.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus {
+	background-color: var(--vscode-menubar-selectionBackground);
+}
+
 .monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button,
-.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button .toolbar-toggle-more  {
+.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button .toolbar-toggle-more {
 	color: var(--vscode-titleBar-inactiveForeground);
 }
 
@@ -42,7 +46,7 @@
 	background-color: var(--vscode-menubar-selectionBackground);
 }
 
-.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title  {
+.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title {
 	outline: dashed 1px var(--vscode-menubar-selectionBorder);
 }
 
@@ -57,5 +61,3 @@
 	outline-color: var(--vscode-menubar-selectionBorder);
 	outline-offset: -1px;
 }
-
-

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Mimes } from 'vs/base/common/mime';
+import { EditorModel } from './editorModel.js';
+import { URI } from '../../../base/common/uri.js';
+import { IFileService } from '../../../platform/files/common/files.js';
+import { Mimes } from '../../../base/common/mime.js';
 
 /**
  * An editor model that just represents a resource that can be loaded.

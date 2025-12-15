@@ -3,38 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
-import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { URI } from 'vs/base/common/uri';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { FileKind } from 'vs/platform/files/common/files';
-import { splitRecentLabel } from 'vs/base/common/labels';
-import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ResourceMap } from 'vs/base/common/map';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isHTMLElement } from 'vs/base/browser/dom';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
+import { localize, localize2 } from '../../../nls.js';
+import { IWindowOpenable } from '../../../platform/window/common/window.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { MenuRegistry, MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { IsMainWindowFullscreenContext } from '../../common/contextkeys.js';
+import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from '../../../platform/contextkey/common/contextkeys.js';
+import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from '../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService, IWorkspaceIdentifier, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
+import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
+import { URI } from '../../../base/common/uri.js';
+import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { FileKind } from '../../../platform/files/common/files.js';
+import { splitRecentLabel } from '../../../base/common/labels.js';
+import { isMacintosh, isWeb, isWindows } from '../../../base/common/platform.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { inQuickPickContext, getQuickNavigateHandler } from '../quickaccess.js';
+import { IHostService } from '../../services/host/browser/host.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { isFolderBackupInfo, isWorkspaceBackupInfo } from '../../../platform/backup/common/backup.js';
+import { getActiveElement, getActiveWindow, isHTMLElement } from '../../../base/browser/dom.js';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -62,9 +62,27 @@ abstract class BaseOpenRecentAction extends Action2 {
 		tooltip: localize('dirtyRecentlyOpenedWorkspace', "Workspace With Unsaved Files"),
 	};
 
-	constructor(desc: Readonly<IAction2Options>) {
-		super(desc);
-	}
+	private readonly windowOpenedRecentlyOpenedFolder: IQuickInputButton = {
+		iconClass: 'opened-workspace ' + ThemeIcon.asClassName(Codicon.window),
+		tooltip: localize('openedRecentlyOpenedFolder', "Folder Opened in a Window"),
+		alwaysVisible: true
+	};
+
+	private readonly windowOpenedRecentlyOpenedWorkspace: IQuickInputButton = {
+		...this.windowOpenedRecentlyOpenedFolder,
+		tooltip: localize('openedRecentlyOpenedWorkspace', "Workspace Opened in a Window"),
+	};
+
+	private readonly activeWindowOpenedRecentlyOpenedFolder: IQuickInputButton = {
+		iconClass: 'opened-workspace ' + ThemeIcon.asClassName(Codicon.windowActive),
+		tooltip: localize('activeOpenedRecentlyOpenedFolder', "Folder Opened in Active Window"),
+		alwaysVisible: true
+	};
+
+	private readonly activeWindowOpenedRecentlyOpenedWorkspace: IQuickInputButton = {
+		...this.activeWindowOpenedRecentlyOpenedFolder,
+		tooltip: localize('activeOpenedRecentlyOpenedWorkspace', "Workspace Opened in Active Window"),
+	};
 
 	protected abstract isQuickNavigate(): boolean;
 
@@ -79,8 +97,11 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const hostService = accessor.get(IHostService);
 		const dialogService = accessor.get(IDialogService);
 
-		const recentlyOpened = await workspacesService.getRecentlyOpened();
-		const dirtyWorkspacesAndFolders = await workspacesService.getDirtyWorkspaces();
+		const [mainWindows, recentlyOpened, dirtyWorkspacesAndFolders] = await Promise.all([
+			hostService.getWindows({ includeAuxiliaryWindows: false }),
+			workspacesService.getRecentlyOpened(),
+			workspacesService.getDirtyWorkspaces()
+		]);
 
 		let hasWorkspaces = false;
 
@@ -93,6 +114,18 @@ abstract class BaseOpenRecentAction extends Action2 {
 			} else {
 				dirtyWorkspaces.set(dirtyWorkspace.workspace.configPath, dirtyWorkspace.workspace);
 				hasWorkspaces = true;
+			}
+		}
+
+		// Identify all folders and workspaces opened in main windows
+		const activeWindowId = getActiveWindow().vscodeWindowId;
+		const openedInWindows = new ResourceMap<{ isActive: boolean }>();
+		for (const window of mainWindows) {
+			const isActive = window.id === activeWindowId;
+			if (isSingleFolderWorkspaceIdentifier(window.workspace)) {
+				openedInWindows.set(window.workspace.uri, { isActive });
+			} else if (isWorkspaceIdentifier(window.workspace)) {
+				openedInWindows.set(window.workspace.configPath, { isActive });
 			}
 		}
 
@@ -112,20 +145,21 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const workspacePicks: IRecentlyOpenedPick[] = [];
 		for (const recent of recentlyOpened.workspaces) {
 			const isDirty = isRecentFolder(recent) ? dirtyFolders.has(recent.folderUri) : dirtyWorkspaces.has(recent.workspace.configPath);
+			const windowState = isRecentFolder(recent) ? openedInWindows.get(recent.folderUri) : openedInWindows.get(recent.workspace.configPath);
 
-			workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, recent, isDirty));
+			workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, recent, { isDirty, windowState }));
 		}
 
 		// Fill any backup workspace that is not yet shown at the end
 		for (const dirtyWorkspaceOrFolder of dirtyWorkspacesAndFolders) {
 			if (isFolderBackupInfo(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder.folderUri)) {
-				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, true));
+				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, { isDirty: true, windowState: undefined }));
 			} else if (isWorkspaceBackupInfo(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.workspace.configPath)) {
-				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, true));
+				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, { isDirty: true, windowState: undefined }));
 			}
 		}
 
-		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(modelService, languageService, labelService, p, false));
+		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(modelService, languageService, labelService, p, { isDirty: false, windowState: undefined }));
 
 		// focus second entry if the first recent workspace is the current workspace
 		const firstEntry = recentlyOpened.workspaces[0];
@@ -142,13 +176,14 @@ abstract class BaseOpenRecentAction extends Action2 {
 			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
 			placeHolder: isMacintosh ? localize('openRecentPlaceholderMac', "Select to open (hold Cmd-key to force new window or Option-key for same window)") : localize('openRecentPlaceholder', "Select to open (hold Ctrl-key to force new window or Alt-key for same window)"),
 			matchOnDescription: true,
+			sortByLabel: false,
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
 			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {
 
 				// Remove
-				if (context.button === this.removeFromRecentlyOpened) {
+				if (context.button === this.removeFromRecentlyOpened || context.button === this.windowOpenedRecentlyOpenedFolder || context.button === this.windowOpenedRecentlyOpenedWorkspace) {
 					await workspacesService.removeRecentlyOpened([context.item.resource]);
 					context.removeItem();
 				}
@@ -182,7 +217,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		}
 	}
 
-	private toQuickPick(modelService: IModelService, languageService: ILanguageService, labelService: ILabelService, recent: IRecent, isDirty: boolean): IRecentlyOpenedPick {
+	private toQuickPick(modelService: IModelService, languageService: ILanguageService, labelService: ILabelService, recent: IRecent, kind: { isDirty: boolean; windowState?: { isActive: boolean } }): IRecentlyOpenedPick {
 		let openable: IWindowOpenable | undefined;
 		let iconClasses: string[];
 		let fullLabel: string | undefined;
@@ -211,17 +246,30 @@ abstract class BaseOpenRecentAction extends Action2 {
 			resource = recent.fileUri;
 			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FILE);
 			openable = { fileUri: resource };
-			fullLabel = recent.label || labelService.getUriLabel(resource);
+			fullLabel = recent.label || labelService.getUriLabel(resource, { appendWorkspaceSuffix: true });
 		}
 
 		const { name, parentPath } = splitRecentLabel(fullLabel);
 
+		const buttons: IQuickInputButton[] = [];
+		if (kind.isDirty) {
+			buttons.push(isWorkspace ? this.dirtyRecentlyOpenedWorkspace : this.dirtyRecentlyOpenedFolder);
+		} else if (kind.windowState) {
+			if (kind.windowState.isActive) {
+				buttons.push(isWorkspace ? this.activeWindowOpenedRecentlyOpenedWorkspace : this.activeWindowOpenedRecentlyOpenedFolder);
+			} else {
+				buttons.push(isWorkspace ? this.windowOpenedRecentlyOpenedWorkspace : this.windowOpenedRecentlyOpenedFolder);
+			}
+		} else {
+			buttons.push(this.removeFromRecentlyOpened);
+		}
+
 		return {
 			iconClasses,
 			label: name,
-			ariaLabel: isDirty ? isWorkspace ? localize('recentDirtyWorkspaceAriaLabel', "{0}, workspace with unsaved changes", name) : localize('recentDirtyFolderAriaLabel', "{0}, folder with unsaved changes", name) : name,
+			ariaLabel: kind.isDirty ? isWorkspace ? localize('recentDirtyWorkspaceAriaLabel', "{0}, workspace with unsaved changes", name) : localize('recentDirtyFolderAriaLabel', "{0}, folder with unsaved changes", name) : name,
 			description: parentPath,
-			buttons: isDirty ? [isWorkspace ? this.dirtyRecentlyOpenedWorkspace : this.dirtyRecentlyOpenedFolder] : [this.removeFromRecentlyOpened],
+			buttons,
 			openable,
 			resource,
 			remoteAuthority: recent.remoteAuthority
@@ -237,9 +285,8 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		super({
 			id: OpenRecentAction.ID,
 			title: {
-				value: localize('openRecent', "Open Recent..."),
+				...localize2('openRecent', "Open Recent..."),
 				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),
-				original: 'Open Recent...'
 			},
 			category: Categories.File,
 			f1: true,
@@ -266,7 +313,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenRecent',
-			title: { value: localize('quickOpenRecent', "Quick Open Recent..."), original: 'Quick Open Recent...' },
+			title: localize2('quickOpenRecent', 'Quick Open Recent...'),
 			category: Categories.File,
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
@@ -283,9 +330,8 @@ class ToggleFullScreenAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleFullScreen',
 			title: {
-				value: localize('toggleFullScreen', "Toggle Full Screen"),
+				...localize2('toggleFullScreen', "Toggle Full Screen"),
 				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
-				original: 'Toggle Full Screen'
 			},
 			category: Categories.View,
 			f1: true,
@@ -297,7 +343,7 @@ class ToggleFullScreenAction extends Action2 {
 				}
 			},
 			precondition: IsIOSContext.toNegated(),
-			toggled: IsFullscreenContext,
+			toggled: IsMainWindowFullscreenContext,
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
@@ -309,7 +355,7 @@ class ToggleFullScreenAction extends Action2 {
 	override run(accessor: ServicesAccessor): Promise<void> {
 		const hostService = accessor.get(IHostService);
 
-		return hostService.toggleFullScreen();
+		return hostService.toggleFullScreen(getActiveWindow());
 	}
 }
 
@@ -320,7 +366,7 @@ export class ReloadWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: ReloadWindowAction.ID,
-			title: { value: localize('reloadWindow', "Reload Window"), original: 'Reload Window' },
+			title: localize2('reloadWindow', 'Reload Window'),
 			category: Categories.Developer,
 			f1: true,
 			keybinding: {
@@ -331,7 +377,7 @@ export class ReloadWindowAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor): Promise<void> {
 		const hostService = accessor.get(IHostService);
 
 		return hostService.reload();
@@ -344,9 +390,8 @@ class ShowAboutDialogAction extends Action2 {
 		super({
 			id: 'workbench.action.showAboutDialog',
 			title: {
-				value: localize('about', "About"),
+				...localize2('about', "About"),
 				mnemonicTitle: localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About"),
-				original: 'About'
 			},
 			category: Categories.Help,
 			f1: true,
@@ -372,9 +417,8 @@ class NewWindowAction extends Action2 {
 		super({
 			id: 'workbench.action.newWindow',
 			title: {
-				value: localize('newWindow', "New Window"),
+				...localize2('newWindow', "New Window"),
 				mnemonicTitle: localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window"),
-				original: 'New Window'
 			},
 			f1: true,
 			keybinding: {
@@ -402,15 +446,14 @@ class BlurAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.blur',
-			title: { value: localize('blur', "Remove keyboard focus from focused element"), original: 'Remove keyboard focus from focused element' }
+			title: localize2('blur', 'Remove keyboard focus from focused element')
 		});
 	}
 
 	run(): void {
-		const el = document.activeElement;
-
-		if (isHTMLElement(el)) {
-			el.blur();
+		const activeElement = getActiveElement();
+		if (isHTMLElement(activeElement)) {
+			activeElement.blur();
 		}
 	}
 }

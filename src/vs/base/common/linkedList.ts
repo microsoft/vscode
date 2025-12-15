@@ -5,11 +5,11 @@
 
 class Node<E> {
 
-	static readonly Undefined = new Node<any>(undefined);
+	static readonly Undefined = new Node<unknown>(undefined);
 
 	element: E;
-	next: Node<E>;
-	prev: Node<E>;
+	next: Node<E> | typeof Node.Undefined;
+	prev: Node<E> | typeof Node.Undefined;
 
 	constructor(element: E) {
 		this.element = element;
@@ -20,8 +20,8 @@ class Node<E> {
 
 export class LinkedList<E> {
 
-	private _first: Node<E> = Node.Undefined;
-	private _last: Node<E> = Node.Undefined;
+	private _first: Node<E> | typeof Node.Undefined = Node.Undefined;
+	private _last: Node<E> | typeof Node.Undefined = Node.Undefined;
 	private _size: number = 0;
 
 	get size(): number {
@@ -62,7 +62,7 @@ export class LinkedList<E> {
 
 		} else if (atTheEnd) {
 			// push
-			const oldLast = this._last!;
+			const oldLast = this._last;
 			this._last = newNode;
 			newNode.prev = oldLast;
 			oldLast.next = newNode;
@@ -91,7 +91,7 @@ export class LinkedList<E> {
 		} else {
 			const res = this._first.element;
 			this._remove(this._first);
-			return res;
+			return res as E;
 		}
 	}
 
@@ -101,11 +101,20 @@ export class LinkedList<E> {
 		} else {
 			const res = this._last.element;
 			this._remove(this._last);
-			return res;
+			return res as E;
 		}
 	}
 
-	private _remove(node: Node<E>): void {
+	peek(): E | undefined {
+		if (this._last === Node.Undefined) {
+			return undefined;
+		} else {
+			const res = this._last.element;
+			return res as E;
+		}
+	}
+
+	private _remove(node: Node<E> | typeof Node.Undefined): void {
 		if (node.prev !== Node.Undefined && node.next !== Node.Undefined) {
 			// middle
 			const anchor = node.prev;
@@ -119,12 +128,12 @@ export class LinkedList<E> {
 
 		} else if (node.next === Node.Undefined) {
 			// last
-			this._last = this._last!.prev!;
+			this._last = this._last.prev!;
 			this._last.next = Node.Undefined;
 
 		} else if (node.prev === Node.Undefined) {
 			// first
-			this._first = this._first!.next!;
+			this._first = this._first.next!;
 			this._first.prev = Node.Undefined;
 		}
 
@@ -135,7 +144,7 @@ export class LinkedList<E> {
 	*[Symbol.iterator](): Iterator<E> {
 		let node = this._first;
 		while (node !== Node.Undefined) {
-			yield node.element;
+			yield node.element as E;
 			node = node.next;
 		}
 	}

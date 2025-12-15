@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as es from 'event-stream';
-import * as Vinyl from 'vinyl';
-import * as vfs from 'vinyl-fs';
-import * as util from '../lib/util';
-// @ts-ignore
-import * as deps from '../lib/dependencies';
-import { ClientSecretCredential } from '@azure/identity';
-const azure = require('gulp-azure-storage');
+import path from 'path';
+import es from 'event-stream';
+import Vinyl from 'vinyl';
+import vfs from 'vinyl-fs';
+import * as util from '../lib/util.ts';
+import { getProductionDependencies } from '../lib/dependencies.ts';
+import { ClientAssertionCredential } from '@azure/identity';
+import Stream from 'stream';
+import azure from 'gulp-azure-storage';
 
-const root = path.dirname(path.dirname(__dirname));
+const root = path.dirname(path.dirname(import.meta.dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
-const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
+const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
 
 // optionally allow to pass in explicit base/maps to upload
 const [, , base, maps] = process.argv;
@@ -29,15 +29,15 @@ function src(base: string, maps = `${base}/**/*.map`) {
 }
 
 function main(): Promise<void> {
-	const sources: any[] = [];
+	const sources: Stream[] = [];
 
 	// vscode client maps (default)
 	if (!base) {
 		const vs = src('out-vscode-min'); // client source-maps only
 		sources.push(vs);
 
-		const productionDependencies: { name: string; path: string; version: string }[] = deps.getProductionDependencies(root);
-		const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => `./${d}/**/*.map`);
+		const productionDependencies = getProductionDependencies(root);
+		const productionDependenciesSrc = productionDependencies.map((d: string) => path.relative(root, d)).map((d: string) => `./${d}/**/*.map`);
 		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
 			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)));
@@ -61,11 +61,11 @@ function main(): Promise<void> {
 			.pipe(azure.upload({
 				account: process.env.AZURE_STORAGE_ACCOUNT,
 				credential,
-				container: 'sourcemaps',
-				prefix: commit + '/'
+				container: '$web',
+				prefix: `sourcemaps/${commit}/`
 			}))
 			.on('end', () => c())
-			.on('error', (err: any) => e(err));
+			.on('error', (err) => e(err));
 	});
 }
 

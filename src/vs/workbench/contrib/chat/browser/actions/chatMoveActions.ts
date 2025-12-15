@@ -3,141 +3,166 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IViewsService } from 'vs/workbench/common/views';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
-import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ViewContainerLocation } from '../../../../common/views.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { isChatViewTitleActionContext } from '../../common/chatActions.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
-const getMoveToEditorChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
-	id: `workbench.action.chat.${providerId}.openInEditor`,
-	title: {
-		value: localize('chat.openInEditor.label', "Open Session In Editor"),
-		original: 'Open Session In Editor'
-	},
-	category: CHAT_CATEGORY,
-	precondition: CONTEXT_PROVIDER_EXISTS,
-	f1: false,
-	viewId,
-	menu: {
-		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.equals('view', viewId),
-		order: 0
-	},
-});
-
-export function getMoveToEditorAction(viewId: string, providerId: string) {
-	return class MoveToEditorAction extends ViewAction<ChatViewPane> {
-		constructor() {
-			super(getMoveToEditorChatActionDescriptorForViewTitle(viewId, providerId));
-		}
-
-		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
-			const viewModel = view.widget.viewModel;
-			if (!viewModel) {
-				return;
-			}
-
-			const editorService = accessor.get(IEditorService);
-			view.clear();
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: viewModel.sessionId }, pinned: true } });
-		}
-	};
-}
-
-async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
-	const viewsService = accessor.get(IViewsService);
-	const editorService = accessor.get(IEditorService);
-	const chatContribService = accessor.get(IChatContributionService);
-	const editorGroupService = accessor.get(IEditorGroupsService);
-
-	const chatEditorInput = editorService.activeEditor;
-	if (chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId && chatEditorInput.providerId) {
-		await editorService.closeEditor({ editor: chatEditorInput, groupId: editorGroupService.activeGroup.id });
-		const viewId = chatContribService.getViewIdForProvider(chatEditorInput.providerId);
-		const view = await viewsService.openView(viewId) as ChatViewPane;
-		view.loadSession(chatEditorInput.sessionId);
-	} else {
-		const chatService = accessor.get(IChatService);
-		const providerId = chatService.getProviderInfos()[0].id;
-		const viewId = chatContribService.getViewIdForProvider(providerId);
-		await viewsService.openView(viewId);
-	}
+enum MoveToNewLocation {
+	Editor = 'Editor',
+	Window = 'Window'
 }
 
 export function registerMoveActions() {
 	registerAction2(class GlobalMoveToEditorAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.openInEditor`,
-				title: {
-					value: localize('interactiveSession.openInEditor.label', "Open Session In Editor"),
-					original: 'Open Session In Editor'
-				},
+				id: 'workbench.action.chat.openInEditor',
+				title: localize2('chat.openInEditor.label', "Move Chat into Editor Area"),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_PROVIDER_EXISTS,
-				f1: true
+				precondition: ChatContextKeys.enabled,
+				f1: true,
+				menu: {
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', ChatViewId),
+					order: 0,
+					group: '1_open'
+				},
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const widgetService = accessor.get(IChatWidgetService);
-			const viewService = accessor.get(IViewsService);
-			const editorService = accessor.get(IEditorService);
-			const chatService = accessor.get(IChatService);
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const context = args[0];
+			executeMoveToAction(accessor, MoveToNewLocation.Editor, isChatViewTitleActionContext(context) ? context.sessionResource : undefined);
+		}
+	});
 
-			const widget = widgetService.lastFocusedWidget;
-			if (!widget || !('viewId' in widget.viewContext)) {
-				const providerId = chatService.getProviderInfos()[0].id;
-				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId }, pinned: true } });
-				return;
-			}
+	registerAction2(class GlobalMoveToNewWindowAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.openInNewWindow',
+				title: localize2('chat.openInNewWindow.label', "Move Chat into New Window"),
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				f1: true,
+				menu: {
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', ChatViewId),
+					order: 0,
+					group: '1_open'
+				},
+			});
+		}
 
-			const viewModel = widget.viewModel;
-			if (!viewModel) {
-				return;
-			}
-
-			const sessionId = viewModel.sessionId;
-			const view = await viewService.openView(widget.viewContext.viewId) as ChatViewPane;
-			view.clear();
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: sessionId }, pinned: true } });
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const context = args[0];
+			executeMoveToAction(accessor, MoveToNewLocation.Window, isChatViewTitleActionContext(context) ? context.sessionResource : undefined);
 		}
 	});
 
 	registerAction2(class GlobalMoveToSidebarAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.openInSidebar`,
-				title: {
-					value: localize('interactiveSession.openInSidebar.label', "Open Session In Sidebar"),
-					original: 'Open Session In Sidebar'
-				},
+				id: 'workbench.action.chat.openInSidebar',
+				title: localize2('interactiveSession.openInSidebar.label', "Move Chat into Side Bar"),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_PROVIDER_EXISTS,
-				f1: true,
-				menu: [{
-					id: MenuId.EditorTitle,
-					order: 0,
-					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-				}]
+				precondition: ChatContextKeys.enabled,
+				f1: true
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			return moveToSidebar(accessor);
 		}
 	});
+
+	function appendOpenChatInViewMenuItem(menuId: MenuId, title: string, icon: ThemeIcon, locationContextKey: ContextKeyExpression) {
+		MenuRegistry.appendMenuItem(menuId, {
+			command: { id: 'workbench.action.chat.openInSidebar', title, icon },
+			when: ContextKeyExpr.and(
+				ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+				locationContextKey
+			),
+			group: menuId === MenuId.CompactWindowEditorTitle ? 'navigation' : undefined,
+			order: 0
+		});
+	}
+
+	[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].forEach(id => {
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInSecondarySidebar.label', "Move Chat into Secondary Side Bar"), Codicon.layoutSidebarRightDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar));
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInPrimarySidebar.label', "Move Chat into Primary Side Bar"), Codicon.layoutSidebarLeftDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.Sidebar));
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInPanel.label', "Move Chat into Panel"), Codicon.layoutPanelDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.Panel));
+	});
+}
+
+async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation, sessionResource?: URI) {
+	const widgetService = accessor.get(IChatWidgetService);
+
+	const auxiliary = { compact: true, bounds: { width: 800, height: 640 } };
+
+	const widget = (sessionResource ? widgetService.getWidgetBySessionResource(sessionResource) : undefined)
+		?? widgetService.lastFocusedWidget;
+	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Chat) {
+		await widgetService.openSession(ChatEditorInput.getNewEditorUri(), moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP, { pinned: true, auxiliary });
+		return;
+	}
+
+	const existingWidget = widgetService.getWidgetBySessionResource(widget.viewModel.sessionResource);
+	if (!existingWidget) {
+		// Do NOT attempt to open a session that isn't already open since we cannot guarantee its state.
+		await widgetService.openSession(ChatEditorInput.getNewEditorUri(), moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP, { pinned: true, auxiliary });
+		return;
+	}
+
+	// Save off the session resource before clearing
+	const resourceToOpen = widget.viewModel.sessionResource;
+
+	// Todo: can possibly go away with https://github.com/microsoft/vscode/pull/278476
+	const modelInputState = existingWidget.getViewState();
+
+	await widget.clear();
+
+	const options: IChatEditorOptions = { pinned: true, modelInputState, auxiliary };
+	await widgetService.openSession(resourceToOpen, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP, options);
+}
+
+async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
+	const viewsService = accessor.get(IViewsService);
+	const editorService = accessor.get(IEditorService);
+	const editorGroupService = accessor.get(IEditorGroupsService);
+
+	const chatEditor = editorService.activeEditorPane;
+	const chatEditorInput = chatEditor?.input;
+	let view: ChatViewPane;
+	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionResource) {
+		const previousViewState = chatEditor.widget.getViewState();
+		await editorService.closeEditor({ editor: chatEditor.input, groupId: editorGroupService.activeGroup.id });
+		view = await viewsService.openView(ChatViewId) as ChatViewPane;
+
+		// Todo: can possibly go away with https://github.com/microsoft/vscode/pull/278476
+		const newModel = await view.loadSession(chatEditorInput.sessionResource);
+		if (previousViewState && newModel && !newModel.inputModel.state.get()) {
+			newModel.inputModel.setState(previousViewState);
+		}
+	} else {
+		view = await viewsService.openView(ChatViewId) as ChatViewPane;
+	}
+
+	view.focus();
 }

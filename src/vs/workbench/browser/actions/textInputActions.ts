@@ -3,102 +3,108 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, Action, Separator } from 'vs/base/common/actions';
-import { localize } from 'vs/nls';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { EventHelper } from 'vs/base/browser/dom';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { isNative } from 'vs/base/common/platform';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IAction, Separator, toAction } from '../../../base/common/actions.js';
+import { localize } from '../../../nls.js';
+import { IWorkbenchLayoutService } from '../../services/layout/browser/layoutService.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { EventHelper, addDisposableListener, getActiveDocument, getWindow, isHTMLInputElement, isHTMLTextAreaElement } from '../../../base/browser/dom.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { Event as BaseEvent } from '../../../base/common/event.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+
+export function createTextInputActions(clipboardService: IClipboardService, logService: ILogService): IAction[] {
+	return [
+
+		toAction({ id: 'undo', label: localize('undo', "Undo"), run: () => getActiveDocument().execCommand('undo') }),
+		toAction({ id: 'redo', label: localize('redo', "Redo"), run: () => getActiveDocument().execCommand('redo') }),
+		new Separator(),
+		toAction({
+			id: 'editor.action.clipboardCutAction', label: localize('cut', "Cut"), run: () => {
+				logService.trace('TextInputActionsProvider#cut');
+				getActiveDocument().execCommand('cut');
+			}
+		}),
+		toAction({
+			id: 'editor.action.clipboardCopyAction', label: localize('copy', "Copy"), run: () => {
+				logService.trace('TextInputActionsProvider#copy');
+				getActiveDocument().execCommand('copy');
+			}
+		}),
+		toAction({
+			id: 'editor.action.clipboardPasteAction',
+			label: localize('paste', "Paste"),
+			run: async (element: unknown) => {
+				logService.trace('TextInputActionsProvider#paste');
+				const clipboardText = await clipboardService.readText();
+				if (isHTMLTextAreaElement(element) || isHTMLInputElement(element)) {
+					const selectionStart = element.selectionStart || 0;
+					const selectionEnd = element.selectionEnd || 0;
+
+					element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
+					element.selectionStart = selectionStart + clipboardText.length;
+					element.selectionEnd = element.selectionStart;
+					element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+				}
+			}
+		}),
+		new Separator(),
+		toAction({ id: 'editor.action.selectAll', label: localize('selectAll', "Select All"), run: () => getActiveDocument().execCommand('selectAll') })
+	];
+}
 
 export class TextInputActionsProvider extends Disposable implements IWorkbenchContribution {
 
-	private textInputActions: IAction[] = [];
+	static readonly ID = 'workbench.contrib.textInputActionsProvider';
+
+	private readonly textInputActions = new Lazy<IAction[]>(() => createTextInputActions(this.clipboardService, this.logService));
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
-		this.createActions();
-
 		this.registerListeners();
-	}
-
-	private createActions(): void {
-		this.textInputActions.push(
-
-			// Undo/Redo
-			new Action('undo', localize('undo', "Undo"), undefined, true, async () => document.execCommand('undo')),
-			new Action('redo', localize('redo', "Redo"), undefined, true, async () => document.execCommand('redo')),
-			new Separator(),
-
-			// Cut / Copy / Paste
-			new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => document.execCommand('cut')),
-			new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => document.execCommand('copy')),
-			new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
-
-				// Native: paste is supported
-				if (isNative) {
-					document.execCommand('paste');
-				}
-
-				// Web: paste is not supported due to security reasons
-				else {
-					const clipboardText = await this.clipboardService.readText();
-					if (
-						element instanceof HTMLTextAreaElement ||
-						element instanceof HTMLInputElement
-					) {
-						const selectionStart = element.selectionStart || 0;
-						const selectionEnd = element.selectionEnd || 0;
-
-						element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
-						element.selectionStart = selectionStart + clipboardText.length;
-						element.selectionEnd = element.selectionStart;
-					}
-				}
-			}),
-			new Separator(),
-
-			// Select All
-			new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => document.execCommand('selectAll'))
-		);
 	}
 
 	private registerListeners(): void {
 
 		// Context menu support in input/textarea
-		this.layoutService.container.addEventListener('contextmenu', e => this.onContextMenu(e));
+		this._register(BaseEvent.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+			disposables.add(addDisposableListener(container, 'contextmenu', e => this.onContextMenu(getWindow(container), e)));
+		}, { container: this.layoutService.mainContainer, disposables: this._store }));
 	}
 
-	private onContextMenu(e: MouseEvent): void {
+	private onContextMenu(targetWindow: Window, e: MouseEvent): void {
 		if (e.defaultPrevented) {
 			return; // make sure to not show these actions by accident if component indicated to prevent
 		}
 
 		const target = e.target;
-		if (!(target instanceof HTMLElement) || (target.nodeName.toLowerCase() !== 'input' && target.nodeName.toLowerCase() !== 'textarea')) {
+		if (!isHTMLTextAreaElement(target) && !isHTMLInputElement(target)) {
 			return; // only for inputs or textareas
 		}
 
 		EventHelper.stop(e, true);
 
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(targetWindow, e);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,
-			getActions: () => this.textInputActions,
+			getActions: () => this.textInputActions.value,
 			getActionsContext: () => target,
 		});
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextInputActionsProvider, LifecyclePhase.Ready);
+registerWorkbenchContribution2(
+	TextInputActionsProvider.ID,
+	TextInputActionsProvider,
+	WorkbenchPhase.BlockRestore // Block to allow right-click into input fields before restore finished
+);

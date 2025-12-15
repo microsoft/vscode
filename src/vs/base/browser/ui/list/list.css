@@ -8,6 +8,7 @@
 	height: 100%;
 	width: 100%;
 	white-space: nowrap;
+	overflow: hidden;
 }
 
 .monaco-list.mouse-support {
@@ -42,6 +43,12 @@
 	touch-action: none;
 }
 
+/* Make sure the scrollbar renders above overlays (sticky scroll) */
+.monaco-list .monaco-scrollable-element > .scrollbar.vertical,
+.monaco-pane-view > .monaco-split-view2.vertical > .monaco-scrollable-element > .scrollbar.vertical {
+	z-index: 14;
+}
+
 /* for OS X ballistic scrolling */
 .monaco-list-row.scrolling {
 	display: none !important;
@@ -52,16 +59,6 @@
 .monaco-list.selection-single,
 .monaco-list.selection-multiple {
 	outline: 0 !important;
-}
-
-/* Dnd */
-.monaco-drag-image {
-	display: inline-block;
-	padding: 1px 7px;
-	border-radius: 10px;
-	font-size: 12px;
-	position: absolute;
-	z-index: 1000;
 }
 
 /* Filter */

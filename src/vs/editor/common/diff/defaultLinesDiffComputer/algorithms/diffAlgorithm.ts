@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { forEachAdjacent } from 'vs/base/common/arrays';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { forEachAdjacent } from '../../../../../base/common/arrays.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { OffsetRange } from '../../../core/ranges/offsetRange.js';
 
 /**
  * Represents a synchronous diff algorithm. Should be executed in a worker.
@@ -16,11 +16,11 @@ export interface IDiffAlgorithm {
 
 export class DiffAlgorithmResult {
 	static trivial(seq1: ISequence, seq2: ISequence): DiffAlgorithmResult {
-		return new DiffAlgorithmResult([new SequenceDiff(new OffsetRange(0, seq1.length), new OffsetRange(0, seq2.length))], false);
+		return new DiffAlgorithmResult([new SequenceDiff(OffsetRange.ofLength(seq1.length), OffsetRange.ofLength(seq2.length))], false);
 	}
 
 	static trivialTimedOut(seq1: ISequence, seq2: ISequence): DiffAlgorithmResult {
-		return new DiffAlgorithmResult([new SequenceDiff(new OffsetRange(0, seq1.length), new OffsetRange(0, seq2.length))], true);
+		return new DiffAlgorithmResult([new SequenceDiff(OffsetRange.ofLength(seq1.length), OffsetRange.ofLength(seq2.length))], true);
 	}
 
 	constructor(
@@ -36,19 +36,32 @@ export class DiffAlgorithmResult {
 export class SequenceDiff {
 	public static invert(sequenceDiffs: SequenceDiff[], doc1Length: number): SequenceDiff[] {
 		const result: SequenceDiff[] = [];
-
 		forEachAdjacent(sequenceDiffs, (a, b) => {
-			const seq1Start = a ? a.seq1Range.endExclusive : 0;
-			const seq2Start = a ? a.seq2Range.endExclusive : 0;
-			const seq1EndEx = b ? b.seq1Range.start : doc1Length;
-			const seq2EndEx = b ? b.seq2Range.start : (a ? a.seq2Range.endExclusive - a.seq1Range.endExclusive : 0) + doc1Length;
-			result.push(new SequenceDiff(
-				new OffsetRange(seq1Start, seq1EndEx),
-				new OffsetRange(seq2Start, seq2EndEx),
+			result.push(SequenceDiff.fromOffsetPairs(
+				a ? a.getEndExclusives() : OffsetPair.zero,
+				b ? b.getStarts() : new OffsetPair(doc1Length, (a ? a.seq2Range.endExclusive - a.seq1Range.endExclusive : 0) + doc1Length)
 			));
 		});
-
 		return result;
+	}
+
+	public static fromOffsetPairs(start: OffsetPair, endExclusive: OffsetPair): SequenceDiff {
+		return new SequenceDiff(
+			new OffsetRange(start.offset1, endExclusive.offset1),
+			new OffsetRange(start.offset2, endExclusive.offset2),
+		);
+	}
+
+	public static assertSorted(sequenceDiffs: SequenceDiff[]): void {
+		let last: SequenceDiff | undefined = undefined;
+		for (const cur of sequenceDiffs) {
+			if (last) {
+				if (!(last.seq1Range.endExclusive <= cur.seq1Range.start && last.seq2Range.endExclusive <= cur.seq2Range.start)) {
+					throw new BugIndicatingError('Sequence diffs must be sorted');
+				}
+			}
+			last = cur;
+		}
 	}
 
 	constructor(
@@ -73,6 +86,67 @@ export class SequenceDiff {
 			return this;
 		}
 		return new SequenceDiff(this.seq1Range.delta(offset), this.seq2Range.delta(offset));
+	}
+
+	public deltaStart(offset: number): SequenceDiff {
+		if (offset === 0) {
+			return this;
+		}
+		return new SequenceDiff(this.seq1Range.deltaStart(offset), this.seq2Range.deltaStart(offset));
+	}
+
+	public deltaEnd(offset: number): SequenceDiff {
+		if (offset === 0) {
+			return this;
+		}
+		return new SequenceDiff(this.seq1Range.deltaEnd(offset), this.seq2Range.deltaEnd(offset));
+	}
+
+	public intersectsOrTouches(other: SequenceDiff): boolean {
+		return this.seq1Range.intersectsOrTouches(other.seq1Range) || this.seq2Range.intersectsOrTouches(other.seq2Range);
+	}
+
+	public intersect(other: SequenceDiff): SequenceDiff | undefined {
+		const i1 = this.seq1Range.intersect(other.seq1Range);
+		const i2 = this.seq2Range.intersect(other.seq2Range);
+		if (!i1 || !i2) {
+			return undefined;
+		}
+		return new SequenceDiff(i1, i2);
+	}
+
+	public getStarts(): OffsetPair {
+		return new OffsetPair(this.seq1Range.start, this.seq2Range.start);
+	}
+
+	public getEndExclusives(): OffsetPair {
+		return new OffsetPair(this.seq1Range.endExclusive, this.seq2Range.endExclusive);
+	}
+}
+
+export class OffsetPair {
+	public static readonly zero = new OffsetPair(0, 0);
+	public static readonly max = new OffsetPair(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
+
+	constructor(
+		public readonly offset1: number,
+		public readonly offset2: number,
+	) {
+	}
+
+	public toString(): string {
+		return `${this.offset1} <-> ${this.offset2}`;
+	}
+
+	public delta(offset: number): OffsetPair {
+		if (offset === 0) {
+			return this;
+		}
+		return new OffsetPair(this.offset1 + offset, this.offset2 + offset);
+	}
+
+	public equals(other: OffsetPair): boolean {
+		return this.offset1 === other.offset1 && this.offset2 === other.offset2;
 	}
 }
 
@@ -122,8 +196,6 @@ export class DateTimeout implements ITimeout {
 		const valid = Date.now() - this.startTime < this.timeout;
 		if (!valid && this.valid) {
 			this.valid = false; // timeout reached
-			// eslint-disable-next-line no-debugger
-			debugger; // WARNING: Most likely debugging caused the timeout. Call `this.disable()` to continue without timing out.
 		}
 		return this.valid;
 	}

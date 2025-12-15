@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from 'vs/platform/update/common/update';
+import { timeout } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IRequestService } from '../../request/common/request.js';
+import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
 export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
 	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
 }
 
-export type UpdateNotAvailableClassification = {
+export type UpdateErrorClassification = {
 	owner: 'joaomoreno';
-	explicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user has manually checked for updates, or this was an automatic check.' };
-	comment: 'This is used to understand how often VS Code pings the update server for an update and there\'s none available.';
+	messageHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hash of the error message.' };
+	comment: 'This is used to know how often VS Code updates have failed.';
 };
 
 export abstract class AbstractUpdateService implements IUpdateService {
@@ -48,7 +48,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	constructor(
 		@ILifecycleMainService protected readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IEnvironmentMainService protected environmentMainService: IEnvironmentMainService,
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
 		@IProductService protected readonly productService: IProductService
@@ -96,7 +96,16 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
+		// hidden setting
+		if (this.configurationService.getValue<boolean>('_update.prss')) {
+			const url = new URL(this.url);
+			url.searchParams.set('prss', 'true');
+			this.url = url.toString();
+		}
+
 		this.setState(State.Idle(this.getUpdateType()));
+
+		await this.postInitialize();
 
 		if (updateMode === 'manual') {
 			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
@@ -223,6 +232,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
+	protected async postInitialize(): Promise<void> {
+		// noop
+	}
+
 	protected abstract buildUpdateFeedUrl(quality: string): string | undefined;
-	protected abstract doCheckForUpdates(context: any): void;
+	protected abstract doCheckForUpdates(explicit: boolean): void;
 }

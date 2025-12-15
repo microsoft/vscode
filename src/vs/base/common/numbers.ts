@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from './assert.js';
+
 export function clamp(value: number, min: number, max: number): number {
 	return Math.min(Math.max(value, min), max);
 }
@@ -68,4 +70,36 @@ export class SlidingWindowAverage {
 	get value(): number {
 		return this._val;
 	}
+}
+
+/** Returns whether the point is within the triangle formed by the following 6 x/y point pairs */
+export function isPointWithinTriangle(
+	x: number, y: number,
+	ax: number, ay: number,
+	bx: number, by: number,
+	cx: number, cy: number
+) {
+	const v0x = cx - ax;
+	const v0y = cy - ay;
+	const v1x = bx - ax;
+	const v1y = by - ay;
+	const v2x = x - ax;
+	const v2y = y - ay;
+
+	const dot00 = v0x * v0x + v0y * v0y;
+	const dot01 = v0x * v1x + v0y * v1y;
+	const dot02 = v0x * v2x + v0y * v2y;
+	const dot11 = v1x * v1x + v1y * v1y;
+	const dot12 = v1x * v2x + v1y * v2y;
+
+	const invDenom = 1 / (dot00 * dot11 - dot01 * dot01);
+	const u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+	const v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+	return u >= 0 && v >= 0 && u + v < 1;
+}
+
+export function randomChance(p: number): boolean {
+	assert(p >= 0 && p <= 1, 'p must be between 0 and 1');
+	return Math.random() < p;
 }

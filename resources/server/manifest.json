@@ -3,9 +3,8 @@
 	"short_name": "Code- OSS",
 	"start_url": "/",
 	"lang": "en-US",
-	"display_override": [
-		"window-controls-overlay"
-	],
+	"display": "standalone",
+	"display_override": ["window-controls-overlay"],
 	"icons": [
 		{
 			"src": "code-192.png",

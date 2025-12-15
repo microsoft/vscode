@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Codicon } from 'vs/base/common/codicons';
-import * as nls from 'vs/nls';
+import { Toggle } from '../toggle/toggle.js';
+import { Codicon } from '../../../common/codicons.js';
+import * as nls from '../../../../nls.js';
+import { type IHoverLifecycleOptions } from '../hover/hover.js';
 
 export interface IFindInputToggleOpts {
 	readonly appendTitle: string;
@@ -13,6 +14,7 @@ export interface IFindInputToggleOpts {
 	readonly inputActiveOptionBorder: string | undefined;
 	readonly inputActiveOptionForeground: string | undefined;
 	readonly inputActiveOptionBackground: string | undefined;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
 
 const NLS_CASE_SENSITIVE_TOGGLE_LABEL = nls.localize('caseDescription', "Match Case");
@@ -25,6 +27,7 @@ export class CaseSensitiveToggle extends Toggle {
 			icon: Codicon.caseSensitive,
 			title: NLS_CASE_SENSITIVE_TOGGLE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
+			hoverLifecycleOptions: opts.hoverLifecycleOptions,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground
@@ -38,6 +41,7 @@ export class WholeWordsToggle extends Toggle {
 			icon: Codicon.wholeWord,
 			title: NLS_WHOLE_WORD_TOGGLE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
+			hoverLifecycleOptions: opts.hoverLifecycleOptions,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground
@@ -51,6 +55,7 @@ export class RegexToggle extends Toggle {
 			icon: Codicon.regex,
 			title: NLS_REGEX_TOGGLE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
+			hoverLifecycleOptions: opts.hoverLifecycleOptions,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground

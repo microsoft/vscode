@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import sinon from 'sinon';
 import { EventEmitter } from 'events';
 import { AddressInfo, connect, createServer, Server, Socket } from 'net';
 import { tmpdir } from 'os';
-import { Barrier, timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { flakySuite } from 'vs/base/test/common/testUtils';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Barrier, timeout } from '../../../../common/async.js';
+import { VSBuffer } from '../../../../common/buffer.js';
+import { Emitter, Event } from '../../../../common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../common/lifecycle.js';
+import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType } from '../../common/ipc.net.js';
+import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from '../../node/ipc.net.js';
+import { flakySuite } from '../../../../test/common/testUtils.js';
+import { runWithFakedTimers } from '../../../../test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 class MessageStream extends Disposable {
 
@@ -83,10 +84,12 @@ class Ether {
 	private _ba: Buffer[];
 
 	public get a(): Socket {
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any>this._a;
 	}
 
 	public get b(): Socket {
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any>this._b;
 	}
 
@@ -134,7 +137,7 @@ class Ether {
 
 suite('IPC, Socket Protocol', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let ether: Ether;
 
@@ -186,6 +189,26 @@ suite('IPC, Socket Protocol', () => {
 		b.dispose();
 	});
 
+
+
+	test('issue #211462: destroy socket after end timeout', async () => {
+		const socket = new EventEmitter();
+		Object.assign(socket, { destroy: () => socket.emit('close') });
+		const protocol = ds.add(new Protocol(new NodeSocket(socket as Socket)));
+
+		const disposed = sinon.stub();
+		const timers = sinon.useFakeTimers();
+
+		ds.add(toDisposable(() => timers.restore()));
+		ds.add(protocol.onDidDispose(disposed));
+
+		socket.emit('end');
+		assert.ok(!disposed.called);
+		timers.tick(29_999);
+		assert.ok(!disposed.called);
+		timers.tick(1);
+		assert.ok(disposed.called);
+	});
 });
 
 suite('PersistentProtocol reconnection', () => {
@@ -571,6 +594,8 @@ flakySuite('IPC, create handle', () => {
 
 suite('WebSocketNodeSocket', () => {
 
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	function toUint8Array(data: number[]): Uint8Array {
 		const result = new Uint8Array(data.length);
 		for (let i = 0; i < data.length; i++) {
@@ -603,11 +628,17 @@ suite('WebSocketNodeSocket', () => {
 		private readonly _onClose = new Emitter<SocketCloseEvent>();
 		public readonly onClose = this._onClose.event;
 
+		public writtenData: VSBuffer[] = [];
+
 		public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
 		}
 
 		constructor() {
 			super();
+		}
+
+		public write(data: VSBuffer): void {
+			this.writtenData.push(data);
 		}
 
 		public fireData(data: number[]): void {
@@ -618,6 +649,7 @@ suite('WebSocketNodeSocket', () => {
 	async function testReading(frames: number[][], permessageDeflate: boolean): Promise<string> {
 		const disposables = new DisposableStore();
 		const socket = new FakeNodeSocket();
+		// eslint-disable-next-line local/code-no-any-casts
 		const webSocket = disposables.add(new WebSocketNodeSocket(<any>socket, permessageDeflate, null, false));
 
 		const barrier = new Barrier();
@@ -718,15 +750,15 @@ suite('WebSocketNodeSocket', () => {
 			server.close();
 
 			const webSocketNodeSocket = new WebSocketNodeSocket(new NodeSocket(socket), true, null, false);
-			webSocketNodeSocket.onData((data) => {
+			ds.add(webSocketNodeSocket.onData((data) => {
 				receivingSideOnDataCallCount++;
 				receivingSideTotalBytes += data.byteLength;
-			});
+			}));
 
-			webSocketNodeSocket.onClose(() => {
+			ds.add(webSocketNodeSocket.onClose(() => {
 				webSocketNodeSocket.dispose();
 				receivingSideSocketClosedBarrier.open();
-			});
+			}));
 		});
 
 		const socket = connect({
@@ -744,6 +776,41 @@ suite('WebSocketNodeSocket', () => {
 
 		assert.strictEqual(receivingSideTotalBytes, buff.byteLength);
 		assert.strictEqual(receivingSideOnDataCallCount, 4);
+	});
+
+	test('issue #194284: ping/pong opcodes are supported', async () => {
+
+		const disposables = new DisposableStore();
+		const socket = new FakeNodeSocket();
+		// eslint-disable-next-line local/code-no-any-casts
+		const webSocket = disposables.add(new WebSocketNodeSocket(<any>socket, false, null, false));
+
+		let receivedData: string = '';
+		disposables.add(webSocket.onData((buff) => {
+			receivedData += fromCharCodeArray(fromUint8Array(buff.buffer));
+		}));
+
+		// A single-frame non-compressed text message that contains "Hello"
+		socket.fireData([0x81, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+
+		// A ping message that contains "data"
+		socket.fireData([0x89, 0x04, 0x64, 0x61, 0x74, 0x61]);
+
+		// Another single-frame non-compressed text message that contains "Hello"
+		socket.fireData([0x81, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+
+		assert.strictEqual(receivedData, 'HelloHello');
+		assert.deepStrictEqual(
+			socket.writtenData.map(x => fromUint8Array(x.buffer)),
+			[
+				// A pong message that contains "data"
+				[0x8A, 0x04, 0x64, 0x61, 0x74, 0x61]
+			]
+		);
+
+		disposables.dispose();
+
+		return receivedData;
 	});
 
 	function generateRandomBuffer(size: number): VSBuffer {

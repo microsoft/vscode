@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import Severity from '../../../../base/common/severity.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { listErrorForeground, listWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ITerminalStatus } from '../common/terminal.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { isString } from '../../../../base/common/types.js';
 
 /**
  * The set of _internal_ terminal statuses, other components building on the terminal should put
@@ -23,6 +25,7 @@ export const enum TerminalStatus {
 	Disconnected = 'disconnected',
 	RelaunchNeeded = 'relaunch-needed',
 	EnvironmentVariableInfoChangesActive = 'env-var-info-changes-active',
+	ShellIntegrationInfo = 'shell-integration-info',
 	ShellIntegrationAttentionNeeded = 'shell-integration-attention-needed'
 }
 
@@ -70,7 +73,9 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		let result: ITerminalStatus | undefined;
 		for (const s of this._statuses.values()) {
 			if (!result || s.severity >= result.severity) {
-				result = s;
+				if (s.icon || !result?.icon) {
+					result = s;
+				}
 			}
 		}
 		return result;
@@ -82,11 +87,11 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		status = this._applyAnimationSetting(status);
 		const outTimeout = this._statusTimeouts.get(status.id);
 		if (outTimeout) {
-			window.clearTimeout(outTimeout);
+			mainWindow.clearTimeout(outTimeout);
 			this._statusTimeouts.delete(status.id);
 		}
 		if (duration && duration > 0) {
-			const timeout = window.setTimeout(() => this.remove(status), duration);
+			const timeout = mainWindow.setTimeout(() => this.remove(status), duration);
 			this._statusTimeouts.set(status.id, timeout);
 		}
 		const existingStatus = this._statuses.get(status.id);
@@ -108,7 +113,7 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 	remove(status: ITerminalStatus): void;
 	remove(statusId: string): void;
 	remove(statusOrId: ITerminalStatus | string): void {
-		const status = typeof statusOrId === 'string' ? this._statuses.get(statusOrId) : statusOrId;
+		const status = isString(statusOrId) ? this._statuses.get(statusOrId) : statusOrId;
 		// Verify the status is the same as the one passed in
 		if (status && this._statuses.get(status.id)) {
 			const wasPrimary = this.primary?.id === status.id;

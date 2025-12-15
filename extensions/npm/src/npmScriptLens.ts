@@ -15,8 +15,8 @@ import {
 	workspace,
 	l10n
 } from 'vscode';
-import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
+import { getRunScriptCommand } from './tasks';
 
 
 const enum Constants {
@@ -31,16 +31,17 @@ const getFreshLensLocation = () => workspace.getConfiguration().get(Constants.Co
  */
 export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 	private lensLocation = getFreshLensLocation();
-	private changeEmitter = new EventEmitter<void>();
+	private readonly changeEmitter = new EventEmitter<void>();
 	private subscriptions: Disposable[] = [];
 
 	/**
 	 * @inheritdoc
 	 */
-	public onDidChangeCodeLenses = this.changeEmitter.event;
+	public readonly onDidChangeCodeLenses = this.changeEmitter.event;
 
 	constructor() {
 		this.subscriptions.push(
+			this.changeEmitter,
 			workspace.onDidChangeConfiguration(evt => {
 				if (evt.affectsConfiguration(Constants.ConfigKey)) {
 					this.lensLocation = getFreshLensLocation();
@@ -86,18 +87,20 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 		}
 
 		if (this.lensLocation === 'all') {
-			const packageManager = await findPreferredPM(Uri.joinPath(document.uri, '..').fsPath);
-			return tokens.scripts.map(
-				({ name, nameRange }) =>
-					new CodeLens(
+			const folder = Uri.joinPath(document.uri, '..');
+			return Promise.all(tokens.scripts.map(
+				async ({ name, nameRange }) => {
+					const runScriptCommand = await getRunScriptCommand(name, folder);
+					return new CodeLens(
 						nameRange,
 						{
 							title,
 							command: 'extension.js-debug.createDebuggerTerminal',
-							arguments: [`${packageManager.name} run ${name}`, workspace.getWorkspaceFolder(document.uri), { cwd }],
+							arguments: [runScriptCommand.join(' '), workspace.getWorkspaceFolder(document.uri), { cwd }],
 						},
-					),
-			);
+					);
+				},
+			));
 		}
 
 		return [];

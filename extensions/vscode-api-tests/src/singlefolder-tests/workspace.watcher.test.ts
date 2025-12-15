@@ -27,19 +27,28 @@ suite('vscode API - workspace-watcher', () => {
 		}
 	}
 
-	teardown(assertNoRpc);
+	let fs: WatcherTestFs;
+	let disposable: vscode.Disposable;
+
+	function onDidWatchPromise() {
+		const onDidWatchPromise = new Promise<IWatchRequest>(resolve => {
+			fs.onDidWatch(request => resolve(request));
+		});
+
+		return onDidWatchPromise;
+	}
+
+	setup(() => {
+		fs = new WatcherTestFs('watcherTest', false);
+		disposable = vscode.workspace.registerFileSystemProvider('watcherTest', fs);
+	});
+
+	teardown(() => {
+		disposable.dispose();
+		assertNoRpc();
+	});
 
 	test('createFileSystemWatcher', async function () {
-		const fs = new WatcherTestFs('watcherTest', false);
-		vscode.workspace.registerFileSystemProvider('watcherTest', fs);
-
-		function onDidWatchPromise() {
-			const onDidWatchPromise = new Promise<IWatchRequest>(resolve => {
-				fs.onDidWatch(request => resolve(request));
-			});
-
-			return onDidWatchPromise;
-		}
 
 		// Non-recursive
 		let watchUri = vscode.Uri.from({ scheme: 'watcherTest', path: '/somePath/folder' });

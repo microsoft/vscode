@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IMarkerListProvider, MarkerList, IMarkerNavigationService } from 'vs/editor/contrib/gotoError/browser/markerNavigationService';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { throttle } from 'vs/base/common/decorators';
-import { editorErrorForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { isEqual } from 'vs/base/common/resources';
+import { URI } from '../../../../../../base/common/uri.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../common/contributions.js';
+import { IMarkerListProvider, MarkerList, IMarkerNavigationService } from '../../../../../../editor/contrib/gotoError/browser/markerNavigationService.js';
+import { CellUri } from '../../../common/notebookCommon.js';
+import { IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, NotebookOverviewRulerLane } from '../../notebookBrowser.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { throttle } from '../../../../../../base/common/decorators.js';
+import { editorErrorForeground, editorWarningForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 
 class MarkerListProvider implements IMarkerListProvider {
+
+	static readonly ID = 'workbench.contrib.markerListProvider';
 
 	private readonly _dispoables: IDisposable;
 
@@ -97,8 +97,6 @@ class NotebookMarkerDecorationContribution extends Disposable implements INotebo
 	}
 }
 
-Registry
-	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MarkerListProvider, LifecyclePhase.Ready);
+registerWorkbenchContribution2(MarkerListProvider.ID, MarkerListProvider, WorkbenchPhase.BlockRestore);
 
 registerNotebookContribution(NotebookMarkerDecorationContribution.id, NotebookMarkerDecorationContribution);

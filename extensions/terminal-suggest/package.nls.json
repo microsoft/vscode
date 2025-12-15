@@ -1,0 +1,6 @@
+{
+	"description": "Extension to add terminal completions for zsh, bash, and fish terminals.",
+	"displayName": "Terminal Suggest for VS Code",
+	"view.name": "Terminal Suggest",
+	"terminal.integrated.suggest.clearCachedGlobals": "Clear Suggest Cached Globals"
+}

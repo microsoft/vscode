@@ -120,7 +120,7 @@ class FolderDetector {
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
-		const taskDefinition = <any>_task.definition;
+		const taskDefinition = _task.definition;
 		const gruntTask = taskDefinition.task;
 		if (gruntTask) {
 			const options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
@@ -316,7 +316,7 @@ class TaskDetector {
 		if (this.detectors.size === 0) {
 			return Promise.resolve([]);
 		} else if (this.detectors.size === 1) {
-			return this.detectors.values().next().value.getTasks();
+			return this.detectors.values().next().value!.getTasks();
 		} else {
 			const promises: Promise<vscode.Task[]>[] = [];
 			for (const detector of this.detectors.values()) {
@@ -338,7 +338,7 @@ class TaskDetector {
 		if (this.detectors.size === 0) {
 			return undefined;
 		} else if (this.detectors.size === 1) {
-			return this.detectors.values().next().value.getTask(task);
+			return this.detectors.values().next().value!.getTask(task);
 		} else {
 			if ((task.scope === vscode.TaskScope.Workspace) || (task.scope === vscode.TaskScope.Global)) {
 				return undefined;

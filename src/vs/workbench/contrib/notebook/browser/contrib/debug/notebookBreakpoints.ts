@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IBreakpoint, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../../../common/contributions.js';
+import { IBreakpoint, IDebugService } from '../../../../debug/common/debug.js';
+import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { CellUri, NotebookCellsChangeType } from '../../../common/notebookCommon.js';
+import { INotebookService } from '../../../common/notebookService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 
 class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 	constructor(
@@ -58,7 +59,7 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 		}));
 
 		this._register(this._debugService.getModel().onDidChangeBreakpoints(e => {
-			const newCellBp = e?.added?.find(bp => 'uri' in bp && bp.uri.scheme === Schemas.vscodeNotebookCell) as IBreakpoint | undefined;
+			const newCellBp = e?.added?.find(bp => hasKey(bp, { uri: true }) && bp.uri.scheme === Schemas.vscodeNotebookCell) as IBreakpoint | undefined;
 			if (newCellBp) {
 				const parsed = CellUri.parse(newCellBp.uri);
 				if (!parsed) {

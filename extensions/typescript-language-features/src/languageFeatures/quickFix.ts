@@ -12,11 +12,12 @@ import type * as Proto from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { nulToken } from '../utils/cancellation';
-import { memoize } from '../utils/memoize';
+import { Lazy } from '../utils/lazy';
 import { equals } from '../utils/objects';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
 import { applyCodeActionCommands, getEditForCodeAction } from './util/codeAction';
+import { CompositeCommand, EditorChatFollowUp, EditorChatFollowUp_Args, Expand } from './util/copilot';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 type ApplyCodeActionCommand_args = {
@@ -25,42 +26,6 @@ type ApplyCodeActionCommand_args = {
 	readonly action: Proto.CodeFixAction;
 	readonly followupAction?: Command;
 };
-
-class EditorChatFollowUp implements Command {
-
-	id: string = '_typescript.quickFix.editorChatFollowUp';
-
-	constructor(private readonly prompt: string, private readonly document: vscode.TextDocument, private readonly range: vscode.Range, private readonly client: ITypeScriptServiceClient) {
-	}
-
-	async execute() {
-		const findScopeEndLineFromNavTree = (startLine: number, navigationTree: Proto.NavigationTree[]): vscode.Range | undefined => {
-			for (const node of navigationTree) {
-				const range = typeConverters.Range.fromTextSpan(node.spans[0]);
-				if (startLine === range.start.line) {
-					return range;
-				} else if (startLine > range.start.line && startLine <= range.end.line && node.childItems) {
-					return findScopeEndLineFromNavTree(startLine, node.childItems);
-				}
-			}
-			return undefined;
-		};
-		const filepath = this.client.toOpenTsFilePath(this.document);
-		if (!filepath) {
-			return;
-		}
-		const response = await this.client.execute('navtree', { file: filepath }, nulToken);
-		if (response.type !== 'response' || !response.body?.childItems) {
-			return;
-		}
-		const startLine = this.range.start.line;
-		const enclosingRange = findScopeEndLineFromNavTree(startLine, response.body.childItems);
-		if (!enclosingRange) {
-			return;
-		}
-		await vscode.commands.executeCommand('vscode.editorChat.start', { initialRange: enclosingRange, message: this.prompt, autoSend: true });
-	}
-}
 
 class ApplyCodeActionCommand implements Command {
 	public static readonly ID = '_typescript.applyCodeActionCommand';
@@ -182,12 +147,19 @@ class VsCodeFixAllCodeAction extends VsCodeCodeAction {
 class CodeActionSet {
 	private readonly _actions = new Set<VsCodeCodeAction>();
 	private readonly _fixAllActions = new Map<{}, VsCodeCodeAction>();
+	private readonly _aiActions = new Set<VsCodeCodeAction>();
 
-	public get values(): Iterable<VsCodeCodeAction> {
-		return this._actions;
+	public *values(): Iterable<VsCodeCodeAction> {
+		yield* this._actions;
+		yield* this._aiActions;
 	}
 
 	public addAction(action: VsCodeCodeAction) {
+		if (action.isAI) {
+			// there are no separate fixAllActions for AI, and no duplicates, so return immediately
+			this._aiActions.add(action);
+			return;
+		}
 		for (const existing of this._actions) {
 			if (action.tsAction.fixName === existing.tsAction.fixName && equals(action.edit, existing.edit)) {
 				this._actions.delete(existing);
@@ -226,21 +198,22 @@ class SupportedCodeActionProvider {
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async getFixableDiagnosticsForContext(context: vscode.CodeActionContext): Promise<DiagnosticsSet> {
-		const fixableCodes = await this.fixableDiagnosticCodes;
+	public async getFixableDiagnosticsForContext(diagnostics: readonly vscode.Diagnostic[]): Promise<DiagnosticsSet> {
+		const fixableCodes = await this.fixableDiagnosticCodes.value;
 		return DiagnosticsSet.from(
-			context.diagnostics.filter(diagnostic => typeof diagnostic.code !== 'undefined' && fixableCodes.has(diagnostic.code + '')));
+			diagnostics.filter(diagnostic => typeof diagnostic.code !== 'undefined' && fixableCodes.has(diagnostic.code + '')));
 	}
 
-	@memoize
-	private get fixableDiagnosticCodes(): Thenable<Set<string>> {
+	private readonly fixableDiagnosticCodes = new Lazy<Thenable<Set<string>>>(() => {
 		return this.client.execute('getSupportedCodeFixes', null, nulToken)
 			.then(response => response.type === 'response' ? response.body || [] : [])
 			.then(codes => new Set(codes));
-	}
+	});
 }
 
 class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCodeAction> {
+
+	private static readonly _maxCodeActionsPerFile: number = 1000;
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
 		providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
@@ -255,15 +228,17 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		private readonly diagnosticsManager: DiagnosticsManager,
 		telemetryReporter: TelemetryReporter
 	) {
+		commandManager.register(new CompositeCommand());
 		commandManager.register(new ApplyCodeActionCommand(client, diagnosticsManager, telemetryReporter));
 		commandManager.register(new ApplyFixAllCodeAction(client, telemetryReporter));
+		commandManager.register(new EditorChatFollowUp(client, telemetryReporter));
 
 		this.supportedCodeActionProvider = new SupportedCodeActionProvider(client);
 	}
 
 	public async provideCodeActions(
 		document: vscode.TextDocument,
-		_range: vscode.Range,
+		range: vscode.Range,
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<VsCodeCodeAction[] | undefined> {
@@ -272,12 +247,32 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			return;
 		}
 
-		const fixableDiagnostics = await this.supportedCodeActionProvider.getFixableDiagnosticsForContext(context);
-		if (!fixableDiagnostics.size || token.isCancellationRequested) {
-			return;
+		let diagnostics = context.diagnostics;
+		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
+			// Delay for 500ms when there are pending diagnostics before recomputing up-to-date diagnostics.
+			await new Promise((resolve) => {
+				setTimeout(resolve, 500);
+			});
+
+			if (token.isCancellationRequested) {
+				return;
+			}
+			const allDiagnostics: vscode.Diagnostic[] = [];
+
+			// Match ranges again after getting new diagnostics
+			for (const diagnostic of this.diagnosticsManager.getDiagnostics(document.uri)) {
+				if (range.intersection(diagnostic.range)) {
+					const newLen = allDiagnostics.push(diagnostic);
+					if (newLen > TypeScriptQuickFixProvider._maxCodeActionsPerFile) {
+						break;
+					}
+				}
+			}
+			diagnostics = allDiagnostics;
 		}
 
-		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
+		const fixableDiagnostics = await this.supportedCodeActionProvider.getFixableDiagnosticsForContext(diagnostics);
+		if (!fixableDiagnostics.size || token.isCancellationRequested) {
 			return;
 		}
 
@@ -294,7 +289,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			}
 		}
 
-		const allActions = Array.from(results.values);
+		const allActions = Array.from(results.values());
 		for (const action of allActions) {
 			action.isPreferred = isPreferredFix(action, allActions);
 		}
@@ -340,42 +335,104 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		}
 
 		for (const tsCodeFix of response.body) {
-			this.addAllFixesForTsCodeAction(results, document, file, diagnostic, tsCodeFix as Proto.CodeFixAction);
+			for (const action of this.getFixesForTsCodeAction(document, diagnostic, tsCodeFix)) {
+				results.addAction(action);
+			}
+			this.addFixAllForTsCodeAction(results, document.uri, file, diagnostic, tsCodeFix as Proto.CodeFixAction);
 		}
 		return results;
 	}
 
-	private addAllFixesForTsCodeAction(
-		results: CodeActionSet,
-		document: vscode.TextDocument,
-		file: string,
-		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeFixAction
-	): CodeActionSet {
-		results.addAction(this.getSingleFixForTsCodeAction(document, diagnostic, tsAction));
-		this.addFixAllForTsCodeAction(results, document.uri, file, diagnostic, tsAction as Proto.CodeFixAction);
-		return results;
-	}
-
-	private getSingleFixForTsCodeAction(
+	private getFixesForTsCodeAction(
 		document: vscode.TextDocument,
 		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeFixAction
-	): VsCodeCodeAction {
-		const aiQuickFixEnabled = vscode.workspace.getConfiguration('typescript').get('experimental.aiQuickFix');
-		let followupAction: Command | undefined;
-		if (aiQuickFixEnabled && tsAction.fixName === fixNames.classIncorrectlyImplementsInterface) {
-			followupAction = new EditorChatFollowUp('Implement the class using the interface', document, diagnostic.range, this.client);
-		}
-		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix);
-		codeAction.edit = getEditForCodeAction(this.client, tsAction);
+		action: Proto.CodeFixAction
+	): VsCodeCodeAction[] {
+		const actions: VsCodeCodeAction[] = [];
+		const codeAction = new VsCodeCodeAction(action, action.description, vscode.CodeActionKind.QuickFix);
+		codeAction.edit = getEditForCodeAction(this.client, action);
 		codeAction.diagnostics = [diagnostic];
+		codeAction.ranges = [diagnostic.range];
 		codeAction.command = {
 			command: ApplyCodeActionCommand.ID,
-			arguments: [<ApplyCodeActionCommand_args>{ action: tsAction, diagnostic, document, followupAction }],
+			arguments: [{ action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
 			title: ''
 		};
-		return codeAction;
+		actions.push(codeAction);
+
+		const copilot = vscode.extensions.getExtension('github.copilot-chat');
+		if (copilot?.isActive) {
+			let message: string | undefined;
+			let expand: Expand | undefined;
+			let title = action.description;
+			if (action.fixName === fixNames.classIncorrectlyImplementsInterface) {
+				title = vscode.l10n.t('{0} with AI', action.description);
+				message = vscode.l10n.t('Implement the stubbed-out class members for {0} with a useful implementation.', document.getText(diagnostic.range));
+				expand = { kind: 'code-action', action };
+			} else if (action.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember) {
+				title = vscode.l10n.t('{0} with AI', action.description);
+				message = vscode.l10n.t(`Implement the stubbed-out class members for {0} with a useful implementation.`, document.getText(diagnostic.range));
+				expand = { kind: 'code-action', action };
+			} else if (action.fixName === fixNames.fixMissingFunctionDeclaration) {
+				title = vscode.l10n.t(`Implement missing function declaration '{0}' using AI`, document.getText(diagnostic.range));
+				message = vscode.l10n.t(`Provide a reasonable implementation of the function {0} given its type and the context it's called in.`, document.getText(diagnostic.range));
+				expand = { kind: 'code-action', action };
+			} else if (action.fixName === fixNames.inferFromUsage) {
+				const inferFromBody = new VsCodeCodeAction(action, vscode.l10n.t('Infer types using AI'), vscode.CodeActionKind.QuickFix);
+				inferFromBody.edit = new vscode.WorkspaceEdit();
+				inferFromBody.diagnostics = [diagnostic];
+				inferFromBody.ranges = [diagnostic.range];
+				inferFromBody.isAI = true;
+				inferFromBody.command = {
+					command: EditorChatFollowUp.ID,
+					arguments: [{
+						message: vscode.l10n.t('Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.'),
+						expand: { kind: 'navtree-function', pos: diagnostic.range.start },
+						document,
+						action: { type: 'quickfix', quickfix: action }
+					} satisfies EditorChatFollowUp_Args],
+					title: ''
+				};
+				actions.push(inferFromBody);
+			}
+			else if (action.fixName === fixNames.addNameToNamelessParameter) {
+				const newText = action.changes.map(change => change.textChanges.map(textChange => textChange.newText).join('')).join('');
+				title = vscode.l10n.t('Add meaningful parameter name with AI');
+				message = vscode.l10n.t(`Rename the parameter {0} with a more meaningful name.`, newText);
+				expand = {
+					kind: 'navtree-function',
+					pos: diagnostic.range.start
+				};
+			}
+			if (expand && message !== undefined) {
+				const aiCodeAction = new VsCodeCodeAction(action, title, vscode.CodeActionKind.QuickFix);
+				aiCodeAction.edit = getEditForCodeAction(this.client, action);
+				aiCodeAction.edit?.insert(document.uri, diagnostic.range.start, '');
+				aiCodeAction.diagnostics = [diagnostic];
+				aiCodeAction.ranges = [diagnostic.range];
+				aiCodeAction.isAI = true;
+				aiCodeAction.command = {
+					command: CompositeCommand.ID,
+					title: '',
+					arguments: [{
+						command: ApplyCodeActionCommand.ID,
+						arguments: [{ action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
+						title: ''
+					}, {
+						command: EditorChatFollowUp.ID,
+						title: '',
+						arguments: [{
+							message,
+							expand,
+							document,
+							action: { type: 'quickfix', quickfix: action }
+						} satisfies EditorChatFollowUp_Args],
+					}],
+				};
+				actions.push(aiCodeAction);
+			}
+		}
+		return actions;
 	}
 
 	private addFixAllForTsCodeAction(
@@ -389,7 +446,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			return results;
 		}
 
-		// Make sure there are multiple diagnostics of the same type in the file
+		// Make sure there are multiple different diagnostics of the same type in the file
 		if (!this.diagnosticsManager.getDiagnostics(resource).some(x => {
 			if (x === diagnostic) {
 				return false;
@@ -407,9 +464,10 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			vscode.CodeActionKind.QuickFix);
 
 		action.diagnostics = [diagnostic];
+		action.ranges = [diagnostic.range];
 		action.command = {
 			command: ApplyFixAllCodeAction.ID,
-			arguments: [<ApplyFixAllCodeAction_args>{ action }],
+			arguments: [{ action } satisfies ApplyFixAllCodeAction_args],
 			title: ''
 		};
 		results.addFixAllAction(tsAction.fixId, action);
@@ -417,7 +475,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 	}
 }
 
-// Some fix all actions can actually fix multiple differnt diagnostics. Make sure we still show the fix all action
+// Some fix all actions can actually fix multiple different diagnostics. Make sure we still show the fix all action
 // in such cases
 const fixAllErrorCodes = new Map<number, number>([
 	// Missing async

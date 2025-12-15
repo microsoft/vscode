@@ -3,95 +3,110 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import * as InlineChatActions from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatService, INLINE_CHAT_ID, INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
-import { IInlineChatSessionService, InlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { InlineChatNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Extensions, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { InlineChatController, InlineChatController1, InlineChatController2 } from './inlineChatController.js';
+import * as InlineChatActions from './inlineChatActions.js';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_V1_ENABLED, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, INLINE_CHAT_ID, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { InlineChatNotebookContribution } from './inlineChatNotebook.js';
+import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
+import { InlineChatAccessibleView } from './inlineChatAccessibleView.js';
+import { IInlineChatSessionService } from './inlineChatSessionService.js';
+import { InlineChatEnabler, InlineChatEscapeToolContribution, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { CancelAction, ChatSubmitAction } from '../../chat/browser/actions/chatExecuteActions.js';
+import { localize } from '../../../../nls.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 
-registerSingleton(IInlineChatService, InlineChatServiceImpl, InstantiationType.Delayed);
-registerSingleton(IInlineChatSessionService, InlineChatSessionService, InstantiationType.Delayed);
+registerEditorContribution(InlineChatController2.ID, InlineChatController2, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
+registerEditorContribution(INLINE_CHAT_ID, InlineChatController1, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
+registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
-registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
-registerEditorContribution(INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID, InlineChatActions.InlineAccessibilityHelpContribution, EditorContributionInstantiation.Eventually);
+registerAction2(InlineChatActions.KeepSessionAction2);
+registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
+
+// --- browser
+
+registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
+
+// --- MENU special ---
+
+const editActionMenuItem: IMenuItem = {
+	group: '0_main',
+	order: 0,
+	command: {
+		id: ChatSubmitAction.ID,
+		title: localize('send.edit', "Edit Code"),
+	},
+	when: ContextKeyExpr.and(
+		ChatContextKeys.inputHasText,
+		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
+		CTX_INLINE_CHAT_EDITING,
+		CTX_INLINE_CHAT_V1_ENABLED
+	),
+};
+
+const generateActionMenuItem: IMenuItem = {
+	group: '0_main',
+	order: 0,
+	command: {
+		id: ChatSubmitAction.ID,
+		title: localize('send.generate', "Generate"),
+	},
+	when: ContextKeyExpr.and(
+		ChatContextKeys.inputHasText,
+		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
+		CTX_INLINE_CHAT_EDITING.toNegated(),
+		CTX_INLINE_CHAT_V1_ENABLED
+	),
+};
+
+MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, editActionMenuItem);
+MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, generateActionMenuItem);
+
+const cancelActionMenuItem: IMenuItem = {
+	group: '0_main',
+	order: 0,
+	command: {
+		id: CancelAction.ID,
+		title: localize('cancel', "Cancel Request"),
+		shortTitle: localize('cancelShort', "Cancel"),
+	},
+	when: ContextKeyExpr.and(
+		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS,
+	),
+};
+
+MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, cancelActionMenuItem);
+
+// --- actions ---
 
 registerAction2(InlineChatActions.StartSessionAction);
+registerAction2(InlineChatActions.CloseAction);
+registerAction2(InlineChatActions.ConfigureInlineChatAction);
 registerAction2(InlineChatActions.UnstashSessionAction);
-registerAction2(InlineChatActions.MakeRequestAction);
-registerAction2(InlineChatActions.StopRequestAction);
-registerAction2(InlineChatActions.ReRunRequestAction);
-registerAction2(InlineChatActions.DiscardAction);
-registerAction2(InlineChatActions.DiscardToClipboardAction);
-registerAction2(InlineChatActions.DiscardUndoToNewFileAction);
-registerAction2(InlineChatActions.CancelSessionAction);
+registerAction2(InlineChatActions.DiscardHunkAction);
+registerAction2(InlineChatActions.RerunAction);
+registerAction2(InlineChatActions.MoveToNextHunk);
+registerAction2(InlineChatActions.MoveToPreviousHunk);
 
 registerAction2(InlineChatActions.ArrowOutUpAction);
 registerAction2(InlineChatActions.ArrowOutDownAction);
 registerAction2(InlineChatActions.FocusInlineChat);
-registerAction2(InlineChatActions.PreviousFromHistory);
-registerAction2(InlineChatActions.NextFromHistory);
 registerAction2(InlineChatActions.ViewInChatAction);
-registerAction2(InlineChatActions.ExpandMessageAction);
-registerAction2(InlineChatActions.ContractMessageAction);
 
-registerAction2(InlineChatActions.ToggleInlineDiff);
-registerAction2(InlineChatActions.FeebackHelpfulCommand);
-registerAction2(InlineChatActions.FeebackUnhelpfulCommand);
-registerAction2(InlineChatActions.ApplyPreviewEdits);
-
-registerAction2(InlineChatActions.CopyRecordings);
-
-
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
-	.registerWorkbenchContribution(InlineChatNotebookContribution, LifecyclePhase.Restored);
-
-
-class InlineChatAccessibleViewContribution extends Disposable {
-	static ID: 'inlineChatAccessibleViewContribution';
-	constructor() {
-		super();
-		this._register(AccessibleViewAction.addImplementation(100, 'inlineChat', accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const codeEditorService = accessor.get(ICodeEditorService);
-
-			const editor = (codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
-			if (!editor) {
-				return false;
-			}
-			const controller = InlineChatController.get(editor);
-			if (!controller) {
-				return false;
-			}
-			const responseContent = controller?.getMessage();
-			if (!responseContent) {
-				return false;
-			}
-			accessibleViewService.show({
-				verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
-				provideContent(): string { return responseContent; },
-				onClose() {
-					controller.focus();
-				},
-
-				options: { type: AccessibleViewType.View }
-			});
-			return true;
-		}, ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));
-	}
-}
+registerAction2(InlineChatActions.ToggleDiffForChange);
+registerAction2(InlineChatActions.AcceptChanges);
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatAccessibleViewContribution, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatNotebookContribution, LifecyclePhase.Restored);
+
+registerWorkbenchContribution2(InlineChatEnabler.Id, InlineChatEnabler, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(InlineChatEscapeToolContribution.Id, InlineChatEscapeToolContribution, WorkbenchPhase.AfterRestored);
+AccessibleViewRegistry.register(new InlineChatAccessibleView());
+AccessibleViewRegistry.register(new InlineChatAccessibilityHelp());

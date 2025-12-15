@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DebugModel, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DebugModel, Expression } from '../../common/debugModel.js';
+import { createMockDebugModel } from './mockDebugModel.js';
 
 // Expressions
 
@@ -22,18 +21,11 @@ function assertWatchExpressions(watchExpressions: Expression[], expectedName: st
 
 suite('Debug - Watch', () => {
 	let model: DebugModel;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		disposables = new DisposableStore();
 		model = createMockDebugModel(disposables);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('watch expressions', () => {
 		assert.strictEqual(model.getWatchExpressions().length, 0);

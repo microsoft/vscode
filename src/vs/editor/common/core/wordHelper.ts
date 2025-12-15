@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
+import { Iterable } from '../../../base/common/iterator.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
 
 export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
 
@@ -96,6 +96,8 @@ export function setDefaultGetWordAtTextConfig(value: IGetWordAtTextConfig) {
 }
 
 export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number, config?: IGetWordAtTextConfig): IWordAtPosition | null {
+	// Ensure the regex has the 'g' flag, otherwise this will loop forever
+	wordDefinition = ensureValidWordDefinition(wordDefinition);
 
 	if (!config) {
 		config = Iterable.first(_defaultConfig)!;
@@ -149,8 +151,8 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 	if (match) {
 		const result = {
 			word: match[0],
-			startColumn: textOffset + 1 + match.index!,
-			endColumn: textOffset + 1 + match.index! + match[0].length
+			startColumn: textOffset + 1 + match.index,
+			endColumn: textOffset + 1 + match.index + match[0].length
 		};
 		wordDefinition.lastIndex = 0;
 		return result;

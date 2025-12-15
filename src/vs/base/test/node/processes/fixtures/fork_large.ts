@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as processes from 'vs/base/node/processes';
+import * as processes from '../../../../node/processes.js';
 
 const sender = processes.createQueuedSender(<any>process);
 

@@ -3,26 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, reset } from 'vs/base/browser/dom';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, transaction } from 'vs/base/common/observable';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
+import { h, reset } from '../../../../../base/browser/dom.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, transaction } from '../../../../../base/common/observable.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { MergeEditorLineRange } from '../model/lineRange.js';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
-	private readonly scrollTop = observableFromEvent(
-		this._editor.onDidScrollChange,
-		(e) => /** @description editor.onDidScrollChange */ this._editor.getScrollTop()
-	);
-	private readonly isScrollTopZero = this.scrollTop.map((scrollTop) => /** @description isScrollTopZero */ scrollTop === 0);
-	private readonly modelAttached = observableFromEvent(
-		this._editor.onDidChangeModel,
-		(e) => /** @description editor.onDidChangeModel */ this._editor.hasModel()
-	);
+	private readonly scrollTop;
+	private readonly isScrollTopZero;
+	private readonly modelAttached;
 
-	private readonly editorOnDidChangeViewZones = observableSignalFromEvent('onDidChangeViewZones', this._editor.onDidChangeViewZones);
-	private readonly editorOnDidContentSizeChange = observableSignalFromEvent('onDidContentSizeChange', this._editor.onDidContentSizeChange);
-	private readonly domNodeSizeChanged = observableSignal('domNodeSizeChanged');
+	private readonly editorOnDidChangeViewZones;
+	private readonly editorOnDidContentSizeChange;
+	private readonly domNodeSizeChanged;
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -30,6 +24,19 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		private readonly itemProvider: IGutterItemProvider<T>
 	) {
 		super();
+		this.scrollTop = observableFromEvent(this,
+			this._editor.onDidScrollChange,
+			(e) => /** @description editor.onDidScrollChange */ this._editor.getScrollTop()
+		);
+		this.isScrollTopZero = this.scrollTop.map((scrollTop) => /** @description isScrollTopZero */ scrollTop === 0);
+		this.modelAttached = observableFromEvent(this,
+			this._editor.onDidChangeModel,
+			(e) => /** @description editor.onDidChangeModel */ this._editor.hasModel()
+		);
+		this.editorOnDidChangeViewZones = observableSignalFromEvent('onDidChangeViewZones', this._editor.onDidChangeViewZones);
+		this.editorOnDidContentSizeChange = observableSignalFromEvent('onDidContentSizeChange', this._editor.onDidContentSizeChange);
+		this.domNodeSizeChanged = observableSignal('domNodeSizeChanged');
+		this.views = new Map<string, ManagedGutterItemView>();
 		this._domNode.className = 'gutter monaco-editor';
 		const scrollDecoration = this._domNode.appendChild(
 			h('div.scroll-decoration', { role: 'presentation', ariaHidden: 'true', style: { width: '100%' } })
@@ -59,7 +66,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		reset(this._domNode);
 	}
 
-	private readonly views = new Map<string, ManagedGutterItemView>();
+	private readonly views;
 
 	private render(reader: IReader): void {
 		if (!this.modelAttached.read(reader)) {
@@ -78,7 +85,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		if (visibleRanges.length > 0) {
 			const visibleRange = visibleRanges[0];
 
-			const visibleRange2 = new LineRange(
+			const visibleRange2 = MergeEditorLineRange.fromLength(
 				visibleRange.startLineNumber,
 				visibleRange.endLineNumber - visibleRange.startLineNumber
 			).deltaEnd(1);
@@ -89,7 +96,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 			);
 
 			for (const gutterItem of gutterItems) {
-				if (!gutterItem.range.touches(visibleRange2)) {
+				if (!gutterItem.range.intersectsOrTouches(visibleRange2)) {
 					continue;
 				}
 
@@ -126,7 +133,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		for (const id of unusedIds) {
 			const view = this.views.get(id)!;
 			view.gutterItemView.dispose();
-			this._domNode.removeChild(view.domNode);
+			view.domNode.remove();
 			this.views.delete(id);
 		}
 	}
@@ -140,18 +147,17 @@ class ManagedGutterItemView {
 }
 
 export interface IGutterItemProvider<TItem extends IGutterItemInfo> {
-	getIntersectingGutterItems(range: LineRange, reader: IReader): TItem[];
+	getIntersectingGutterItems(range: MergeEditorLineRange, reader: IReader): TItem[];
 
 	createView(item: TItem, target: HTMLElement): IGutterItemView<TItem>;
 }
 
 export interface IGutterItemInfo {
 	id: string;
-	range: LineRange;
+	range: MergeEditorLineRange;
 }
 
 export interface IGutterItemView<T extends IGutterItemInfo> extends IDisposable {
 	update(item: T): void;
 	layout(top: number, height: number, viewTop: number, viewHeight: number): void;
 }
-

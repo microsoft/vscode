@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { TunnelPrivacy } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IDisposable, Disposable } from '../../../base/common/lifecycle.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IAddressProvider } from '../../remote/common/remoteAgentConnection.js';
+import { TunnelPrivacy } from '../../remote/common/remoteAuthorityResolver.js';
 
 export const ITunnelService = createDecorator<ITunnelService>('tunnelService');
 export const ISharedTunnelsService = createDecorator<ISharedTunnelsService>('sharedTunnelsService');
@@ -25,6 +25,11 @@ export interface RemoteTunnel {
 	readonly privacy: string;
 	readonly protocol?: string;
 	dispose(silent?: boolean): Promise<void>;
+}
+
+export function isRemoteTunnel(something: unknown): something is RemoteTunnel {
+	const asTunnel: Partial<RemoteTunnel> = something as Partial<RemoteTunnel>;
+	return !!(asTunnel.tunnelRemotePort && asTunnel.tunnelRemoteHost && asTunnel.localAddress && asTunnel.privacy && asTunnel.dispose);
 }
 
 export interface TunnelOptions {
@@ -58,6 +63,7 @@ export interface TunnelProviderFeatures {
 	 */
 	public?: boolean;
 	privacyOptions: TunnelPrivacy[];
+	protocol: boolean;
 }
 
 export interface ITunnelProvider {
@@ -106,7 +112,7 @@ export interface ITunnel {
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
-	onDidDispose: Event<void>;
+	readonly onDidDispose: Event<void>;
 
 	dispose(): Promise<void> | void;
 }
@@ -126,6 +132,7 @@ export interface ITunnelService {
 	readonly onTunnelOpened: Event<RemoteTunnel>;
 	readonly onTunnelClosed: Event<{ host: string; port: number }>;
 	readonly canElevate: boolean;
+	readonly canChangeProtocol: boolean;
 	readonly hasTunnelProvider: boolean;
 	readonly onAddedTunnelProvider: Event<void>;
 
@@ -151,6 +158,23 @@ export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: 
 		address: localhostMatch[1],
 		port: +localhostMatch[2],
 	};
+}
+
+export function extractQueryLocalHostUriMetaDataForPortMapping(uri: URI): { address: string; port: number } | undefined {
+	if (uri.scheme !== 'http' && uri.scheme !== 'https' || !uri.query) {
+		return undefined;
+	}
+	const keyvalues = uri.query.split('&');
+	for (const keyvalue of keyvalues) {
+		const value = keyvalue.split('=')[1];
+		if (/^https?:/.exec(value)) {
+			const result = extractLocalHostUriMetaDataForPortMapping(URI.parse(value));
+			if (result) {
+				return result;
+			}
+		}
+	}
+	return undefined;
 }
 
 export const LOCALHOST_ADDRESSES = ['localhost', '127.0.0.1', '0:0:0:0:0:0:0:1', '::1'];
@@ -183,7 +207,7 @@ export function isPortPrivileged(port: number, host: string, os: OperatingSystem
 
 export class DisposableTunnel {
 	private _onDispose: Emitter<void> = new Emitter();
-	onDidDispose: Event<void> = this._onDispose.event;
+	readonly onDidDispose: Event<void> = this._onDispose.event;
 
 	constructor(
 		public readonly remoteAddress: { port: number; host: string },
@@ -196,7 +220,7 @@ export class DisposableTunnel {
 	}
 }
 
-export abstract class AbstractTunnelService implements ITunnelService {
+export abstract class AbstractTunnelService extends Disposable implements ITunnelService {
 	declare readonly _serviceBrand: undefined;
 
 	private _onTunnelOpened: Emitter<RemoteTunnel> = new Emitter();
@@ -208,13 +232,14 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	protected readonly _tunnels = new Map</*host*/ string, Map</* port */ number, { refcount: number; readonly value: Promise<RemoteTunnel | string | undefined> }>>();
 	protected _tunnelProvider: ITunnelProvider | undefined;
 	protected _canElevate: boolean = false;
+	private _canChangeProtocol: boolean = true;
 	private _privacyOptions: TunnelPrivacy[] = [];
 	private _factoryInProgress: Set<number/*port*/> = new Set();
 
 	public constructor(
 		@ILogService protected readonly logService: ILogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService
-	) { }
+	) { super(); }
 
 	get hasTunnelProvider(): boolean {
 		return !!this._tunnelProvider;
@@ -250,6 +275,11 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	setTunnelFeatures(features: TunnelProviderFeatures): void {
 		this._canElevate = features.elevation;
 		this._privacyOptions = features.privacyOptions;
+		this._canChangeProtocol = features.protocol;
+	}
+
+	public get canChangeProtocol(): boolean {
+		return this._canChangeProtocol;
 	}
 
 	public get canElevate(): boolean {
@@ -283,7 +313,8 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return tunnels;
 	}
 
-	async dispose(): Promise<void> {
+	override async dispose(): Promise<void> {
+		super.dispose();
 		for (const portMap of this._tunnels.values()) {
 			for (const { value } of portMap.values()) {
 				await value.then(tunnel => typeof tunnel !== 'string' ? tunnel?.dispose() : undefined);
@@ -346,11 +377,11 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return resolvedTunnel.then(tunnel => {
 			if (!tunnel) {
 				this.logService.trace('ForwardedPorts: (TunnelService) New tunnel is undefined.');
-				this.removeEmptyOrErrorTunnelFromMap(remoteHost!, remotePort);
+				this.removeEmptyOrErrorTunnelFromMap(remoteHost, remotePort);
 				return undefined;
 			} else if (typeof tunnel === 'string') {
 				this.logService.trace('ForwardedPorts: (TunnelService) The tunnel provider returned an error when creating the tunnel.');
-				this.removeEmptyOrErrorTunnelFromMap(remoteHost!, remotePort);
+				this.removeEmptyOrErrorTunnelFromMap(remoteHost, remotePort);
 				return tunnel;
 			}
 			this.logService.trace('ForwardedPorts: (TunnelService) New tunnel established.');

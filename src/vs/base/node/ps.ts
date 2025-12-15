@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-import { FileAccess } from 'vs/base/common/network';
-import { ProcessItem } from 'vs/base/common/processes';
+import { totalmem } from 'os';
+import { FileAccess } from '../common/network.js';
+import { ProcessItem } from '../common/processes.js';
+import { isWindows } from '../common/platform.js';
+
+export const JS_FILENAME_PATTERN = /[a-zA-Z-]+\.js\b/g;
 
 export function listProcesses(rootPid: number): Promise<ProcessItem> {
-
 	return new Promise((resolve, reject) => {
-
 		let rootItem: ProcessItem | undefined;
 		const map = new Map<number, ProcessItem>();
-
+		const totalMemory = totalmem();
 
 		function addToTree(pid: number, ppid: number, cmd: string, load: number, mem: number) {
-
 			const parent = map.get(ppid);
 			if (pid === rootPid || parent) {
-
 				const item: ProcessItem = {
 					name: findName(cmd),
 					cmd,
 					pid,
 					ppid,
 					load,
-					mem
+					mem: isWindows ? mem : (totalMemory * (mem / 100))
 				};
 				map.set(pid, item);
 
@@ -47,9 +47,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		}
 
 		function findName(cmd: string): string {
-
 			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/i;
-			const NODEJS_PROCESS_HINT = /--ms-enable-electron-run-as-node/i;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/i;
 			const WINPTY = /\\pipe\\winpty-control/i;
 			const CONPTY = /conhost\.exe.+--headless/i;
@@ -87,32 +85,24 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				return matches[1];
 			}
 
-			// find all xxxx.js
-			const JS = /[a-zA-Z-]+\.js/g;
-			let result = '';
-			do {
-				matches = JS.exec(cmd);
-				if (matches) {
-					result += matches + ' ';
-				}
-			} while (matches);
+			if (cmd.indexOf('node ') < 0 && cmd.indexOf('node.exe') < 0) {
+				let result = ''; // find all xyz.js
+				do {
+					matches = JS_FILENAME_PATTERN.exec(cmd);
+					if (matches) {
+						result += matches + ' ';
+					}
+				} while (matches);
 
-			if (result) {
-				if (cmd.indexOf('node ') < 0 && cmd.indexOf('node.exe') < 0) {
-					return `electron-nodejs (${result})`;
+				if (result) {
+					return `electron-nodejs (${result.trim()})`;
 				}
-			}
-
-			// find Electron node.js processes
-			if (NODEJS_PROCESS_HINT.exec(cmd)) {
-				return `electron-nodejs (${cmd})`;
 			}
 
 			return cmd;
 		}
 
 		if (process.platform === 'win32') {
-
 			const cleanUNCPrefix = (value: string): string => {
 				if (value.indexOf('\\\\?\\') === 0) {
 					return value.substring(4);
@@ -171,8 +161,12 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					});
 				}, windowsProcessTree.ProcessDataFlag.CommandLine | windowsProcessTree.ProcessDataFlag.Memory);
 			});
-		} else {	// OS X & Linux
+		}
+
+		// OS X & Linux
+		else {
 			function calculateLinuxCpuUsage() {
+
 				// Flatten rootItem to get a list of all VSCode processes
 				let processes = [rootItem];
 				const pids: number[] = [];

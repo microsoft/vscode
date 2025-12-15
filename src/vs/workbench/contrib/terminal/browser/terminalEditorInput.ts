@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalInstance, ITerminalInstanceService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, TerminalExitReason, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ConfirmOnKill } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Emitter } from 'vs/base/common/event';
+import { localize } from '../../../../nls.js';
+import Severity from '../../../../base/common/severity.js';
+import { dispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from '../../../common/editor.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
+import { ITerminalInstance, ITerminalInstanceService, terminalEditorId } from './terminal.js';
+import { getColorClass, getUriClasses } from './terminalIcon.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IShellLaunchConfig, TerminalExitReason, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { ILifecycleService, ShutdownReason, WillShutdownEvent } from '../../../services/lifecycle/common/lifecycle.js';
+import { ConfirmOnKill } from '../common/terminal.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TerminalContextKeys } from '../common/terminalContextKey.js';
+import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 export class TerminalEditorInput extends EditorInput implements IEditorCloseHandler {
 
@@ -42,6 +42,9 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 
 	setGroup(group: IEditorGroup | undefined) {
 		this._group = group;
+		if (group?.scopedContextKeyService) {
+			this._terminalInstance?.setParentContextKeyService(group.scopedContextKeyService);
+		}
 	}
 
 	get group(): IEditorGroup | undefined {
@@ -57,7 +60,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor | EditorInputCapabilities.ForceDescription;
 	}
 
 	setTerminalInstance(instance: ITerminalInstance): void {
@@ -127,7 +130,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IDialogService private readonly _dialogService: IDialogService
 	) {
 		super();
@@ -148,15 +151,6 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		const instanceOnDidFocusListener = instance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true));
 		const instanceOnDidBlurListener = instance.onDidBlur(() => this._terminalEditorFocusContextKey.reset());
 
-		this._register(toDisposable(() => {
-			if (!this._isDetached && !this._isShuttingDown) {
-				// Will be ignored if triggered by onExit or onDisposed terminal events
-				// as disposed was already called
-				instance.dispose(TerminalExitReason.User);
-			}
-			dispose([instanceOnDidFocusListener, instanceOnDidBlurListener]);
-		}));
-
 		const disposeListeners = [
 			instance.onExit((e) => {
 				if (!instance.waitOnExit) {
@@ -171,9 +165,19 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
 		];
 
+		this._register(toDisposable(() => {
+			if (!this._isDetached && !this._isShuttingDown) {
+				// Will be ignored if triggered by onExit or onDisposed terminal events
+				// as disposed was already called
+				instance.dispose(TerminalExitReason.User);
+			}
+			dispose(disposeListeners);
+			dispose([instanceOnDidFocusListener, instanceOnDidBlurListener]);
+		}));
+
 		// Don't dispose editor when instance is torn down on shutdown to avoid extra work and so
 		// the editor/tabs don't disappear
-		this._lifecycleService.onWillShutdown((e: WillShutdownEvent) => {
+		this._register(this._lifecycleService.onWillShutdown((e: WillShutdownEvent) => {
 			this._isShuttingDown = true;
 			dispose(disposeListeners);
 
@@ -184,18 +188,25 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			} else {
 				instance.dispose(TerminalExitReason.Shutdown);
 			}
-		});
+		}));
 	}
 
 	override getName() {
 		return this._terminalInstance?.title || this.resource.fragment;
 	}
 
+	override getIcon(): ThemeIcon | undefined {
+		if (!this._terminalInstance || !ThemeIcon.isThemeIcon(this._terminalInstance.icon)) {
+			return undefined;
+		}
+		return this._terminalInstance.icon;
+	}
+
 	override getLabelExtraClasses(): string[] {
 		if (!this._terminalInstance) {
 			return [];
 		}
-		const extraClasses: string[] = ['terminal-tab'];
+		const extraClasses: string[] = ['terminal-tab', 'predefined-file-icon'];
 		const colorClass = getColorClass(this._terminalInstance);
 		if (colorClass) {
 			extraClasses.push(colorClass);
@@ -203,9 +214,6 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		const uriClasses = getUriClasses(this._terminalInstance, this._themeService.getColorTheme().type);
 		if (uriClasses) {
 			extraClasses.push(...uriClasses);
-		}
-		if (ThemeIcon.isThemeIcon(this._terminalInstance.icon)) {
-			extraClasses.push(`codicon-${this._terminalInstance.icon.id}`);
 		}
 		return extraClasses;
 	}
@@ -217,6 +225,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 	detachInstance() {
 		if (!this._isShuttingDown) {
 			this._terminalInstance?.detachFromElement();
+			this._terminalInstance?.setParentContextKeyService(this._contextKeyService);
 			this._isDetached = true;
 		}
 	}
@@ -234,5 +243,9 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 				forceReload: true
 			}
 		};
+	}
+
+	public override canReopen(): boolean {
+		return false;
 	}
 }

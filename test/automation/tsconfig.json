@@ -1,17 +1,23 @@
 {
 	"compilerOptions": {
 		"module": "commonjs",
-		"target": "es2020",
+		"target": "es2024",
 		"strict": true,
 		"noUnusedParameters": false,
 		"noUnusedLocals": true,
 		"outDir": "out",
 		"sourceMap": true,
 		"declaration": true,
+		"skipLibCheck": true,
 		"lib": [
-			"es2020",
+			"esnext", // for #201187
 			"dom"
-		]
+		],
+		"paths": {
+			"playwright-core/types/protocol": [
+				"../../node_modules/playwright-core/types/protocol.d.ts"
+			]
+		}
 	},
 	"exclude": [
 		"node_modules",

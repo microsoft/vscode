@@ -1,0 +1,209 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.pane-body.chat-view-welcome-visible {
+
+	& > .interactive-session {
+		display: none;
+	}
+
+	& > .chat-view-welcome {
+		display: flex;
+	}
+}
+
+/* Chat welcome container */
+.interactive-session .chat-welcome-view-container {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	flex: 1;
+	position: relative; /* Allow absolute positioning of prompts */
+}
+
+/* Container for ChatViewPane welcome view */
+.pane-body > .chat-view-welcome {
+	flex-direction: column;
+	justify-content: center;
+	overflow: hidden;
+	height: 100%;
+	display: none;
+}
+
+div.chat-welcome-view {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 12px;
+
+	& > .chat-welcome-view-icon {
+		min-height: 48px;
+	}
+
+	& > .chat-welcome-view-icon .codicon {
+		font-size: 40px;
+	}
+
+	& > .chat-welcome-view-icon.custom-icon {
+		mask-size: 40px;
+		-webkit-mask-size: 40px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon {
+		min-width: 72px;
+		min-height: 72px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon .codicon {
+		font-size: 72px;
+		width: 72px;
+		height: 72px;
+	}
+
+	& > .chat-welcome-view-icon.large-icon.custom-icon {
+		mask-size: 72px !important;
+		-webkit-mask-size: 72px !important;
+		width: 72px;
+		height: 72px;
+	}
+
+	& > .chat-welcome-view-title {
+		font-size: 24px;
+		margin-top: 5px;
+		text-align: center;
+		line-height: normal;
+		padding: 0 8px;
+	}
+
+	& > .chat-welcome-view-message {
+		position: relative;
+		text-align: center;
+		max-width: 100%;
+		padding: 0 20px;
+		margin: 0 auto;
+		color: var(--vscode-input-placeholderForeground);
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		a:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+		}
+
+		p {
+			margin-top: 8px;
+			margin-bottom: 8px;
+		}
+	}
+
+	.monaco-button {
+		display: inline-block;
+		width: initial;
+		padding: 4px 7px;
+	}
+
+	& > .chat-welcome-view-tips {
+		max-width: 250px;
+		margin: 10px 5px 0px;
+
+		.rendered-markdown {
+			gap: 6px;
+			display: flex;
+			align-items: start;
+			flex-direction: column;
+		}
+
+		.rendered-markdown p {
+			display: flex;
+			gap: 6px;
+			margin: 6px 0 0 0;
+
+			.codicon {
+				padding-top: 1px;
+			}
+		}
+	}
+
+	& > .chat-welcome-view-disclaimer {
+		color: var(--vscode-input-placeholderForeground);
+		text-align: center;
+		margin: -16px auto;
+		max-width: 400px;
+		padding: 0 12px;
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		a:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+		}
+	}
+}
+
+/* Suggested prompts section - positioned at bottom of welcome container */
+.chat-welcome-view-suggested-prompts {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	gap: 8px;
+	padding: 32px 16px 8px 16px;
+	/* Extra top padding for title */
+
+	.chat-welcome-view-suggested-prompts-title {
+		position: absolute;
+		top: 8px;
+		left: 16px;
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--vscode-descriptionForeground);
+		margin: 0;
+		text-align: left;
+	}
+
+	> .chat-welcome-view-suggested-prompt {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		height: 24px;
+		padding: 0 8px;
+		border-radius: 4px;
+		background-color: var(--vscode-editorWidget-background);
+		cursor: pointer;
+		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+		width: fit-content;
+		margin: 0;
+		box-sizing: border-box;
+		flex: 0 0 auto;
+
+		& > .chat-welcome-view-suggested-prompt-title {
+			font-size: 13px;
+			color: var(--vscode-editorWidget-foreground);
+			white-space: nowrap;
+		}
+
+		& > .chat-welcome-view-suggested-prompt-description {
+			font-size: 13px;
+			color: var(--vscode-descriptionForeground);
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			flex: 0 1 auto;
+			min-width: 0;
+		}
+	}
+
+	> .chat-welcome-view-suggested-prompt:hover {
+		background-color: var(--vscode-list-hoverBackground);
+	}
+}

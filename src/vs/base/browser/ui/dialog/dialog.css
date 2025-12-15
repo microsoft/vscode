@@ -8,9 +8,9 @@
 	position: fixed;
 	height: 100%;
 	width: 100%;
-	left:0;
-	top:0;
-	z-index: 2600;
+	left: 0;
+	top: 0;
+	z-index: 2575; /* Above Context Views, Below Workbench Hover */
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -30,6 +30,11 @@
 	min-height: 75px;
 	padding: 10px;
 	transform: translate3d(0px, 0px, 0px);
+	border-radius: 3px;
+}
+
+.monaco-dialog-box.align-vertical {
+	min-width: 350px; /* more narrow when aligned vertically */
 }
 
 /** Dialog: Title Actions Row */
@@ -42,32 +47,66 @@
 	justify-content: flex-end;
 }
 
-/** Dialog: Message Row */
-.monaco-dialog-box .dialog-message-row {
+/** Dialog: Message/Footer Row */
+.monaco-dialog-box .dialog-message-row,
+.monaco-dialog-box .dialog-footer-row {
 	display: flex;
 	flex-grow: 1;
 	align-items: center;
 	padding: 0 10px;
 }
 
+.monaco-dialog-box.align-vertical .dialog-message-row {
+	flex-direction: column;
+}
+
 .monaco-dialog-box .dialog-message-row > .dialog-icon.codicon {
 	flex: 0 0 48px;
 	height: 48px;
-	align-self: baseline;
 	font-size: 48px;
 }
 
-/** Dialog: Message Container */
-.monaco-dialog-box .dialog-message-row .dialog-message-container {
+.monaco-dialog-box.align-vertical .dialog-message-row > .dialog-icon.codicon {
+	flex: 0 0 64px;
+	height: 64px;
+	font-size: 64px;
+}
+
+.monaco-dialog-box:not(.align-vertical) .dialog-message-row > .dialog-icon.codicon {
+	align-self: baseline;
+}
+
+/** Dialog: Message/Footer Container */
+.monaco-dialog-box .dialog-message-row .dialog-message-container,
+.monaco-dialog-box .dialog-footer-row {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	padding-left: 24px;
 	user-select: text;
 	-webkit-user-select: text;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	white-space: normal;
+}
+
+.monaco-dialog-box .dialog-footer-row {
+	margin-top: 20px;
+}
+
+.monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container,
+.monaco-dialog-box:not(.align-vertical) .dialog-footer-row {
+	padding-left: 24px;
+}
+
+.monaco-dialog-box.align-vertical .dialog-message-row .dialog-message-container,
+.monaco-dialog-box.align-vertical .dialog-footer-row {
+	align-items: center;
+	text-align: center;
+}
+
+.monaco-dialog-box .dialog-message-row .dialog-message-container ul,
+.monaco-dialog-box .dialog-footer-row ul {
+	padding-inline-start: 20px; /* reduce excessive indent of list items in the dialog */
 }
 
 /** Dialog: Message */
@@ -104,6 +143,7 @@
 	cursor: pointer;
 	user-select: none;
 	-webkit-user-select: none;
+	flex: 1;
 }
 
 /** Dialog: Input */
@@ -139,16 +179,68 @@
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons {
 	display: flex;
 	width: 100%;
-	justify-content: flex-end;
+}
+
+.monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons {
 	overflow: hidden;
+	justify-content: flex-end;
 	margin-left: 67px; /* for long buttons, force align with text */
 }
 
+.monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons {
+	margin-left: 5px;
+	margin-right: 5px;
+	flex-direction: column;
+}
+
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
-	width: fit-content;
-	padding: 5px 10px;
+	padding: 4px 10px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	margin: 4px 5px; /* allows button focus outline to be visible */
 	outline-offset: 2px !important;
+}
+
+.monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button {
+	margin: 4px 0; /* allows button focus outline to be visible */
+}
+
+.monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons > .monaco-button {
+	width: fit-content;
+}
+
+/** Dialog: Dropdown */
+.monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
+	margin: 4px 5px;
+}
+
+.monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
+	width: 100%;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown:focus-within {
+	/**
+	 * This is a trick to make the focus outline appear on the entire
+	 * container of the dropdown button to ensure the dialog box looks
+	 * consistent to dialogs without dropdown buttons.
+	 */
+	outline-offset: 2px !important;
+	outline-width: 1px;
+	outline-style: solid;
+	outline-color: var(--vscode-focusBorder);
+	border-radius: 2px;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
+	padding-left: 10px;
+	padding-right: 10px;
+}
+
+.monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
+	width: 100%;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-dropdown-button {
+	padding-left: 5px;
+	padding-right: 5px;
 }

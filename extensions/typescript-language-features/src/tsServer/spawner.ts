@@ -10,7 +10,6 @@ import { TelemetryReporter } from '../logging/telemetry';
 import Tracer from '../logging/tracer';
 import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
 import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptService';
-import { memoize } from '../utils/memoize';
 import { isWeb, isWebAndHasSharedArrayBuffers } from '../utils/platform';
 import { API } from './api';
 import { ILogDirectoryProvider } from './logDirectoryProvider';
@@ -20,6 +19,7 @@ import { GetErrRoutingTsServer, ITypeScriptServer, SingleTsServer, SyntaxRouting
 import { TypeScriptVersionManager } from './versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
 import { NodeVersionManager } from './nodeManager';
+import { Lazy } from '../utils/lazy';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
@@ -37,10 +37,9 @@ const enum CompositeServerType {
 
 export class TypeScriptServerSpawner {
 
-	@memoize
-	public static get tsServerLogOutputChannel(): vscode.OutputChannel {
+	public static readonly tsServerLogOutputChannel = new Lazy<vscode.OutputChannel>(() => {
 		return vscode.window.createOutputChannel(vscode.l10n.t("TypeScript Server Log"));
-	}
+	});
 
 	public constructor(
 		private readonly _versionProvider: ITypeScriptVersionProvider,
@@ -116,12 +115,9 @@ export class TypeScriptServerSpawner {
 				return CompositeServerType.Single;
 
 			case SyntaxServerConfiguration.Auto:
-				if (version.apiVersion?.gte(API.v340)) {
-					return version.apiVersion?.gte(API.v400)
-						? CompositeServerType.DynamicSeparateSyntax
-						: CompositeServerType.SeparateSyntax;
-				}
-				return CompositeServerType.Single;
+				return version.apiVersion?.gte(API.v400)
+					? CompositeServerType.DynamicSeparateSyntax
+					: CompositeServerType.SeparateSyntax;
 		}
 	}
 
@@ -226,7 +222,7 @@ export class TypeScriptServerSpawner {
 		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
 			if (isWeb()) {
 				args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-				tsServerLog = { type: 'output', output: TypeScriptServerSpawner.tsServerLogOutputChannel };
+				tsServerLog = { type: 'output', output: TypeScriptServerSpawner.tsServerLogOutputChannel.value };
 			} else {
 				const logDir = this._logDirectoryProvider.getNewLogDirectory();
 				if (logDir) {
@@ -242,7 +238,7 @@ export class TypeScriptServerSpawner {
 		if (configuration.enableTsServerTracing && !isWeb()) {
 			tsServerTraceDirectory = this._logDirectoryProvider.getNewLogDirectory();
 			if (tsServerTraceDirectory) {
-				args.push('--traceDirectory', tsServerTraceDirectory.fsPath);
+				args.push('--traceDirectory', `"${tsServerTraceDirectory.fsPath}"`);
 			}
 		}
 
@@ -270,6 +266,22 @@ export class TypeScriptServerSpawner {
 		args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
 
 		args.push('--noGetErrOnBackgroundUpdate');
+
+		const configUseVsCodeWatcher = configuration.useVsCodeWatcher;
+		const isYarnPnp = apiVersion.isYarnPnp();
+		if (
+			apiVersion.gte(API.v544)
+			&& configUseVsCodeWatcher
+			&& !isYarnPnp // Disable for yarn pnp as it currently breaks with the VS Code watcher
+		) {
+			args.push('--canUseWatchEvents');
+		} else {
+			if (!configUseVsCodeWatcher) {
+				this._logger.info(`<${kind}> Falling back to legacy node.js based file watching because of user settings.`);
+			} else if (isYarnPnp) {
+				this._logger.info(`<${kind}> Falling back to legacy node.js based file watching because of Yarn PnP.`);
+			}
+		}
 
 		args.push('--validateDefaultNpmLocation');
 

@@ -3,16 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
-import { join, resolve } from 'path';
-import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { FileAccess } from 'vs/base/common/network';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { LegacyLinesDiffComputer } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
+import { join, resolve } from '../../../../base/common/path.js';
+import { setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { DetailedLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
+import { LegacyLinesDiffComputer } from '../../../common/diff/legacyLinesDiffComputer.js';
+import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
+import { Range } from '../../../common/core/range.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
+import { AbstractText, ArrayText } from '../../../common/core/text/abstractText.js';
+import { LinesDiff } from '../../../common/diff/linesDiffComputer.js';
 
 suite('diffing fixtures', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
 		setUnexpectedErrorHandler(e => {
 			throw e;
@@ -41,17 +48,31 @@ suite('diffing fixtures', () => {
 		const diffingAlgo = diffingAlgoName === 'legacy' ? new LegacyLinesDiffComputer() : new DefaultLinesDiffComputer();
 
 		const ignoreTrimWhitespace = folder.indexOf('trimws') >= 0;
-		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false });
+		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: true });
+
+		if (diffingAlgoName === 'advanced' && !ignoreTrimWhitespace) {
+			assertDiffCorrectness(diff, firstContentLines, secondContentLines);
+		}
 
 		function getDiffs(changes: readonly DetailedLineRangeMapping[]): IDetailedDiff[] {
+			for (const c of changes) {
+				RangeMapping.assertSorted(c.innerChanges ?? []);
+			}
+
 			return changes.map<IDetailedDiff>(c => ({
 				originalRange: c.original.toString(),
 				modifiedRange: c.modified.toString(),
 				innerChanges: c.innerChanges?.map<IDiff>(c => ({
-					originalRange: c.originalRange.toString(),
-					modifiedRange: c.modifiedRange.toString(),
+					originalRange: formatRange(c.originalRange, firstContentLines),
+					modifiedRange: formatRange(c.modifiedRange, secondContentLines),
 				})) || null
 			}));
+		}
+
+		function formatRange(range: Range, lines: string[]): string {
+			const toLastChar = range.endColumn === lines[range.endLineNumber - 1].length + 1;
+
+			return '[' + range.startLineNumber + ',' + range.startColumn + ' -> ' + range.endLineNumber + ',' + range.endColumn + (toLastChar ? ' EOL' : '') + ']';
 		}
 
 		const actualDiffingResult: DiffingResult = {
@@ -148,5 +169,22 @@ interface IMoveInfo {
 	originalRange: string; // [startLineNumber, endLineNumberExclusive)
 	modifiedRange: string; // [startLineNumber, endLineNumberExclusive)
 
-	changes?: IDetailedDiff[];
+	changes: IDetailedDiff[];
+}
+
+function assertDiffCorrectness(diff: LinesDiff, original: string[], modified: string[]) {
+	const allInnerChanges = diff.changes.flatMap(c => c.innerChanges!);
+	const edit = rangeMappingsToTextEdit(allInnerChanges, new ArrayText(modified));
+	const result = edit.normalize().apply(new ArrayText(original));
+
+	assert.deepStrictEqual(result, modified.join('\n'));
+}
+
+function rangeMappingsToTextEdit(rangeMappings: readonly RangeMapping[], modified: AbstractText): TextEdit {
+	return new TextEdit(rangeMappings.map(m => {
+		return new TextReplacement(
+			m.originalRange,
+			modified.getValueOfRange(m.modifiedRange)
+		);
+	}));
 }

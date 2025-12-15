@@ -3,50 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, DragAndDropObserver, EventType, isAncestor } from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
-import { IPaneViewOptions, PaneView } from 'vs/base/browser/ui/splitview/paneview';
-import { IAction } from 'vs/base/common/actions';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
-import 'vs/css!./media/paneviewlet';
-import * as nls from 'vs/nls';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IAction2Options, IMenuService, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { activeContrastBorder, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { CompositeMenuActions } from 'vs/workbench/browser/actions';
-import { CompositeDragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { Component } from 'vs/workbench/common/component';
-import { PANEL_SECTION_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_FOREGROUND } from 'vs/workbench/common/theme';
-import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, IViewsService, ViewContainer, ViewContainerLocation, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
-import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { $, addDisposableListener, Dimension, DragAndDropObserver, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { EventType as TouchEventType, Gesture } from '../../../../base/browser/touch.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IBoundarySashes, Orientation } from '../../../../base/browser/ui/sash/sash.js';
+import { IPaneViewOptions, PaneView } from '../../../../base/browser/ui/splitview/paneview.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
+import './media/paneviewlet.css';
+import * as nls from '../../../../nls.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IAction2Options, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { activeContrastBorder, asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { CompositeDragAndDropObserver, toggleDropEffect } from '../../dnd.js';
+import { ViewPane } from './viewPane.js';
+import { IViewletViewOptions } from './viewsViewlet.js';
+import { Component } from '../../../common/component.js';
+import { PANEL_SECTION_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_FOREGROUND } from '../../../common/theme.js';
+import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation, ViewVisibilityState } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { FocusedViewContext } from '../../../common/contextkeys.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { isHorizontal, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ViewContainerMenuActions } from './viewMenuActions.js';
 
 export const ViewsSubMenu = new MenuId('Views');
-MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
+MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	submenu: ViewsSubMenu,
 	title: nls.localize('views', "Views"),
 	order: 1,
-	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
-});
+} satisfies ISubmenuItem);
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
 	mergeViewWithContainerWhenSingleView: boolean;
@@ -102,22 +104,21 @@ class ViewPaneDropOverlay extends Themable {
 	}
 
 	private create(): void {
+
 		// Container
-		this.container = document.createElement('div');
-		this.container.id = ViewPaneDropOverlay.OVERLAY_ID;
+		this.container = $('div', { id: ViewPaneDropOverlay.OVERLAY_ID });
 		this.container.style.top = '0px';
 
 		// Parent
 		this.paneElement.appendChild(this.container);
 		this.paneElement.classList.add('dragged-over');
 		this._register(toDisposable(() => {
-			this.paneElement.removeChild(this.container);
+			this.container.remove();
 			this.paneElement.classList.remove('dragged-over');
 		}));
 
 		// Overlay
-		this.overlay = document.createElement('div');
-		this.overlay.classList.add('pane-overlay-indicator');
+		this.overlay = $('.pane-overlay-indicator');
 		this.container.appendChild(this.overlay);
 
 		// Overlay Event Handling
@@ -140,13 +141,12 @@ class ViewPaneDropOverlay extends Themable {
 		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
 
 		this.overlay.style.borderColor = activeContrastBorderColor || '';
-		this.overlay.style.borderStyle = 'solid' || '';
+		this.overlay.style.borderStyle = 'solid';
 		this.overlay.style.borderWidth = '0px';
 	}
 
 	private registerListeners(): void {
 		this._register(new DragAndDropObserver(this.container, {
-			onDragEnter: e => undefined,
 			onDragOver: e => {
 
 				// Position overlay
@@ -288,24 +288,7 @@ class ViewPaneDropOverlay extends Themable {
 	}
 }
 
-class ViewContainerMenuActions extends CompositeMenuActions {
-	constructor(
-		element: HTMLElement,
-		viewContainer: ViewContainer,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-	) {
-		const scopedContextKeyService = contextKeyService.createScoped(element);
-		scopedContextKeyService.createKey('viewContainer', viewContainer.id);
-		const viewContainerLocationKey = scopedContextKeyService.createKey('viewContainerLocation', ViewContainerLocationToString(viewDescriptorService.getViewContainerLocation(viewContainer)!));
-		super(MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext, { shouldForwardArgs: true }, scopedContextKeyService, menuService);
-		this._register(scopedContextKeyService);
-		this._register(Event.filter(viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === viewContainer)(() => viewContainerLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewContainerLocation(viewContainer)!))));
-	}
-}
-
-export class ViewPaneContainer extends Component implements IViewPaneContainer {
+export class ViewPaneContainer<MementoType extends object = object> extends Component<MementoType> implements IViewPaneContainer {
 
 	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
@@ -324,7 +307,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private readonly visibleViewsCountFromCache: number | undefined;
 	private readonly visibleViewsStorageId: string;
 	protected readonly viewContainerModel: IViewContainerModel;
-	private viewDisposables: IDisposable[] = [];
 
 	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTitleAreaUpdate: Event<void> = this._onTitleAreaUpdate.event;
@@ -348,7 +330,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	readonly onDidBlurView = this._onDidBlurView.event;
 
 	get onDidSashChange(): Event<number> {
-		return assertIsDefined(this.paneview).onDidSashChange;
+		return assertReturnsDefined(this.paneview).onDidSashChange;
 	}
 
 	get panes(): ViewPane[] {
@@ -364,7 +346,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	private _menuActions?: ViewContainerMenuActions;
-	get menuActions(): CompositeMenuActions | undefined {
+	get menuActions(): ViewContainerMenuActions | undefined {
 		return this._menuActions;
 	}
 
@@ -381,6 +363,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		@IStorageService protected storageService: IStorageService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
+		@ILogService protected readonly logService: ILogService,
 	) {
 
 		super(id, themeService, storageService);
@@ -394,7 +377,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this.viewContainer = container;
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
 		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, undefined);
-		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 		this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(container);
 	}
 
@@ -410,9 +392,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(this.paneview.onDidScroll(_ => this.onDidScrollPane()));
 		this._register(this.paneview.onDidSashReset((index) => this.onDidSashReset(index)));
-		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(getWindow(parent), e))));
 		this._register(Gesture.addTarget(parent));
-		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(getWindow(parent), e))));
 
 		this._menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.paneview.element, this.viewContainer));
 		this._register(this._menuActions.onDidChange(() => this.updateTitleArea()));
@@ -442,7 +424,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
 			onDragEnter: (e) => {
 				bounds = getOverlayBounds();
-				if (overlay && overlay.disposed) {
+				if (overlay?.disposed) {
 					overlay = undefined;
 				}
 
@@ -471,7 +453,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				}
 			},
 			onDragOver: (e) => {
-				if (overlay && overlay.disposed) {
+				if (overlay?.disposed) {
 					overlay = undefined;
 				}
 
@@ -502,15 +484,15 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 					} else if (dropData.type === 'view') {
 						const oldViewContainer = this.viewDescriptorService.getViewContainerByViewId(dropData.id);
 						const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(dropData.id);
-						if (oldViewContainer !== this.viewContainer && viewDescriptor && viewDescriptor.canMoveView) {
-							this.viewDescriptorService.moveViewsToContainer([viewDescriptor], this.viewContainer);
+						if (oldViewContainer !== this.viewContainer && viewDescriptor?.canMoveView) {
+							this.viewDescriptorService.moveViewsToContainer([viewDescriptor], this.viewContainer, undefined, 'dnd');
 						}
 					}
 
 					const paneCount = this.panes.length;
 
 					if (viewsToMove.length > 0) {
-						this.viewDescriptorService.moveViewsToContainer(viewsToMove, this.viewContainer);
+						this.viewDescriptorService.moveViewsToContainer(viewsToMove, this.viewContainer, undefined, 'dnd');
 					}
 
 					if (paneCount > 0) {
@@ -547,6 +529,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.updateTitleArea();
 				this.updateViewHeaders();
 			}
+			this._register(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+					this.updateViewHeaders();
+				}
+			}));
 		});
 
 		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => this._onTitleAreaUpdate.fire()));
@@ -556,10 +543,16 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		const containerTitle = this.viewContainerModel.title;
 
 		if (this.isViewMergedWithContainer()) {
+			const singleViewPaneContainerTitle = this.paneItems[0].pane.singleViewPaneContainerTitle;
+			if (singleViewPaneContainerTitle) {
+				return singleViewPaneContainerTitle;
+			}
+
 			const paneItemTitle = this.paneItems[0].pane.title;
 			if (containerTitle === paneItemTitle) {
-				return this.paneItems[0].pane.title;
+				return paneItemTitle;
 			}
+
 			return paneItemTitle ? `${containerTitle}: ${paneItemTitle}` : containerTitle;
 		}
 
@@ -584,26 +577,33 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getActionsContext(): unknown {
+		if (this.isViewMergedWithContainer()) {
+			return this.panes[0].getActionsContext();
+		}
 		return undefined;
 	}
 
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
+	getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		if (this.isViewMergedWithContainer()) {
-			return this.paneItems[0].pane.getActionViewItem(action);
+			return this.paneItems[0].pane.createActionViewItem(action, options);
 		}
-		return createActionViewItem(this.instantiationService, action);
+		return createActionViewItem(this.instantiationService, action, options);
 	}
 
 	focus(): void {
+		let paneToFocus: ViewPane | undefined = undefined;
 		if (this.lastFocusedPane) {
-			this.lastFocusedPane.focus();
+			paneToFocus = this.lastFocusedPane;
 		} else if (this.paneItems.length > 0) {
-			for (const { pane: pane } of this.paneItems) {
+			for (const { pane } of this.paneItems) {
 				if (pane.isExpanded()) {
-					pane.focus();
-					return;
+					paneToFocus = pane;
+					break;
 				}
 			}
+		}
+		if (paneToFocus) {
+			paneToFocus.focus();
 		}
 	}
 
@@ -612,8 +612,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			case ViewContainerLocation.Sidebar:
 			case ViewContainerLocation.AuxiliaryBar:
 				return Orientation.VERTICAL;
-			case ViewContainerLocation.Panel:
-				return this.layoutService.getPanelPosition() === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			case ViewContainerLocation.Panel: {
+				return isHorizontal(this.layoutService.getPanelPosition()) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			}
 		}
 
 		return Orientation.VERTICAL;
@@ -648,11 +649,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return optimalWidth + additionalMargin;
 	}
 
-	addPanes(panes: { pane: ViewPane; size: number; index?: number }[]): void {
+	addPanes(panes: { pane: ViewPane; size: number; index?: number; disposable: IDisposable }[]): void {
 		const wasMerged = this.isViewMergedWithContainer();
 
-		for (const { pane: pane, size, index } of panes) {
-			this.addPane(pane, size, index);
+		for (const { pane, size, index, disposable } of panes) {
+			this.addPane(pane, size, disposable, index);
 		}
 
 		this.updateViewHeaders();
@@ -683,7 +684,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
-		return (this.instantiationService as any).createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.staticArguments || []), options) as ViewPane;
+		return this.instantiationService.createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.staticArguments || []), options);
 	}
 
 	getView(id: string): ViewPane | undefined {
@@ -764,30 +765,37 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	protected onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
-		const panesToAdd: { pane: ViewPane; size: number; index: number }[] = [];
+		const panesToAdd: { pane: ViewPane; size: number; index: number; disposable: IDisposable }[] = [];
 
 		for (const { viewDescriptor, collapsed, index, size } of added) {
 			const pane = this.createView(viewDescriptor,
 				{
 					id: viewDescriptor.id,
-					title: viewDescriptor.name,
+					title: viewDescriptor.name.value,
 					fromExtensionId: (viewDescriptor as Partial<ICustomViewDescriptor>).extensionId,
-					expanded: !collapsed
+					expanded: !collapsed,
+					singleViewPaneContainerTitle: viewDescriptor.singleViewPaneContainerTitle,
 				});
 
-			pane.render();
-			const contextMenuDisposable = addDisposableListener(pane.draggableElement, 'contextmenu', e => {
-				e.stopPropagation();
-				e.preventDefault();
-				this.onContextMenu(new StandardMouseEvent(e), pane);
-			});
+			try {
+				pane.render();
+			} catch (error) {
+				this.logService.error(`Fail to render view ${viewDescriptor.id}`, error);
+				continue;
+			}
+			if (pane.draggableElement) {
+				const contextMenuDisposable = addDisposableListener(pane.draggableElement, 'contextmenu', e => {
+					e.stopPropagation();
+					e.preventDefault();
+					this.onContextMenu(new StandardMouseEvent(getWindow(pane.draggableElement), e), pane);
+				});
 
-			const collapseDisposable = Event.latch(Event.map(pane.onDidChange, () => !pane.isExpanded()))(collapsed => {
-				this.viewContainerModel.setCollapsed(viewDescriptor.id, collapsed);
-			});
+				const collapseDisposable = Event.latch(Event.map(pane.onDidChange, () => !pane.isExpanded()))(collapsed => {
+					this.viewContainerModel.setCollapsed(viewDescriptor.id, collapsed);
+				});
 
-			this.viewDisposables.splice(index, 0, combinedDisposable(contextMenuDisposable, collapseDisposable));
-			panesToAdd.push({ pane, size: size || pane.minimumSize, index });
+				panesToAdd.push({ pane, size: size || pane.minimumSize, index, disposable: combinedDisposable(contextMenuDisposable, collapseDisposable) });
+			}
 		}
 
 		this.addPanes(panesToAdd);
@@ -805,14 +813,18 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		removed = removed.sort((a, b) => b.index - a.index);
 		const panesToRemove: ViewPane[] = [];
 		for (const { index } of removed) {
-			const [disposable] = this.viewDisposables.splice(index, 1);
-			disposable.dispose();
-			panesToRemove.push(this.panes[index]);
+			const paneItem = this.paneItems[index];
+			if (paneItem) {
+				panesToRemove.push(this.paneItems[index].pane);
+			}
 		}
-		this.removePanes(panesToRemove);
 
-		for (const pane of panesToRemove) {
-			pane.setVisible(false);
+		if (panesToRemove.length) {
+			this.removePanes(panesToRemove);
+
+			for (const pane of panesToRemove) {
+				pane.setVisible(false);
+			}
 		}
 	}
 
@@ -824,7 +836,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 	}
 
-	private addPane(pane: ViewPane, size: number, index = this.paneItems.length - 1): void {
+	private addPane(pane: ViewPane, size: number, disposable: IDisposable, index = this.paneItems.length - 1): void {
 		const onDidFocus = pane.onDidFocus(() => {
 			this._onDidFocusView.fire(pane);
 			this.lastFocusedPane = pane;
@@ -853,15 +865,18 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		});
 
 		const store = new DisposableStore();
+		store.add(disposable);
 		store.add(combinedDisposable(pane, onDidFocus, onDidBlur, onDidChangeTitleArea, onDidChange, onDidChangeVisibility));
 		const paneItem: IViewPaneItem = { pane, disposable: store };
 
 		this.paneItems.splice(index, 0, paneItem);
-		assertIsDefined(this.paneview).addPane(pane, size, index);
+		assertReturnsDefined(this.paneview).addPane(pane, size, index);
 
 		let overlay: ViewPaneDropOverlay | undefined;
 
-		store.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));
+		if (pane.draggableElement) {
+			store.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));
+		}
 
 		store.add(CompositeDragAndDropObserver.INSTANCE.registerTarget(pane.dropTargetElement, {
 			onDragEnter: (e) => {
@@ -923,7 +938,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 					}
 
 					if (viewsToMove) {
-						this.viewDescriptorService.moveViewsToContainer(viewsToMove, this.viewContainer);
+						this.viewDescriptorService.moveViewsToContainer(viewsToMove, this.viewContainer, undefined, 'dnd');
 					}
 
 					if (anchorView) {
@@ -1009,7 +1024,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			this.lastFocusedPane = undefined;
 		}
 
-		assertIsDefined(this.paneview).removePane(pane);
+		assertReturnsDefined(this.paneview).removePane(pane);
 		const [paneItem] = this.paneItems.splice(index, 1);
 		paneItem.disposable.dispose();
 
@@ -1033,7 +1048,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		const [paneItem] = this.paneItems.splice(fromIndex, 1);
 		this.paneItems.splice(toIndex, 0, paneItem);
 
-		assertIsDefined(this.paneview).movePane(from, to);
+		assertReturnsDefined(this.paneview).movePane(from, to);
 
 		this.viewContainerModel.move(fromViewDescriptor.id, toViewDescriptor.id);
 
@@ -1041,11 +1056,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	resizePane(pane: ViewPane, size: number): void {
-		assertIsDefined(this.paneview).resizePane(pane, size);
+		assertReturnsDefined(this.paneview).resizePane(pane, size);
 	}
 
 	getPaneSize(pane: ViewPane): number {
-		return assertIsDefined(this.paneview).getPaneSize(pane);
+		return assertReturnsDefined(this.paneview).getPaneSize(pane);
 	}
 
 	private updateViewHeaders(): void {
@@ -1057,13 +1072,23 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.paneItems[0].pane.setExpanded(true);
 			}
 			this.paneItems[0].pane.headerVisible = false;
+			this.paneItems[0].pane.collapsible = true;
 		} else {
-			this.paneItems.forEach(i => {
-				i.pane.headerVisible = true;
-				if (i.pane === this.lastMergedCollapsedPane) {
-					i.pane.setExpanded(false);
+			if (this.paneItems.length === 1) {
+				this.paneItems[0].pane.headerVisible = true;
+				if (this.paneItems[0].pane === this.lastMergedCollapsedPane) {
+					this.paneItems[0].pane.setExpanded(false);
 				}
-			});
+				this.paneItems[0].pane.collapsible = false;
+			} else {
+				this.paneItems.forEach(i => {
+					i.pane.headerVisible = true;
+					i.pane.collapsible = true;
+					if (i.pane === this.lastMergedCollapsedPane) {
+						i.pane.setExpanded(false);
+					}
+				});
+			}
 			this.lastMergedCollapsedPane = undefined;
 		}
 	}
@@ -1144,14 +1169,15 @@ export abstract class ViewPaneContainerAction<T extends IViewPaneContainer> exte
 		this.desc = desc;
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]): unknown {
 		const viewPaneContainer = accessor.get(IViewsService).getActiveViewPaneContainerWithId(this.desc.viewPaneContainerId);
 		if (viewPaneContainer) {
 			return this.runInViewPaneContainer(accessor, <T>viewPaneContainer, ...args);
 		}
+		return undefined;
 	}
 
-	abstract runInViewPaneContainer(accessor: ServicesAccessor, viewPaneContainer: T, ...args: any[]): any;
+	abstract runInViewPaneContainer(accessor: ServicesAccessor, viewPaneContainer: T, ...args: unknown[]): unknown;
 }
 
 class MoveViewPosition extends Action2 {
@@ -1272,7 +1298,7 @@ registerAction2(class MoveViews extends Action2 {
 		for (const viewId of options.viewIds) {
 			const viewDescriptor = viewDescriptorService.getViewDescriptorById(viewId);
 			if (viewDescriptor?.canMoveView) {
-				viewDescriptorService.moveViewsToContainer([viewDescriptor], destination, ViewVisibilityState.Default);
+				viewDescriptorService.moveViewsToContainer([viewDescriptor], destination, ViewVisibilityState.Default, this.desc.id);
 			}
 		}
 

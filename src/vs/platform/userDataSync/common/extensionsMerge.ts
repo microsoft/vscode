@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { deepClone, equals } from 'vs/base/common/objects';
-import * as semver from 'vs/base/common/semver/semver';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILocalSyncExtension, IRemoteSyncExtension, ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { deepClone, equals } from '../../../base/common/objects.js';
+import * as semver from '../../../base/common/semver/semver.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
+import { IExtensionIdentifier } from '../../extensions/common/extensions.js';
+import { ILocalSyncExtension, IRemoteSyncExtension, ISyncExtension } from './userDataSync.js';
 
 export interface IMergeResult {
 	readonly local: { added: ISyncExtension[]; removed: IExtensionIdentifier[]; updated: ISyncExtension[] };
@@ -46,6 +46,8 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 	localExtensions.forEach(({ identifier }) => addUUID(identifier));
 	remoteExtensions.forEach(({ identifier }) => addUUID(identifier));
 	lastSyncExtensions?.forEach(({ identifier }) => addUUID(identifier));
+	skippedExtensions?.forEach(({ identifier }) => addUUID(identifier));
+	lastSyncBuiltinExtensions?.forEach(identifier => addUUID(identifier));
 
 	const getKey = (extension: ISyncExtension): string => {
 		const uuid = extension.identifier.uuid || uuids.get(extension.identifier.id.toLowerCase());
@@ -116,7 +118,7 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 				continue;
 			}
 
-			const baseExtension = assertIsDefined(lastSyncExtensionsMap?.get(key));
+			const baseExtension = assertReturnsDefined(lastSyncExtensionsMap?.get(key));
 			const wasAnInstalledExtensionDuringLastSync = lastSyncBuiltinExtensionsSet && !lastSyncBuiltinExtensionsSet.has(key) && baseExtension.installed;
 			if (localExtension.installed && wasAnInstalledExtensionDuringLastSync /* It is an installed extension now and during last sync */) {
 				// Installed extension is removed from remote. Remove it from local.
@@ -130,7 +132,7 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 
 		// Remotely added extension => does not exist in base and exist in remote
 		for (const key of baseToRemote.added.values()) {
-			const remoteExtension = assertIsDefined(remoteExtensionsMap.get(key));
+			const remoteExtension = assertReturnsDefined(remoteExtensionsMap.get(key));
 			const localExtension = localExtensionsMap.get(key);
 
 			// Also exist in local
@@ -154,8 +156,8 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 
 		// Remotely updated extension => exist in base and remote
 		for (const key of baseToRemote.updated.values()) {
-			const remoteExtension = assertIsDefined(remoteExtensionsMap.get(key));
-			const baseExtension = assertIsDefined(lastSyncExtensionsMap?.get(key));
+			const remoteExtension = assertReturnsDefined(remoteExtensionsMap.get(key));
+			const baseExtension = assertReturnsDefined(lastSyncExtensionsMap?.get(key));
 			const localExtension = localExtensionsMap.get(key);
 
 			// Also exist in local
@@ -184,7 +186,7 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 			if (baseToRemote.added.has(key)) {
 				continue;
 			}
-			newRemoteExtensionsMap.set(key, assertIsDefined(localExtensionsMap.get(key)));
+			newRemoteExtensionsMap.set(key, assertReturnsDefined(localExtensionsMap.get(key)));
 		}
 
 		// Locally updated extension => exist in base and local
@@ -197,8 +199,8 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 			if (baseToRemote.updated.has(key)) {
 				continue;
 			}
-			const localExtension = assertIsDefined(localExtensionsMap.get(key));
-			const remoteExtension = assertIsDefined(remoteExtensionsMap.get(key));
+			const localExtension = assertReturnsDefined(localExtensionsMap.get(key));
+			const remoteExtension = assertReturnsDefined(remoteExtensionsMap.get(key));
 			// Update remotely
 			newRemoteExtensionsMap.set(key, merge(key, localExtension, remoteExtension, localExtension));
 		}
@@ -218,7 +220,7 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 				continue;
 			}
 			// Skip if it is a builtin extension
-			if (!assertIsDefined(remoteExtensionsMap.get(key)).installed) {
+			if (!assertReturnsDefined(remoteExtensionsMap.get(key)).installed) {
 				continue;
 			}
 			// Skip if last sync builtin extensions set is not available
@@ -226,7 +228,7 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 				continue;
 			}
 			// Skip if it was a builtin extension during last sync
-			if (lastSyncBuiltinExtensionsSet.has(key) || !assertIsDefined(lastSyncExtensionsMap?.get(key)).installed) {
+			if (lastSyncBuiltinExtensionsSet.has(key) || !assertReturnsDefined(lastSyncExtensionsMap?.get(key)).installed) {
 				continue;
 			}
 			newRemoteExtensionsMap.delete(key);

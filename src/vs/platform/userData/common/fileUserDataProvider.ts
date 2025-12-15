@@ -2,19 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, hasFileFolderCopyCapability, hasFileAtomicWriteCapability } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { ILogService } from 'vs/platform/log/common/log';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { isObject } from 'vs/base/common/types';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ResourceSet } from 'vs/base/common/map';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, hasFileFolderCopyCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileCloneCapability, hasFileCloneCapability, IFileAtomicReadOptions, IFileAtomicOptions } from '../../files/common/files.js';
+import { URI } from '../../../base/common/uri.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { ReadableStreamEvents } from '../../../base/common/stream.js';
+import { ILogService } from '../../log/common/log.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { ResourceSet } from '../../../base/common/map.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 
 /**
  * This is a wrapper on top of the local filesystem provider which will
@@ -23,42 +21,67 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
  */
 export class FileUserDataProvider extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
+	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
+	IFileSystemProviderWithFileFolderCopyCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
-	IFileSystemProviderWithFileFolderCopyCapability {
+	IFileSystemProviderWithFileAtomicWriteCapability,
+	IFileSystemProviderWithFileAtomicDeleteCapability,
+	IFileSystemProviderWithFileCloneCapability {
 
-	get capabilities() { return this.fileSystemProvider.capabilities & ~FileSystemProviderCapabilities.FileOpenReadWriteClose; }
-	readonly onDidChangeCapabilities: Event<void> = this.fileSystemProvider.onDidChangeCapabilities;
+	readonly capabilities: FileSystemProviderCapabilities;
+	readonly onDidChangeCapabilities: Event<void>;
 
-	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
+	private readonly _onDidChangeFile: Emitter<readonly IFileChange[]>;
+	readonly onDidChangeFile: Event<readonly IFileChange[]>;
 
-	private readonly watchResources = TernarySearchTree.forUris<URI>(() => !(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive));
-	private readonly atomicWritesResources: ResourceSet;
+	private readonly watchResources: TernarySearchTree<URI, URI>;
+	private readonly atomicReadWriteResources: ResourceSet;
 
 	constructor(
 		private readonly fileSystemScheme: string,
-		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability & (IFileSystemProviderWithFileReadStreamCapability | IFileSystemProviderWithFileAtomicReadCapability | IFileSystemProviderWithFileFolderCopyCapability),
+		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability & IFileSystemProviderWithOpenReadWriteCloseCapability & IFileSystemProviderWithFileReadStreamCapability & IFileSystemProviderWithFileAtomicReadCapability & IFileSystemProviderWithFileAtomicWriteCapability & IFileSystemProviderWithFileAtomicDeleteCapability,
 		private readonly userDataScheme: string,
 		private readonly userDataProfilesService: IUserDataProfilesService,
-		uriIdentityService: IUriIdentityService,
+		private readonly uriIdentityService: IUriIdentityService,
 		private readonly logService: ILogService,
 	) {
 		super();
-		this.atomicWritesResources = new ResourceSet((uri) => uriIdentityService.extUri.getComparisonKey(this.toFileSystemResource(uri)));
-		this.updateAtomicWritesResources();
-		this._register(userDataProfilesService.onDidChangeProfiles(() => this.updateAtomicWritesResources()));
+		this.capabilities = this.fileSystemProvider.capabilities;
+		this.onDidChangeCapabilities = this.fileSystemProvider.onDidChangeCapabilities;
+		this._onDidChangeFile = this._register(new Emitter());
+		this.onDidChangeFile = this._onDidChangeFile.event;
+		this.watchResources = TernarySearchTree.forUris(() => !(this.capabilities & 1024 /* FileSystemProviderCapabilities.PathCaseSensitive */));
+		this.atomicReadWriteResources = new ResourceSet((uri) => this.uriIdentityService.extUri.getComparisonKey(this.toFileSystemResource(uri)));
+		this.updateAtomicReadWritesResources();
+		this._register(userDataProfilesService.onDidChangeProfiles(() => this.updateAtomicReadWritesResources()));
 		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));
 	}
 
-	private updateAtomicWritesResources(): void {
-		this.atomicWritesResources.clear();
+	private updateAtomicReadWritesResources(): void {
+		this.atomicReadWriteResources.clear();
 		for (const profile of this.userDataProfilesService.profiles) {
-			this.atomicWritesResources.add(profile.settingsResource);
-			this.atomicWritesResources.add(profile.keybindingsResource);
-			this.atomicWritesResources.add(profile.tasksResource);
-			this.atomicWritesResources.add(profile.extensionsResource);
+			this.atomicReadWriteResources.add(profile.settingsResource);
+			this.atomicReadWriteResources.add(profile.keybindingsResource);
+			this.atomicReadWriteResources.add(profile.tasksResource);
+			this.atomicReadWriteResources.add(profile.extensionsResource);
 		}
+	}
+
+	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
+		return this.fileSystemProvider.open(this.toFileSystemResource(resource), opts);
+	}
+
+	close(fd: number): Promise<void> {
+		return this.fileSystemProvider.close(fd);
+	}
+
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		return this.fileSystemProvider.read(fd, pos, data, offset, length);
+	}
+
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		return this.fileSystemProvider.write(fd, pos, data, offset, length);
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
@@ -82,33 +105,32 @@ export class FileUserDataProvider extends Disposable implements
 		return this.fileSystemProvider.rename(this.toFileSystemResource(from), this.toFileSystemResource(to), opts);
 	}
 
-	readFile(resource: URI): Promise<Uint8Array> {
-		return this.fileSystemProvider.readFile(this.toFileSystemResource(resource), { atomic: true });
+	readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array> {
+		return this.fileSystemProvider.readFile(this.toFileSystemResource(resource), opts);
 	}
 
 	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
-		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
-		(async () => {
-			try {
-				const contents = await this.readFile(resource);
-				stream.end(contents);
-			} catch (error) {
-				stream.error(error);
-				stream.end();
-			}
-		})();
-		return stream;
+		return this.fileSystemProvider.readFileStream(this.toFileSystemResource(resource), opts, token);
 	}
 
 	readdir(resource: URI): Promise<[string, FileType][]> {
 		return this.fileSystemProvider.readdir(this.toFileSystemResource(resource));
 	}
 
+	enforceAtomicReadFile(resource: URI): boolean {
+		return this.atomicReadWriteResources.has(resource);
+	}
+
 	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		if (this.atomicWritesResources.has(resource) && !isObject(opts.atomic) && hasFileAtomicWriteCapability(this.fileSystemProvider)) {
-			opts = { ...opts, atomic: { postfix: '.vsctmp' } };
-		}
 		return this.fileSystemProvider.writeFile(this.toFileSystemResource(resource), content, opts);
+	}
+
+	enforceAtomicWriteFile(resource: URI): IFileAtomicOptions | false {
+		if (this.atomicReadWriteResources.has(resource)) {
+			return { postfix: '.vsctmp' };
+		}
+
+		return false;
 	}
 
 	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
@@ -122,6 +144,13 @@ export class FileUserDataProvider extends Disposable implements
 		throw new Error('copy not supported');
 	}
 
+	cloneFile(from: URI, to: URI): Promise<void> {
+		if (hasFileCloneCapability(this.fileSystemProvider)) {
+			return this.fileSystemProvider.cloneFile(this.toFileSystemResource(from), this.toFileSystemResource(to));
+		}
+		throw new Error('clone not supported');
+	}
+
 	private handleFileChanges(changes: readonly IFileChange[]): void {
 		const userDataChanges: IFileChange[] = [];
 		for (const change of changes) {
@@ -133,7 +162,8 @@ export class FileUserDataProvider extends Disposable implements
 			if (this.watchResources.findSubstr(userDataResource)) {
 				userDataChanges.push({
 					resource: userDataResource,
-					type: change.type
+					type: change.type,
+					cId: change.cId
 				});
 			}
 		}

@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { inputLatency } from 'vs/base/browser/performance';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { inputLatency } from '../../../../base/browser/performance.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 export class InputLatencyContrib extends Disposable implements IWorkbenchContribution {
 	private readonly _listener = this._register(new MutableDisposable());
 	private readonly _scheduler: RunOnceScheduler;
 
 	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
@@ -30,7 +32,13 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 			this._setupListener();
 		}, 60000));
 
-		this._setupListener();
+
+		// Only log 1% of users selected randomly to reduce the volume of data, always report if GPU
+		// acceleration is enabled as it's opt-in
+		if (Math.random() <= 0.01 || this._configurationService.getValue('editor.experimentalGpuAcceleration') === 'on') {
+			this._setupListener();
+		}
+
 	}
 
 	private _setupListener(): void {
@@ -46,9 +54,9 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 		type InputLatencyStatisticFragment = {
 			owner: 'tyriar';
 			comment: 'Represents a set of statistics collected about input latencies';
-			average: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The average time it took to execute.'; isMeasurement: true };
-			max: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The maximum time it took to execute.'; isMeasurement: true };
-			min: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The minimum time it took to execute.'; isMeasurement: true };
+			average: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The average time it took to execute.' };
+			max: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The maximum time it took to execute.' };
+			min: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The minimum time it took to execute.' };
 		};
 
 		type PerformanceInputLatencyClassification = {
@@ -58,17 +66,21 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 			input: InputLatencyStatisticFragment;
 			render: InputLatencyStatisticFragment;
 			total: InputLatencyStatisticFragment;
-			sampleCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of samples measured.' };
+			sampleCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of samples measured.' };
+			gpuAcceleration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether GPU acceleration was enabled at the time the event was reported.' };
 		};
 
-		type PerformanceInputLatencyEvent = inputLatency.IInputLatencyMeasurements;
+		type PerformanceInputLatencyEvent = inputLatency.IInputLatencyMeasurements & {
+			gpuAcceleration: boolean;
+		};
 
 		this._telemetryService.publicLog2<PerformanceInputLatencyEvent, PerformanceInputLatencyClassification>('performance.inputLatency', {
 			keydown: measurements.keydown,
 			input: measurements.input,
 			render: measurements.render,
 			total: measurements.total,
-			sampleCount: measurements.sampleCount
+			sampleCount: measurements.sampleCount,
+			gpuAcceleration: this._configurationService.getValue('editor.experimentalGpuAcceleration') === 'on'
 		});
 	}
 }

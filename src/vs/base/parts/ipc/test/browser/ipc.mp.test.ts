@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/browser/ipc.mp';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { CancellationToken } from '../../../../common/cancellation.js';
+import { Event } from '../../../../common/event.js';
+import { Client as MessagePortClient } from '../../browser/ipc.mp.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 suite('IPC, MessagePorts', () => {
 

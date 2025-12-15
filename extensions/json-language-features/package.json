@@ -9,24 +9,29 @@
   "engines": {
     "vscode": "^1.77.0"
   },
-  "enabledApiProposals": [],
+  "enabledApiProposals": [
+    "extensionsAny"
+  ],
   "icon": "icons/json.png",
   "activationEvents": [
     "onLanguage:json",
-    "onLanguage:jsonc"
+    "onLanguage:jsonc",
+    "onLanguage:snippets",
+    "onCommand:json.validate"
   ],
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
-      "supported": true
+      "supported": "limited",
+      "description": "%json.workspaceTrust%"
     }
   },
   "scripts": {
     "compile": "npx gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
     "watch": "npx gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
-    "install-client-next": "yarn add vscode-languageclient@next"
+    "install-client-next": "npm install vscode-languageclient@next"
   },
   "categories": [
     "Programming Languages"
@@ -136,6 +141,12 @@
           "strings": true
         },
         "editor.suggest.insertMode": "replace"
+      },
+      "[snippets]": {
+        "editor.quickSuggestions": {
+          "strings": true
+        },
+        "editor.suggest.insertMode": "replace"
       }
     },
     "jsonValidation": [
@@ -158,12 +169,12 @@
     ]
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.8.4",
-    "request-light": "^0.7.0",
-    "vscode-languageclient": "^8.2.0-next.3"
+    "@vscode/extension-telemetry": "^0.9.8",
+    "request-light": "^0.8.0",
+    "vscode-languageclient": "^10.0.0-next.18"
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "22.x"
   },
   "repository": {
     "type": "git",

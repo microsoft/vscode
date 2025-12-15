@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isEqual, dirname } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { Schemas } from 'vs/base/common/network';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IOutline, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas, matchesSomeScheme } from '../../../../base/common/network.js';
+import { dirname, isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { BreadcrumbsConfig } from './breadcrumbs.js';
+import { IEditorPane } from '../../../common/editor.js';
+import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
 
 export class FileElement {
 	constructor(
@@ -29,8 +28,8 @@ type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder };
 
 export class OutlineElement2 {
 	constructor(
-		readonly element: IOutline<any> | any,
-		readonly outline: IOutline<any>
+		readonly element: IOutline<unknown> | unknown,
+		readonly outline: IOutline<unknown>
 	) { }
 }
 
@@ -42,7 +41,7 @@ export class BreadcrumbsModel {
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 
-	private readonly _currentOutline = new MutableDisposable<IOutline<any>>();
+	private readonly _currentOutline = new MutableDisposable<IOutline<unknown>>();
 	private readonly _outlineDisposables = new DisposableStore();
 
 	private readonly _onDidUpdate = new Emitter<this>();
@@ -50,7 +49,7 @@ export class BreadcrumbsModel {
 
 	constructor(
 		readonly resource: URI,
-		editor: IEditorPane | undefined,
+		readonly editor: IEditorPane | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IOutlineService private readonly _outlineService: IOutlineService,
@@ -104,7 +103,7 @@ export class BreadcrumbsModel {
 
 		const breadcrumbsElements = this._currentOutline.value.config.breadcrumbsDataSource.getBreadcrumbElements();
 		for (let i = this._cfgSymbolPath.getValue() === 'last' && breadcrumbsElements.length > 0 ? breadcrumbsElements.length - 1 : 0; i < breadcrumbsElements.length; i++) {
-			result.push(new OutlineElement2(breadcrumbsElements[i], this._currentOutline.value));
+			result.push(new OutlineElement2(breadcrumbsElements[i].element, this._currentOutline.value));
 		}
 
 		if (breadcrumbsElements.length === 0 && !this._currentOutline.value.isEmpty) {

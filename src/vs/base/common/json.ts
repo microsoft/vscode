@@ -848,9 +848,9 @@ export function parse(text: string, errors: ParseError[] = [], options: ParseOpt
 	let currentParent: any = [];
 	const previousParents: any[] = [];
 
-	function onValue(value: any) {
+	function onValue(value: unknown) {
 		if (Array.isArray(currentParent)) {
-			(<any[]>currentParent).push(value);
+			currentParent.push(value);
 		} else if (currentProperty !== null) {
 			currentParent[currentProperty] = value;
 		}
@@ -929,7 +929,7 @@ export function parseTree(text: string, errors: ParseError[] = [], options: Pars
 			currentParent = currentParent.parent!;
 			ensurePropertyComplete(offset + length);
 		},
-		onLiteralValue: (value: any, offset: number, length: number) => {
+		onLiteralValue: (value: unknown, offset: number, length: number) => {
 			onValue({ type: getNodeType(value), offset, length, parent: currentParent, value });
 			ensurePropertyComplete(offset + length);
 		},
@@ -980,7 +980,7 @@ export function findNodeAtLocation(root: Node, path: JSONPath): Node | undefined
 				return undefined;
 			}
 		} else {
-			const index = <number>segment;
+			const index = segment;
 			if (node.type !== 'array' || index < 0 || !Array.isArray(node.children) || index >= node.children.length) {
 				return undefined;
 			}
@@ -1308,41 +1308,7 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
 	return true;
 }
 
-/**
- * Takes JSON with JavaScript-style comments and remove
- * them. Optionally replaces every none-newline character
- * of comments with a replaceCharacter
- */
-export function stripComments(text: string, replaceCh?: string): string {
-
-	const _scanner = createScanner(text);
-	const parts: string[] = [];
-	let kind: SyntaxKind;
-	let offset = 0;
-	let pos: number;
-
-	do {
-		pos = _scanner.getPosition();
-		kind = _scanner.scan();
-		switch (kind) {
-			case SyntaxKind.LineCommentTrivia:
-			case SyntaxKind.BlockCommentTrivia:
-			case SyntaxKind.EOF:
-				if (offset !== pos) {
-					parts.push(text.substring(offset, pos));
-				}
-				if (replaceCh !== undefined) {
-					parts.push(_scanner.getTokenValue().replace(/[^\r\n]/g, replaceCh));
-				}
-				offset = _scanner.getPosition();
-				break;
-		}
-	} while (kind !== SyntaxKind.EOF);
-
-	return parts.join('');
-}
-
-export function getNodeType(value: any): NodeType {
+export function getNodeType(value: unknown): NodeType {
 	switch (typeof value) {
 		case 'boolean': return 'boolean';
 		case 'number': return 'number';

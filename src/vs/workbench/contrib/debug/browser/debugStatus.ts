@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStatusbarEntry, IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import * as nls from '../../../../nls.js';
+import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { IDebugService, State, IDebugConfiguration } from '../common/debug.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IStatusbarEntry, IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor } from '../../../services/statusbar/browser/statusbar.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
 
 export class DebugStatusContribution implements IWorkbenchContribution {
 
@@ -66,7 +66,7 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 			name: nls.localize('status.debug', "Debug"),
 			text: '$(debug-alt-small) ' + text,
 			ariaLabel: nls.localize('debugTarget', "Debug: {0}", text),
-			tooltip: nls.localize('selectAndStartDebug', "Select and start debug configuration"),
+			tooltip: nls.localize('selectAndStartDebug', "Select and Start Debug Configuration"),
 			command: 'workbench.action.debug.selectandstart'
 		};
 	}

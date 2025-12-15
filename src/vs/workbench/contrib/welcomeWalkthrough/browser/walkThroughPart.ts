@@ -3,40 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughUtils';
-import 'vs/css!./media/walkThroughPart';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WalkThroughInput } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughInput';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { localize } from 'vs/nls';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isObject } from 'vs/base/common/types';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorOptions as ICodeEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { UILabelProvider } from 'vs/base/common/keybindingLabels';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { deepClone } from 'vs/base/common/objects';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { addDisposableListener, Dimension, safeInnerHtml, size } from 'vs/base/browser/dom';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import '../common/walkThroughUtils.js';
+import './media/walkThroughPart.css';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { EventType as TouchEventType, GestureEvent, Gesture } from '../../../../base/browser/touch.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import * as strings from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IEditorMemento, IEditorOpenContext } from '../../../common/editor.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { WalkThroughInput } from './walkThroughInput.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { localize } from '../../../../nls.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { isObject } from '../../../../base/common/types.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { EditorOption, IEditorOptions as ICodeEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { UILabelProvider } from '../../../../base/common/keybindingLabels.js';
+import { OS, OperatingSystem } from '../../../../base/common/platform.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { addDisposableListener, Dimension, isHTMLAnchorElement, isHTMLButtonElement, isHTMLElement, size } from '../../../../base/browser/dom.js';
+import * as domSanitize from '../../../../base/browser/domSanitize.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -66,6 +67,7 @@ export class WalkThroughPart extends EditorPane {
 	private editorMemento: IEditorMemento<IWalkThroughEditorViewState>;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
@@ -79,7 +81,7 @@ export class WalkThroughPart extends EditorPane {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 	) {
-		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
+		super(WalkThroughPart.ID, group, telemetryService, themeService, storageService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
 		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(editorGroupService, textResourceConfigurationService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
@@ -141,12 +143,12 @@ export class WalkThroughPart extends EditorPane {
 		}));
 		this.disposables.add(this.addEventListener(this.content, 'focusin', (e: FocusEvent) => {
 			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
-			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
+			if (isHTMLElement(e.target) && e.target.classList.contains('zone-widget-container')) {
 				const scrollPosition = this.scrollbar.getScrollPosition();
 				this.content.scrollTop = scrollPosition.scrollTop;
 				this.content.scrollLeft = scrollPosition.scrollLeft;
 			}
-			if (e.target instanceof HTMLElement) {
+			if (isHTMLElement(e.target)) {
 				this.lastFocus = e.target;
 			}
 		}));
@@ -155,9 +157,11 @@ export class WalkThroughPart extends EditorPane {
 	private registerClickHandler() {
 		this.content.addEventListener('click', event => {
 			for (let node = event.target as HTMLElement; node; node = node.parentNode as HTMLElement) {
-				if (node instanceof HTMLAnchorElement && node.href) {
-					const baseElement = window.document.getElementsByTagName('base')[0] || window.location;
+				if (isHTMLAnchorElement(node) && node.href) {
+					// eslint-disable-next-line no-restricted-syntax
+					const baseElement = node.ownerDocument.getElementsByTagName('base')[0] || this.window.location;
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
+						// eslint-disable-next-line no-restricted-syntax
 						const scrollTarget = this.content.querySelector(node.hash);
 						const innerContent = this.content.firstElementChild;
 						if (scrollTarget && innerContent) {
@@ -170,7 +174,7 @@ export class WalkThroughPart extends EditorPane {
 					}
 					event.preventDefault();
 					break;
-				} else if (node instanceof HTMLButtonElement) {
+				} else if (isHTMLButtonElement(node)) {
 					const href = node.getAttribute('data-href');
 					if (href) {
 						this.open(URI.parse(href));
@@ -224,7 +228,9 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	override focus(): void {
-		let active = document.activeElement;
+		super.focus();
+
+		let active = this.content.ownerDocument.activeElement;
 		while (active && active !== this.content) {
 			active = active.parentElement;
 		}
@@ -284,7 +290,7 @@ export class WalkThroughPart extends EditorPane {
 
 				const content = model.main;
 				if (!input.resource.path.endsWith('.md')) {
-					safeInnerHtml(this.content, content);
+					this.safeSetInnerHtml(this.content, content);
 
 					this.updateSizeClasses();
 					this.decorateContent();
@@ -299,7 +305,7 @@ export class WalkThroughPart extends EditorPane {
 				const innerContent = document.createElement('div');
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
-				safeInnerHtml(innerContent, markdown);
+				this.safeSetInnerHtml(innerContent, markdown);
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
@@ -308,6 +314,7 @@ export class WalkThroughPart extends EditorPane {
 						return;
 					}
 					const id = `snippet-${model.uri.fragment}`;
+					// eslint-disable-next-line no-restricted-syntax
 					const div = innerContent.querySelector(`#${id.replace(/[\\.]/g, '\\$&')}`) as HTMLElement;
 
 					const options = this.getEditorOptions(model.getLanguageId());
@@ -322,7 +329,8 @@ export class WalkThroughPart extends EditorPane {
 					this.contentDisposables.push(editor);
 
 					const updateHeight = (initial: boolean) => {
-						const lineHeight = editor.getOption(EditorOption.lineHeight);
+						const position = editor.getPosition();
+						const lineHeight = position ? editor.getLineHeightForPosition(position) : editor.getOption(EditorOption.lineHeight);
 						const height = `${Math.max(model.getLineCount() + 1, 4) * lineHeight}px`;
 						if (div.style.height !== height) {
 							div.style.height = height;
@@ -339,7 +347,7 @@ export class WalkThroughPart extends EditorPane {
 						if (innerContent) {
 							const targetTop = div.getBoundingClientRect().top;
 							const containerTop = innerContent.getBoundingClientRect().top;
-							const lineHeight = editor.getOption(EditorOption.lineHeight);
+							const lineHeight = editor.getLineHeightForPosition(e.position);
 							const lineTop = (targetTop + (e.position.lineNumber - 1) * lineHeight) - containerTop;
 							const lineBottom = lineTop + lineHeight;
 							const scrollDimensions = this.scrollbar.getScrollDimensions();
@@ -376,6 +384,20 @@ export class WalkThroughPart extends EditorPane {
 			});
 	}
 
+	private safeSetInnerHtml(node: HTMLElement, content: string) {
+		domSanitize.safeSetInnerHtml(node, content, {
+			allowedAttributes: {
+				augment: [
+					'id',
+					'class',
+					'style',
+					'data-command',
+					'data-href',
+				]
+			}
+		});
+	}
+
 	private getEditorOptions(language: string): ICodeEditorOptions {
 		const config = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
 		return {
@@ -405,16 +427,18 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	private decorateContent() {
+		// eslint-disable-next-line no-restricted-syntax
 		const keys = this.content.querySelectorAll('.shortcut[data-command]');
 		Array.prototype.forEach.call(keys, (key: Element) => {
 			const command = key.getAttribute('data-command');
 			const keybinding = command && this.keybindingService.lookupKeybinding(command);
 			const label = keybinding ? keybinding.getLabel() || '' : UNBOUND_COMMAND;
 			while (key.firstChild) {
-				key.removeChild(key.firstChild);
+				key.firstChild.remove();
 			}
 			key.appendChild(document.createTextNode(label));
 		});
+		// eslint-disable-next-line no-restricted-syntax
 		const ifkeys = this.content.querySelectorAll('.if_shortcut[data-command]');
 		Array.prototype.forEach.call(ifkeys, (key: HTMLElement) => {
 			const command = key.getAttribute('data-command');
@@ -427,10 +451,11 @@ export class WalkThroughPart extends EditorPane {
 		const labels = UILabelProvider.modifierLabels[OS];
 		const value = this.configurationService.getValue('editor.multiCursorModifier');
 		const modifier = labels[value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
+		// eslint-disable-next-line no-restricted-syntax
 		const keys = this.content.querySelectorAll('.multi-cursor-modifier');
 		Array.prototype.forEach.call(keys, (key: Element) => {
 			while (key.firstChild) {
-				key.removeChild(key.firstChild);
+				key.firstChild.remove();
 			}
 			key.appendChild(document.createTextNode(modifier));
 		});
@@ -439,22 +464,18 @@ export class WalkThroughPart extends EditorPane {
 	private saveTextEditorViewState(input: WalkThroughInput): void {
 		const scrollPosition = this.scrollbar.getScrollPosition();
 
-		if (this.group) {
-			this.editorMemento.saveEditorState(this.group, input, {
-				viewState: {
-					scrollTop: scrollPosition.scrollTop,
-					scrollLeft: scrollPosition.scrollLeft
-				}
-			});
-		}
+		this.editorMemento.saveEditorState(this.group, input, {
+			viewState: {
+				scrollTop: scrollPosition.scrollTop,
+				scrollLeft: scrollPosition.scrollLeft
+			}
+		});
 	}
 
 	private loadTextEditorViewState(input: WalkThroughInput) {
-		if (this.group) {
-			const state = this.editorMemento.loadEditorState(this.group, input);
-			if (state) {
-				this.scrollbar.setScrollPosition(state.viewState);
-			}
+		const state = this.editorMemento.loadEditorState(this.group, input);
+		if (state) {
+			this.scrollbar.setScrollPosition(state.viewState);
 		}
 	}
 
@@ -481,3 +502,4 @@ export class WalkThroughPart extends EditorPane {
 		super.dispose();
 	}
 }
+

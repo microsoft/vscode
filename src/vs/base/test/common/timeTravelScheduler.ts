@@ -3,63 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { setTimeout0, setTimeout0IsFaster } from 'vs/base/common/platform';
-
-interface PriorityQueue<T> {
-	length: number;
-	add(value: T): void;
-	remove(value: T): void;
-
-	removeMin(): T | undefined;
-	toSortedArray(): T[];
-}
-
-class SimplePriorityQueue<T> implements PriorityQueue<T> {
-	private isSorted = false;
-	private items: T[];
-
-	constructor(items: T[], private readonly compare: (a: T, b: T) => number) {
-		this.items = items;
-	}
-
-	get length(): number {
-		return this.items.length;
-	}
-
-	add(value: T): void {
-		this.items.push(value);
-		this.isSorted = false;
-	}
-
-	remove(value: T): void {
-		this.items.splice(this.items.indexOf(value), 1);
-		this.isSorted = false;
-	}
-
-	removeMin(): T | undefined {
-		this.ensureSorted();
-		return this.items.shift();
-	}
-
-	getMin(): T | undefined {
-		this.ensureSorted();
-		return this.items[0];
-	}
-
-	toSortedArray(): T[] {
-		this.ensureSorted();
-		return [...this.items];
-	}
-
-	private ensureSorted() {
-		if (!this.isSorted) {
-			this.items.sort(this.compare);
-			this.isSorted = true;
-		}
-	}
-}
+import { compareBy, numberComparator, tieBreakComparators } from '../../common/arrays.js';
+import { Emitter, Event } from '../../common/event.js';
+import { Disposable, IDisposable } from '../../common/lifecycle.js';
+import { setTimeout0, setTimeout0IsFaster } from '../../common/platform.js';
 
 export type TimeOffset = number;
 
@@ -84,31 +31,26 @@ interface ExtendedScheduledTask extends ScheduledTask {
 	id: number;
 }
 
-function compareScheduledTasks(a: ExtendedScheduledTask, b: ExtendedScheduledTask): number {
-	if (a.time !== b.time) {
-		// Prefer lower time
-		return a.time - b.time;
-	}
-
-	if (a.id !== b.id) {
-		// Prefer lower id
-		return a.id - b.id;
-	}
-
-	return 0;
-}
+const scheduledTaskComparator = tieBreakComparators<ExtendedScheduledTask>(
+	compareBy(i => i.time, numberComparator),
+	compareBy(i => i.id, numberComparator),
+);
 
 export class TimeTravelScheduler implements Scheduler {
 	private taskCounter = 0;
-	private _now: TimeOffset = 0;
-	private readonly queue: PriorityQueue<ExtendedScheduledTask> = new SimplePriorityQueue([], compareScheduledTasks);
+	private _nowMs: TimeOffset = 0;
+	private readonly queue: PriorityQueue<ExtendedScheduledTask> = new SimplePriorityQueue<ExtendedScheduledTask>([], scheduledTaskComparator);
 
 	private readonly taskScheduledEmitter = new Emitter<{ task: ScheduledTask }>();
 	public readonly onTaskScheduled = this.taskScheduledEmitter.event;
 
+	constructor(startTimeMs: number) {
+		this._nowMs = startTimeMs;
+	}
+
 	schedule(task: ScheduledTask): IDisposable {
-		if (task.time < this._now) {
-			throw new Error(`Scheduled time (${task.time}) must be equal to or greater than the current time (${this._now}).`);
+		if (task.time < this._nowMs) {
+			throw new Error(`Scheduled time (${task.time}) must be equal to or greater than the current time (${this._nowMs}).`);
 		}
 		const extendedTask: ExtendedScheduledTask = { ...task, id: this.taskCounter++ };
 		this.queue.add(extendedTask);
@@ -117,7 +59,7 @@ export class TimeTravelScheduler implements Scheduler {
 	}
 
 	get now(): TimeOffset {
-		return this._now;
+		return this._nowMs;
 	}
 
 	get hasScheduledTasks(): boolean {
@@ -131,7 +73,7 @@ export class TimeTravelScheduler implements Scheduler {
 	runNext(): ScheduledTask | undefined {
 		const task = this.queue.removeMin();
 		if (task) {
-			this._now = task.time;
+			this._nowMs = task.time;
 			task.run();
 		}
 
@@ -226,26 +168,30 @@ export class AsyncSchedulerProcessor extends Disposable {
 }
 
 
-export async function runWithFakedTimers<T>(options: { useFakeTimers?: boolean; useSetImmediate?: boolean; maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
+export async function runWithFakedTimers<T>(options: { startTime?: number; useFakeTimers?: boolean; useSetImmediate?: boolean; maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
 	const useFakeTimers = options.useFakeTimers === undefined ? true : options.useFakeTimers;
 	if (!useFakeTimers) {
 		return fn();
 	}
 
-	const scheduler = new TimeTravelScheduler();
+	const scheduler = new TimeTravelScheduler(options.startTime ?? 0);
 	const schedulerProcessor = new AsyncSchedulerProcessor(scheduler, { useSetImmediate: options.useSetImmediate, maxTaskCount: options.maxTaskCount });
 	const globalInstallDisposable = scheduler.installGlobally();
 
+	let didThrow = true;
 	let result: T;
 	try {
 		result = await fn();
+		didThrow = false;
 	} finally {
 		globalInstallDisposable.dispose();
 
 		try {
-			// We process the remaining scheduled tasks.
-			// The global override is no longer active, so during this, no more tasks will be scheduled.
-			await schedulerProcessor.waitForEmptyQueue();
+			if (!didThrow) {
+				// We process the remaining scheduled tasks.
+				// The global override is no longer active, so during this, no more tasks will be scheduled.
+				await schedulerProcessor.waitForEmptyQueue();
+			}
 		} finally {
 			schedulerProcessor.dispose();
 		}
@@ -327,6 +273,7 @@ function setInterval(scheduler: Scheduler, handler: TimerHandler, interval: numb
 }
 
 function overwriteGlobals(scheduler: Scheduler): IDisposable {
+	// eslint-disable-next-line local/code-no-any-casts
 	globalThis.setTimeout = ((handler: TimerHandler, timeout?: number) => setTimeout(scheduler, handler, timeout)) as any;
 	globalThis.clearTimeout = (timeoutId: any) => {
 		if (typeof timeoutId === 'object' && timeoutId && 'dispose' in timeoutId) {
@@ -336,6 +283,7 @@ function overwriteGlobals(scheduler: Scheduler): IDisposable {
 		}
 	};
 
+	// eslint-disable-next-line local/code-no-any-casts
 	globalThis.setInterval = ((handler: TimerHandler, timeout: number) => setInterval(scheduler, handler, timeout)) as any;
 	globalThis.clearInterval = (timeoutId: any) => {
 		if (typeof timeoutId === 'object' && timeoutId && 'dispose' in timeoutId) {
@@ -368,11 +316,13 @@ function createDateClass(scheduler: Scheduler): DateConstructor {
 		if (args.length === 0) {
 			return new OriginalDate(scheduler.now);
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return new (OriginalDate as any)(...args);
 	}
 
 	for (const prop in OriginalDate) {
 		if (OriginalDate.hasOwnProperty(prop)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(SchedulerDate as any)[prop] = (OriginalDate as any)[prop];
 		}
 	}
@@ -388,5 +338,63 @@ function createDateClass(scheduler: Scheduler): DateConstructor {
 	SchedulerDate.UTC = OriginalDate.UTC;
 	SchedulerDate.prototype.toUTCString = OriginalDate.prototype.toUTCString;
 
+	// eslint-disable-next-line local/code-no-any-casts
 	return SchedulerDate as any;
+}
+
+interface PriorityQueue<T> {
+	length: number;
+	add(value: T): void;
+	remove(value: T): void;
+
+	removeMin(): T | undefined;
+	toSortedArray(): T[];
+}
+
+class SimplePriorityQueue<T> implements PriorityQueue<T> {
+	private isSorted = false;
+	private items: T[];
+
+	constructor(items: T[], private readonly compare: (a: T, b: T) => number) {
+		this.items = items;
+	}
+
+	get length(): number {
+		return this.items.length;
+	}
+
+	add(value: T): void {
+		this.items.push(value);
+		this.isSorted = false;
+	}
+
+	remove(value: T): void {
+		const idx = this.items.indexOf(value);
+		if (idx !== -1) {
+			this.items.splice(idx, 1);
+			this.isSorted = false;
+		}
+	}
+
+	removeMin(): T | undefined {
+		this.ensureSorted();
+		return this.items.shift();
+	}
+
+	getMin(): T | undefined {
+		this.ensureSorted();
+		return this.items[0];
+	}
+
+	toSortedArray(): T[] {
+		this.ensureSorted();
+		return [...this.items];
+	}
+
+	private ensureSorted() {
+		if (!this.isSorted) {
+			this.items.sort(this.compare);
+			this.isSorted = true;
+		}
+	}
 }

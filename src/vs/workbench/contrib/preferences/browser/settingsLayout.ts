@@ -3,41 +3,64 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getExperimentalExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { isWeb, isWindows } from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { ISetting, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
+
+export interface ITOCFilter {
+	include?: {
+		keyPatterns?: string[];
+		tags?: string[];
+	};
+	exclude?: {
+		keyPatterns?: string[];
+		tags?: string[];
+	};
+}
+
 export interface ITOCEntry<T> {
 	id: string;
 	label: string;
 	order?: number;
 	children?: ITOCEntry<T>[];
 	settings?: Array<T>;
+	hide?: boolean;
 }
 
 const defaultCommonlyUsedSettings: string[] = [
-	'files.autoSave',
 	'editor.fontSize',
+	'editor.formatOnSave',
+	'files.autoSave',
+	'editor.defaultFormatter',
 	'editor.fontFamily',
-	'editor.tabSize',
-	'editor.renderWhitespace',
-	'editor.cursorStyle',
-	'editor.multiCursorModifier',
-	'editor.insertSpaces',
 	'editor.wordWrap',
 	'files.exclude',
-	'files.associations',
-	'workbench.editor.enablePreview'
+	'workbench.colorTheme',
+	'editor.tabSize',
+	'editor.mouseWheelZoom',
+	'editor.formatOnPaste'
 ];
 
-export async function getCommonlyUsedData(workbenchAssignmentService: IWorkbenchAssignmentService, environmentService: IEnvironmentService, productService: IProductService): Promise<ITOCEntry<string>> {
-	const toggleData = await getExperimentalExtensionToggleData(workbenchAssignmentService, environmentService, productService);
+export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUsed: string[] = defaultCommonlyUsedSettings): ITOCEntry<ISetting> {
+	const allSettings = new Map<string, ISetting>();
+	for (const group of settingGroups) {
+		for (const section of group.sections) {
+			for (const s of section.settings) {
+				allSettings.set(s.key, s);
+			}
+		}
+	}
+	const settings: ISetting[] = [];
+	for (const id of commonlyUsed) {
+		const setting = allSettings.get(id);
+		if (setting) {
+			settings.push(setting);
+		}
+	}
 	return {
 		id: 'commonlyUsed',
 		label: localize('commonlyUsed', "Commonly Used"),
-		settings: toggleData ? toggleData.commonlyUsed : defaultCommonlyUsedSettings
+		settings
 	};
 }
 
@@ -74,6 +97,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'editor/diffEditor',
 					label: localize('diffEditor', "Diff Editor"),
 					settings: ['diffEditor.*']
+				},
+				{
+					id: 'editor/multiDiffEditor',
+					label: localize('multiDiffEditor', "Multi-File Diff Editor"),
+					settings: ['multiDiffEditor.*']
 				},
 				{
 					id: 'editor/minimap',
@@ -145,6 +173,11 @@ export const tocData: ITOCEntry<string> = {
 			id: 'features',
 			label: localize('features', "Features"),
 			children: [
+				{
+					id: 'features/accessibilitySignals',
+					label: localize('accessibility.signals', 'Accessibility Signals'),
+					settings: ['accessibility.signal*']
+				},
 				{
 					id: 'features/accessibility',
 					label: localize('accessibility', "Accessibility"),
@@ -221,11 +254,6 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['notebook.*', 'interactiveWindow.*']
 				},
 				{
-					id: 'features/audioCues',
-					label: localize('audioCues', 'Audio Cues'),
-					settings: ['audioCues.*']
-				},
-				{
 					id: 'features/mergeEditor',
 					label: localize('mergeEditor', 'Merge Editor'),
 					settings: ['mergeEditor.*']
@@ -233,7 +261,13 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'features/chat',
 					label: localize('chat', 'Chat'),
-					settings: ['chat.*', 'inlineChat.*']
+					settings: ['chat.*', 'inlineChat.*', 'mcp']
+				},
+				{
+					id: 'features/issueReporter',
+					label: localize('issueReporter', 'Issue Reporter'),
+					settings: ['issueReporter.*'],
+					hide: !isWeb
 				}
 			]
 		},
@@ -274,14 +308,15 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'application/other',
 					label: localize('other', "Other"),
-					settings: ['application.*']
+					settings: ['application.*'],
+					hide: isWindows
 				}
 			]
 		},
 		{
 			id: 'security',
 			label: localize('security', "Security"),
-			settings: isWindows ? ['security.*'] : undefined,
+			settings: ['security.*'],
 			children: [
 				{
 					id: 'security/workspace',
@@ -292,24 +327,3 @@ export const tocData: ITOCEntry<string> = {
 		}
 	]
 };
-
-export const knownAcronyms = new Set<string>();
-[
-	'css',
-	'html',
-	'scss',
-	'less',
-	'json',
-	'js',
-	'ts',
-	'ie',
-	'id',
-	'php',
-	'scm',
-].forEach(str => knownAcronyms.add(str));
-
-export const knownTermMappings = new Map<string, string>();
-knownTermMappings.set('power shell', 'PowerShell');
-knownTermMappings.set('powershell', 'PowerShell');
-knownTermMappings.set('javascript', 'JavaScript');
-knownTermMappings.set('typescript', 'TypeScript');

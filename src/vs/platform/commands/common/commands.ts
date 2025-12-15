@@ -3,43 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Iterable } from '../../../base/common/iterator.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { IDisposable, markAsSingleton, toDisposable } from '../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
+import { TypeConstraint, validateConstraints } from '../../../base/common/types.js';
+import { ILocalizedString } from '../../action/common/action.js';
+import { createDecorator, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
 export interface ICommandEvent {
-	commandId: string;
-	args: any[];
+	readonly commandId: string;
+	readonly args: unknown[];
 }
 
 export interface ICommandService {
 	readonly _serviceBrand: undefined;
-	onWillExecuteCommand: Event<ICommandEvent>;
-	onDidExecuteCommand: Event<ICommandEvent>;
-	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
+	readonly onWillExecuteCommand: Event<ICommandEvent>;
+	readonly onDidExecuteCommand: Event<ICommandEvent>;
+	executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined>;
 }
 
 export type ICommandsMap = Map<string, ICommand>;
 
-export interface ICommandHandler {
-	(accessor: ServicesAccessor, ...args: any[]): void;
-}
+export type ICommandHandler<Args extends unknown[] = unknown[], R = void> = (accessor: ServicesAccessor, ...args: Args) => R;
 
-export interface ICommand {
+export interface ICommand<Args extends unknown[] = unknown[], R = void> {
 	id: string;
-	handler: ICommandHandler;
-	description?: ICommandHandlerDescription | null;
+	handler: ICommandHandler<Args, R>;
+	metadata?: ICommandMetadata | null;
 }
 
-export interface ICommandHandlerDescription {
-	readonly description: string;
-	readonly args: ReadonlyArray<{
+export interface ICommandMetadata {
+	/**
+	 * NOTE: Please use an ILocalizedString. string is in the type for backcompat for now.
+	 * A short summary of what the command does. This will be used in:
+	 * - API commands
+	 * - when showing keybindings that have no other UX
+	 * - when searching for commands in the Command Palette
+	 */
+	readonly description: ILocalizedString | string;
+	readonly args?: ReadonlyArray<{
 		readonly name: string;
 		readonly isOptional?: boolean;
 		readonly description?: string;
@@ -50,9 +56,9 @@ export interface ICommandHandlerDescription {
 }
 
 export interface ICommandRegistry {
-	onDidRegisterCommand: Event<string>;
-	registerCommand(id: string, command: ICommandHandler): IDisposable;
-	registerCommand(command: ICommand): IDisposable;
+	readonly onDidRegisterCommand: Event<string>;
+	registerCommand<Args extends unknown[]>(id: string, command: ICommandHandler<Args>): IDisposable;
+	registerCommand<Args extends unknown[]>(command: ICommand<Args>): IDisposable;
 	registerCommandAlias(oldId: string, newId: string): IDisposable;
 	getCommand(id: string): ICommand | undefined;
 	getCommands(): ICommandsMap;
@@ -79,13 +85,13 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		}
 
 		// add argument validation if rich command metadata is provided
-		if (idOrCommand.description) {
+		if (idOrCommand.metadata && Array.isArray(idOrCommand.metadata.args)) {
 			const constraints: Array<TypeConstraint | undefined> = [];
-			for (const arg of idOrCommand.description.args) {
+			for (const arg of idOrCommand.metadata.args) {
 				constraints.push(arg.constraint);
 			}
 			const actualHandler = idOrCommand.handler;
-			idOrCommand.handler = function (accessor, ...args: any[]) {
+			idOrCommand.handler = function (accessor, ...args: unknown[]) {
 				validateConstraints(args, constraints);
 				return actualHandler(accessor, ...args);
 			};
@@ -113,7 +119,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		// tell the world about this command
 		this._onDidRegisterCommand.fire(id);
 
-		return ret;
+		return markAsSingleton(ret);
 	}
 
 	registerCommandAlias(oldId: string, newId: string): IDisposable {

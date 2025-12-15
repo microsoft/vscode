@@ -31,6 +31,13 @@
 	flex-shrink: 0; /* fix for https://github.com/microsoft/vscode/issues/13787 */
 }
 
+.monaco-icon-label-iconpath {
+	width: 16px;
+	height: 22px;
+	margin-right: 6px;
+	display: flex;
+}
+
 .monaco-icon-label-container.disabled {
 	color: var(--vscode-disabledForeground);
 }
@@ -51,6 +58,11 @@
 	opacity: 0.5;
 }
 
+.monaco-icon-label > .monaco-icon-label-container > .monaco-icon-suffix-container > .label-suffix {
+	opacity: .7;
+	white-space: pre;
+}
+
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	opacity: .7;
 	margin-left: 0.5em;
@@ -66,6 +78,11 @@
 	opacity: .95;
 }
 
+.monaco-icon-label.bold > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
+.monaco-icon-label.bold > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
+	font-weight: bold;
+}
+
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	font-style: italic;
@@ -74,11 +91,6 @@
 .monaco-icon-label.deprecated {
 	text-decoration: line-through;
 	opacity: 0.66;
-}
-
-/* make sure apply italic font style to decorations as well */
-.monaco-icon-label.italic::after {
-	font-style: italic;
 }
 
 .monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,

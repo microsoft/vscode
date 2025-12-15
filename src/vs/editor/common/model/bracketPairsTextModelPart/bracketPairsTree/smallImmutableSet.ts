@@ -10,6 +10,7 @@ const emptyArr: number[] = [];
  * It uses bits to encode element membership efficiently.
 */
 export class SmallImmutableSet<T> {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private static cache = new Array<SmallImmutableSet<any>>(129);
 
 	private static create<T>(items: number, additionalItems: readonly number[]): SmallImmutableSet<T> {
@@ -26,6 +27,7 @@ export class SmallImmutableSet<T> {
 		return new SmallImmutableSet(items, additionalItems);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private static empty = SmallImmutableSet.create<any>(0, emptyArr);
 	public static getEmpty<T>(): SmallImmutableSet<T> {
 		return this.empty;

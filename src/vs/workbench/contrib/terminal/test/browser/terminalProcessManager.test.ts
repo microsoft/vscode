@@ -4,24 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ITestInstantiationService, TestTerminalProfileResolverService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ITerminalChildProcess, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { Event } from '../../../../../base/common/event.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ITerminalChildProcess, type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
+import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;
@@ -34,9 +26,9 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 		throw new Error('Method not implemented.');
 	}
 
-	onProcessOverrideDimensions?: Event<any> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
-	onDidChangeHasChildProcesses?: Event<any> | undefined;
+	readonly onProcessOverrideDimensions?: Event<any> | undefined;
+	readonly onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
+	readonly onDidChangeHasChildProcesses?: Event<any> | undefined;
 
 	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;
@@ -47,6 +39,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	async start(): Promise<undefined> { return undefined; }
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }
+	sendSignal(signal: string): void { }
 	resize(cols: number, rows: number): void { }
 	clearBuffer(): void { }
 	acknowledgeDataEvent(charCount: number): void { }
@@ -58,7 +51,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 }
 
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
-	getBackend() {
+	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
 			onPtyHostUnresponsive: Event.None,
@@ -77,19 +70,18 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 				shouldPersist: boolean
 			) => new TestTerminalChildProcess(shouldPersist),
 			getLatency: () => Promise.resolve([])
-		} as any;
+		} as unknown as ITerminalBackend;
 	}
 }
 
 suite('Workbench - TerminalProcessManager', () => {
-	let store: DisposableStore;
-	let instantiationService: ITestInstantiationService;
 	let manager: TerminalProcessManager;
 
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async () => {
-		store = new DisposableStore();
-		instantiationService = workbenchInstantiationService(undefined, store);
-		const configurationService = new TestConfigurationService();
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
 		await configurationService.setUserConfiguration('terminal', {
 			integrated: {
@@ -100,20 +92,14 @@ suite('Workbench - TerminalProcessManager', () => {
 				}
 			}
 		});
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IProductService, TestProductService);
-		instantiationService.stub(ITerminalLogService, new NullLogService());
-		instantiationService.stub(IEnvironmentVariableService, instantiationService.createInstance(EnvironmentVariableService));
-		instantiationService.stub(ITerminalProfileResolverService, TestTerminalProfileResolverService);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: () => true,
+		} satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
+		instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
 
-		const configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
-		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, configHelper, undefined, undefined, undefined));
+		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));
 	});
-
-	teardown(() => store.dispose());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('process persistence', () => {
 		suite('local', () => {

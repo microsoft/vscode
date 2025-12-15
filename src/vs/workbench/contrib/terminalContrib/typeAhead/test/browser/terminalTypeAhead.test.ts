@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import type { IBuffer, Terminal } from 'xterm';
+import assert from 'assert';
+import type { IBuffer, Terminal } from '@xterm/xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
-import { Emitter } from 'vs/base/common/event';
-import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon';
-import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from '../../browser/terminalTypeAheadAddon.js';
+import { IBeforeProcessDataEvent, ITerminalProcessManager } from '../../../../terminal/common/terminal.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DEFAULT_LOCAL_ECHO_EXCLUDE, type ITerminalTypeAheadConfiguration } from '../../common/terminalTypeAheadConfiguration.js';
+import { isString } from '../../../../../../base/common/types.js';
 
 const CSI = `\x1b[`;
 
@@ -35,6 +37,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			succeed = ds.add(new Emitter<IPrediction>());
 			fail = ds.add(new Emitter<IPrediction>());
 
+			// eslint-disable-next-line local/code-no-any-casts
 			stats = ds.add(new PredictionStats({
 				onPredictionAdded: add.event,
 				onPredictionSucceeded: succeed.event,
@@ -84,7 +87,7 @@ suite('Workbench - Terminal Typeahead', () => {
 	suite('timeline', () => {
 		let onBeforeProcessData: Emitter<IBeforeProcessDataEvent>;
 		let publicLog: SinonStub;
-		let config: ITerminalConfiguration;
+		let config: ITerminalTypeAheadConfiguration;
 		let addon: TestTypeAheadAddon;
 
 		const predictedHelloo = [
@@ -103,7 +106,7 @@ suite('Workbench - Terminal Typeahead', () => {
 
 		setup(() => {
 			onBeforeProcessData = ds.add(new Emitter<IBeforeProcessDataEvent>());
-			config = upcastPartial<ITerminalConfiguration>({
+			config = upcastPartial<ITerminalTypeAheadConfiguration>({
 				localEchoStyle: 'italic',
 				localEchoLatencyThreshold: 0,
 				localEchoExcludePrograms: DEFAULT_LOCAL_ECHO_EXCLUDE,
@@ -527,7 +530,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 function mockCell(char: string, attrs: { [key: string]: unknown } = {}) {
 	return new Proxy({}, {
 		get(_, prop) {
-			if (typeof prop === 'string' && attrs.hasOwnProperty(prop)) {
+			if (isString(prop) && attrs.hasOwnProperty(prop)) {
 				return () => attrs[prop];
 			}
 

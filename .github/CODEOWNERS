@@ -1,0 +1,19 @@
+# GitHub actions required reviewers
+.github/workflows/monaco-editor.yml @hediet @alexdima @lszomoru @joaomoreno
+.github/workflows/no-package-lock-changes.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/no-yarn-lock-changes.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr-darwin-test.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr-linux-cli-test.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr-linux-test.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr-node-modules.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr-win32-test.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/telemetry.yml @lramos15 @lszomoru @joaomoreno
+
+# Ensure those that manage generated policy are aware of changes
+build/lib/policies/policyData.jsonc @joshspicer @rebornix @joaomoreno @pwang347 @sandy081
+
+# VS Code API
+# Ensure the API team is aware of changes to the vscode-dts file
+# this is only about the final API, not about proposed API changes
+src/vscode-dts/vscode.d.ts @jrieken @mjbvz @alexr00

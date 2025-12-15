@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DeferredPromise } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ContextKeyService, setContext } from 'vs/platform/contextkey/browser/contextKeyService';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { ContextKeyService, setContext } from '../../browser/contextKeyService.js';
+import { ContextKeyExpr, IContextKeyService } from '../../common/contextkey.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 
 suite('ContextKeyService', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -174,5 +174,128 @@ suite('ContextKeyService', () => {
 		});
 
 		return def.p;
+	});
+
+	test('setting identical array values should not fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<string[]>('testArray', ['a', 'b', 'c']);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same array content (different reference)
+		key.set(['a', 'b', 'c']);
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical array');
+	});
+
+	test('setting different array values should fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<string[]>('testArray', ['a', 'b', 'c']);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set a different array
+		key.set(['a', 'b', 'd']);
+
+		assert.strictEqual(eventFired, true, 'Should fire event when setting different array');
+	});
+
+	test('setting identical complex object should not fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const initialValue = { foo: 'bar', count: 42 };
+		const key = root.createKey<Record<string, string | number>>('testObject', initialValue);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same object content (different reference)
+		key.set({ foo: 'bar', count: 42 });
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical object');
+	});
+
+	test('setting different complex object should fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const initialValue = { foo: 'bar', count: 42 };
+		const key = root.createKey<Record<string, string | number>>('testObject', initialValue);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set a different object
+		key.set({ foo: 'bar', count: 43 });
+
+		assert.strictEqual(eventFired, true, 'Should fire event when setting different object');
+	});
+
+	test('setting empty arrays should not fire change event when identical', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<string[]>('testArray', []);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set another empty array
+		key.set([]);
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical empty array');
+	});
+
+	test('setting nested arrays should handle deep equality', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const initialValue = ['a:b', 'c:d'];
+		const key = root.createKey<string[]>('testComplexArray', initialValue);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same array content with colon-separated values
+		key.set(['a:b', 'c:d']);
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical array with complex values');
+	});
+
+	test('setting same primitive values should not fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey('testString', 'hello');
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same string value
+		key.set('hello');
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical string');
+	});
+
+	test('setting different primitive values should fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<number>('testNumber', 42);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set a different number value
+		key.set(43);
+
+		assert.strictEqual(eventFired, true, 'Should fire event when setting different number');
 	});
 });

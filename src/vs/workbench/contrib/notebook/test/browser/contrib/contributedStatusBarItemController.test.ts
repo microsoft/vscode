@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ContributedStatusBarItemController } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/contributedStatusBarItemController';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { CellKind, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import assert from 'assert';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ContributedStatusBarItemController } from '../../../browser/contrib/cellStatusBar/contributedStatusBarItemController.js';
+import { INotebookCellStatusBarService } from '../../../common/notebookCellStatusBarService.js';
+import { CellKind, INotebookCellStatusBarItemProvider } from '../../../common/notebookCommon.js';
+import { withTestNotebook } from '../testNotebookEditor.js';
 
 suite('Notebook Statusbar', () => {
 	const testDisposables = new DisposableStore();
@@ -19,6 +20,8 @@ suite('Notebook Statusbar', () => {
 	teardown(() => {
 		testDisposables.clear();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Calls item provider', async function () {
 		await withTestNotebook(
@@ -50,33 +53,33 @@ suite('Notebook Statusbar', () => {
 
 					viewType = editor.textModel.viewType;
 				});
-				const providePromise1 = asPromise(provider.onProvideCalled);
+				const providePromise1 = asPromise(provider.onProvideCalled, 'registering provider');
 				testDisposables.add(cellStatusbarSvc.registerCellStatusBarItemProvider(provider));
 				assert.strictEqual(await providePromise1, 1, 'should call provider on registration');
 
-				const providePromise2 = asPromise(provider.onProvideCalled);
+				const providePromise2 = asPromise(provider.onProvideCalled, 'updating metadata');
 				const cell0 = editor.textModel.cells[0];
 				cell0.metadata = { ...cell0.metadata, ...{ newMetadata: true } };
-				assert.strictEqual(await providePromise2, 2, 'should call provider on registration');
+				assert.strictEqual(await providePromise2, 2, 'should call provider on updating metadata');
 
-				const providePromise3 = asPromise(provider.onProvideCalled);
+				const providePromise3 = asPromise(provider.onProvideCalled, 'changing cell language');
 				cell0.language = 'newlanguage';
-				assert.strictEqual(await providePromise3, 3, 'should call provider on registration');
+				assert.strictEqual(await providePromise3, 3, 'should call provider on changing language');
 
-				const providePromise4 = asPromise(provider.onProvideCalled);
+				const providePromise4 = asPromise(provider.onProvideCalled, 'manually firing change event');
 				provider._onDidChangeStatusBarItems.fire();
-				assert.strictEqual(await providePromise4, 4, 'should call provider on registration');
+				assert.strictEqual(await providePromise4, 4, 'should call provider on manually firing change event');
 			});
 	});
 });
 
-async function asPromise<T>(event: Event<T>, timeout = 5000): Promise<T> {
-	const error = new Error('asPromise TIMEOUT reached');
+async function asPromise<T>(event: Event<T>, message: string): Promise<T> {
+	const error = new Error('asPromise TIMEOUT reached: ' + message);
 	return new Promise<T>((resolve, reject) => {
 		const handle = setTimeout(() => {
 			sub.dispose();
 			reject(error);
-		}, timeout);
+		}, 1000);
 
 		const sub = event(e => {
 			clearTimeout(handle);

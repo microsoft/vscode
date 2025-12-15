@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as playwright from '@playwright/test';
+import type { Protocol } from 'playwright-core/types/protocol';
 import { dirname, join } from 'path';
 import { promises } from 'fs';
 import { IWindowDriver } from './driver';
-import { PageFunction } from 'playwright-core/types/structs';
 import { measureAndLog } from './logger';
 import { LaunchOptions } from './code';
 import { teardown } from './processes';
 import { ChildProcess } from 'child_process';
+
+type PageFunction<Arg, T> = (arg: Arg) => T | Promise<T>;
 
 export class PlaywrightDriver {
 
@@ -42,19 +44,27 @@ export class PlaywrightDriver {
 	) {
 	}
 
-	async startTracing(name: string): Promise<void> {
+	get browserContext(): playwright.BrowserContext {
+		return this.context;
+	}
+
+	get currentPage(): playwright.Page {
+		return this.page;
+	}
+
+	async startTracing(name?: string): Promise<void> {
 		if (!this.options.tracing) {
 			return; // tracing disabled
 		}
 
 		try {
-			await measureAndLog(() => this.context.tracing.startChunk({ title: name }), `startTracing for ${name}`, this.options.logger);
+			await measureAndLog(() => this.context.tracing.startChunk({ title: name }), `startTracing${name ? ` for ${name}` : ''}`, this.options.logger);
 		} catch (error) {
 			// Ignore
 		}
 	}
 
-	async stopTracing(name: string, persist: boolean): Promise<void> {
+	async stopTracing(name?: string, persist: boolean = false): Promise<void> {
 		if (!this.options.tracing) {
 			return; // tracing disabled
 		}
@@ -62,10 +72,11 @@ export class PlaywrightDriver {
 		try {
 			let persistPath: string | undefined = undefined;
 			if (persist) {
-				persistPath = join(this.options.logsPath, `playwright-trace-${PlaywrightDriver.traceCounter++}-${name.replace(/\s+/g, '-')}.zip`);
+				const nameSuffix = name ? `-${name.replace(/\s+/g, '-')}` : '';
+				persistPath = join(this.options.logsPath, `playwright-trace-${PlaywrightDriver.traceCounter++}${nameSuffix}.zip`);
 			}
 
-			await measureAndLog(() => this.context.tracing.stopChunk({ path: persistPath }), `stopTracing for ${name}`, this.options.logger);
+			await measureAndLog(() => this.context.tracing.stopChunk({ path: persistPath }), `stopTracing${name ? ` for ${name}` : ''}`, this.options.logger);
 
 			// To ensure we have a screenshot at the end where
 			// it failed, also trigger one explicitly. Tracing
@@ -83,9 +94,86 @@ export class PlaywrightDriver {
 		await this.whenLoaded;
 	}
 
-	private async takeScreenshot(name: string): Promise<void> {
+	private _cdpSession: playwright.CDPSession | undefined;
+
+	async startCDP() {
+		if (this._cdpSession) {
+			return;
+		}
+
+		this._cdpSession = await this.page.context().newCDPSession(this.page);
+	}
+
+	async collectGarbage() {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		await this._cdpSession.send('HeapProfiler.collectGarbage');
+	}
+
+	async evaluate(options: Protocol.Runtime.evaluateParameters): Promise<Protocol.Runtime.evaluateReturnValue> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		return await this._cdpSession.send('Runtime.evaluate', options);
+	}
+
+	async releaseObjectGroup(parameters: Protocol.Runtime.releaseObjectGroupParameters): Promise<void> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		await this._cdpSession.send('Runtime.releaseObjectGroup', parameters);
+	}
+
+	async queryObjects(parameters: Protocol.Runtime.queryObjectsParameters): Promise<Protocol.Runtime.queryObjectsReturnValue> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		return await this._cdpSession.send('Runtime.queryObjects', parameters);
+	}
+
+	async callFunctionOn(parameters: Protocol.Runtime.callFunctionOnParameters): Promise<Protocol.Runtime.callFunctionOnReturnValue> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		return await this._cdpSession.send('Runtime.callFunctionOn', parameters);
+	}
+
+	async takeHeapSnapshot(): Promise<string> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		let snapshot = '';
+		const listener = (c: { chunk: string }) => {
+			snapshot += c.chunk;
+		};
+
+		this._cdpSession.addListener('HeapProfiler.addHeapSnapshotChunk', listener);
+
+		await this._cdpSession.send('HeapProfiler.takeHeapSnapshot');
+
+		this._cdpSession.removeListener('HeapProfiler.addHeapSnapshotChunk', listener);
+		return snapshot;
+	}
+
+	async getProperties(parameters: Protocol.Runtime.getPropertiesParameters): Promise<Protocol.Runtime.getPropertiesReturnValue> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		return await this._cdpSession.send('Runtime.getProperties', parameters);
+	}
+
+	private async takeScreenshot(name?: string): Promise<void> {
 		try {
-			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}-${name.replace(/\s+/g, '-')}.png`);
+			const nameSuffix = name ? `-${name.replace(/\s+/g, '-')}` : '';
+			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}${nameSuffix}.png`);
 
 			await measureAndLog(() => this.page.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
 		} catch (error) {
@@ -97,7 +185,7 @@ export class PlaywrightDriver {
 		await this.page.reload();
 	}
 
-	async exitApplication() {
+	async close() {
 
 		// Stop tracing
 		try {
@@ -117,22 +205,11 @@ export class PlaywrightDriver {
 			}
 		}
 
-		// Web: exit via `close` method
-		if (this.options.web) {
-			try {
-				await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
-			} catch (error) {
-				this.options.logger.log(`Error closing appliction (${error})`);
-			}
-		}
-
-		// Desktop: exit via `driver.exitApplication`
-		else {
-			try {
-				await measureAndLog(() => this.evaluateWithDriver(([driver]) => driver.exitApplication()), 'driver.exitApplication()', this.options.logger);
-			} catch (error) {
-				this.options.logger.log(`Error exiting appliction (${error})`);
-			}
+		//  exit via `close` method
+		try {
+			await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
+		} catch (error) {
+			this.options.logger.log(`Error closing application (${error})`);
 		}
 
 		// Server: via `teardown`
@@ -152,7 +229,7 @@ export class PlaywrightDriver {
 		}
 	}
 
-	async dispatchKeybinding(keybinding: string) {
+	async sendKeybinding(keybinding: string, accept?: () => Promise<void> | void) {
 		const chords = keybinding.split(' ');
 		for (let i = 0; i < chords.length; i++) {
 			const chord = chords[i];
@@ -179,7 +256,7 @@ export class PlaywrightDriver {
 			}
 		}
 
-		await this.wait(100);
+		await accept?.();
 	}
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
@@ -211,6 +288,10 @@ export class PlaywrightDriver {
 		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
+	async getEditorSelection(selector: string) {
+		return this.page.evaluate(([driver, selector]) => driver.getEditorSelection(selector), [await this.getDriverHandle(), selector] as const);
+	}
+
 	async getTerminalBuffer(selector: string) {
 		return this.page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this.getDriverHandle(), selector] as const);
 	}
@@ -231,15 +312,32 @@ export class PlaywrightDriver {
 		return this.page.evaluate(([driver]) => driver.getLogs(), [await this.getDriverHandle()] as const);
 	}
 
-	private async evaluateWithDriver<T>(pageFunction: PageFunction<playwright.JSHandle<IWindowDriver>[], T>) {
+	private async evaluateWithDriver<T>(pageFunction: PageFunction<IWindowDriver[], T>) {
 		return this.page.evaluate(pageFunction, [await this.getDriverHandle()]);
 	}
 
 	wait(ms: number): Promise<void> {
-		return new Promise<void>(resolve => setTimeout(resolve, ms));
+		return wait(ms);
+	}
+
+	whenWorkbenchRestored(): Promise<void> {
+		return this.evaluateWithDriver(([driver]) => driver.whenWorkbenchRestored());
 	}
 
 	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
 		return this.page.evaluateHandle('window.driver');
 	}
+
+	async isAlive(): Promise<boolean> {
+		try {
+			await this.getDriverHandle();
+			return true;
+		} catch (error) {
+			return false;
+		}
+	}
+}
+
+export function wait(ms: number): Promise<void> {
+	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }

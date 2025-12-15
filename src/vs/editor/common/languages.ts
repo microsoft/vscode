@@ -3,27 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { IReadonlyVSDataTransfer } from 'vs/base/common/dataTransfer';
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
-import * as model from 'vs/editor/common/model';
-import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
-import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { VSBuffer } from '../../base/common/buffer.js';
+import { CancellationToken } from '../../base/common/cancellation.js';
+import { Codicon } from '../../base/common/codicons.js';
+import { Color } from '../../base/common/color.js';
+import { IReadonlyVSDataTransfer } from '../../base/common/dataTransfer.js';
+import { Event } from '../../base/common/event.js';
+import { HierarchicalKind } from '../../base/common/hierarchicalKind.js';
+import { IMarkdownString } from '../../base/common/htmlContent.js';
+import { IDisposable } from '../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../base/common/themables.js';
+import { URI, UriComponents } from '../../base/common/uri.js';
+import { EditOperation, ISingleEditOperation } from './core/editOperation.js';
+import { IPosition, Position } from './core/position.js';
+import { IRange, Range } from './core/range.js';
+import { Selection } from './core/selection.js';
+import { LanguageId } from './encodedTokenAttributes.js';
+import { LanguageSelector } from './languageSelector.js';
+import * as model from './model.js';
+import { TokenizationRegistry as TokenizationRegistryImpl } from './tokenizationRegistry.js';
+import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens.js';
+import { localize } from '../../nls.js';
+import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
+import { IMarkerData } from '../../platform/markers/common/markers.js';
+import { EditDeltaInfo } from './textModelEditSource.js';
 
 /**
  * @internal
@@ -78,6 +81,20 @@ export class EncodedTokenizationResult {
 		public readonly endState: IState,
 	) {
 	}
+}
+
+export interface SyntaxNode {
+	startIndex: number;
+	endIndex: number;
+	startPosition: IPosition;
+	endPosition: IPosition;
+}
+
+export interface QueryCapture {
+	name: string;
+	text?: string;
+	node: SyntaxNode;
+	encodedLanguageId: number;
 }
 
 /**
@@ -166,19 +183,58 @@ export interface Hover {
 	 * current position itself.
 	 */
 	range?: IRange;
+
+	/**
+	 * Can increase the verbosity of the hover
+	 */
+	canIncreaseVerbosity?: boolean;
+
+	/**
+	 * Can decrease the verbosity of the hover
+	 */
+	canDecreaseVerbosity?: boolean;
 }
 
 /**
  * The hover provider interface defines the contract between extensions and
  * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
  */
-export interface HoverProvider {
+export interface HoverProvider<THover = Hover> {
 	/**
-	 * Provide a hover for the given position and document. Multiple hovers at the same
+	 * Provide a hover for the given position, context and document. Multiple hovers at the same
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext<THover>): ProviderResult<THover>;
+}
+
+export interface HoverContext<THover = Hover> {
+	/**
+	 * Hover verbosity request
+	 */
+	verbosityRequest?: HoverVerbosityRequest<THover>;
+}
+
+export interface HoverVerbosityRequest<THover = Hover> {
+	/**
+	 * The delta by which to increase/decrease the hover verbosity level
+	 */
+	verbosityDelta: number;
+	/**
+	 * The previous hover for the same position
+	 */
+	previousHover: THover;
+}
+
+export enum HoverVerbosityAction {
+	/**
+	 * Increase the verbosity of the hover
+	 */
+	Increase,
+	/**
+	 * Decrease the verbosity of the hover
+	 */
+	Decrease
 }
 
 /**
@@ -307,6 +363,7 @@ export const enum CompletionItemKind {
 	TypeParameter,
 	User,
 	Issue,
+	Tool,
 	Snippet, // <- highest value (used for compare!)
 }
 
@@ -345,6 +402,7 @@ export namespace CompletionItemKinds {
 	byKind.set(CompletionItemKind.TypeParameter, Codicon.symbolTypeParameter);
 	byKind.set(CompletionItemKind.User, Codicon.account);
 	byKind.set(CompletionItemKind.Issue, Codicon.issues);
+	byKind.set(CompletionItemKind.Tool, Codicon.tools);
 
 	/**
 	 * @internal
@@ -358,10 +416,48 @@ export namespace CompletionItemKinds {
 		return codicon;
 	}
 
+	/**
+	 * @internal
+	 */
+	export function toLabel(kind: CompletionItemKind): string {
+		switch (kind) {
+			case CompletionItemKind.Method: return localize('suggestWidget.kind.method', 'Method');
+			case CompletionItemKind.Function: return localize('suggestWidget.kind.function', 'Function');
+			case CompletionItemKind.Constructor: return localize('suggestWidget.kind.constructor', 'Constructor');
+			case CompletionItemKind.Field: return localize('suggestWidget.kind.field', 'Field');
+			case CompletionItemKind.Variable: return localize('suggestWidget.kind.variable', 'Variable');
+			case CompletionItemKind.Class: return localize('suggestWidget.kind.class', 'Class');
+			case CompletionItemKind.Struct: return localize('suggestWidget.kind.struct', 'Struct');
+			case CompletionItemKind.Interface: return localize('suggestWidget.kind.interface', 'Interface');
+			case CompletionItemKind.Module: return localize('suggestWidget.kind.module', 'Module');
+			case CompletionItemKind.Property: return localize('suggestWidget.kind.property', 'Property');
+			case CompletionItemKind.Event: return localize('suggestWidget.kind.event', 'Event');
+			case CompletionItemKind.Operator: return localize('suggestWidget.kind.operator', 'Operator');
+			case CompletionItemKind.Unit: return localize('suggestWidget.kind.unit', 'Unit');
+			case CompletionItemKind.Value: return localize('suggestWidget.kind.value', 'Value');
+			case CompletionItemKind.Constant: return localize('suggestWidget.kind.constant', 'Constant');
+			case CompletionItemKind.Enum: return localize('suggestWidget.kind.enum', 'Enum');
+			case CompletionItemKind.EnumMember: return localize('suggestWidget.kind.enumMember', 'Enum Member');
+			case CompletionItemKind.Keyword: return localize('suggestWidget.kind.keyword', 'Keyword');
+			case CompletionItemKind.Text: return localize('suggestWidget.kind.text', 'Text');
+			case CompletionItemKind.Color: return localize('suggestWidget.kind.color', 'Color');
+			case CompletionItemKind.File: return localize('suggestWidget.kind.file', 'File');
+			case CompletionItemKind.Reference: return localize('suggestWidget.kind.reference', 'Reference');
+			case CompletionItemKind.Customcolor: return localize('suggestWidget.kind.customcolor', 'Custom Color');
+			case CompletionItemKind.Folder: return localize('suggestWidget.kind.folder', 'Folder');
+			case CompletionItemKind.TypeParameter: return localize('suggestWidget.kind.typeParameter', 'Type Parameter');
+			case CompletionItemKind.User: return localize('suggestWidget.kind.user', 'User');
+			case CompletionItemKind.Issue: return localize('suggestWidget.kind.issue', 'Issue');
+			case CompletionItemKind.Tool: return localize('suggestWidget.kind.tool', 'Tool');
+			case CompletionItemKind.Snippet: return localize('suggestWidget.kind.snippet', 'Snippet');
+			default: return '';
+		}
+	}
+
 	const data = new Map<string, CompletionItemKind>();
 	data.set('method', CompletionItemKind.Method);
 	data.set('function', CompletionItemKind.Function);
-	data.set('constructor', <any>CompletionItemKind.Constructor);
+	data.set('constructor', CompletionItemKind.Constructor);
 	data.set('field', CompletionItemKind.Field);
 	data.set('variable', CompletionItemKind.Variable);
 	data.set('class', CompletionItemKind.Class);
@@ -389,6 +485,7 @@ export namespace CompletionItemKinds {
 	data.set('typeParameter', CompletionItemKind.TypeParameter);
 	data.set('account', CompletionItemKind.User);
 	data.set('issue', CompletionItemKind.Issue);
+	data.set('tool', CompletionItemKind.Tool);
 
 	/**
 	 * @internal
@@ -501,9 +598,6 @@ export interface CompletionItem {
 	/**
 	 * A range of text that should be replaced by this completion item.
 	 *
-	 * Defaults to a range from the start of the {@link TextDocument.getWordRangeAtPosition current word} to the
-	 * current position.
-	 *
 	 * *Note:* The range must be a {@link Range.isSingleLine single line} and it must
 	 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.
 	 */
@@ -525,6 +619,10 @@ export interface CompletionItem {
 	 */
 	command?: Command;
 	/**
+	 * A command that should be run upon acceptance of this item.
+	 */
+	action?: Command;
+	/**
 	 * @internal
 	 */
 	extensionId?: ExtensionIdentifier;
@@ -544,6 +642,23 @@ export interface CompletionList {
 	 * @internal
 	 */
 	duration?: number;
+}
+
+/**
+ * Info provided on partial acceptance.
+ */
+export interface PartialAcceptInfo {
+	kind: PartialAcceptTriggerKind;
+	acceptedLength: number;
+}
+
+/**
+ * How a partial acceptance was triggered.
+ */
+export const enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2,
 }
 
 /**
@@ -630,6 +745,31 @@ export interface InlineCompletionContext {
 	 */
 	readonly triggerKind: InlineCompletionTriggerKind;
 	readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+	/**
+	 * @experimental
+	 * @internal
+	*/
+	readonly userPrompt?: string | undefined;
+	/**
+	 * @experimental
+	 * @internal
+	*/
+	readonly requestUuid: string;
+
+	readonly includeInlineEdits: boolean;
+	readonly includeInlineCompletions: boolean;
+	readonly requestIssuedDateTime: number;
+	readonly earliestShownDateTime: number;
+}
+
+export interface IInlineCompletionModelInfo {
+	models: IInlineCompletionModel[];
+	currentModelId: string;
+}
+
+export interface IInlineCompletionModel {
+	name: string;
+	id: string;
 }
 
 export class SelectedSuggestionInfo {
@@ -658,42 +798,95 @@ export interface InlineCompletion {
 	 * The text can also be a snippet. In that case, a preview with default parameters is shown.
 	 * When accepting the suggestion, the full snippet is inserted.
 	*/
-	readonly insertText: string | { snippet: string };
+	readonly insertText: string | { snippet: string } | undefined;
 
 	/**
-	 * A text that is used to decide if this inline completion should be shown.
-	 * An inline completion is shown if the text to replace is a subword of the filter text.
-	 */
-	readonly filterText?: string;
+	 * The range to replace.
+	 * Must begin and end on the same line.
+	 * Refers to the current document or `uri` if provided.
+	*/
+	readonly range?: IRange;
 
 	/**
 	 * An optional array of additional text edits that are applied when
 	 * selecting this completion. Edits must not overlap with the main edit
 	 * nor with themselves.
+	 * Refers to the current document or `uri` if provided.
 	 */
 	readonly additionalTextEdits?: ISingleEditOperation[];
 
 	/**
-	 * The range to replace.
-	 * Must begin and end on the same line.
+	 * The file for which the edit applies to.
 	*/
-	readonly range?: IRange;
+	readonly uri?: UriComponents;
 
+	/**
+	 * A command that is run upon acceptance of this item.
+	*/
 	readonly command?: Command;
+
+	readonly gutterMenuLinkAction?: Command;
+
+	/**
+	 * Is called the first time an inline completion is shown.
+	 * @deprecated. Use `onDidShow` of the provider instead.
+	*/
+	readonly shownCommand?: Command;
 
 	/**
 	 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
 	 * Defaults to `false`.
 	*/
 	readonly completeBracketPairs?: boolean;
+
+	readonly isInlineEdit?: boolean;
+	readonly showInlineEditMenu?: boolean;
+
+	/** Only show the inline suggestion when the cursor is in the showRange. */
+	readonly showRange?: IRange;
+
+	readonly warning?: InlineCompletionWarning;
+
+	readonly hint?: IInlineCompletionHint;
+
+	readonly supportsRename?: boolean;
+
+	/**
+	 * Used for telemetry.
+	 */
+	readonly correlationId?: string | undefined;
+
+	readonly jumpToPosition?: IPosition;
+
+	readonly doNotLog?: boolean;
 }
+
+export interface InlineCompletionWarning {
+	message: IMarkdownString | string;
+	icon?: IconPath;
+}
+
+export enum InlineCompletionHintStyle {
+	Code = 1,
+	Label = 2
+}
+
+export interface IInlineCompletionHint {
+	/** Refers to the current document. */
+	range: IRange;
+	style: InlineCompletionHintStyle;
+	content: string;
+}
+
+// TODO: add `| URI | { light: URI; dark: URI }`.
+export type IconPath = ThemeIcon;
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	readonly items: readonly TItem[];
 	/**
 	 * A list of commands associated with the inline completions of this list.
 	 */
-	readonly commands?: Command[];
+	readonly commands?: InlineCompletionCommand[];
 
 	readonly suppressSuggestions?: boolean | undefined;
 
@@ -702,6 +895,8 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	 */
 	readonly enableForwardStability?: boolean | undefined;
 }
+
+export type InlineCompletionCommand = { command: Command; icon?: ThemeIcon };
 
 export type InlineCompletionProviderGroupId = string;
 
@@ -712,17 +907,31 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * Will be called when an item is shown.
 	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
-	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
+	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string, editDeltaInfo: EditDeltaInfo): void;
 
 	/**
-	 * Will be called when an item is partially accepted.
+	 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
+	 * @param acceptedCharacters Deprecated. Use `info.acceptedCharacters` instead.
 	 */
-	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
+	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
+
+	/**
+	 * @deprecated Use `handleEndOfLifetime` instead.
+	*/
+	handleRejection?(completions: T, item: T['items'][number]): void;
+
+	/**
+	 * Is called when an inline completion item is no longer being used.
+	 * Provides a reason of why it is not used anymore.
+	*/
+	handleEndOfLifetime?(completions: T, item: T['items'][number], reason: InlineCompletionEndOfLifeReason<T['items'][number]>, lifetimeSummary: LifetimeSummary): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
-	freeInlineCompletions(completions: T): void;
+	disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
+
+	onDidChangeInlineCompletions?: Event<void>;
 
 	/**
 	 * Only used for {@link yieldsToGroupIds}.
@@ -730,14 +939,153 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	groupId?: InlineCompletionProviderGroupId;
 
+	/** @internal */
+	providerId?: ProviderId;
+
 	/**
 	 * Returns a list of preferred provider {@link groupId}s.
 	 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
 	 */
 	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 
+	excludesGroupIds?: InlineCompletionProviderGroupId[];
+
+	displayName?: string;
+
+	debounceDelayMs?: number;
+
+	modelInfo?: IInlineCompletionModelInfo;
+	onDidModelInfoChange?: Event<void>;
+	setModelId?(modelId: string): Promise<void>;
+
 	toString?(): string;
 }
+
+
+/** @internal */
+export class ProviderId {
+	public static fromExtensionId(extensionId: string | undefined): ProviderId {
+		return new ProviderId(extensionId, undefined, undefined);
+	}
+
+	constructor(
+		public readonly extensionId: string | undefined,
+		public readonly extensionVersion: string | undefined,
+		public readonly providerId: string | undefined
+	) {
+	}
+
+	toString(): string {
+		let result = '';
+		if (this.extensionId) {
+			result += this.extensionId;
+		}
+		if (this.extensionVersion) {
+			result += `@${this.extensionVersion}`;
+		}
+		if (this.providerId) {
+			result += `:${this.providerId}`;
+		}
+		if (result.length === 0) {
+			result = 'unknown';
+		}
+		return result;
+	}
+
+	toStringWithoutVersion(): string {
+		let result = '';
+		if (this.extensionId) {
+			result += this.extensionId;
+		}
+		if (this.providerId) {
+			result += `:${this.providerId}`;
+		}
+		return result;
+	}
+}
+
+/** @internal */
+export class VersionedExtensionId {
+	public static tryCreate(extensionId: string | undefined, version: string | undefined): VersionedExtensionId | undefined {
+		if (!extensionId || !version) {
+			return undefined;
+		}
+		return new VersionedExtensionId(extensionId, version);
+	}
+
+	constructor(
+		public readonly extensionId: string,
+		public readonly version: string,
+	) { }
+
+	toString(): string {
+		return `${this.extensionId}@${this.version}`;
+	}
+}
+
+export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' | 'empty' | 'notTaken' };
+
+export enum InlineCompletionEndOfLifeReasonKind {
+	Accepted = 0,
+	Rejected = 1,
+	Ignored = 2,
+}
+
+export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
+	kind: InlineCompletionEndOfLifeReasonKind.Accepted; // User did an explicit action to accept
+	alternativeAction: boolean; // Whether the user performed an alternative action.
+} | {
+	kind: InlineCompletionEndOfLifeReasonKind.Rejected; // User did an explicit action to reject
+} | {
+	kind: InlineCompletionEndOfLifeReasonKind.Ignored;
+	supersededBy?: TInlineCompletion;
+	userTypingDisagreed: boolean;
+};
+
+export type LifetimeSummary = {
+	requestUuid: string;
+	correlationId: string | undefined;
+	partiallyAccepted: number;
+	partiallyAcceptedCountSinceOriginal: number;
+	partiallyAcceptedRatioSinceOriginal: number;
+	partiallyAcceptedCharactersSinceOriginal: number;
+	shown: boolean;
+	shownDuration: number;
+	shownDurationUncollapsed: number;
+	timeUntilShown: number | undefined;
+	timeUntilActuallyShown: number | undefined;
+	timeUntilProviderRequest: number;
+	timeUntilProviderResponse: number;
+	notShownReason: string | undefined;
+	editorType: string;
+	viewKind: string | undefined;
+	preceeded: boolean;
+	languageId: string;
+	requestReason: string;
+	performanceMarkers?: string;
+	cursorColumnDistance?: number;
+	cursorLineDistance?: number;
+	lineCountOriginal?: number;
+	lineCountModified?: number;
+	characterCountOriginal?: number;
+	characterCountModified?: number;
+	disjointReplacements?: number;
+	sameShapeReplacements?: boolean;
+	typingInterval: number;
+	typingIntervalCharacterCount: number;
+	selectedSuggestionInfo: boolean;
+	availableProviders: string;
+	skuPlan: string | undefined;
+	skuType: string | undefined;
+	renameCreated: boolean | undefined;
+	renameDuration: number | undefined;
+	renameTimedOut: boolean | undefined;
+	renameDroppedOtherEdits: number | undefined;
+	renameDroppedRenameEdits: number | undefined;
+	editKind: string | undefined;
+	longDistanceHintVisible?: boolean;
+	longDistanceHintDistance?: number;
+};
 
 export interface CodeAction {
 	title: string;
@@ -746,7 +1094,9 @@ export interface CodeAction {
 	diagnostics?: IMarkerData[];
 	kind?: string;
 	isPreferred?: boolean;
+	isAI?: boolean;
 	disabled?: string;
+	ranges?: IRange[];
 }
 
 export const enum CodeActionTriggerType {
@@ -775,6 +1125,8 @@ export interface CodeActionProvider {
 
 	displayName?: string;
 
+	extensionId?: string;
+
 	/**
 	 * Provide commands for the given document and range.
 	 */
@@ -802,10 +1154,10 @@ export interface CodeActionProvider {
  * @internal
  */
 export interface DocumentPasteEdit {
-	readonly label: string;
-	readonly detail: string;
+	readonly title: string;
+	readonly kind: HierarchicalKind;
 	readonly handledMimeType?: string;
-	readonly yieldTo?: readonly DropYieldTo[];
+	yieldTo?: readonly DropYieldTo[];
 	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
@@ -813,16 +1165,41 @@ export interface DocumentPasteEdit {
 /**
  * @internal
  */
+export enum DocumentPasteTriggerKind {
+	Automatic = 0,
+	PasteAs = 1,
+}
+
+/**
+ * @internal
+ */
+export interface DocumentPasteContext {
+	readonly only?: HierarchicalKind;
+	readonly triggerKind: DocumentPasteTriggerKind;
+}
+
+/**
+ * @internal
+ */
+export interface DocumentPasteEditsSession {
+	edits: readonly DocumentPasteEdit[];
+	dispose(): void;
+}
+
+/**
+ * @internal
+ */
 export interface DocumentPasteEditProvider {
-
-	readonly id: string;
-
-	readonly copyMimeTypes?: readonly string[];
-	readonly pasteMimeTypes?: readonly string[];
+	readonly id?: string;
+	readonly copyMimeTypes: readonly string[];
+	readonly pasteMimeTypes: readonly string[];
+	readonly providedPasteEditKinds: readonly HierarchicalKind[];
 
 	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer>;
 
-	provideDocumentPasteEdits?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
+	provideDocumentPasteEdits?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined>;
+
+	resolveDocumentPasteEdit?(edit: DocumentPasteEdit, token: CancellationToken): Promise<DocumentPasteEdit>;
 }
 
 /**
@@ -952,6 +1329,22 @@ export interface DocumentHighlight {
 	 */
 	kind?: DocumentHighlightKind;
 }
+
+/**
+ * Represents a set of document highlights for a specific URI.
+ */
+export interface MultiDocumentHighlight {
+	/**
+	 * The URI of the document that the highlights belong to.
+	 */
+	uri: URI;
+
+	/**
+	 * The set of highlights for the document.
+	 */
+	highlights: DocumentHighlight[];
+}
+
 /**
  * The document highlight provider interface defines the contract between extensions and
  * the word-highlight-feature.
@@ -962,6 +1355,28 @@ export interface DocumentHighlightProvider {
 	 * all exit-points of a function.
 	 */
 	provideDocumentHighlights(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
+}
+
+/**
+ * A provider that can provide document highlights across multiple documents.
+ */
+export interface MultiDocumentHighlightProvider {
+	readonly selector: LanguageSelector;
+
+	/**
+	 * Provide a Map of URI --> document highlights, like all occurrences of a variable or
+	 * all exit-points of a function.
+	 *
+	 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
+	 * with shared symbols.
+	 *
+	 * @param primaryModel The primary text model.
+	 * @param position The position at which to provide document highlights.
+	 * @param otherModels The other text models to search for document highlights.
+	 * @param token A cancellation token.
+	 * @returns A map of URI to document highlights.
+	 */
+	provideMultiDocumentHighlights(primaryModel: model.ITextModel, position: Position, otherModels: model.ITextModel[], token: CancellationToken): ProviderResult<Map<URI, DocumentHighlight[]>>;
 }
 
 /**
@@ -1055,12 +1470,22 @@ export interface LocationLink {
 /**
  * @internal
  */
-export function isLocationLink(thing: any): thing is LocationLink {
-	return thing
+export function isLocationLink(thing: unknown): thing is LocationLink {
+	return !!thing
 		&& URI.isUri((thing as LocationLink).uri)
 		&& Range.isIRange((thing as LocationLink).range)
 		&& (Range.isIRange((thing as LocationLink).originSelectionRange) || Range.isIRange((thing as LocationLink).targetSelectionRange));
 }
+
+/**
+ * @internal
+ */
+export function isLocation(thing: unknown): thing is Location {
+	return !!thing
+		&& URI.isUri((thing as Location).uri)
+		&& Range.isIRange((thing as Location).range);
+}
+
 
 export type Definition = Location | Location[] | LocationLink[];
 
@@ -1228,6 +1653,45 @@ export namespace SymbolKinds {
 		}
 		return icon;
 	}
+
+	const byCompletionKind = new Map<SymbolKind, CompletionItemKind>();
+	byCompletionKind.set(SymbolKind.File, CompletionItemKind.File);
+	byCompletionKind.set(SymbolKind.Module, CompletionItemKind.Module);
+	byCompletionKind.set(SymbolKind.Namespace, CompletionItemKind.Module);
+	byCompletionKind.set(SymbolKind.Package, CompletionItemKind.Module);
+	byCompletionKind.set(SymbolKind.Class, CompletionItemKind.Class);
+	byCompletionKind.set(SymbolKind.Method, CompletionItemKind.Method);
+	byCompletionKind.set(SymbolKind.Property, CompletionItemKind.Property);
+	byCompletionKind.set(SymbolKind.Field, CompletionItemKind.Field);
+	byCompletionKind.set(SymbolKind.Constructor, CompletionItemKind.Constructor);
+	byCompletionKind.set(SymbolKind.Enum, CompletionItemKind.Enum);
+	byCompletionKind.set(SymbolKind.Interface, CompletionItemKind.Interface);
+	byCompletionKind.set(SymbolKind.Function, CompletionItemKind.Function);
+	byCompletionKind.set(SymbolKind.Variable, CompletionItemKind.Variable);
+	byCompletionKind.set(SymbolKind.Constant, CompletionItemKind.Constant);
+	byCompletionKind.set(SymbolKind.String, CompletionItemKind.Text);
+	byCompletionKind.set(SymbolKind.Number, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Boolean, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Array, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Object, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Key, CompletionItemKind.Keyword);
+	byCompletionKind.set(SymbolKind.Null, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.EnumMember, CompletionItemKind.EnumMember);
+	byCompletionKind.set(SymbolKind.Struct, CompletionItemKind.Struct);
+	byCompletionKind.set(SymbolKind.Event, CompletionItemKind.Event);
+	byCompletionKind.set(SymbolKind.Operator, CompletionItemKind.Operator);
+	byCompletionKind.set(SymbolKind.TypeParameter, CompletionItemKind.TypeParameter);
+	/**
+	 * @internal
+	 */
+	export function toCompletionKind(kind: SymbolKind): CompletionItemKind {
+		let completionKind = byCompletionKind.get(kind);
+		if (completionKind === undefined) {
+			console.info('No completion kind found for SymbolKind ' + kind);
+			completionKind = CompletionItemKind.File;
+		}
+		return completionKind;
+	}
 }
 
 export interface DocumentSymbol {
@@ -1264,7 +1728,14 @@ export interface TextEdit {
 /** @internal */
 export abstract class TextEdit {
 	static asEditOperation(edit: TextEdit): ISingleEditOperation {
-		return EditOperation.replace(Range.lift(edit.range), edit.text);
+		const range = Range.lift(edit.range);
+		return range.isEmpty()
+			? EditOperation.insert(range.getStartPosition(), edit.text) // moves marker
+			: EditOperation.replace(range, edit.text);
+	}
+	static isTextEdit(thing: unknown): thing is TextEdit {
+		const possibleTextEdit = thing as TextEdit;
+		return typeof possibleTextEdit.text === 'string' && Range.isIRange(possibleTextEdit.range);
 	}
 }
 
@@ -1581,13 +2052,20 @@ export interface IWorkspaceFileEdit {
 
 export interface IWorkspaceTextEdit {
 	resource: URI;
-	textEdit: TextEdit & { insertAsSnippet?: boolean };
+	textEdit: TextEdit & { insertAsSnippet?: boolean; keepWhitespace?: boolean };
 	versionId: number | undefined;
 	metadata?: WorkspaceEditMetadata;
 }
 
 export interface WorkspaceEdit {
-	edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
+	edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit | ICustomEdit>;
+}
+
+export interface ICustomEdit {
+	readonly resource: URI;
+	readonly metadata?: WorkspaceEditMetadata;
+	undo(): Promise<void> | void;
+	redo(): Promise<void> | void;
 }
 
 export interface Rejection {
@@ -1603,11 +2081,30 @@ export interface RenameProvider {
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
+export enum NewSymbolNameTag {
+	AIGenerated = 1
+}
+
+export enum NewSymbolNameTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
+export interface NewSymbolName {
+	readonly newSymbolName: string;
+	readonly tags?: readonly NewSymbolNameTag[];
+}
+
+export interface NewSymbolNamesProvider {
+	supportsAutomaticNewSymbolNamesTriggerKind?: Promise<boolean | undefined>;
+	provideNewSymbolNames(model: model.ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): ProviderResult<NewSymbolName[]>;
+}
+
 export interface Command {
 	id: string;
 	title: string;
 	tooltip?: string;
-	arguments?: any[];
+	arguments?: unknown[];
 }
 
 /**
@@ -1618,7 +2115,7 @@ export namespace Command {
 	/**
 	 * @internal
 	 */
-	export function is(obj: any): obj is Command {
+	export function is(obj: unknown): obj is Command {
 		if (!obj || typeof obj !== 'object') {
 			return false;
 		}
@@ -1641,11 +2138,19 @@ export interface CommentThreadTemplate {
 /**
  * @internal
  */
-export interface CommentInfo {
+export interface CommentInfo<T = IRange> {
 	extensionId?: string;
-	threads: CommentThread[];
+	threads: CommentThread<T>[];
 	pendingCommentThreads?: PendingCommentThread[];
 	commentingRanges: CommentingRanges;
+}
+
+
+/**
+ * @internal
+ */
+export interface CommentingRangeResourceHint {
+	schemes: readonly string[];
 }
 
 /**
@@ -1673,11 +2178,19 @@ export enum CommentThreadState {
 /**
  * @internal
  */
+export enum CommentThreadApplicability {
+	Current = 0,
+	Outdated = 1
+}
+
+/**
+ * @internal
+ */
 export interface CommentWidget {
 	commentThread: CommentThread;
 	comment?: Comment;
 	input: string;
-	onDidChangeInput: Event<string>;
+	readonly onDidChangeInput: Event<string>;
 }
 
 /**
@@ -1686,6 +2199,11 @@ export interface CommentWidget {
 export interface CommentInput {
 	value: string;
 	uri: URI;
+}
+
+export interface CommentThreadRevealOptions {
+	preserveFocus: boolean;
+	focusReply: boolean;
 }
 
 /**
@@ -1701,22 +2219,29 @@ export interface CommentThread<T = IRange> {
 	range: T | undefined;
 	label: string | undefined;
 	contextValue: string | undefined;
-	comments: Comment[] | undefined;
-	onDidChangeComments: Event<readonly Comment[] | undefined>;
+	comments: ReadonlyArray<Comment> | undefined;
+	readonly onDidChangeComments: Event<readonly Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	initialCollapsibleState?: CommentThreadCollapsibleState;
-	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
+	readonly onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
-	canReply: boolean;
+	applicability?: CommentThreadApplicability;
+	canReply: boolean | CommentAuthorInformation;
 	input?: CommentInput;
-	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeRange: Event<T | undefined>;
-	onDidChangeLabel: Event<string | undefined>;
-	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
-	onDidChangeState: Event<CommentThreadState | undefined>;
-	onDidChangeCanReply: Event<boolean>;
+	readonly onDidChangeInput: Event<CommentInput | undefined>;
+	readonly onDidChangeLabel: Event<string | undefined>;
+	readonly onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
+	readonly onDidChangeState: Event<CommentThreadState | undefined>;
+	readonly onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
 	isTemplate: boolean;
+}
+
+/**
+ * @internal
+ */
+export interface AddedCommentThread<T = IRange> extends CommentThread<T> {
+	editorId?: string;
 }
 
 /**
@@ -1729,6 +2254,12 @@ export interface CommentingRanges {
 	fileComments: boolean;
 }
 
+export interface CommentAuthorInformation {
+	name: string;
+	iconPath?: UriComponents;
+
+}
+
 /**
  * @internal
  */
@@ -1738,6 +2269,7 @@ export interface CommentReaction {
 	readonly count?: number;
 	readonly hasReacted?: boolean;
 	readonly canEdit?: boolean;
+	readonly reactors?: readonly string[];
 }
 
 /**
@@ -1783,14 +2315,21 @@ export interface Comment {
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
+	readonly state?: CommentState;
 	readonly timestamp?: string;
 }
 
 export interface PendingCommentThread {
-	body: string;
-	range: IRange;
+	range: IRange | undefined;
 	uri: URI;
-	owner: string;
+	uniqueOwner: string;
+	isReply: boolean;
+	comment: PendingComment;
+}
+
+export interface PendingComment {
+	body: string;
+	cursor: IPosition;
 }
 
 /**
@@ -1805,7 +2344,7 @@ export interface CommentThreadChangedEvent<T> {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: CommentThread<T>[];
+	readonly added: AddedCommentThread<T>[];
 
 	/**
 	 * Removed comment threads.
@@ -1825,8 +2364,8 @@ export interface CodeLens {
 }
 
 export interface CodeLensList {
-	lenses: CodeLens[];
-	dispose(): void;
+	readonly lenses: readonly CodeLens[];
+	dispose?(): void;
 }
 
 export interface CodeLensProvider {
@@ -1893,13 +2432,14 @@ export interface SemanticTokensEdits {
 }
 
 export interface DocumentSemanticTokensProvider {
-	onDidChange?: Event<void>;
+	readonly onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	releaseDocumentSemanticTokens(resultId: string | undefined): void;
 }
 
 export interface DocumentRangeSemanticTokensProvider {
+	readonly onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
@@ -1915,17 +2455,17 @@ export interface ITokenizationSupportChangedEvent {
 /**
  * @internal
  */
-export interface ILazyTokenizationSupport {
-	get tokenizationSupport(): Promise<ITokenizationSupport | null>;
+export interface ILazyTokenizationSupport<TSupport> {
+	get tokenizationSupport(): Promise<TSupport | null>;
 }
 
 /**
  * @internal
  */
-export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSupport {
-	private _tokenizationSupport: Promise<ITokenizationSupport & IDisposable | null> | null = null;
+export class LazyTokenizationSupport<TSupport = ITokenizationSupport> implements IDisposable, ILazyTokenizationSupport<TSupport> {
+	private _tokenizationSupport: Promise<TSupport & IDisposable | null> | null = null;
 
-	constructor(private readonly createSupport: () => Promise<ITokenizationSupport & IDisposable | null>) {
+	constructor(private readonly createSupport: () => Promise<TSupport & IDisposable | null>) {
 	}
 
 	dispose(): void {
@@ -1938,7 +2478,7 @@ export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSu
 		}
 	}
 
-	get tokenizationSupport(): Promise<ITokenizationSupport | null> {
+	get tokenizationSupport(): Promise<TSupport | null> {
 		if (!this._tokenizationSupport) {
 			this._tokenizationSupport = this.createSupport();
 		}
@@ -1949,14 +2489,14 @@ export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSu
 /**
  * @internal
  */
-export interface ITokenizationRegistry {
+export interface ITokenizationRegistry<TSupport> {
 
 	/**
 	 * An event triggered when:
 	 *  - a tokenization support is registered, unregistered or changed.
 	 *  - the color map is changed.
 	 */
-	onDidChange: Event<ITokenizationSupportChangedEvent>;
+	readonly onDidChange: Event<ITokenizationSupportChangedEvent>;
 
 	/**
 	 * Fire a change event for a language.
@@ -1967,24 +2507,24 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a tokenization support.
 	 */
-	register(languageId: string, support: ITokenizationSupport): IDisposable;
+	register(languageId: string, support: TSupport): IDisposable;
 
 	/**
 	 * Register a tokenization support factory.
 	 */
-	registerFactory(languageId: string, factory: ILazyTokenizationSupport): IDisposable;
+	registerFactory(languageId: string, factory: ILazyTokenizationSupport<TSupport>): IDisposable;
 
 	/**
 	 * Get or create the tokenization support for a language.
 	 * Returns `null` if not found.
 	 */
-	getOrCreate(languageId: string): Promise<ITokenizationSupport | null>;
+	getOrCreate(languageId: string): Promise<TSupport | null>;
 
 	/**
 	 * Get the tokenization support for a language.
 	 * Returns `null` if not found.
 	 */
-	get(languageId: string): ITokenizationSupport | null;
+	get(languageId: string): TSupport | null;
 
 	/**
 	 * Returns false if a factory is still pending.
@@ -2004,8 +2544,7 @@ export interface ITokenizationRegistry {
 /**
  * @internal
  */
-export const TokenizationRegistry: ITokenizationRegistry = new TokenizationRegistryImpl();
-
+export const TokenizationRegistry: ITokenizationRegistry<ITokenizationSupport> = new TokenizationRegistryImpl();
 
 /**
  * @internal
@@ -2020,13 +2559,14 @@ export enum ExternalUriOpenerPriority {
 /**
  * @internal
  */
-export type DropYieldTo = { readonly providerId: string } | { readonly mimeType: string };
+export type DropYieldTo = { readonly kind: HierarchicalKind } | { readonly mimeType: string };
 
 /**
  * @internal
  */
-export interface DocumentOnDropEdit {
-	readonly label: string;
+export interface DocumentDropEdit {
+	readonly title: string;
+	readonly kind: HierarchicalKind | undefined;
 	readonly handledMimeType?: string;
 	readonly yieldTo?: readonly DropYieldTo[];
 	insertText: string | { readonly snippet: string };
@@ -2036,39 +2576,19 @@ export interface DocumentOnDropEdit {
 /**
  * @internal
  */
-export interface DocumentOnDropEditProvider {
+export interface DocumentDropEditsSession {
+	edits: readonly DocumentDropEdit[];
+	dispose(): void;
+}
+
+/**
+ * @internal
+ */
+export interface DocumentDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
+	readonly providedDropEditKinds?: readonly HierarchicalKind[];
 
-	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
-}
-
-export interface RelatedContextItem {
-	readonly uri: URI;
-	readonly range: IRange;
-}
-
-export interface MappedEditsContext {
-	selections: ISelection[];
-	related: RelatedContextItem[];
-}
-
-export interface MappedEditsProvider {
-
-	/**
-	 * Provider maps code blocks from the chat into a workspace edit.
-	 *
-	 * @param document The document to provide mapped edits for.
-	 * @param codeBlocks Code blocks that come from an LLM's reply.
-	 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
-	 * @param context The context for providing mapped edits.
-	 * @param token A cancellation token.
-	 * @returns A provider result of text edits.
-	 */
-	provideMappedEdits(
-		document: model.ITextModel,
-		codeBlocks: string[],
-		context: MappedEditsContext,
-		token: CancellationToken
-	): Promise<WorkspaceEdit | null>;
+	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
+	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
 }

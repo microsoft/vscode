@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment, OS, OperatingSystem, isWindows } from 'vs/base/common/platform';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
-import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
-import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
-import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IPtyHostLatencyMeasurement, IPtyHostService, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
-import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
-import * as performance from 'vs/base/common/performance';
-import { getSystemShell } from 'vs/base/node/shell';
-import { StopWatch } from 'vs/base/common/stopwatch';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IProcessEnvironment, OS, OperatingSystem, isWindows } from '../../../base/common/platform.js';
+import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ILogService, ILoggerService, LogLevel } from '../../log/common/log.js';
+import { RemoteLoggerChannelClient } from '../../log/common/logIpc.js';
+import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
+import { IPtyHostProcessReplayEvent } from '../common/capabilities/capabilities.js';
+import { RequestStore } from '../common/requestStore.js';
+import { HeartbeatConstants, IHeartbeatService, ITerminalLaunchResult, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IPtyHostLatencyMeasurement, IPtyHostService, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from '../common/terminal.js';
+import { registerTerminalPlatformConfiguration } from '../common/terminalPlatformConfiguration.js';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from '../common/terminalProcess.js';
+import { IPtyHostConnection, IPtyHostStarter } from './ptyHost.js';
+import { detectAvailableProfiles } from './terminalProfiles.js';
+import * as performance from '../../../base/common/performance.js';
+import { getSystemShell } from '../../../base/node/shell.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 
 enum Constants {
 	MaxRestarts = 5
@@ -63,8 +63,8 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	private _wasQuitRequested = false;
 	private _restartCount = 0;
 	private _isResponsive = true;
-	private _heartbeatFirstTimeout?: NodeJS.Timeout;
-	private _heartbeatSecondTimeout?: NodeJS.Timeout;
+	private _heartbeatFirstTimeout?: Timeout;
+	private _heartbeatSecondTimeout?: Timeout;
 
 	private readonly _onPtyHostExit = this._register(new Emitter<number>());
 	readonly onPtyHostExit = this._onPtyHostExit.event;
@@ -87,7 +87,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty<any> }>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty }>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
@@ -108,14 +108,16 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		this._register(toDisposable(() => this._disposePtyHost()));
 
 		this._resolveVariablesRequestStore = this._register(new RequestStore(undefined, this._logService));
-		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
+		this._register(this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables));
 
 		// Start the pty host when a window requests a connection, if the starter has that capability.
 		if (this._ptyHostStarter.onRequestConnection) {
-			Event.once(this._ptyHostStarter.onRequestConnection)(() => this._ensurePtyHost());
+			this._register(Event.once(this._ptyHostStarter.onRequestConnection)(() => this._ensurePtyHost()));
 		}
 
-		this._ptyHostStarter.onWillShutdown?.(() => this._wasQuitRequested = true);
+		if (this._ptyHostStarter.onWillShutdown) {
+			this._register(this._ptyHostStarter.onWillShutdown(() => this._wasQuitRequested = true));
+		}
 	}
 
 	private get _ignoreProcessNames(): string[] {
@@ -237,7 +239,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	async reduceConnectionGraceTime(): Promise<void> {
 		return this._optionalProxy?.reduceConnectionGraceTime();
 	}
-	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	start(id: number): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		return this._proxy.start(id);
 	}
 	shutdown(id: number, immediate: boolean): Promise<void> {
@@ -245,6 +247,9 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 	input(id: number, data: string): Promise<void> {
 		return this._proxy.input(id, data);
+	}
+	sendSignal(id: number, signal: string): Promise<void> {
+		return this._proxy.sendSignal(id, signal);
 	}
 	processBinary(id: number, data: string): Promise<void> {
 		return this._proxy.processBinary(id, data);
@@ -260,6 +265,9 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
 		return this._proxy.setUnicodeVersion(id, version);
+	}
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		return this._proxy.setNextCommandId(id, commandLine, commandId);
 	}
 	getInitialCwd(id: number): Promise<string> {
 		return this._proxy.getInitialCwd(id);
@@ -288,9 +296,6 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 	uninstallAllAutoReplies(): Promise<void> {
 		return this._proxy.uninstallAllAutoReplies();
-	}
-	uninstallAutoReply(match: string): Promise<void> {
-		return this._proxy.uninstallAutoReply(match);
 	}
 
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {

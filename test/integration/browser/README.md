@@ -4,8 +4,9 @@
 
 Make sure to run the following commands to compile and install dependencies:
 
-    yarn --cwd test/integration/browser
-    yarn --cwd test/integration/browser compile
+    cd test/integration/browser
+    npm i
+    npm run compile
 
 ## Run (inside Electron)
 

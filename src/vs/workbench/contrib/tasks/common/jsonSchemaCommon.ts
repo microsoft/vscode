@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as nls from '../../../../nls.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
-import { Schemas } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import { Schemas } from './problemMatcher.js';
 
 const schema: IJSONSchema = {
 	definitions: {

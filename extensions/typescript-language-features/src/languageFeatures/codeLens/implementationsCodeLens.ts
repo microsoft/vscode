@@ -13,16 +13,36 @@ import * as typeConverters from '../../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
 import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapability } from '../util/dependentRegistration';
 import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
+import { ExecutionTarget } from '../../tsServer/server';
 
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+	public constructor(
+		client: ITypeScriptServiceClient,
+		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
+		private readonly language: LanguageDescription
+	) {
+		super(client, _cachedResponse);
+		this._register(
+			vscode.workspace.onDidChangeConfiguration(evt => {
+				if (evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnInterfaceMethods`) ||
+					evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnAllClassMethods`)) {
+					this.changeEmitter.fire();
+				}
+			})
+		);
+	}
 
 	public async resolveCodeLens(
 		codeLens: ReferencesCodeLens,
 		token: vscode.CancellationToken,
 	): Promise<vscode.CodeLens> {
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
-		const response = await this.client.execute('implementation', args, token, { lowPriority: true, cancelOnResourceChange: codeLens.document });
+		const response = await this.client.execute('implementation', args, token, {
+			lowPriority: true,
+			executionTarget: ExecutionTarget.Semantic,
+			cancelOnResourceChange: codeLens.document,
+		});
 		if (response.type !== 'response' || !response.body) {
 			codeLens.command = response.type === 'cancelled'
 				? TypeScriptBaseCodeLensProvider.cancelledCommand
@@ -66,22 +86,50 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	protected extractSymbol(
 		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
-		_parent: Proto.NavigationTree | undefined
+		parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined {
-		switch (item.kind) {
-			case PConst.Kind.interface:
-				return getSymbolRange(document, item);
+		const cfg = vscode.workspace.getConfiguration(this.language.id);
 
-			case PConst.Kind.class:
-			case PConst.Kind.method:
-			case PConst.Kind.memberVariable:
-			case PConst.Kind.memberGetAccessor:
-			case PConst.Kind.memberSetAccessor:
-				if (item.kindModifiers.match(/\babstract\b/g)) {
-					return getSymbolRange(document, item);
-				}
-				break;
+		// Always show on interfaces
+		if (item.kind === PConst.Kind.interface) {
+			return getSymbolRange(document, item);
 		}
+
+		// Always show on abstract classes/properties
+		if (
+			(item.kind === PConst.Kind.class ||
+				item.kind === PConst.Kind.method ||
+				item.kind === PConst.Kind.memberVariable ||
+				item.kind === PConst.Kind.memberGetAccessor ||
+				item.kind === PConst.Kind.memberSetAccessor) &&
+			/\babstract\b/.test(item.kindModifiers ?? '')
+		) {
+			return getSymbolRange(document, item);
+		}
+
+		// If configured, show on interface methods
+		if (
+			item.kind === PConst.Kind.method &&
+			parent?.kind === PConst.Kind.interface &&
+			cfg.get<boolean>('implementationsCodeLens.showOnInterfaceMethods', false)
+		) {
+			return getSymbolRange(document, item);
+		}
+
+
+		// If configured, show on all class methods
+		if (
+			item.kind === PConst.Kind.method &&
+			parent?.kind === PConst.Kind.class &&
+			cfg.get<boolean>('implementationsCodeLens.showOnAllClassMethods', false)
+		) {
+			// But not private ones as these can never be overridden
+			if (/\bprivate\b/.test(item.kindModifiers ?? '')) {
+				return undefined;
+			}
+			return getSymbolRange(document, item);
+		}
+
 		return undefined;
 	}
 }
@@ -97,6 +145,6 @@ export function register(
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeLensProvider(selector.semantic,
-			new TypeScriptImplementationsCodeLensProvider(client, cachedResponse));
+			new TypeScriptImplementationsCodeLensProvider(client, cachedResponse, language));
 	});
 }

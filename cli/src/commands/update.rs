@@ -23,6 +23,8 @@ pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i
 	);
 	let update_service = SelfUpdate::new(&update_service)?;
 
+	let _ = update_service.cleanup_old_update();
+
 	let current_version = update_service.get_current_release().await?;
 	if update_service.is_up_to_date_with(&current_version) {
 		ctx.log.result(format!(
@@ -34,7 +36,7 @@ pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i
 
 	if args.check {
 		ctx.log
-			.result(format!("Update to {} is available", current_version));
+			.result(format!("Update to {current_version} is available"));
 		return Ok(0);
 	}
 
@@ -44,7 +46,7 @@ pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i
 		.do_update(&current_version, ProgressBarReporter::from(pb))
 		.await?;
 	ctx.log
-		.result(format!("Successfully updated to {}", current_version));
+		.result(format!("Successfully updated to {current_version}"));
 
 	Ok(0)
 }

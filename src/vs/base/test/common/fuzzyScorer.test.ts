@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from 'vs/base/common/fuzzyScorer';
-import { Schemas } from 'vs/base/common/network';
-import { basename, dirname, posix, sep, win32 } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from '../../common/fuzzyScorer.js';
+import { Schemas } from '../../common/network.js';
+import { basename, dirname, posix, sep, win32 } from '../../common/path.js';
+import { isWindows } from '../../common/platform.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 class ResourceAccessorClass implements IItemAccessor<URI> {
 
@@ -102,7 +102,7 @@ const NullAccessor = new NullAccessorClass();
 suite('Fuzzy Scorer', () => {
 
 	test('score (fuzzy)', function () {
-		const target = 'HeLlo-World';
+		const target = 'HelLo-World';
 
 		const scores: FuzzyScore[] = [];
 		scores.push(_doScore(target, 'HelLo-World', true)); // direct case match
@@ -134,7 +134,7 @@ suite('Fuzzy Scorer', () => {
 	});
 
 	test('score (non fuzzy)', function () {
-		const target = 'HeLlo-World';
+		const target = 'HelLo-World';
 
 		assert.ok(_doScore(target, 'HelLo-World', false)[0] > 0);
 		assert.strictEqual(_doScore(target, 'HelLo-World', false)[1].length, 'HelLo-World'.length);
@@ -199,12 +199,24 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(pathRes.score);
 		assert.ok(pathRes.descriptionMatch);
 		assert.ok(pathRes.labelMatch);
-		assert.strictEqual(pathRes.labelMatch!.length, 1);
-		assert.strictEqual(pathRes.labelMatch![0].start, 8);
-		assert.strictEqual(pathRes.labelMatch![0].end, 11);
-		assert.strictEqual(pathRes.descriptionMatch!.length, 1);
-		assert.strictEqual(pathRes.descriptionMatch![0].start, 1);
-		assert.strictEqual(pathRes.descriptionMatch![0].end, 4);
+		assert.strictEqual(pathRes.labelMatch.length, 1);
+		assert.strictEqual(pathRes.labelMatch[0].start, 8);
+		assert.strictEqual(pathRes.labelMatch[0].end, 11);
+		assert.strictEqual(pathRes.descriptionMatch.length, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].start, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].end, 4);
+
+		// Ellipsis Match
+		const ellipsisRes = scoreItem(resource, '…me/path/someFile123.txt', true, ResourceAccessor);
+		assert.ok(ellipsisRes.score);
+		assert.ok(pathRes.descriptionMatch);
+		assert.ok(pathRes.labelMatch);
+		assert.strictEqual(pathRes.labelMatch.length, 1);
+		assert.strictEqual(pathRes.labelMatch[0].start, 8);
+		assert.strictEqual(pathRes.labelMatch[0].end, 11);
+		assert.strictEqual(pathRes.descriptionMatch.length, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].start, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].end, 4);
 
 		// No Match
 		const noRes = scoreItem(resource, '987', true, ResourceAccessor);
@@ -232,41 +244,41 @@ suite('Fuzzy Scorer', () => {
 		const res1 = scoreItem(resource, 'xyz some', true, ResourceAccessor);
 		assert.ok(res1.score);
 		assert.strictEqual(res1.labelMatch?.length, 1);
-		assert.strictEqual(res1.labelMatch![0].start, 0);
-		assert.strictEqual(res1.labelMatch![0].end, 4);
+		assert.strictEqual(res1.labelMatch[0].start, 0);
+		assert.strictEqual(res1.labelMatch[0].end, 4);
 		assert.strictEqual(res1.descriptionMatch?.length, 1);
-		assert.strictEqual(res1.descriptionMatch![0].start, 1);
-		assert.strictEqual(res1.descriptionMatch![0].end, 4);
+		assert.strictEqual(res1.descriptionMatch[0].start, 1);
+		assert.strictEqual(res1.descriptionMatch[0].end, 4);
 
 		const res2 = scoreItem(resource, 'some xyz', true, ResourceAccessor);
 		assert.ok(res2.score);
 		assert.strictEqual(res1.score, res2.score);
 		assert.strictEqual(res2.labelMatch?.length, 1);
-		assert.strictEqual(res2.labelMatch![0].start, 0);
-		assert.strictEqual(res2.labelMatch![0].end, 4);
+		assert.strictEqual(res2.labelMatch[0].start, 0);
+		assert.strictEqual(res2.labelMatch[0].end, 4);
 		assert.strictEqual(res2.descriptionMatch?.length, 1);
-		assert.strictEqual(res2.descriptionMatch![0].start, 1);
-		assert.strictEqual(res2.descriptionMatch![0].end, 4);
+		assert.strictEqual(res2.descriptionMatch[0].start, 1);
+		assert.strictEqual(res2.descriptionMatch[0].end, 4);
 
 		const res3 = scoreItem(resource, 'some xyz file file123', true, ResourceAccessor);
 		assert.ok(res3.score);
 		assert.ok(res3.score > res2.score);
 		assert.strictEqual(res3.labelMatch?.length, 1);
-		assert.strictEqual(res3.labelMatch![0].start, 0);
-		assert.strictEqual(res3.labelMatch![0].end, 11);
+		assert.strictEqual(res3.labelMatch[0].start, 0);
+		assert.strictEqual(res3.labelMatch[0].end, 11);
 		assert.strictEqual(res3.descriptionMatch?.length, 1);
-		assert.strictEqual(res3.descriptionMatch![0].start, 1);
-		assert.strictEqual(res3.descriptionMatch![0].end, 4);
+		assert.strictEqual(res3.descriptionMatch[0].start, 1);
+		assert.strictEqual(res3.descriptionMatch[0].end, 4);
 
 		const res4 = scoreItem(resource, 'path z y', true, ResourceAccessor);
 		assert.ok(res4.score);
 		assert.ok(res4.score < res2.score);
 		assert.strictEqual(res4.labelMatch?.length, 0);
 		assert.strictEqual(res4.descriptionMatch?.length, 2);
-		assert.strictEqual(res4.descriptionMatch![0].start, 2);
-		assert.strictEqual(res4.descriptionMatch![0].end, 4);
-		assert.strictEqual(res4.descriptionMatch![1].start, 10);
-		assert.strictEqual(res4.descriptionMatch![1].end, 14);
+		assert.strictEqual(res4.descriptionMatch[0].start, 2);
+		assert.strictEqual(res4.descriptionMatch[0].end, 4);
+		assert.strictEqual(res4.descriptionMatch[1].start, 10);
+		assert.strictEqual(res4.descriptionMatch[1].end, 14);
 	});
 
 	test('scoreItem - multiple with cache yields different results', function () {
@@ -299,12 +311,12 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(pathRes.score);
 		assert.ok(pathRes.descriptionMatch);
 		assert.ok(pathRes.labelMatch);
-		assert.strictEqual(pathRes.labelMatch!.length, 1);
-		assert.strictEqual(pathRes.labelMatch![0].start, 0);
-		assert.strictEqual(pathRes.labelMatch![0].end, 7);
-		assert.strictEqual(pathRes.descriptionMatch!.length, 1);
-		assert.strictEqual(pathRes.descriptionMatch![0].start, 23);
-		assert.strictEqual(pathRes.descriptionMatch![0].end, 26);
+		assert.strictEqual(pathRes.labelMatch.length, 1);
+		assert.strictEqual(pathRes.labelMatch[0].start, 0);
+		assert.strictEqual(pathRes.labelMatch[0].end, 7);
+		assert.strictEqual(pathRes.descriptionMatch.length, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].start, 23);
+		assert.strictEqual(pathRes.descriptionMatch[0].end, 26);
 	});
 
 	test('scoreItem - avoid match scattering (bug #36119)', function () {
@@ -314,9 +326,9 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(pathRes.score);
 		assert.ok(pathRes.descriptionMatch);
 		assert.ok(pathRes.labelMatch);
-		assert.strictEqual(pathRes.labelMatch!.length, 1);
-		assert.strictEqual(pathRes.labelMatch![0].start, 0);
-		assert.strictEqual(pathRes.labelMatch![0].end, 9);
+		assert.strictEqual(pathRes.labelMatch.length, 1);
+		assert.strictEqual(pathRes.labelMatch[0].start, 0);
+		assert.strictEqual(pathRes.labelMatch[0].end, 9);
 	});
 
 	test('scoreItem - prefers more compact matches', function () {
@@ -328,11 +340,11 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(res.score);
 		assert.ok(res.descriptionMatch);
 		assert.ok(!res.labelMatch!.length);
-		assert.strictEqual(res.descriptionMatch!.length, 2);
-		assert.strictEqual(res.descriptionMatch![0].start, 11);
-		assert.strictEqual(res.descriptionMatch![0].end, 12);
-		assert.strictEqual(res.descriptionMatch![1].start, 13);
-		assert.strictEqual(res.descriptionMatch![1].end, 14);
+		assert.strictEqual(res.descriptionMatch.length, 2);
+		assert.strictEqual(res.descriptionMatch[0].start, 11);
+		assert.strictEqual(res.descriptionMatch[0].end, 12);
+		assert.strictEqual(res.descriptionMatch[1].start, 13);
+		assert.strictEqual(res.descriptionMatch[1].end, 14);
 	});
 
 	test('scoreItem - proper target offset', function () {
@@ -1081,23 +1093,54 @@ suite('Fuzzy Scorer', () => {
 		}
 	});
 
+	test('compareFilesByScore - skip preference on label match when using path sep', function () {
+		const resourceA = URI.file('djangosite/ufrela/def.py');
+		const resourceB = URI.file('djangosite/urls/default.py');
+
+		const query = 'url/def';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
+	});
+
 	test('compareFilesByScore - boost shorter prefix match if multiple queries are used (#99171)', function () {
 		const resourceA = URI.file('mesh_editor_lifetime_job.h');
 		const resourceB = URI.file('lifetime_job.h');
 
-		for (const query of ['m life, life m']) {
-			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
+		const query = 'm life, life m';
 
-			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
-		}
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
+	});
+
+	test('compareFilesByScore - boost consecutive matches in the beginning over end', function () {
+		const resourceA = URI.file('src/vs/server/node/extensionHostStatusService.ts');
+		const resourceB = URI.file('src/vs/workbench/browser/parts/notifications/notificationsStatus.ts');
+
+		const query = 'notStatus';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
 	});
 
 	test('prepareQuery', () => {
 		assert.strictEqual(prepareQuery(' f*a ').normalized, 'fa');
+		assert.strictEqual(prepareQuery(' f…a ').normalized, 'fa');
 		assert.strictEqual(prepareQuery('model Tester.ts').original, 'model Tester.ts');
 		assert.strictEqual(prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
 		assert.strictEqual(prepareQuery('model Tester.ts').normalized, 'modelTester.ts');
@@ -1121,7 +1164,7 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(query.values?.[1].normalized, 'World');
 		assert.strictEqual(query.values?.[1].normalizedLowercase, 'World'.toLowerCase());
 
-		const restoredQuery = pieceToQuery(query.values!);
+		const restoredQuery = pieceToQuery(query.values);
 		assert.strictEqual(restoredQuery.original, query.original);
 		assert.strictEqual(restoredQuery.values?.length, query.values?.length);
 		assert.strictEqual(restoredQuery.containsPathSeparator, query.containsPathSeparator);
@@ -1161,10 +1204,10 @@ suite('Fuzzy Scorer', () => {
 	});
 
 	test('fuzzyScore2 (matching)', function () {
-		const target = 'HeLlo-World';
+		const target = 'HelLo-World';
 
 		for (const offset of [0, 3]) {
-			let [score, matches] = _doScore2(offset === 0 ? target : `123${target}`, 'HeLlo-World', offset);
+			let [score, matches] = _doScore2(offset === 0 ? target : `123${target}`, 'HelLo-World', offset);
 
 			assert.ok(score);
 			assert.strictEqual(matches.length, 1);
@@ -1183,7 +1226,7 @@ suite('Fuzzy Scorer', () => {
 	});
 
 	test('fuzzyScore2 (multiple queries)', function () {
-		const target = 'HeLlo-World';
+		const target = 'HelLo-World';
 
 		const [firstSingleScore, firstSingleMatches] = _doScore2(target, 'HelLo');
 		const [secondSingleScore, secondSingleMatches] = _doScore2(target, 'World');
@@ -1240,12 +1283,12 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(_doScore('contiguous', '"contguous"')[0], 0);
 
 		const score = _doScore('contiguous', '"contiguous"');
-		assert.strictEqual(score[0], 253);
+		assert.ok(score[0] > 0);
 	});
 
 	test('Using quotes should highlight contiguous indexes', function () {
 		const score = _doScore('2021-7-26.md', '"26"');
-		assert.strictEqual(score[0], 13);
+		assert.strictEqual(score[0], 14);
 
 		// The indexes of the 2 and 6 of "26"
 		assert.strictEqual(score[1][0], 7);

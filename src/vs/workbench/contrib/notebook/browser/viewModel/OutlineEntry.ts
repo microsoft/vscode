@@ -2,15 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { SymbolKind, SymbolKinds } from 'vs/editor/common/languages';
-
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { ICellViewModel } from '../notebookBrowser.js';
+import { executingStateIcon } from '../notebookIcons.js';
+import { CellKind } from '../../common/notebookCommon.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { SymbolKind, SymbolKinds } from '../../../../../editor/common/languages.js';
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -38,7 +37,7 @@ export class OutlineEntry {
 		readonly label: string,
 		readonly isExecuting: boolean,
 		readonly isPaused: boolean,
-		readonly position?: Range,
+		readonly range?: IRange,
 		readonly symbolKind?: SymbolKind,
 	) { }
 
@@ -57,6 +56,13 @@ export class OutlineEntry {
 
 	get markerInfo(): IOutlineMarkerInfo | undefined {
 		return this._markerInfo;
+	}
+
+	get position() {
+		if (this.range) {
+			return { startLineNumber: this.range.startLineNumber, startColumn: this.range.startColumn };
+		}
+		return undefined;
 	}
 
 	updateMarkers(markerService: IMarkerService): void {

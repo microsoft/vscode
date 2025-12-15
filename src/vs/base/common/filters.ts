@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { LRUCache } from 'vs/base/common/map';
-import * as strings from 'vs/base/common/strings';
+import { CharCode } from './charCode.js';
+import { LRUCache } from './map.js';
+import { getKoreanAltChars } from './naturalLanguage/korean.js';
+import { tryNormalizeToBase } from './normalization.js';
+import * as strings from './strings.js';
 
 export interface IFilter {
 	// Returns null if word doesn't match.
@@ -64,7 +66,26 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 // Contiguous Substring
 
 export function matchesContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	if (word.length > wordToMatchAgainst.length) {
+		return null;
+	}
+
 	const index = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
+	if (index === -1) {
+		return null;
+	}
+
+	return [{ start: index, end: index + word.length }];
+}
+
+export function matchesBaseContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	if (word.length > wordToMatchAgainst.length) {
+		return null;
+	}
+
+	word = tryNormalizeToBase(word);
+	wordToMatchAgainst = tryNormalizeToBase(wordToMatchAgainst);
+	const index = wordToMatchAgainst.indexOf(word);
 	if (index === -1) {
 		return null;
 	}
@@ -75,6 +96,10 @@ export function matchesContiguousSubString(word: string, wordToMatchAgainst: str
 // Substring
 
 export function matchesSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	if (word.length > wordToMatchAgainst.length) {
+		return null;
+	}
+
 	return _matchesSubString(word.toLowerCase(), wordToMatchAgainst.toLowerCase(), 0, 0);
 }
 
@@ -120,7 +145,7 @@ function isWhitespace(code: number): boolean {
 }
 
 const wordSeparators = new Set<number>();
-// These are chosen as natural word separators based on writen text.
+// These are chosen as natural word separators based on written text.
 // It is a subset of the word separators used by the monaco editor.
 '()[]{}<>`\'"-/;:,.?!'
 	.split('')
@@ -132,6 +157,33 @@ function isWordSeparator(code: number): boolean {
 
 function charactersMatch(codeA: number, codeB: number): boolean {
 	return (codeA === codeB) || (isWordSeparator(codeA) && isWordSeparator(codeB));
+}
+
+const alternateCharsCache: Map<number, ArrayLike<number> | undefined> = new Map();
+/**
+ * Gets alternative codes to the character code passed in. This comes in the
+ * form of an array of character codes, all of which must match _in order_ to
+ * successfully match.
+ *
+ * @param code The character code to check.
+ */
+function getAlternateCodes(code: number): ArrayLike<number> | undefined {
+	if (alternateCharsCache.has(code)) {
+		return alternateCharsCache.get(code);
+	}
+
+	// NOTE: This function is written in such a way that it can be extended in
+	// the future, but right now the return type takes into account it's only
+	// supported by a single "alt codes provider".
+	// `ArrayLike<ArrayLike<number>>` is a more appropriate type if changed.
+	let result: ArrayLike<number> | undefined;
+	const codes = getKoreanAltChars(code);
+	if (codes) {
+		result = codes;
+	}
+
+	alternateCharsCache.set(code, result);
+	return result;
 }
 
 function isAlphanumeric(code: number): boolean {
@@ -252,8 +304,9 @@ export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] 
 		return null;
 	}
 
+	// TODO: Consider removing this check
 	if (camelCaseWord.length > 60) {
-		return null;
+		camelCaseWord = camelCaseWord.substring(0, 60);
 	}
 
 	const analysis = analyzeCamelCaseWord(camelCaseWord);
@@ -288,47 +341,72 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 	}
 
 	let result: IMatch[] | null = null;
-	let i = 0;
+	let targetIndex = 0;
 
-	word = word.toLowerCase();
-	target = target.toLowerCase();
-	while (i < target.length && (result = _matchesWords(word, target, 0, i, contiguous)) === null) {
-		i = nextWord(target, i + 1);
+	word = tryNormalizeToBase(word);
+	target = tryNormalizeToBase(target);
+	while (targetIndex < target.length) {
+		result = _matchesWords(word, target, 0, targetIndex, contiguous);
+		if (result !== null) {
+			break;
+		}
+		targetIndex = nextWord(target, targetIndex + 1);
 	}
 
 	return result;
 }
 
-function _matchesWords(word: string, target: string, i: number, j: number, contiguous: boolean): IMatch[] | null {
-	if (i === word.length) {
-		return [];
-	} else if (j === target.length) {
-		return null;
-	} else if (!charactersMatch(word.charCodeAt(i), target.charCodeAt(j))) {
-		return null;
-	} else {
-		let result: IMatch[] | null = null;
-		let nextWordIndex = j + 1;
-		result = _matchesWords(word, target, i + 1, j + 1, contiguous);
-		if (!contiguous) {
-			while (!result && (nextWordIndex = nextWord(target, nextWordIndex)) < target.length) {
-				result = _matchesWords(word, target, i + 1, nextWordIndex, contiguous);
-				nextWordIndex++;
-			}
-		}
+function _matchesWords(word: string, target: string, wordIndex: number, targetIndex: number, contiguous: boolean): IMatch[] | null {
+	let targetIndexOffset = 0;
 
-		if (!result) {
+	if (wordIndex === word.length) {
+		return [];
+	} else if (targetIndex === target.length) {
+		return null;
+	} else if (!charactersMatch(word.charCodeAt(wordIndex), target.charCodeAt(targetIndex))) {
+		// Verify alternate characters before exiting
+		const altChars = getAlternateCodes(word.charCodeAt(wordIndex));
+		if (!altChars) {
 			return null;
 		}
+		for (let k = 0; k < altChars.length; k++) {
+			if (!charactersMatch(altChars[k], target.charCodeAt(targetIndex + k))) {
+				return null;
+			}
+		}
+		targetIndexOffset += altChars.length - 1;
+	}
 
-		// If the characters don't exactly match, then they must be word separators (see charactersMatch(...)).
-		// We don't want to include this in the matches but we don't want to throw the target out all together so we return `result`.
-		if (word.charCodeAt(i) !== target.charCodeAt(j)) {
+	let result: IMatch[] | null = null;
+	let nextWordIndex = targetIndex + targetIndexOffset + 1;
+	result = _matchesWords(word, target, wordIndex + 1, nextWordIndex, contiguous);
+	if (!contiguous) {
+		while (!result && (nextWordIndex = nextWord(target, nextWordIndex)) < target.length) {
+			result = _matchesWords(word, target, wordIndex + 1, nextWordIndex, contiguous);
+			nextWordIndex++;
+		}
+	}
+
+	if (!result) {
+		return null;
+	}
+
+	// If the characters don't exactly match, then they must be word separators (see charactersMatch(...)).
+	// We don't want to include this in the matches but we don't want to throw the target out all together so we return `result`.
+	if (word.charCodeAt(wordIndex) !== target.charCodeAt(targetIndex)) {
+		// Verify alternate characters before exiting
+		const altChars = getAlternateCodes(word.charCodeAt(wordIndex));
+		if (!altChars) {
 			return result;
 		}
-
-		return join({ start: j, end: j + 1 }, result);
+		for (let k = 0; k < altChars.length; k++) {
+			if (altChars[k] !== target.charCodeAt(targetIndex + k)) {
+				return result;
+			}
+		}
 	}
+
+	return join({ start: targetIndex, end: targetIndex + targetIndexOffset + 1 }, result);
 }
 
 function nextWord(word: string, start: number): number {
@@ -621,7 +699,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 			}
 
 			let diagScore = 0;
-			if (score !== Number.MAX_SAFE_INTEGER) {
+			if (score !== Number.MIN_SAFE_INTEGER) {
 				canComeDiag = true;
 				diagScore = score + _table[row - 1][column - 1];
 			}
@@ -710,7 +788,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 		result.push(column);
 	}
 
-	if (wordLen === patternLen && options.boostFullMatch) {
+	if (wordLen - wordStart === patternLen && options.boostFullMatch) {
 		// the word matches the pattern with all characters!
 		// giving the score a total match boost (to come up ahead other words)
 		result[0] += 2;

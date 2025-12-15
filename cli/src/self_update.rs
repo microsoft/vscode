@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::{fs, path::Path, process::Command};
+use std::{fs, path::Path};
 use tempfile::tempdir;
 
 use crate::{
@@ -11,6 +11,7 @@ use crate::{
 	options::Quality,
 	update_service::{unzip_downloaded_release, Platform, Release, TargetKind, UpdateService},
 	util::{
+		command::new_std_command,
 		errors::{wrap, AnyError, CodeError, CorruptDownload},
 		http,
 		io::{ReportCopyProgress, SilentCopyProgress},
@@ -23,6 +24,8 @@ pub struct SelfUpdate<'a> {
 	platform: Platform,
 	update_service: &'a UpdateService,
 }
+
+static OLD_UPDATE_EXTENSION: &str = "Updating CLI";
 
 impl<'a> SelfUpdate<'a> {
 	pub fn new(update_service: &'a UpdateService) -> Result<Self, AnyError> {
@@ -59,6 +62,18 @@ impl<'a> SelfUpdate<'a> {
 		release.commit == self.commit
 	}
 
+	/// Cleans up old self-updated binaries. Should be called with regularity.
+	/// May fail if old versions are still running.
+	pub fn cleanup_old_update(&self) -> Result<(), std::io::Error> {
+		let current_path = std::env::current_exe()?;
+		let old_path = current_path.with_extension(OLD_UPDATE_EXTENSION);
+		if old_path.exists() {
+			fs::remove_file(old_path)?;
+		}
+
+		Ok(())
+	}
+
 	/// Updates the CLI to the given release.
 	pub async fn do_update(
 		&self,
@@ -89,8 +104,11 @@ impl<'a> SelfUpdate<'a> {
 		// OS later. However, this can fail if the tempdir is on a different drive
 		// than the installation dir. In this case just rename it to ".old".
 		if fs::rename(&target_path, tempdir.path().join("old-code-cli")).is_err() {
-			fs::rename(&target_path, target_path.with_extension(".old"))
-				.map_err(|e| wrap(e, "failed to rename old CLI"))?;
+			fs::rename(
+				&target_path,
+				target_path.with_extension(OLD_UPDATE_EXTENSION),
+			)
+			.map_err(|e| wrap(e, "failed to rename old CLI"))?;
 		}
 
 		fs::rename(&staging_path, &target_path)
@@ -101,10 +119,10 @@ impl<'a> SelfUpdate<'a> {
 }
 
 fn validate_cli_is_good(exe_path: &Path) -> Result<(), AnyError> {
-	let o = Command::new(exe_path)
+	let o = new_std_command(exe_path)
 		.args(["--version"])
 		.output()
-		.map_err(|e| CorruptDownload(format!("could not execute new binary, aborting: {}", e)))?;
+		.map_err(|e| CorruptDownload(format!("could not execute new binary, aborting: {e}")))?;
 
 	if !o.status.success() {
 		let msg = format!(

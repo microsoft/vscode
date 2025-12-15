@@ -3,16 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { hash } from '../../../../base/common/hash.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, dispose } from '../../../../base/common/lifecycle.js';
+import * as marked from '../../../../base/common/marked/marked.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { annotateVulnerabilitiesInText } from './annotations.js';
+import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from './chatAgents.js';
+import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
+import { IParsedChatRequest } from './chatParserTypes.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatChangesSummary, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
+import { IChatRequestVariableEntry } from './chatVariableEntries.js';
+import { countWords } from './chatWordCounter.js';
+import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
+import { ChatStreamStatsTracker, IChatStreamStats } from './model/chatStreamStats.js';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
@@ -22,81 +30,204 @@ export function isResponseVM(item: unknown): item is IChatResponseViewModel {
 	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
 }
 
-export function isWelcomeVM(item: unknown): item is IChatWelcomeMessageViewModel {
-	return !!item && typeof item === 'object' && 'content' in item;
+export function isChatTreeItem(item: unknown): item is IChatRequestViewModel | IChatResponseViewModel {
+	return isRequestVM(item) || isResponseVM(item);
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | null;
+export function assertIsResponseVM(item: unknown): asserts item is IChatResponseViewModel {
+	if (!isResponseVM(item)) {
+		throw new Error('Expected item to be IChatResponseViewModel');
+	}
+}
+
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | IChatSetCheckpointEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
 }
 
+export interface IChangePlaceholderEvent {
+	kind: 'changePlaceholder';
+}
+
+export interface IChatSessionInitEvent {
+	kind: 'initialize';
+}
+
+export interface IChatSetHiddenEvent {
+	kind: 'setHidden';
+}
+
+export interface IChatSetCheckpointEvent {
+	kind: 'setCheckpoint';
+}
+
 export interface IChatViewModel {
-	readonly isInitialized: boolean;
-	readonly providerId: string;
-	readonly sessionId: string;
+	readonly model: IChatModel;
+	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
-	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
-	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[];
+	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[];
+	setInputPlaceholder(text: string): void;
+	resetInputPlaceholder(): void;
+	editing?: IChatRequestViewModel;
+	setEditing(editing: IChatRequestViewModel): void;
 }
 
 export interface IChatRequestViewModel {
 	readonly id: string;
-	readonly providerRequestId: string | undefined;
+	/** @deprecated */
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly username: string;
-	readonly avatarIconUri?: URI;
-	readonly message: string | IChatReplyFollowup;
+	readonly avatarIcon?: URI | ThemeIcon;
+	readonly message: IParsedChatRequest | IChatFollowup;
 	readonly messageText: string;
+	readonly attempt: number;
+	readonly variables: IChatRequestVariableEntry[];
 	currentRenderedHeight: number | undefined;
+	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
+	readonly confirmation?: string;
+	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	readonly isComplete: boolean;
+	readonly isCompleteAddedRequest: boolean;
+	readonly slashCommand: IChatAgentCommand | undefined;
+	readonly agentOrSlashCommandDetected: boolean;
+	readonly shouldBeBlocked?: boolean;
+	readonly modelId?: string;
 }
 
 export interface IChatResponseMarkdownRenderData {
 	renderedWordCount: number;
 	lastRenderTime: number;
 	isFullyRendered: boolean;
+	originalMarkdown: IMarkdownString;
+}
+
+export interface IChatResponseMarkdownRenderData2 {
+	renderedWordCount: number;
+	lastRenderTime: number;
+	isFullyRendered: boolean;
+	originalMarkdown: IMarkdownString;
+}
+
+export interface IChatProgressMessageRenderData {
+	progressMessage: IChatProgressMessage;
+
+	/**
+	 * Indicates whether this is part of a group of progress messages that are at the end of the response.
+	 * (Not whether this particular item is the very last one in the response).
+	 * Need to re-render and add to partsToRender when this changes.
+	 */
+	isAtEndOfResponse: boolean;
+
+	/**
+	 * Whether this progress message the very last item in the response.
+	 * Need to re-render to update spinner vs check when this changes.
+	 */
+	isLast: boolean;
+}
+
+export interface IChatTaskRenderData {
+	task: IChatTask;
+	isSettled: boolean;
+	progressLength: number;
 }
 
 export interface IChatResponseRenderData {
-	renderedParts: (IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData)[];
+	renderedParts: IChatRendererContent[];
+
+	renderedWordCount: number;
+	lastRenderTime: number;
 }
 
-export interface IChatLiveUpdateData {
-	wordCountAfterLastUpdate: number;
-	loadingStartTime: number;
-	lastUpdateTime: number;
-	impliedWordLoadRate: number;
+/**
+ * Content type for references used during rendering, not in the model
+ */
+export interface IChatReferences {
+	references: ReadonlyArray<IChatContentReference>;
+	kind: 'references';
 }
+
+/**
+ * Content type for the "Working" progress message
+ */
+export interface IChatWorkingProgress {
+	kind: 'working';
+}
+
+
+/**
+ * Content type for citations used during rendering, not in the model
+ */
+export interface IChatCodeCitations {
+	citations: ReadonlyArray<IChatCodeCitation>;
+	kind: 'codeCitations';
+}
+
+export interface IChatErrorDetailsPart {
+	kind: 'errorDetails';
+	errorDetails: IChatResponseErrorDetails;
+	isLast: boolean;
+}
+
+export interface IChatChangesSummaryPart {
+	readonly kind: 'changesSummary';
+	readonly fileChanges: ReadonlyArray<IChatChangesSummary>;
+}
+
+/**
+ * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
+ */
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting;
 
 export interface IChatResponseViewModel {
+	readonly model: IChatResponseModel;
 	readonly id: string;
+	readonly session: IChatViewModel;
+	/** @deprecated */
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
-	readonly providerId: string;
-	readonly providerResponseId: string | undefined;
+	/** The ID of the associated IChatRequestViewModel */
+	readonly requestId: string;
 	readonly username: string;
-	readonly avatarIconUri?: URI;
+	readonly avatarIcon?: URI | ThemeIcon;
+	readonly agent?: IChatAgentData;
+	readonly slashCommand?: IChatAgentCommand;
+	readonly agentOrSlashCommandDetected: boolean;
 	readonly response: IResponse;
+	readonly usedContext: IChatUsedContext | undefined;
+	readonly contentReferences: ReadonlyArray<IChatContentReference>;
+	readonly codeCitations: ReadonlyArray<IChatCodeCitation>;
+	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
-	readonly isPlaceholder: boolean;
-	readonly vote: InteractiveSessionVoteDirection | undefined;
-	readonly replyFollowups?: IChatReplyFollowup[];
-	readonly commandFollowups?: IChatResponseCommandFollowup[];
+	readonly isStale: boolean;
+	readonly vote: ChatAgentVoteDirection | undefined;
+	readonly voteDownReason: ChatAgentVoteDownReason | undefined;
+	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
-	readonly contentUpdateTimings?: IChatLiveUpdateData;
+	readonly result?: IChatAgentResult;
+	readonly contentUpdateTimings?: IChatStreamStats;
+	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	readonly isCompleteAddedRequest: boolean;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
-	setVote(vote: InteractiveSessionVoteDirection): void;
+	setVote(vote: ChatAgentVoteDirection): void;
+	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
+	usedReferencesExpanded?: boolean;
+	vulnerabilitiesListExpanded: boolean;
+	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
+	readonly shouldBeBlocked: boolean;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
+
 	private readonly _onDidDisposeModel = this._register(new Emitter<void>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
@@ -105,34 +236,41 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
 
+	private _inputPlaceholder: string | undefined = undefined;
 	get inputPlaceholder(): string | undefined {
-		return this._model.inputPlaceholder;
+		return this._inputPlaceholder;
 	}
 
-	get sessionId() {
-		return this._model.sessionId;
+	get model(): IChatModel {
+		return this._model;
 	}
 
-	get requestInProgress(): boolean {
-		return this._model.requestInProgress;
+	setInputPlaceholder(text: string): void {
+		this._inputPlaceholder = text;
+		this._onDidChange.fire({ kind: 'changePlaceholder' });
 	}
 
-	get providerId() {
-		return this._model.providerId;
+	resetInputPlaceholder(): void {
+		this._inputPlaceholder = undefined;
+		this._onDidChange.fire({ kind: 'changePlaceholder' });
 	}
 
-	get isInitialized() {
-		return this._model.isInitialized;
+	get sessionResource(): URI {
+		return this._model.sessionResource;
 	}
 
 	constructor(
 		private readonly _model: IChatModel,
+		public readonly codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		_model.getRequests().forEach((request, i) => {
-			this._items.push(new ChatRequestViewModel(request));
+			const requestModel = this.instantiationService.createInstance(ChatRequestViewModel, request);
+			this._items.push(requestModel);
+			this.updateCodeBlockTextModels(requestModel);
+
 			if (request.response) {
 				this.onAddResponse(request.response);
 			}
@@ -141,47 +279,91 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
 		this._register(_model.onDidChange(e => {
 			if (e.kind === 'addRequest') {
-				this._items.push(new ChatRequestViewModel(e.request));
+				const requestModel = this.instantiationService.createInstance(ChatRequestViewModel, e.request);
+				this._items.push(requestModel);
+				this.updateCodeBlockTextModels(requestModel);
+
 				if (e.request.response) {
 					this.onAddResponse(e.request.response);
 				}
 			} else if (e.kind === 'addResponse') {
 				this.onAddResponse(e.response);
 			} else if (e.kind === 'removeRequest') {
-				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.providerRequestId === e.requestId);
+				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.id === e.requestId);
 				if (requestIdx >= 0) {
 					this._items.splice(requestIdx, 1);
 				}
 
-				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.providerResponseId === e.responseId);
+				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.id === e.responseId);
 				if (typeof responseIdx === 'number' && responseIdx >= 0) {
 					const items = this._items.splice(responseIdx, 1);
 					const item = items[0];
-					if (isResponseVM(item)) {
+					if (item instanceof ChatResponseViewModel) {
 						item.dispose();
 					}
 				}
 			}
 
-			this._onDidChange.fire(e.kind === 'addRequest' ? { kind: 'addRequest' } : null);
+			const modelEventToVmEvent: IChatViewModelChangeEvent =
+				e.kind === 'addRequest' ? { kind: 'addRequest' }
+					: e.kind === 'initialize' ? { kind: 'initialize' }
+						: e.kind === 'setHidden' ? { kind: 'setHidden' }
+							: null;
+			this._onDidChange.fire(modelEventToVmEvent);
 		}));
 	}
 
 	private onAddResponse(responseModel: IChatResponseModel) {
-		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel);
-		this._register(response.onDidChange(() => this._onDidChange.fire(null)));
+		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel, this);
+		this._register(response.onDidChange(() => {
+			if (response.isComplete) {
+				this.updateCodeBlockTextModels(response);
+			}
+			return this._onDidChange.fire(null);
+		}));
 		this._items.push(response);
+		this.updateCodeBlockTextModels(response);
 	}
 
-	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[] {
-		return [...(this._model.welcomeMessage ? [this._model.welcomeMessage] : []), ...this._items];
+	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
+		return this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+	}
+
+
+	private _editing: IChatRequestViewModel | undefined = undefined;
+	get editing(): IChatRequestViewModel | undefined {
+		return this._editing;
+	}
+
+	setEditing(editing: IChatRequestViewModel | undefined): void {
+		if (this.editing && editing && this.editing.id === editing.id) {
+			return; // already editing this request
+		}
+
+		this._editing = editing;
 	}
 
 	override dispose() {
 		super.dispose();
-		this._items
-			.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel)
-			.forEach((item: ChatResponseViewModel) => item.dispose());
+		dispose(this._items.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel));
+	}
+
+	updateCodeBlockTextModels(model: IChatRequestViewModel | IChatResponseViewModel) {
+		let content: string;
+		if (isRequestVM(model)) {
+			content = model.messageText;
+		} else {
+			content = annotateVulnerabilitiesInText(model.response.value).map(x => x.content.value).join('');
+		}
+
+		let codeBlockIndex = 0;
+		marked.walkTokens(marked.lexer(content), token => {
+			if (token.type === 'code') {
+				const lang = token.lang || '';
+				const text = token.text;
+				this.codeBlockModelCollection.update(this._model.sessionResource, model, codeBlockIndex++, { text, languageId: lang, isComplete: true });
+			}
+		});
 	}
 }
 
@@ -190,24 +372,25 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.id;
 	}
 
-	get providerRequestId() {
-		return this._model.providerRequestId;
-	}
-
 	get dataId() {
-		return this.id + (this._model.session.isInitialized ? '' : '_initializing');
+		return this.id + `_${hash(this.variables)}_${hash(this.isComplete)}`;
 	}
 
+	/** @deprecated */
 	get sessionId() {
 		return this._model.session.sessionId;
 	}
 
-	get username() {
-		return this._model.username;
+	get sessionResource() {
+		return this._model.session.sessionResource;
 	}
 
-	get avatarIconUri() {
-		return this._model.avatarIconUri;
+	get username() {
+		return 'User';
+	}
+
+	get avatarIcon(): ThemeIcon {
+		return Codicon.account;
 	}
 
 	get message() {
@@ -215,12 +398,58 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	get messageText() {
-		return typeof this.message === 'string' ? this.message : this.message.message;
+		return this.message.text;
+	}
+
+	get attempt() {
+		return this._model.attempt;
+	}
+
+	get variables() {
+		return this._model.variableData.variables;
+	}
+
+	get contentReferences() {
+		return this._model.response?.contentReferences;
+	}
+
+	get confirmation() {
+		return this._model.confirmation;
+	}
+
+	get isComplete() {
+		return this._model.response?.isComplete ?? false;
+	}
+
+	get isCompleteAddedRequest() {
+		return this._model.isCompleteAddedRequest;
+	}
+
+	get shouldBeRemovedOnSend() {
+		return this._model.shouldBeRemovedOnSend;
+	}
+
+	get shouldBeBlocked() {
+		return this._model.shouldBeBlocked;
+	}
+
+	get slashCommand(): IChatAgentCommand | undefined {
+		return this._model.response?.slashCommand;
+	}
+
+	get agentOrSlashCommandDetected(): boolean {
+		return this._model.response?.agentOrSlashCommandDetected ?? false;
 	}
 
 	currentRenderedHeight: number | undefined;
 
-	constructor(readonly _model: IChatRequestModel) { }
+	get modelId() {
+		return this._model.modelId;
+	}
+
+	constructor(
+		private readonly _model: IChatRequestModel,
+	) { }
 }
 
 export class ChatResponseViewModel extends Disposable implements IChatResponseViewModel {
@@ -229,40 +458,76 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
+	get model() {
+		return this._model;
+	}
+
 	get id() {
 		return this._model.id;
 	}
 
 	get dataId() {
-		return this._model.id + `_${this._modelChangeCount}` + (this._model.session.isInitialized ? '' : '_initializing');
+		return this._model.id +
+			`_${this._modelChangeCount}` +
+			(this.isLast ? '_last' : '');
 	}
 
-	get providerId() {
-		return this._model.providerId;
-	}
-
-	get providerResponseId() {
-		return this._model.providerResponseId;
-	}
-
+	/** @deprecated */
 	get sessionId() {
 		return this._model.session.sessionId;
 	}
 
+	get sessionResource(): URI {
+		return this._model.session.sessionResource;
+	}
+
 	get username() {
+		if (this.agent) {
+			const isAllowed = this.chatAgentNameService.getAgentNameRestriction(this.agent);
+			if (isAllowed) {
+				return this.agent.fullName || this.agent.name;
+			} else {
+				return getFullyQualifiedId(this.agent);
+			}
+		}
+
 		return this._model.username;
 	}
 
-	get avatarIconUri() {
-		return this._model.avatarIconUri;
+	get avatarIcon() {
+		return this._model.avatarIcon;
+	}
+
+	get agent() {
+		return this._model.agent;
+	}
+
+	get slashCommand() {
+		return this._model.slashCommand;
+	}
+
+	get agentOrSlashCommandDetected() {
+		return this._model.agentOrSlashCommandDetected;
 	}
 
 	get response(): IResponse {
-		if (this._isPlaceholder) {
-			return new Response(new MarkdownString(localize('thinking', "Thinking") + '\u2026'));
-		}
-
 		return this._model.response;
+	}
+
+	get usedContext(): IChatUsedContext | undefined {
+		return this._model.usedContext;
+	}
+
+	get contentReferences(): ReadonlyArray<IChatContentReference> {
+		return this._model.contentReferences;
+	}
+
+	get codeCitations(): ReadonlyArray<IChatCodeCitation> {
+		return this._model.codeCitations;
+	}
+
+	get progressMessages(): ReadonlyArray<IChatProgressMessage> {
+		return this._model.progressMessages;
 	}
 
 	get isComplete() {
@@ -273,78 +538,97 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.isCanceled;
 	}
 
-	private _isPlaceholder = false;
-	get isPlaceholder() {
-		return this._isPlaceholder;
+	get shouldBeBlocked() {
+		return this._model.shouldBeBlocked;
+	}
+
+	get shouldBeRemovedOnSend() {
+		return this._model.shouldBeRemovedOnSend;
+	}
+
+	get isCompleteAddedRequest() {
+		return this._model.isCompleteAddedRequest;
 	}
 
 	get replyFollowups() {
-		return this._model.followups?.filter((f): f is IChatReplyFollowup => f.kind === 'reply');
+		return this._model.followups?.filter((f): f is IChatFollowup => f.kind === 'reply');
 	}
 
-	get commandFollowups() {
-		return this._model.followups?.filter((f): f is IChatResponseCommandFollowup => f.kind === 'command');
+	get result() {
+		return this._model.result;
 	}
 
-	get errorDetails() {
-		return this._model.errorDetails;
+	get errorDetails(): IChatResponseErrorDetails | undefined {
+		return this.result?.errorDetails;
 	}
 
 	get vote() {
 		return this._model.vote;
 	}
 
-	renderData: IChatResponseRenderData | undefined = undefined;
+	get voteDownReason() {
+		return this._model.voteDownReason;
+	}
 
+	get requestId() {
+		return this._model.requestId;
+	}
+
+	get isStale() {
+		return this._model.isStale;
+	}
+
+	get isLast(): boolean {
+		return this.session.getItems().at(-1) === this;
+	}
+
+	renderData: IChatResponseRenderData | undefined = undefined;
 	currentRenderedHeight: number | undefined;
 
-	private _contentUpdateTimings: IChatLiveUpdateData | undefined = undefined;
-	get contentUpdateTimings(): IChatLiveUpdateData | undefined {
-		return this._contentUpdateTimings;
+	private _usedReferencesExpanded: boolean | undefined;
+	get usedReferencesExpanded(): boolean | undefined {
+		if (typeof this._usedReferencesExpanded === 'boolean') {
+			return this._usedReferencesExpanded;
+		}
+
+		return undefined;
+	}
+
+	set usedReferencesExpanded(v: boolean) {
+		this._usedReferencesExpanded = v;
+	}
+
+	private _vulnerabilitiesListExpanded: boolean = false;
+	get vulnerabilitiesListExpanded(): boolean {
+		return this._vulnerabilitiesListExpanded;
+	}
+
+	set vulnerabilitiesListExpanded(v: boolean) {
+		this._vulnerabilitiesListExpanded = v;
+	}
+
+	private readonly liveUpdateTracker: ChatStreamStatsTracker | undefined;
+
+	get contentUpdateTimings(): IChatStreamStats | undefined {
+		return this.liveUpdateTracker?.data;
 	}
 
 	constructor(
 		private readonly _model: IChatResponseModel,
-		@ILogService private readonly logService: ILogService
+		public readonly session: IChatViewModel,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
 	) {
 		super();
 
-		this._isPlaceholder = !_model.response.asString() && !_model.isComplete;
-
 		if (!_model.isComplete) {
-			this._contentUpdateTimings = {
-				loadingStartTime: Date.now(),
-				lastUpdateTime: Date.now(),
-				wordCountAfterLastUpdate: this._isPlaceholder ? 0 : countWords(_model.response.asString()), // don't count placeholder text
-				impliedWordLoadRate: 0
-			};
+			this.liveUpdateTracker = this.instantiationService.createInstance(ChatStreamStatsTracker);
 		}
 
 		this._register(_model.onDidChange(() => {
-			if (this._isPlaceholder && (_model.response.value || this.isComplete)) {
-				this._isPlaceholder = false;
-			}
-
-			if (this._contentUpdateTimings) {
-				// This should be true, if the model is changing
-				const now = Date.now();
-				const wordCount = countWords(_model.response.asString());
-				const timeDiff = now - this._contentUpdateTimings!.loadingStartTime;
-				const impliedWordLoadRate = wordCount / (timeDiff / 1000);
-				const renderedWordCount = this.renderData?.renderedParts.reduce((acc, part) => acc += ('label' in part ? 0 : part.renderedWordCount), 0);
-				if (!this.isComplete) {
-					this.trace('onDidChange', `Update- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
-					this._contentUpdateTimings = {
-						loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
-						lastUpdateTime: now,
-						wordCountAfterLastUpdate: wordCount,
-						impliedWordLoadRate
-					};
-				} else {
-					this.trace(`onDidChange`, `Done- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
-				}
-			} else {
-				this.logService.warn('ChatResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
+			if (this.liveUpdateTracker) {
+				const wordCount = countWords(_model.entireResponse.getMarkdown());
+				this.liveUpdateTracker.update({ totalWordCount: wordCount });
 			}
 
 			// new data -> new id, new content to render
@@ -354,20 +638,18 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		}));
 	}
 
-	private trace(tag: string, message: string) {
-		this.logService.trace(`ChatResponseViewModel#${tag}: ${message}`);
-	}
-
-	setVote(vote: InteractiveSessionVoteDirection): void {
+	setVote(vote: ChatAgentVoteDirection): void {
 		this._modelChangeCount++;
 		this._model.setVote(vote);
 	}
-}
 
-export interface IChatWelcomeMessageViewModel {
-	readonly id: string;
-	readonly username: string;
-	readonly avatarIconUri?: URI;
-	readonly content: IChatWelcomeMessageContent[];
-	currentRenderedHeight?: number;
+	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void {
+		this._modelChangeCount++;
+		this._model.setVoteDownReason(reason);
+	}
+
+	setEditApplied(edit: IChatTextEditGroup, editCount: number) {
+		this._modelChangeCount++;
+		this._model.setEditApplied(edit, editCount);
+	}
 }

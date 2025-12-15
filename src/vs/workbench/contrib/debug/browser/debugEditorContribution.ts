@@ -3,53 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { distinct, flatten } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { memoize } from 'vs/base/common/decorators';
-import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { visit } from 'vs/base/common/json';
-import { setProperty } from 'vs/base/common/jsonEdit';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/path';
-import * as env from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { assertType, isDefined } from 'vs/base/common/types';
-import { Constants } from 'vs/base/common/uint';
-import { URI } from 'vs/base/common/uri';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { InlineValue, InlineValueContext } from 'vs/editor/common/languages';
-import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
-import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import * as nls from 'vs/nls';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
-import { DebugHoverWidget, ShowDebugHoverResult } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
-import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { addDisposableListener, isKeyboardEvent } from '../../../../base/browser/dom.js';
+import { DomEmitter } from '../../../../base/browser/event.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { memoize } from '../../../../base/common/decorators.js';
+import { illegalArgument, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
+import { visit } from '../../../../base/common/json.js';
+import { setProperty } from '../../../../base/common/jsonEdit.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../base/common/numbers.js';
+import { basename } from '../../../../base/common/path.js';
+import * as env from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
+import { assertType, isDefined } from '../../../../base/common/types.js';
+import { Constants } from '../../../../base/common/uint.js';
+import { URI } from '../../../../base/common/uri.js';
+import { CoreEditingCommands } from '../../../../editor/browser/coreCommands.js';
+import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { EditorOption, IEditorHoverOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { DEFAULT_WORD_REGEXP } from '../../../../editor/common/core/wordHelper.js';
+import { IEditorDecorationsCollection, ScrollType } from '../../../../editor/common/editorCommon.js';
+import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
+import { InlineValue, InlineValueContext } from '../../../../editor/common/languages.js';
+import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from '../../../../editor/common/model.js';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../../editor/common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
+import { HoverStartMode, HoverStartSource } from '../../../../editor/contrib/hover/browser/hoverOperation.js';
+import * as nls from '../../../../nls.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { FloatingEditorClickWidget } from '../../../browser/codeeditor.js';
+import { DebugHoverWidget, ShowDebugHoverResult } from './debugHover.js';
+import { ExceptionWidget } from './exceptionWidget.js';
+import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from '../common/debug.js';
+import { Expression } from '../common/debugModel.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { InsertLineAfterAction } from '../../../../editor/contrib/linesOperations/browser/linesOperations.js';
 
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
@@ -64,22 +69,67 @@ export const debugInlineForeground = registerColor('editor.inlineValuesForegroun
 	hcLight: '#00000080'
 }, nls.localize('editor.inlineValuesForeground', "Color for the debug inline value text."));
 
-export const debugInlineBackground = registerColor('editor.inlineValuesBackground', {
-	dark: '#ffc80033',
-	light: '#ffc80033',
-	hcDark: '#ffc80033',
-	hcLight: '#ffc80033'
-}, nls.localize('editor.inlineValuesBackground', "Color for the debug inline value background."));
+export const debugInlineBackground = registerColor('editor.inlineValuesBackground', '#ffc80033', nls.localize('editor.inlineValuesBackground', "Color for the debug inline value background."));
 
 class InlineSegment {
 	constructor(public column: number, public text: string) {
 	}
 }
 
-function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IModelDeltaDecoration[] {
-	// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
-	if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
-		contentText = contentText.substring(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
+export function formatHoverContent(contentText: string): MarkdownString {
+	if (contentText.includes(',') && contentText.includes('=')) {
+		// Custom split: for each equals sign after the first, backtrack to the nearest comma
+		const customSplit = (text: string): string[] => {
+			const splits: number[] = [];
+			let equalsFound = 0;
+			let start = 0;
+			for (let i = 0; i < text.length; i++) {
+				if (text[i] === '=') {
+					if (equalsFound === 0) {
+						equalsFound++;
+						continue;
+					}
+					const commaIndex = text.lastIndexOf(',', i);
+					if (commaIndex !== -1 && commaIndex >= start) {
+						splits.push(commaIndex);
+						start = commaIndex + 1;
+					}
+					equalsFound++;
+				}
+			}
+			const result: string[] = [];
+			let s = 0;
+			for (const index of splits) {
+				result.push(text.substring(s, index).trim());
+				s = index + 1;
+			}
+			if (s < text.length) {
+				result.push(text.substring(s).trim());
+			}
+			return result;
+		};
+
+		const pairs = customSplit(contentText);
+		const formattedPairs = pairs.map(pair => {
+			const equalsIndex = pair.indexOf('=');
+			if (equalsIndex !== -1) {
+				const indent = ' '.repeat(equalsIndex + 2);
+				const [firstLine, ...restLines] = pair.split(/\r?\n/);
+				return [firstLine, ...restLines.map(line => indent + line)].join('\n');
+			}
+			return pair;
+		});
+		return new MarkdownString().appendCodeblock('', formattedPairs.join(',\n'));
+	}
+	return new MarkdownString().appendCodeblock('', contentText);
+}
+
+export function createInlineValueDecoration(lineNumber: number, contentText: string, classNamePrefix: string, column = Constants.MAX_SAFE_SMALL_INTEGER, viewportMaxCol: number = MAX_INLINE_DECORATOR_LENGTH): IModelDeltaDecoration[] {
+	const rawText = contentText; // store raw text for hover message
+
+	// Truncate contentText if it exceeds the viewport max column
+	if (contentText.length > viewportMaxCol) {
+		contentText = contentText.substring(0, viewportMaxCol) + '...';
 	}
 
 	return [
@@ -91,7 +141,7 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 				endColumn: column
 			},
 			options: {
-				description: 'debug-inline-value-decoration-spacer',
+				description: `${classNamePrefix}-inline-value-decoration-spacer`,
 				after: {
 					content: strings.noBreakWhitespace,
 					cursorStops: InjectedTextCursorStops.None
@@ -107,24 +157,25 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 				endColumn: column
 			},
 			options: {
-				description: 'debug-inline-value-decoration',
+				description: `${classNamePrefix}-inline-value-decoration`,
 				after: {
 					content: replaceWsWithNoBreakWs(contentText),
-					inlineClassName: 'debug-inline-value',
+					inlineClassName: `${classNamePrefix}-inline-value`,
 					inlineClassNameAffectsLetterSpacing: true,
 					cursorStops: InjectedTextCursorStops.None
 				},
 				showIfCollapsed: true,
+				hoverMessage: formatHoverContent(rawText)
 			}
 		},
 	];
 }
 
 function replaceWsWithNoBreakWs(str: string): string {
-	return str.replace(/[ \t]/g, strings.noBreakWhitespace);
+	return str.replace(/[ \t\n]/g, strings.noBreakWhitespace);
 }
 
-function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, range: Range, model: ITextModel, wordToLineNumbersMap: Map<string, number[]>): IModelDeltaDecoration[] {
+function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, ranges: Range[], model: ITextModel, wordToLineNumbersMap: Map<string, number[]>) {
 	const nameValueMap = new Map<string, string>();
 	for (const expr of expressions) {
 		nameValueMap.set(expr.name, expr.value);
@@ -141,7 +192,7 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 		const lineNumbers = wordToLineNumbersMap.get(name);
 		if (lineNumbers) {
 			for (const lineNumber of lineNumbers) {
-				if (range.containsPosition(new Position(lineNumber, 0))) {
+				if (ranges.some(r => lineNumber >= r.startLineNumber && lineNumber <= r.endLineNumber)) {
 					if (!lineToNamesMap.has(lineNumber)) {
 						lineToNamesMap.set(lineNumber, []);
 					}
@@ -154,79 +205,73 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 		}
 	});
 
-	const decorations: IModelDeltaDecoration[] = [];
 	// Compute decorators for each line
-	lineToNamesMap.forEach((names, line) => {
-		const contentText = names.sort((first, second) => {
+	return [...lineToNamesMap].map(([line, names]) => ({
+		line,
+		variables: names.sort((first, second) => {
 			const content = model.getLineContent(line);
 			return content.indexOf(first) - content.indexOf(second);
-		}).map(name => `${name} = ${nameValueMap.get(name)}`).join(', ');
-		decorations.push(...createInlineValueDecoration(line, contentText));
-	});
-
-	return decorations;
+		}).map(name => ({ name, value: nameValueMap.get(name)! }))
+	}));
 }
 
-function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]> {
-	const result = new Map<string, number[]>();
-	if (!model) {
-		return result;
+function getWordToLineNumbersMap(model: ITextModel, lineNumber: number, result: Map<string, number[]>) {
+	const lineLength = model.getLineLength(lineNumber);
+	// If line is too long then skip the line
+	if (lineLength > MAX_TOKENIZATION_LINE_LEN) {
+		return;
 	}
 
-	// For every word in every line, map its ranges for fast lookup
-	for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
-		const lineContent = model.getLineContent(lineNumber);
+	const lineContent = model.getLineContent(lineNumber);
+	model.tokenization.forceTokenization(lineNumber);
+	const lineTokens = model.tokenization.getLineTokens(lineNumber);
+	for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
+		const tokenType = lineTokens.getStandardTokenType(tokenIndex);
 
-		// If line is too long then skip the line
-		if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
-			continue;
-		}
+		// Token is a word and not a comment
+		if (tokenType === StandardTokenType.Other) {
+			DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
 
-		model.tokenization.forceTokenization(lineNumber);
-		const lineTokens = model.tokenization.getLineTokens(lineNumber);
-		for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
-			const tokenType = lineTokens.getStandardTokenType(tokenIndex);
+			const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
+			const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
+			const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
+			const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
 
-			// Token is a word and not a comment
-			if (tokenType === StandardTokenType.Other) {
-				DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
+			if (wordMatch) {
 
-				const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
-				const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
-				const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
-				const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
-
-				if (wordMatch) {
-
-					const word = wordMatch[0];
-					if (!result.has(word)) {
-						result.set(word, []);
-					}
-
-					result.get(word)!.push(lineNumber);
+				const word = wordMatch[0];
+				if (!result.has(word)) {
+					result.set(word, []);
 				}
+
+				result.get(word)!.push(lineNumber);
 			}
 		}
 	}
-
-	return result;
 }
 
 export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: IDisposable[];
 	private hoverWidget: DebugHoverWidget;
-	private hoverPosition: Position | null = null;
+	private hoverPosition?: { position: Position; event: IMouseEvent };
 	private mouseDown = false;
 	private exceptionWidgetVisible: IContextKey<boolean>;
 	private gutterIsHovered = false;
 
 	private exceptionWidget: ExceptionWidget | undefined;
 	private configurationWidget: FloatingEditorClickWidget | undefined;
-	private altListener: IDisposable | undefined;
+	private readonly altListener = new MutableDisposable();
 	private altPressed = false;
-	private oldDecorations = this.editor.createDecorationsCollection();
+	private oldDecorations: IEditorDecorationsCollection;
+	private readonly displayedStore = new DisposableStore();
+	private editorHoverOptions: IEditorHoverOptions | undefined;
 	private readonly debounceInfo: IFeatureDebounceInformation;
+	private allowScrollToExceptionWidget = true;
+	private shouldScrollToExceptionWidget = () => this.allowScrollToExceptionWidget;
+
+	// Holds a Disposable that prevents the default editor hover behavior while it exists.
+	private readonly defaultHoverLockout = new MutableDisposable();
 
 	constructor(
 		private editor: ICodeEditor,
@@ -238,11 +283,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
+		this.oldDecorations = this.editor.createDecorationsCollection();
 		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
-		this.toDispose = [];
+		this.toDispose = [this.defaultHoverLockout, this.altListener, this.displayedStore];
 		this.registerListeners();
 		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.toggleExceptionWidget();
@@ -275,7 +322,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose.push(this.debugService.getViewModel().onWillUpdateViews(() => this.updateInlineValuesScheduler.schedule()));
 		this.toDispose.push(this.debugService.getViewModel().onDidEvaluateLazyExpression(() => this.updateInlineValuesScheduler.schedule()));
 		this.toDispose.push(this.editor.onDidChangeModel(async () => {
-			this.updateHoverConfiguration();
+			this.addDocumentListeners();
 			this.toggleExceptionWidget();
 			this.hideHoverWidget();
 			this._wordToLineNumbersMap = undefined;
@@ -291,93 +338,87 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				this.updateInlineValuesScheduler.schedule();
 			}
 		}));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('editor.hover')) {
+				this.updateHoverConfiguration();
+			}
+		}));
 		this.toDispose.push(this.debugService.onDidChangeState((state: State) => {
 			if (state !== State.Stopped) {
 				this.toggleExceptionWidget();
 			}
 		}));
+
+		this.updateHoverConfiguration();
 	}
 
-	private _wordToLineNumbersMap: Map<string, number[]> | undefined = undefined;
-	private get wordToLineNumbersMap(): Map<string, number[]> {
-		if (!this._wordToLineNumbersMap) {
-			this._wordToLineNumbersMap = getWordToLineNumbersMap(this.editor.getModel());
-		}
-		return this._wordToLineNumbersMap;
-	}
+	private _wordToLineNumbersMap: WordsToLineNumbersCache | undefined;
 
 	private updateHoverConfiguration(): void {
+		const model = this.editor.getModel();
+		if (model) {
+			this.editorHoverOptions = this.configurationService.getValue<IEditorHoverOptions>('editor.hover', {
+				resource: model.uri,
+				overrideIdentifier: model.getLanguageId()
+			});
+		}
+	}
+
+	private addDocumentListeners(): void {
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (model) {
-			this.applyHoverConfiguration(model, stackFrame);
+			this.applyDocumentListeners(model, stackFrame);
 		}
 	}
 
-	private applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {
-		if (stackFrame && this.uriIdentityService.extUri.isEqual(model.uri, stackFrame.source.uri)) {
-			if (this.altListener) {
-				this.altListener.dispose();
-			}
-			// When the alt key is pressed show regular editor hover and hide the debug hover #84561
-			this.altListener = addDisposableListener(document, 'keydown', keydownEvent => {
-				const standardKeyboardEvent = new StandardKeyboardEvent(keydownEvent);
-				if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
-					this.altPressed = true;
-					const debugHoverWasVisible = this.hoverWidget.isVisible();
-					this.hoverWidget.hide();
-					this.enableEditorHover();
-					if (debugHoverWasVisible && this.hoverPosition) {
-						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
-						this.showEditorHover(this.hoverPosition, false);
+	private applyDocumentListeners(model: ITextModel, stackFrame: IStackFrame | undefined): void {
+		if (!stackFrame || !this.uriIdentityService.extUri.isEqual(model.uri, stackFrame.source.uri)) {
+			this.altListener.clear();
+			return;
+		}
+
+		const ownerDocument = this.editor.getContainerDomNode().ownerDocument;
+
+		// When the alt key is pressed show regular editor hover and hide the debug hover #84561
+		this.altListener.value = addDisposableListener(ownerDocument, 'keydown', keydownEvent => {
+			const standardKeyboardEvent = new StandardKeyboardEvent(keydownEvent);
+			if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
+				this.altPressed = true;
+				const debugHoverWasVisible = this.hoverWidget.isVisible();
+				this.hoverWidget.hide();
+				this.defaultHoverLockout.clear();
+
+				if (debugHoverWasVisible && this.hoverPosition) {
+					// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
+					this.showEditorHover(this.hoverPosition.position, false);
+				}
+
+				const onKeyUp = new DomEmitter(ownerDocument, 'keyup');
+				const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, onKeyUp.event)(keyupEvent => {
+					let standardKeyboardEvent = undefined;
+					if (isKeyboardEvent(keyupEvent)) {
+						standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
 					}
-
-					const onKeyUp = new DomEmitter(document, 'keyup');
-					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, onKeyUp.event)(keyupEvent => {
-						let standardKeyboardEvent = undefined;
-						if (keyupEvent instanceof KeyboardEvent) {
-							standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
-						}
-						if (!standardKeyboardEvent || standardKeyboardEvent.keyCode === KeyCode.Alt) {
-							this.altPressed = false;
-							this.editor.updateOptions({ hover: { enabled: false } });
-							listener.dispose();
-							onKeyUp.dispose();
-						}
-					});
-				}
-			});
-
-			this.editor.updateOptions({ hover: { enabled: false } });
-		} else {
-			this.altListener?.dispose();
-			this.enableEditorHover();
-		}
+					if (!standardKeyboardEvent || standardKeyboardEvent.keyCode === KeyCode.Alt) {
+						this.altPressed = false;
+						this.preventDefaultEditorHover();
+						listener.dispose();
+						onKeyUp.dispose();
+					}
+				});
+			}
+		});
 	}
 
-	private enableEditorHover(): void {
-		if (this.editor.hasModel()) {
-			const model = this.editor.getModel();
-			const overrides = {
-				resource: model.uri,
-				overrideIdentifier: model.getLanguageId()
-			};
-			const defaultConfiguration = this.configurationService.getValue<IEditorHoverOptions>('editor.hover', overrides);
-			this.editor.updateOptions({
-				hover: {
-					enabled: defaultConfiguration.enabled,
-					delay: defaultConfiguration.delay,
-					sticky: defaultConfiguration.sticky
-				}
-			});
-		}
-	}
+	async showHover(position: Position, focus: boolean, mouseEvent?: IMouseEvent): Promise<void> {
+		// normally will already be set in `showHoverScheduler`, but public callers may hit this directly:
+		this.preventDefaultEditorHover();
 
-	async showHover(position: Position, focus: boolean): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
-			const result = await this.hoverWidget.showAt(position, focus);
+			const result = await this.hoverWidget.showAt(position, focus, mouseEvent);
 			if (result === ShowDebugHoverResult.NOT_AVAILABLE) {
 				// When no expression available fallback to editor hover
 				this.showEditorHover(position, focus);
@@ -387,16 +428,37 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
+	private preventDefaultEditorHover() {
+		if (this.defaultHoverLockout.value || this.editorHoverOptions?.enabled === 'off') {
+			return;
+		}
+
+		const hoverController = this.editor.getContribution<ContentHoverController>(ContentHoverController.ID);
+		hoverController?.hideContentHover();
+
+		this.editor.updateOptions({ hover: { enabled: 'off' } });
+		this.defaultHoverLockout.value = {
+			dispose: () => {
+				this.editor.updateOptions({
+					hover: { enabled: this.editorHoverOptions?.enabled ?? 'on' }
+				});
+			}
+		};
+	}
+
 	private showEditorHover(position: Position, focus: boolean) {
-		const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
+		const hoverController = this.editor.getContribution<ContentHoverController>(ContentHoverController.ID);
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		// enable the editor hover, otherwise the content controller will see it
+		// as disabled and hide it on the first mouse move (#193149)
+		this.defaultHoverLockout.clear();
 		hoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, focus);
 	}
 
 	private async onFocusStackFrame(sf: IStackFrame | undefined): Promise<void> {
 		const model = this.editor.getModel();
 		if (model) {
-			this.applyHoverConfiguration(model, sf);
+			this.applyDocumentListeners(model, sf);
 			if (sf && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
 				await this.toggleExceptionWidget();
 			} else {
@@ -407,36 +469,39 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		await this.updateInlineValueDecorations(sf);
 	}
 
-	@memoize
-	private get showHoverScheduler(): RunOnceScheduler {
-		const hoverOption = this.editor.getOption(EditorOption.hover);
-		const scheduler = new RunOnceScheduler(() => {
-			if (this.hoverPosition && !this.altPressed) {
-				this.showHover(this.hoverPosition, false);
-			}
-		}, hoverOption.delay * 2);
-		this.toDispose.push(scheduler);
+	private get hoverDelay() {
+		const baseDelay = this.editorHoverOptions?.delay || 0;
 
-		return scheduler;
+		// heuristic to get a 'good' but configurable delay for evaluation. The
+		// debug hover can be very large, so we tend to be more conservative about
+		// when to show it (#180621). With this equation:
+		// - default 300ms hover => * 2   = 600ms
+		// - short   100ms hover => * 2   = 200ms
+		// - longer  600ms hover => * 1.5 = 900ms
+		// - long   1000ms hover => * 1.0 = 1000ms
+		const delayFactor = clamp(2 - (baseDelay - 300) / 600, 1, 2);
+
+		return baseDelay * delayFactor;
 	}
 
 	@memoize
-	private get hideHoverScheduler(): RunOnceScheduler {
+	private get showHoverScheduler() {
 		const scheduler = new RunOnceScheduler(() => {
-			if (!this.hoverWidget.isHovered()) {
-				this.hoverWidget.hide();
+			if (this.hoverPosition && !this.altPressed) {
+				this.showHover(this.hoverPosition.position, false, this.hoverPosition.event);
 			}
-		}, 0);
+		}, this.hoverDelay);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
 	}
 
 	private hideHoverWidget(): void {
-		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.willBeVisible()) {
-			this.hideHoverScheduler.schedule();
+		if (this.hoverWidget.willBeVisible()) {
+			this.hoverWidget.hide();
 		}
 		this.showHoverScheduler.cancel();
+		this.defaultHoverLockout.clear();
 	}
 
 	// hover business
@@ -460,7 +525,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		if (!this.altPressed) {
 			if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
-				this.editor.updateOptions({ hover: { enabled: true } });
+				this.defaultHoverLockout.clear();
 				this.gutterIsHovered = true;
 			} else if (this.gutterIsHovered) {
 				this.gutterIsHovered = false;
@@ -468,16 +533,24 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		}
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
+		if (
+			(target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID)
+			|| this.hoverWidget.isInSafeTriangle(mouseEvent.event.posx, mouseEvent.event.posy)
+		) {
 			// mouse moved on top of debug hover widget
-			return;
+
+			const sticky = this.editorHoverOptions?.sticky ?? true;
+			if (sticky || this.hoverWidget.isShowingComplexValue || mouseEvent.event[stopKey]) {
+				return;
+			}
 		}
 
 		if (target.type === MouseTargetType.CONTENT_TEXT) {
-			if (target.position && !Position.equals(target.position, this.hoverPosition)) {
-				this.hoverPosition = target.position;
-				this.hideHoverScheduler.cancel();
-				this.showHoverScheduler.schedule();
+			if (target.position && !Position.equals(target.position, this.hoverPosition?.position || null) && !this.hoverWidget.isInSafeTriangle(mouseEvent.event.posx, mouseEvent.event.posy)) {
+				this.hoverPosition = { position: target.position, event: mouseEvent.event };
+				// Disable the editor hover during the request to avoid flickering
+				this.preventDefaultEditorHover();
+				this.showHoverScheduler.schedule(this.hoverDelay);
 			}
 		} else if (!this.mouseDown) {
 			// Do not hide debug hover when the mouse is pressed because it usually leads to accidental closing #64620
@@ -487,8 +560,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private onKeyDown(e: IKeyboardEvent): void {
 		const stopKey = env.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
-		if (e.keyCode !== stopKey) {
-			// do not hide hover when Ctrl/Meta is pressed
+		if (e.keyCode !== stopKey && e.keyCode !== KeyCode.Alt) {
+			// do not hide hover when Ctrl/Meta is pressed, and alt is handled separately
 			this.hideHoverWidget();
 		}
 	}
@@ -516,9 +589,19 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
+			// Show exception widget in all editors with the same file, but only scroll in the active editor
+			const activeControl = this.editorService.activeTextEditorControl;
+			const isActiveEditor = activeControl === this.editor;
 			const exceptionInfo = await focusedSf.thread.exceptionInfo;
+
 			if (exceptionInfo) {
-				this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				if (isActiveEditor) {
+					// Active editor: show widget and scroll to it
+					this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				} else {
+					// Inactive editor: show widget without scrolling
+					this.showExceptionWidgetWithoutScroll(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				}
 			}
 		}
 	}
@@ -528,7 +611,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.exceptionWidget.dispose();
 		}
 
-		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
 		this.exceptionWidget.focus();
 		this.editor.revealRangeInCenter({
@@ -538,6 +621,46 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			endColumn: column,
 		});
 		this.exceptionWidgetVisible.set(true);
+	}
+
+	private showExceptionWidgetWithoutScroll(exceptionInfo: IExceptionInfo, debugSession: IDebugSession | undefined, lineNumber: number, column: number): void {
+		if (this.exceptionWidget) {
+			this.exceptionWidget.dispose();
+		}
+
+		// Disable scrolling to exception widget
+		this.allowScrollToExceptionWidget = false;
+
+		const currentScrollTop = this.editor.getScrollTop();
+		const visibleRanges = this.editor.getVisibleRanges();
+		if (visibleRanges.length === 0) {
+			// Editor not fully initialized or not visible; skip scroll adjustment
+			this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
+			this.exceptionWidget.show({ lineNumber, column }, 0);
+			this.exceptionWidgetVisible.set(true);
+			this.allowScrollToExceptionWidget = true;
+			return;
+		}
+
+		const firstVisibleLine = visibleRanges[0].startLineNumber;
+
+		// Create widget - this may add a zone that pushes content down
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
+		this.exceptionWidget.show({ lineNumber, column }, 0);
+		this.exceptionWidgetVisible.set(true);
+
+		// only adjust scroll if the exception widget is above the first visible line
+		if (lineNumber < firstVisibleLine) {
+			// Get the actual height of the widget that was just added from the whitespace
+			// The whitespace height is more accurate than the container height
+			const scrollAdjustment = this.exceptionWidget.getWhitespaceHeight();
+
+			// Scroll down by the actual widget height to keep the first visible line the same
+			this.editor.setScrollTop(currentScrollTop + scrollAdjustment, ScrollType.Immediate);
+		}
+
+		// Re-enable scrolling to exception widget
+		this.allowScrollToExceptionWidget = true;
 	}
 
 	closeExceptionWidget(): void {
@@ -552,7 +675,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
-	async addLaunchConfiguration(): Promise<any> {
+	async addLaunchConfiguration(): Promise<void> {
 		const model = this.editor.getModel();
 		if (!model) {
 			return;
@@ -605,10 +728,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			// Check if there are more characters on a line after a "configurations": [, if yes enter a newline
 			if (model.getLineLastNonWhitespaceColumn(position.lineNumber) > position.column) {
 				this.editor.setPosition(position);
-				CoreEditingCommands.LineBreakInsert.runEditorCommand(null, this.editor, null);
+				this.instantiationService.invokeFunction((accessor) => {
+					CoreEditingCommands.LineBreakInsert.runEditorCommand(accessor, this.editor, null);
+				});
 			}
 			this.editor.setPosition(position);
-			return this.commandService.executeCommand('editor.action.insertLineAfter');
+			return this.commandService.executeCommand(InsertLineAfterAction.ID);
 		};
 
 		await insertLine(configurationsArrayPosition);
@@ -621,6 +746,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private get removeInlineValuesScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(
 			() => {
+				this.displayedStore.clear();
 				this.oldDecorations.clear();
 			},
 			100
@@ -652,8 +778,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		this.removeInlineValuesScheduler.cancel();
+		this.displayedStore.clear();
 
+		const viewRanges = this.editor.getVisibleRangesPlusViewportAboveBelow();
 		let allDecorations: IModelDeltaDecoration[];
+
+		const cts = new CancellationTokenSource();
+		this.displayedStore.add(toDisposable(() => cts.dispose(true)));
 
 		if (this.languageFeaturesService.inlineValuesProvider.has(model)) {
 
@@ -674,15 +805,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				frameId: stackFrame.frameId,
 				stoppedLocation: new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1, stackFrame.range.endLineNumber, stackFrame.range.endColumn + 1)
 			};
-			const token = new CancellationTokenSource().token;
 
-			const ranges = this.editor.getVisibleRangesPlusViewportAboveBelow();
 			const providers = this.languageFeaturesService.inlineValuesProvider.ordered(model).reverse();
 
 			allDecorations = [];
 			const lineDecorations = new Map<number, InlineSegment[]>();
 
-			const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
+			const promises = providers.flatMap(provider => viewRanges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, cts.token)).then(async (result) => {
 				if (result) {
 					for (const iv of result) {
 
@@ -735,7 +864,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}
 			}, err => {
 				onUnexpectedExternalError(err);
-			}))));
+			})));
 
 			const startTime = Date.now();
 
@@ -750,7 +879,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				if (segments.length > 0) {
 					segments = segments.sort((a, b) => a.column - b.column);
 					const text = segments.map(s => s.text).join(separator);
-					allDecorations.push(...createInlineValueDecoration(line, text));
+					const editorWidth = this.editor.getLayoutInfo().width;
+					const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+					const viewportMaxCol = Math.floor((editorWidth - 50) / fontInfo.typicalHalfwidthCharacterWidth);
+					allDecorations.push(...createInlineValueDecoration(line, text, 'debug', undefined, viewportMaxCol));
 				}
 			});
 
@@ -758,24 +890,72 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			// old "one-size-fits-all" strategy
 
 			const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
-			// Get all top level variables in the scope chain
-			const decorationsPerScope = await Promise.all(scopes.map(async scope => {
-				const variables = await scope.getChildren();
+			const scopesWithVariables = await Promise.all(scopes.map(async scope =>
+				({ scope, variables: await scope.getChildren() })));
 
-				let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
+			// Map of inline values per line that's populated in scope order, from
+			// narrowest to widest. This is done to avoid duplicating values if
+			// they appear in multiple scopes or are shadowed (#129770, #217326)
+			const valuesPerLine = new Map</* line */number, Map</* var */string, /* value */ string>>();
+
+			for (const { scope, variables } of scopesWithVariables) {
+				let scopeRange = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
 				if (scope.range) {
-					range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
+					scopeRange = scopeRange.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
 				}
 
-				return createInlineValueDecorationsInsideRange(variables, range, model, this.wordToLineNumbersMap);
-			}));
+				const ownRanges = viewRanges.map(r => r.intersectRanges(scopeRange)).filter(isDefined);
+				this._wordToLineNumbersMap ??= new WordsToLineNumbersCache(model);
+				for (const range of ownRanges) {
+					this._wordToLineNumbersMap.ensureRangePopulated(range);
+				}
 
-			allDecorations = distinct(decorationsPerScope.reduce((previous, current) => previous.concat(current), []),
-				// Deduplicate decorations since same variable can appear in multiple scopes, leading to duplicated decorations #129770
-				decoration => `${decoration.range.startLineNumber}:${decoration?.options.after?.content}`);
+				const mapped = createInlineValueDecorationsInsideRange(variables, ownRanges, model, this._wordToLineNumbersMap.value);
+				for (const { line, variables } of mapped) {
+					let values = valuesPerLine.get(line);
+					if (!values) {
+						values = new Map<string, string>();
+						valuesPerLine.set(line, values);
+					}
+
+					for (const { name, value } of variables) {
+						if (!values.has(name)) {
+							values.set(name, value);
+						}
+					}
+				}
+			}
+
+			allDecorations = [...valuesPerLine.entries()].flatMap(([line, values]) => {
+				const text = [...values].map(([n, v]) => `${n} = ${v}`).join(', ');
+				const editorWidth = this.editor.getLayoutInfo().width;
+				const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+				const viewportMaxCol = Math.floor((editorWidth - 50) / fontInfo.typicalHalfwidthCharacterWidth);
+				return createInlineValueDecoration(line, text, 'debug', undefined, viewportMaxCol);
+			});
+		}
+
+		if (cts.token.isCancellationRequested) {
+			return;
+		}
+
+		// If word wrap is on, application of inline decorations may change the scroll position.
+		// Ensure the cursor maintains its vertical position relative to the viewport when
+		// we apply decorations.
+		let preservePosition: { position: Position; top: number } | undefined;
+		if (this.editor.getOption(EditorOption.wordWrap) !== 'off') {
+			const position = this.editor.getPosition();
+			if (position && this.editor.getVisibleRanges().some(r => r.containsPosition(position))) {
+				preservePosition = { position, top: this.editor.getTopForPosition(position.lineNumber, position.column) };
+			}
 		}
 
 		this.oldDecorations.set(allDecorations);
+
+		if (preservePosition) {
+			const top = this.editor.getTopForPosition(preservePosition.position.lineNumber, preservePosition.position.column);
+			this.editor.setScrollTop(this.editor.getScrollTop() - (preservePosition.top - top), ScrollType.Immediate);
+		}
 	}
 
 	dispose(): void {
@@ -786,8 +966,28 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.configurationWidget.dispose();
 		}
 		this.toDispose = dispose(this.toDispose);
+	}
+}
 
-		this.oldDecorations.clear();
+class WordsToLineNumbersCache {
+	// we use this as an array of bits where each 1 bit is a line number that's been parsed
+	private readonly intervals: Uint8Array;
+	public readonly value = new Map<string, number[]>();
+
+	constructor(private readonly model: ITextModel) {
+		this.intervals = new Uint8Array(Math.ceil(model.getLineCount() / 8));
+	}
+
+	/** Ensures that variables names in the given range have been identified. */
+	public ensureRangePopulated(range: Range) {
+		for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+			const bin = lineNumber >> 3;  /* Math.floor(i / 8) */
+			const bit = 1 << (lineNumber & 0b111); /* 1 << (i % 8) */
+			if (!(this.intervals[bin] & bit)) {
+				getWordToLineNumbersMap(this.model, lineNumber, this.value);
+				this.intervals[bin] |= bit;
+			}
+		}
 	}
 }
 

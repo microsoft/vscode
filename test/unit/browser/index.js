@@ -10,57 +10,104 @@ const path = require('path');
 const glob = require('glob');
 const events = require('events');
 const mocha = require('mocha');
-const createStatsCollector = require('../../../node_modules/mocha/lib/stats-collector');
+const createStatsCollector = require('mocha/lib/stats-collector');
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
 const fs = require('fs');
 const playwright = require('@playwright/test');
 const { applyReporter } = require('../reporter');
+const yaserver = require('yaserver');
+const http = require('http');
+const { randomBytes } = require('crypto');
+const minimist = require('minimist');
+const { promisify } = require('node:util');
 
-// opts
-const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
-const optimist = require('optimist')
-	// .describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
-	.describe('build', 'run with build output (out-build)').boolean('build')
-	.describe('run', 'only run tests matching <relative_file_path>').string('run')
-	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
-	.describe('debug', 'do not run browsers headless').alias('debug', ['debug-browser']).boolean('debug')
-	.describe('sequential', 'only run suites for a single browser at a time').boolean('sequential')
-	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium', 'firefox', 'webkit'])
-	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
-	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
-	.describe('tfs', 'tfs').string('tfs')
-	.describe('help', 'show the help').alias('help', 'h');
+/**
+ * @type {{
+ * run: string;
+ * grep: string;
+ * runGlob: string;
+ * browser: string;
+ * reporter: string;
+ * 'reporter-options': string;
+ * tfs: string;
+ * build: boolean;
+ * debug: boolean;
+ * sequential: boolean;
+ * help: boolean;
+ * }}
+*/
+const args = minimist(process.argv.slice(2), {
+	boolean: ['build', 'debug', 'sequential', 'help'],
+	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs'],
+	default: {
+		build: false,
+		browser: ['chromium', 'firefox', 'webkit'],
+		reporter: process.platform === 'win32' ? 'list' : 'spec',
+		'reporter-options': ''
+	},
+	alias: {
+		grep: ['g', 'f'],
+		runGlob: ['glob', 'runGrep'],
+		debug: ['debug-browser'],
+		help: 'h'
+	},
+	describe: {
+		build: 'run with build output (out-build)',
+		run: 'only run tests matching <relative_file_path>',
+		grep: 'only run tests matching <pattern>',
+		debug: 'do not run browsers headless',
+		sequential: 'only run suites for a single browser at a time',
+		browser: 'browsers in which tests should run',
+		reporter: 'the mocha reporter',
+		'reporter-options': 'the mocha reporter options',
+		tfs: 'tfs',
+		help: 'show the help'
+	}
+});
 
-// logic
-const argv = optimist.argv;
+if (args.help) {
+	console.log(`Usage: node ${process.argv[1]} [options]
 
-if (argv.help) {
-	optimist.showHelp();
+Options:
+--build              run with build output (out-build)
+--run <relative_file_path> only run tests matching <relative_file_path>
+--grep, -g, -f <pattern> only run tests matching <pattern>
+--debug, --debug-browser do not run browsers headless
+--sequential         only run suites for a single browser at a time
+--browser <browser>  browsers in which tests should run. separate the channel with a dash, e.g. 'chromium-msedge' or 'chromium-chrome'
+--reporter <reporter> the mocha reporter
+--reporter-options <reporter-options> the mocha reporter options
+--tfs <tfs>          tfs
+--help, -h           show the help`);
 	process.exit(0);
 }
 
+const isDebug = !!args.debug;
+
 const withReporter = (function () {
-	if (argv.tfs) {
+	if (args.tfs) {
 		{
+			const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
 			return (browserType, runner) => {
 				new mocha.reporters.Spec(runner);
 				new MochaJUnitReporter(runner, {
 					reporterOptions: {
-						testsuitesTitle: `${argv.tfs} ${process.platform}`,
-						mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${browserType}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+						testsuitesTitle: `${args.tfs} ${process.platform}`,
+						mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${browserType}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 					}
 				});
 			};
 		}
 	} else {
-		return (_, runner) => applyReporter(runner, argv);
+		return (_, runner) => applyReporter(runner, args);
 	}
 })();
 
-const outdir = argv.build ? 'out-build' : 'out';
-const out = path.join(__dirname, `../../../${outdir}`);
+const outdir = args.build ? 'out-build' : 'out';
+const rootDir = path.resolve(__dirname, '..', '..', '..');
+const out = path.join(rootDir, `${outdir}`);
 
 function ensureIsArray(a) {
 	return Array.isArray(a) ? a : [a];
@@ -68,14 +115,14 @@ function ensureIsArray(a) {
 
 const testModules = (async function () {
 
-	const excludeGlob = '**/{node,electron-sandbox,electron-main}/**/*.test.js';
+	const excludeGlob = '**/{node,electron-browser,electron-main,electron-utility}/**/*.test.js';
 	let isDefaultModules = true;
 	let promise;
 
-	if (argv.run) {
+	if (args.run) {
 		// use file list (--run)
 		isDefaultModules = false;
-		promise = Promise.resolve(ensureIsArray(argv.run).map(file => {
+		promise = Promise.resolve(ensureIsArray(args.run).map(file => {
 			file = file.replace(/^src/, 'out');
 			file = file.replace(/\.ts$/, '.js');
 			return path.relative(out, file);
@@ -84,7 +131,7 @@ const testModules = (async function () {
 	} else {
 		// glob patterns (--glob)
 		const defaultGlob = '**/*.test.js';
-		const pattern = argv.run || defaultGlob;
+		const pattern = args.runGlob || defaultGlob;
 		isDefaultModules = pattern === defaultGlob;
 
 		promise = new Promise((resolve, reject) => {
@@ -105,7 +152,7 @@ const testModules = (async function () {
 				modules.push(file.replace(/\.js$/, ''));
 
 			} else if (!isDefaultModules) {
-				console.warn(`DROPPONG ${file} because it cannot be run inside a browser`);
+				console.warn(`DROPPING ${file} because it cannot be run inside a browser`);
 			}
 		}
 		return modules;
@@ -126,42 +173,116 @@ function consoleLogFn(msg) {
 	return console.log;
 }
 
-async function runTestsInBrowser(testModules, browserType) {
-	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), devtools: Boolean(argv.debug) });
+async function createServer() {
+	// Demand a prefix to avoid issues with other services on the
+	// machine being able to access the test server.
+	const prefix = '/' + randomBytes(16).toString('hex');
+	const serveStatic = await yaserver.createServer({ rootDir });
+
+	/** Handles a request for a remote method call, invoking `fn` and returning the result */
+	const remoteMethod = async (req, response, fn) => {
+		const params = await new Promise((resolve, reject) => {
+			const body = [];
+			req.on('data', chunk => body.push(chunk));
+			req.on('end', () => resolve(JSON.parse(Buffer.concat(body).toString())));
+			req.on('error', reject);
+		});
+		try {
+			const result = await fn(...params);
+			response.writeHead(200, { 'Content-Type': 'application/json' });
+			response.end(JSON.stringify(result));
+		} catch (err) {
+			response.writeHead(500);
+			response.end(err.message);
+		}
+	};
+
+	const server = http.createServer((request, response) => {
+		if (!request.url?.startsWith(prefix)) {
+			return response.writeHead(404).end();
+		}
+
+		// rewrite the URL so the static server can handle the request correctly
+		request.url = request.url.slice(prefix.length);
+
+		function massagePath(p) {
+			// TODO@jrieken FISHY but it enables snapshot
+			// in ESM browser tests
+			p = String(p).replace(/\\/g, '/').replace(prefix, rootDir);
+			return p;
+		}
+
+		switch (request.url) {
+			case '/remoteMethod/__readFileInTests':
+				return remoteMethod(request, response, p => fs.promises.readFile(massagePath(p), 'utf-8'));
+			case '/remoteMethod/__writeFileInTests':
+				return remoteMethod(request, response, (p, contents) => fs.promises.writeFile(massagePath(p), contents));
+			case '/remoteMethod/__readDirInTests':
+				return remoteMethod(request, response, p => fs.promises.readdir(massagePath(p)));
+			case '/remoteMethod/__unlinkInTests':
+				return remoteMethod(request, response, p => fs.promises.unlink(massagePath(p)));
+			case '/remoteMethod/__mkdirPInTests':
+				return remoteMethod(request, response, p => fs.promises.mkdir(massagePath(p), { recursive: true }));
+			default:
+				return serveStatic.handle(request, response);
+		}
+	});
+
+	return new Promise((resolve, reject) => {
+		server.listen(0, 'localhost', () => {
+			resolve({
+				dispose: () => server.close(),
+				// @ts-ignore
+				url: `http://localhost:${server.address().port}${prefix}`
+			});
+		});
+		server.on('error', reject);
+	});
+}
+
+async function runTestsInBrowser(testModules, browserType, browserChannel) {
+	const server = await createServer();
+	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug), channel: browserChannel });
 	const context = await browser.newContext();
 	const page = await context.newPage();
-	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
-	if (argv.build) {
-		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-			target.search = `?build=true&ci=true`;
-		} else {
-			target.search = `?build=true`;
-		}
-	} else if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-		target.search = `?ci=true`;
+	const target = new URL(server.url + '/test/unit/browser/renderer.html');
+	target.searchParams.set('baseUrl', url.pathToFileURL(path.join(rootDir, 'src')).toString());
+	if (args.build) {
+		target.searchParams.set('build', 'true');
+	}
+	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {
+		target.searchParams.set('ci', 'true');
 	}
 
-	const emitter = new events.EventEmitter();
+	// append CSS modules as query-param
+	await promisify(require('glob'))('**/*.css', { cwd: out }).then(async cssModules => {
+		const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+		target.searchParams.set('_devCssData', Buffer.from(cssData).toString('base64'));
+	});
 
-	await Promise.all([
-		page.exposeFunction('mocha_report', (type, data1, data2) => {
-			emitter.emit(type, data1, data2);
-		}),
-		// Test file operations that are common across platforms. Used for test infra, namely snapshot tests
-		page.exposeFunction('__readFileInTests', (path) => fs.promises.readFile(path, 'utf-8')),
-		page.exposeFunction('__writeFileInTests', (path, contents) => fs.promises.writeFile(path, contents)),
-		page.exposeFunction('__readDirInTests', (path) => fs.promises.readdir(path)),
-		page.exposeFunction('__unlinkInTests', (path) => fs.promises.unlink(path)),
-		page.exposeFunction('__mkdirPInTests', (path) => fs.promises.mkdir(path, { recursive: true })),
-	]);
+	const emitter = new events.EventEmitter();
+	await page.exposeFunction('mocha_report', (type, data1, data2) => {
+		emitter.emit(type, data1, data2);
+	});
 
 	await page.goto(target.href);
+
+	if (args.build) {
+		const nlsMessages = await fs.promises.readFile(path.join(out, 'nls.messages.json'), 'utf8');
+		await page.evaluate(value => {
+			// when running from `out-build`, ensure to load the default
+			// messages file, because all `nls.localize` calls have their
+			// english values removed and replaced by an index.
+			// @ts-ignore
+			globalThis._VSCODE_NLS_MESSAGES = JSON.parse(value);
+		}, nlsMessages);
+	}
 
 	page.on('console', async msg => {
 		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
-	withReporter(browserType, new EchoRunner(emitter, browserType.toUpperCase()));
+	withReporter(browserType, new EchoRunner(emitter, browserChannel ? `${browserType.toUpperCase()}-${browserChannel.toUpperCase()}` : browserType.toUpperCase()));
 
 	// collection failures for console printing
 	const failingModuleIds = [];
@@ -185,12 +306,15 @@ async function runTestsInBrowser(testModules, browserType) {
 		// @ts-expect-error
 		await page.evaluate(opts => loadAndRun(opts), {
 			modules: testModules,
-			grep: argv.grep,
+			grep: args.grep,
 		});
 	} catch (err) {
 		console.error(err);
 	}
-	await browser.close();
+	if (!isDebug) {
+		server?.dispose();
+		await browser.close();
+	}
 
 	if (failingTests.length > 0) {
 		let res = `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
@@ -259,25 +383,29 @@ class EchoRunner extends events.EventEmitter {
 testModules.then(async modules => {
 
 	// run tests in selected browsers
-	const browserTypes = Array.isArray(argv.browser)
-		? argv.browser : [argv.browser];
+	const browsers = Array.isArray(args.browser)
+		? args.browser : [args.browser];
 
 	let messages = [];
 	let didFail = false;
 
 	try {
-		if (argv.sequential) {
-			for (const browserType of browserTypes) {
-				messages.push(await runTestsInBrowser(modules, browserType));
+		if (args.sequential) {
+			for (const browser of browsers) {
+				const [browserType, browserChannel] = browser.split('-');
+				messages.push(await runTestsInBrowser(modules, browserType, browserChannel));
 			}
 		} else {
-			messages = await Promise.all(browserTypes.map(async browserType => {
-				return await runTestsInBrowser(modules, browserType);
+			messages = await Promise.all(browsers.map(async browser => {
+				const [browserType, browserChannel] = browser.split('-');
+				return await runTestsInBrowser(modules, browserType, browserChannel);
 			}));
 		}
 	} catch (err) {
 		console.error(err);
-		process.exit(1);
+		if (!isDebug) {
+			process.exit(1);
+		}
 	}
 
 	// aftermath
@@ -287,7 +415,9 @@ testModules.then(async modules => {
 			console.log(msg);
 		}
 	}
-	process.exit(didFail ? 1 : 0);
+	if (!isDebug) {
+		process.exit(didFail ? 1 : 0);
+	}
 
 }).catch(err => {
 	console.error(err);

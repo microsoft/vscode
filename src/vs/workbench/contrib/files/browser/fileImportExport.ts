@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IFilesConfiguration, UndoConfirmLevel, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Limiter, Promises, RunOnceWorker } from 'vs/base/common/async';
-import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
-import { basename, dirname, joinPath } from 'vs/base/common/resources';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { URI } from 'vs/base/common/uri';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { isWeb } from 'vs/base/common/platform';
-import { triggerDownload } from 'vs/base/browser/dom';
-import { ILogService } from 'vs/platform/log/common/log';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { listenStream } from 'vs/base/common/stream';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { once } from 'vs/base/common/functional';
-import { coalesce } from 'vs/base/common/arrays';
-import { canceled } from 'vs/base/common/errors';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { localize } from '../../../../nls.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
+import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IExplorerService } from './files.js';
+import { IFilesConfiguration, UndoConfirmLevel, VIEW_ID } from '../common/files.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { Limiter, Promises, RunOnceWorker } from '../../../../base/common/async.js';
+import { newWriteableBufferStream, VSBuffer } from '../../../../base/common/buffer.js';
+import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
+import { ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService.js';
+import { ExplorerItem } from '../common/explorerModel.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { extractEditorsAndFilesDropData } from '../../../../platform/dnd/browser/dnd.js';
+import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { getActiveWindow, isDragEvent, triggerDownload } from '../../../../base/browser/dom.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
+import { listenStream } from '../../../../base/common/stream.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { canceled } from '../../../../base/common/errors.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 //#region Browser File Upload (drag and drop, input element)
 
@@ -105,7 +104,7 @@ export class BrowserFileUpload {
 	}
 
 	private toTransfer(source: DragEvent | FileList): IWebkitDataTransfer {
-		if (source instanceof DragEvent) {
+		if (isDragEvent(source)) {
 			return source.dataTransfer as unknown as IWebkitDataTransfer;
 		}
 
@@ -281,7 +280,7 @@ export class BrowserFileUpload {
 			operation.filesTotal += childEntries.length;
 
 			// Split up files from folders to upload
-			const folderTarget = target && target.getChild(entry.name) || undefined;
+			const folderTarget = target?.getChild(entry.name) || undefined;
 			const fileChildEntries: IWebkitDataTransferItemEntry[] = [];
 			const folderChildEntries: IWebkitDataTransferItemEntry[] = [];
 			for (const childEntry of childEntries) {
@@ -402,7 +401,7 @@ export class ExternalFileImport {
 	) {
 	}
 
-	async import(target: ExplorerItem, source: DragEvent): Promise<void> {
+	async import(target: ExplorerItem, source: DragEvent, targetWindow: Window): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		// Indicate progress globally
@@ -413,7 +412,7 @@ export class ExternalFileImport {
 				cancellable: true,
 				title: localize('copyingFiles', "Copying...")
 			},
-			async () => await this.doImport(target, source, cts.token),
+			async () => await this.doImport(target, source, targetWindow, cts.token),
 			() => cts.dispose(true)
 		);
 
@@ -423,7 +422,7 @@ export class ExternalFileImport {
 		return importPromise;
 	}
 
-	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
+	private async doImport(target: ExplorerItem, source: DragEvent, targetWindow: Window, token: CancellationToken): Promise<void> {
 
 		// Activate all providers for the resources dropped
 		const candidateFiles = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, source))).map(editor => editor.resource));
@@ -438,7 +437,7 @@ export class ExternalFileImport {
 		}
 
 		// Pass focus to window
-		this.hostService.focus();
+		this.hostService.focus(targetWindow);
 
 		// Handle folders by adding to workspace if we are in workspace context and if dropped on top
 		const folders = resolvedFiles.filter(resolvedFile => resolvedFile.success && resolvedFile.stat?.isDirectory).map(resolvedFile => ({ uri: resolvedFile.stat!.resource }));
@@ -564,7 +563,8 @@ export class ExternalFileImport {
 			});
 
 			// if we only add one file, just open it directly
-			if (resourceFileEdits.length === 1) {
+			const autoOpen = this.configurationService.getValue<IFilesConfiguration>().explorer.autoOpenDroppedFile;
+			if (autoOpen && resourceFileEdits.length === 1) {
 				const item = this.explorerService.findClosest(resourceFileEdits[0].newResource!);
 				if (item && !item.isDirectory) {
 					this.editorService.openEditor({ resource: item.resource, options: { pinned: true } });
@@ -654,9 +654,10 @@ export class FileDownload {
 		const preferFileSystemAccessWebApis = stat.isDirectory || stat.size > maxBlobDownloadSize;
 
 		// Folder: use FS APIs to download files and folders if available and preferred
-		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(window)) {
+		const activeWindow = getActiveWindow();
+		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(activeWindow)) {
 			try {
-				const parentFolder: FileSystemDirectoryHandle = await window.showDirectoryPicker();
+				const parentFolder: FileSystemDirectoryHandle = await activeWindow.showDirectoryPicker();
 				const operation: IDownloadOperation = {
 					startTime: Date.now(),
 					progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
@@ -710,14 +711,14 @@ export class FileDownload {
 			const disposables = new DisposableStore();
 			disposables.add(toDisposable(() => target.close()));
 
-			disposables.add(once(token.onCancellationRequested)(() => {
+			disposables.add(createSingleCallFunction(token.onCancellationRequested)(() => {
 				disposables.dispose();
 				reject(canceled());
 			}));
 
 			listenStream(sourceStream, {
 				onData: data => {
-					target.write(data.buffer);
+					target.write(data.buffer as Uint8Array<ArrayBuffer>);
 					this.reportProgress(contents.name, contents.size, data.byteLength, operation);
 				},
 				onError: error => {
@@ -735,7 +736,7 @@ export class FileDownload {
 	private async downloadFileUnbufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
 		const contents = await this.fileService.readFile(resource, undefined, token);
 		if (!token.isCancellationRequested) {
-			target.write(contents.value.buffer);
+			target.write(contents.value.buffer as Uint8Array<ArrayBuffer>);
 			this.reportProgress(contents.name, contents.size, contents.value.byteLength, operation);
 		}
 
@@ -826,7 +827,7 @@ export class FileDownload {
 
 		const destination = await this.fileDialogService.showSaveDialog({
 			availableFileSystems: [Schemas.file],
-			saveLabel: mnemonicButtonLabel(localize('downloadButton', "Download")),
+			saveLabel: localize('downloadButton', "Download"),
 			title: localize('chooseWhereToDownload', "Choose Where to Download"),
 			defaultUri
 		});

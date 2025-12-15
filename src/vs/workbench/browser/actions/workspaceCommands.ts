@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { dirname } from 'vs/base/common/resources';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { FileKind } from 'vs/platform/files/common/files';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IFileDialogService, IPickAndOpenOptions } from 'vs/platform/dialogs/common/dialogs';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
-import { IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ILocalizedString } from 'vs/platform/action/common/action';
+import { localize, localize2 } from '../../../nls.js';
+import { hasWorkspaceFileExtension, IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspaceEditingService } from '../../services/workspaces/common/workspaceEditing.js';
+import { dirname } from '../../../base/common/resources.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { mnemonicButtonLabel } from '../../../base/common/labels.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
+import { FileKind } from '../../../platform/files/common/files.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { IQuickInputService, IPickOptions, IQuickPickItem } from '../../../platform/quickinput/common/quickInput.js';
+import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { IFileDialogService, IPickAndOpenOptions } from '../../../platform/dialogs/common/dialogs.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IFileToOpen, IFolderToOpen, IOpenEmptyWindowOptions, IOpenWindowOptions, IWorkspaceToOpen } from '../../../platform/window/common/window.js';
+import { IRecent, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
+import { IPathService } from '../../services/path/common/pathService.js';
+import { ILocalizedString } from '../../../platform/action/common/action.js';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
-export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = { value: localize('addFolderToWorkspace', "Add Folder to Workspace..."), original: 'Add Folder to Workspace...' };
+export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = localize2('addFolderToWorkspace', 'Add Folder to Workspace...');
 
 export const SET_ROOT_FOLDER_COMMAND_ID = 'setRootFolder';
 
@@ -65,7 +65,7 @@ CommandsRegistry.registerCommand({
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 
 		const folders = await selectWorkspaceFolders(accessor);
-		if (!folders || !folders.length) {
+		if (!folders?.length) {
 			return;
 		}
 
@@ -80,7 +80,7 @@ CommandsRegistry.registerCommand({
 		const contextService = accessor.get(IWorkspaceContextService);
 
 		const folders = await selectWorkspaceFolders(accessor);
-		if (!folders || !folders.length) {
+		if (!folders?.length) {
 			return;
 		}
 
@@ -160,6 +160,7 @@ interface IOpenFolderAPICommandOptions {
 	forceLocalWindow?: boolean;
 	forceProfile?: string;
 	forceTempProfile?: boolean;
+	filesToOpen?: UriComponents[];
 }
 
 CommandsRegistry.registerCommand({
@@ -197,15 +198,16 @@ CommandsRegistry.registerCommand({
 			forceTempProfile: arg?.forceTempProfile,
 		};
 
-		const uriToOpen: IWindowOpenable = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
-		return commandService.executeCommand('_files.windowOpen', [uriToOpen], options);
+		const workspaceToOpen: IWorkspaceToOpen | IFolderToOpen = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
+		const filesToOpen: IFileToOpen[] = arg?.filesToOpen?.map(file => ({ fileUri: URI.from(file, true) })) ?? [];
+		return commandService.executeCommand('_files.windowOpen', [workspaceToOpen, ...filesToOpen], options);
 	},
-	description: {
+	metadata: {
 		description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
 		args: [
 			{
 				name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder',
-				constraint: (value: any) => value === undefined || value === null || value instanceof URI
+				constraint: (value: unknown) => value === undefined || value === null || value instanceof URI
 			},
 			{
 				name: 'options',
@@ -213,8 +215,12 @@ CommandsRegistry.registerCommand({
 					'`forceNewWindow`: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. ' +
 					'`forceReuseWindow`: Whether to force opening the folder/workspace in the same window.  Defaults to false. ' +
 					'`noRecentEntry`: Whether the opened URI will appear in the \'Open Recent\' list. Defaults to false. ' +
+					'`forceLocalWindow`: Whether to force opening the folder/workspace in a local window. Defaults to false. ' +
+					'`forceProfile`: The profile to use when opening the folder/workspace. Defaults to the current profile. ' +
+					'`forceTempProfile`: Whether to use a temporary profile when opening the folder/workspace. Defaults to false. ' +
+					'`filesToOpen`: An array of files to open in the new window. Defaults to an empty array. ' +
 					'Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.',
-				constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean'
+				constraint: (value: unknown) => value === undefined || typeof value === 'object' || typeof value === 'boolean'
 			}
 		]
 	}
@@ -235,20 +241,20 @@ CommandsRegistry.registerCommand({
 		const commandService = accessor.get(ICommandService);
 
 		const commandOptions: IOpenEmptyWindowOptions = {
-			forceReuseWindow: options && options.reuseWindow,
-			remoteAuthority: options && options.remoteAuthority
+			forceReuseWindow: options?.reuseWindow,
+			remoteAuthority: options?.remoteAuthority
 		};
 
 		return commandService.executeCommand('_files.newWindow', commandOptions);
 	},
-	description: {
+	metadata: {
 		description: 'Opens an new window depending on the newWindow argument.',
 		args: [
 			{
 				name: 'options',
 				description: '(optional) Options. Object with the following properties: ' +
 					'`reuseWindow`: Whether to open a new window or the same. Defaults to opening in a new window. ',
-				constraint: (value: any) => value === undefined || typeof value === 'object'
+				constraint: (value: unknown) => value === undefined || typeof value === 'object'
 			}
 		]
 	}
@@ -263,7 +269,7 @@ CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.removeFromRecentlyOpened',
-	handler: (accessor: ServicesAccessor, path: string | URI): Promise<any> => {
+	handler: (accessor: ServicesAccessor, path: string | URI): Promise<void> => {
 		const workspacesService = accessor.get(IWorkspacesService);
 
 		if (typeof path === 'string') {
@@ -274,10 +280,10 @@ CommandsRegistry.registerCommand({
 
 		return workspacesService.removeRecentlyOpened([path]);
 	},
-	description: {
+	metadata: {
 		description: 'Removes an entry with the given path from the recently opened list.',
 		args: [
-			{ name: 'path', description: 'URI or URI string to remove from recently opened.', constraint: (value: any) => typeof value === 'string' || value instanceof URI }
+			{ name: 'path', description: 'URI or URI string to remove from recently opened.', constraint: (value: unknown) => typeof value === 'string' || value instanceof URI }
 		]
 	}
 });

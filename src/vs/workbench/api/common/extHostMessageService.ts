@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
+import Severity from '../../../base/common/severity.js';
 import type * as vscode from 'vscode';
-import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 function isMessageItem(item: any): item is vscode.MessageItem {
 	return item && item.title;
@@ -50,6 +50,7 @@ export class ExtHostMessageService {
 		}
 
 		const commands: { title: string; isCloseAffordance: boolean; handle: number }[] = [];
+		let hasCloseAffordance = false;
 
 		for (let handle = 0; handle < items.length; handle++) {
 			const command = items[handle];
@@ -58,8 +59,15 @@ export class ExtHostMessageService {
 			} else if (typeof command === 'object') {
 				const { title, isCloseAffordance } = command;
 				commands.push({ title, isCloseAffordance: !!isCloseAffordance, handle });
+				if (isCloseAffordance) {
+					if (hasCloseAffordance) {
+						this._logService.warn(`[${extension.identifier}] Only one message item can have 'isCloseAffordance':`, command);
+					} else {
+						hasCloseAffordance = true;
+					}
+				}
 			} else {
-				this._logService.warn('Invalid message item:', command);
+				this._logService.warn(`[${extension.identifier}] Invalid message item:`, command);
 			}
 		}
 

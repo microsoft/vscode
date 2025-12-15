@@ -3,14 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Disposable, EventEmitter } from 'vscode';
-import { dirname, sep, relative } from 'path';
+import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env, SourceControlHistoryItem } from 'vscode';
+import { dirname, normalize, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
-import * as byline from 'byline';
+import byline from 'byline';
+import { Stash } from './git';
 
 export const isMacintosh = process.platform === 'darwin';
 export const isWindows = process.platform === 'win32';
+export const isRemote = env.remoteName !== undefined;
+export const isLinux = process.platform === 'linux';
+export const isLinuxSnap = isLinux && !!process.env['SNAP'] && !!process.env['SNAP_REVISION'];
+
+export type Mutable<T> = {
+	-readonly [P in keyof T]: T[P]
+};
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
@@ -35,16 +43,19 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 
 export const EmptyDisposable = toDisposable(() => null);
 
-export function fireEvent<T>(event: Event<T>): Event<T> {
-	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(_ => (listener as any).call(thisArgs), null, disposables);
-}
-
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 	return (listener: (e: O) => any, thisArgs?: any, disposables?: Disposable[]) => event(i => listener.call(thisArgs, map(i)), null, disposables);
 }
 
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+}
+
+export function runAndSubscribeEvent<T>(event: Event<T>, handler: (e: T) => any, initial: T): IDisposable;
+export function runAndSubscribeEvent<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable;
+export function runAndSubscribeEvent<T>(event: Event<T>, handler: (e: T | undefined) => any, initial?: T): IDisposable {
+	handler(initial);
+	return event(e => handler(e));
 }
 
 export function anyEvent<T>(...events: Event<T>[]): Event<T> {
@@ -74,7 +85,7 @@ export function onceEvent<T>(event: Event<T>): Event<T> {
 
 export function debounceEvent<T>(event: Event<T>, delay: number): Event<T> {
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
-		let timer: NodeJS.Timer;
+		let timer: NodeJS.Timeout;
 		return event(e => {
 			clearTimeout(timer);
 			timer = setTimeout(() => listener.call(thisArgs, e), delay);
@@ -100,7 +111,8 @@ export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
 
 export function assign<T>(destination: T, ...sources: any[]): T {
 	for (const source of sources) {
-		Object.keys(source).forEach(key => (destination as any)[key] = source[key]);
+		Object.keys(source).forEach(key =>
+			(destination as Record<string, unknown>)[key] = source[key]);
 	}
 
 	return destination;
@@ -226,7 +238,7 @@ export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 			bytesRead += bytesToRead;
 
 			if (bytesRead === bytes) {
-				(stream as any).destroy(); // Will trigger the close event eventually
+				stream.destroy(); // Will trigger the close event eventually
 			}
 		});
 
@@ -281,14 +293,30 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	return null;
 }
 
+export function truncate(value: string, maxLength = 20, ellipsis = true): string {
+	return value.length <= maxLength ? value : `${value.substring(0, maxLength)}${ellipsis ? '\u2026' : ''}`;
+}
+
+export function subject(value: string): string {
+	const index = value.indexOf('\n');
+	return index === -1 ? value : truncate(value, index, false);
+}
+
 function normalizePath(path: string): string {
 	// Windows & Mac are currently being handled
 	// as case insensitive file systems in VS Code.
 	if (isWindows || isMacintosh) {
-		return path.toLowerCase();
+		path = path.toLowerCase();
 	}
 
-	return path;
+	// Trailing separator
+	if (/[/\\]$/.test(path)) {
+		// Remove trailing separator
+		path = path.substring(0, path.length - 1);
+	}
+
+	// Normalize the path
+	return normalize(path);
 }
 
 export function isDescendant(parent: string, descendant: string): boolean {
@@ -296,11 +324,16 @@ export function isDescendant(parent: string, descendant: string): boolean {
 		return true;
 	}
 
+	// Normalize the paths
+	parent = normalizePath(parent);
+	descendant = normalizePath(descendant);
+
+	// Ensure parent ends with separator
 	if (parent.charAt(parent.length - 1) !== sep) {
 		parent += sep;
 	}
 
-	return normalizePath(descendant).startsWith(normalizePath(parent));
+	return descendant.startsWith(parent);
 }
 
 export function pathEquals(a: string, b: string): boolean {
@@ -311,22 +344,26 @@ export function pathEquals(a: string, b: string): boolean {
  * Given the `repository.root` compute the relative path while trying to preserve
  * the casing of the resource URI. The `repository.root` segment of the path can
  * have a casing mismatch if the folder/workspace is being opened with incorrect
- * casing.
+ * casing which is why we attempt to use substring() before relative().
  */
 export function relativePath(from: string, to: string): string {
-	// On Windows, there are cases in which `from` is a path that contains a trailing `\` character
-	// (ex: C:\, \\server\folder\) due to the implementation of `path.normalize()`. This behavior is
-	// by design as documented in https://github.com/nodejs/node/issues/1765.
-	if (isWindows) {
-		from = from.replace(/\\$/, '');
+	return relativePathWithNoFallback(from, to) ?? relative(from, to);
+}
+
+export function relativePathWithNoFallback(from: string, to: string): string | undefined {
+	// There are cases in which the `from` path may contain a trailing separator at
+	// the end (ex: "C:\", "\\server\folder\" (Windows) or "/" (Linux/macOS)) which
+	// is by design as documented in https://github.com/nodejs/node/issues/1765. If
+	// the trailing separator is missing, we add it.
+	if (from.charAt(from.length - 1) !== sep) {
+		from += sep;
 	}
 
 	if (isDescendant(from, to) && from.length < to.length) {
-		return to.substring(from.length + 1);
+		return to.substring(from.length);
 	}
 
-	// Fallback to `path.relative`
-	return relative(from, to);
+	return undefined;
 }
 
 export function* splitInChunks(array: string[], maxChunkLength: number): IterableIterator<string[]> {
@@ -349,6 +386,27 @@ export function* splitInChunks(array: string[], maxChunkLength: number): Iterabl
 	if (current.length > 0) {
 		yield current;
 	}
+}
+
+/**
+ * @returns whether the provided parameter is defined.
+ */
+export function isDefined<T>(arg: T | null | undefined): arg is T {
+	return !isUndefinedOrNull(arg);
+}
+
+/**
+ * @returns whether the provided parameter is undefined or null.
+ */
+export function isUndefinedOrNull(obj: unknown): obj is undefined | null {
+	return (isUndefined(obj) || obj === null);
+}
+
+/**
+ * @returns whether the provided parameter is undefined.
+ */
+export function isUndefined(obj: unknown): obj is undefined {
+	return (typeof obj === 'undefined');
 }
 
 interface ILimitedTaskFactory<T> {
@@ -483,4 +541,325 @@ export namespace Versions {
 		const [major, minor, patch] = ver.split('.');
 		return from(major, minor, patch, pre);
 	}
+}
+
+export function deltaHistoryItemRefs(before: SourceControlHistoryItemRef[], after: SourceControlHistoryItemRef[]): {
+	added: SourceControlHistoryItemRef[];
+	modified: SourceControlHistoryItemRef[];
+	removed: SourceControlHistoryItemRef[];
+} {
+	if (before.length === 0) {
+		return { added: after, modified: [], removed: [] };
+	}
+
+	const added: SourceControlHistoryItemRef[] = [];
+	const modified: SourceControlHistoryItemRef[] = [];
+	const removed: SourceControlHistoryItemRef[] = [];
+
+	let beforeIdx = 0;
+	let afterIdx = 0;
+
+	while (true) {
+		if (beforeIdx === before.length) {
+			added.push(...after.slice(afterIdx));
+			break;
+		}
+		if (afterIdx === after.length) {
+			removed.push(...before.slice(beforeIdx));
+			break;
+		}
+
+		const beforeElement = before[beforeIdx];
+		const afterElement = after[afterIdx];
+
+		const result = beforeElement.id.localeCompare(afterElement.id);
+
+		if (result === 0) {
+			if (beforeElement.revision !== afterElement.revision) {
+				// modified
+				modified.push(afterElement);
+			}
+
+			beforeIdx += 1;
+			afterIdx += 1;
+		} else if (result < 0) {
+			// beforeElement is smaller -> before element removed
+			removed.push(beforeElement);
+
+			beforeIdx += 1;
+		} else if (result > 0) {
+			// beforeElement is greater -> after element added
+			added.push(afterElement);
+
+			afterIdx += 1;
+		}
+	}
+
+	return { added, modified, removed };
+}
+
+const minute = 60;
+const hour = minute * 60;
+const day = hour * 24;
+const week = day * 7;
+const month = day * 30;
+const year = day * 365;
+
+/**
+ * Create a l10n.td difference of the time between now and the specified date.
+ * @param date The date to generate the difference from.
+ * @param appendAgoLabel Whether to append the " ago" to the end.
+ * @param useFullTimeWords Whether to use full words (eg. seconds) instead of
+ * shortened (eg. secs).
+ * @param disallowNow Whether to disallow the string "now" when the difference
+ * is less than 30 seconds.
+ */
+export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean, disallowNow?: boolean): string {
+	if (typeof date !== 'number') {
+		date = date.getTime();
+	}
+
+	const seconds = Math.round((new Date().getTime() - date) / 1000);
+	if (seconds < -30) {
+		return l10n.t('in {0}', fromNow(new Date().getTime() + seconds * 1000, false));
+	}
+
+	if (!disallowNow && seconds < 30) {
+		return l10n.t('now');
+	}
+
+	let value: number;
+	if (seconds < minute) {
+		value = seconds;
+
+		if (appendAgoLabel) {
+			if (value === 1) {
+				return useFullTimeWords
+					? l10n.t('{0} second ago', value)
+					: l10n.t('{0} sec ago', value);
+			} else {
+				return useFullTimeWords
+					? l10n.t('{0} seconds ago', value)
+					: l10n.t('{0} secs ago', value);
+			}
+		} else {
+			if (value === 1) {
+				return useFullTimeWords
+					? l10n.t('{0} second', value)
+					: l10n.t('{0} sec', value);
+			} else {
+				return useFullTimeWords
+					? l10n.t('{0} seconds', value)
+					: l10n.t('{0} secs', value);
+			}
+		}
+	}
+
+	if (seconds < hour) {
+		value = Math.floor(seconds / minute);
+		if (appendAgoLabel) {
+			if (value === 1) {
+				return useFullTimeWords
+					? l10n.t('{0} minute ago', value)
+					: l10n.t('{0} min ago', value);
+			} else {
+				return useFullTimeWords
+					? l10n.t('{0} minutes ago', value)
+					: l10n.t('{0} mins ago', value);
+			}
+		} else {
+			if (value === 1) {
+				return useFullTimeWords
+					? l10n.t('{0} minute', value)
+					: l10n.t('{0} min', value);
+			} else {
+				return useFullTimeWords
+					? l10n.t('{0} minutes', value)
+					: l10n.t('{0} mins', value);
+			}
+		}
+	}
+
+	if (seconds < day) {
+		value = Math.floor(seconds / hour);
+		if (appendAgoLabel) {
+			if (value === 1) {
+				return useFullTimeWords
+					? l10n.t('{0} hour ago', value)
+					: l10n.t('{0} hr ago', value);
+			} else {
+				return useFullTimeWords
+					? l10n.t('{0} hours ago', value)
+					: l10n.t('{0} hrs ago', value);
+			}
+		} else {
+			if (value === 1) {
+				return useFullTimeWords
+					? l10n.t('{0} hour', value)
+					: l10n.t('{0} hr', value);
+			} else {
+				return useFullTimeWords
+					? l10n.t('{0} hours', value)
+					: l10n.t('{0} hrs', value);
+			}
+		}
+	}
+
+	if (seconds < week) {
+		value = Math.floor(seconds / day);
+		if (appendAgoLabel) {
+			return value === 1
+				? l10n.t('{0} day ago', value)
+				: l10n.t('{0} days ago', value);
+		} else {
+			return value === 1
+				? l10n.t('{0} day', value)
+				: l10n.t('{0} days', value);
+		}
+	}
+
+	if (seconds < month) {
+		value = Math.floor(seconds / week);
+		if (appendAgoLabel) {
+			if (value === 1) {
+				return useFullTimeWords
+					? l10n.t('{0} week ago', value)
+					: l10n.t('{0} wk ago', value);
+			} else {
+				return useFullTimeWords
+					? l10n.t('{0} weeks ago', value)
+					: l10n.t('{0} wks ago', value);
+			}
+		} else {
+			if (value === 1) {
+				return useFullTimeWords
+					? l10n.t('{0} week', value)
+					: l10n.t('{0} wk', value);
+			} else {
+				return useFullTimeWords
+					? l10n.t('{0} weeks', value)
+					: l10n.t('{0} wks', value);
+			}
+		}
+	}
+
+	if (seconds < year) {
+		value = Math.floor(seconds / month);
+		if (appendAgoLabel) {
+			if (value === 1) {
+				return useFullTimeWords
+					? l10n.t('{0} month ago', value)
+					: l10n.t('{0} mo ago', value);
+			} else {
+				return useFullTimeWords
+					? l10n.t('{0} months ago', value)
+					: l10n.t('{0} mos ago', value);
+			}
+		} else {
+			if (value === 1) {
+				return useFullTimeWords
+					? l10n.t('{0} month', value)
+					: l10n.t('{0} mo', value);
+			} else {
+				return useFullTimeWords
+					? l10n.t('{0} months', value)
+					: l10n.t('{0} mos', value);
+			}
+		}
+	}
+
+	value = Math.floor(seconds / year);
+	if (appendAgoLabel) {
+		if (value === 1) {
+			return useFullTimeWords
+				? l10n.t('{0} year ago', value)
+				: l10n.t('{0} yr ago', value);
+		} else {
+			return useFullTimeWords
+				? l10n.t('{0} years ago', value)
+				: l10n.t('{0} yrs ago', value);
+		}
+	} else {
+		if (value === 1) {
+			return useFullTimeWords
+				? l10n.t('{0} year', value)
+				: l10n.t('{0} yr', value);
+		} else {
+			return useFullTimeWords
+				? l10n.t('{0} years', value)
+				: l10n.t('{0} yrs', value);
+		}
+	}
+}
+
+export function getCommitShortHash(scope: Uri, hash: string): string {
+	const config = workspace.getConfiguration('git', scope);
+	const shortHashLength = config.get<number>('commitShortHashLength', 7);
+	return hash.substring(0, shortHashLength);
+}
+
+export function getHistoryItemDisplayName(historyItem: SourceControlHistoryItem): string {
+	return historyItem.references?.length
+		? historyItem.references[0].name
+		: historyItem.displayId ?? historyItem.id;
+}
+
+export type DiagnosticSeverityConfig = 'error' | 'warning' | 'information' | 'hint' | 'none';
+
+export function toDiagnosticSeverity(value: DiagnosticSeverityConfig): DiagnosticSeverity {
+	return value === 'error'
+		? DiagnosticSeverity.Error
+		: value === 'warning'
+			? DiagnosticSeverity.Warning
+			: value === 'information'
+				? DiagnosticSeverity.Information
+				: DiagnosticSeverity.Hint;
+}
+
+export function extractFilePathFromArgs(argv: string[], startIndex: number): string {
+	// Argument doesn't start with a quote
+	const firstArg = argv[startIndex];
+	if (!firstArg.match(/^["']/)) {
+		return firstArg.replace(/^["']+|["':]+$/g, '');
+	}
+
+	// If it starts with a quote, we need to find the matching closing
+	// quote which might be in a later argument if the path contains
+	// spaces
+	const quote = firstArg[0];
+
+	// If the first argument ends with the same quote, it's complete
+	if (firstArg.endsWith(quote) && firstArg.length > 1) {
+		return firstArg.slice(1, -1);
+	}
+
+	// Concatenate arguments until we find the closing quote
+	let path = firstArg;
+	for (let i = startIndex + 1; i < argv.length; i++) {
+		path = `${path} ${argv[i]}`;
+		if (argv[i].endsWith(quote)) {
+			// Found the matching quote
+			return path.slice(1, -1);
+		}
+	}
+
+	// If no closing quote was found, remove
+	// leading quote and return the path as-is
+	return path.slice(1);
+}
+
+export function getStashDescription(stash: Stash): string | undefined {
+	if (!stash.commitDate && !stash.branchName) {
+		return undefined;
+	}
+
+	const descriptionSegments: string[] = [];
+	if (stash.commitDate) {
+		descriptionSegments.push(fromNow(stash.commitDate));
+	}
+	if (stash.branchName) {
+		descriptionSegments.push(stash.branchName);
+	}
+
+	return descriptionSegments.join(' \u2022 ');
 }

@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as types from 'vs/base/common/types';
-import { CursorState, ICursorSimpleModel, PartialCursorState, SelectionStartKind, SingleCursorState } from 'vs/editor/common/cursorCommon';
-import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
-import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IViewModel } from 'vs/editor/common/viewModel';
+import * as types from '../../../base/common/types.js';
+import { CursorState, ICursorSimpleModel, PartialCursorState, SelectionStartKind, SingleCursorState } from '../cursorCommon.js';
+import { MoveOperations } from './cursorMoveOperations.js';
+import { WordOperations } from './cursorWordOperations.js';
+import { IPosition, Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { ICommandMetadata } from '../../../platform/commands/common/commands.js';
+import { IViewModel } from '../viewModel.js';
+import { TextDirection } from '../model.js';
 
 export class CursorMoveCommands {
 
@@ -183,17 +184,17 @@ export class CursorMoveCommands {
 
 		if (!inSelectionMode) {
 			// Entering line selection for the first time
-			const lineCount = viewModel.model.getLineCount();
+			const lineCount = viewModel.getLineCount();
 
-			let selectToLineNumber = position.lineNumber + 1;
+			let selectToLineNumber = viewPosition.lineNumber + 1;
 			let selectToColumn = 1;
 			if (selectToLineNumber > lineCount) {
 				selectToLineNumber = lineCount;
-				selectToColumn = viewModel.model.getLineMaxColumn(selectToLineNumber);
+				selectToColumn = viewModel.getLineMaxColumn(selectToLineNumber);
 			}
 
-			return CursorState.fromModelState(new SingleCursorState(
-				new Range(position.lineNumber, 1, selectToLineNumber, selectToColumn), SelectionStartKind.Line, 0,
+			return CursorState.fromViewState(new SingleCursorState(
+				new Range(viewPosition.lineNumber, 1, selectToLineNumber, selectToColumn), SelectionStartKind.Line, 0,
 				new Position(selectToLineNumber, selectToColumn), 0
 			));
 		}
@@ -431,11 +432,16 @@ export class CursorMoveCommands {
 	}
 
 	private static _moveLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
-		return cursors.map(cursor =>
-			CursorState.fromViewState(
-				MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
-			)
-		);
+		return cursors.map(cursor => {
+			const direction = viewModel.getTextDirection(cursor.viewState.position.lineNumber);
+			const isRtl = direction === TextDirection.RTL;
+
+			return CursorState.fromViewState(
+				isRtl
+					? MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+					: MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+			);
+		});
 	}
 
 	private static _moveHalfLineLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
@@ -443,18 +449,23 @@ export class CursorMoveCommands {
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
 			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const halfLine = Math.round(viewModel.getLineContent(viewLineNumber).length / 2);
+			const halfLine = Math.round(viewModel.getLineLength(viewLineNumber) / 2);
 			result[i] = CursorState.fromViewState(MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, halfLine));
 		}
 		return result;
 	}
 
 	private static _moveRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
-		return cursors.map(cursor =>
-			CursorState.fromViewState(
-				MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
-			)
-		);
+		return cursors.map(cursor => {
+			const direction = viewModel.getTextDirection(cursor.viewState.position.lineNumber);
+			const isRtl = direction === TextDirection.RTL;
+
+			return CursorState.fromViewState(
+				isRtl
+					? MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+					: MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+			);
+		});
 	}
 
 	private static _moveHalfLineRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
@@ -462,7 +473,7 @@ export class CursorMoveCommands {
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
 			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const halfLine = Math.round(viewModel.getLineContent(viewLineNumber).length / 2);
+			const halfLine = Math.round(viewModel.getLineLength(viewLineNumber) / 2);
 			result[i] = CursorState.fromViewState(MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, halfLine));
 		}
 		return result;
@@ -570,12 +581,12 @@ export class CursorMoveCommands {
 
 export namespace CursorMove {
 
-	const isCursorMoveArgs = function (arg: any): boolean {
+	const isCursorMoveArgs = function (arg: unknown): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
 
-		const cursorMoveArg: RawArguments = arg;
+		const cursorMoveArg: RawArguments = arg as RawArguments;
 
 		if (!types.isString(cursorMoveArg.to)) {
 			return false;
@@ -593,10 +604,14 @@ export namespace CursorMove {
 			return false;
 		}
 
+		if (!types.isUndefined(cursorMoveArg.noHistory) && !types.isBoolean(cursorMoveArg.noHistory)) {
+			return false;
+		}
+
 		return true;
 	};
 
-	export const description = <ICommandHandlerDescription>{
+	export const metadata: ICommandMetadata = {
 		description: 'Move cursor to a logical position in the view',
 		args: [
 			{
@@ -615,6 +630,7 @@ export namespace CursorMove {
 						\`\`\`
 					* 'value': Number of units to move. Default is '1'.
 					* 'select': If 'true' makes the selection. Default is 'false'.
+					* 'noHistory': If 'true' does not add the movement to navigation history. Default is 'false'.
 				`,
 				constraint: isCursorMoveArgs,
 				schema: {
@@ -634,6 +650,10 @@ export namespace CursorMove {
 							'default': 1
 						},
 						'select': {
+							'type': 'boolean',
+							'default': false
+						},
+						'noHistory': {
 							'type': 'boolean',
 							'default': false
 						}
@@ -686,6 +706,7 @@ export namespace CursorMove {
 		select?: boolean;
 		by?: string;
 		value?: number;
+		noHistory?: boolean;
 	}
 
 	export function parse(args: Partial<RawArguments>): ParsedArguments | null {
@@ -766,7 +787,8 @@ export namespace CursorMove {
 			direction: direction,
 			unit: unit,
 			select: (!!args.select),
-			value: (args.value || 1)
+			value: (args.value || 1),
+			noHistory: (!!args.noHistory)
 		};
 	}
 
@@ -775,6 +797,7 @@ export namespace CursorMove {
 		unit: Unit;
 		select: boolean;
 		value: number;
+		noHistory: boolean;
 	}
 
 	export interface SimpleMoveArguments {

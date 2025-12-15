@@ -22,9 +22,6 @@
   "bugs": {
     "url": "https://github.com/Microsoft/vscode-references-view/issues"
   },
-  "categories": [
-    "Programming Languages"
-  ],
   "activationEvents": [
     "onCommand:references-view.find",
     "onCommand:editor.action.showReferences"
@@ -132,13 +129,13 @@
         "command": "references-view.showOutgoingCalls",
         "title": "%cmd.references-view.showOutgoingCalls%",
         "category": "Calls",
-        "icon": "$(call-outgoing)"
+        "icon": "$(call-incoming)"
       },
       {
         "command": "references-view.showIncomingCalls",
         "title": "%cmd.references-view.showIncomingCalls%",
         "category": "Calls",
-        "icon": "$(call-incoming)"
+        "icon": "$(call-outgoing)"
       },
       {
         "command": "references-view.removeCallItem",
@@ -402,6 +399,6 @@
     "watch": "npx gulp watch-extension:references-view"
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "22.x"
   }
 }

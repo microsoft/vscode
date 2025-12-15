@@ -1,0 +1,165 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_QUALITY
+    type: string
+
+steps:
+  - template: ../common/checkout.yml@self
+
+  - task: NodeTool@0
+    inputs:
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "3.x"
+      addToPath: true
+
+  - template: ../distro/download-distro.yml@self
+
+  - task: AzureKeyVault@2
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: vscode
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "github-distro-mixin-password"
+
+  - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      exec { npm config set registry "$env:NPM_REGISTRY" }
+      $NpmrcPath = (npm config get userconfig)
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - pwsh: |
+      $includes = @'
+        {
+          'target_defaults': {
+            'conditions': [
+              ['OS=="win"', {
+                'msvs_settings': {
+                  'VCCLCompilerTool': {
+                    'AdditionalOptions': [
+                      '/Zi',
+                      '/FS'
+                    ],
+                  },
+                  'VCLinkerTool': {
+                    'AdditionalOptions': [
+                      '/profile'
+                    ]
+                  }
+                }
+              }]
+            ]
+          }
+        }
+      '@
+
+      if (!(Test-Path "~/.gyp")) {
+        mkdir "~/.gyp"
+      }
+      echo $includes > "~/.gyp/include.gypi"
+    displayName: Create include.gypi
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { npm ci }
+    env:
+      npm_config_arch: ${{ parameters.VSCODE_ARCH }}
+      npm_config_foreground_scripts: "true"
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    retryCountOnTaskFailure: 5
+    displayName: Install dependencies
+
+  - script: node build/azure-pipelines/distro/mixin-npm.ts
+    displayName: Mixin distro node modules
+
+  - script: node build/azure-pipelines/distro/mixin-quality.ts
+    displayName: Mixin distro quality
+    env:
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+
+  - powershell: npm run compile
+    displayName: Compile
+
+  - powershell: npm run gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download Symbols
+
+  - powershell: |
+      Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.exe"
+      Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.dll"
+      Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.node"
+      Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.pdb"
+    displayName: List files
+
+  - task: PublishSymbols@2
+    displayName: 'Publish Symbols to Artifacts'
+    inputs:
+      SymbolsFolder: '$(Agent.BuildDirectory)\scanbin'
+      SearchPattern: '**/*.pdb'
+      IndexSources: false
+      PublishSymbols: true
+      SymbolServerType: 'TeamServices'
+      SymbolsProduct: 'vscode-client'
+
+  - task: CopyFiles@2
+    displayName: 'Collect Symbols for API Scan'
+    inputs:
+      SourceFolder: $(Agent.BuildDirectory)
+      Contents: 'scanbin\**\*.pdb'
+      TargetFolder: '$(Agent.BuildDirectory)\symbols'
+      flattenFolders: true
+    condition: succeeded()
+
+  - task: APIScan@2
+    inputs:
+      softwareFolder: $(Agent.BuildDirectory)\scanbin
+      softwareName: 'vscode-client'
+      softwareVersionNum: '1'
+      symbolsFolder: 'srv*https://symweb.azurefd.net;$(Agent.BuildDirectory)\symbols'
+      isLargeApp: false
+      toolVersion: 'Latest'
+      azureSubscription: 'vscode-apiscan'
+    displayName: Run ApiScan
+    condition: succeeded()
+    env:
+      AzureServicesAuthConnectionString: RunAs=App;AppId=c0940da5-8bd3-4dd3-8af1-40774b50edbd;TenantId=72f988bf-86f1-41af-91ab-2d7cd011db47;ServiceConnectionId=3e55d992-b60d-414d-9071-e4fad359c748;
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  - task: PublishSecurityAnalysisLogs@3
+    inputs:
+      ArtifactName: CodeAnalysisLogs
+      ArtifactType: Container
+      PublishProcessedResults: false
+      AllTools: true
+
+  # TSA Upload
+  - task: securedevelopmentteam.vss-secure-development-tools.build-task-uploadtotsa.TSAUpload@2
+    displayName: TSA Upload
+    continueOnError: true
+    inputs:
+      GdnPublishTsaOnboard: true
+      GdnPublishTsaConfigFile: '$(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json'

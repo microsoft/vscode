@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from 'vs/base/common/product';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IExtensionManagementService, IExtensionTipsService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { disposableTimeout } from 'vs/base/common/async';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { env } from 'vs/base/common/process';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isNonEmptyArray } from '../../../base/common/arrays.js';
+import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from '../../../base/common/product.js';
+import { joinPath } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IExtensionManagementService, IExtensionTipsService, ILocalExtension } from './extensionManagement.js';
+import { IFileService } from '../../files/common/files.js';
+import { IProductService } from '../../product/common/productService.js';
+import { disposableTimeout } from '../../../base/common/async.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Event } from '../../../base/common/event.js';
+import { join } from '../../../base/common/path.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { env } from '../../../base/common/process.js';
+import { areSameExtensions } from './extensionManagementUtil.js';
+import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from '../../extensionRecommendations/common/extensionRecommendations.js';
+import { ExtensionType } from '../../extensions/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 //#region Base Extension Tips Service
 
 export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly allConfigBasedTips: Map<string, IRawConfigBasedExtensionTip> = new Map<string, IRawConfigBasedExtensionTip>();
 
@@ -111,8 +111,8 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 	constructor(
 		private readonly userHome: URI,
 		private readonly windowEvents: {
-			readonly onDidOpenWindow: Event<unknown>;
-			readonly onDidFocusWindow: Event<unknown>;
+			readonly onDidOpenMainWindow: Event<unknown>;
+			readonly onDidFocusMainWindow: Event<unknown>;
 		},
 		private readonly telemetryService: ITelemetryService,
 		private readonly extensionManagementService: IExtensionManagementService,
@@ -154,11 +154,11 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 			3s has come out to be the good number to fetch and prompt important exe based recommendations
 			Also fetch important exe based recommendations for reporting telemetry
 		*/
-		this._register(disposableTimeout(async () => {
+		disposableTimeout(async () => {
 			await this.collectTips();
 			this.promptHighImportanceExeBasedTip();
 			this.promptMediumImportanceExeBasedTip();
-		}, 3000));
+		}, 3000, this._store);
 	}
 
 	override async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
@@ -237,13 +237,14 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 						break;
 					case RecommendationsNotificationResult.IncompatibleWindow: {
 						// Recommended in incompatible window. Schedule the prompt after active window change
-						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.windowEvents.onDidOpenWindow, this.windowEvents.onDidFocusWindow)));
+						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.windowEvents.onDidOpenMainWindow, this.windowEvents.onDidFocusMainWindow)));
 						this._register(onActiveWindowChange(() => this.promptHighImportanceExeBasedTip()));
 						break;
 					}
 					case RecommendationsNotificationResult.TooMany: {
 						// Too many notifications. Schedule the prompt after one hour
-						const disposable = this._register(disposableTimeout(() => { disposable.dispose(); this.promptHighImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
+						const disposable = this._register(new MutableDisposable());
+						disposable.value = disposableTimeout(() => { disposable.dispose(); this.promptHighImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */);
 						break;
 					}
 				}
@@ -263,7 +264,8 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 		const promptInterval = 7 * 24 * 60 * 60 * 1000; // 7 Days
 		if (timeSinceLastPrompt < promptInterval) {
 			// Wait until interval and prompt
-			const disposable = this._register(disposableTimeout(() => { disposable.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval - timeSinceLastPrompt));
+			const disposable = this._register(new MutableDisposable());
+			disposable.value = disposableTimeout(() => { disposable.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval - timeSinceLastPrompt);
 			return;
 		}
 
@@ -278,7 +280,8 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 						this.addToRecommendedExecutables(tips[0].exeName, tips);
 
 						// Schedule the next recommendation for next internval
-						const disposable1 = this._register(disposableTimeout(() => { disposable1.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval));
+						const disposable1 = this._register(new MutableDisposable());
+						disposable1.value = disposableTimeout(() => { disposable1.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval);
 						break;
 					}
 					case RecommendationsNotificationResult.Ignored:
@@ -289,13 +292,14 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 
 					case RecommendationsNotificationResult.IncompatibleWindow: {
 						// Recommended in incompatible window. Schedule the prompt after active window change
-						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.windowEvents.onDidOpenWindow, this.windowEvents.onDidFocusWindow)));
+						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.windowEvents.onDidOpenMainWindow, this.windowEvents.onDidFocusMainWindow)));
 						this._register(onActiveWindowChange(() => this.promptMediumImportanceExeBasedTip()));
 						break;
 					}
 					case RecommendationsNotificationResult.TooMany: {
 						// Too many notifications. Schedule the prompt after one hour
-						const disposable2 = this._register(disposableTimeout(() => { disposable2.dispose(); this.promptMediumImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
+						const disposable2 = this._register(new MutableDisposable());
+						disposable2.value = disposableTimeout(() => { disposable2.dispose(); this.promptMediumImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */);
 						break;
 					}
 				}

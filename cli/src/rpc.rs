@@ -105,7 +105,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 		F: Fn(P, &C) -> Result<R, AnyError> + Send + Sync + 'static,
 	{
 		if self.methods.contains_key(method_name) {
-			panic!("Method already registered: {}", method_name);
+			panic!("Method already registered: {method_name}");
 		}
 
 		let serial = self.serializer.clone();
@@ -121,7 +121,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 								id,
 								error: ResponseError {
 									code: 0,
-									message: format!("{:?}", err),
+									message: format!("{err:?}"),
 								},
 							})
 						})
@@ -135,7 +135,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 							id,
 							error: ResponseError {
 								code: -1,
-								message: format!("{:?}", err),
+								message: format!("{err:?}"),
 							},
 						})
 					}),
@@ -165,7 +165,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 								id,
 								error: ResponseError {
 									code: 0,
-									message: format!("{:?}", err),
+									message: format!("{err:?}"),
 								},
 							})
 						}))
@@ -186,7 +186,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 								id,
 								error: ResponseError {
 									code: -1,
-									message: format!("{:?}", err),
+									message: format!("{err:?}"),
 								},
 							})
 						}),
@@ -226,7 +226,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 									id,
 									error: ResponseError {
 										code: 0,
-										message: format!("{:?}", err),
+										message: format!("{err:?}"),
 									},
 								})
 							}))
@@ -259,7 +259,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 								id,
 								error: ResponseError {
 									code: -1,
-									message: format!("{:?}", err),
+									message: format!("{err:?}"),
 								},
 							})
 						}),
@@ -431,7 +431,7 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 						id,
 						error: ResponseError {
 							code: -1,
-							message: format!("Method not found: {}", method_name),
+							message: format!("Method not found: {method_name}"),
 						},
 					})
 				})),
@@ -531,6 +531,7 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 struct StreamRec {
 	write: Option<WriteHalf<DuplexStream>>,
 	q: Vec<Vec<u8>>,
+	ended: bool,
 }
 
 #[derive(Clone, Default)]
@@ -540,12 +541,23 @@ struct Streams {
 
 impl Streams {
 	pub async fn remove(&self, id: u32) {
-		let stream = self.map.lock().unwrap().remove(&id);
-		if let Some(s) = stream {
-			// if there's no 'write' right now, it'll shut down in the write_loop
-			if let Some(mut w) = s.write {
-				let _ = w.shutdown().await;
+		let mut remove = None;
+
+		{
+			let mut map = self.map.lock().unwrap();
+			if let Some(s) = map.get_mut(&id) {
+				if let Some(w) = s.write.take() {
+					map.remove(&id);
+					remove = Some(w);
+				} else {
+					s.ended = true; // will shut down in write loop
+				}
 			}
+		}
+
+		// do this outside of the sync lock:
+		if let Some(mut w) = remove {
+			let _ = w.shutdown().await;
 		}
 	}
 
@@ -566,6 +578,7 @@ impl Streams {
 			StreamRec {
 				write: Some(stream),
 				q: Vec::new(),
+				ended: false,
 			},
 		);
 	}
@@ -595,8 +608,13 @@ async fn write_loop(
 			};
 
 			if stream_rec.q.is_empty() {
-				stream_rec.write = Some(w);
-				return;
+				if stream_rec.ended {
+					lock.remove(&id);
+					break;
+				} else {
+					stream_rec.write = Some(w);
+					return;
+				}
 			}
 
 			std::mem::swap(&mut stream_rec.q, &mut items_vec);
@@ -616,6 +634,7 @@ const METHOD_STREAMS_STARTED: &str = "streams_started";
 const METHOD_STREAM_DATA: &str = "stream_data";
 const METHOD_STREAM_ENDED: &str = "stream_ended";
 
+#[allow(dead_code)] // false positive
 trait AssertIsSync: Sync {}
 impl<S: Serialization, C: Send + Sync> AssertIsSync for RpcDispatcher<S, C> {}
 
@@ -690,4 +709,47 @@ pub enum MaybeSync {
 	Stream((Option<StreamDto>, BoxFuture<'static, Option<Vec<u8>>>)),
 	Future(BoxFuture<'static, Option<Vec<u8>>>),
 	Sync(Option<Vec<u8>>),
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[tokio::test]
+	async fn test_remove() {
+		let streams = Streams::default();
+		let (writer, mut reader) = tokio::io::duplex(1024);
+		streams.insert(1, tokio::io::split(writer).1);
+		streams.remove(1).await;
+
+		assert!(streams.map.lock().unwrap().get(&1).is_none());
+		let mut buffer = Vec::new();
+		assert_eq!(reader.read_to_end(&mut buffer).await.unwrap(), 0);
+	}
+
+	#[tokio::test]
+	async fn test_write() {
+		let streams = Streams::default();
+		let (writer, mut reader) = tokio::io::duplex(1024);
+		streams.insert(1, tokio::io::split(writer).1);
+		streams.write(1, vec![1, 2, 3]);
+
+		let mut buffer = [0; 3];
+		assert_eq!(reader.read_exact(&mut buffer).await.unwrap(), 3);
+		assert_eq!(buffer, [1, 2, 3]);
+	}
+
+	#[tokio::test]
+	async fn test_write_with_immediate_end() {
+		let streams = Streams::default();
+		let (writer, mut reader) = tokio::io::duplex(1);
+		streams.insert(1, tokio::io::split(writer).1);
+		streams.write(1, vec![1, 2, 3]); // spawn write loop
+		streams.write(1, vec![4, 5, 6]); // enqueued while writing
+		streams.remove(1).await; // end stream
+
+		let mut buffer = Vec::new();
+		assert_eq!(reader.read_to_end(&mut buffer).await.unwrap(), 6);
+		assert_eq!(buffer, vec![1, 2, 3, 4, 5, 6]);
+	}
 }

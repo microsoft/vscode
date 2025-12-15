@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { mock } from 'vs/base/test/common/mock';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { setupInstantiationService } from './testNotebookEditor.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { INotebookKernel, INotebookKernelService, VariablesResult } from '../../common/notebookKernelService.js';
+import { NotebookKernelService } from '../../browser/services/notebookKernelServiceImpl.js';
+import { INotebookService } from '../../common/notebookService.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { TransientOptions } from '../../common/notebookCommon.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 
 suite('NotebookKernelService', () => {
 
@@ -29,6 +32,8 @@ suite('NotebookKernelService', () => {
 	teardown(() => {
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 		disposables = new DisposableStore();
@@ -51,7 +56,7 @@ suite('NotebookKernelService', () => {
 				};
 			}
 		});
-		kernelService = instantiationService.createInstance(NotebookKernelService);
+		kernelService = disposables.add(instantiationService.createInstance(NotebookKernelService));
 		instantiationService.set(INotebookKernelService, kernelService);
 	});
 
@@ -63,11 +68,11 @@ suite('NotebookKernelService', () => {
 		const k1 = new TestNotebookKernel({ label: 'z' });
 		const k2 = new TestNotebookKernel({ label: 'a' });
 
-		kernelService.registerKernel(k1);
-		kernelService.registerKernel(k2);
+		disposables.add(kernelService.registerKernel(k1));
+		disposables.add(kernelService.registerKernel(k2));
 
 		// equal priorities -> sort by name
-		let info = kernelService.getMatchingKernel({ uri: u1, viewType: 'foo' });
+		let info = kernelService.getMatchingKernel({ uri: u1, notebookType: 'foo' });
 		assert.ok(info.all[0] === k2);
 		assert.ok(info.all[1] === k1);
 
@@ -76,18 +81,18 @@ suite('NotebookKernelService', () => {
 		kernelService.updateKernelNotebookAffinity(k2, u2, 1);
 
 		// updated
-		info = kernelService.getMatchingKernel({ uri: u1, viewType: 'foo' });
+		info = kernelService.getMatchingKernel({ uri: u1, notebookType: 'foo' });
 		assert.ok(info.all[0] === k2);
 		assert.ok(info.all[1] === k1);
 
 		// NOT updated
-		info = kernelService.getMatchingKernel({ uri: u2, viewType: 'foo' });
+		info = kernelService.getMatchingKernel({ uri: u2, notebookType: 'foo' });
 		assert.ok(info.all[0] === k2);
 		assert.ok(info.all[1] === k1);
 
 		// reset
 		kernelService.updateKernelNotebookAffinity(k2, u1, undefined);
-		info = kernelService.getMatchingKernel({ uri: u1, viewType: 'foo' });
+		info = kernelService.getMatchingKernel({ uri: u1, notebookType: 'foo' });
 		assert.ok(info.all[0] === k2);
 		assert.ok(info.all[1] === k1);
 	});
@@ -96,20 +101,20 @@ suite('NotebookKernelService', () => {
 		const notebook = URI.parse('foo:///one');
 
 		const kernel = new TestNotebookKernel();
-		kernelService.registerKernel(kernel);
+		disposables.add(kernelService.registerKernel(kernel));
 
-		let info = kernelService.getMatchingKernel({ uri: notebook, viewType: 'foo' });
+		let info = kernelService.getMatchingKernel({ uri: notebook, notebookType: 'foo' });
 		assert.strictEqual(info.all.length, 1);
 		assert.ok(info.all[0] === kernel);
 
 		const betterKernel = new TestNotebookKernel();
-		kernelService.registerKernel(betterKernel);
+		disposables.add(kernelService.registerKernel(betterKernel));
 
-		info = kernelService.getMatchingKernel({ uri: notebook, viewType: 'foo' });
+		info = kernelService.getMatchingKernel({ uri: notebook, notebookType: 'foo' });
 		assert.strictEqual(info.all.length, 2);
 
 		kernelService.updateKernelNotebookAffinity(betterKernel, notebook, 2);
-		info = kernelService.getMatchingKernel({ uri: notebook, viewType: 'foo' });
+		info = kernelService.getMatchingKernel({ uri: notebook, notebookType: 'foo' });
 		assert.strictEqual(info.all.length, 2);
 		assert.ok(info.all[0] === betterKernel);
 		assert.ok(info.all[1] === kernel);
@@ -118,13 +123,13 @@ suite('NotebookKernelService', () => {
 	test('onDidChangeSelectedNotebooks not fired on initial notebook open #121904', function () {
 
 		const uri = URI.parse('foo:///one');
-		const jupyter = { uri, viewType: 'jupyter' };
-		const dotnet = { uri, viewType: 'dotnet' };
+		const jupyter = { uri, viewType: 'jupyter', notebookType: 'jupyter' };
+		const dotnet = { uri, viewType: 'dotnet', notebookType: 'dotnet' };
 
 		const jupyterKernel = new TestNotebookKernel({ viewType: jupyter.viewType });
 		const dotnetKernel = new TestNotebookKernel({ viewType: dotnet.viewType });
-		kernelService.registerKernel(jupyterKernel);
-		kernelService.registerKernel(dotnetKernel);
+		disposables.add(kernelService.registerKernel(jupyterKernel));
+		disposables.add(kernelService.registerKernel(dotnetKernel));
 
 		kernelService.selectKernelForNotebook(jupyterKernel, jupyter);
 		kernelService.selectKernelForNotebook(dotnetKernel, dotnet);
@@ -139,13 +144,13 @@ suite('NotebookKernelService', () => {
 	test('onDidChangeSelectedNotebooks not fired on initial notebook open #121904, p2', async function () {
 
 		const uri = URI.parse('foo:///one');
-		const jupyter = { uri, viewType: 'jupyter' };
-		const dotnet = { uri, viewType: 'dotnet' };
+		const jupyter = { uri, viewType: 'jupyter', notebookType: 'jupyter' };
+		const dotnet = { uri, viewType: 'dotnet', notebookType: 'dotnet' };
 
 		const jupyterKernel = new TestNotebookKernel({ viewType: jupyter.viewType });
 		const dotnetKernel = new TestNotebookKernel({ viewType: dotnet.viewType });
-		kernelService.registerKernel(jupyterKernel);
-		kernelService.registerKernel(dotnetKernel);
+		disposables.add(kernelService.registerKernel(jupyterKernel));
+		disposables.add(kernelService.registerKernel(dotnetKernel));
 
 		kernelService.selectKernelForNotebook(jupyterKernel, jupyter);
 		kernelService.selectKernelForNotebook(dotnetKernel, dotnet);
@@ -160,7 +165,7 @@ suite('NotebookKernelService', () => {
 		{
 			// open as jupyter -> bind event
 			const p1 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
-			const d1 = instantiationService.createInstance(NotebookTextModel, jupyter.viewType, jupyter.uri, [], {}, transientOptions);
+			const d1 = disposables.add(instantiationService.createInstance(NotebookTextModel, jupyter.viewType, jupyter.uri, [], {}, transientOptions));
 			onDidAddNotebookDocument.fire(d1);
 			const event = await p1;
 			assert.strictEqual(event.newKernel, jupyterKernel.id);
@@ -168,7 +173,7 @@ suite('NotebookKernelService', () => {
 		{
 			// RE-open as dotnet -> bind event
 			const p2 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
-			const d2 = instantiationService.createInstance(NotebookTextModel, dotnet.viewType, dotnet.uri, [], {}, transientOptions);
+			const d2 = disposables.add(instantiationService.createInstance(NotebookTextModel, dotnet.viewType, dotnet.uri, [], {}, transientOptions));
 			onDidAddNotebookDocument.fire(d2);
 			const event2 = await p2;
 			assert.strictEqual(event2.newKernel, dotnetKernel.id);
@@ -193,6 +198,9 @@ class TestNotebookKernel implements INotebookKernel {
 	}
 	cancelNotebookCellExecution(): Promise<void> {
 		throw new Error('Method not implemented.');
+	}
+	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableProducer<VariablesResult> {
+		return AsyncIterableProducer.EMPTY;
 	}
 
 	constructor(opts?: { languages?: string[]; label?: string; viewType?: string }) {

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
-import { MAX_FOLDING_REGIONS, FoldRange, FoldingRegions, FoldSource } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { RangesCollector, computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { FoldingMarkers } from '../../../../common/languages/languageConfiguration.js';
+import { MAX_FOLDING_REGIONS, FoldRange, FoldingRegions, FoldSource } from '../../browser/foldingRanges.js';
+import { RangesCollector, computeRanges } from '../../browser/indentRangeProvider.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
 
 const markers: FoldingMarkers = {
 	start: /^#region$/,
@@ -15,7 +16,7 @@ const markers: FoldingMarkers = {
 };
 
 suite('FoldingRanges', () => {
-
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const foldRange = (from: number, to: number, collapsed: boolean | undefined = undefined, source: FoldSource = FoldSource.provider, type: string | undefined = undefined) =>
 		<FoldRange>{
 			startLineNumber: from,

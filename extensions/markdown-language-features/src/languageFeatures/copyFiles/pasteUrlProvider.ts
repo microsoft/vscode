@@ -4,46 +4,80 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { IMdParser } from '../../markdownEngine';
 import { Mime } from '../../util/mimes';
-import { createEditAddingLinksForUriList, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink, validateLink } from './shared';
+import { UriList } from '../../util/uriList';
+import { createInsertUriListEdit, linkEditKind } from './shared';
+import { InsertMarkdownLink, findValidUriInText, shouldInsertMarkdownLinkByDefault } from './smartDropOrPaste';
 
+/**
+ * Adds support for pasting text uris to create markdown links.
+ *
+ * This only applies to `text/plain`. Other mimes like `text/uri-list` are handled by ResourcePasteOrDropProvider.
+ */
 class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 
-	public static readonly id = 'insertMarkdownLink';
+	public static readonly kind = linkEditKind;
 
-	public static readonly pasteMimeTypes = [
-		Mime.textPlain,
-	];
+	public static readonly pasteMimeTypes = [Mime.textPlain];
+
+	constructor(
+		private readonly _parser: IMdParser,
+	) { }
 
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
 		ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
+		context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
-	): Promise<vscode.DocumentPasteEdit | undefined> {
-		const pasteUrlSetting = getPasteUrlAsFormattedLinkSetting(document);
-		if (pasteUrlSetting === PasteUrlAsFormattedLink.Never) {
+	): Promise<vscode.DocumentPasteEdit[] | undefined> {
+		const pasteUrlSetting = vscode.workspace.getConfiguration('markdown', document)
+			.get<InsertMarkdownLink>('editor.pasteUrlAsFormattedLink.enabled', InsertMarkdownLink.SmartWithSelection);
+		if (pasteUrlSetting === InsertMarkdownLink.Never) {
 			return;
 		}
 
 		const item = dataTransfer.get(Mime.textPlain);
-		const urlList = await item?.asString();
-		if (token.isCancellationRequested || !urlList || !validateLink(urlList).isValid) {
+		const text = await item?.asString();
+		if (token.isCancellationRequested || !text) {
 			return;
 		}
 
-		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, validateLink(urlList).cleanedUrlList, true, pasteUrlSetting === PasteUrlAsFormattedLink.Smart, token);
-		if (!pasteEdit) {
+		// TODO: If the user has explicitly requested to paste as a markdown link,
+		// try to paste even if we don't have a valid uri
+		const uriText = findValidUriInText(text);
+		if (!uriText) {
 			return;
 		}
 
-		const edit = new vscode.DocumentPasteEdit('', pasteEdit.label);
-		edit.additionalEdit = pasteEdit.additionalEdits;
-		edit.yieldTo = pasteEdit.markdownLink ? undefined : [{ mimeType: Mime.textPlain }];
-		return edit;
+		const edit = createInsertUriListEdit(document, ranges, UriList.from(uriText), {
+			linkKindHint: context.only,
+			preserveAbsoluteUris: true
+		});
+		if (!edit) {
+			return;
+		}
+
+		const pasteEdit = new vscode.DocumentPasteEdit('', edit.label, PasteUrlEditProvider.kind);
+		const workspaceEdit = new vscode.WorkspaceEdit();
+		workspaceEdit.set(document.uri, edit.edits);
+		pasteEdit.additionalEdit = workspaceEdit;
+
+		if (!(await shouldInsertMarkdownLinkByDefault(this._parser, document, pasteUrlSetting, ranges, token))) {
+			pasteEdit.yieldTo = [
+				vscode.DocumentDropOrPasteEditKind.Text,
+				vscode.DocumentDropOrPasteEditKind.Empty.append('uri')
+			];
+		}
+
+		return [pasteEdit];
 	}
 }
 
-export function registerLinkPasteSupport(selector: vscode.DocumentSelector,) {
-	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteUrlEditProvider(), PasteUrlEditProvider);
+export function registerPasteUrlSupport(selector: vscode.DocumentSelector, parser: IMdParser) {
+	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteUrlEditProvider(parser), {
+		providedPasteEditKinds: [PasteUrlEditProvider.kind],
+		pasteMimeTypes: PasteUrlEditProvider.pasteMimeTypes,
+	});
 }

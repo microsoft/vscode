@@ -4,48 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
-import * as assert from 'assert';
-import * as json from 'vs/base/common/json';
-import { Event } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestEnvironmentService, TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import * as uuid from 'vs/base/common/uuid';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { ConfigurationEditing, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS, IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CommandService } from 'vs/workbench/services/commands/common/commandService';
-import { URI } from 'vs/base/common/uri';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { IFileService } from 'vs/platform/files/common/files';
-import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { joinPath } from 'vs/base/common/resources';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
-import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { hash } from 'vs/base/common/hash';
-import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import assert from 'assert';
+import * as json from '../../../../../base/common/json.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { TestEnvironmentService, TestTextFileService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import * as uuid from '../../../../../base/common/uuid.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { WorkspaceService } from '../../browser/configurationService.js';
+import { ConfigurationEditing, ConfigurationEditingErrorCode, EditableConfigurationTarget } from '../../common/configurationEditing.js';
+import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS, IConfigurationCache } from '../../common/configuration.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITextFileService } from '../../../textfile/common/textfiles.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { TextModelResolverService } from '../../../textmodelResolver/common/textModelResolverService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandService } from '../../../commands/common/commandService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { KeybindingsEditingService, IKeybindingEditingService } from '../../../keybinding/common/keybindingEditing.js';
+import { FileUserDataProvider } from '../../../../../platform/userData/common/fileUserDataProvider.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { RemoteAgentService } from '../../../remote/browser/remoteAgentService.js';
+import { getSingleFolderWorkspaceIdentifier } from '../../../workspaces/browser/workspaces.js';
+import { IUserDataProfilesService, UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { hash } from '../../../../../base/common/hash.js';
+import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { UserDataProfileService } from '../../../userDataProfile/common/userDataProfileService.js';
+import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../environment/browser/environmentService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -64,8 +66,6 @@ suite('ConfigurationEditing', () => {
 	let fileService: IFileService;
 	let workspaceService: WorkspaceService;
 	let testObject: ConfigurationEditing;
-
-	const disposables = new DisposableStore();
 
 	suiteSetup(() => {
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -90,12 +90,16 @@ suite('ConfigurationEditing', () => {
 					'default': 'isSet',
 					policy: {
 						name: 'configurationEditing.service.policySetting',
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
+						localization: { description: { key: '', value: '' } }
 					}
 				}
 			}
 		});
 	});
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		disposables.add(toDisposable(() => sinon.restore()));
@@ -107,18 +111,18 @@ suite('ConfigurationEditing', () => {
 		const workspaceFolder = joinPath(ROOT, uuid.generateUuid());
 		await fileService.createFolder(workspaceFolder);
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		environmentService.policyFile = joinPath(workspaceFolder, 'policies.json');
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const uriIdentityService = new UriIdentityService(fileService);
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
-		userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile);
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService)));
+		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new FilePolicyService(environmentService.policyFile, fileService, logService)));
+		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), disposables.add(new FilePolicyService(environmentService.policyFile, fileService, logService))));
 		await workspaceService.initialize({
 			id: hash(workspaceFolder.toString()).toString(16),
 			uri: workspaceFolder
@@ -133,8 +137,6 @@ suite('ConfigurationEditing', () => {
 		instantiationService.stub(ICommandService, CommandService);
 		testObject = instantiationService.createInstance(ConfigurationEditing, null);
 	});
-
-	teardown(() => disposables.clear());
 
 	test('errors cases - invalid key', async () => {
 		try {
@@ -194,7 +196,7 @@ suite('ConfigurationEditing', () => {
 	test('do not notify error', async () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, doNotDisturbMode: false, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, onDidChangeDoNotDisturbMode: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null! });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, filter: false, onDidChangeFilter: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null!, getFilter: null!, getFilters: null!, removeFilter: null! });
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
@@ -330,6 +332,18 @@ suite('ConfigurationEditing', () => {
 		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
 
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.service.testSetting', value: 'value' });
+
+		const contents = await fileService.readFile(target);
+		const parsed = json.parse(contents.value.toString());
+		assert.strictEqual(parsed['service.testSetting'], 'value');
+		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
+	});
+
+	test('write user standalone mcp setting - existing file', async () => {
+		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['mcp']);
+		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+
+		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'mcp.service.testSetting', value: 'value' });
 
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());

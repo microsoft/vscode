@@ -5,11 +5,11 @@
 
 import { createHash } from 'crypto';
 import { Stats } from 'fs';
-import { Schemas } from 'vs/base/common/network';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { originalFSPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from '../../../base/common/network.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { originalFSPath } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 /**
  * Length of workspace identifiers that are not empty. Those are
@@ -29,7 +29,7 @@ export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
 			configPathStr = configPathStr.toLowerCase(); // sanitize for platform file system
 		}
 
-		return createHash('md5').update(configPathStr).digest('hex');
+		return createHash('md5').update(configPathStr).digest('hex'); // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 	}
 
 	return {
@@ -50,7 +50,7 @@ export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat?: 
 
 		// Remote: produce a hash from the entire URI
 		if (folderUri.scheme !== Schemas.file) {
-			return createHash('md5').update(folderUri.toString()).digest('hex');
+			return createHash('md5').update(folderUri.toString()).digest('hex'); // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 		}
 
 		// Local: we use the ctime as extra salt to the
@@ -77,7 +77,7 @@ export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat?: 
 			}
 		}
 
-		return createHash('md5').update(folderUri.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+		return createHash('md5').update(folderUri.fsPath).update(ctime ? String(ctime) : '').digest('hex'); // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 	}
 
 	const folderId = getFolderId();

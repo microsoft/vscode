@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { normalizeMimeType } from 'vs/base/common/mime';
+import assert from 'assert';
+import { normalizeMimeType } from '../../common/mime.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Mime', () => {
 
@@ -16,4 +17,6 @@ suite('Mime', () => {
 		assert.strictEqual(normalizeMimeType('Text/plain;UPPER'), 'text/plain;UPPER');
 		assert.strictEqual(normalizeMimeType('Text/plain;lower'), 'text/plain;lower');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

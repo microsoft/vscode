@@ -3,35 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { localize } from 'vs/nls';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IFileContentCondition, IFilePathCondition, IFileLanguageCondition, IFileOpenCondition } from 'vs/base/common/product';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ITextModel } from 'vs/editor/common/model';
-import { Schemas } from 'vs/base/common/network';
-import { basename, extname } from 'vs/base/common/resources';
-import { match } from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { distinct } from 'vs/base/common/arrays';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { disposableTimeout } from 'vs/base/common/async';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { isEmptyObject } from 'vs/base/common/types';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ExtensionRecommendations, GalleryExtensionRecommendation } from './extensionRecommendations.js';
+import { EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { IExtensionsWorkbenchService, IExtension } from '../common/extensions.js';
+import { localize } from '../../../../nls.js';
+import { StorageScope, IStorageService, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IFileContentCondition, IFilePathCondition, IFileLanguageCondition, IFileOpenCondition } from '../../../../base/common/product.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename, extname } from '../../../../base/common/resources.js';
+import { match } from '../../../../base/common/glob.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from '../../../../platform/extensionRecommendations/common/extensionRecommendations.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { CellUri } from '../../notebook/common/notebookCommon.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { isEmptyObject } from '../../../../base/common/types.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 
 const promptedRecommendationsStorageKey = 'fileBasedRecommendations/promptedRecommendations';
 const recommendationsStorageKey = 'extensionsAssistant/recommendations';
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
+
+// Minimum length of untitled file to allow triggering extension recommendations for auto-detected language.
+const untitledFileRecommendationsMinLength = 1000;
 
 export class FileBasedRecommendations extends ExtensionRecommendations {
 
@@ -40,8 +44,8 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	private readonly fileBasedRecommendations = new Map<string, { recommendedTime: number }>();
 	private readonly fileBasedImportantRecommendations = new Set<string>();
 
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> {
-		const recommendations: ExtensionRecommendation[] = [];
+	get recommendations(): ReadonlyArray<GalleryExtensionRecommendation> {
+		const recommendations: GalleryExtensionRecommendation[] = [];
 		[...this.fileBasedRecommendations.keys()]
 			.sort((a, b) => {
 				if (this.fileBasedRecommendations.get(a)!.recommendedTime === this.fileBasedRecommendations.get(b)!.recommendedTime) {
@@ -56,7 +60,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			})
 			.forEach(extensionId => {
 				recommendations.push({
-					extensionId,
+					extension: extensionId,
 					reason: {
 						reasonId: ExtensionRecommendationReason.File,
 						reasonText: localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened.")
@@ -66,12 +70,12 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		return recommendations;
 	}
 
-	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> {
-		return this.recommendations.filter(e => this.fileBasedImportantRecommendations.has(e.extensionId));
+	get importantRecommendations(): ReadonlyArray<GalleryExtensionRecommendation> {
+		return this.recommendations.filter(e => this.fileBasedImportantRecommendations.has(e.extension));
 	}
 
-	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> {
-		return this.recommendations.filter(e => !this.fileBasedImportantRecommendations.has(e.extensionId));
+	get otherRecommendations(): ReadonlyArray<GalleryExtensionRecommendation> {
+		return this.recommendations.filter(e => !this.fileBasedImportantRecommendations.has(e.extension));
 	}
 
 	constructor(
@@ -83,6 +87,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 	) {
 		super();
 		this.fileOpenRecommendations = {};
@@ -128,7 +133,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		}
 
 		// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
-		this._register(disposableTimeout(() => this.promptImportantRecommendations(uri, model), 0));
+		disposableTimeout(() => this.promptImportantRecommendations(uri, model), 0, this._store);
 	}
 
 	/**
@@ -136,6 +141,10 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	 * or prompt to search the marketplace if it has extensions that can support the file type
 	 */
 	private promptImportantRecommendations(uri: URI, model: ITextModel, extensionRecommendations?: IStringDictionary<IFileOpenCondition[]>): void {
+		if (model.isDisposed()) {
+			return;
+		}
+
 		const pattern = extname(uri).toLowerCase();
 		extensionRecommendations = extensionRecommendations ?? this.recommendationsByPattern.get(pattern) ?? this.fileOpenRecommendations;
 		const extensionRecommendationEntries = Object.entries(extensionRecommendations);
@@ -149,6 +158,14 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		const matchedRecommendations: IStringDictionary<IFileOpenCondition[]> = {};
 		const unmatchedRecommendations: IStringDictionary<IFileOpenCondition[]> = {};
 		let listenOnLanguageChange = false;
+		const languageId = model.getLanguageId();
+
+		// Allow language-specific recommendations for untitled files when language is auto-detected only when the file is large.
+		const untitledModel = this.untitledTextEditorService.get(uri);
+		const allowLanguageMatch =
+			!untitledModel ||
+			untitledModel.hasLanguageSetExplicitly ||
+			model.getValueLength() > untitledFileRecommendationsMinLength;
 
 		for (const [extensionId, conditions] of extensionRecommendationEntries) {
 			const conditionsByPattern: IFileOpenCondition[] = [];
@@ -164,26 +181,27 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 					conditionsByPattern.push(condition);
 				}
 
-				if (isLanguageCondition) {
-					if ((<IFileLanguageCondition>condition).languages.includes(model.getLanguageId())) {
+				if (isLanguageCondition && allowLanguageMatch) {
+					if ((<IFileLanguageCondition>condition).languages.includes(languageId)) {
 						languageMatched = true;
 					}
 				}
 
-				if ((<IFilePathCondition>condition).pathGlob) {
-					const pathGlob = (<IFilePathCondition>condition).pathGlob;
-					if (processedPathGlobs.get(pathGlob) ?? match((<IFilePathCondition>condition).pathGlob, uri.with({ fragment: '' }).toString())) {
+				const pathGlob = (<IFilePathCondition>condition).pathGlob;
+				if (pathGlob) {
+					if (processedPathGlobs.get(pathGlob) ?? match(pathGlob, uri.with({ fragment: '' }).toString(), { ignoreCase: true })) {
 						pathGlobMatched = true;
 					}
 					processedPathGlobs.set(pathGlob, pathGlobMatched);
 				}
 
-				if (!languageMatched && !pathGlobMatched) {
-					// If the language is not matched and the path glob is not matched, then we don't need to check the other conditions
+				let matched = languageMatched || pathGlobMatched;
+
+				// If the resource has pattern (extension) and not matched, then we don't need to check the other conditions
+				if (pattern && !matched) {
 					continue;
 				}
 
-				let matched = true;
 				if (matched && condition.whenInstalled) {
 					if (!condition.whenInstalled.every(id => installed.some(local => areSameExtensions({ id }, local.identifier)))) {
 						matched = false;
@@ -226,18 +244,20 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			}
 		}
 
-		this.recommendationsByPattern.set(pattern, recommendationsByPattern);
+		if (pattern) {
+			this.recommendationsByPattern.set(pattern, recommendationsByPattern);
+		}
 		if (Object.keys(unmatchedRecommendations).length) {
 			if (listenOnLanguageChange) {
 				const disposables = new DisposableStore();
 				disposables.add(model.onDidChangeLanguage(() => {
 					// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
-					disposables.add(disposableTimeout(() => {
+					disposableTimeout(() => {
 						if (!disposables.isDisposed) {
 							this.promptImportantRecommendations(uri, model, unmatchedRecommendations);
 							disposables.dispose();
 						}
-					}, 0));
+					}, 0, disposables);
 				}));
 				disposables.add(model.onWillDispose(() => disposables.dispose()));
 			}
@@ -297,7 +317,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 		const promptedRecommendations = language !== PLAINTEXT_LANGUAGE_ID ? this.getPromptedRecommendations()[language] : undefined;
 		if (promptedRecommendations) {
-			recommendations = recommendations.filter(extensionId => promptedRecommendations.includes(extensionId));
+			recommendations = recommendations.filter(extensionId => !promptedRecommendations.includes(extensionId));
 		}
 
 		if (recommendations.length === 0) {
@@ -345,7 +365,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	private getCachedRecommendations(): IStringDictionary<number> {
 		let storedRecommendations = JSON.parse(this.storageService.get(recommendationsStorageKey, StorageScope.PROFILE, '[]'));
 		if (Array.isArray(storedRecommendations)) {
-			storedRecommendations = storedRecommendations.reduce((result, id) => { result[id] = Date.now(); return result; }, <IStringDictionary<number>>{});
+			storedRecommendations = storedRecommendations.reduce<IStringDictionary<number>>((result, id) => { result[id] = Date.now(); return result; }, {});
 		}
 		const result: IStringDictionary<number> = {};
 		Object.entries(storedRecommendations).forEach(([key, value]) => {

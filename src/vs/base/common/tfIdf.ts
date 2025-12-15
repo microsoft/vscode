@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken } from './cancellation.js';
 
 type SparseEmbedding = Record</* word */ string, /* weight */number>;
 type TermFrequencies = Map</* word */ string, /*occurrences*/ number>;
@@ -29,6 +29,17 @@ export interface TfIdfDocument {
 
 export interface TfIdfScore {
 	readonly key: string;
+	/**
+	 * An unbounded number.
+	 */
+	readonly score: number;
+}
+
+export interface NormalizedTfIdfScore {
+	readonly key: string;
+	/**
+	 * A number between 0 and 1.
+	 */
 	readonly score: number;
 }
 
@@ -77,8 +88,7 @@ export class TfIdfCalculator {
 		for (const [word] of input.matchAll(/\b\p{Letter}[\p{Letter}\d]{2,}\b/gu)) {
 			yield normalize(word);
 
-			// eslint-disable-next-line local/code-no-look-behind-regex
-			const camelParts = word.split(/(?<=[a-z])(?=[A-Z])/g);
+			const camelParts = word.replace(/([a-z])([A-Z])/g, '$1 $2').split(/\s+/g);
 			if (camelParts.length > 1) {
 				for (const part of camelParts) {
 					// Require at least 3 letters in the parts of a camel case word
@@ -203,4 +213,28 @@ export class TfIdfCalculator {
 		}
 		return embedding;
 	}
+}
+
+/**
+ * Normalize the scores to be between 0 and 1 and sort them decending.
+ * @param scores array of scores from {@link TfIdfCalculator.calculateScores}
+ * @returns normalized scores
+ */
+export function normalizeTfIdfScores(scores: TfIdfScore[]): NormalizedTfIdfScore[] {
+
+	// copy of scores
+	const result = scores.slice(0) as { score: number }[];
+
+	// sort descending
+	result.sort((a, b) => b.score - a.score);
+
+	// normalize
+	const max = result[0]?.score ?? 0;
+	if (max > 0) {
+		for (const score of result) {
+			score.score /= max;
+		}
+	}
+
+	return result as TfIdfScore[];
 }

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
+import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IMessagePassingProtocol } from '../../../../../base/parts/ipc/common/ipc.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ProxyIdentifier, SerializableObjectWithBuffers } from '../../common/proxyIdentifier.js';
+import { RPCProtocol } from '../../common/rpcProtocol.js';
 
 suite('RPCProtocol', () => {
 
@@ -182,6 +182,7 @@ suite('RPCProtocol', () => {
 
 	test('issue #60450: Converting circular structure to JSON', function (done) {
 		delegate = (a1: number, a2: number) => {
+			// eslint-disable-next-line local/code-no-any-casts
 			const circular = <any>{};
 			circular.self = circular;
 			return circular;
@@ -218,6 +219,7 @@ suite('RPCProtocol', () => {
 
 	test('issue #81424: SerializeRequest should throw if an argument can not be serialized', () => {
 		const badObject = {};
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>badObject).loop = badObject;
 
 		assert.throws(() => {
