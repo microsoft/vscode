@@ -287,8 +287,6 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 				await clickHandler();
 			}
 		}));
-
-		this.attachClearButton();
 	}
 }
 
@@ -613,8 +611,6 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, attachment.value));
 		});
 		this.addResourceOpenHandlers(attachment.value, undefined);
-
-		this.attachClearButton();
 	}
 
 	private updateLabel(attachment: IPromptFileVariableEntry) {
@@ -967,7 +963,6 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		this._store.add(disposables);
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
-		this.attachClearButton();
 	}
 
 	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: true): Promise<void>;
@@ -1006,7 +1001,6 @@ export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttac
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
-		this.attachClearButton();
 	}
 
 	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: true): Promise<void>;
