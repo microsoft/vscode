@@ -260,6 +260,7 @@ export const codiconsLibrary = {
 	italic: register('italic', 0xeb0d),
 	jersey: register('jersey', 0xeb0e),
 	json: register('json', 0xeb0f),
+	bracket: register('bracket', 0xeb0f),
 	kebabVertical: register('kebab-vertical', 0xeb10),
 	key: register('key', 0xeb11),
 	law: register('law', 0xeb12),
@@ -486,7 +487,6 @@ export const codiconsLibrary = {
 	graphLine: register('graph-line', 0xebe2),
 	graphScatter: register('graph-scatter', 0xebe3),
 	pieChart: register('pie-chart', 0xebe4),
-	bracket: register('bracket', 0xeb0f),
 	bracketDot: register('bracket-dot', 0xebe5),
 	bracketError: register('bracket-error', 0xebe6),
 	lockSmall: register('lock-small', 0xebe7),
@@ -646,4 +646,6 @@ export const codiconsLibrary = {
 	collectionSmall: register('collection-small', 0xec78),
 	vmSmall: register('vm-small', 0xec79),
 	cloudSmall: register('cloud-small', 0xec7a),
+	addSmall: register('add-small', 0xec7b),
+	removeSmall: register('remove-small', 0xec7c),
 } as const;

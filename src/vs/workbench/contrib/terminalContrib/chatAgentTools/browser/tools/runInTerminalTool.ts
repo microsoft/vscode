@@ -99,7 +99,8 @@ function createPowerShellModelDescription(shell: string): string {
 		'- Prefer PowerShell cmdlets over external commands when available',
 		'- Prefer idiomatic PowerShell like Get-ChildItem instead of dir or ls for file listings',
 		'- Use Test-Path to check file/directory existence',
-		'- Be specific with Select-Object properties to avoid excessive output'
+		'- Be specific with Select-Object properties to avoid excessive output',
+		'- Avoid printing credentials unless absolutely required',
 	].join('\n');
 }
 
@@ -133,7 +134,8 @@ Output Management:
 Best Practices:
 - Quote variables: "$var" instead of $var to handle spaces
 - Use find with -exec or xargs for file operations
-- Be specific with commands to avoid excessive output`;
+- Be specific with commands to avoid excessive output
+- Avoid printing credentials unless absolutely required`;
 
 function createBashModelDescription(): string {
 	return [

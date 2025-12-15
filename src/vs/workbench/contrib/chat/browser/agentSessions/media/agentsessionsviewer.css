@@ -24,7 +24,7 @@
 
 		.agent-session-diff-container {
 			background-color: unset;
-			outline: 1px solid var(--vscode-foreground);
+			outline: 1px solid var(--vscode-agentSessionSelectedBadge-border);
 
 			.agent-session-diff-files,
 			.agent-session-diff-added,
@@ -32,14 +32,23 @@
 				color: unset;
 			}
 		}
+
+		.agent-session-badge {
+			background-color: unset;
+			outline: 1px solid var(--vscode-agentSessionSelectedBadge-border);
+		}
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row .agent-session-diff-container,
+	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row .agent-session-badge {
+		outline: 1px solid var(--vscode-agentSessionSelectedUnfocusedBadge-border);
 	}
 
 	.monaco-list-row .agent-session-title-toolbar {
 		position: relative; /* for the absolute positioning of the toolbar below */
 
 		.monaco-toolbar {
-			/* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
-			position: absolute;
+			position: absolute; /* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
 			right: 0;
 			top: 0;
 			display: none;
@@ -84,7 +93,11 @@
 				}
 
 				&.codicon.codicon-error {
-					color: var(--vscode-errorForeground);
+					color: var(--vscode-editorError-foreground);
+				}
+
+				&.codicon.codicon-warning {
+					color: var(--vscode-editorWarning-foreground);
 				}
 
 				&.codicon.codicon-circle-filled {
@@ -113,6 +126,7 @@
 		}
 
 		.agent-session-details-row {
+			gap: 4px;
 			font-size: 12px;
 			color: var(--vscode-descriptionForeground);
 
@@ -157,6 +171,22 @@
 					color: var(--vscode-chat-linesRemovedForeground);
 				}
 			}
+
+			.agent-session-badge {
+				background-color: var(--vscode-toolbar-hoverBackground);
+				font-weight: 500;
+				padding: 0 4px;
+				font-variant-numeric: tabular-nums;
+				border-radius: 5px;
+
+				&:not(.has-badge) {
+					display: none;
+				}
+
+				.codicon {
+					font-size: 12px;
+				}
+			}
 		}
 
 		.agent-session-title,
@@ -173,6 +203,40 @@
 			/* In case the changes toolbar to the left is greedy, we give up space */
 			overflow: hidden;
 			text-overflow: ellipsis;
+		}
+	}
+
+	.agent-session-section {
+		display: flex;
+		align-items: center;
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--vscode-descriptionForeground);
+		padding: 0 12px 0 8px; /* align with session item padding */
+
+		.agent-session-section-label {
+			flex: 1;
+		}
+
+		.agent-session-section-toolbar {
+			position: relative; /* for the absolute positioning of the toolbar below */
+
+			.monaco-toolbar {
+				position: absolute; /* this is required because the overal height (including the padding needed for hover feedback) would push down the label otherwise */
+				right: 0;
+				top: 0;
+				display: none;
+			}
+		}
+	}
+
+	.monaco-list-row:hover .agent-session-section .agent-session-section-toolbar,
+	.monaco-list-row.focused .agent-session-section .agent-session-section-toolbar {
+		width: 22px;
+
+		.monaco-toolbar {
+			display: block;
 		}
 	}
 }
