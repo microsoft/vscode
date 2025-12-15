@@ -14,6 +14,7 @@ import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../..
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { PolicySource } from '../../../../../platform/policy/common/policy.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	enterprise: false,
@@ -181,15 +182,15 @@ suite('AccountPolicyService', () => {
 			const metadataD = policyService.getPolicyMetadata('PolicySettingD');
 
 			assert.ok(metadataB, 'Metadata should exist for PolicySettingB');
-			assert.strictEqual(metadataB.source, 'account');
+			assert.strictEqual(metadataB.source, PolicySource.Account);
 			assert.strictEqual(metadataB.accountSessionId, 'abc123');
 
 			assert.ok(metadataC, 'Metadata should exist for PolicySettingC');
-			assert.strictEqual(metadataC.source, 'account');
+			assert.strictEqual(metadataC.source, PolicySource.Account);
 			assert.strictEqual(metadataC.accountSessionId, 'abc123');
 
 			assert.ok(metadataD, 'Metadata should exist for PolicySettingD');
-			assert.strictEqual(metadataD.source, 'account');
+			assert.strictEqual(metadataD.source, PolicySource.Account);
 			assert.strictEqual(metadataD.accountSessionId, 'abc123');
 		}
 
@@ -210,12 +211,16 @@ suite('AccountPolicyService', () => {
 		assert.ok(metadataB1);
 		assert.strictEqual(metadataB1.accountSessionId, 'session1');
 
-		// Change account
+		// Change account and wait for policy update event
 		const defaultAccount2 = { ...BASE_DEFAULT_ACCOUNT, sessionId: 'session2', chat_preview_features_enabled: false };
+		const changePromise = new Promise<void>(resolve => {
+			const listener = policyService.onDidChange(() => {
+				listener.dispose();
+				resolve();
+			});
+		});
 		defaultAccountService.setDefaultAccount(defaultAccount2);
-
-		// Wait for policy update
-		await new Promise(resolve => setTimeout(resolve, 100));
+		await changePromise;
 
 		const metadataB2 = policyService.getPolicyMetadata('PolicySettingB');
 		assert.ok(metadataB2);
