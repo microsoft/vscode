@@ -419,7 +419,9 @@ export class QuickDiffModel extends Disposable {
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true, providerId?: string): number {
-		const quickDiffIds = new Set(this.quickDiffs.map(quickDiff => quickDiff.id));
+		const visibleQuickDiffIds = new Set(this.quickDiffs
+			.filter(quickDiff => this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id))
+			.map(quickDiff => quickDiff.id));
 
 		for (let i = 0; i < this.changes.length; i++) {
 			if (providerId && this.changes[i].providerId !== providerId) {
@@ -427,10 +429,7 @@ export class QuickDiffModel extends Disposable {
 			}
 
 			// Skip quick diffs that are not visible
-			if (
-				!quickDiffIds.has(this.changes[i].providerId) ||
-				!this.quickDiffService.isQuickDiffProviderVisible(this.changes[i].providerId)
-			) {
+			if (!visibleQuickDiffIds.has(this.changes[i].providerId)) {
 				continue;
 			}
 
@@ -451,7 +450,9 @@ export class QuickDiffModel extends Disposable {
 	}
 
 	findPreviousClosestChange(lineNumber: number, inclusive = true, providerId?: string): number {
-		const quickDiffIds = new Set(this.quickDiffs.map(quickDiff => quickDiff.id));
+		const visibleQuickDiffIds = new Set(this.quickDiffs
+			.filter(quickDiff => this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id))
+			.map(quickDiff => quickDiff.id));
 
 		for (let i = this.changes.length - 1; i >= 0; i--) {
 			if (providerId && this.changes[i].providerId !== providerId) {
@@ -459,10 +460,7 @@ export class QuickDiffModel extends Disposable {
 			}
 
 			// Skip quick diffs that are not visible
-			if (
-				!quickDiffIds.has(this.changes[i].providerId) ||
-				!this.quickDiffService.isQuickDiffProviderVisible(this.changes[i].providerId)
-			) {
+			if (!visibleQuickDiffIds.has(this.changes[i].providerId)) {
 				continue;
 			}
 
