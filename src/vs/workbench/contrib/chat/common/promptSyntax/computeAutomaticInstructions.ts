@@ -277,6 +277,8 @@ export class ComputeAutomaticInstructions {
 						if (applyTo) {
 							entries.push(`<applyTo>${applyTo}</applyTo>`);
 						}
+					} else {
+						entries.push(`<file>${getFilePath(uri)}</file>`);
 					}
 					entries.push('</instruction>');
 					hasContent = true;
