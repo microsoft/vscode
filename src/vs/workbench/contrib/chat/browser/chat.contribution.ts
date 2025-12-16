@@ -705,10 +705,10 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
-		[PromptsConfig.USE_CLAUDE_SKILLS]: {
+		[PromptsConfig.USE_AGENT_SKILLS]: {
 			type: 'boolean',
-			title: nls.localize('chat.useClaudeSkills.title', "Use Claude skills",),
-			markdownDescription: nls.localize('chat.useClaudeSkills.description', "Controls whether Claude skills found in the workspace and user home directories under `.claude/skills` are listed in all chat requests. The language model can load these skills on-demand if the `read` tool is available.",),
+			title: nls.localize('chat.useAgentSkills.title', "Use Agent skills",),
+			markdownDescription: nls.localize('chat.useAgentSkills.description', "Controls whether Agent skills found in the workspace and user home directories under `.agent/skills` are listed in all chat requests. The language model can load these skills on-demand if the `read` tool is available.",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,

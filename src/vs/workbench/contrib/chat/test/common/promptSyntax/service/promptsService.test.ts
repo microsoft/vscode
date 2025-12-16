@@ -1255,22 +1255,22 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('findClaudeSkills', () => {
+	suite('findAgentSkills', () => {
 		teardown(() => {
 			sinon.restore();
 		});
 
-		test('should return undefined when USE_CLAUDE_SKILLS is disabled', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, false);
+		test('should return undefined when USE_AGENT_SKILLS is disabled', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 			assert.strictEqual(result, undefined);
 		});
 
-		test('should find Claude skills in workspace and user home', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+		test('should find Agent skills in workspace and user home', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 
-			const rootFolderName = 'claude-skills-test';
+			const rootFolderName = 'agent-skills-test';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
@@ -1279,7 +1279,7 @@ suite('PromptsService', () => {
 			// Create mock filesystem with skills
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`,
+					path: `${rootFolder}/.agent/skills/project-skill-1/SKILL.md`,
 					contents: [
 						'---',
 						'name: "Project Skill 1"',
@@ -1289,7 +1289,7 @@ suite('PromptsService', () => {
 					],
 				},
 				{
-					path: `${rootFolder}/.claude/skills/project-skill-2/SKILL.md`,
+					path: `${rootFolder}/.agent/skills/project-skill-2/SKILL.md`,
 					contents: [
 						'---',
 						'description: "Invalid skill, no name"',
@@ -1298,11 +1298,11 @@ suite('PromptsService', () => {
 					],
 				},
 				{
-					path: `${rootFolder}/.claude/skills/not-a-skill-dir/README.md`,
+					path: `${rootFolder}/.agent/skills/not-a-skill-dir/README.md`,
 					contents: ['This is not a skill'],
 				},
 				{
-					path: '/home/user/.claude/skills/personal-skill-1/SKILL.md',
+					path: '/home/user/.agent/skills/personal-skill-1/SKILL.md',
 					contents: [
 						'---',
 						'name: "Personal Skill 1"',
@@ -1312,14 +1312,14 @@ suite('PromptsService', () => {
 					],
 				},
 				{
-					path: '/home/user/.claude/skills/not-a-skill/other-file.md',
+					path: '/home/user/.agent/skills/not-a-skill/other-file.md',
 					contents: ['Not a skill file'],
 				},
 			]);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results when Claude skills are enabled');
+			assert.ok(result, 'Should return results when Agent skills are enabled');
 			assert.strictEqual(result.length, 2, 'Should find 2 skills total');
 
 			// Check project skills
@@ -1329,7 +1329,7 @@ suite('PromptsService', () => {
 			const projectSkill1 = projectSkills.find(skill => skill.name === 'Project Skill 1');
 			assert.ok(projectSkill1, 'Should find project skill 1');
 			assert.strictEqual(projectSkill1.description, 'A project skill for testing');
-			assert.strictEqual(projectSkill1.uri.path, `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`);
+			assert.strictEqual(projectSkill1.uri.path, `${rootFolder}/.agent/skills/project-skill-1/SKILL.md`);
 
 			// Check personal skills
 			const personalSkills = result.filter(skill => skill.type === 'personal');
@@ -1338,13 +1338,13 @@ suite('PromptsService', () => {
 			const personalSkill1 = personalSkills[0];
 			assert.strictEqual(personalSkill1.name, 'Personal Skill 1');
 			assert.strictEqual(personalSkill1.description, 'A personal skill for testing');
-			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/personal-skill-1/SKILL.md');
+			assert.strictEqual(personalSkill1.uri.path, '/home/user/.agent/skills/personal-skill-1/SKILL.md');
 		});
 
 		test('should handle parsing errors gracefully', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 
-			const rootFolderName = 'claude-skills-error-test';
+			const rootFolderName = 'agent-skills-error-test';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
@@ -1353,7 +1353,7 @@ suite('PromptsService', () => {
 			// Create mock filesystem with malformed skill file
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.claude/skills/valid-skill/SKILL.md`,
+					path: `${rootFolder}/.agent/skills/valid-skill/SKILL.md`,
 					contents: [
 						'---',
 						'name: "Valid Skill"',
@@ -1363,7 +1363,7 @@ suite('PromptsService', () => {
 					],
 				},
 				{
-					path: `${rootFolder}/.claude/skills/invalid-skill/SKILL.md`,
+					path: `${rootFolder}/.agent/skills/invalid-skill/SKILL.md`,
 					contents: [
 						'---',
 						'invalid yaml: [unclosed',
@@ -1373,7 +1373,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 
 			// Should still return the valid skill, even if one has parsing errors
 			assert.ok(result, 'Should return results even with parsing errors');
@@ -1383,7 +1383,7 @@ suite('PromptsService', () => {
 		});
 
 		test('should return empty array when no skills found', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 
 			const rootFolderName = 'empty-workspace';
 			const rootFolder = `/${rootFolderName}`;
@@ -1394,7 +1394,7 @@ suite('PromptsService', () => {
 			// Create empty mock filesystem
 			await mockFiles(fileService, []);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(result, 'Should return results array');
 			assert.strictEqual(result.length, 0, 'Should find no skills');

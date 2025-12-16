@@ -366,10 +366,10 @@ export class PromptFilesLocator {
 		return undefined;
 	}
 
-	private async findClaudeSkillsInFolder(uri: URI, token: CancellationToken): Promise<URI[]> {
+	private async findAgentSkillsInFolder(uri: URI, token: CancellationToken): Promise<URI[]> {
 		const result = [];
 		try {
-			const stat = await this.fileService.resolve(joinPath(uri, '.claude/skills'));
+			const stat = await this.fileService.resolve(joinPath(uri, '.agent/skills'));
 			if (token.isCancellationRequested) {
 				return [];
 			}
@@ -392,22 +392,22 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Searches for skills in `.claude/skills/` directories in the workspace.
+	 * Searches for skills in `.agent/skills/` directories in the workspace.
 	 * Each skill is stored in its own subdirectory with a SKILL.md file.
 	 */
-	public async findClaudeSkillsInWorkspace(token: CancellationToken): Promise<URI[]> {
+	public async findAgentSkillsInWorkspace(token: CancellationToken): Promise<URI[]> {
 		const workspace = this.workspaceService.getWorkspace();
-		const results = await Promise.all(workspace.folders.map(f => this.findClaudeSkillsInFolder(f.uri, token)));
+		const results = await Promise.all(workspace.folders.map(f => this.findAgentSkillsInFolder(f.uri, token)));
 		return results.flat();
 	}
 
 	/**
-	 * Searches for skills in `.claude/skills/` directories  in the home folder.
+	 * Searches for skills in `.agent/skills/` directories  in the home folder.
 	 * Each skill is stored in its own subdirectory with a SKILL.md file.
 	 */
-	public async findClaudeSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
+	public async findAgentSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
 		const userHome = await this.pathService.userHome();
-		return this.findClaudeSkillsInFolder(userHome, token);
+		return this.findAgentSkillsInFolder(userHome, token);
 	}
 }
 
