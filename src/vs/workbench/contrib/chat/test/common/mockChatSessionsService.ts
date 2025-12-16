@@ -13,7 +13,7 @@ import { IEditableData } from '../../../../common/views.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/chatAgents.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
@@ -231,6 +231,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 			dispose: () => {
 			}
 		};
+	}
+
+	isChatSessionInProgressStatus(state: ChatSessionStatus): boolean {
+		return state === ChatSessionStatus.InProgress || state === ChatSessionStatus.NeedsInput;
 	}
 
 	// Helper method for tests to trigger progress events

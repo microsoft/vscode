@@ -27,7 +27,7 @@ import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listVi
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
-import { ChatSessionStatus } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
@@ -82,6 +82,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
@@ -164,7 +165,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Diff information
 		const { changes: diff } = session.element;
-		if (session.element.status !== ChatSessionStatus.InProgress && diff && hasValidDiff(diff)) {
+		if (!this.chatSessionsService.isChatSessionInProgressStatus(session.element.status) && diff && hasValidDiff(diff)) {
 			if (this.renderDiff(session, template)) {
 				template.diffContainer.classList.add('has-diff');
 			}
@@ -210,6 +211,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			return Codicon.sessionInProgress;
 		}
 
+		if (session.status === ChatSessionStatus.NeedsInput) {
+			return Codicon.report;
+		}
+
 		if (session.status === ChatSessionStatus.Failed) {
 			return Codicon.error;
 		}
@@ -243,7 +248,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Fallback to state label
 		else {
-			if (session.element.status === ChatSessionStatus.InProgress) {
+			if (this.chatSessionsService.isChatSessionInProgressStatus(session.element.status)) {
 				template.description.textContent = localize('chat.session.status.inProgress', "Working...");
 			} else if (
 				session.element.timing.finishedOrFailedTime &&
@@ -276,7 +281,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		const getStatus = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
-			if (session.status === ChatSessionStatus.InProgress && session.timing.inProgressTime) {
+			if (this.chatSessionsService.isChatSessionInProgressStatus(session.status) && session.timing.inProgressTime) {
 				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now());
 			}
 
@@ -288,7 +293,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		template.status.textContent = getStatus(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), session.element.status === ChatSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), this.chatSessionsService.isChatSessionInProgressStatus(session.element.status) ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -425,9 +430,13 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
+	constructor(
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+	) { }
+
 	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
-		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
-		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;
+		const aInProgress = this.chatSessionsService.isChatSessionInProgressStatus(sessionA.status);
+		const bInProgress = this.chatSessionsService.isChatSessionInProgressStatus(sessionB.status);
 
 		if (aInProgress && !bInProgress) {
 			return -1; // a (in-progress) comes before b (finished)

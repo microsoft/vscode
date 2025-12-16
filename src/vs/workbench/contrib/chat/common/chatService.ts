@@ -920,7 +920,8 @@ export const enum ResponseModelState {
 	Pending,
 	Complete,
 	Cancelled,
-	Failed
+	Failed,
+	NeedsInput,
 }
 
 export interface IChatSessionTiming {

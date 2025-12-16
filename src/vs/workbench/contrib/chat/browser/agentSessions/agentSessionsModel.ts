@@ -302,14 +302,14 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				if (!state) {
 					this.mapSessionToState.set(session.resource, {
 						status,
-						inProgressTime: status === ChatSessionStatus.InProgress ? Date.now() : undefined, // this is not accurate but best effort
+						inProgressTime: this.chatSessionsService.isChatSessionInProgressStatus(status) ? Date.now() : undefined, // this is not accurate but best effort
 					});
 				}
 
 				// State changed, update it
 				else if (status !== state.status) {
-					inProgressTime = status === ChatSessionStatus.InProgress ? Date.now() : state.inProgressTime;
-					finishedOrFailedTime = (status !== ChatSessionStatus.InProgress) ? Date.now() : state.finishedOrFailedTime;
+					inProgressTime = this.chatSessionsService.isChatSessionInProgressStatus(status) ? Date.now() : state.inProgressTime;
+					finishedOrFailedTime = !this.chatSessionsService.isChatSessionInProgressStatus(status) ? Date.now() : state.finishedOrFailedTime;
 
 					this.mapSessionToState.set(session.resource, {
 						status,

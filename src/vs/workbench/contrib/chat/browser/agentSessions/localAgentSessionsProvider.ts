@@ -67,7 +67,9 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			// Check if the last request was completed successfully or failed
 			const lastRequest = requests[requests.length - 1];
 			if (lastRequest?.response) {
-				if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails?.code === 'canceled') {
+				if (lastRequest.response.state === ResponseModelState.NeedsInput) {
+					return ChatSessionStatus.NeedsInput;
+				} else if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails?.code === 'canceled') {
 					return ChatSessionStatus.Completed;
 				} else if (lastRequest.response.result?.errorDetails) {
 					return ChatSessionStatus.Failed;
@@ -160,5 +162,7 @@ function chatResponseStateToSessionStatus(state: ResponseModelState): ChatSessio
 			return ChatSessionStatus.Failed;
 		case ResponseModelState.Pending:
 			return ChatSessionStatus.InProgress;
+		case ResponseModelState.NeedsInput:
+			return ChatSessionStatus.NeedsInput;
 	}
 }
