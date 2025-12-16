@@ -20,7 +20,7 @@ import { AccessibilityVoiceSettingId } from '../../accessibility/browser/accessi
 import { ElicitationState, IChatElicitationRequest } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { IChatAccessibilityService, IChatWidgetService } from './chat.js';
+import { IChatAccessibilityRequestOptions, IChatAccessibilityService, IChatWidgetService } from './chat.js';
 import { ChatWidget } from './chatWidget.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
@@ -51,15 +51,22 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		super.dispose();
 	}
 
-	acceptRequest(): number {
+	acceptRequest(options?: IChatAccessibilityRequestOptions): number {
 		this._requestId++;
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatRequestSent, { allowManyInParallel: true });
-		this._pendingSignalMap.set(this._requestId, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
+		if (options?.playProgressSignal !== false) {
+			this._pendingSignalMap.set(this._requestId, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
+		}
 		return this._requestId;
 	}
 
-	disposeRequest(requestId: number): void {
-		this._pendingSignalMap.deleteAndDispose(requestId);
+	disposeRequest(requestId?: number): void {
+		if (typeof requestId === 'number') {
+			this._pendingSignalMap.deleteAndDispose(requestId);
+			return;
+		}
+
+		this._pendingSignalMap.clearAndDisposeAll();
 	}
 
 	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void {

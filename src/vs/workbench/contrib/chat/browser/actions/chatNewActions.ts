@@ -18,7 +18,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatAccessibilityService, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
@@ -116,6 +116,8 @@ export function registerNewChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const chatAccessibilityService = accessor.get(IChatAccessibilityService);
+			chatAccessibilityService.disposeRequest();
 			const executeCommandContext = args[0] as INewEditSessionActionContext | undefined;
 
 			// Context from toolbar or lastFocusedWidget

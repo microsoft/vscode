@@ -106,10 +106,14 @@ export interface IQuickChatOpenOptions {
 export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
-	acceptRequest(): number;
-	disposeRequest(requestId: number): void;
+	acceptRequest(options?: IChatAccessibilityRequestOptions): number;
+	disposeRequest(requestId?: number): void;
 	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;
+}
+
+export interface IChatAccessibilityRequestOptions {
+	readonly playProgressSignal?: boolean;
 }
 
 export interface IChatCodeBlockInfo {
