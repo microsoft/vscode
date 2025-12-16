@@ -98,37 +98,6 @@ function _findMatches(model: IDocumentColorComputerTarget | string, regex: RegEx
 	}
 }
 
-function _isPrivateJavaScriptMember(model: IDocumentColorComputerTarget | string, match: RegExpMatchArray): boolean {
-	// Check if this match looks like a private JavaScript class member (e.g., #add, #myMethod)
-	// Private members follow the pattern: [whitespace or {]#[identifier]
-	// We need to check what comes after the hex color match
-	const matchText = match[0];
-	const afterMatch = match.index !== undefined ? match.index + matchText.length : -1;
-
-	if (afterMatch < 0) {
-		return false;
-	}
-
-	const documentText = typeof model === 'string' ? model : model.getValue();
-	const charAfter = documentText[afterMatch];
-
-	// If followed by ( or { or space and then (, it looks like a method/property definition
-	if (charAfter === '(' || charAfter === '{' || charAfter === ' ' || charAfter === '\t' || charAfter === '\n') {
-		// Check if the matched hex color is actually all valid hex digits
-		const hexValueMatch = matchText.match(/#([A-Fa-f0-9]+)/);
-		if (!hexValueMatch) {
-			return false;
-		}
-
-		const hexValue = hexValueMatch[1];
-		// If it's 3-4 characters and followed by an identifier continuation char, it's likely a method/property
-		if ((hexValue.length === 3 || hexValue.length === 4) && (charAfter === '(' || charAfter === '{' || charAfter === ' ')) {
-			return true;
-		}
-	}
-
-	return false;
-}
 
 function computeColors(model: IDocumentColorComputerTarget): IColorInformation[] {
 	const result: IColorInformation[] = [];
@@ -143,11 +112,6 @@ function computeColors(model: IDocumentColorComputerTarget): IColorInformation[]
 	// Potential colors have been found, validate the parameters
 	if (initialValidationMatches.length > 0) {
 		for (const initialMatch of initialValidationMatches) {
-			// Skip if this looks like a private JavaScript class member
-			if (_isPrivateJavaScriptMember(model, initialMatch)) {
-				continue;
-			}
-
 			const initialCaptureGroups = initialMatch.filter(captureGroup => captureGroup !== undefined);
 			const colorScheme = initialCaptureGroups[1];
 			const colorParameters = initialCaptureGroups[2];

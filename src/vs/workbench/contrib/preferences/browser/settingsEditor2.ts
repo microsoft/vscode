@@ -1053,8 +1053,10 @@ export class SettingsEditor2 extends EditorPane {
 					this.settingsTree.scrollTop = 0;
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
-				this.settingsTree.reveal(element, 0);
-				this.settingsTree.setFocus([element]);
+				if (this.settingsTree.hasElement(element)) {
+					this.settingsTree.reveal(element, 0);
+					this.settingsTree.setFocus([element]);
+				}
 			}
 		}));
 

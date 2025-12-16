@@ -213,6 +213,7 @@
     "ts-loader": "^9.5.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
+    "tsx": "^4.20.6",
     "typescript": "^6.0.0-dev.20251110",
     "typescript-eslint": "^8.45.0",
     "util": "^0.12.4",
