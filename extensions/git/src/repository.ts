@@ -861,6 +861,10 @@ export class Repository implements Disposable {
 		return this.repository.root;
 	}
 
+	get repoLabel(): string | undefined {
+		return this.repository.label;
+	}
+
 	get rootRealPath(): string | undefined {
 		return this.repository.rootRealPath;
 	}

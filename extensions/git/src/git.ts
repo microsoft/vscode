@@ -416,8 +416,8 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: IDotGit, logger: LogOutputChannel): Repository {
-		return new Repository(this, repositoryRoot, repositoryRootRealPath, dotGit, logger);
+	open(repositoryRoot: string, repositoryLabel: string | undefined, repositoryRootRealPath: string | undefined, dotGit: IDotGit, logger: LogOutputChannel): Repository {
+		return new Repository(this, repositoryRoot, repositoryLabel, repositoryRootRealPath, dotGit, logger);
 	}
 
 	async init(repository: string, options: InitOptions = {}): Promise<void> {
@@ -1242,6 +1242,7 @@ export class Repository {
 	constructor(
 		private _git: Git,
 		private repositoryRoot: string,
+		private _label: string | undefined,
 		private repositoryRootRealPath: string | undefined,
 		readonly dotGit: IDotGit,
 		private logger: LogOutputChannel
@@ -1264,6 +1265,14 @@ export class Repository {
 
 	get root(): string {
 		return this.repositoryRoot;
+	}
+
+	/**
+	 * Label assigned to the repository; should be root dirname by default.
+	 * For submodules, this is the name of the submodule as it appears in .gitmodules.
+	 */
+	get label(): string | undefined {
+		return this._label;
 	}
 
 	get rootRealPath(): string | undefined {
