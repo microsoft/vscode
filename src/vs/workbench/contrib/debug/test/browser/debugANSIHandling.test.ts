@@ -74,6 +74,7 @@ suite('Debug - ANSI Handling', () => {
 		} else {
 			assert.fail('Unexpected assertion error');
 		}
+		hoverBehavior.store.dispose();
 	});
 
 	/**
