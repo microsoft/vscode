@@ -111,7 +111,7 @@ export interface ISizeRegistry {
 	registerSize(id: string, defaults: SizeDefaults | SizeValue | null, description: string): SizeIdentifier;
 
 	/**
-	 * Register a size to the registry.
+	 * Deregister a size from the registry.
 	 */
 	deregisterSize(id: string): void;
 
