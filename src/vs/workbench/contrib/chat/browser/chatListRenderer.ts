@@ -779,7 +779,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-
 		if (
 			!lastPart ||
 			lastPart.kind === 'references' ||
