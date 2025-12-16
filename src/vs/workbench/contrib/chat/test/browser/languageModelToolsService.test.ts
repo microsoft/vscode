@@ -2521,6 +2521,7 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		const sessionId = 'test-extension-prefix';
+		const capture: { invocation?: any } = {};
 		stubGetSession(chatService, sessionId, { requestId: 'req1' });
 
 		// Tool should be eligible via legacy extension-prefixed name
@@ -2529,6 +2530,9 @@ suite('LanguageModelToolsService', () => {
 			async () => 0,
 			CancellationToken.None
 		);
+
+		const published = await waitForPublishedInvocation(capture);
+		assert.strictEqual(published, undefined, 'tool should not require confirmation when legacy trimmed name is eligible');
 		assert.strictEqual(result.content[0].value, 'commit executed');
 	});
 
@@ -2556,6 +2560,7 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		const sessionId = 'test-renamed-prefix';
+		const capture: { invocation?: any } = {};
 		stubGetSession(chatService, sessionId, { requestId: 'req1' });
 
 		// Tool should be eligible via legacy extension-prefixed name
@@ -2564,6 +2569,9 @@ suite('LanguageModelToolsService', () => {
 			async () => 0,
 			CancellationToken.None
 		);
+
+		const published = await waitForPublishedInvocation(capture);
+		assert.strictEqual(published, undefined, 'tool should not require confirmation when legacy trimmed name is eligible');
 		assert.strictEqual(result.content[0].value, 'commit executed');
 	});
 
