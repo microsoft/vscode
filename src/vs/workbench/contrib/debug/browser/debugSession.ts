@@ -50,7 +50,7 @@ import { RawDebugSession } from './rawDebugSession.js';
 
 const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
 
-export class DebugSession extends Disposable implements IDebugSession {
+export class DebugSession implements IDebugSession {
 	parentSession: IDebugSession | undefined;
 	rememberedCapabilities?: DebugProtocol.Capabilities;
 
@@ -122,7 +122,6 @@ export class DebugSession extends Disposable implements IDebugSession {
 		@ITestResultService testResultService: ITestResultService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
-		super();
 		this._options = options || {};
 		this.parentSession = this._options.parentSession;
 		if (this.hasSeparateRepl()) {
@@ -1502,12 +1501,11 @@ export class DebugSession extends Disposable implements IDebugSession {
 		this._onDidChangeState.fire();
 	}
 
-	override dispose() {
+	public dispose() {
 		this.cancelAllRequests();
 		this.rawListeners.dispose();
 		this.globalDisposables.dispose();
 		this._waitToResume = undefined;
-		super.dispose();
 	}
 
 	//---- sources
