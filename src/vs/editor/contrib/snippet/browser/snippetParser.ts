@@ -387,6 +387,8 @@ export class FormatString extends Marker {
 			return !value ? '' : this._toPascalCase(value);
 		} else if (this.shorthandName === 'camelcase') {
 			return !value ? '' : this._toCamelCase(value);
+		} else if (this.shorthandName === 'kebabcase') {
+			return !value ? '' : this._toKebabCase(value);
 		} else if (this.shorthandName === 'snakecase') {
 			return !value ? '' : this._toSnakeCase(value);
 		} else if (Boolean(value) && typeof this.ifValue === 'string') {
@@ -396,6 +398,33 @@ export class FormatString extends Marker {
 		} else {
 			return value || '';
 		}
+	}
+
+	private _toKebabCase(value: string): string {
+		const match = value.match(/[a-z0-9]+/gi);
+		if (!match) {
+			return value;
+		}
+
+		if (!value.match(/[a-z0-9]/)) {
+			return value
+				.trim()
+				.toLowerCase()
+				.replace(/^_+|_+$/g, '')
+				.replace(/[\s_]+/g, '-');
+		}
+
+		const match2 = value
+			.trim()
+			.match(/[A-Z]{2,}(?=[A-Z][a-z]+[0-9]*|\b)|[A-Z]?[a-z]+[0-9]*|[A-Z]|[0-9]+/g);
+
+		if (!match2) {
+			return value;
+		}
+
+		return match2
+			.map(x => x.toLowerCase())
+			.join('-');
 	}
 
 	private _toPascalCase(value: string): string {

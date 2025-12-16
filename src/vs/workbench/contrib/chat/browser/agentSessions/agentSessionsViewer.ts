@@ -503,12 +503,6 @@ export interface IAgentSessionsFilter {
 	readonly groupResults?: () => boolean | undefined;
 
 	/**
-	 * A callback to notify the filter about the label of the
-	 * first section when grouping is enabled.
-	 */
-	notifyFirstGroupLabel?(label: string | undefined): void;
-
-	/**
 	 * A callback to notify the filter about the number of
 	 * results after filtering.
 	 */
@@ -593,28 +587,13 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
 		const groupedSessions = groupAgentSessions(sortedSessions);
 
-		let isFirstSection = true;
-		let firstSectionLabel: string | undefined;
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
 				continue;
 			}
 
-			// First section: add sessions directly without a parent node
-			if (isFirstSection) {
-				result.push(...sessions);
-				isFirstSection = false;
-				firstSectionLabel = label;
-			}
-
-			// Subsequent sections: add as parent nodes with children
-			else {
-				result.push({ section, label, sessions });
-			}
+			result.push({ section, label, sessions });
 		}
-
-		// Notify the first section label
-		this.filter?.notifyFirstGroupLabel?.(firstSectionLabel);
 
 		return result;
 	}

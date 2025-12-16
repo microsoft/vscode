@@ -214,7 +214,7 @@
 		display: flex;
 		align-items: center;
 		font-size: 11px;
-		font-weight: 700;
+		color: var(--vscode-descriptionForeground);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		/* align with session item padding */

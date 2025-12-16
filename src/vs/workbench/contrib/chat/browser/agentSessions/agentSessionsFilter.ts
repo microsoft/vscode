@@ -23,7 +23,6 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	notifyResults?(count: number): void;
 
 	readonly groupResults?: () => boolean | undefined;
-	notifyFirstGroupLabel?(label: string | undefined): void;
 
 	overrideExclude?(session: IAgentSession): boolean | undefined;
 }
@@ -296,9 +295,5 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	notifyResults(count: number): void {
 		this.options.notifyResults?.(count);
-	}
-
-	notifyFirstGroupLabel(label: string | undefined): void {
-		this.options.notifyFirstGroupLabel?.(label);
 	}
 }
