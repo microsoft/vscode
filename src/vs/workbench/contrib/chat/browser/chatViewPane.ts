@@ -840,10 +840,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsViewerOrientation = newSessionsViewerOrientation;
 
 		if (newSessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			this.viewPaneContainer.classList.add('sessions-control-orientation-sidebyside');
+			this.viewPaneContainer.classList.toggle('sessions-control-orientation-sidebyside', true);
+			this.viewPaneContainer.classList.toggle('sessions-control-orientation-stacked', false);
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.SideBySide);
 		} else {
-			this.viewPaneContainer.classList.remove('sessions-control-orientation-sidebyside');
+			this.viewPaneContainer.classList.toggle('sessions-control-orientation-sidebyside', false);
+			this.viewPaneContainer.classList.toggle('sessions-control-orientation-stacked', true);
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.Stacked);
 		}
 

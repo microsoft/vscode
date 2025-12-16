@@ -24,9 +24,24 @@
 			min-width: 0;
 		}
 	}
+
+	&:not(.chat-view-welcome-enabled) {
+
+		.interactive-session {
+
+			/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
+			.chat-welcome-view .chat-welcome-view-icon,
+			.chat-welcome-view .chat-welcome-view-title,
+			.chat-welcome-view .chat-welcome-view-message,
+			.chat-welcome-view .chat-welcome-view-disclaimer,
+			.chat-welcome-view .chat-welcome-view-tips {
+				visibility: hidden;
+			}
+		}
+	}
 }
 
-/* Sessions control: either sidebar or compact */
+/* Sessions control: either sidebar or stacked */
 .chat-viewpane.has-sessions-control .agent-sessions-container {
 	display: flex;
 	flex-direction: column;
@@ -80,6 +95,19 @@
 	}
 }
 
+/* Sessions control: stacked */
+.chat-viewpane.has-sessions-control.sessions-control-orientation-stacked {
+
+	.agent-sessions-container {
+		border-bottom: 1px solid var(--vscode-panel-border);
+
+		.agent-session-section {
+			/* align with container title */
+			padding: 0 8px 0 18px;
+		}
+	}
+}
+
 /* Sessions control: side by side */
 .chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
 
@@ -99,55 +127,41 @@
 		}
 	}
 
-	&:not(.activity-bar-location-default) .agent-sessions-title-container {
-		padding: 0 4px 0 8px; /* align with container title and actions */
-	}
-
-	&.activity-bar-location-default .agent-sessions-title-container {
-		padding: 0 8px; /* align with container title and actions */
-	}
-
 	.agent-sessions-link-container {
 		/* hide link to show more when side by side */
 		display: none;
 	}
 }
 
-/* Sessions control: compact */
-.chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
+/*
+ * Below is a very complicated set of CSS rules that try to align the
+ * agent sessions title to the surrounding elements depending on:
+ * - the activity bar position
+ * - the chat view container (sidebar, panel, auxiliarybar)
+ * - the container orientation (left, right)
+ * - the visiblity of side by side
+ */
+.chat-viewpane.has-sessions-control {
 
-	&:not(.activity-bar-location-default) .agent-sessions-title-container {
-		/* align with container title and actions */
-		padding: 0 4px 0 20px;
-	}
+	&.sessions-control-orientation-stacked {
 
-	&.activity-bar-location-default .agent-sessions-title-container {
-		/* align with container title and actions */
-		padding: 0 8px 0 20px;
-	}
+		&:not(.activity-bar-location-default) .agent-sessions-title-container {
+			padding: 0 4px 0 20px;
+		}
 
-	.agent-sessions-container {
-		border-bottom: 1px solid var(--vscode-panel-border);
-
-		.agent-session-section {
-			/* align with container title */
-			padding: 0 8px 0 18px;
+		&.activity-bar-location-default .agent-sessions-title-container {
+			padding: 0 8px 0 20px;
 		}
 	}
-}
 
-/* Welcome disabled */
-.chat-viewpane:not(.chat-view-welcome-enabled) {
+	&.sessions-control-orientation-sidebyside {
 
-	.interactive-session {
+		&:not(.activity-bar-location-default) .agent-sessions-title-container {
+			padding: 0 4px 0 8px;
+		}
 
-		/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
-		.chat-welcome-view .chat-welcome-view-icon,
-		.chat-welcome-view .chat-welcome-view-title,
-		.chat-welcome-view .chat-welcome-view-message,
-		.chat-welcome-view .chat-welcome-view-disclaimer,
-		.chat-welcome-view .chat-welcome-view-tips {
-			visibility: hidden;
+		&.activity-bar-location-default .agent-sessions-title-container {
+			padding: 0 8px;
 		}
 	}
 }
