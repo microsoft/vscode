@@ -83,10 +83,7 @@ export class ExceptionWidget extends ZoneWidget {
 		label.textContent = this.exceptionInfo.id ? nls.localize('exceptionThrownWithId', 'Exception has occurred: {0}', this.exceptionInfo.id) : nls.localize('exceptionThrown', 'Exception has occurred.');
 		let ariaLabel = label.textContent;
 
-		// TODO this creates a memory leak
-		const store = new DisposableStore();
-
-		const actionBar = store.add(new ActionBar(actions));
+		const actionBar = this._disposables.add.add(new ActionBar(actions));
 		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), ThemeIcon.asClassName(widgetClose), true, async () => {
 			const contribution = this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
 			contribution?.closeExceptionWidget();
@@ -105,10 +102,10 @@ export class ExceptionWidget extends ZoneWidget {
 			const stackTrace = $('.stack-trace');
 			const linkDetector = this.instantiationService.createInstance(LinkDetector);
 			const hoverBehaviour: DebugLinkHoverBehaviorTypeData = {
-				store,
-				type: DebugLinkHoverBehavior.None,
+				store: this._disposables,
+				type: DebugLinkHoverBehavior.Rich,
 			}
-			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, hoverBehaviour, true, this.debugSession ? this.debugSession.root : undefined, undefined, { type: DebugLinkHoverBehavior.Rich, store: this._disposables });
+			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, hoverBehaviour, true, this.debugSession ? this.debugSession.root : undefined, undefined,);
 			stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
 			ariaLabel += ', ' + this.exceptionInfo.details.stackTrace;
