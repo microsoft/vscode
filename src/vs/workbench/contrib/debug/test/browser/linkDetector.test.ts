@@ -92,7 +92,7 @@ suite('Debug - Link Detector', () => {
 		if (!isWindows) {
 			const input = '(/home/alexey_korepov/projects/dt2/playwright/node_modules/.pnpm/playwright-core@1.57.0/node_modules/playwright-core/lib/client/errors.js:56:16)';
 			const expectedOutput = '<span>(<a tabindex="0">/home/alexey_korepov/projects/dt2/playwright/node_modules/.pnpm/playwright-core@1.57.0/node_modules/playwright-core/lib/client/errors.js:56:16</a>)</span>';
-			const output = linkDetector.linkify(input);
+			const output = linkDetector.linkify(input, hoverBehavior);
 
 			assert.strictEqual(expectedOutput, output.outerHTML);
 			assert.strictEqual(1, output.children.length);
@@ -254,7 +254,7 @@ suite('Debug - Link Detector', () => {
 	test('csharpStackTraceFormatWithLine', () => {
 		const input = isWindows ? 'C:\\foo\\bar.cs:line 6' : '/Users/foo/bar.cs:line 6';
 		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\bar.cs:line 6<\/a><\/span>' : '<span><a tabindex="0">/Users/foo/bar.cs:line 6<\/a><\/span>';
-		const output = linkDetector.linkify(input);
+		const output = linkDetector.linkify(input, hoverBehavior);
 
 		assert.strictEqual(1, output.children.length);
 		assert.strictEqual('SPAN', output.tagName);
@@ -267,7 +267,7 @@ suite('Debug - Link Detector', () => {
 	test('csharpStackTraceFormatWithLineAndColumn', () => {
 		const input = isWindows ? 'C:\\foo\\bar.cs:line 6:10' : '/Users/foo/bar.cs:line 6:10';
 		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\bar.cs:line 6:10<\/a><\/span>' : '<span><a tabindex="0">/Users/foo/bar.cs:line 6:10<\/a><\/span>';
-		const output = linkDetector.linkify(input);
+		const output = linkDetector.linkify(input, hoverBehavior);
 
 		assert.strictEqual(1, output.children.length);
 		assert.strictEqual('SPAN', output.tagName);
@@ -284,7 +284,7 @@ suite('Debug - Link Detector', () => {
 		const expectedOutput = isWindows ?
 			/^<span><a tabindex="0">.*\\foo\\bar\.js:12:34<\/a> and <a tabindex="0">.*\\baz\\qux\.cs:line 6<\/a><\/span>$/ :
 			/^<span><a tabindex="0">.*\/foo\/bar\.js:12:34<\/a> and <a tabindex="0">.*\/baz\/qux\.cs:line 6<\/a><\/span>$/;
-		const output = linkDetector.linkify(input);
+		const output = linkDetector.linkify(input, hoverBehavior);
 
 		assert.strictEqual(2, output.children.length);
 		assert.strictEqual('SPAN', output.tagName);
