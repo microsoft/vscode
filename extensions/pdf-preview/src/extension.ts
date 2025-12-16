@@ -116,6 +116,30 @@ export function activate(context: vscode.ExtensionContext) {
 		return previewManager.showPdfPreview(options);
 	}));
 
+	// Scroll PDF preview to a percentage (for source-to-preview sync with Typst/LaTeX)
+	disposables.push(vscode.commands.registerCommand('pdfPreview.scrollToPercent', (options: { sourceUri?: string; percent: number }) => {
+		// Try to find the preview by source URI, or use active preview
+		let preview = options.sourceUri ? previewManager.getPdfPreviewBySource(options.sourceUri) : undefined;
+		if (!preview) {
+			preview = previewManager.activePreview;
+		}
+		if (preview) {
+			preview.scrollToPercent(options.percent);
+		}
+	}));
+
+	// Scroll PDF preview to text (for text-based source-to-preview sync)
+	disposables.push(vscode.commands.registerCommand('pdfPreview.scrollToText', (options: { sourceUri?: string; text: string }) => {
+		// Try to find the preview by source URI, or use active preview
+		let preview = options.sourceUri ? previewManager.getPdfPreviewBySource(options.sourceUri) : undefined;
+		if (!preview) {
+			preview = previewManager.activePreview;
+		}
+		if (preview && options.text) {
+			preview.scrollToText(options.text);
+		}
+	}));
+
 	context.subscriptions.push(...disposables);
 }
 

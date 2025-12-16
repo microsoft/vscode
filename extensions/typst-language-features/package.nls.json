@@ -18,5 +18,7 @@
 	"typst.shortcut.italic.title": "Toggle Italic",
 	"typst.shortcut.underline.title": "Toggle Underline",
 	"typst.wordCount.title": "Count Words",
-	"typst.wordCount.showInStatusBar.description": "Show word count in the status bar"
+	"typst.wordCount.showInStatusBar.description": "Show word count in the status bar",
+	"typst.previewSync.title": "Preview with Bidirectional Sync",
+	"typst.previewBidirectional.title": "Preview with Bidirectional Sync (PoC)"
 }

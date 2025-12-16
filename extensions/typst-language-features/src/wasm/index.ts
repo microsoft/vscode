@@ -11,12 +11,23 @@ export {
 	validateSource,
 	queryDocument,
 	resetCompiler,
-	disposeWasm
+	disposeWasm,
+	// Bidirectional sync functions (text-based, WASM compatible)
+	compileWithSpans,
+	resolveSourceLocationByText,
+	resolveSourceLocation,
+	findDocumentPositions,
+	isRendererReady,
+	disposeRenderer
 } from './typstWasm';
 
 export type {
 	CompileResult,
 	DiagnosticInfo,
 	WasmFileReader,
-	TypstWasmOptions
+	TypstWasmOptions,
+	// Bidirectional sync types
+	CompileWithSpansResult,
+	SourceLocation,
+	DocumentPosition
 } from './typstWasm';

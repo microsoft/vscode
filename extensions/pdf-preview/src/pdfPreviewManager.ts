@@ -148,12 +148,23 @@ export class PdfPreviewManager implements vscode.CustomReadonlyEditorProvider {
 		panel.onDidChangeViewState(() => {
 			if (panel.active) {
 				this.setActivePreview(preview);
-			} else if (this._activePreview === preview && !panel.active) {
-				this.setActivePreview(undefined);
 			}
+			// Note: We don't clear activePreview when panel loses focus
+			// because we still want to sync to it from the editor
 		});
 
 		return preview;
+	}
+
+	/**
+	 * Get PDF preview by source URI (for programmatic previews)
+	 */
+	public getPdfPreviewBySource(sourceUri: string): PdfPreview | undefined {
+		const preview = this._programmaticPreviews.get(sourceUri);
+		if (preview && !preview.isDisposed) {
+			return preview;
+		}
+		return undefined;
 	}
 
 	private getFileName(uri: vscode.Uri): string {

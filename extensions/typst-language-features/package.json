@@ -1,276 +1,298 @@
 {
-  "name": "typst-language-features",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
-  "enabledApiProposals": [
-    "codeActionAI"
-  ],
-  "engines": {
-    "vscode": "^1.77.0"
-  },
-  "categories": [
-    "Programming Languages",
-    "Formatters"
-  ],
-  "activationEvents": [
-    "onLanguage:typst"
-  ],
-  "main": "./out/extension",
-  "browser": "./dist/browser/extension",
-  "capabilities": {
-    "virtualWorkspaces": true,
-    "untrustedWorkspaces": {
-      "supported": true
-    }
-  },
-  "scripts": {
-    "compile": "npx tsc -p .",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config.js --mode none",
-    "watch": "npx tsc -p . --watch",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config.js --mode none --watch"
-  },
-  "contributes": {
-    "languages": [
-      {
-        "id": "typst",
-        "aliases": [
-          "Typst",
-          "typst"
-        ],
-        "extensions": [
-          ".typ"
-        ],
-        "configuration": "./syntaxes/language-configuration.json",
-        "icon": {
-          "light": "./icons/typst.png",
-          "dark": "./icons/typst.png"
-        }
-      }
-    ],
-    "grammars": [
-      {
-        "language": "typst",
-        "scopeName": "source.typst",
-        "path": "./syntaxes/typst.tmLanguage.json"
-      },
-      {
-        "scopeName": "markdown.typst.codeblock",
-        "path": "./syntaxes/typst-markdown-injection.json",
-        "injectTo": [
-          "text.html.markdown"
-        ],
-        "embeddedLanguages": {
-          "meta.embedded.block.typst": "typst"
-        }
-      }
-    ],
-    "snippets": [
-      {
-        "language": "typst",
-        "path": "./snippets/typst.json"
-      }
-    ],
-    "configuration": [
-      {
-        "order": 30,
-        "id": "typst",
-        "title": "%typst.title%",
-        "properties": {
-          "typst.compilation.mode": {
-            "type": "string",
-            "enum": [
-              "auto",
-              "wasm"
-            ],
-            "enumDescriptions": [
-              "%typst.compilation.mode.auto%",
-              "%typst.compilation.mode.wasm%"
-            ],
-            "default": "auto",
-            "description": "%typst.compilation.mode.description%",
-            "scope": "window"
-          },
-          "typst.preview.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typst.preview.enabled.description%",
-            "scope": "window"
-          },
-          "typst.preview.refresh": {
-            "type": "string",
-            "enum": [
-              "onSave",
-              "onType"
-            ],
-            "default": "onType",
-            "description": "%typst.preview.refresh.description%",
-            "scope": "window"
-          },
-          "typst.formatting.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typst.formatting.enabled.description%",
-            "scope": "window"
-          },
-          "typst.formatting.printWidth": {
-            "type": "number",
-            "default": 120,
-            "description": "%typst.formatting.printWidth.description%",
-            "scope": "window"
-          },
-          "typst.validation.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typst.validation.enabled.description%",
-            "scope": "window"
-          },
-          "typst.hover.preview.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typst.hover.preview.enabled.description%",
-            "scope": "window"
-          },
-          "typst.hover.preview.math.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typst.hover.preview.math.enabled.description%",
-            "scope": "window"
-          },
-          "typst.wordCount.showInStatusBar": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typst.wordCount.showInStatusBar.description%",
-            "scope": "window"
-          }
-        }
-      }
-    ],
-    "configurationDefaults": {
-      "[typst]": {
-        "editor.wordWrap": "on",
-        "editor.semanticHighlighting.enabled": true,
-        "editor.tabSize": 2,
-        "editor.suggest.insertMode": "replace"
-      }
-    },
-    "commands": [
-      {
-        "command": "typst.preview",
-        "title": "%typst.preview.title%",
-        "category": "Typst",
-        "icon": "$(open-preview)"
-      },
-      {
-        "command": "typst.exportPdf",
-        "title": "%typst.exportPdf.title%",
-        "category": "Typst",
-        "icon": "$(file-pdf)"
-      },
-      {
-        "command": "typst.shortcut.bold",
-        "title": "%typst.shortcut.bold.title%",
-        "category": "Typst"
-      },
-      {
-        "command": "typst.shortcut.italic",
-        "title": "%typst.shortcut.italic.title%",
-        "category": "Typst"
-      },
-      {
-        "command": "typst.shortcut.underline",
-        "title": "%typst.shortcut.underline.title%",
-        "category": "Typst"
-      },
-      {
-        "command": "typst.wordCount",
-        "title": "%typst.wordCount.title%",
-        "category": "Typst"
-      }
-    ],
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "typst.preview",
-          "when": "editorLangId == typst"
-        },
-        {
-          "command": "typst.exportPdf",
-          "when": "editorLangId == typst"
-        },
-        {
-          "command": "typst.shortcut.bold",
-          "when": "editorLangId == typst"
-        },
-        {
-          "command": "typst.shortcut.italic",
-          "when": "editorLangId == typst"
-        },
-        {
-          "command": "typst.shortcut.underline",
-          "when": "editorLangId == typst"
-        },
-        {
-          "command": "typst.wordCount",
-          "when": "editorLangId == typst"
-        }
-      ],
-      "editor/title": [
-        {
-          "command": "typst.preview",
-          "when": "editorLangId == typst",
-          "group": "navigation"
-        },
-        {
-          "command": "typst.exportPdf",
-          "when": "editorLangId == typst",
-          "group": "navigation"
-        }
-      ]
-    },
-    "keybindings": [
-      {
-        "command": "typst.preview",
-        "key": "ctrl+k v",
-        "mac": "cmd+k v",
-        "when": "editorLangId == typst"
-      },
-      {
-        "command": "typst.shortcut.bold",
-        "key": "ctrl+b",
-        "mac": "cmd+b",
-        "when": "editorTextFocus && editorLangId == typst"
-      },
-      {
-        "command": "typst.shortcut.italic",
-        "key": "ctrl+i",
-        "mac": "cmd+i",
-        "when": "editorTextFocus && editorLangId == typst"
-      },
-      {
-        "command": "typst.shortcut.underline",
-        "key": "ctrl+u",
-        "mac": "cmd+u",
-        "when": "editorTextFocus && editorLangId == typst"
-      }
-    ]
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
-  },
-  "dependencies": {
-    "@myriaddreamin/typst-ts-web-compiler": "^0.6.0",
-    "@myriaddreamin/typst-ts-renderer": "^0.6.0",
-    "@myriaddreamin/typst.ts": "^0.6.0",
-    "@typstyle/typstyle-wasm-bundler": "^0.13.7"
-  },
-  "devDependencies": {
-    "@types/node": "22.x"
-  },
-  "extensionDependencies": [
-    "vscode.pdf-preview"
-  ]
+	"name": "typst-language-features",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"license": "MIT",
+	"enabledApiProposals": [
+		"codeActionAI"
+	],
+	"engines": {
+		"vscode": "^1.77.0"
+	},
+	"categories": [
+		"Programming Languages",
+		"Formatters"
+	],
+	"activationEvents": [
+		"onLanguage:typst"
+	],
+	"main": "./out/extension",
+	"browser": "./dist/browser/extension",
+	"capabilities": {
+		"virtualWorkspaces": true,
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"scripts": {
+		"compile": "npx tsc -p .",
+		"compile-web": "npx webpack-cli --config extension-browser.webpack.config.js --mode none",
+		"watch": "npx tsc -p . --watch",
+		"watch-web": "npx webpack-cli --config extension-browser.webpack.config.js --mode none --watch"
+	},
+	"contributes": {
+		"languages": [
+			{
+				"id": "typst",
+				"aliases": [
+					"Typst",
+					"typst"
+				],
+				"extensions": [
+					".typ"
+				],
+				"configuration": "./syntaxes/language-configuration.json",
+				"icon": {
+					"light": "./icons/typst.png",
+					"dark": "./icons/typst.png"
+				}
+			}
+		],
+		"grammars": [
+			{
+				"language": "typst",
+				"scopeName": "source.typst",
+				"path": "./syntaxes/typst.tmLanguage.json"
+			},
+			{
+				"scopeName": "markdown.typst.codeblock",
+				"path": "./syntaxes/typst-markdown-injection.json",
+				"injectTo": [
+					"text.html.markdown"
+				],
+				"embeddedLanguages": {
+					"meta.embedded.block.typst": "typst"
+				}
+			}
+		],
+		"snippets": [
+			{
+				"language": "typst",
+				"path": "./snippets/typst.json"
+			}
+		],
+		"configuration": [
+			{
+				"order": 30,
+				"id": "typst",
+				"title": "%typst.title%",
+				"properties": {
+					"typst.compilation.mode": {
+						"type": "string",
+						"enum": [
+							"auto",
+							"wasm"
+						],
+						"enumDescriptions": [
+							"%typst.compilation.mode.auto%",
+							"%typst.compilation.mode.wasm%"
+						],
+						"default": "auto",
+						"description": "%typst.compilation.mode.description%",
+						"scope": "window"
+					},
+					"typst.preview.enabled": {
+						"type": "boolean",
+						"default": true,
+						"description": "%typst.preview.enabled.description%",
+						"scope": "window"
+					},
+					"typst.preview.refresh": {
+						"type": "string",
+						"enum": [
+							"onSave",
+							"onType"
+						],
+						"default": "onType",
+						"description": "%typst.preview.refresh.description%",
+						"scope": "window"
+					},
+					"typst.formatting.enabled": {
+						"type": "boolean",
+						"default": true,
+						"description": "%typst.formatting.enabled.description%",
+						"scope": "window"
+					},
+					"typst.formatting.printWidth": {
+						"type": "number",
+						"default": 120,
+						"description": "%typst.formatting.printWidth.description%",
+						"scope": "window"
+					},
+					"typst.validation.enabled": {
+						"type": "boolean",
+						"default": true,
+						"description": "%typst.validation.enabled.description%",
+						"scope": "window"
+					},
+					"typst.hover.preview.enabled": {
+						"type": "boolean",
+						"default": true,
+						"description": "%typst.hover.preview.enabled.description%",
+						"scope": "window"
+					},
+					"typst.hover.preview.math.enabled": {
+						"type": "boolean",
+						"default": true,
+						"description": "%typst.hover.preview.math.enabled.description%",
+						"scope": "window"
+					},
+					"typst.wordCount.showInStatusBar": {
+						"type": "boolean",
+						"default": true,
+						"description": "%typst.wordCount.showInStatusBar.description%",
+						"scope": "window"
+					}
+				}
+			}
+		],
+		"configurationDefaults": {
+			"[typst]": {
+				"editor.wordWrap": "on",
+				"editor.semanticHighlighting.enabled": true,
+				"editor.tabSize": 2,
+				"editor.suggest.insertMode": "replace"
+			}
+		},
+		"commands": [
+			{
+				"command": "typst.preview",
+				"title": "%typst.preview.title%",
+				"category": "Typst",
+				"icon": "$(open-preview)"
+			},
+			{
+				"command": "typst.previewSync",
+				"title": "%typst.previewSync.title%",
+				"category": "Typst",
+				"icon": "$(sync)"
+			},
+			{
+				"command": "typst.exportPdf",
+				"title": "%typst.exportPdf.title%",
+				"category": "Typst",
+				"icon": "$(file-pdf)"
+			},
+			{
+				"command": "typst.shortcut.bold",
+				"title": "%typst.shortcut.bold.title%",
+				"category": "Typst"
+			},
+			{
+				"command": "typst.shortcut.italic",
+				"title": "%typst.shortcut.italic.title%",
+				"category": "Typst"
+			},
+			{
+				"command": "typst.shortcut.underline",
+				"title": "%typst.shortcut.underline.title%",
+				"category": "Typst"
+			},
+			{
+				"command": "typst.wordCount",
+				"title": "%typst.wordCount.title%",
+				"category": "Typst"
+			},
+			{
+				"command": "typst.previewBidirectional",
+				"title": "%typst.previewBidirectional.title%",
+				"category": "Typst",
+				"icon": "$(sync)"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "typst.preview",
+					"when": "editorLangId == typst"
+				},
+				{
+					"command": "typst.exportPdf",
+					"when": "editorLangId == typst"
+				},
+				{
+					"command": "typst.shortcut.bold",
+					"when": "editorLangId == typst"
+				},
+				{
+					"command": "typst.shortcut.italic",
+					"when": "editorLangId == typst"
+				},
+				{
+					"command": "typst.shortcut.underline",
+					"when": "editorLangId == typst"
+				},
+				{
+					"command": "typst.wordCount",
+					"when": "editorLangId == typst"
+				},
+				{
+					"command": "typst.previewBidirectional",
+					"when": "editorLangId == typst"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "typst.preview",
+					"when": "editorLangId == typst",
+					"group": "navigation"
+				},
+				{
+					"command": "typst.exportPdf",
+					"when": "editorLangId == typst",
+					"group": "navigation"
+				}
+			]
+		},
+		"keybindings": [
+			{
+				"command": "typst.preview",
+				"key": "ctrl+k v",
+				"mac": "cmd+k v",
+				"when": "editorLangId == typst"
+			},
+			{
+				"command": "typst.shortcut.bold",
+				"key": "ctrl+b",
+				"mac": "cmd+b",
+				"when": "editorTextFocus && editorLangId == typst"
+			},
+			{
+				"command": "typst.shortcut.italic",
+				"key": "ctrl+i",
+				"mac": "cmd+i",
+				"when": "editorTextFocus && editorLangId == typst"
+			},
+			{
+				"command": "typst.shortcut.underline",
+				"key": "ctrl+u",
+				"mac": "cmd+u",
+				"when": "editorTextFocus && editorLangId == typst"
+			},
+			{
+				"command": "typst.previewBidirectional",
+				"key": "ctrl+shift+k v",
+				"mac": "cmd+shift+k v",
+				"when": "editorLangId == typst"
+			}
+		]
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode.git"
+	},
+	"dependencies": {
+		"@myriaddreamin/typst-ts-renderer": "^0.6.0",
+		"@myriaddreamin/typst-ts-web-compiler": "^0.6.0",
+		"@myriaddreamin/typst.ts": "^0.6.0",
+		"@typstyle/typstyle-wasm-bundler": "^0.13.7"
+	},
+	"devDependencies": {
+		"@types/node": "22.x"
+	},
+	"extensionDependencies": [
+		"vscode.pdf-preview"
+	]
 }

@@ -25,6 +25,7 @@ interface WebviewMessage {
 	x?: number;
 	y?: number;
 	error?: string;
+	text?: string;
 }
 
 export class PdfPreview extends Disposable {
@@ -199,6 +200,18 @@ export class PdfPreview extends Disposable {
 		}
 	}
 
+	public scrollToPercent(percent: number): void {
+		if (this._previewState !== PreviewState.Disposed) {
+			this.webviewPanel.webview.postMessage({ type: 'scrollToPercent', percent });
+		}
+	}
+
+	public scrollToText(text: string): void {
+		if (this._previewState !== PreviewState.Disposed) {
+			this.webviewPanel.webview.postMessage({ type: 'scrollToText', text });
+		}
+	}
+
 	private handleMessage(message: WebviewMessage): void {
 		switch (message.type) {
 			case 'pageChanged':
@@ -215,7 +228,8 @@ export class PdfPreview extends Disposable {
 					vscode.commands.executeCommand(this._onSyncClick, {
 						page: message.page,
 						x: message.x,
-						y: message.y
+						y: message.y,
+						text: message.text
 					});
 				}
 				break;

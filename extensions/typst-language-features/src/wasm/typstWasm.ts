@@ -23,6 +23,10 @@ import * as vscode from 'vscode';
 let typstInstance: any = null;
 let initPromise: Promise<void> | null = null;
 
+// Renderer instance for bidirectional sync (SVG with debug info)
+// Note: typstRenderer and currentRenderSession removed - using text-based sync
+// Note: storedReadWasmFile removed - not needed for text-based sync
+
 // Memory access model for file system access
 let memoryAccessModel: any = null;
 
@@ -98,6 +102,36 @@ export interface DiagnosticInfo {
 	};
 }
 
+/**
+ * Result of compiling with span/debug info for bidirectional sync
+ */
+export interface CompileWithSpansResult {
+	success: boolean;
+	/** The compiled artifact bytes (for use with renderer) */
+	artifactBytes?: Uint8Array;
+	/** Pre-rendered SVG string */
+	svg?: string;
+	errors?: DiagnosticInfo[];
+}
+
+/**
+ * Source location resolved from a click in the preview
+ */
+export interface SourceLocation {
+	filepath: string;
+	line: number;
+	column: number;
+}
+
+/**
+ * Position in the rendered document
+ */
+export interface DocumentPosition {
+	page: number;
+	x: number;
+	y: number;
+}
+
 interface TypstDiagnostic {
 	message?: string;
 	msg?: string;
@@ -141,9 +175,8 @@ export async function initializeTypstWasm(options?: TypstWasmOptions | string): 
 	}
 
 	// Handle legacy string argument for backwards compatibility
-	const normalizedOptions: TypstWasmOptions = typeof options === 'string'
-		? { wasmBaseUri: options }
-		: options ?? {};
+	const normalizedOptions: TypstWasmOptions =
+		typeof options === 'string' ? { wasmBaseUri: options } : (options ?? {});
 
 	initPromise = doInitialize(normalizedOptions);
 	return initPromise;
@@ -217,8 +250,10 @@ async function doInitialize(options: TypstWasmOptions): Promise<void> {
 			});
 		} else {
 			// CDN fallback
-			const compilerWasmUrl = 'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm';
-			const rendererWasmUrl = 'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm';
+			const compilerWasmUrl =
+				'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm';
+			const rendererWasmUrl =
+				'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm';
 
 			console.log('[Typst WASM] Using CDN fallback');
 			console.log('[Typst WASM] Compiler WASM URL:', compilerWasmUrl);
@@ -392,11 +427,13 @@ export async function compileToPdf(source: string, document?: vscode.TextDocumen
 	if (!typstInstance) {
 		return {
 			success: false,
-			errors: [{
-				message: 'Typst WASM compiler not initialized',
-				severity: 'error',
-				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }
-			}]
+			errors: [
+				{
+					message: 'Typst WASM compiler not initialized',
+					severity: 'error',
+					range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+				},
+			],
 		};
 	}
 
@@ -415,11 +452,13 @@ export async function compileToPdf(source: string, document?: vscode.TextDocumen
 		} else {
 			return {
 				success: false,
-				errors: [{
-					message: 'Compilation returned no output',
-					severity: 'error',
-					range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }
-				}]
+				errors: [
+					{
+						message: 'Compilation returned no output',
+						severity: 'error',
+						range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+					},
+				],
 			};
 		}
 	} catch (error: any) {
@@ -437,11 +476,13 @@ export async function compileToSvg(source: string, document?: vscode.TextDocumen
 	if (!typstInstance) {
 		return {
 			success: false,
-			errors: [{
-				message: 'Typst WASM compiler not initialized',
-				severity: 'error',
-				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }
-			}]
+			errors: [
+				{
+					message: 'Typst WASM compiler not initialized',
+					severity: 'error',
+					range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+				},
+			],
 		};
 	}
 
@@ -519,21 +560,28 @@ export async function validateSource(source: string, document?: vscode.TextDocum
 						if (typeof diag.range.start?.line === 'number') {
 							lineNum = Math.max(0, diag.range.start.line);
 						}
-						if (typeof diag.range.start?.character === 'number' || typeof diag.range.start?.column === 'number') {
+						if (
+							typeof diag.range.start?.character === 'number' ||
+							typeof diag.range.start?.column === 'number'
+						) {
 							colNum = Math.max(0, diag.range.start.character || diag.range.start.column || 0);
 						}
 					}
 
-					const severity = (diag.severity || 'error').toLowerCase() === 'error' ? 'error' :
-						(diag.severity || 'error').toLowerCase() === 'warning' ? 'warning' : 'info';
+					const severity =
+						(diag.severity || 'error').toLowerCase() === 'error'
+							? 'error'
+							: (diag.severity || 'error').toLowerCase() === 'warning'
+								? 'warning'
+								: 'info';
 
 					return {
 						message: diag.message || diag.msg || String(diag),
 						severity: severity,
 						range: {
 							start: { line: lineNum, character: colNum },
-							end: { line: lineNum, character: colNum + (diag.length || 100) }
-						}
+							end: { line: lineNum, character: colNum + (diag.length || 100) },
+						},
 					};
 				});
 			}
@@ -596,8 +644,12 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 					console.warn('[Typst WASM] Ignoring access model configuration warning in diagnostics:', message);
 					continue;
 				}
-				const severity = (diag.severity || 'error').toLowerCase() === 'error' ? 'error' :
-					(diag.severity || 'error').toLowerCase() === 'warning' ? 'warning' : 'info';
+				const severity =
+					(diag.severity || 'error').toLowerCase() === 'error'
+						? 'error'
+						: (diag.severity || 'error').toLowerCase() === 'warning'
+							? 'warning'
+							: 'info';
 
 				// Try to extract location from diagnostic object
 				let lineNum = 0;
@@ -616,7 +668,10 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 					if (typeof diag.range.start?.line === 'number') {
 						lineNum = Math.max(0, diag.range.start.line);
 					}
-					if (typeof diag.range.start?.character === 'number' || typeof diag.range.start?.column === 'number') {
+					if (
+						typeof diag.range.start?.character === 'number' ||
+						typeof diag.range.start?.column === 'number'
+					) {
 						colNum = Math.max(0, diag.range.start.character || diag.range.start.column || 0);
 					}
 				}
@@ -626,8 +681,8 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 					severity: severity,
 					range: {
 						start: { line: lineNum, character: colNum },
-						end: { line: lineNum, character: colNum + 100 }
-					}
+						end: { line: lineNum, character: colNum + 100 },
+					},
 				});
 			}
 		}
@@ -635,7 +690,7 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 		if (errors.length > 0) {
 			return {
 				success: false,
-				errors: errors
+				errors: errors,
 			};
 		}
 	}
@@ -666,7 +721,8 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 	// Pattern matches: SourceDiagnostic { severity: Error, span: Span(...), message: "...", trace: [...], hints: [...] }
 	// We also try to extract trace information which might contain location hints
 	// Note: The pattern is flexible to handle variations in whitespace and optional fields
-	const diagnosticPattern = /SourceDiagnostic\s*\{\s*severity:\s*(\w+)\s*,\s*span:\s*Span\(([^)]+)\)\s*,\s*message:\s*"([^"]+)"\s*(?:,\s*trace:\s*\[([^\]]*)\])?\s*(?:,\s*hints:\s*\[([^\]]*)\])?\s*\}/g;
+	const diagnosticPattern =
+		/SourceDiagnostic\s*\{\s*severity:\s*(\w+)\s*,\s*span:\s*Span\(([^)]+)\)\s*,\s*message:\s*"([^"]+)"\s*(?:,\s*trace:\s*\[([^\]]*)\])?\s*(?:,\s*hints:\s*\[([^\]]*)\])?\s*\}/g;
 	let match;
 	let foundDiagnostics = false;
 
@@ -676,8 +732,8 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 	while ((match = diagnosticPattern.exec(errorMsgStr)) !== null) {
 		foundDiagnostics = true;
 		const severityStr = match[1].toLowerCase();
-		const severity = severityStr === 'error' ? 'error' :
-			severityStr === 'warning' ? 'warning' : 'info';
+		const severity =
+			severityStr === 'error' ? 'error' : severityStr === 'warning' ? 'warning' : 'info';
 		let message = match[3];
 		const trace = match[4] || '';
 		const hints = match[5] || '';
@@ -690,10 +746,15 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 		let colNum = 0;
 
 		// Method 1: Check the message
-		let lineMatch = message.match(/(?:at|on|line|Ln|line)\s+(\d+)(?:\s*,\s*col(?:umn)?\s*(\d+)|[:\s]+(\d+))?/i);
+		let lineMatch = message.match(
+			/(?:at|on|line|Ln|line)\s+(\d+)(?:\s*,\s*col(?:umn)?\s*(\d+)|[:\s]+(\d+))?/i
+		);
 		if (lineMatch) {
 			lineNum = Math.max(0, parseInt(lineMatch[1], 10) - 1);
-			colNum = (lineMatch[2] || lineMatch[3]) ? Math.max(0, parseInt(lineMatch[2] || lineMatch[3] || '0', 10) - 1) : 0;
+			colNum =
+				lineMatch[2] || lineMatch[3]
+					? Math.max(0, parseInt(lineMatch[2] || lineMatch[3] || '0', 10) - 1)
+					: 0;
 		}
 
 		// Method 2: Check trace for location hints
@@ -701,7 +762,10 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 			lineMatch = trace.match(/(?:line|Ln)\s*(\d+)(?:\s*,\s*col(?:umn)?\s*(\d+)|[:\s]+(\d+))?/i);
 			if (lineMatch) {
 				lineNum = Math.max(0, parseInt(lineMatch[1], 10) - 1);
-				colNum = (lineMatch[2] || lineMatch[3]) ? Math.max(0, parseInt(lineMatch[2] || lineMatch[3] || '0', 10) - 1) : 0;
+				colNum =
+					lineMatch[2] || lineMatch[3]
+						? Math.max(0, parseInt(lineMatch[2] || lineMatch[3] || '0', 10) - 1)
+						: 0;
 			}
 		}
 
@@ -710,7 +774,10 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 			lineMatch = hints.match(/(?:line|Ln)\s*(\d+)(?:\s*,\s*col(?:umn)?\s*(\d+)|[:\s]+(\d+))?/i);
 			if (lineMatch) {
 				lineNum = Math.max(0, parseInt(lineMatch[1], 10) - 1);
-				colNum = (lineMatch[2] || lineMatch[3]) ? Math.max(0, parseInt(lineMatch[2] || lineMatch[3] || '0', 10) - 1) : 0;
+				colNum =
+					lineMatch[2] || lineMatch[3]
+						? Math.max(0, parseInt(lineMatch[2] || lineMatch[3] || '0', 10) - 1)
+						: 0;
 			}
 		}
 
@@ -760,7 +827,8 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 						const char = line[j];
 
 						// Handle strings
-						if ((char === '\"' || char === '\'') && (j === 0 || line[j - 1] !== '\\')) {
+						// eslint-disable-next-line local/code-no-unexternalized-strings
+						if ((char === '\"' || char === "'") && (j === 0 || line[j - 1] !== '\\')) {
 							if (!inString) {
 								inString = true;
 								stringChar = char;
@@ -771,7 +839,9 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 							continue;
 						}
 
-						if (inString) { continue; }
+						if (inString) {
+							continue;
+						}
 
 						// Handle code blocks
 						if (char === '`' && j + 2 < line.length && line.substring(j, j + 3) === '```') {
@@ -780,7 +850,9 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 							continue;
 						}
 
-						if (inCodeBlock) { continue; }
+						if (inCodeBlock) {
+							continue;
+						}
 
 						// Handle comments
 						if (char === '/' && j + 1 < line.length && line[j + 1] === '/') {
@@ -809,7 +881,9 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 							}
 						}
 					}
-					if (lineNum > 0) { break; }
+					if (lineNum > 0) {
+						break;
+					}
 				}
 
 				// If we found unclosed brackets at the end, use the last one
@@ -821,7 +895,11 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 
 				// Enhance error message with context if we found the location
 				if (unclosedBracket) {
-					const bracketNames: Record<string, string> = { '(': 'parenthesis', '[': 'square bracket', '{': 'curly brace' };
+					const bracketNames: Record<string, string> = {
+						'(': 'parenthesis',
+						'[': 'square bracket',
+						'{': 'curly brace',
+					};
 					const bracketName = bracketNames[unclosedBracket.char] || 'delimiter';
 					message = `${message} (unclosed ${bracketName} opened at line ${unclosedBracket.line + 1}, column ${unclosedBracket.col + 1})`;
 				}
@@ -928,12 +1006,20 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 						// - Colon at start of line (after whitespace/comments)
 						// - Colon immediately after operators: + :, = :, etc.
 						// - Colon with nothing meaningful after it
-						if (beforeTrimmed === '' || beforeTrimmed.endsWith('+') ||
-							beforeTrimmed.endsWith('-') || beforeTrimmed.endsWith('*') ||
-							beforeTrimmed.endsWith('/') || beforeTrimmed.endsWith('=') ||
-							beforeTrimmed.endsWith('<') || beforeTrimmed.endsWith('>') ||
-							afterTrimmed === '' || afterTrimmed.startsWith(')') ||
-							afterTrimmed.startsWith(']') || afterTrimmed.startsWith('}')) {
+						if (
+							beforeTrimmed === '' ||
+							beforeTrimmed.endsWith('+') ||
+							beforeTrimmed.endsWith('-') ||
+							beforeTrimmed.endsWith('*') ||
+							beforeTrimmed.endsWith('/') ||
+							beforeTrimmed.endsWith('=') ||
+							beforeTrimmed.endsWith('<') ||
+							beforeTrimmed.endsWith('>') ||
+							afterTrimmed === '' ||
+							afterTrimmed.startsWith(')') ||
+							afterTrimmed.startsWith(']') ||
+							afterTrimmed.startsWith('}')
+						) {
 							// This looks like an invalid colon
 							lineNum = i;
 							colNum = colonIndex;
@@ -971,8 +1057,8 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 			severity: severity,
 			range: {
 				start: { line: lineNum, character: colNum },
-				end: { line: lineNum, character: colNum + 100 }
-			}
+				end: { line: lineNum, character: colNum + 100 },
+			},
 		});
 	}
 
@@ -1002,8 +1088,8 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 					severity: 'error',
 					range: {
 						start: { line: lineNum, character: colNum },
-						end: { line: lineNum, character: colNum + 100 }
-					}
+						end: { line: lineNum, character: colNum + 100 },
+					},
 				});
 			}
 		}
@@ -1026,8 +1112,8 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 					severity: line.toLowerCase().includes('warning') ? 'warning' : 'error',
 					range: {
 						start: { line: Math.max(0, lineNum), character: colNum },
-						end: { line: Math.max(0, lineNum), character: colNum + 100 }
-					}
+						end: { line: Math.max(0, lineNum), character: colNum + 100 },
+					},
 				});
 			}
 		}
@@ -1055,7 +1141,7 @@ export async function resetCompiler(): Promise<void> {
 /**
  * Query the document using Typst's introspection query API
  * This is useful for finding labels, elements, etc.
- * 
+ *
  * @param source The Typst source code
  * @param selector The Typst selector string (e.g., "label(<name>)" for labels)
  * @param field Optional field to extract from the result
@@ -1096,4 +1182,183 @@ export async function queryDocument<T = any>(
 export function disposeWasm(): void {
 	typstInstance = null;
 	initPromise = null;
+	// Clean up bidirectional sync state
+	disposeRenderer();
+}
+
+// ============================================================================
+// Bidirectional Sync Functions - Text-based Source Mapping (WASM Compatible)
+// ============================================================================
+
+// Store the current source for text-to-line mapping
+let currentSourceCode: string = '';
+let currentSourceLines: string[] = [];
+
+/**
+ * Compile Typst source to SVG for bidirectional sync.
+ * Uses simple SVG generation and stores source for text-based mapping.
+ *
+ * @param source The Typst source code
+ * @returns Compile result with SVG that can be displayed in the preview
+ */
+export async function compileWithSpans(source: string): Promise<CompileWithSpansResult> {
+	if (!typstInstance) {
+		return {
+			success: false,
+			errors: [
+				{
+					message: 'Typst WASM compiler not initialized',
+					severity: 'error',
+					range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+				},
+			],
+		};
+	}
+
+	try {
+		// Store source for text-based mapping
+		currentSourceCode = source;
+		currentSourceLines = source.split('\n');
+
+		// Use simple SVG compilation - reliable and works with standard WASM
+		const svg = await typstInstance.svg({
+			mainContent: source,
+		});
+
+		if (svg) {
+			return {
+				success: true,
+				svg,
+			};
+		}
+
+		return {
+			success: false,
+			errors: [
+				{
+					message: 'Compilation produced no output',
+					severity: 'error',
+					range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+				},
+			],
+		};
+	} catch (error) {
+		return parseCompilationError(error, source);
+	}
+}
+
+/**
+ * Resolve clicked text content to a source location.
+ * Uses text content matching - works with standard WASM without debug info.
+ *
+ * @param textContent The text content from the clicked element
+ * @returns The source location (file, line, column) or undefined if not found
+ */
+export async function resolveSourceLocationByText(
+	textContent: string
+): Promise<SourceLocation | undefined> {
+	if (!currentSourceCode || !textContent) {
+		return undefined;
+	}
+
+	try {
+		// Normalize text for matching
+		const normalizedText = textContent.trim().replace(/\s+/g, ' ');
+
+		if (!normalizedText || normalizedText.length < 2) {
+			return undefined;
+		}
+
+		// Strategy 1: Direct text match in source lines
+		for (let i = 0; i < currentSourceLines.length; i++) {
+			const line = currentSourceLines[i];
+			const colIdx = line.indexOf(normalizedText);
+			if (colIdx !== -1) {
+				return { filepath: '/main.typ', line: i + 1, column: colIdx + 1 };
+			}
+		}
+
+		// Strategy 2: Try partial match for longer text (first few words)
+		if (normalizedText.length > 20) {
+			const firstWords = normalizedText.split(/\s+/).slice(0, 5).join(' ');
+			if (firstWords.length >= 10) {
+				for (let i = 0; i < currentSourceLines.length; i++) {
+					const line = currentSourceLines[i];
+					if (line.includes(firstWords)) {
+						return { filepath: '/main.typ', line: i + 1, column: line.indexOf(firstWords) + 1 };
+					}
+				}
+			}
+		}
+
+		// Strategy 3: Fuzzy match - find the best matching line
+		const words = normalizedText.split(/\s+/).filter((w) => w.length > 2);
+		if (words.length > 0) {
+			let bestLine = -1;
+			let bestScore = 0;
+
+			for (let i = 0; i < currentSourceLines.length; i++) {
+				const line = currentSourceLines[i];
+				if (!line.trim() || line.trim().startsWith('//')) {
+					continue;
+				}
+
+				let score = 0;
+				for (const word of words) {
+					if (line.includes(word)) {
+						score += word.length;
+					}
+				}
+
+				if (score > bestScore) {
+					bestScore = score;
+					bestLine = i;
+				}
+			}
+
+			if (bestLine >= 0 && bestScore >= Math.min(normalizedText.length / 3, 10)) {
+				return { filepath: '/main.typ', line: bestLine + 1, column: 1 };
+			}
+		}
+
+		return undefined;
+	} catch (error) {
+		return undefined;
+	}
+}
+
+/**
+ * Legacy function - redirects to text-based resolution
+ * @deprecated Use resolveSourceLocationByText instead
+ */
+export async function resolveSourceLocation(
+	_elementPath: number[]
+): Promise<SourceLocation | undefined> {
+	return undefined;
+}
+
+/**
+ * Find document positions (not implemented in text-based approach)
+ */
+export async function findDocumentPositions(
+	_source: string,
+	_line: number,
+	_column: number
+): Promise<DocumentPosition[]> {
+	return [];
+}
+
+/**
+ * Check if bidirectional sync is ready
+ */
+export function isRendererReady(): boolean {
+	return currentSourceCode.length > 0;
+}
+
+/**
+ * Dispose of the bidirectional sync state
+ */
+export function disposeRenderer(): void {
+	currentSourceCode = '';
+	currentSourceLines = [];
 }

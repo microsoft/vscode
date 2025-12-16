@@ -295,11 +295,43 @@
 					const rect = pageDiv.getBoundingClientRect();
 					const x = (e.clientX - rect.left) / numericScale;
 					const y = (e.clientY - rect.top) / numericScale;
+
+					// Try to extract text content from clicked position for source mapping
+					let clickedText = '';
+					const clickedElement = document.elementFromPoint(e.clientX, e.clientY);
+					if (clickedElement) {
+						// Check if we clicked on a text span in the text layer
+						if (clickedElement.closest('.textLayer')) {
+							clickedText = clickedElement.textContent || '';
+							// If span text is too short, try to get parent/sibling text
+							if (clickedText.length < 3) {
+								const parent = clickedElement.parentElement;
+								if (parent) {
+									clickedText = parent.textContent || '';
+								}
+							}
+						}
+						// If still no text, try to get text from nearby elements
+						if (!clickedText || clickedText.length < 2) {
+							const textSpans = textLayerDiv.querySelectorAll('span');
+							for (const span of textSpans) {
+								const spanRect = span.getBoundingClientRect();
+								// Check if click is within or near this span
+								if (e.clientX >= spanRect.left - 5 && e.clientX <= spanRect.right + 5 &&
+									e.clientY >= spanRect.top - 5 && e.clientY <= spanRect.bottom + 5) {
+									clickedText = span.textContent || '';
+									break;
+								}
+							}
+						}
+					}
+
 					vscode.postMessage({
 						type: 'syncClick',
 						page: pageNum,
 						x: x,
-						y: y
+						y: y,
+						text: clickedText.trim().substring(0, 200)
 					});
 				});
 				textLayerDiv.classList.add('synctex-enabled');
@@ -957,8 +989,97 @@
 			case 'closeFind':
 				closeFindbar();
 				break;
+			case 'scrollToPercent':
+				scrollToPercent(e.data.percent);
+				break;
+			case 'scrollToText':
+				scrollToText(e.data.text);
+				break;
 		}
 	});
+
+	// Scroll to a percentage of the document (for source-to-preview sync)
+	function scrollToPercent(percent) {
+		if (!container) { return; }
+		const maxScroll = container.scrollHeight - container.clientHeight;
+		if (maxScroll > 0) {
+			let targetScroll = Math.round(maxScroll * percent);
+
+			// If findbar is open, add offset to ensure content isn't hidden behind it
+			if (findbar && !findbar.classList.contains('hidden')) {
+				const findbarHeight = findbar.offsetHeight || 40;
+				// Add offset so the target position isn't hidden behind the findbar
+				targetScroll = Math.min(maxScroll, targetScroll + findbarHeight);
+			}
+
+			container.scrollTo({
+				top: targetScroll,
+				behavior: 'smooth'
+			});
+		}
+	}
+
+	/**
+	 * Scroll to text by searching in the PDF's text layer
+	 * This provides accurate source-to-preview sync by finding actual text content
+	 */
+	function scrollToText(searchText) {
+		if (!container || !searchText) { return; }
+
+		// Normalize the search text
+		const normalizedSearch = searchText.trim().toLowerCase();
+		if (normalizedSearch.length < 3) { return; }
+
+		// Search in all text layers
+		const textLayers = container.querySelectorAll('.textLayer');
+		let foundElement = null;
+		let bestMatch = null;
+		let bestMatchLength = 0;
+
+		for (const textLayer of textLayers) {
+			const spans = textLayer.querySelectorAll('span');
+			for (const span of spans) {
+				const spanText = (span.textContent || '').toLowerCase();
+
+				// Check for exact match
+				if (spanText.includes(normalizedSearch)) {
+					foundElement = span;
+					break;
+				}
+
+				// Track partial matches (first few words)
+				const searchWords = normalizedSearch.split(/\s+/).slice(0, 3).join(' ');
+				if (searchWords.length >= 5 && spanText.includes(searchWords) && searchWords.length > bestMatchLength) {
+					bestMatch = span;
+					bestMatchLength = searchWords.length;
+				}
+			}
+			if (foundElement) { break; }
+		}
+
+		// Use best match if no exact match found
+		const targetElement = foundElement || bestMatch;
+
+		if (targetElement) {
+			// Get the element's position relative to the container
+			const elementRect = targetElement.getBoundingClientRect();
+			const containerRect = container.getBoundingClientRect();
+
+			// Calculate scroll position to center the element
+			let targetScroll = container.scrollTop + (elementRect.top - containerRect.top) - (container.clientHeight / 3);
+
+			// If findbar is open, adjust offset
+			if (findbar && !findbar.classList.contains('hidden')) {
+				const findbarHeight = findbar.offsetHeight || 40;
+				targetScroll += findbarHeight;
+			}
+
+			container.scrollTo({
+				top: Math.max(0, targetScroll),
+				behavior: 'smooth'
+			});
+		}
+	}
 
 	// Keyboard shortcuts
 	document.addEventListener('keydown', (e) => {
