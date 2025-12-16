@@ -409,6 +409,7 @@ suite('Debug - ANSI Handling', () => {
 				assert.fail('Unexpected assertion error');
 			}
 		}
+		hoverBehavior.store.dispose();
 	}
 
 	test('Expected multiple sequence operation', () => {
