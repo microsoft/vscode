@@ -53,6 +53,7 @@ const allCompilations = [
 	'extensions/json-language-features/server/tsconfig.json',
 	'extensions/latex-language-features/tsconfig.json',
 	'extensions/typst-language-features/tsconfig.json',
+	'extensions/rich-editor/tsconfig.json',
 	'extensions/markdown-language-features/tsconfig.json',
 	'extensions/markdown-math/tsconfig.json',
 	'extensions/media-preview/tsconfig.json',
@@ -284,7 +285,7 @@ async function buildWebExtensions(isWatch: boolean) {
 		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
 		{ ignore: ['**/node_modules'] }
 	);
-	
+
 	// Filter out excluded extensions - they should not be compiled in dev or prod
 	const excludedExtensions = ext.getExcludedExtensions();
 	const filteredConfigLocations = webpackConfigLocations.filter(configPath => {
@@ -296,6 +297,6 @@ async function buildWebExtensions(isWatch: boolean) {
 		const extensionName = match[1];
 		return !excludedExtensions.includes(extensionName);
 	});
-	
+
 	return ext.webpackExtensions('packaging web extension', isWatch, filteredConfigLocations.map(configPath => ({ configPath })));
 }
