@@ -83,7 +83,7 @@ export class ExceptionWidget extends ZoneWidget {
 		label.textContent = this.exceptionInfo.id ? nls.localize('exceptionThrownWithId', 'Exception has occurred: {0}', this.exceptionInfo.id) : nls.localize('exceptionThrown', 'Exception has occurred.');
 		let ariaLabel = label.textContent;
 
-		const actionBar = this._disposables.add.add(new ActionBar(actions));
+		const actionBar = this._disposables.add(new ActionBar(actions));
 		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), ThemeIcon.asClassName(widgetClose), true, async () => {
 			const contribution = this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
 			contribution?.closeExceptionWidget();
