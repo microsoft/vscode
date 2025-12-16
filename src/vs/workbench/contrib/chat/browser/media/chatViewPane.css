@@ -83,7 +83,7 @@
 /* Sessions control: side by side */
 .chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
 
-	&.sessions-control-position-left {
+	&.chat-view-position-left {
 		flex-direction: row;
 
 		.agent-sessions-container {
@@ -91,7 +91,7 @@
 		}
 	}
 
-	&:not(.sessions-control-position-left) {
+	&.chat-view-position-right {
 		flex-direction: row-reverse;
 
 		.agent-sessions-container {
@@ -108,7 +108,8 @@
 	}
 
 	.agent-sessions-link-container {
-		display: none; /* hide link to show more when side by side */
+		/* hide link to show more when side by side */
+		display: none;
 	}
 }
 
@@ -116,18 +117,21 @@
 .chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
 
 	&:not(.activity-bar-location-default) .agent-sessions-title-container {
-		padding: 0 4px 0 20px; /* align with container title and actions */
+		/* align with container title and actions */
+		padding: 0 4px 0 20px;
 	}
 
 	&.activity-bar-location-default .agent-sessions-title-container {
-		padding: 0 8px 0 20px; /* align with container title and actions */
+		/* align with container title and actions */
+		padding: 0 8px 0 20px;
 	}
 
 	.agent-sessions-container {
 		border-bottom: 1px solid var(--vscode-panel-border);
 
 		.agent-session-section {
-			padding: 0 8px 0 18px; /* align with container title */
+			/* align with container title */
+			padding: 0 8px 0 18px;
 		}
 	}
 }
