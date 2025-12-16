@@ -9,19 +9,22 @@ import * as vscode from 'vscode';
  * Messages from webview to extension
  */
 export interface WebviewMessage {
-	type: 'ready' | 'update' | 'save' | 'requestLink';
+	type: 'ready' | 'update' | 'save' | 'requestLink' | 'openLink' | 'editLink' | 'requestImage';
 	content?: string;
+	url?: string;
 }
 
 /**
  * Messages from extension to webview
  */
 export interface ExtensionMessage {
-	type: 'load' | 'setTheme' | 'setLink';
+	type: 'load' | 'setTheme' | 'setLink' | 'setImage';
 	content?: string;
 	format?: 'markdown' | 'typst';
 	theme?: 'light' | 'dark';
 	url?: string;
+	src?: string;
+	alt?: string;
 }
 
 /**
@@ -120,6 +123,62 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 								url
 							};
 							webviewPanel.webview.postMessage(linkMessage);
+						}
+						break;
+					}
+
+					case 'openLink': {
+						// Open link in external browser
+						if (message.url) {
+							vscode.env.openExternal(vscode.Uri.parse(message.url));
+						}
+						break;
+					}
+
+					case 'editLink': {
+						// Edit existing link
+						const newUrl = await vscode.window.showInputBox({
+							prompt: 'Edit URL',
+							value: message.url || '',
+							placeHolder: 'https://example.com'
+						});
+						if (newUrl !== undefined) {
+							const editLinkMessage: ExtensionMessage = {
+								type: 'setLink',
+								url: newUrl
+							};
+							webviewPanel.webview.postMessage(editLinkMessage);
+						}
+						break;
+					}
+
+					case 'requestImage': {
+						// Show file picker for images
+						const result = await vscode.window.showOpenDialog({
+							canSelectFiles: true,
+							canSelectFolders: false,
+							canSelectMany: false,
+							filters: {
+								'Images': ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp']
+							},
+							title: 'Select Image'
+						});
+						if (result && result[0]) {
+							// Get relative path from document
+							const docDir = vscode.Uri.joinPath(document.uri, '..');
+							let imagePath = result[0].fsPath;
+
+							// Try to make path relative
+							if (imagePath.startsWith(docDir.fsPath)) {
+								imagePath = imagePath.substring(docDir.fsPath.length + 1);
+							}
+
+							const imageMessage: ExtensionMessage = {
+								type: 'setImage',
+								src: imagePath,
+								alt: ''
+							};
+							webviewPanel.webview.postMessage(imageMessage);
 						}
 						break;
 					}
@@ -433,6 +492,7 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			<button class="toolbar-button" data-command="blockquote" title="Quote">&quot;</button>
 			<div class="toolbar-separator"></div>
 			<button class="toolbar-button" data-command="link" title="Link (Cmd+K)">#</button>
+			<button class="toolbar-button" data-command="image" title="Insert Image">IMG</button>
 			<button class="toolbar-button" data-command="horizontalRule" title="Horizontal Rule">-</button>
 			<div class="toolbar-separator"></div>
 			<button class="toolbar-button" data-command="undo" title="Undo (Cmd+Z)">&larr;</button>

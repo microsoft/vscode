@@ -95,7 +95,36 @@ function initEditor(): void {
 	// Setup keyboard shortcuts
 	setupKeyboardShortcuts();
 
+	// Setup link click handling
+	setupLinkClickHandling();
+
 	console.log('TipTap editor initialized');
+}
+
+/**
+ * Setup click handling for links
+ */
+function setupLinkClickHandling(): void {
+	const editorElement = document.getElementById('editor');
+	if (!editorElement) { return; }
+
+	editorElement.addEventListener('click', (e) => {
+		const target = e.target as HTMLElement;
+		const link = target.closest('a');
+
+		if (link && editor) {
+			e.preventDefault();
+			const href = link.getAttribute('href') || '';
+
+			if (e.metaKey || e.ctrlKey) {
+				// Cmd+click: Open link in browser
+				vscode.postMessage({ type: 'openLink', url: href });
+			} else {
+				// Regular click: Edit link
+				vscode.postMessage({ type: 'editLink', url: href });
+			}
+		}
+	});
 }
 
 /**
@@ -148,7 +177,14 @@ function jsonToMarkdown(doc: Record<string, unknown>): string {
 	const content = doc.content as Array<Record<string, unknown>> | undefined;
 	if (!content) { return ''; }
 
-	return content.map(node => nodeToMarkdown(node)).join('\n\n');
+	const results: string[] = [];
+	for (const node of content) {
+		const md = nodeToMarkdown(node);
+		if (md.trim() !== '') {
+			results.push(md);
+		}
+	}
+	return results.join('\n\n');
 }
 
 /**
@@ -171,16 +207,38 @@ function nodeToMarkdown(node: Record<string, unknown>): string {
 		}
 
 		case 'bulletList':
-			return content ? content.map(n => '- ' + nodeToMarkdown(n)).join('\n') : '';
-
-		case 'orderedList':
-			return content ? content.map((n, i) => `${i + 1}. ` + nodeToMarkdown(n)).join('\n') : '';
-
-		case 'listItem':
 			return content ? content.map(n => nodeToMarkdown(n)).join('\n') : '';
 
-		case 'blockquote':
-			return content ? content.map(n => '> ' + nodeToMarkdown(n)).join('\n') : '';
+		case 'orderedList':
+			return content ? content.map((n, i) => {
+				const itemContent = nodeToMarkdown(n);
+				// Replace the leading '- ' with numbered prefix
+				return itemContent.replace(/^- /, `${i + 1}. `);
+			}).join('\n') : '';
+
+		case 'listItem': {
+			// Extract text from paragraph children
+			const itemText = content ? content.map(n => {
+				if ((n.type as string) === 'paragraph') {
+					const paraContent = n.content as Array<Record<string, unknown>> | undefined;
+					return paraContent ? paraContent.map(c => inlineToMarkdown(c)).join('') : '';
+				}
+				return nodeToMarkdown(n);
+			}).filter(t => t.trim() !== '').join(' ') : '';
+			return '- ' + itemText;
+		}
+
+		case 'blockquote': {
+			// Extract text from paragraph children, prefixing each with >
+			const quoteLines = content ? content.map(n => {
+				if ((n.type as string) === 'paragraph') {
+					const paraContent = n.content as Array<Record<string, unknown>> | undefined;
+					return paraContent ? paraContent.map(c => inlineToMarkdown(c)).join('') : '';
+				}
+				return nodeToMarkdown(n);
+			}).filter(t => t.trim() !== '') : [];
+			return quoteLines.map(line => '> ' + line).join('\n');
+		}
 
 		case 'codeBlock': {
 			const language = (attrs?.language as string) || '';
@@ -203,8 +261,15 @@ function nodeToMarkdown(node: Record<string, unknown>): string {
 		case 'taskItem': {
 			const checked = (attrs?.checked as boolean) || false;
 			const checkbox = checked ? '[x] ' : '[ ] ';
-			const itemContent = content ? content.map(n => nodeToMarkdown(n)).join('') : '';
-			return '- ' + checkbox + itemContent;
+			// Extract text from paragraph children
+			const itemText = content ? content.map(n => {
+				if ((n.type as string) === 'paragraph') {
+					const paraContent = n.content as Array<Record<string, unknown>> | undefined;
+					return paraContent ? paraContent.map(c => inlineToMarkdown(c)).join('') : '';
+				}
+				return inlineToMarkdown(n);
+			}).filter(t => t.trim() !== '').join(' ') : '';
+			return '- ' + checkbox + itemText;
 		}
 
 		default:
@@ -424,10 +489,13 @@ function markdownToHtml(markdown: string): string {
 	// Paragraphs (lines not already wrapped)
 	const lines = html.split('\n');
 	html = lines.map(line => {
-		if (line.trim() === '') { return ''; }
+		// Skip empty lines entirely
+		if (line.trim() === '') { return null; }
+		// Skip lines that already have HTML tags
 		if (line.match(/^<[a-z]/i)) { return line; }
+		// Wrap plain text in paragraph
 		return `<p>${line}</p>`;
-	}).join('\n');
+	}).filter(line => line !== null).join('');
 
 	return html;
 }
@@ -561,6 +629,11 @@ function executeCommand(command: string): void {
 			vscode.postMessage({ type: 'requestLink' });
 			break;
 		}
+		case 'image': {
+			// Request image from extension (file picker)
+			vscode.postMessage({ type: 'requestImage' });
+			break;
+		}
 		case 'undo':
 			editor.chain().focus().undo().run();
 			break;
@@ -631,6 +704,7 @@ function setupKeyboardShortcuts(): void {
 	// Most shortcuts are handled by TipTap's StarterKit
 	// Add any custom ones here
 
+	// Use capture phase to intercept Tab before TipTap handles it
 	document.addEventListener('keydown', (e) => {
 		// Cmd+S to save
 		if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -643,7 +717,37 @@ function setupKeyboardShortcuts(): void {
 			e.preventDefault();
 			executeCommand('link');
 		}
-	});
+
+		// Tab for indent in lists
+		if (e.key === 'Tab' && !e.shiftKey && editor) {
+			const isInList = editor.isActive('listItem') || editor.isActive('taskItem');
+			if (isInList) {
+				e.preventDefault();
+				e.stopPropagation();
+				// Try to sink the appropriate list item type
+				if (editor.isActive('taskItem')) {
+					editor.chain().focus().sinkListItem('taskItem').run();
+				} else {
+					editor.chain().focus().sinkListItem('listItem').run();
+				}
+			}
+		}
+
+		// Shift+Tab for outdent in lists
+		if (e.key === 'Tab' && e.shiftKey && editor) {
+			const isInList = editor.isActive('listItem') || editor.isActive('taskItem');
+			if (isInList) {
+				e.preventDefault();
+				e.stopPropagation();
+				// Try to lift the appropriate list item type
+				if (editor.isActive('taskItem')) {
+					editor.chain().focus().liftListItem('taskItem').run();
+				} else {
+					editor.chain().focus().liftListItem('listItem').run();
+				}
+			}
+		}
+	}, { capture: true }); // Use capture phase to handle Tab before TipTap
 }
 
 /**
@@ -700,6 +804,16 @@ window.addEventListener('message', (event) => {
 			// Apply link from extension input
 			if (editor && message.url) {
 				editor.chain().focus().setLink({ href: message.url }).run();
+			}
+			break;
+
+		case 'setImage':
+			// Insert image from file picker
+			if (editor && message.src) {
+				editor.chain().focus().setImage({
+					src: message.src,
+					alt: message.alt || ''
+				}).run();
 			}
 			break;
 	}
