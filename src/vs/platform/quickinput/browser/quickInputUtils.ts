@@ -49,7 +49,7 @@ export function quickInputButtonToAction(button: IQuickInputButton, id: string, 
 		cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
 	}
 
-	return {
+	const action: IAction = {
 		id,
 		label: '',
 		tooltip: button.tooltip || '',
@@ -57,6 +57,13 @@ export function quickInputButtonToAction(button: IQuickInputButton, id: string, 
 		enabled: true,
 		run
 	};
+
+	// If the button has a toggle property, set the checked state on the action
+	if (button.toggle) {
+		action.checked = button.toggle.checked;
+	}
+
+	return action;
 }
 
 export function renderQuickInputDescription(description: string, container: HTMLElement, actionHandler: { callback: (content: string) => void; disposables: DisposableStore }) {

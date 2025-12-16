@@ -141,5 +141,32 @@ suite('Actionbar', () => {
 			toggleAction.checked = true;
 			assert.strictEqual(toggleElement.getAttribute('aria-checked'), 'true', 'Toggle should update when action checked changes');
 		});
+
+		test('quick input button with toggle property creates action with checked state', async function () {
+			const { quickInputButtonToAction } = await import('../../../platform/quickinput/browser/quickInputUtils.js');
+			
+			// Create a button with toggle property
+			const toggleButton = {
+				iconClass: 'test-icon',
+				tooltip: 'Toggle Button',
+				toggle: { checked: true }
+			};
+
+			const action = quickInputButtonToAction(toggleButton, 'test-id', () => { });
+
+			// Verify the action has checked property set
+			assert.strictEqual(action.checked, true, 'Action should have checked property set to true');
+
+			// Create a button without toggle property
+			const regularButton = {
+				iconClass: 'test-icon',
+				tooltip: 'Regular Button'
+			};
+
+			const regularAction = quickInputButtonToAction(regularButton, 'test-id-2', () => { });
+
+			// Verify the action doesn't have checked property
+			assert.strictEqual(regularAction.checked, undefined, 'Regular action should not have checked property');
+		});
 	});
 });
