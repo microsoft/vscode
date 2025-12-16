@@ -362,7 +362,7 @@ class QuickDiffWidget extends PeekViewWidget {
 		this._disposables.add(action);
 
 		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
-		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem, action,);
+		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem, action);
 		this.dropdown.render(this.dropdownContainer);
 	}
 
