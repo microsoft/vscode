@@ -261,7 +261,15 @@ export function activate(context: vscode.ExtensionContext) {
 		// Editor → Preview sync (click mode only)
 		let cursorSyncTimer: ReturnType<typeof setTimeout> | undefined;
 		const editorClickListener = vscode.window.onDidChangeTextEditorSelection((e) => {
-			if (isScrollingFromPreview || preview.syncMode !== 'click') { return; }
+			// Cancel any pending timer when preview is master to prevent delayed sync
+			if (isScrollingFromPreview) {
+				if (cursorSyncTimer) {
+					clearTimeout(cursorSyncTimer);
+					cursorSyncTimer = undefined;
+				}
+				return;
+			}
+			if (preview.syncMode !== 'click') { return; }
 			if (e.textEditor.document.uri.toString() !== sourceUri.toString()) { return; }
 			if (e.textEditor.document.languageId !== 'markdown') { return; }
 

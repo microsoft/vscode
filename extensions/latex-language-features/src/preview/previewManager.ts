@@ -335,7 +335,12 @@ export class PreviewManager implements vscode.Disposable {
 	 */
 	private handleEditorSelectionChange(e: vscode.TextEditorSelectionChangeEvent): void {
 		// Skip if we're navigating from preview (prevents feedback loop)
+		// Also cancel any pending timer to prevent delayed sync after flag is cleared
 		if (this.isNavigatingFromPreview) {
+			if (this.cursorSyncTimer) {
+				clearTimeout(this.cursorSyncTimer);
+				this.cursorSyncTimer = undefined;
+			}
 			return;
 		}
 

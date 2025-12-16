@@ -76,6 +76,7 @@ export class MarkdownPreview extends Disposable {
 			enableScripts: true,
 			localResourceRoots: [
 				vscode.Uri.joinPath(extensionUri, 'media'),
+				vscode.Uri.joinPath(extensionUri, 'vendors'),
 				vscode.Uri.joinPath(resource, '..')
 			]
 		};

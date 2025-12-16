@@ -599,7 +599,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(
 		vscode.window.onDidChangeTextEditorSelection((e) => {
 			// Skip if we're navigating from preview (prevents feedback loop)
+			// Also cancel any pending timer to prevent delayed sync after flag is cleared
 			if (isNavigatingFromPreview) {
+				if (cursorSyncTimer) {
+					clearTimeout(cursorSyncTimer);
+					cursorSyncTimer = undefined;
+				}
 				return;
 			}
 
