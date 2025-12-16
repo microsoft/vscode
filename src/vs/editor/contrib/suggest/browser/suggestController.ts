@@ -878,19 +878,19 @@ registerEditorCommand(new SuggestCommand({
 		title: nls.localize('accept.insert', "Insert"),
 		group: 'left',
 		order: 1,
-		when: SuggestContext.HasInsertAndReplaceRange.toNegated()
+		when: ContextKeyExpr.and(SuggestContext.HasFocusedSuggestion, SuggestContext.HasInsertAndReplaceRange.toNegated())
 	}, {
 		menuId: suggestWidgetStatusbarMenu,
 		title: nls.localize('accept.insert', "Insert"),
 		group: 'left',
 		order: 1,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
+		when: ContextKeyExpr.and(SuggestContext.HasFocusedSuggestion, SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
 	}, {
 		menuId: suggestWidgetStatusbarMenu,
 		title: nls.localize('accept.replace', "Replace"),
 		group: 'left',
 		order: 1,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
+		when: ContextKeyExpr.and(SuggestContext.HasFocusedSuggestion, SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
 	}]
 }));
 
@@ -910,13 +910,13 @@ registerEditorCommand(new SuggestCommand({
 		menuId: suggestWidgetStatusbarMenu,
 		group: 'left',
 		order: 2,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert')),
+		when: ContextKeyExpr.and(SuggestContext.HasFocusedSuggestion, SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert')),
 		title: nls.localize('accept.replace', "Replace")
 	}, {
 		menuId: suggestWidgetStatusbarMenu,
 		group: 'left',
 		order: 2,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace')),
+		when: ContextKeyExpr.and(SuggestContext.HasFocusedSuggestion, SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace')),
 		title: nls.localize('accept.insert', "Insert")
 	}]
 }));
