@@ -295,13 +295,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
 				const currentOutput = execution.getOutput();
 
-				// Check if output contains a help pattern indicating the command is finished
-				if (detectsCommandFinishedHelpPattern(currentOutput)) {
-					this._logService.trace(`OutputMonitor: detected command finished help pattern`);
-					this._state = OutputMonitorState.Idle;
-					return this._state;
-				}
-
 				const promptResult = detectsInputRequiredPattern(currentOutput);
 				if (promptResult) {
 					this._state = OutputMonitorState.Idle;
