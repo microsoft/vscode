@@ -54,8 +54,8 @@ export class FilterOptions {
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
 
-	readonly excludeSourceFilters: string[];
 	readonly includeSourceFilters: string[];
+	readonly excludeSourceFilters: string[];
 
 	static EMPTY(uriIdentityService: IUriIdentityService) { return new FilterOptions('', [], false, false, false, uriIdentityService); }
 
@@ -84,8 +84,8 @@ export class FilterOptions {
 			}
 		}
 
-		const excludeSourceFilters: string[] = [];
 		const includeSourceFilters: string[] = [];
+		const excludeSourceFilters: string[] = [];
 		let sourceMatch;
 		while ((sourceMatch = SOURCE_FILTER_REGEX.exec(filter)) !== null) {
 			const negate = !!sourceMatch[1];
@@ -95,15 +95,15 @@ export class FilterOptions {
 				source = source.slice(1, -1);
 			}
 			if (negate) {
-				includeSourceFilters.push(source.toLowerCase());
-			} else {
 				excludeSourceFilters.push(source.toLowerCase());
+			} else {
+				includeSourceFilters.push(source.toLowerCase());
 			}
 			// Remove the entire match (including trailing whitespace)
 			filter = (filter.substring(0, sourceMatch.index) + filter.substring(sourceMatch.index + sourceMatch[0].length)).trim();
 		}
-		this.excludeSourceFilters = excludeSourceFilters;
 		this.includeSourceFilters = includeSourceFilters;
+		this.excludeSourceFilters = excludeSourceFilters;
 
 		const negate = filter.startsWith('!');
 		this.textFilter = { text: (negate ? strings.ltrim(filter, '!') : filter).trim(), negate };
@@ -127,29 +127,23 @@ export class FilterOptions {
 		this.includesMatcher = new ResourceGlobMatcher(includeExpression, [], uriIdentityService);
 	}
 
-	/**
-	 * Checks if a marker matches the source filters.
-	 * @param markerSource The source field from the marker (can be undefined)
-	 * @returns true if the marker passes the source filters (OR logic)
-	 */
 	matchesSourceFilters(markerSource: string | undefined): boolean {
-		if (this.excludeSourceFilters.length === 0 && this.includeSourceFilters.length === 0) {
+		if (this.includeSourceFilters.length === 0 && this.excludeSourceFilters.length === 0) {
 			return true;
 		}
 
 		const source = markerSource?.toLowerCase();
 
 		// Check negative filters first - if any match, exclude
-		if (source && this.includeSourceFilters.includes(source)) {
+		if (source && this.excludeSourceFilters.includes(source)) {
 			return false;
 		}
 
-		// If there are positive filters, check if any match (OR logic)
-		if (this.excludeSourceFilters.length > 0) {
-			return source ? this.excludeSourceFilters.includes(source) : false;
+		// If there are positive filters, check if any match
+		if (this.includeSourceFilters.length > 0) {
+			return source ? this.includeSourceFilters.includes(source) : false;
 		}
 
-		// No positive filters, only negative - passes if not excluded
 		return true;
 	}
 
