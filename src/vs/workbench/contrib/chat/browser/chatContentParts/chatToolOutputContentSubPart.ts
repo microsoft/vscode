@@ -145,6 +145,12 @@ export class ChatToolOutputContentSubPart extends Disposable {
 	}
 
 	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
+		if (part.title) {
+			const title = dom.$('div.chat-confirmation-widget-title');
+			title.textContent = part.title;
+			container.appendChild(title);
+		}
+
 		const data: ICodeBlockData = {
 			languageId: part.languageId,
 			textModel: Promise.resolve(part.textModel),
