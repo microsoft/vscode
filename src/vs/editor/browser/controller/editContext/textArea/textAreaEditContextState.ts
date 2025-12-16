@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from '../../../../../base/common/assert.js';
 import { commonPrefixLength, commonSuffixLength } from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -227,20 +226,19 @@ export class TextAreaState {
 		};
 	}
 
-	public static fromScreenReaderContentState(
-		screenReaderContentState: ISimpleScreenReaderContentState,
-		direction: SelectionDirection,
-	) {
+	public static fromScreenReaderContentState(screenReaderContentState: ISimpleScreenReaderContentState) {
 		let selectionStart;
 		let selectionEnd;
-		if (direction === SelectionDirection.LTR) {
-			selectionStart = screenReaderContentState.selectionStart;
-			selectionEnd = screenReaderContentState.selectionEnd;
-		} else if (direction === SelectionDirection.RTL) {
-			selectionStart = screenReaderContentState.selectionEnd;
-			selectionEnd = screenReaderContentState.selectionStart;
-		} else {
-			assertNever(direction, 'Unknown selection direction');
+		const direction = screenReaderContentState.selection.getDirection();
+		switch (direction) {
+			case SelectionDirection.LTR:
+				selectionStart = screenReaderContentState.selectionStart;
+				selectionEnd = screenReaderContentState.selectionEnd;
+				break;
+			case SelectionDirection.RTL:
+				selectionStart = screenReaderContentState.selectionEnd;
+				selectionEnd = screenReaderContentState.selectionStart;
+				break;
 		}
 		return new TextAreaState(
 			screenReaderContentState.value,
