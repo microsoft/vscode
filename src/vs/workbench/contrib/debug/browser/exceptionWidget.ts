@@ -21,7 +21,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
 import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+
 const $ = dom.$;
 
 // theming
