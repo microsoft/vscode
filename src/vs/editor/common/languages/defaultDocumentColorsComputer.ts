@@ -129,6 +129,9 @@ function computeColors(model: IDocumentColorComputerTarget): IColorInformation[]
 			} else if (colorScheme === '#') {
 				colorInformation = _findHexColorInformation(_findRange(model, initialMatch), colorScheme + colorParameters);
 			}
+			if (colorInformation) {
+				result.push(colorInformation);
+			}
 		}
 	}
 	return result;
