@@ -60,6 +60,7 @@ interface ITerminalData {
 	lastTask: string;
 	group?: string;
 	shellIntegrationNonce?: string;
+	disposables: DisposableStore;
 }
 
 interface IInstanceCount {
@@ -472,9 +473,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return Promise.resolve<ITaskTerminateResponse>({ success: false, task: undefined });
 		}
 		return new Promise<ITaskTerminateResponse>((resolve, reject) => {
-			this._register(terminal.onDisposed(terminal => {
+			const terminalData = this._terminals[terminal.instanceId.toString()];
+			const onDisposedListener = terminal.onDisposed(terminal => {
 				this._fireTaskEvent(TaskEvent.terminated(task, terminal.instanceId, terminal.exitReason));
-			}));
+			});
+			// Add to terminal-specific disposables if available, otherwise track it ourselves
+			if (terminalData) {
+				terminalData.disposables.add(onDisposedListener);
+			} else {
+				this._register(onDisposedListener);
+			}
 			const onExit = terminal.onExit(() => {
 				const task = activeTerminal.task;
 				try {
@@ -1049,7 +1057,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this._markerService, this._modelService, ProblemHandlingStrategy.Clean, this._fileService);
 			this._terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
 			this._taskProblemMonitor.addTerminal(terminal, startStopProblemMatcher);
-			this._register(startStopProblemMatcher.onDidStateChange((event) => {
+			const terminalData = this._terminals[terminal.instanceId.toString()];
+			const problemMatcherListener = startStopProblemMatcher.onDidStateChange((event) => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal?.instanceId));
 				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
@@ -1060,7 +1069,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, this._taskHasErrors(task), terminal?.instanceId));
 					}
 				}
-			}));
+			});
+			// Add to terminal-specific disposables if available, otherwise track it ourselves
+			if (terminalData) {
+				terminalData.disposables.add(problemMatcherListener);
+			} else {
+				this._register(problemMatcherListener);
+			}
 			let processStartedSignaled = false;
 			terminal.processReady.then(() => {
 				if (!processStartedSignaled) {
@@ -1409,12 +1424,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private async _doCreateTerminal(task: Task, group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
 		const reconnectedTerminal = await this._reconnectToTerminal(task);
-		const onDisposed = (terminal: ITerminalInstance) => this._fireTaskEvent(TaskEvent.terminated(task, terminal.instanceId, terminal.exitReason));
 		if (reconnectedTerminal) {
 			if ('command' in task && task.command.presentation) {
 				reconnectedTerminal.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
 			}
-			this._register(reconnectedTerminal.onDisposed(onDisposed));
 			this._logService.trace('reconnected to task and terminal', task._id);
 			return reconnectedTerminal;
 		}
@@ -1426,7 +1439,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					this._logService.trace(`Found terminal to split for group ${group}`);
 					const originalInstance = terminal.terminal;
 					const result = await this._terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
-					this._register(result.onDisposed(onDisposed));
 					if (result) {
 						return result;
 					}
@@ -1436,7 +1448,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
 		const createdTerminal = await this._terminalService.createTerminal({ config: launchConfigs });
-		this._register(createdTerminal.onDisposed(onDisposed));
 		return createdTerminal;
 	}
 
@@ -1453,7 +1464,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			for (const terminal of reconnectedInstances) {
 				const data = getReconnectionData(terminal) as IReconnectionTaskData | undefined;
 				if (data) {
-					const terminalData = { lastTask: data.lastTask, group: data.group, terminal, shellIntegrationNonce: data.shellIntegrationNonce };
+					const terminalDisposables = new DisposableStore();
+					const terminalData = { lastTask: data.lastTask, group: data.group, terminal, shellIntegrationNonce: data.shellIntegrationNonce, disposables: terminalDisposables };
+					terminalDisposables.add(terminal.onDisposed(() => {
+						this._deleteTaskAndTerminal(terminal, terminalData);
+					}));
 					this._terminals[terminal.instanceId] = terminalData;
 					this._logService.trace('Reconnecting to task terminal', terminalData.lastTask, terminal.instanceId);
 				}
@@ -1466,6 +1481,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		delete this._terminals[terminal.instanceId];
 		delete this._sameTaskTerminals[terminalData.lastTask];
 		this._idleTaskTerminals.delete(terminalData.lastTask);
+		// Dispose terminal-specific listeners to prevent memory leaks
+		terminalData.disposables.dispose();
 		// Delete the task now as a work around for cases when the onExit isn't fired.
 		// This can happen if the terminal wasn't shutdown with an "immediate" flag and is expected.
 		// For correct terminal re-use, the task needs to be deleted immediately.
@@ -1576,10 +1593,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			terminal.shellLaunchConfig.reconnectionProperties = { ownerId: TaskTerminalType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 		}
 		const terminalKey = terminal.instanceId.toString();
-		const terminalData = { terminal: terminal, lastTask: taskKey, group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce };
-		const onDisposedListener = this._register(terminal.onDisposed(() => {
+		const terminalDisposables = new DisposableStore();
+		const terminalData = { terminal: terminal, lastTask: taskKey, group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce, disposables: terminalDisposables };
+		terminalDisposables.add(terminal.onDisposed(() => {
 			this._deleteTaskAndTerminal(terminal, terminalData);
-			onDisposedListener.dispose();
 		}));
 		this._terminals[terminalKey] = terminalData;
 		terminal.shellLaunchConfig.tabActions = this._terminalTabActions;
