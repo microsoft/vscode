@@ -677,6 +677,11 @@ suite('SnippetParser', () => {
 		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('_justPascalCase'), 'just-pascal-case');
 		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('__UPCASE__'), 'upcase');
 		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('__BAR_FOO__'), 'bar-foo');
+		assert.strictEqual(new FormatString(1, 'snakecase').resolve('bar-foo'), 'bar_foo');
+		assert.strictEqual(new FormatString(1, 'snakecase').resolve('bar-42-foo'), 'bar_42_foo');
+		assert.strictEqual(new FormatString(1, 'snakecase').resolve('snake_AndPascalCase'), 'snake_and_pascal_case');
+		assert.strictEqual(new FormatString(1, 'snakecase').resolve('kebab-AndPascalCase'), 'kebab_and_pascal_case');
+		assert.strictEqual(new FormatString(1, 'snakecase').resolve('_justPascalCase'), '_just_pascal_case');
 		assert.strictEqual(new FormatString(1, 'notKnown').resolve('input'), 'input');
 
 		// if
