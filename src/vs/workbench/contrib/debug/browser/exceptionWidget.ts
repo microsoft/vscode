@@ -15,7 +15,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Color } from '../../../../base/common/color.js';
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { DebugLinkHoverBehavior, LinkDetector } from './linkDetector.js';
+import { DebugLinkHoverBehavior, DebugLinkHoverBehaviorTypeData, LinkDetector } from './linkDetector.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
@@ -104,7 +104,11 @@ export class ExceptionWidget extends ZoneWidget {
 		if (this.exceptionInfo.details && this.exceptionInfo.details.stackTrace) {
 			const stackTrace = $('.stack-trace');
 			const linkDetector = this.instantiationService.createInstance(LinkDetector);
-			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, true, this.debugSession ? this.debugSession.root : undefined, undefined, { type: DebugLinkHoverBehavior.Rich, store: this._disposables });
+			const hoverBehaviour: DebugLinkHoverBehaviorTypeData = {
+				store,
+				type: DebugLinkHoverBehavior.None,
+			}
+			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, hoverBehaviour, true, this.debugSession ? this.debugSession.root : undefined, undefined, { type: DebugLinkHoverBehavior.Rich, store: this._disposables });
 			stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
 			ariaLabel += ', ' + this.exceptionInfo.details.stackTrace;
