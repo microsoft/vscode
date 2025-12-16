@@ -3,28 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import * as esbuild from 'esbuild';
+import path from 'path';
+import { run } from '../esbuild-webview-common.mjs';
 
-const watch = process.argv.includes('--watch');
+const srcDir = path.join(import.meta.dirname, 'media', 'editor');
+const outDir = path.join(import.meta.dirname, 'media', 'dist');
 
-const ctx = await esbuild.context({
-	entryPoints: ['media/editor/index.ts'],
-	bundle: true,
-	outfile: 'media/dist/editor.js',
-	format: 'iife',
-	platform: 'browser',
-	target: 'es2020',
-	sourcemap: true,
-	minify: !watch,
-	tsconfigRaw: '{}', // Ignore tsconfig to avoid ES2024 warning
-});
-
-if (watch) {
-	await ctx.watch();
-	console.log('Watching for changes...');
-} else {
-	await ctx.rebuild();
-	await ctx.dispose();
-	console.log('Build complete');
-}
-
+run({
+	entryPoints: {
+		'editor': path.join(srcDir, 'index.ts'),
+	},
+	srcDir,
+	outdir: outDir,
+	additionalOptions: {
+		format: 'iife',
+	}
+}, process.argv);
