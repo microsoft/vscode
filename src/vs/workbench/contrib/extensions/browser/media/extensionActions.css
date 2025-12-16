@@ -40,6 +40,8 @@
 	background-color: var(--vscode-extensionButton-background);
 }
 
+.monaco-list-row.focused .extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label,
+.monaco-list-row.selected .extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label,
 .monaco-action-bar .action-item .action-label.extension-action.label {
 	color: var(--vscode-extensionButton-foreground);
 }
