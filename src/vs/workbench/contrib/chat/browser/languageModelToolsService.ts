@@ -613,12 +613,16 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// Back compat with legacy names
 			if (toolData.legacyToolReferenceFullNames) {
 				for (const legacyName of toolData.legacyToolReferenceFullNames) {
-					// Some tools may be both renamed and namespaced from a toolset, eg: xxx/yyy -> yyy
-					const trimmedLegacyName = legacyName.includes('/') && legacyName.split('/').pop();
-					if (
-						Object.prototype.hasOwnProperty.call(eligibilityConfig, legacyName)
-						|| (trimmedLegacyName && Object.prototype.hasOwnProperty.call(eligibilityConfig, trimmedLegacyName))) {
+					// Check if the full legacy name is in the config
+					if (Object.prototype.hasOwnProperty.call(eligibilityConfig, legacyName)) {
 						return eligibilityConfig[legacyName];
+					}
+					// Some tools may be both renamed and namespaced from a toolset, eg: xxx/yyy -> yyy
+					if (legacyName.includes('/')) {
+						const trimmedLegacyName = legacyName.split('/').pop();
+						if (trimmedLegacyName && Object.prototype.hasOwnProperty.call(eligibilityConfig, trimmedLegacyName)) {
+							return eligibilityConfig[trimmedLegacyName];
+						}
 					}
 				}
 			}
