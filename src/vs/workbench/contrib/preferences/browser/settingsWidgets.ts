@@ -434,8 +434,9 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 }
 
 interface IListSetValueOptions {
-	showAddButton: boolean;
+	showAddButton?: boolean;
 	keySuggester?: IObjectKeySuggester;
+	isReadOnly?: boolean;
 }
 
 export interface IListDataItem {
@@ -452,10 +453,12 @@ interface ListSettingWidgetDragDetails<TListDataItem extends IListDataItem> {
 export class ListSettingWidget<TListDataItem extends IListDataItem> extends AbstractListSettingWidget<TListDataItem> {
 	private keyValueSuggester: IObjectKeySuggester | undefined;
 	private showAddButton: boolean = true;
+	private isEditable: boolean = true;
 
 	override setValue(listData: TListDataItem[], options?: IListSetValueOptions) {
 		this.keyValueSuggester = options?.keySuggester;
-		this.showAddButton = options?.showAddButton ?? true;
+		this.isEditable = options?.isReadOnly === undefined ? true : !options.isReadOnly;
+		this.showAddButton = this.isEditable ? (options?.showAddButton ?? true) : false;
 		super.setValue(listData);
 	}
 

@@ -47,12 +47,10 @@ export function createInstanceCapabilityEventMultiplexer<T extends TerminalCapab
 		currentInstances,
 		onAddInstance,
 		onRemoveInstance,
-		instance => Event.map(instance.capabilities.onDidAddCapability, changeEvent => ({ instance, changeEvent }))
+		instance => Event.map(instance.capabilities.createOnDidAddCapabilityOfTypeEvent(capabilityId), changeEvent => ({ instance, changeEvent }))
 	));
 	store.add(addCapabilityMultiplexer.event(e => {
-		if (e.changeEvent.id === capabilityId) {
-			addCapability(e.instance, e.changeEvent.capability);
-		}
+		addCapability(e.instance, e.changeEvent);
 	}));
 
 	// Removed capabilities
@@ -60,12 +58,10 @@ export function createInstanceCapabilityEventMultiplexer<T extends TerminalCapab
 		currentInstances,
 		onAddInstance,
 		onRemoveInstance,
-		instance => Event.map(instance.capabilities.onDidRemoveCapability, changeEvent => ({ instance, changeEvent }))
+		instance => Event.map(instance.capabilities.createOnDidRemoveCapabilityOfTypeEvent(capabilityId), changeEvent => ({ instance, changeEvent }))
 	));
 	store.add(removeCapabilityMultiplexer.event(e => {
-		if (e.changeEvent.id === capabilityId) {
-			capabilityListeners.get(e.instance.instanceId)?.deleteAndDispose(e.changeEvent.id);
-		}
+		capabilityListeners.get(e.instance.instanceId)?.deleteAndDispose(e.changeEvent);
 	}));
 
 	return {

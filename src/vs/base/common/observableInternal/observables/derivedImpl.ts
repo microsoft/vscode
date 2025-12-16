@@ -40,6 +40,16 @@ export const enum DerivedState {
 	upToDate = 3,
 }
 
+function derivedStateToString(state: DerivedState): string {
+	switch (state) {
+		case DerivedState.initial: return 'initial';
+		case DerivedState.dependenciesMightHaveChanged: return 'dependenciesMightHaveChanged';
+		case DerivedState.stale: return 'stale';
+		case DerivedState.upToDate: return 'upToDate';
+		default: return '<unknown>';
+	}
+}
+
 export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObservable<T, TChange> implements IDerivedReader<TChange>, IObserver {
 	private _state = DerivedState.initial;
 	private _value: T | undefined = undefined;
@@ -300,6 +310,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 				shouldReact = this._changeTracker ? this._changeTracker.handleChange({
 					changedObservable: observable,
 					change,
+					// eslint-disable-next-line local/code-no-any-casts
 					didChange: (o): this is any => o === observable as any,
 				}, this._changeSummary!) : true;
 			} catch (e) {
@@ -370,9 +381,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 		super.addObserver(observer);
 
 		if (shouldCallBeginUpdate) {
-			if (this._removedObserverToCallEndUpdateOn && this._removedObserverToCallEndUpdateOn.has(observer)) {
-				this._removedObserverToCallEndUpdateOn.delete(observer);
-			} else {
+			if (!this._removedObserverToCallEndUpdateOn?.delete(observer)) {
 				observer.beginUpdate(this);
 			}
 		}
@@ -391,6 +400,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 	public debugGetState() {
 		return {
 			state: this._state,
+			stateStr: derivedStateToString(this._state),
 			updateCount: this._updateCount,
 			isComputing: this._isComputing,
 			dependencies: this._dependencies,
@@ -399,6 +409,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 	}
 
 	public debugSetValue(newValue: unknown) {
+		// eslint-disable-next-line local/code-no-any-casts
 		this._value = newValue as any;
 	}
 

@@ -57,6 +57,7 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
 import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { InputMode } from '../../../../editor/common/inputMode.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -304,7 +305,7 @@ class TabFocusMode extends Disposable {
 
 		this.registerListeners();
 
-		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true;
 		TabFocus.setTabFocusMode(tabFocusModeConfig);
 	}
 
@@ -313,7 +314,7 @@ class TabFocusMode extends Disposable {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.tabFocusMode')) {
-				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true;
 				TabFocus.setTabFocusMode(tabFocusModeConfig);
 
 				this._onDidChange.fire(tabFocusModeConfig);
@@ -650,7 +651,7 @@ class EditorStatus extends Disposable {
 	}
 
 	private getSelectionLabel(info: IEditorSelectionStatus): string | undefined {
-		if (!info || !info.selections) {
+		if (!info?.selections) {
 			return undefined;
 		}
 
@@ -1144,7 +1145,7 @@ export class ChangeLanguageAction extends Action2 {
 				args: [
 					{
 						name: localize('changeLanguageMode.arg.name', "The name of the language mode to change to."),
-						constraint: (value: any) => typeof value === 'string',
+						constraint: (value: unknown) => typeof value === 'string',
 					}
 				]
 			}
@@ -1224,11 +1225,11 @@ export class ChangeLanguageAction extends Action2 {
 			picks.unshift(configureLanguageAssociations);
 		}
 
-		// Offer to "Auto Detect"
-		const autoDetectLanguage: IQuickPickItem = {
-			label: localize('autoDetect', "Auto Detect")
-		};
-		picks.unshift(autoDetectLanguage);
+		// Offer to "Auto Detect", but only if the document is not empty.
+		const autoDetectLanguage: IQuickPickItem = { label: localize('autoDetect', "Auto Detect") };
+		if (textModel && textModel.getValueLength() > 0) {
+			picks.unshift(autoDetectLanguage);
+		}
 
 		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
@@ -1373,7 +1374,7 @@ export class ChangeLanguageAction extends Action2 {
 
 				// If the association is already being made in the workspace, make sure to target workspace settings
 				let target = ConfigurationTarget.USER;
-				if (fileAssociationsConfig.workspaceValue && !!(fileAssociationsConfig.workspaceValue as any)[associationKey]) {
+				if (fileAssociationsConfig.workspaceValue?.[associationKey as keyof typeof fileAssociationsConfig.workspaceValue]) {
 					target = ConfigurationTarget.WORKSPACE;
 				}
 
@@ -1456,6 +1457,7 @@ export class ChangeEncodingAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
 		const textResourceConfigurationService = accessor.get(ITextResourceConfigurationService);
+		const dialogService = accessor.get(IDialogService);
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
@@ -1577,7 +1579,24 @@ export class ChangeEncodingAction extends Action2 {
 
 		const activeEncodingSupport = toEditorWithEncodingSupport(editorService.activeEditorPane.input);
 		if (typeof encoding.id !== 'undefined' && activeEncodingSupport) {
-			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
+
+			// Re-open with encoding does not work on dirty editors, ask to revert
+			if (isReopenWithEncoding && editorService.activeEditorPane.input.isDirty()) {
+				const { confirmed } = await dialogService.confirm({
+					message: localize('reopenWithEncodingWarning', "Do you want to revert the active text editor and reopen with a different encoding?"),
+					detail: localize('reopenWithEncodingDetail', "This will discard any unsaved changes."),
+					primaryButton: localize('reopen', "Discard Changes and Reopen")
+				});
+
+				if (!confirmed) {
+					return;
+				}
+
+				await editorService.activeEditorPane.input.revert(editorService.activeEditorPane.group.id);
+			}
+
+			// Set new encoding
+			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode);
 		}
 
 		activeTextEditorControl.focus();

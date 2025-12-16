@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { createRequire } from 'node:module';
 import type { IProductConfiguration } from './vs/base/common/product.js';
 
@@ -83,7 +83,7 @@ export function removeGlobalNodeJsModuleLookupPaths(): void {
 
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
 
-	Module._resolveLookupPaths = function (moduleName: string, parent: any): string[] {
+	Module._resolveLookupPaths = function (moduleName: string, parent: unknown): string[] {
 		const paths = originalResolveLookupPaths(moduleName, parent);
 		if (Array.isArray(paths)) {
 			let commonSuffixLength = 0;
@@ -139,6 +139,11 @@ export function configurePortable(product: Partial<IProductConfiguration>): { po
 		}
 
 		if (process.platform === 'darwin') {
+			return path.dirname(path.dirname(path.dirname(appRoot)));
+		}
+
+		// appRoot = ..\Microsoft VS Code Insiders\<version>\resources\app
+		if (process.platform === 'win32' && product.quality === 'insider') {
 			return path.dirname(path.dirname(path.dirname(appRoot)));
 		}
 

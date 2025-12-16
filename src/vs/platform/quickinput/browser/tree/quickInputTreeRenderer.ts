@@ -29,10 +29,18 @@ export interface IQuickTreeTemplateData {
 	checkbox: TriStateCheckbox;
 	icon: HTMLElement;
 	label: IconLabel;
-	detail: IconLabel;
 	actionBar: ActionBar;
 	toDisposeElement: DisposableStore;
 	toDisposeTemplate: DisposableStore;
+}
+
+export class QuickInputCheckboxStateHandler<T> extends Disposable {
+	private readonly _onDidChangeCheckboxState = this._register(new Emitter<{ item: T; checked: boolean | 'mixed' }>());
+	public readonly onDidChangeCheckboxState = this._onDidChangeCheckboxState.event;
+
+	public setCheckboxState(node: T, checked: boolean | 'mixed') {
+		this._onDidChangeCheckboxState.fire({ item: node, checked });
+	}
 }
 
 export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable implements ITreeRenderer<T, IQuickTreeFilterData, IQuickTreeTemplateData> {
@@ -43,6 +51,7 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 		private readonly _hoverDelegate: IHoverDelegate | undefined,
 		private readonly _buttonTriggeredEmitter: Emitter<IQuickTreeItemButtonEvent<T>>,
 		private readonly onCheckedEvent: Event<IQuickTreeCheckboxEvent<T>>,
+		private readonly _checkboxStateHandler: QuickInputCheckboxStateHandler<T>,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
@@ -67,13 +76,6 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			supportIcons: true,
 			hoverDelegate: this._hoverDelegate
 		}));
-		const row2 = dom.append(rows, $('.quick-input-tree-row'));
-		const detailContainer = dom.append(row2, $('.quick-input-tree-detail'));
-		const detail = store.add(new IconLabel(detailContainer, {
-			supportHighlights: true,
-			supportIcons: true,
-			hoverDelegate: this._hoverDelegate
-		}));
 		const actionBar = store.add(new ActionBar(entry, this._hoverDelegate ? { hoverDelegate: this._hoverDelegate } : undefined));
 		actionBar.domNode.classList.add('quick-input-tree-entry-action-bar');
 		return {
@@ -82,19 +84,29 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			checkbox,
 			icon,
 			label,
-			detail,
 			actionBar,
 			toDisposeElement: new DisposableStore(),
 		};
 	}
-	renderElement(node: ITreeNode<T, IQuickTreeFilterData>, index: number, templateData: IQuickTreeTemplateData, details?: ITreeElementRenderDetails): void {
+
+	renderElement(node: ITreeNode<T, IQuickTreeFilterData>, _index: number, templateData: IQuickTreeTemplateData, _details?: ITreeElementRenderDetails): void {
 		const store = templateData.toDisposeElement;
 		const quickTreeItem = node.element;
 
 		// Checkbox
-		templateData.checkbox.domNode.style.display = '';
-		templateData.checkbox.checked = quickTreeItem.checked ?? false;
-		store.add(Event.filter(this.onCheckedEvent, e => e.item === quickTreeItem)(e => templateData.checkbox.checked = e.checked));
+		if (quickTreeItem.pickable === false) {
+			// Hide checkbox for non-pickable items
+			templateData.checkbox.domNode.style.display = 'none';
+		} else {
+			const checkbox = templateData.checkbox;
+			checkbox.domNode.style.display = '';
+			checkbox.checked = quickTreeItem.checked ?? false;
+			store.add(Event.filter(this.onCheckedEvent, e => e.item === quickTreeItem)(e => checkbox.checked = e.checked));
+			if (quickTreeItem.disabled) {
+				checkbox.disable();
+			}
+			store.add(checkbox.onChange((e) => this._checkboxStateHandler.setCheckboxState(quickTreeItem, checkbox.checked)));
+		}
 
 		// Icon
 		if (quickTreeItem.iconPath) {
@@ -107,7 +119,7 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			templateData.icon.className = quickTreeItem.iconClass ? `quick-input-tree-icon ${quickTreeItem.iconClass}` : '';
 		}
 
-		const { labelHighlights: matches, descriptionHighlights: descriptionMatches, detailHighlights } = node.filterData || {};
+		const { labelHighlights: matches, descriptionHighlights: descriptionMatches } = node.filterData || {};
 
 		// Label and Description
 		let descriptionTitle: IManagedHoverTooltipMarkdownString | undefined;
@@ -135,32 +147,6 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			}
 		);
 
-		// Detail
-		if (!quickTreeItem.detail) {
-			templateData.detail.element.style.display = 'none';
-		} else {
-			let title: IManagedHoverTooltipMarkdownString | undefined;
-			// If we have a tooltip, we want that to be shown and not any other hover
-			if (!quickTreeItem.tooltip) {
-				title = {
-					markdown: {
-						value: escape(quickTreeItem.detail),
-						supportThemeIcons: true
-					},
-					markdownNotSupportedFallback: quickTreeItem.detail
-				};
-			}
-			templateData.detail.setLabel(
-				quickTreeItem.detail,
-				undefined,
-				{
-					matches: detailHighlights,
-					title,
-					labelEscapeNewLines: true
-				}
-			);
-		}
-
 		// Action Bar
 		const buttons = quickTreeItem.buttons;
 		if (buttons && buttons.length) {
@@ -174,10 +160,12 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			templateData.entry.classList.remove('has-actions');
 		}
 	}
+
 	disposeElement(_element: ITreeNode<T, IQuickTreeFilterData>, _index: number, templateData: IQuickTreeTemplateData, _details?: ITreeElementRenderDetails): void {
 		templateData.toDisposeElement.clear();
 		templateData.actionBar.clear();
 	}
+
 	disposeTemplate(templateData: IQuickTreeTemplateData): void {
 		templateData.toDisposeElement.dispose();
 		templateData.toDisposeTemplate.dispose();

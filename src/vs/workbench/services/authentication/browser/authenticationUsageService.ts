@@ -50,7 +50,7 @@ export interface IAuthenticationUsageService {
 	 * @param extensionId The id of the extension to add a usage for
 	 * @param extensionName The name of the extension to add a usage for
 	 */
-	addAccountUsage(providerId: string, accountName: string, scopes: ReadonlyArray<string>, extensionId: string, extensionName: string): void;
+	addAccountUsage(providerId: string, accountName: string, scopes: ReadonlyArray<string> | undefined, extensionId: string, extensionName: string): void;
 }
 
 export class AuthenticationUsageService extends Disposable implements IAuthenticationUsageService {
@@ -119,7 +119,7 @@ export class AuthenticationUsageService extends Disposable implements IAuthentic
 		this._storageService.remove(accountKey, StorageScope.APPLICATION);
 	}
 
-	addAccountUsage(providerId: string, accountName: string, scopes: string[], extensionId: string, extensionName: string): void {
+	addAccountUsage(providerId: string, accountName: string, scopes: string[] | undefined, extensionId: string, extensionName: string): void {
 		const accountKey = `${providerId}-${accountName}-usages`;
 		const usages = this.readAccountUsages(providerId, accountName);
 

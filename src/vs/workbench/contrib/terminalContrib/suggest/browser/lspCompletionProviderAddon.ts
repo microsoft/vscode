@@ -13,6 +13,7 @@ import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionItemLabel, CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
@@ -21,6 +22,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
 	private _lspTerminalModelContentProvider: LspTerminalModelContentProvider;
+	readonly shellTypes: TerminalShellType[] = [GeneralShellType.Python];
 
 	constructor(
 		provider: CompletionItemProvider,
@@ -38,7 +40,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		// console.log('activate');
 	}
 
-	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
+	async provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
 
 		// Apply edit for non-executed current commandline --> Pretend we are typing in the real-document.
 		this._lspTerminalModelContentProvider.trackPromptInputToVirtualFile(value);
@@ -61,12 +63,11 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
 				const terminalCompletion: ITerminalCompletion = {
 					label: item.label,
-					provider: `lsp:${this._provider._debugDisplayName}`,
+					provider: `lsp:${item.extensionId?.value}`,
 					detail: item.detail,
 					documentation: item.documentation,
 					kind: convertedKind,
-					replacementIndex: completionItemTemp.replacementIndex,
-					replacementLength: completionItemTemp.replacementLength,
+					replacementRange: completionItemTemp.replacementRange,
 				};
 
 				// Store unresolved item and provider for lazy resolution if needed
@@ -95,8 +96,7 @@ export function createCompletionItemPython(
 	return {
 		label,
 		detail: detail ?? '',
-		replacementIndex: cursorPosition - lastWord.length,
-		replacementLength: lastWord.length,
+		replacementRange: [cursorPosition - lastWord.length, cursorPosition],
 		kind: kind ?? TerminalCompletionItemKind.Method
 	};
 }
@@ -133,14 +133,9 @@ export interface TerminalCompletionItem {
 	label: string | CompletionItemLabel;
 
 	/**
-	 * The index of the start of the range to replace.
+	 * Selection range (inclusive start, exclusive end) to replace when this completion is applied.
 	 */
-	replacementIndex: number;
-
-	/**
-	 * The length of the range to replace.
-	 */
-	replacementLength: number;
+	replacementRange: readonly [number, number] | undefined;
 
 	/**
 	 * The completion's detail which appears on the right of the list.

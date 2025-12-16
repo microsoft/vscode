@@ -63,6 +63,7 @@ import { ITreeSitterLibraryService } from '../../common/services/treeSitter/tree
 import { TestTreeSitterLibraryService } from '../common/services/testTreeSitterLibraryService.js';
 import { IInlineCompletionsService, InlineCompletionsService } from '../../browser/services/inlineCompletionsService.js';
 import { EditorCommand } from '../../browser/editorExtensions.js';
+import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
@@ -193,7 +194,7 @@ function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFa
 	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model, options));
 	const viewModel = editor.getViewModel()!;
 	viewModel.setHasFocus(true);
-	const result = callback(<ITestCodeEditor>editor, editor.getViewModel()!, instantiationService);
+	const result = callback(editor, editor.getViewModel()!, instantiationService);
 	if (result) {
 		return result.then(() => disposables.dispose());
 	}
@@ -236,6 +237,7 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	define(ICommandService, TestCommandService);
 	define(ITelemetryService, NullTelemetryServiceShape);
 	define(ILoggerService, NullLoggerService);
+	define(IDataChannelService, NullDataChannelService);
 	define(IEnvironmentService, class extends mock<IEnvironmentService>() {
 		declare readonly _serviceBrand: undefined;
 		override isBuilt: boolean = true;
@@ -274,6 +276,7 @@ export function instantiateTestCodeEditor(instantiationService: IInstantiationSe
 	};
 	const editor = instantiationService.createInstance(
 		TestCodeEditor,
+		// eslint-disable-next-line local/code-no-any-casts
 		<HTMLElement><any>new TestEditorDomElement(),
 		options,
 		codeEditorWidgetOptions

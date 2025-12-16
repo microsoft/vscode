@@ -36,8 +36,8 @@ export const IWorkspaceTrustManagementService = createDecorator<IWorkspaceTrustM
 export interface IWorkspaceTrustManagementService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeTrust: Event<boolean>;
-	onDidChangeTrustedFolders: Event<void>;
+	readonly onDidChangeTrust: Event<boolean>;
+	readonly onDidChangeTrustedFolders: Event<void>;
 
 	readonly workspaceResolved: Promise<void>;
 	readonly workspaceTrustInitialized: Promise<void>;

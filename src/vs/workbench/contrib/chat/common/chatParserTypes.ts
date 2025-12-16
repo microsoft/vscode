@@ -12,7 +12,6 @@ import { IChatSlashData } from './chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation } from './constants.js';
 import { IToolData } from './languageModelToolsService.js';
-import { IChatPromptSlashCommand } from './promptSyntax/service/promptsService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './chatVariableEntries.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
@@ -172,14 +171,14 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 	static readonly Kind = 'prompt';
 	readonly kind = ChatRequestSlashPromptPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashPromptCommand: IChatPromptSlashCommand) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly name: string) { }
 
 	get text(): string {
-		return `${chatSubcommandLeader}${this.slashPromptCommand.command}`;
+		return `${chatSubcommandLeader}${this.name}`;
 	}
 
 	get promptText(): string {
-		return `${chatSubcommandLeader}${this.slashPromptCommand.command}`;
+		return `${chatSubcommandLeader}${this.name}`;
 	}
 }
 
@@ -269,7 +268,7 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 				return new ChatRequestSlashPromptPart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
-					(part as ChatRequestSlashPromptPart).slashPromptCommand
+					(part as ChatRequestSlashPromptPart).name
 				);
 			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
 				return new ChatRequestDynamicVariablePart(

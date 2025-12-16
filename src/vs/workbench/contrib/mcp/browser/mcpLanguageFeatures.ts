@@ -5,13 +5,13 @@
 
 import { computeLevenshteinDistance } from '../../../../base/common/diff/diff.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { findNodeAtLocation, Node, parseTree } from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { CodeLensList, CodeLensProvider, InlayHint, InlayHintList } from '../../../../editor/common/languages.js';
+import { CodeLens, CodeLensList, CodeLensProvider, InlayHint, InlayHintList } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../nls.js';
@@ -151,7 +151,8 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 		}
 
 		const store = new DisposableStore();
-		const lenses: CodeLensList = { lenses: [], dispose: () => store.dispose() };
+		const lenses: CodeLens[] = [];
+		const lensList: CodeLensList = { lenses, dispose: () => store.dispose() };
 		const read = <T>(observable: IObservable<T>): T => {
 			store.add(Event.fromObservableLight(observable)(onDidChangeCodeLens));
 			return observable.get();
@@ -159,7 +160,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 
 		const collection = read(this._mcpRegistry.collections).find(c => isEqual(c.presentation?.origin, model.uri));
 		if (!collection) {
-			return lenses;
+			return lensList;
 		}
 
 		const mcpServers = read(this._mcpService.servers).filter(s => s.collection.id === collection.id);
@@ -179,7 +180,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 			const state = read(server.connectionState).state;
 			switch (state) {
 				case McpConnectionState.Kind.Error:
-					lenses.lenses.push({
+					lenses.push({
 						range,
 						command: {
 							id: McpCommandIds.ShowOutput,
@@ -195,7 +196,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 						},
 					});
 					if (canDebug) {
-						lenses.lenses.push({
+						lenses.push({
 							range,
 							command: {
 								id: McpCommandIds.RestartServer,
@@ -206,7 +207,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					}
 					break;
 				case McpConnectionState.Kind.Starting:
-					lenses.lenses.push({
+					lenses.push({
 						range,
 						command: {
 							id: McpCommandIds.ShowOutput,
@@ -223,7 +224,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					});
 					break;
 				case McpConnectionState.Kind.Running:
-					lenses.lenses.push({
+					lenses.push({
 						range,
 						command: {
 							id: McpCommandIds.ShowOutput,
@@ -246,7 +247,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 						},
 					});
 					if (canDebug) {
-						lenses.lenses.push({
+						lenses.push({
 							range,
 							command: {
 								id: McpCommandIds.RestartServer,
@@ -257,7 +258,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					}
 					break;
 				case McpConnectionState.Kind.Stopped:
-					lenses.lenses.push({
+					lenses.push({
 						range,
 						command: {
 							id: McpCommandIds.StartServer,
@@ -266,7 +267,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 						},
 					});
 					if (canDebug) {
-						lenses.lenses.push({
+						lenses.push({
 							range,
 							command: {
 								id: McpCommandIds.StartServer,
@@ -281,7 +282,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 			if (state !== McpConnectionState.Kind.Error) {
 				const toolCount = read(server.tools).length;
 				if (toolCount) {
-					lenses.lenses.push({
+					lenses.push({
 						range,
 						command: {
 							id: '',
@@ -293,7 +294,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 
 				const promptCount = read(server.prompts).length;
 				if (promptCount) {
-					lenses.lenses.push({
+					lenses.push({
 						range,
 						command: {
 							id: McpCommandIds.StartPromptForServer,
@@ -303,7 +304,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					});
 				}
 
-				lenses.lenses.push({
+				lenses.push({
 					range,
 					command: {
 						id: McpCommandIds.ServerOptions,
@@ -314,7 +315,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 			}
 		}
 
-		return lenses;
+		return lensList;
 	}
 
 	private async _provideInlayHints(model: ITextModel, range: Range): Promise<InlayHintList | undefined> {
@@ -387,9 +388,9 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 
 		function pushAnnotation(savedId: string, offset: number, saved: IResolvedValue): InlayHint {
 			const tooltip = new MarkdownString([
-				markdownCommandLink({ id: McpCommandIds.EditStoredInput, title: localize('edit', 'Edit'), arguments: [savedId, model.uri, mcpConfigurationSection, inConfig!.target] }),
-				markdownCommandLink({ id: McpCommandIds.RemoveStoredInput, title: localize('clear', 'Clear'), arguments: [inConfig!.scope, savedId] }),
-				markdownCommandLink({ id: McpCommandIds.RemoveStoredInput, title: localize('clearAll', 'Clear All'), arguments: [inConfig!.scope] }),
+				createMarkdownCommandLink({ id: McpCommandIds.EditStoredInput, title: localize('edit', 'Edit'), arguments: [savedId, model.uri, mcpConfigurationSection, inConfig!.target] }),
+				createMarkdownCommandLink({ id: McpCommandIds.RemoveStoredInput, title: localize('clear', 'Clear'), arguments: [inConfig!.scope, savedId] }),
+				createMarkdownCommandLink({ id: McpCommandIds.RemoveStoredInput, title: localize('clearAll', 'Clear All'), arguments: [inConfig!.scope] }),
 			].join(' | '), { isTrusted: true });
 
 			const hint: InlayHint = {

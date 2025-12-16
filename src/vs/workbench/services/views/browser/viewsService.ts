@@ -313,7 +313,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		const compositeDescriptor = this.getComposite(viewContainer.id, location!);
 		if (compositeDescriptor) {
 			const paneComposite = await this.openComposite(compositeDescriptor.id, location!) as IPaneComposite | undefined;
-			if (paneComposite && paneComposite.openView) {
+			if (paneComposite?.openView) {
 				return paneComposite.openView<T>(id, focus) || null;
 			} else if (focus) {
 				paneComposite?.focus();
@@ -424,7 +424,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						f1: true
 					});
 				}
-				public async run(serviceAccessor: ServicesAccessor): Promise<any> {
+				public async run(serviceAccessor: ServicesAccessor): Promise<void> {
 					const editorGroupService = serviceAccessor.get(IEditorGroupsService);
 					const viewDescriptorService = serviceAccessor.get(IViewDescriptorService);
 					const layoutService = serviceAccessor.get(IWorkbenchLayoutService);
@@ -512,7 +512,7 @@ export class ViewsService extends Disposable implements IViewsService {
 					}
 				});
 			}
-			public async run(serviceAccessor: ServicesAccessor, options?: { preserveFocus?: boolean }): Promise<any> {
+			public async run(serviceAccessor: ServicesAccessor, options?: { preserveFocus?: boolean }): Promise<void> {
 				const editorGroupService = serviceAccessor.get(IEditorGroupsService);
 				const viewDescriptorService = serviceAccessor.get(IViewDescriptorService);
 				const layoutService = serviceAccessor.get(IWorkbenchLayoutService);
@@ -686,7 +686,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private createViewPaneContainer(element: HTMLElement, viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation, disposables: DisposableStore, instantiationService: IInstantiationService): ViewPaneContainer {
-		const viewPaneContainer: ViewPaneContainer = (instantiationService as any).createInstance(viewContainer.ctorDescriptor.ctor, ...(viewContainer.ctorDescriptor.staticArguments || []));
+		const viewPaneContainer: ViewPaneContainer = instantiationService.createInstance(viewContainer.ctorDescriptor.ctor, ...(viewContainer.ctorDescriptor.staticArguments || []));
 
 		this.viewPaneContainers.set(viewPaneContainer.getId(), viewPaneContainer);
 		disposables.add(toDisposable(() => this.viewPaneContainers.delete(viewPaneContainer.getId())));

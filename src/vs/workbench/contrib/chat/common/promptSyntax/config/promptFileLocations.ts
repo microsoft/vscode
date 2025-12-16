@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { basename } from '../../../../../../base/common/path.js';
+import { basename, dirname } from '../../../../../../base/common/path.js';
 import { PromptsType } from '../promptTypes.js';
 
 /**
@@ -20,7 +20,12 @@ export const INSTRUCTION_FILE_EXTENSION = '.instructions.md';
 /**
  * File extension for the modes files.
  */
-export const MODE_FILE_EXTENSION = '.chatmode.md';
+export const LEGACY_MODE_FILE_EXTENSION = '.chatmode.md';
+
+/**
+ * File extension for the agent files.
+ */
+export const AGENT_FILE_EXTENSION = '.agent.md';
 
 /**
  * Copilot custom instructions file name.
@@ -41,7 +46,20 @@ export const INSTRUCTIONS_DEFAULT_SOURCE_FOLDER = '.github/instructions';
 /**
  * Default modes source folder.
  */
-export const MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
+export const LEGACY_MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
+
+/**
+ * Agents folder.
+ */
+export const AGENTS_SOURCE_FOLDER = '.github/agents';
+
+/**
+ * Helper function to check if a file is directly in the .github/agents/ folder (not in subfolders).
+ */
+function isInAgentsFolder(fileUri: URI): boolean {
+	const dir = dirname(fileUri.path);
+	return dir.endsWith('/' + AGENTS_SOURCE_FOLDER) || dir === AGENTS_SOURCE_FOLDER;
+}
 
 /**
  * Gets the prompt file type from the provided path.
@@ -57,8 +75,13 @@ export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 		return PromptsType.instructions;
 	}
 
-	if (filename.endsWith(MODE_FILE_EXTENSION)) {
-		return PromptsType.mode;
+	if (filename.endsWith(LEGACY_MODE_FILE_EXTENSION) || filename.endsWith(AGENT_FILE_EXTENSION)) {
+		return PromptsType.agent;
+	}
+
+	// Check if it's a .md file in the .github/agents/ folder
+	if (filename.endsWith('.md') && isInAgentsFolder(fileUri)) {
+		return PromptsType.agent;
 	}
 
 	return undefined;
@@ -77,8 +100,8 @@ export function getPromptFileExtension(type: PromptsType): string {
 			return INSTRUCTION_FILE_EXTENSION;
 		case PromptsType.prompt:
 			return PROMPT_FILE_EXTENSION;
-		case PromptsType.mode:
-			return MODE_FILE_EXTENSION;
+		case PromptsType.agent:
+			return AGENT_FILE_EXTENSION;
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -90,8 +113,8 @@ export function getPromptFileDefaultLocation(type: PromptsType): string {
 			return INSTRUCTIONS_DEFAULT_SOURCE_FOLDER;
 		case PromptsType.prompt:
 			return PROMPT_DEFAULT_SOURCE_FOLDER;
-		case PromptsType.mode:
-			return MODE_DEFAULT_SOURCE_FOLDER;
+		case PromptsType.agent:
+			return AGENTS_SOURCE_FOLDER;
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -107,7 +130,8 @@ export function getCleanPromptName(fileUri: URI): string {
 	const extensions = [
 		PROMPT_FILE_EXTENSION,
 		INSTRUCTION_FILE_EXTENSION,
-		MODE_FILE_EXTENSION,
+		LEGACY_MODE_FILE_EXTENSION,
+		AGENT_FILE_EXTENSION,
 	];
 
 	for (const ext of extensions) {
@@ -117,6 +141,11 @@ export function getCleanPromptName(fileUri: URI): string {
 	}
 
 	if (fileName === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
+		return basename(fileUri.path, '.md');
+	}
+
+	// For .md files in .github/agents/ folder, treat them as agent files
+	if (fileName.endsWith('.md') && isInAgentsFolder(fileUri)) {
 		return basename(fileUri.path, '.md');
 	}
 

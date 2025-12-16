@@ -18,7 +18,7 @@ import { getPathLabel } from '../../base/common/labels.js';
 import { Schemas } from '../../base/common/network.js';
 import { basename, resolve } from '../../base/common/path.js';
 import { mark } from '../../base/common/performance.js';
-import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
 import { cwd } from '../../base/common/process.js';
 import { rtrim, trim } from '../../base/common/strings.js';
 import { Promises as FSPromises } from '../../base/node/pfs.js';
@@ -73,6 +73,7 @@ import { SaveStrategy, StateService } from '../../platform/state/node/stateServi
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
 import { ThemeMainService } from '../../platform/theme/electron-main/themeMainServiceImpl.js';
+import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
 
 /**
  * The main VS Code entry point.
@@ -143,6 +144,14 @@ class CodeMain {
 					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
+				// Check if Inno Setup is running
+				const innoSetupActive = await this.checkInnoSetupMutex(productService);
+				if (innoSetupActive) {
+					const message = `${productService.nameShort} is currently being updated. Please wait for the update to complete before launching.`;
+					instantiationService.invokeFunction(this.quit, new Error(message));
+					return;
+				}
+
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
 			});
 		} catch (error) {
@@ -204,6 +213,8 @@ class CodeMain {
 			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
 		} else if (isMacintosh && productService.darwinBundleIdentifier) {
 			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		} else if (isLinux) {
+			policyService = disposables.add(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService));
 		} else if (environmentMainService.policyFile) {
 			policyService = disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService));
 		} else {
@@ -313,11 +324,6 @@ class CodeMain {
 				throw error;
 			}
 
-			// Since we are the second instance, we do not want to show the dock
-			if (isMacintosh) {
-				app.dock?.hide();
-			}
-
 			// there's a running instance, let's connect to it
 			let client: NodeIPCClient<string>;
 			try {
@@ -417,11 +423,6 @@ class CodeMain {
 			throw new ExpectedError('Terminating...');
 		}
 
-		// dock might be hidden at this case due to a retry
-		if (isMacintosh) {
-			app.dock?.show();
-		}
-
 		// Set the VSCODE_PID variable here when we are sure we are the first
 		// instance to startup. Otherwise we would wrongly overwrite the PID
 		process.env['VSCODE_PID'] = String(process.pid);
@@ -494,6 +495,21 @@ class CodeMain {
 		lifecycleMainService.kill(exitCode);
 	}
 
+	private async checkInnoSetupMutex(productService: IProductService): Promise<boolean> {
+		if (!isWindows || !productService.win32MutexName || productService.quality !== 'insider') {
+			return false;
+		}
+
+		try {
+			const readyMutexName = `${productService.win32MutexName}setup`;
+			const mutex = await import('@vscode/windows-mutex');
+			return mutex.isActive(readyMutexName);
+		} catch (error) {
+			console.error('Failed to check Inno Setup mutex:', error);
+			return false;
+		}
+	}
+
 	//#region Command line arguments utilities
 
 	private resolveArgs(): NativeParsedArgs {
@@ -523,6 +539,9 @@ class CodeMain {
 			} else if (args.chat['reuse-window']) {
 				// Apply `--reuse-window` flag to the main arguments
 				args['reuse-window'] = true;
+			} else if (args.chat['profile']) {
+				// Apply `--profile` flag to the main arguments
+				args['profile'] = args.chat['profile'];
 			} else {
 				// Unless we are started with specific instructions about
 				// new windows or reusing existing ones, always take the

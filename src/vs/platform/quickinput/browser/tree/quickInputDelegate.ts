@@ -11,8 +11,8 @@ import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
  * Delegate for QuickInputTree that provides height and template information.
  */
 export class QuickInputTreeDelegate<T extends IQuickTreeItem> implements IListVirtualDelegate<T> {
-	getHeight(element: T): number {
-		return element.detail ? 44 : 22; // 22 for single line, 44 for two lines
+	getHeight(_element: T): number {
+		return 22;
 	}
 
 	getTemplateId(_element: T): string {

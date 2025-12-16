@@ -1,0 +1,89 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-viewpane {
+
+	.chat-view-title-container {
+		display: none;
+		align-items: center;
+		cursor: pointer;
+
+		.chat-view-title-navigation-toolbar {
+			overflow: hidden;
+
+			.chat-view-title-action-item {
+				flex: 1 1 auto;
+				min-width: 0;
+
+				.chat-view-title-label-container {
+					display: flex;
+					gap: 4px;
+				}
+			}
+		}
+
+		.chat-view-title-label {
+			text-transform: uppercase;
+			font-size: 11px;
+			font-weight: 700;
+			line-height: 16px;
+			display: block;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			min-width: 0;
+		}
+
+		.chat-view-title-actions-toolbar {
+			margin-left: auto;
+			padding-left: 4px;
+		}
+	}
+
+	.chat-view-title-container.visible {
+		display: flex;
+	}
+}
+
+/*
+ * Below is a very complicated set of CSS rules that try to align the
+ * chat title to the surrounding elements depending on:
+ * - the activity bar position
+ * - the chat view container (sidebar, panel, auxiliarybar)
+ * - the container orientation (left, right)
+ * - the visibility of side by side
+ */
+.chat-viewpane {
+
+	/* Default padding for all view locations */
+	&.chat-view-location-sidebar,
+	&.chat-view-location-panel,
+	&.chat-view-location-auxiliarybar {
+		.chat-view-title-container {
+			padding: 0 12px 0 16px;
+		}
+	}
+
+	/* Auxiliarybar with non-default activity bar position */
+	&.activity-bar-location-other.chat-view-location-auxiliarybar {
+		.chat-view-title-container {
+			padding: 0 8px 0 16px;
+		}
+	}
+
+	/* Side-by-side sessions: left position (any activity bar) */
+	&.has-sessions-control.sessions-control-orientation-sidebyside.chat-view-position-left {
+		.chat-view-title-container {
+			padding: 0 8px;
+		}
+	}
+
+	/* Side-by-side sessions: right position (default activity bar only) */
+	&.activity-bar-location-default.has-sessions-control.sessions-control-orientation-sidebyside.chat-view-position-right {
+		.chat-view-title-container {
+			padding: 0 8px 0 16px;
+		}
+	}
+}

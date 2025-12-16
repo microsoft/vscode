@@ -215,6 +215,10 @@ export interface IStatusbarEntry {
 	 */
 	readonly extensionId?: string;
 
+	/**
+	 * Allows to add content with custom rendering to the status bar entry.
+	 * If possible, use `text` instead.
+	*/
 	readonly content?: HTMLElement;
 }
 

@@ -86,12 +86,10 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	fi
 
 	if [ "$WRITE_SOURCE" != 'no' ]; then
-		# Check if apt modernize-sources is available.
-		if apt modernize-sources --help >/dev/null 2>&1; then
-			# Write repository in deb822 format with Signed-By.
-			echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
+		# Write repository in deb822 format with Signed-By.
+		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost." > "$CODE_SOURCE_PART_DEB822"
-			cat <<EOF >> "$CODE_SOURCE_PART_DEB822"
+		cat <<EOF >> "$CODE_SOURCE_PART_DEB822"
 Types: deb
 URIs: https://packages.microsoft.com/repos/code
 Suites: stable
@@ -99,13 +97,8 @@ Components: main
 Architectures: @@ARCHITECTURE@@
 Signed-By: $CODE_TRUSTED_PART
 EOF
-			if [ -f "$CODE_SOURCE_PART" ]; then
-				rm -f "$CODE_SOURCE_PART"
-			fi
-		else
-			echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
-# You may comment out this entry, but any other modifications may be lost.
-deb [arch=@@ARCHITECTURE@@] https://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART
+		if [ -f "$CODE_SOURCE_PART" ]; then
+			rm -f "$CODE_SOURCE_PART"
 		fi
 
 		# Sourced from https://packages.microsoft.com/keys/microsoft.asc

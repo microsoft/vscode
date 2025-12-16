@@ -46,6 +46,22 @@ Each extension follows the standard VS Code extension structure with `package.js
 3. **Follow imports**: Check what files import the problematic module
 4. **Check test files**: Often reveal usage patterns and expected behavior
 
+## Validating TypeScript changes
+
+MANDATORY: Always check the `VS Code - Build` watch task output via #runTasks/getTaskOutput for compilation errors before running ANY script or declaring work complete, then fix all compilation errors before moving forward.
+
+- NEVER run tests if there are compilation errors
+- NEVER use `npm run compile` to compile TypeScript files but call #runTasks/getTaskOutput instead
+
+### TypeScript compilation steps
+- Monitor the `VS Code - Build` task outputs for real-time compilation errors as you make changes
+- This task runs `Core - Build` and `Ext - Build` to incrementally compile VS Code TypeScript sources and built-in extensions
+- Start the task if it's not already running in the background
+
+### TypeScript validation steps
+- Use the run test tool if you need to run tests. If that tool is not available, then you can use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests) or `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests (integration tests end with .integrationTest.ts or are in /extensions/).
+- Use `npm run valid-layers-check` to check for layering issues
+
 ## Coding Guidelines
 
 ### Indentation
@@ -73,7 +89,8 @@ We use tabs, not spaces.
 
 - Use "double quotes" for strings shown to the user that need to be externalized (localized)
 - Use 'single quotes' otherwise
-- All strings visible to the user need to be externalized
+- All strings visible to the user need to be externalized using the `vs/nls` module
+- Externalized strings must not use string concatenation. Use placeholders instead (`{0}`).
 
 ### UI labels
 - Use title-style capitalization for command labels, buttons and menu items (each word is capitalized).
@@ -113,4 +130,9 @@ function f(x: number, y: string): void { }
 - Don't add tests to the wrong test suite (e.g., adding to end of file instead of inside relevant suite)
 - Look for existing test patterns before creating new structures
 - Use `describe` and `test` consistently with existing patterns
+- Prefer regex capture groups with names over numbered capture groups.
 - If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task
+- Never duplicate imports. Always reuse existing imports if they are present.
+- Do not use `any` or `unknown` as the type for variables, parameters, or return values unless absolutely necessary. If they need type annotations, they should have proper types or interfaces defined.
+- When adding file watching, prefer correlated file watchers (via fileService.createWatcher) to shared ones.
+- When adding tooltips to UI elements, prefer the use of IHoverService service.

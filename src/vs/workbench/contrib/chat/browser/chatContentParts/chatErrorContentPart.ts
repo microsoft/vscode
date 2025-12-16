@@ -8,7 +8,7 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ChatErrorLevel } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { IChatContentPart } from './chatContentParts.js';
@@ -22,7 +22,7 @@ export class ChatErrorContentPart extends Disposable implements IChatContentPart
 		kind: ChatErrorLevel,
 		content: IMarkdownString,
 		private readonly errorDetails: IChatRendererContent,
-		renderer: MarkdownRenderer,
+		renderer: IMarkdownRenderer,
 	) {
 		super();
 
@@ -40,7 +40,7 @@ export class ChatErrorWidget extends Disposable {
 	constructor(
 		kind: ChatErrorLevel,
 		content: IMarkdownString,
-		renderer: MarkdownRenderer,
+		renderer: IMarkdownRenderer,
 	) {
 		super();
 

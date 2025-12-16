@@ -157,17 +157,19 @@ pre code {
 }
 `;
 
-const defaultAllowedProtocols = Object.freeze([
+const defaultAllowedLinkProtocols = Object.freeze([
 	Schemas.http,
 	Schemas.https,
-	Schemas.command,
 ]);
 
 function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSanitizerConfig | undefined): TrustedHTML {
 	return sanitizeHtml(documentContent, {
 		allowedLinkProtocols: {
-			override: sanitizerConfig?.allowedProtocols?.override ?? defaultAllowedProtocols,
+			override: sanitizerConfig?.allowedLinkProtocols?.override ?? defaultAllowedLinkProtocols,
 		},
+		allowRelativeLinkPaths: sanitizerConfig?.allowRelativeLinkPaths,
+		allowedMediaProtocols: sanitizerConfig?.allowedMediaProtocols,
+		allowRelativeMediaPaths: sanitizerConfig?.allowRelativeMediaPaths,
 		allowedTags: {
 			override: allowedMarkdownHtmlTags,
 			augment: sanitizerConfig?.allowedTags?.augment
@@ -177,6 +179,7 @@ function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSani
 				...allowedMarkdownHtmlAttributes,
 				'name',
 				'id',
+				'class',
 				'role',
 				'tabindex',
 				'placeholder',
@@ -187,19 +190,27 @@ function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSani
 }
 
 interface MarkdownDocumentSanitizerConfig {
-	readonly allowedProtocols?: {
+	readonly allowedLinkProtocols?: {
 		readonly override: readonly string[] | '*';
 	};
+	readonly allowRelativeLinkPaths?: boolean;
+
+	readonly allowedMediaProtocols?: {
+		readonly override: readonly string[] | '*';
+	};
+	readonly allowRelativeMediaPaths?: boolean;
+
 	readonly allowedTags?: {
 		readonly augment: readonly string[];
 	};
+
 	readonly allowedAttributes?: {
 		readonly augment: readonly string[];
 	};
 }
 
 interface IRenderMarkdownDocumentOptions {
-	readonly sanitizerConfig?: 'skipSanitization' | MarkdownDocumentSanitizerConfig;
+	readonly sanitizerConfig?: MarkdownDocumentSanitizerConfig;
 	readonly markedExtensions?: readonly marked.MarkedExtension[];
 }
 
@@ -214,8 +225,8 @@ export async function renderMarkdownDocument(
 	extensionService: IExtensionService,
 	languageService: ILanguageService,
 	options?: IRenderMarkdownDocumentOptions,
-	token?: CancellationToken,
-): Promise<string> {
+	token: CancellationToken = CancellationToken.None,
+): Promise<TrustedHTML> {
 	const m = new marked.Marked(
 		MarkedHighlight.markedHighlight({
 			async: true,
@@ -238,11 +249,7 @@ export async function renderMarkdownDocument(
 	);
 
 	const raw = await raceCancellationError(m.parse(text, { async: true }), token ?? CancellationToken.None);
-	if (options?.sanitizerConfig === 'skipSanitization') {
-		return raw;
-	} else {
-		return sanitize(raw, options?.sanitizerConfig) as any as string;
-	}
+	return sanitize(raw, options?.sanitizerConfig);
 }
 
 namespace MarkedHighlight {

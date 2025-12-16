@@ -60,10 +60,7 @@ export class GettingStartedInput extends EditorInput {
 			return true;
 		}
 
-		if (other instanceof GettingStartedInput) {
-			return other.selectedCategory === this.selectedCategory;
-		}
-		return false;
+		return other instanceof GettingStartedInput;
 	}
 
 	constructor(

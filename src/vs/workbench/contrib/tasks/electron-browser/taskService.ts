@@ -50,6 +50,7 @@ import { IRemoteAgentService } from '../../../services/remote/common/remoteAgent
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
 interface IWorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -96,7 +97,8 @@ export class TaskService extends AbstractTaskService {
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 		@IChatService _chatService: IChatService,
-		@IChatAgentService _chatAgentService: IChatAgentService
+		@IChatAgentService _chatAgentService: IChatAgentService,
+		@IHostService _hostService: IHostService
 	) {
 		super(configurationService,
 			markerService,
@@ -135,7 +137,8 @@ export class TaskService extends AbstractTaskService {
 			remoteAgentService,
 			instantiationService,
 			_chatService,
-			_chatAgentService
+			_chatAgentService,
+			_hostService
 		);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}
