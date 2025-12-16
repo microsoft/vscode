@@ -598,6 +598,7 @@ const esbuildMediaScripts = [
 	'markdown-math/esbuild.mjs',
 	'mermaid-chat-features/esbuild-chat-webview.mjs',
 	'notebook-renderers/esbuild.mjs',
+	'rich-editor/esbuild-editor.mjs',
 	'simple-browser/esbuild-preview.mjs',
 ];
 
