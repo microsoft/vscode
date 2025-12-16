@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, isAgentSessionSection } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentSessionSection, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { AgentSessionsViewerOrientation, IAgentSessionsControl, IMarshalledChatSessionContext, isMarshalledChatSessionContext } from './agentSessions.js';
+import { AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditorOptions } from '../chatEditor.js';
@@ -31,7 +31,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { AgentSessionsPicker } from './agentSessionsPicker.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 
@@ -264,12 +263,12 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 
 abstract class BaseAgentSessionAction extends Action2 {
 
-	run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledChatSessionContext): void {
+	run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): void {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const viewsService = accessor.get(IViewsService);
 
 		let session: IAgentSession | undefined;
-		if (isMarshalledChatSessionContext(context)) {
+		if (isMarshalledAgentSessionContext(context)) {
 			session = agentSessionsService.getSession(context.session.resource);
 		} else {
 			session = context;
@@ -433,14 +432,14 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
-					ChatContextKeys.agentSessionType.isEqualTo(localChatSessionType)
+					ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
 				),
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: 'edit',
 				order: 3,
-				when: ChatContextKeys.agentSessionType.isEqualTo(localChatSessionType)
+				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
 			}
 		});
 	}
