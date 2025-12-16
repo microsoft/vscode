@@ -484,8 +484,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				this._sessionStore.add(this._cursorPositionListener);
 			}
 		} else if (this._cursorPositionListener) {
-				this._sessionStore.delete(this._cursorPositionListener);
-				this._cursorPositionListener = undefined;
+			this._sessionStore.delete(this._cursorPositionListener);
+			this._cursorPositionListener.dispose();
+			this._cursorPositionListener = undefined;
 		}
 	}
 
