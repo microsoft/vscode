@@ -100,11 +100,6 @@
 
 	.agent-sessions-container {
 		border-bottom: 1px solid var(--vscode-panel-border);
-
-		.agent-session-section {
-			/* align with container title */
-			padding: 0 8px 0 18px;
-		}
 	}
 }
 
@@ -135,7 +130,7 @@
 
 /*
  * Below is a very complicated set of CSS rules that try to align the
- * agent sessions title to the surrounding elements depending on:
+ * agent sessions title and sections to the surrounding elements depending on:
  * - the activity bar position
  * - the chat view container (sidebar, panel, auxiliarybar)
  * - the container orientation (left, right)
@@ -145,23 +140,79 @@
 
 	&.sessions-control-orientation-stacked {
 
-		&:not(.activity-bar-location-default) .agent-sessions-title-container {
-			padding: 0 4px 0 20px;
+		/* Default padding for all view locations */
+		&.chat-view-location-sidebar,
+		&.chat-view-location-panel,
+		&.chat-view-location-auxiliarybar {
+			.agent-sessions-title-container {
+				padding: 0 8px 0 20px;
+			}
+
+			.agent-session-section {
+				padding: 0 12px 0 20px;
+			}
 		}
 
-		&.activity-bar-location-default .agent-sessions-title-container {
-			padding: 0 8px 0 20px;
+		/* Auxiliarybar with non-default activity bar position */
+		&.activity-bar-location-other.chat-view-location-auxiliarybar {
+			.agent-sessions-title-container {
+				padding: 0 4px 0 20px;
+			}
+
+			.agent-session-section {
+				padding: 0 12px 0 20px;
+			}
 		}
 	}
 
 	&.sessions-control-orientation-sidebyside {
 
-		&:not(.activity-bar-location-default) .agent-sessions-title-container {
-			padding: 0 4px 0 8px;
+		/* Default padding for all view locations */
+		&.chat-view-location-sidebar,
+		&.chat-view-location-panel,
+		&.chat-view-location-auxiliarybar {
+
+			&.chat-view-position-left {
+
+				.agent-session-section,
+				.agent-sessions-title-container {
+					padding: 0 8px 0 20px;
+				}
+			}
+
+			&.chat-view-position-right {
+
+				.agent-session-section,
+				.agent-sessions-title-container {
+					padding: 0 8px;
+				}
+			}
 		}
 
-		&.activity-bar-location-default .agent-sessions-title-container {
-			padding: 0 8px;
+		/* Auxiliarybar with non-default activity bar position */
+		&.activity-bar-location-other.chat-view-location-auxiliarybar {
+
+			&.chat-view-position-left {
+
+				.agent-sessions-title-container {
+					padding: 0 4px 0 20px;
+				}
+
+				.agent-session-section {
+					padding: 0 12px 0 20px;
+				}
+			}
+
+			&.chat-view-position-right {
+
+				.agent-sessions-title-container {
+					padding: 0 4px 0 8px;
+				}
+
+				.agent-session-section {
+					padding: 0 12px 0 8px;
+				}
+			}
 		}
 	}
 }
