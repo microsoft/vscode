@@ -7,7 +7,6 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
@@ -1794,28 +1793,12 @@ export class Repository implements Disposable {
 			let worktreeName: string | undefined;
 			let { path: worktreePath, commitish, branch } = options || {};
 
-			if (branch === undefined) {
-				// Generate branch name if not provided
-				worktreeName = await this.getRandomBranchName();
-				if (!worktreeName) {
-					// Fallback to timestamp-based name if random generation fails
-					const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-					worktreeName = `worktree-${timestamp}`;
-				}
-				branch = `${branchPrefix}${worktreeName}`;
-
-				// Append worktree name to provided path
-				if (worktreePath !== undefined) {
-					worktreePath = path.join(worktreePath, worktreeName);
-				}
-			} else {
-				// Extract worktree name from branch
+			// Create worktree path based on the branch name
+			if (worktreePath === undefined && branch !== undefined) {
 				worktreeName = branch.startsWith(branchPrefix)
 					? branch.substring(branchPrefix.length).replace(/\//g, '-')
 					: branch.replace(/\//g, '-');
-			}
 
-			if (worktreePath === undefined) {
 				worktreePath = defaultWorktreeRoot
 					? path.join(defaultWorktreeRoot, worktreeName)
 					: path.join(path.dirname(this.root), `${path.basename(this.root)}.worktrees`, worktreeName);
@@ -3112,52 +3095,6 @@ export class Repository implements Disposable {
 		}
 
 		return this.unpublishedCommits;
-	}
-
-	private async getRandomBranchName(): Promise<string | undefined> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
-		if (!branchRandomNameEnabled) {
-			return undefined;
-		}
-
-		const dictionaries: string[][] = [];
-		const branchPrefix = config.get<string>('branchPrefix', '');
-		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
-		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary', ['adjectives', 'animals']);
-
-		for (const dictionary of branchRandomNameDictionary) {
-			if (dictionary.toLowerCase() === 'adjectives') {
-				dictionaries.push(adjectives);
-			} else if (dictionary.toLowerCase() === 'animals') {
-				dictionaries.push(animals);
-			} else if (dictionary.toLowerCase() === 'colors') {
-				dictionaries.push(colors);
-			} else if (dictionary.toLowerCase() === 'numbers') {
-				dictionaries.push(NumberDictionary.generate({ length: 3 }));
-			}
-		}
-
-		if (dictionaries.length === 0) {
-			return undefined;
-		}
-
-		// 5 attempts to generate a random branch name
-		for (let index = 0; index < 5; index++) {
-			const randomName = uniqueNamesGenerator({
-				dictionaries,
-				length: dictionaries.length,
-				separator: branchWhitespaceChar
-			});
-
-			// Check for local ref conflict
-			const refs = await this.getRefs({ pattern: `refs/heads/${branchPrefix}${randomName}` });
-			if (refs.length === 0) {
-				return randomName;
-			}
-		}
-
-		return undefined;
 	}
 
 	dispose(): void {
