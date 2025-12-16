@@ -6,8 +6,8 @@
 import path from 'path';
 import { run } from '../esbuild-webview-common.mjs';
 
-const srcDir = path.join(import.meta.dirname, 'media', 'editor');
-const outDir = path.join(import.meta.dirname, 'media', 'dist');
+const srcDir = path.join(import.meta.dirname, 'editor-src');
+const outDir = path.join(import.meta.dirname, 'media');
 
 run({
 	entryPoints: {

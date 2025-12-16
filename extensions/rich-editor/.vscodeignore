@@ -6,6 +6,6 @@
 .vscode/
 node_modules/
 src/
+editor-src/
 !dist/**
-!media/dist/**
-
+!media/**

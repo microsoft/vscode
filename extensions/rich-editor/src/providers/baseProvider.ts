@@ -175,7 +175,7 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 	 */
 	protected getHtmlForWebview(webview: vscode.Webview): string {
 		const scriptUri = webview.asWebviewUri(
-			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'dist', 'editor.js')
+			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'editor.js')
 		);
 
 		const nonce = this.getNonce();

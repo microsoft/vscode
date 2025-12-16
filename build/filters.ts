@@ -51,6 +51,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/mermaid-chat-features/chat-webview-out/**',
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/**',
+	'!extensions/rich-editor/media/*.js',
 	'!extensions/php-language-features/src/features/phpGlobalFunctions.ts',
 	'!extensions/terminal-suggest/src/completions/upstream/**',
 	'!extensions/typescript-language-features/test-workspace/**',
@@ -149,6 +150,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/markdown-math/notebook-out/*.js',
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/*.js',
+	'!extensions/rich-editor/media/*.js',
 	'!extensions/simple-browser/media/*.js',
 ]);
 
