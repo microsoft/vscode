@@ -21,6 +21,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
 import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 const $ = dom.$;
 
 // theming
@@ -82,7 +83,10 @@ export class ExceptionWidget extends ZoneWidget {
 		label.textContent = this.exceptionInfo.id ? nls.localize('exceptionThrownWithId', 'Exception has occurred: {0}', this.exceptionInfo.id) : nls.localize('exceptionThrown', 'Exception has occurred.');
 		let ariaLabel = label.textContent;
 
-		const actionBar = new ActionBar(actions);
+		// TODO this creates a memory leak
+		const store = new DisposableStore();
+
+		const actionBar = store.add(new ActionBar(actions));
 		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), ThemeIcon.asClassName(widgetClose), true, async () => {
 			const contribution = this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
 			contribution?.closeExceptionWidget();
