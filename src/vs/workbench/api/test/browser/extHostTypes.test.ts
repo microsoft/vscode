@@ -84,8 +84,11 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Position(0, -1));
 
 		const pos = new types.Position(0, 0);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (pos as any).line = -1);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (pos as any).character = -1);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (pos as any).line = 12);
 
 		const { line, character } = pos.toJSON();
@@ -203,7 +206,9 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Range(null!, new types.Position(0, 0)));
 
 		const range = new types.Range(1, 0, 0, 0);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => { (range as any).start = null; });
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => { (range as any).start = new types.Position(0, 3); });
 	});
 
@@ -582,26 +587,26 @@ suite('ExtHostTypes', function () {
 	test('Snippet choices are incorrectly escaped/applied #180132', function () {
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa$aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa$aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa$aaa|}bbb\\$bbb');
 		}
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa,aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa,aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa\\,aaa|}bbb\\$bbb');
 		}
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa|aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa|aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa\\|aaa|}bbb\\$bbb');
 		}
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa\\aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa\\aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa\\\\aaa|}bbb\\$bbb');
 		}
 	});
@@ -782,22 +787,5 @@ suite('ExtHostTypes', function () {
 		assert.deepStrictEqual(m.content, []);
 		m.content = 'Hello';
 		assert.deepStrictEqual(m.content, [new types.LanguageModelTextPart('Hello')]);
-	});
-
-	test('LanguageModelToolResultPart2 instanceof LanguageModelToolResultPart', function () {
-		// Test that LanguageModelToolResultPart2 extends LanguageModelToolResultPart for instanceof checks
-		const part1 = new types.LanguageModelToolResultPart('call1', [new types.LanguageModelTextPart('text')]);
-		const part2 = new types.LanguageModelToolResultPart2('call2', [new types.LanguageModelTextPart('text')]);
-
-		// Basic instanceof checks
-		assert.ok(part1 instanceof types.LanguageModelToolResultPart);
-		assert.ok(part2 instanceof types.LanguageModelToolResultPart, 'LanguageModelToolResultPart2 should be instanceof LanguageModelToolResultPart');
-		assert.ok(part2 instanceof types.LanguageModelToolResultPart2);
-
-		// Verify properties are accessible
-		assert.strictEqual(part1.callId, 'call1');
-		assert.strictEqual(part2.callId, 'call2');
-		assert.strictEqual(part1.isError, false);
-		assert.strictEqual(part2.isError, false);
 	});
 });

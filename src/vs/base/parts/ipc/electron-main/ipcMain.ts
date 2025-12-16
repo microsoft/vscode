@@ -104,7 +104,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 	}
 
 	private validateEvent(channel: string, event: electron.IpcMainEvent | electron.IpcMainInvokeEvent): boolean {
-		if (!channel || !channel.startsWith('vscode:')) {
+		if (!channel?.startsWith('vscode:')) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because the channel is unknown.`);
 			return false; // unexpected channel
 		}
@@ -126,6 +126,12 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 		} catch (error) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because of a malformed URL '${url}'.`);
 			return false; // unexpected URL
+		}
+
+		if (process.env.VSCODE_DEV) {
+			if (url === process.env.DEV_WINDOW_SRC && (host === 'localhost' || host.startsWith('localhost:'))) {
+				return true; // development support where the window is served from localhost
+			}
 		}
 
 		if (host !== VSCODE_AUTHORITY) {

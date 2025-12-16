@@ -31,7 +31,7 @@ class LogChatInputHistoryAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		chatWidgetService.lastFocusedWidget?.logInputHistory();
 	}
@@ -51,7 +51,7 @@ class LogChatIndexAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const chatService = accessor.get(IChatService);
 		chatService.logChatIndex();
 	}

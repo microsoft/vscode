@@ -55,7 +55,7 @@ suite('notebookCellDiagnostics', () => {
 
 	interface ITestMarkerService extends IMarkerService {
 		markers: ResourceMap<IMarkerData[]>;
-		onMarkersUpdated: Event<void>;
+		readonly onMarkersUpdated: Event<void>;
 	}
 
 	setup(function () {

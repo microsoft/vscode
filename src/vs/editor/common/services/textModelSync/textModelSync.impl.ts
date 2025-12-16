@@ -26,7 +26,7 @@ export const WORKER_TEXT_MODEL_SYNC_CHANNEL = 'workerTextModelSync';
 
 export class WorkerTextModelSyncClient extends Disposable {
 
-	public static create(workerClient: IWebWorkerClient<any>, modelService: IModelService): WorkerTextModelSyncClient {
+	public static create(workerClient: IWebWorkerClient<unknown>, modelService: IModelService): WorkerTextModelSyncClient {
 		return new WorkerTextModelSyncClient(
 			workerClient.getChannel<IWorkerTextModelSyncChannelServer>(WORKER_TEXT_MODEL_SYNC_CHANNEL),
 			modelService

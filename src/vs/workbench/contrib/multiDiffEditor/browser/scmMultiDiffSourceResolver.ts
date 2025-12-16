@@ -15,7 +15,6 @@ import { ContextKeyValue } from '../../../../platform/contextkey/common/contextk
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ISCMHistoryItem } from '../../scm/common/history.js';
 import { ISCMProvider, ISCMRepository, ISCMResourceGroup, ISCMService } from '../../scm/common/scm.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 
@@ -96,17 +95,15 @@ interface ScmHistoryItemUriFields {
 export class ScmHistoryItemResolver implements IMultiDiffSourceResolver {
 	static readonly scheme = 'scm-history-item';
 
-	public static getMultiDiffSourceUri(provider: ISCMProvider, historyItem: ISCMHistoryItem): URI {
+	public static getMultiDiffSourceUri(provider: ISCMProvider, historyItemId: string, historyItemParentId: string | undefined, historyItemDisplayId: string | undefined): URI {
 		return URI.from({
 			scheme: ScmHistoryItemResolver.scheme,
 			path: provider.rootUri?.fsPath,
 			query: JSON.stringify({
 				repositoryId: provider.id,
-				historyItemId: historyItem.id,
-				historyItemParentId: historyItem.parentIds.length > 0
-					? historyItem.parentIds[0]
-					: undefined,
-				historyItemDisplayId: historyItem.displayId
+				historyItemId,
+				historyItemParentId,
+				historyItemDisplayId
 			} satisfies ScmHistoryItemUriFields)
 		}, true);
 	}

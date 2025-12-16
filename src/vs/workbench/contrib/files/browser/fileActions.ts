@@ -78,14 +78,6 @@ export const UPLOAD_LABEL = nls.localize('upload', "Upload...");
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
 
-function onError(notificationService: INotificationService, error: any): void {
-	if (error.message === 'string') {
-		error = error.message;
-	}
-
-	notificationService.error(toErrorMessage(error, false));
-}
-
 async function refreshIfSeparator(value: string, explorerService: IExplorerService): Promise<void> {
 	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
 		// New input contains separator, multiple resources will get created workaround for #68204
@@ -600,7 +592,7 @@ abstract class BaseSaveAllAction extends Action {
 		try {
 			await this.doRun(context);
 		} catch (error) {
-			onError(this.notificationService, error);
+			this.notificationService.error(toErrorMessage(error, false));
 		}
 	}
 }
@@ -686,7 +678,7 @@ export class ShowActiveFileInExplorer extends Action2 {
 export class OpenActiveFileInEmptyWorkspace extends Action2 {
 
 	static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
-	static readonly LABEL = nls.localize2('openFileInEmptyWorkspace', "Open Active File in New Empty Workspace");
+	static readonly LABEL = nls.localize2('openFileInEmptyWorkspace', "Open Active Editor in New Empty Workspace");
 
 	constructor(
 	) {
@@ -697,7 +689,7 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 			category: Categories.File,
 			precondition: EmptyWorkspaceSupportContext,
 			metadata: {
-				description: nls.localize2('openFileInEmptyWorkspaceMetadata', "Opens the active file in a new window with no folders open.")
+				description: nls.localize2('openFileInEmptyWorkspaceMetadata', "Opens the active editor in a new window with no folders open.")
 			}
 		});
 	}
@@ -709,12 +701,10 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 		const fileService = accessor.get(IFileService);
 
 		const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (fileResource) {
-			if (fileService.hasProvider(fileResource)) {
-				hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
-			} else {
-				dialogService.error(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
-			}
+		if (fileResource && fileService.hasProvider(fileResource)) {
+			hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
+		} else {
+			dialogService.error(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
 		}
 	}
 }
@@ -1281,7 +1271,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			}
 		}
 	} catch (e) {
-		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));
+		notificationService.error(toErrorMessage(new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))), false));
 	} finally {
 		if (pasteShouldMove) {
 			// Cut is done. Make sure to clear cut state.

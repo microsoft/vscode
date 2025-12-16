@@ -326,6 +326,6 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 	override dispose() {
 		super.dispose();
-		(this.foldingDelegate as any) = null;
+		(this.foldingDelegate as unknown) = null;
 	}
 }

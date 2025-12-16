@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PublicClientApplication, AccountInfo, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel, RefreshTokenRequest, BrokerOptions } from '@azure/msal-node';
+import { PublicClientApplication, AccountInfo, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel, RefreshTokenRequest, BrokerOptions, DeviceCodeRequest } from '@azure/msal-node';
 import { NativeBrokerPlugin } from '@azure/msal-node-extensions';
-import { Disposable, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter, workspace } from 'vscode';
-import { raceCancellationAndTimeoutError } from '../common/async';
+import { Disposable, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter, workspace, env, Uri, UIKind } from 'vscode';
+import { DeferredPromise, raceCancellationAndTimeoutError } from '../common/async';
 import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication } from '../common/publicClientCache';
@@ -51,8 +51,8 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 		const loggerOptions = new MsalLoggerOptions(_logger, telemetryReporter);
 		let broker: BrokerOptions | undefined;
-		if (process.platform !== 'win32') {
-			this._logger.info(`[${this._clientId}] Native Broker is only available on Windows`);
+		if (env.uiKind === UIKind.Web) {
+			this._logger.info(`[${this._clientId}] Native Broker is not available in web UI`);
 		} else if (workspace.getConfiguration('microsoft-authentication').get<'msal' | 'msal-no-broker'>('implementation') === 'msal-no-broker') {
 			this._logger.info(`[${this._clientId}] Native Broker disabled via settings`);
 		} else {
@@ -226,6 +226,81 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			}
 		}
 		return result;
+	}
+
+	async acquireTokenByDeviceCode(request: Omit<DeviceCodeRequest, 'deviceCodeCallback'>): Promise<AuthenticationResult | null> {
+		this._logger.debug(`[acquireTokenByDeviceCode] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}]`);
+		const result = await this._sequencer.queue(async () => {
+			const deferredPromise = new DeferredPromise<AuthenticationResult | null>();
+			const result = await Promise.race([
+				this._pca.acquireTokenByDeviceCode({
+					...request,
+					deviceCodeCallback: (response) => void this._deviceCodeCallback(response, deferredPromise)
+				}),
+				deferredPromise.p
+			]);
+			await deferredPromise.complete(result);
+			// Force an update so that the account cache is updated.
+			// TODO:@TylerLeonhardt The problem is, we use the sequencer for
+			// change events but we _don't_ use it for the accounts cache.
+			// We should probably use it for the accounts cache as well.
+			await this._update();
+			return result;
+		});
+		if (result) {
+			if (this.isBrokerAvailable && result.account) {
+				await this._accountAccess.setAllowedAccess(result.account, true);
+			}
+		}
+		return result;
+	}
+
+	private async _deviceCodeCallback(
+		// MSAL doesn't expose this type...
+		response: Parameters<DeviceCodeRequest['deviceCodeCallback']>[0],
+		deferredPromise: DeferredPromise<AuthenticationResult | null>
+	): Promise<void> {
+		const button = l10n.t('Copy & Continue to Microsoft');
+		const modalResult = await window.showInformationMessage(
+			l10n.t({ message: 'Your Code: {0}', args: [response.userCode], comment: ['The {0} will be a code, e.g. 123-456'] }),
+			{
+				modal: true,
+				detail: l10n.t('To finish authenticating, navigate to Microsoft and paste in the above one-time code.')
+			}, button);
+
+		if (modalResult !== button) {
+			this._logger.debug(`[deviceCodeCallback] [${this._clientId}] User cancelled the device code flow.`);
+			deferredPromise.cancel();
+			return;
+		}
+
+		await env.clipboard.writeText(response.userCode);
+		await env.openExternal(Uri.parse(response.verificationUri));
+		await window.withProgress<void>({
+			location: ProgressLocation.Notification,
+			cancellable: true,
+			title: l10n.t({
+				message: 'Open [{0}]({0}) in a new tab and paste your one-time code: {1}',
+				args: [response.verificationUri, response.userCode],
+				comment: [
+					'The [{0}]({0}) will be a url and the {1} will be a code, e.g. 123456',
+					'{Locked="[{0}]({0})"}'
+				]
+			})
+		}, async (_, token) => {
+			const disposable = token.onCancellationRequested(() => {
+				this._logger.debug(`[deviceCodeCallback] [${this._clientId}] Device code flow cancelled by user.`);
+				deferredPromise.cancel();
+			});
+			try {
+				await deferredPromise.p;
+				this._logger.debug(`[deviceCodeCallback] [${this._clientId}] Device code flow completed successfully.`);
+			} catch (error) {
+				// Ignore errors here, they are handled at a higher scope
+			} finally {
+				disposable.dispose();
+			}
+		});
 	}
 
 	removeAccount(account: AccountInfo): Promise<void> {

@@ -92,6 +92,7 @@ suite('TerminalLinkManager', () => {
 			get initialCwd() {
 				return '';
 			}
+			// eslint-disable-next-line local/code-no-any-casts
 		}), {
 			get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined {
 				return undefined;

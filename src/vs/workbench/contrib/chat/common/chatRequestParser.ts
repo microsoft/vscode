@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../base/common/uri.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
@@ -22,6 +23,8 @@ export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
 	selectedAgent?: IChatAgentData;
 	mode?: ChatModeKind;
+	/** Parse as this agent, even when it does not appear in the query text */
+	forcedAgent?: IChatAgentData;
 }
 
 export class ChatRequestParser {
@@ -32,12 +35,12 @@ export class ChatRequestParser {
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) { }
 
-	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
+	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
-		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
+		const references = this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
 		const toolsByName = new Map<string, IToolData>();
 		const toolSetsByName = new Map<string, ToolSet>();
-		for (const [entry, enabled] of this.variableService.getSelectedToolAndToolSets(sessionId)) {
+		for (const [entry, enabled] of this.variableService.getSelectedToolAndToolSets(sessionResource)) {
 			if (enabled) {
 				if (entry instanceof ToolSet) {
 					toolSetsByName.set(entry.referenceName, entry);
@@ -204,9 +207,10 @@ export class ChatRequestParser {
 		const slashRange = new OffsetRange(offset, offset + full.length);
 		const slashEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart)?.agent ??
+			(context?.forcedAgent ? context.forcedAgent : undefined);
 		if (usedAgent) {
-			const subCommand = usedAgent.agent.slashCommands.find(c => c.name === command);
+			const subCommand = usedAgent.slashCommands.find(c => c.name === command);
 			if (subCommand) {
 				// Valid agent subcommand
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);
@@ -227,10 +231,10 @@ export class ChatRequestParser {
 				}
 			}
 
-			// if there's no agent, check if it's a prompt command
-			const promptCommand = this.promptsService.asPromptSlashCommand(command);
-			if (promptCommand) {
-				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, promptCommand);
+			// if there's no agent, asume it is a prompt slash command
+			const isPromptCommand = this.promptsService.isValidSlashCommandName(command);
+			if (isPromptCommand) {
+				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, command);
 			}
 		}
 		return;

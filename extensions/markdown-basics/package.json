@@ -28,6 +28,9 @@
           ".mdtext",
           ".workbook"
         ],
+        "filenamePatterns": [
+          "**/.cursor/**/*.mdc"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],

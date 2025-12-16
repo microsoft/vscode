@@ -25,6 +25,7 @@ import { events as rich_windows11_pwsh7_type_foo_left_twice } from './recordings
 import { events as rich_macos_zsh_omz_echo_3_times } from './recordings/rich/macos_zsh_omz_echo_3_times.js';
 import { events as rich_macos_zsh_omz_ls_one_time } from './recordings/rich/macos_zsh_omz_ls_one_time.js';
 import { events as basic_macos_zsh_p10k_ls_one_time } from './recordings/basic/macos_zsh_p10k_ls_one_time.js';
+import type { ITerminalConfiguration } from '../../../common/terminal.js';
 
 // These are test cases recorded with the `Developer: Record Terminal Session` command. Once that is
 // run, a terminal is created and the test case is manually executed. After nothing happens for a
@@ -56,49 +57,49 @@ type RecordedTestCase = {
 const recordedTestCases: RecordedTestCase[] = [
 	{
 		name: 'rich_windows11_pwsh7_echo_3_times',
-		events: rich_windows11_pwsh7_echo_3_times as any as RecordedSessionEvent[],
+		events: rich_windows11_pwsh7_echo_3_times as unknown as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, ['echo a', 'echo b', 'echo c'], '|');
 		}
 	},
 	{
 		name: 'rich_windows11_pwsh7_ls_one_time',
-		events: rich_windows11_pwsh7_ls_one_time as any as RecordedSessionEvent[],
+		events: rich_windows11_pwsh7_ls_one_time as unknown as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, ['ls'], '|');
 		}
 	},
 	{
 		name: 'rich_windows11_pwsh7_type_foo',
-		events: rich_windows11_pwsh7_type_foo as any as RecordedSessionEvent[],
+		events: rich_windows11_pwsh7_type_foo as unknown as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, [], 'foo|');
 		}
 	},
 	{
 		name: 'rich_windows11_pwsh7_type_foo_left_twice',
-		events: rich_windows11_pwsh7_type_foo_left_twice as any as RecordedSessionEvent[],
+		events: rich_windows11_pwsh7_type_foo_left_twice as unknown as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, [], 'f|oo');
 		}
 	},
 	{
 		name: 'rich_macos_zsh_omz_echo_3_times',
-		events: rich_macos_zsh_omz_echo_3_times as any as RecordedSessionEvent[],
+		events: rich_macos_zsh_omz_echo_3_times as unknown as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, ['echo a', 'echo b', 'echo c'], '|');
 		}
 	},
 	{
 		name: 'rich_macos_zsh_omz_ls_one_time',
-		events: rich_macos_zsh_omz_ls_one_time as any as RecordedSessionEvent[],
+		events: rich_macos_zsh_omz_ls_one_time as unknown as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, ['ls'], '|');
 		}
 	},
 	{
 		name: 'basic_macos_zsh_p10k_ls_one_time',
-		events: basic_macos_zsh_p10k_ls_one_time as any as RecordedSessionEvent[],
+		events: basic_macos_zsh_p10k_ls_one_time as unknown as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			// Prompt input model doesn't work for p10k yet
 			// Assert a single command has completed
@@ -155,7 +156,7 @@ suite('Terminal Contrib Shell Integration Recordings', () => {
 			})
 		}, store);
 		const terminalConfigurationService = instantiationService.get(ITerminalConfigurationService) as TestTerminalConfigurationService;
-		terminalConfigurationService.setConfig(terminalConfig as any);
+		terminalConfigurationService.setConfig(terminalConfig as unknown as Partial<ITerminalConfiguration>);
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, NullTelemetryService, new NullLogService));
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));

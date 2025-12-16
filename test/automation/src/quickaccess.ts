@@ -243,4 +243,22 @@ export class QuickAccess {
 			}
 		}
 	}
+
+	async getVisibleCommandNames(searchValue: string): Promise<string[]> {
+
+		// open commands picker
+		await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${searchValue}`);
+
+		// wait for quick input elements to be available
+		let commandNames: string[] = [];
+		await this.quickInput.waitForQuickInputElements(elementNames => {
+			commandNames = elementNames;
+			return true;
+		});
+
+		// close the quick input
+		await this.quickInput.closeQuickInput();
+
+		return commandNames;
+	}
 }

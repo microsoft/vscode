@@ -32,7 +32,7 @@ function createWorkspaceFile(workspacePath: string): string {
 			'npm.fetchOnlinePackageInfo': false,
 			'npm.autoDetect': 'off',
 			'workbench.editor.languageDetection': false,
-			"workbench.localHistory.enabled": false
+			'workbench.localHistory.enabled': false
 		}
 	};
 

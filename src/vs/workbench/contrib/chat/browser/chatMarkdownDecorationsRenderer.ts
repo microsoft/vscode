@@ -38,7 +38,7 @@ const agentRefUrl = `http://_chatagent_`;
 /** For rendering agent decorations with hover */
 const agentSlashRefUrl = `http://_chatslash_`;
 
-export function agentToMarkdown(agent: IChatAgentData, isClickable: boolean, accessor: ServicesAccessor): string {
+export function agentToMarkdown(agent: IChatAgentData, sessionResource: URI, isClickable: boolean, accessor: ServicesAccessor): string {
 	const chatAgentNameService = accessor.get(IChatAgentNameService);
 	const chatAgentService = accessor.get(IChatAgentService);
 
@@ -49,25 +49,27 @@ export function agentToMarkdown(agent: IChatAgentData, isClickable: boolean, acc
 		name += ` (${agent.publisherDisplayName})`;
 	}
 
-	const args: IAgentWidgetArgs = { agentId: agent.id, name, isClickable };
+	const args: IAgentWidgetArgs = { agentId: agent.id, sessionResource, name, isClickable };
 	return `[${agent.name}](${agentRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
 }
 
 interface IAgentWidgetArgs {
+	sessionResource: URI;
 	agentId: string;
 	name: string;
 	isClickable?: boolean;
 }
 
-export function agentSlashCommandToMarkdown(agent: IChatAgentData, command: IChatAgentCommand): string {
+export function agentSlashCommandToMarkdown(agent: IChatAgentData, command: IChatAgentCommand, sessionResource: URI): string {
 	const text = `${chatSubcommandLeader}${command.name}`;
-	const args: ISlashCommandWidgetArgs = { agentId: agent.id, command: command.name };
+	const args: ISlashCommandWidgetArgs = { agentId: agent.id, command: command.name, sessionResource };
 	return `[${text}](${agentSlashRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
 }
 
 interface ISlashCommandWidgetArgs {
 	agentId: string;
 	command: string;
+	sessionResource: URI;
 }
 
 export interface IDecorationWidgetArgs {
@@ -90,13 +92,13 @@ export class ChatMarkdownDecorationsRenderer {
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) { }
 
-	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
+	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest): string {
 		let result = '';
 		for (const part of parsedRequest.parts) {
 			if (part instanceof ChatRequestTextPart) {
 				result += part.text;
 			} else if (part instanceof ChatRequestAgentPart) {
-				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, false, accessor));
+				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, sessionResource, false, accessor));
 			} else {
 				result += this.genericDecorationToMarkdown(part);
 			}
@@ -112,7 +114,7 @@ export class ChatMarkdownDecorationsRenderer {
 		const title = uri ? this.labelService.getUriLabel(uri, { relative: true }) :
 			part instanceof ChatRequestSlashCommandPart ? part.slashCommand.detail :
 				part instanceof ChatRequestAgentSubcommandPart ? part.command.description :
-					part instanceof ChatRequestSlashPromptPart ? part.slashPromptCommand.command :
+					part instanceof ChatRequestSlashPromptPart ? part.name :
 						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
 							'';
 
@@ -123,6 +125,7 @@ export class ChatMarkdownDecorationsRenderer {
 
 	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement): IDisposable {
 		const store = new DisposableStore();
+		// eslint-disable-next-line no-restricted-syntax
 		element.querySelectorAll('a').forEach(a => {
 			const href = a.getAttribute('data-href');
 			if (href) {
@@ -135,9 +138,7 @@ export class ChatMarkdownDecorationsRenderer {
 					}
 
 					if (args) {
-						a.parentElement!.replaceChild(
-							this.renderAgentWidget(args, store),
-							a);
+						a.replaceWith(this.renderAgentWidget(args, store));
 					}
 				} else if (href.startsWith(agentSlashRefUrl)) {
 					let args: ISlashCommandWidgetArgs | undefined;
@@ -148,9 +149,7 @@ export class ChatMarkdownDecorationsRenderer {
 					}
 
 					if (args) {
-						a.parentElement!.replaceChild(
-							this.renderSlashCommandWidget(a.textContent!, args, store),
-							a);
+						a.replaceWith(this.renderSlashCommandWidget(a.textContent!, args, store));
 					}
 				} else if (href.startsWith(decorationRefUrl)) {
 					let args: IDecorationWidgetArgs | undefined;
@@ -158,9 +157,7 @@ export class ChatMarkdownDecorationsRenderer {
 						args = JSON.parse(decodeURIComponent(href.slice(decorationRefUrl.length + 1)));
 					} catch (e) { }
 
-					a.parentElement!.replaceChild(
-						this.renderResourceWidget(a.textContent!, args, store),
-						a);
+					a.replaceWith(this.renderResourceWidget(a.textContent!, args, store));
 				} else if (href.startsWith(contentRefUrl)) {
 					this.renderFileWidget(content, href, a, store);
 				} else if (href.startsWith('command:')) {
@@ -185,12 +182,12 @@ export class ChatMarkdownDecorationsRenderer {
 			button.label = nameWithLeader;
 			store.add(button.onDidClick(() => {
 				const agent = this.chatAgentService.getAgent(args.agentId);
-				const widget = this.chatWidgetService.lastFocusedWidget;
+				const widget = this.chatWidgetService.getWidgetBySessionResource(args.sessionResource) || this.chatWidgetService.lastFocusedWidget;
 				if (!widget || !agent) {
 					return;
 				}
 
-				this.chatService.sendRequest(widget.viewModel!.sessionId, agent.metadata.sampleRequest ?? '',
+				this.chatService.sendRequest(widget.viewModel!.sessionResource, agent.metadata.sampleRequest ?? '',
 					{
 						location: widget.location,
 						agentId: agent.id,
@@ -221,13 +218,13 @@ export class ChatMarkdownDecorationsRenderer {
 		}));
 		button.label = name;
 		store.add(button.onDidClick(() => {
-			const widget = this.chatWidgetService.lastFocusedWidget;
+			const widget = this.chatWidgetService.getWidgetBySessionResource(args.sessionResource) || this.chatWidgetService.lastFocusedWidget;
 			if (!widget || !agent) {
 				return;
 			}
 
 			const command = agent.slashCommands.find(c => c.name === args.command);
-			this.chatService.sendRequest(widget.viewModel!.sessionId, command?.sampleRequest ?? '', {
+			this.chatService.sendRequest(widget.viewModel!.sessionResource, command?.sampleRequest ?? '', {
 				location: widget.location,
 				agentId: agent.id,
 				slashCommand: args.command,

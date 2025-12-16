@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../../../../base/common/observable.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
@@ -19,7 +18,7 @@ import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
-import { getOriginalBorderColor, originalBackgroundColor } from '../theme.js';
+import { getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, originalBackgroundColor } from '../theme.js';
 import { getPrefixTrim, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
 
 const HORIZONTAL_PADDING = 0;
@@ -27,12 +26,11 @@ const VERTICAL_PADDING = 0;
 const BORDER_WIDTH = 1;
 const WIDGET_SEPARATOR_WIDTH = 1;
 const WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH = 3;
-const BORDER_RADIUS = 4;
+const BORDER_RADIUS = INLINE_EDITS_BORDER_RADIUS;
 
 export class InlineEditsDeletionView extends Disposable implements IInlineEditsView {
 
-	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
-	readonly onDidClick = this._onDidClick.event;
+	readonly onDidClick = Event.None;
 
 	private readonly _editorObs: ObservableCodeEditor;
 

@@ -31,10 +31,10 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IResourceLabel, IResourceLabelProps, ResourceLabels } from '../../../../browser/labels.js';
-import { ColorScheme } from '../../../../browser/web.api.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
@@ -56,7 +56,15 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	excluded?: boolean;
 }
 
-export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
+export interface IChatListDividerItem {
+	kind: 'divider';
+	label: string;
+	menuId?: MenuId;
+	menuArg?: unknown;
+	scopedInstantiationService?: IInstantiationService;
+}
+
+export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage | IChatListDividerItem;
 
 export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 
@@ -205,7 +213,7 @@ export class CollapsibleListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new CollapsibleListDelegate(),
-			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId)],
+			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId), this.instantiationService.createInstance(DividerRenderer)],
 			{
 				...this.listOptions,
 				alwaysConsumeMouseWheel: false,
@@ -213,6 +221,9 @@ export class CollapsibleListPool extends Disposable {
 					getAriaLabel: (element: IChatCollapsibleListItem) => {
 						if (element.kind === 'warning') {
 							return element.content.value;
+						}
+						if (element.kind === 'divider') {
+							return element.label;
 						}
 						const reference = element.reference;
 						if (typeof reference === 'string') {
@@ -278,6 +289,9 @@ class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleLi
 	}
 
 	getTemplateId(element: IChatCollapsibleListItem): string {
+		if (element.kind === 'divider') {
+			return DividerRenderer.TEMPLATE_ID;
+		}
 		return CollapsibleListRenderer.TEMPLATE_ID;
 	}
 }
@@ -336,7 +350,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		if (ThemeIcon.isThemeIcon(data.iconPath)) {
 			return data.iconPath;
 		} else {
-			return this.themeService.getColorTheme().type === ColorScheme.DARK && data.iconPath?.dark
+			return isDark(this.themeService.getColorTheme().type) && data.iconPath?.dark
 				? data.iconPath?.dark
 				: data.iconPath?.light;
 		}
@@ -345,6 +359,11 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	renderElement(data: IChatCollapsibleListItem, index: number, templateData: ICollapsibleListTemplate): void {
 		if (data.kind === 'warning') {
 			templateData.label.setResource({ name: data.content.value }, { icon: Codicon.warning });
+			return;
+		}
+
+		if (data.kind === 'divider') {
+			// Dividers are handled by DividerRenderer
 			return;
 		}
 
@@ -386,7 +405,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				const settingId = uri.path.substring(1);
 				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId), strikethrough: data.excluded, extraClasses });
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString(), strikethrough: data.excluded, extraClasses });
+				templateData.label.setResource({ resource: uri, name: uri.toString(true) }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString(true), strikethrough: data.excluded, extraClasses });
 			} else {
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
@@ -401,6 +420,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		}
 
 		for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
+			// eslint-disable-next-line no-restricted-syntax
 			const element = templateData.label.element.querySelector(selector);
 			if (element) {
 				if (data.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || data.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial) {
@@ -413,21 +433,17 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 
 		if (data.state !== undefined) {
 			if (templateData.actionBarContainer) {
-				if (data.state === ModifiedFileEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
-					const diffMeta = data?.options?.diffMeta;
-					if (diffMeta) {
-						if (!templateData.fileDiffsContainer || !templateData.addedSpan || !templateData.removedSpan) {
-							return;
-						}
-						templateData.addedSpan.textContent = `+${diffMeta.added}`;
-						templateData.removedSpan.textContent = `-${diffMeta.removed}`;
-						templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added, diffMeta.removed));
+				const diffMeta = data?.options?.diffMeta;
+				if (diffMeta) {
+					if (!templateData.fileDiffsContainer || !templateData.addedSpan || !templateData.removedSpan) {
+						return;
 					}
-					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
-				} else if (data.state !== ModifiedFileEntryState.Modified) {
-					templateData.actionBarContainer.classList.remove('modified');
-					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
+					templateData.addedSpan.textContent = `+${diffMeta.added}`;
+					templateData.removedSpan.textContent = `-${diffMeta.removed}`;
+					templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added, diffMeta.removed));
 				}
+				// eslint-disable-next-line no-restricted-syntax
+				templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
 			}
 			if (templateData.toolbar) {
 				templateData.toolbar.context = arg;
@@ -441,6 +457,54 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	}
 
 	disposeTemplate(templateData: ICollapsibleListTemplate): void {
+		templateData.templateDisposables.dispose();
+	}
+}
+
+interface IDividerTemplate {
+	readonly container: HTMLElement;
+	readonly label: HTMLElement;
+	readonly line: HTMLElement;
+	readonly toolbarContainer: HTMLElement;
+	readonly templateDisposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
+	toolbar: MenuWorkbenchToolBar | undefined;
+}
+
+class DividerRenderer implements IListRenderer<IChatListDividerItem, IDividerTemplate> {
+	static TEMPLATE_ID = 'chatListDividerRenderer';
+	readonly templateId: string = DividerRenderer.TEMPLATE_ID;
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) { }
+
+	renderTemplate(container: HTMLElement): IDividerTemplate {
+		const templateDisposables = new DisposableStore();
+		const elementDisposables = templateDisposables.add(new DisposableStore());
+		container.classList.add('chat-list-divider');
+		const label = dom.append(container, dom.$('span.chat-list-divider-label'));
+		const line = dom.append(container, dom.$('div.chat-list-divider-line'));
+		const toolbarContainer = dom.append(container, dom.$('.chat-list-divider-toolbar'));
+
+		return { container, label, line, toolbarContainer, templateDisposables, elementDisposables, toolbar: undefined };
+	}
+
+	renderElement(data: IChatListDividerItem, index: number, templateData: IDividerTemplate): void {
+		templateData.label.textContent = data.label;
+
+		// Clear element-specific disposables from previous render
+		templateData.elementDisposables.clear();
+		templateData.toolbar = undefined;
+		dom.clearNode(templateData.toolbarContainer);
+
+		if (data.menuId) {
+			const instantiationService = data.scopedInstantiationService || this.instantiationService;
+			templateData.toolbar = templateData.elementDisposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, templateData.toolbarContainer, data.menuId, { menuOptions: { arg: data.menuArg } }));
+		}
+	}
+
+	disposeTemplate(templateData: IDividerTemplate): void {
 		templateData.templateDisposables.dispose();
 	}
 }
@@ -489,7 +553,7 @@ function getLineRangeFromGithubUri(uri: URI): IRange | undefined {
 }
 
 function getResourceForElement(element: IChatCollapsibleListItem): URI | null {
-	if (element.kind === 'warning') {
+	if (element.kind === 'warning' || element.kind === 'divider') {
 		return null;
 	}
 	const { reference } = element;

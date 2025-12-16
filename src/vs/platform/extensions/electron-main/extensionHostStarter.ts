@@ -61,7 +61,7 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 		return this._getExtHost(id).onStderr;
 	}
 
-	onDynamicMessage(id: string): Event<any> {
+	onDynamicMessage(id: string): Event<unknown> {
 		return this._getExtHost(id).onMessage;
 	}
 

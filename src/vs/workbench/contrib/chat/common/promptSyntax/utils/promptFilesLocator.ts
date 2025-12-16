@@ -8,26 +8,27 @@ import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config.js';
-import { basename, dirname, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { getPromptFileExtension, getPromptFileType } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { TPromptsStorage } from '../service/promptsService.js';
+import { PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 
 /**
  * Utility class to locate prompt files.
  */
-export class PromptFilesLocator extends Disposable {
+export class PromptFilesLocator {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -36,9 +37,9 @@ export class PromptFilesLocator extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IPathService private readonly pathService: IPathService,
 	) {
-		super();
 	}
 
 	/**
@@ -46,31 +47,18 @@ export class PromptFilesLocator extends Disposable {
 	 *
 	 * @returns List of prompt files found in the workspace.
 	 */
-	public async listFiles(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
-		if (storage === 'local') {
+	public async listFiles(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
+		if (storage === PromptsStorage.local) {
 			return await this.listFilesInLocal(type, token);
-		} else {
+		} else if (storage === PromptsStorage.user) {
 			return await this.listFilesInUserData(type, token);
 		}
+		throw new Error(`Unsupported prompt file storage: ${storage}`);
 	}
 
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
 		const files = await this.resolveFilesAtLocation(this.userDataService.currentProfile.promptsHome, token);
 		return files.filter(file => getPromptFileType(file) === type);
-	}
-
-	public async getCopilotInstructionsFiles(instructionFilePaths: Iterable<string>): Promise<URI[]> {
-		const { folders } = this.workspaceService.getWorkspace();
-		const result: URI[] = [];
-		for (const folder of folders) {
-			for (const instructionFilePath of instructionFilePaths) {
-				const file = joinPath(folder.uri, instructionFilePath);
-				if (await this.fileService.exists(file)) {
-					result.push(file);
-				}
-			}
-		}
-		return result;
 	}
 
 	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
@@ -114,6 +102,10 @@ export class PromptFilesLocator extends Disposable {
 		disposables.add(this.fileService.watch(userDataFolder));
 
 		return { event: eventEmitter.event, dispose: () => disposables.dispose() };
+	}
+
+	public getAgentSourceFolder(): readonly URI[] {
+		return this.toAbsoluteLocations([AGENTS_SOURCE_FOLDER]);
 	}
 
 	/**
@@ -196,6 +188,9 @@ export class PromptFilesLocator extends Disposable {
 
 	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string }[] {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		if (type === PromptsType.agent) {
+			configuredLocations.push(AGENTS_SOURCE_FOLDER);
+		}
 		const absoluteLocations = this.toAbsoluteLocations(configuredLocations);
 		return absoluteLocations.map(firstNonGlobParentAndPattern);
 	}
@@ -259,7 +254,7 @@ export class PromptFilesLocator extends Disposable {
 	/**
 	 * Uses the search service to find all files at the provided location
 	 */
-	private async searchFilesInLocation(folder: URI, filePattern: string | undefined, token: CancellationToken | undefined): Promise<URI[]> {
+	private async searchFilesInLocation(folder: URI, filePattern: string | undefined, token: CancellationToken): Promise<URI[]> {
 		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
 
 		const workspaceRoot = this.workspaceService.getWorkspaceFolder(folder);
@@ -276,7 +271,7 @@ export class PromptFilesLocator extends Disposable {
 
 		try {
 			const searchResult = await this.searchService.fileSearch(searchOptions, token);
-			if (token?.isCancellationRequested) {
+			if (token.isCancellationRequested) {
 				return [];
 			}
 			return searchResult.results.map(r => r.resource);
@@ -287,9 +282,134 @@ export class PromptFilesLocator extends Disposable {
 		}
 		return [];
 	}
+
+	public async findCopilotInstructionsMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
+		const result: URI[] = [];
+		const { folders } = this.workspaceService.getWorkspace();
+		for (const folder of folders) {
+			const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
+			try {
+				const stat = await this.fileService.stat(file);
+				if (stat.isFile) {
+					result.push(file);
+				}
+			} catch (error) {
+				this.logService.trace(`[PromptFilesLocator] Skipping copilot-instructions.md at ${file.toString()}: ${error}`);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Gets list of `AGENTS.md` files anywhere in the workspace.
+	 */
+	public async findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
+		const result = await Promise.all(this.workspaceService.getWorkspace().folders.map(folder => this.findAgentMDsInFolder(folder.uri, token)));
+		return result.flat(1);
+	}
+
+	private async findAgentMDsInFolder(folder: URI, token: CancellationToken): Promise<URI[]> {
+		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
+		const getExcludePattern = (folder: URI) => getExcludes(this.configService.getValue<ISearchConfiguration>({ resource: folder })) || {};
+		const searchOptions: IFileQuery = {
+			folderQueries: [{ folder, disregardIgnoreFiles }],
+			type: QueryType.File,
+			shouldGlobMatchFilePattern: true,
+			excludePattern: getExcludePattern(folder),
+			filePattern: '**/AGENTS.md',
+		};
+
+		try {
+			const searchResult = await this.searchService.fileSearch(searchOptions, token);
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			return searchResult.results.map(r => r.resource);
+		} catch (e) {
+			if (!isCancellationError(e)) {
+				throw e;
+			}
+		}
+		return [];
+
+	}
+
+	/**
+	 * Gets list of `AGENTS.md` files only at the root workspace folder(s).
+	 */
+	public async findAgentMDsInWorkspaceRoots(token: CancellationToken): Promise<URI[]> {
+		const result: URI[] = [];
+		const { folders } = this.workspaceService.getWorkspace();
+		const resolvedRoots = await this.fileService.resolveAll(folders.map(f => ({ resource: f.uri })));
+		for (const root of resolvedRoots) {
+			if (root.success && root.stat?.children) {
+				const agentMd = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === 'agents.md');
+				if (agentMd) {
+					result.push(agentMd.resource);
+				}
+			}
+		}
+		return result;
+	}
+
+	public getAgentFileURIFromModeFile(oldURI: URI): URI | undefined {
+		if (oldURI.path.endsWith(LEGACY_MODE_FILE_EXTENSION)) {
+			let newLocation;
+			const workspaceFolder = this.workspaceService.getWorkspaceFolder(oldURI);
+			if (workspaceFolder) {
+				newLocation = joinPath(workspaceFolder.uri, AGENTS_SOURCE_FOLDER, getCleanPromptName(oldURI) + AGENT_FILE_EXTENSION);
+			} else if (isEqualOrParent(oldURI, this.userDataService.currentProfile.promptsHome)) {
+				newLocation = joinPath(this.userDataService.currentProfile.promptsHome, getCleanPromptName(oldURI) + AGENT_FILE_EXTENSION);
+			}
+			return newLocation;
+		}
+		return undefined;
+	}
+
+	private async findClaudeSkillsInFolder(uri: URI, token: CancellationToken): Promise<URI[]> {
+		const result = [];
+		try {
+			const stat = await this.fileService.resolve(joinPath(uri, '.claude/skills'));
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			if (stat.isDirectory && stat.children) {
+				for (const skillDir of stat.children) {
+					if (skillDir.isDirectory) {
+						const skillFile = joinPath(skillDir.resource, 'SKILL.md');
+						if (await this.fileService.exists(skillFile)) {
+							result.push(skillFile);
+						}
+					}
+				}
+			}
+		} catch (error) {
+			// no such folder, return empty list
+			return [];
+		}
+
+		return result;
+	}
+
+	/**
+	 * Searches for skills in `.claude/skills/` directories in the workspace.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findClaudeSkillsInWorkspace(token: CancellationToken): Promise<URI[]> {
+		const workspace = this.workspaceService.getWorkspace();
+		const results = await Promise.all(workspace.folders.map(f => this.findClaudeSkillsInFolder(f.uri, token)));
+		return results.flat();
+	}
+
+	/**
+	 * Searches for skills in `.claude/skills/` directories  in the home folder.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findClaudeSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
+		const userHome = await this.pathService.userHome();
+		return this.findClaudeSkillsInFolder(userHome, token);
+	}
 }
-
-
 
 
 /**

@@ -20,7 +20,7 @@ import { ChildProcessMonitor } from './childProcessMonitor.js';
 import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from './terminalEnvironment.js';
 import { WindowsShellHelper } from './windowsShellHelper.js';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
-import { chunkInput } from '../common/terminalProcess.js';
+import { isNumber } from '../../../base/common/types.js';
 
 const enum ShutdownConstants {
 	/**
@@ -56,15 +56,6 @@ const enum Constants {
 	 * interval.
 	 */
 	KillSpawnSpacingDuration = 50,
-	/**
-	 * How long to wait between chunk writes.
-	 */
-	WriteInterval = 5,
-}
-
-interface IWriteObject {
-	data: string;
-	isBinary: boolean;
 }
 
 const posixShellTypeMap = new Map<string, PosixShellType>([
@@ -112,8 +103,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _childProcessMonitor: ChildProcessMonitor | undefined;
 	private _titleInterval: Timeout | undefined;
-	private _writeQueue: IWriteObject[] = [];
-	private _writeTimeout: Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: IPtyForkOptions | IWindowsPtyForkOptions;
@@ -130,7 +119,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<number>());
 	readonly onProcessExit = this._onProcessExit.event;
@@ -199,6 +188,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				clearInterval(this._titleInterval);
 				this._titleInterval = undefined;
 			}
+		}));
+		this._register(toDisposable(() => {
+			this._ptyProcess = undefined;
+			this._processStartupComplete = undefined;
 		}));
 	}
 
@@ -312,11 +305,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
-		this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value }));
+		this._register(this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value })));
 		this._processStartupComplete = new Promise<void>(c => {
-			this.onProcessReady(() => c());
+			this._register(this.onProcessReady(() => c()));
 		});
-		ptyProcess.onData(data => {
+		this._register(ptyProcess.onData(data => {
 			// Handle flow control
 			this._unacknowledgedCharCount += data.length;
 			if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
@@ -333,11 +326,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 			this._windowsShellHelper?.checkShell();
 			this._childProcessMonitor?.handleOutput();
-		});
-		ptyProcess.onExit(e => {
+		}));
+		this._register(ptyProcess.onExit(e => {
 			this._exitCode = e.exitCode;
 			this._queueProcessExit();
-		});
+		}));
 		this._sendProcessId(ptyProcess.pid);
 		this._setupTitlePolling(ptyProcess);
 	}
@@ -394,7 +387,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private async _throttleKillSpawn(): Promise<void> {
 		// Only throttle on Windows/conpty
-		if (!isWindows || !('useConpty' in this._ptyOptions) || !this._ptyOptions.useConpty) {
+		if (!isWindows || !hasConptyOption(this._ptyOptions) || !this._ptyOptions.useConpty) {
 			return;
 		}
 		// Don't throttle when using conpty.dll as it seems to have been fixed in later versions
@@ -466,13 +459,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	input(data: string, isBinary: boolean = false): void {
-		if (this._store.isDisposed || !this._ptyProcess) {
-			return;
+		this._logService.trace('node-pty.IPty#write', data, isBinary);
+		if (isBinary) {
+			this._ptyProcess!.write(Buffer.from(data, 'binary'));
+		} else {
+			this._ptyProcess!.write(data);
 		}
-		this._writeQueue.push(...chunkInput(data).map(e => {
-			return { isBinary, data: e };
-		}));
-		this._startWrite();
+		this._childProcessMonitor?.handleInput();
 	}
 
 	sendSignal(signal: string): void {
@@ -517,43 +510,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	private _startWrite(): void {
-		// Don't write if it's already queued of is there is nothing to write
-		if (this._writeTimeout !== undefined || this._writeQueue.length === 0) {
-			return;
-		}
-
-		this._doWrite();
-
-		// Don't queue more writes if the queue is empty
-		if (this._writeQueue.length === 0) {
-			this._writeTimeout = undefined;
-			return;
-		}
-
-		// Queue the next write
-		this._writeTimeout = setTimeout(() => {
-			this._writeTimeout = undefined;
-			this._startWrite();
-		}, Constants.WriteInterval);
-	}
-
-	private _doWrite(): void {
-		const object = this._writeQueue.shift()!;
-		this._logService.trace('node-pty.IPty#write', object.data);
-		if (object.isBinary) {
-			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
-		} else {
-			this._ptyProcess!.write(object.data);
-		}
-		this._childProcessMonitor?.handleInput();
-	}
-
 	resize(cols: number, rows: number): void {
 		if (this._store.isDisposed) {
 			return;
 		}
-		if (typeof cols !== 'number' || typeof rows !== 'number' || isNaN(cols) || isNaN(rows)) {
+		if (!isNumber(cols) || !isNumber(rows)) {
 			return;
 		}
 		// Ensure that cols and rows are always >= 1, this prevents a native
@@ -655,7 +616,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	getWindowsPty(): IProcessReadyWindowsPty | undefined {
 		return isWindows ? {
-			backend: 'useConpty' in this._ptyOptions && this._ptyOptions.useConpty ? 'conpty' : 'winpty',
+			backend: hasConptyOption(this._ptyOptions) && this._ptyOptions.useConpty ? 'conpty' : 'winpty',
 			buildNumber: getWindowsBuildNumber()
 		} : undefined;
 	}
@@ -679,4 +640,8 @@ class DelayedResizer extends Disposable {
 		}, 1000);
 		this._register(toDisposable(() => clearTimeout(this._timeout)));
 	}
+}
+
+function hasConptyOption(obj: IPtyForkOptions | IWindowsPtyForkOptions): obj is IWindowsPtyForkOptions {
+	return 'useConpty' in obj;
 }

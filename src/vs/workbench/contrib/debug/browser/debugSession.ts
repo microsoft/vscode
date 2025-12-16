@@ -12,6 +12,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { canceled } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { mixin } from '../../../../base/common/objects.js';
 import * as platform from '../../../../base/common/platform.js';
@@ -65,7 +66,13 @@ export class DebugSession implements IDebugSession {
 	private cancellationMap = new Map<number, CancellationTokenSource[]>();
 	private readonly rawListeners = new DisposableStore();
 	private readonly globalDisposables = new DisposableStore();
-	private fetchThreadsScheduler: RunOnceScheduler | undefined;
+	private fetchThreadsScheduler = new Lazy(() => {
+		const inst = new RunOnceScheduler(() => {
+			this.fetchThreads();
+		}, 100);
+		this.rawListeners.add(inst);
+		return inst;
+	});
 	private passFocusScheduler: RunOnceScheduler;
 	private lastContinuedThreadId: number | undefined;
 	private repl: ReplModel;
@@ -566,8 +573,8 @@ export class DebugSession implements IDebugSession {
 		return this._dataBreakpointInfo({ name: address, bytes, asAddress: true });
 	}
 
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
-		return this._dataBreakpointInfo({ name, variablesReference });
+	dataBreakpointInfo(name: string, variablesReference?: number, frameId?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
+		return this._dataBreakpointInfo({ name, variablesReference, frameId });
 	}
 
 	private async _dataBreakpointInfo(args: DebugProtocol.DataBreakpointInfoArguments): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
@@ -1098,15 +1105,8 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.add(this.raw.onDidThread(event => {
 			statusQueue.cancel([event.body.threadId]);
 			if (event.body.reason === 'started') {
-				// debounce to reduce threadsRequest frequency and improve performance
-				if (!this.fetchThreadsScheduler) {
-					this.fetchThreadsScheduler = new RunOnceScheduler(() => {
-						this.fetchThreads();
-					}, 100);
-					this.rawListeners.add(this.fetchThreadsScheduler);
-				}
-				if (!this.fetchThreadsScheduler.isScheduled()) {
-					this.fetchThreadsScheduler.schedule();
+				if (!this.fetchThreadsScheduler.value.isScheduled()) {
+					this.fetchThreadsScheduler.value.schedule();
 				}
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(this.getId(), true, event.body.threadId);
@@ -1138,11 +1138,11 @@ export class DebugSession implements IDebugSession {
 				if (this.threadIds.includes(event.body.threadId)) {
 					affectedThreads = [event.body.threadId];
 				} else {
-					this.fetchThreadsScheduler?.cancel();
+					this.fetchThreadsScheduler.rawValue?.cancel();
 					affectedThreads = this.fetchThreads().then(() => [event.body.threadId]);
 				}
-			} else if (this.fetchThreadsScheduler?.isScheduled()) {
-				this.fetchThreadsScheduler.cancel();
+			} else if (this.fetchThreadsScheduler.value.isScheduled()) {
+				this.fetchThreadsScheduler.value.cancel();
 				affectedThreads = this.fetchThreads().then(() => this.threadIds);
 			} else {
 				affectedThreads = this.threadIds;
@@ -1190,6 +1190,7 @@ export class DebugSession implements IDebugSession {
 
 					resolved.forEach((child) => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
+						// eslint-disable-next-line local/code-no-any-casts
 						(<any>child).name = null;
 						this.appendToRepl({ output: '', expression: child, sev: outputSeverity, source }, event.body.category === 'important');
 					});
@@ -1329,9 +1330,15 @@ export class DebugSession implements IDebugSession {
 				this.cancelAllRequests();
 				this.model.clearThreads(this.getId(), true);
 
-				const details = this.stoppedDetails;
-				this.stoppedDetails.length = 1;
-				await Promise.all(details.map(d => this.handleStop(d)));
+				const details = this.stoppedDetails.slice();
+				this.stoppedDetails.length = 0;
+				if (details.length) {
+					await Promise.all(details.map(d => this.handleStop(d)));
+				} else if (!this.fetchThreadsScheduler.value.isScheduled()) {
+					// threads are fetched as a side-effect of processing the stopped
+					// event(s), but if there are none, schedule a thread update manually (#282777)
+					this.fetchThreadsScheduler.value.schedule();
+				}
 			}
 
 			const viewModel = this.debugService.getViewModel();
@@ -1488,8 +1495,6 @@ export class DebugSession implements IDebugSession {
 			this.raw.dispose();
 			this.raw = undefined;
 		}
-		this.fetchThreadsScheduler?.dispose();
-		this.fetchThreadsScheduler = undefined;
 		this.passFocusScheduler.cancel();
 		this.passFocusScheduler.dispose();
 		this.model.clearThreads(this.getId(), true);

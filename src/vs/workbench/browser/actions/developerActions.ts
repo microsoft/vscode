@@ -42,7 +42,7 @@ import product from '../../../platform/product/common/product.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
-import { IDefaultAccountService } from '../../services/accounts/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
@@ -149,10 +149,17 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseUp = disposables.add(new Emitter<MouseEvent>());
 		const onMouseMove = disposables.add(new Emitter<MouseEvent>());
 
-		function registerContainerListeners(container: HTMLElement, disposables: DisposableStore): void {
-			disposables.add(disposables.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+		function registerContainerListeners(container: HTMLElement, windowDisposables: DisposableStore): void {
+			const listeners = new DisposableStore();
+
+			listeners.add(listeners.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+
+			windowDisposables.add(listeners);
+			disposables.add(toDisposable(() => windowDisposables.delete(listeners)));
+
+			disposables.add(listeners);
 		}
 
 		for (const { window, disposables } of getWindows()) {
@@ -244,11 +251,18 @@ class ToggleScreencastModeAction extends Action2 {
 		const onCompositionUpdate = disposables.add(new Emitter<CompositionEvent>());
 		const onCompositionEnd = disposables.add(new Emitter<CompositionEvent>());
 
-		function registerWindowListeners(window: Window, disposables: DisposableStore): void {
-			disposables.add(disposables.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+		function registerWindowListeners(window: Window, windowDisposables: DisposableStore): void {
+			const listeners = new DisposableStore();
+
+			listeners.add(listeners.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+
+			windowDisposables.add(listeners);
+			disposables.add(toDisposable(() => windowDisposables.delete(listeners)));
+
+			disposables.add(listeners);
 		}
 
 		for (const { window, disposables } of getWindows()) {
@@ -261,11 +275,11 @@ class ToggleScreencastModeAction extends Action2 {
 		let composing: Element | undefined = undefined;
 		let imeBackSpace = false;
 
-		const clearKeyboardScheduler = new RunOnceScheduler(() => {
+		const clearKeyboardScheduler = disposables.add(new RunOnceScheduler(() => {
 			keyboardMarker.textContent = '';
 			composing = undefined;
 			length = 0;
-		}, keyboardMarkerTimeout);
+		}, keyboardMarkerTimeout));
 
 		disposables.add(onCompositionStart.event(e => {
 			imeBackSpace = true;
@@ -373,7 +387,7 @@ class ToggleScreencastModeAction extends Action2 {
 		ToggleScreencastModeAction.disposable = disposables;
 	}
 
-	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean } {
+	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: unknown; isBubble: boolean } {
 		return resolutionResult.kind === ResultKind.KbFound;
 	}
 
@@ -389,7 +403,7 @@ class ToggleScreencastModeAction extends Action2 {
 
 		const fromCommandsRegistry = CommandsRegistry.getCommand(commandId);
 
-		if (fromCommandsRegistry && fromCommandsRegistry.metadata?.description) {
+		if (fromCommandsRegistry?.metadata?.description) {
 			return { title: typeof fromCommandsRegistry.metadata.description === 'string' ? fromCommandsRegistry.metadata.description : fromCommandsRegistry.metadata.description.value };
 		}
 
@@ -745,7 +759,9 @@ class PolicyDiagnosticsAction extends Action2 {
 		const excludedProperties = configurationRegistry.getExcludedConfigurationProperties();
 
 		if (policyConfigurations.size > 0) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const appliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const notAppliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
 
 			for (const [policyName, settingKey] of policyConfigurations) {
@@ -776,8 +792,10 @@ class PolicyDiagnosticsAction extends Action2 {
 				try {
 					const policyServiceConstructorName = policyService.constructor.name;
 					if (policyServiceConstructorName === 'MultiplexPolicyService') {
+						// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 						const multiplexService = policyService as any;
 						if (multiplexService.policyServices) {
+							// eslint-disable-next-line @typescript-eslint/no-explicit-any
 							const componentServices = multiplexService.policyServices as ReadonlyArray<any>;
 							for (const service of componentServices) {
 								if (service.getPolicyValue && service.getPolicyValue(policyName) !== undefined) {

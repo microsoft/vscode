@@ -33,7 +33,7 @@
 	opacity: 0;
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-tl-indent > .indent-guide {
+.monaco-enable-motion .monaco-tl-indent > .indent-guide {
 	transition: opacity 0.1s linear;
 }
 
@@ -86,7 +86,7 @@
 	border-bottom-right-radius: 4px;
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-tree-type-filter {
+.monaco-enable-motion .monaco-tree-type-filter {
 	transition: top 0.3s;
 }
 

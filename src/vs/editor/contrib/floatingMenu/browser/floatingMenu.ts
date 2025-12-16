@@ -6,9 +6,11 @@
 import { h } from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ICodeEditor, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
@@ -19,6 +21,7 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 	constructor(
 		editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IMenuService menuService: IMenuService
 	) {
 		super();
@@ -42,6 +45,24 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 
 			// Toolbar
 			const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, container.root, MenuId.EditorContent, {
+				actionViewItemProvider: (action, options) => {
+					if (!(action instanceof MenuItemAction)) {
+						return undefined;
+					}
+
+					const keybinding = keybindingService.lookupKeybinding(action.id);
+					if (!keybinding) {
+						return undefined;
+					}
+
+					return instantiationService.createInstance(class extends MenuEntryActionViewItem {
+						protected override updateLabel(): void {
+							if (this.options.label && this.label) {
+								this.label.textContent = `${this._commandAction.label} (${keybinding.getLabel()})`;
+							}
+						}
+					}, action, { ...options, keybindingNotRenderedWithLabel: true });
+				},
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 				menuOptions: {
 					shouldForwardArgs: true

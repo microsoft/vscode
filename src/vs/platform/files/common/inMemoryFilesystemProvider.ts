@@ -201,8 +201,7 @@ export class InMemoryFileSystemProvider extends Disposable implements
 		const dirname = resources.dirname(resource);
 		const basename = resources.basename(resource);
 		const parent = this._lookupAsDirectory(dirname, false);
-		if (parent.entries.has(basename)) {
-			parent.entries.delete(basename);
+		if (parent.entries.delete(basename)) {
 			parent.mtime = Date.now();
 			parent.size -= 1;
 			this._fireSoon({ type: FileChangeType.UPDATED, resource: dirname }, { resource, type: FileChangeType.DELETED });

@@ -5,6 +5,8 @@
 
 import { IDisposable, Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from '../../../common/config/editorOptions.js';
@@ -44,7 +46,7 @@ export interface IStickyScrollController {
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
 	selectEditor(): void;
-	onDidChangeStickyScrollHeight: Event<{ height: number }>;
+	readonly onDidChangeStickyScrollHeight: Event<{ height: number }>;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
@@ -401,7 +403,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				}
 				this._revealPosition({ lineNumber: position.lineNumber, column: 1 });
 			}
-			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel().uri, range: this._stickyRangeProjectedOnEditor });
+			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor, { uri: this._editor.getModel().uri, range: this._stickyRangeProjectedOnEditor });
 		}));
 	}
 

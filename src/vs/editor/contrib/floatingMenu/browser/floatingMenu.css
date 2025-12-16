@@ -18,10 +18,16 @@
 	.action-item > .action-label {
 		padding: 5px;
 		font-size: 12px;
+		border-radius: 2px;
 	}
 
-	.action-item > .action-label.codicon {
+	.action-item > .action-label.codicon, .action-item .codicon {
 		color: var(--vscode-button-foreground);
+	}
+
+	.action-item > .action-label.codicon:not(.separator) {
+		padding-top: 6px;
+		padding-bottom: 6px;
 	}
 
 	.action-item:first-child > .action-label {
@@ -33,6 +39,6 @@
 	}
 
 	.action-item .action-label.separator {
-		background-color: var(--vscode-menu-separatorBackground);
+		background-color: var(--vscode-button-separator);
 	}
 }

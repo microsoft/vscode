@@ -1,22 +1,14 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"baseUrl": ".",
+		"outDir": "./out",
 		"noFallthroughCasesInSwitch": true,
 		"noUnusedLocals": false,
-		"outDir": "dist",
-		"resolveJsonModule": true,
-		"rootDir": "src",
-		"skipLibCheck": true,
-		"sourceMap": true,
-		"lib": [
-			"WebWorker"
-		]
+		"skipLibCheck": true
 	},
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
-		"../../src/vscode-dts/vscode.proposed.idToken.d.ts",
 		"../../src/vscode-dts/vscode.proposed.nativeWindowHandle.d.ts",
 		"../../src/vscode-dts/vscode.proposed.authIssuers.d.ts",
 		"../../src/vscode-dts/vscode.proposed.authenticationChallenges.d.ts"

@@ -32,7 +32,9 @@
     "notebookMessaging",
     "notebookMime",
     "portsAttributes",
+    "quickInputButtonLocation",
     "quickPickSortByLabel",
+    "quickPickItemResource",
     "resolvers",
     "scmActionButton",
     "scmSelectedProvider",
@@ -51,7 +53,8 @@
     "tunnels",
     "workspaceTrust",
     "inlineCompletionsAdditions",
-    "devDeviceId"
+    "devDeviceId",
+    "languageModelProxy"
   ],
   "private": true,
   "activationEvents": [],
@@ -80,7 +83,9 @@
           }
         ],
         "modes": [
-          "agent", "ask", "edit"
+          "agent",
+          "ask",
+          "edit"
         ]
       },
       {
@@ -91,15 +96,15 @@
       }
     ],
     "languageModelTools": [
-			{
-				"name": "requires_confirmation_tool",
-				"toolReferenceName": "requires_confirmation_tool",
-				"displayName": "Requires Confirmation Tool",
-				"modelDescription": "A noop tool to trigger confirmation.",
-				"canBeReferencedInPrompt": true,
-				"icon": "$(files)",
-				"inputSchema": {}
-			}
+      {
+        "name": "requires_confirmation_tool",
+        "toolReferenceName": "requires_confirmation_tool",
+        "displayName": "Requires Confirmation Tool",
+        "modelDescription": "A noop tool to trigger confirmation.",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(files)",
+        "inputSchema": {}
+      }
     ],
     "configuration": {
       "type": "object",
@@ -263,13 +268,13 @@
   },
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:vscode-api-tests ./tsconfig.json"
   },
   "devDependencies": {
-    "@types/mocha": "^9.1.1",
+    "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/node-forge": "^1.3.11",
-    "node-forge": "^1.3.1",
+    "node-forge": "^1.3.2",
     "straightforward": "^4.2.2"
   },
   "repository": {

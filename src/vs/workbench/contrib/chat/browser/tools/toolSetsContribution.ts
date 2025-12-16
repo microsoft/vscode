@@ -327,7 +327,7 @@ export class ConfigureToolSets extends Action2 {
 				id: CHAT_CONFIG_MENU_ID,
 				when: ContextKeyExpr.equals('view', ChatViewId),
 				order: 11,
-				group: '0_level'
+				group: '2_level'
 			},
 		});
 	}

@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export interface IChatViewTitleActionContext {
-	$mid: MarshalledId.ChatViewContext;
-	sessionId: string;
+	readonly $mid: MarshalledId.ChatViewContext;
+	readonly sessionResource: URI;
 }
 
 export function isChatViewTitleActionContext(obj: unknown): obj is IChatViewTitleActionContext {
 	return !!obj &&
-		typeof (obj as IChatViewTitleActionContext).sessionId === 'string'
+		URI.isUri((obj as IChatViewTitleActionContext).sessionResource)
 		&& (obj as IChatViewTitleActionContext).$mid === MarshalledId.ChatViewContext;
 }

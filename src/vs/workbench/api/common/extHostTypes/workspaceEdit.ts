@@ -97,7 +97,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	// --- notebook
-	private replaceNotebookMetadata(uri: URI, value: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	private replaceNotebookMetadata(uri: URI, value: Record<string, unknown>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: value } });
 	}
 
@@ -110,7 +110,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		}
 	}
 
-	private replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	private replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, unknown>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Metadata, index, metadata: cellMetadata } });
 	}
 
@@ -215,7 +215,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return this.entries().length;
 	}
 
-	toJSON(): any {
+	toJSON(): [URI, TextEdit[]][] {
 		return this.entries();
 	}
 }
