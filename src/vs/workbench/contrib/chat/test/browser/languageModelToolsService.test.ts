@@ -1388,7 +1388,7 @@ suite('LanguageModelToolsService', () => {
 	test('eligibleForAutoApproval setting controls tool eligibility', async () => {
 		// Test the new eligibleForAutoApproval setting
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, {
 			'eligibleToolRef': true,
 			'ineligibleToolRef': false
 		});
@@ -2166,7 +2166,7 @@ suite('LanguageModelToolsService', () => {
 			'toolA': true,
 			'toolB': false
 		};
-		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', policyValue);
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, policyValue);
 
 		const instaService = workbenchInstantiationService({
 			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
@@ -2223,7 +2223,7 @@ suite('LanguageModelToolsService', () => {
 	test('eligibleForAutoApproval with legacy tool reference names - eligible', async () => {
 		// Test backwards compatibility: configuring a legacy name as eligible should work
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, {
 			'oldToolName': true  // Using legacy name
 		});
 
@@ -2259,7 +2259,7 @@ suite('LanguageModelToolsService', () => {
 	test('eligibleForAutoApproval with legacy tool reference names - ineligible', async () => {
 		// Test backwards compatibility: configuring a legacy name as ineligible should work
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, {
 			'deprecatedToolName': false  // Using legacy name
 		});
 
@@ -2302,7 +2302,7 @@ suite('LanguageModelToolsService', () => {
 	test('eligibleForAutoApproval with multiple legacy names', async () => {
 		// Test that any of the legacy names can be used in the configuration
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, {
 			'secondLegacyName': true  // Using the second legacy name
 		});
 
@@ -2338,7 +2338,7 @@ suite('LanguageModelToolsService', () => {
 	test('eligibleForAutoApproval current name takes precedence over legacy names', async () => {
 		// Test forward compatibility: current name in config should take precedence
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, {
 			'currentName': false,      // Current name says ineligible
 			'oldName': true           // Legacy name says eligible
 		});
@@ -2381,7 +2381,7 @@ suite('LanguageModelToolsService', () => {
 	test('eligibleForAutoApproval with legacy full reference names from toolsets', async () => {
 		// Test legacy names that include toolset prefixes (e.g., 'oldToolSet/oldToolName')
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, {
 			'oldToolSet/oldToolName': false  // Legacy full reference name from old toolset
 		});
 
@@ -2424,7 +2424,7 @@ suite('LanguageModelToolsService', () => {
 	test('eligibleForAutoApproval mixed current and legacy names', async () => {
 		// Test realistic migration scenario with mixed current and legacy names
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, {
 			'modernTool': true,           // Current name
 			'legacyToolOld': false,      // Legacy name
 			'unchangedTool': true        // Tool that never changed
@@ -2498,6 +2498,164 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result3.content[0].value, 'unchanged executed');
 	});
 
+	test('eligibleForAutoApproval with namespaced legacy names - full tool name eligible', async () => {
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, {
+			'gitTools/gitCommit': true
+		});
 
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
+		const tool = registerToolForTest(testService, store, 'gitCommitTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'commit executed' }] })
+		}, {
+			toolReferenceName: 'commit',
+			legacyToolReferenceFullNames: ['gitTools/gitCommit']
+		});
+
+		const sessionId = 'test-extension-prefix';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool should be eligible via legacy extension-prefixed name
+		const result = await testService.invokeTool(
+			tool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+
+		const published = await waitForPublishedInvocation(capture);
+		assert.strictEqual(published, undefined, 'tool should not require confirmation when legacy trimmed name is eligible');
+		assert.strictEqual(result.content[0].value, 'commit executed');
+	});
+
+	test('eligibleForAutoApproval with namespaced and renamed toolname - just last segment eligible', async () => {
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, {
+			'gitCommit': true
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool that was previously namespaced under extension but is now internal
+		const tool = registerToolForTest(testService, store, 'gitCommitTool2', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'commit executed' }] })
+		}, {
+			toolReferenceName: 'commit',
+			legacyToolReferenceFullNames: ['gitTools/gitCommit']
+		});
+
+		const sessionId = 'test-renamed-prefix';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool should be eligible via legacy extension-prefixed name
+		const result = await testService.invokeTool(
+			tool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+
+		const published = await waitForPublishedInvocation(capture);
+		assert.strictEqual(published, undefined, 'tool should not require confirmation when legacy trimmed name is eligible');
+		assert.strictEqual(result.content[0].value, 'commit executed');
+	});
+
+	test('eligibleForAutoApproval with namespaced legacy names - full tool name ineligible', async () => {
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, {
+			'gitTools/gitCommit': false
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool that was previously namespaced under extension but is now internal
+		const tool = registerToolForTest(testService, store, 'gitCommitTool3', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'commit blocked' }] })
+		}, {
+			toolReferenceName: 'commit',
+			legacyToolReferenceFullNames: ['something/random', 'gitTools/bar', 'gitTools/gitCommit']
+		});
+
+		const sessionId = 'test-extension-prefix-blocked';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1', capture });
+
+		// Tool should be ineligible via legacy extension-prefixed name
+		const promise = testService.invokeTool(
+			tool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'tool should require confirmation when legacy full name is ineligible');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'commit blocked');
+	});
+
+	test('eligibleForAutoApproval with namespaced and renamed toolname - just last segment ineligible', async () => {
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration(ChatConfiguration.EligibleForAutoApproval, {
+			'gitCommit': false
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool that was previously namespaced under extension but is now internal
+		const tool = registerToolForTest(testService, store, 'gitCommitTool4', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'commit blocked' }] })
+		}, {
+			toolReferenceName: 'commit',
+			legacyToolReferenceFullNames: ['something/random', 'gitTools/bar', 'gitTools/gitCommit']
+		});
+
+		const sessionId = 'test-renamed-prefix-blocked';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1', capture });
+
+		// Tool should be ineligible via trimmed legacy name
+		const promise = testService.invokeTool(
+			tool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'tool should require confirmation when legacy trimmed name is ineligible');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'commit blocked');
+	});
 });
