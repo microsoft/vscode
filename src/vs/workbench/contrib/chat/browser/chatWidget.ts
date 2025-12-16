@@ -674,8 +674,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
-		this.onDidStyleChange();
+		this._register(Event.runAndSubscribe(this.editorOptions.onDidChange, () => this.onDidStyleChange()));
 
 		// Do initial render
 		if (this.viewModel) {
@@ -1210,7 +1209,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async renderFollowups(): Promise<void> {
-		if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete && this.input.currentModeKind === ChatModeKind.Ask) {
+		if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete) {
 			this.input.renderFollowups(this.lastItem.replyFollowups, this.lastItem);
 		} else {
 			this.input.renderFollowups(undefined, undefined);
@@ -1409,10 +1408,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private archiveLocalParentSession(sessionResource: URI): void {
+	private async archiveLocalParentSession(sessionResource: URI): Promise<void> {
 		if (sessionResource.scheme !== Schemas.vscodeLocalChatSession) {
 			return;
 		}
+
+		// Implicitly keep parent session's changes as they've now been delegated to the new agent.
+		await this.chatService.getSession(sessionResource)?.editingSession?.accept();
+
 		const session = this.agentSessionsService.getSession(sessionResource);
 		session?.setArchived(true);
 	}
@@ -1984,7 +1987,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
 
 		// Pass input model reference to input part for state syncing
-		this.inputPart.setInputModel(model.inputModel);
+		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0);
 
 		if (this._lockedAgent) {
 			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
@@ -2030,8 +2033,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		const inputState = model.inputModel.state.get();
-		this.input.initForNewChatModel(inputState, model.getRequests().length === 0);
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
 
 		this.refreshParsedInput();
@@ -2333,7 +2334,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		this.input.acceptInput(isUserQuery);
+		// visibility sync before we accept input to hide the welcome view
+		this.updateChatViewVisibility();
+
+		this.input.acceptInput(options?.storeToHistory ?? isUserQuery);
 		this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
 		this.handleDelegationExitIfNeeded(this._lockedAgent, result.agent);
 		this.currentRequest = result.responseCompletePromise.then(() => {

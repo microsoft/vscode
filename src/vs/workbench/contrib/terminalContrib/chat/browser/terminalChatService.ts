@@ -85,17 +85,19 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			if (LocalChatSessionUri.parseLocalSessionId(e.sessionResource) === terminalToolSessionId) {
-				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
-				this._toolSessionIdByTerminalInstance.delete(instance);
-				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
-				// Clean up session auto approval state
-				const sessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
-				if (sessionId) {
-					this._sessionAutoApprovalEnabled.delete(sessionId);
+			for (const resource of e.sessionResource) {
+				if (LocalChatSessionUri.parseLocalSessionId(resource) === terminalToolSessionId) {
+					this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
+					this._toolSessionIdByTerminalInstance.delete(instance);
+					this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
+					// Clean up session auto approval state
+					const sessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+					if (sessionId) {
+						this._sessionAutoApprovalEnabled.delete(sessionId);
+					}
+					this._persistToStorage();
+					this._updateHasToolTerminalContextKeys();
 				}
-				this._persistToStorage();
-				this._updateHasToolTerminalContextKeys();
 			}
 		}));
 

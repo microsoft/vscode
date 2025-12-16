@@ -1372,7 +1372,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
 }
 
-.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label {
+.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label,
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
 	padding: 3px 0px 3px 6px;
 	display: flex;
@@ -1380,7 +1381,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label .codicon-chevron-down {
+.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label .codicon-chevron-down,
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
 	font-size: 12px;
 	margin-left: 2px;
 }
@@ -1580,10 +1582,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .action-item.chat-attachment-button .action-label,
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
-	gap: 2px;
 	overflow: hidden;
 	font-size: 11px;
-	padding: 0 4px;
+	padding: 0 4px 0 0;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	height: 18px;
@@ -1655,16 +1656,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	margin-top: -2px;
-	margin-right: -4px;
-	padding-right: 4px;
-	padding-left: 2px;
+	padding-right: 2px;
+	padding-left: 3px;
 	height: calc(100% + 4px);
 	outline-offset: -4px;
+	font-size: 12px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-plus {
-	padding: 0 5px 0 3px;
-	font-size: 12px;
+	padding-left: 4px;
+	font-size: 11px;
 }
 
 .chat-related-files .monaco-button.codicon.codicon-add:hover,
@@ -1697,7 +1698,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-close {
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-close,
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-plus,
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-plus {
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
 }
@@ -1730,11 +1733,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
-}
-
-.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit {
-	display: flex;
-	gap: 4px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit .chat-implicit-hint {

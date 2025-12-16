@@ -120,6 +120,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 
 				parts.push({
 					kind: 'code',
+					title: part.title,
 					textModel: model,
 					languageId: model.getLanguageId(),
 					options: {

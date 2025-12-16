@@ -400,6 +400,10 @@ export interface IModifiedFileEntry {
 
 	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 	hasModificationAt(location: Location): boolean;
+	/**
+	 * Gets the document diff info, waiting for any ongoing promises to flush.
+	 */
+	getDiffInfo?(): Promise<IDocumentDiff>;
 }
 
 export interface IChatEditingSessionStream {

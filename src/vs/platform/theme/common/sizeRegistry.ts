@@ -3,17 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.agent-sessions-view {
+export * from './sizeUtils.js';
 
-	display: flex;
-	flex-direction: column;
-
-	.agent-sessions-new-session-container {
-		padding: 6px 12px;
-		flex: 0 0 auto;
-	}
-
-	.agent-sessions-new-session-container .monaco-dropdown-button {
-		padding: 0 4px;
-	}
-}
+// Make sure all size files are exported
+export * from './sizes/baseSizes.js';
