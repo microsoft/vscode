@@ -287,11 +287,7 @@ export class ReleaseNotesManager extends Disposable {
 					code:has(.codesetting) {
 						background-color: var(--vscode-textPreformat-background);
 						color: var(--vscode-textPreformat-foreground);
-						padding-left: 1px;
-						margin-right: 3px;
-						padding-right: 0px;
-					}
-
+					border: 1px solid var(--vscode-textPreformat-border);
 					code:has(.codesetting):focus {
 						border: 1px solid var(--vscode-button-border, transparent);
 					}

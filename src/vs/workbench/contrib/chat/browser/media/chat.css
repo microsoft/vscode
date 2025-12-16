@@ -627,6 +627,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		background-color: var(--vscode-textPreformat-background);
 		padding: 1px 3px;
 		border-radius: 4px;
+		border: 1px solid var(--vscode-textPreformat-border);
 		white-space: pre-wrap;
 	}
 }
