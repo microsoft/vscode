@@ -51,20 +51,8 @@ import { PieceTreeTextBuffer } from './pieceTreeTextBuffer/pieceTreeTextBuffer.j
 import { PieceTreeTextBufferBuilder } from './pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { SearchParams, TextModelSearch } from './textModelSearch.js';
 import { AttachedViews } from './tokens/abstractSyntaxTokenBackend.js';
-import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged, ModelFontChangedEvent, ModelFontChanged, LineInjectedText } from '../textModelEvents.js';
-import { IGuidesTextModelPart } from '../textModelGuides.js';
-import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
-import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { IColorTheme } from '../../../platform/theme/common/themeService.js';
-import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
-import { TokenArray } from '../tokens/lineTokens.js';
-import { SetWithKey } from '../../../base/common/collections.js';
-import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
-import { TextEdit } from '../core/edits/textEdit.js';
 import { TokenizationFontDecorationProvider } from './tokens/tokenizationFontDecorationsProvider.js';
 import { LineFontChangingDecoration, LineHeightChangingDecoration } from './decorationProvider.js';
-import { isDark } from '../../../platform/theme/common/theme.js';
 import { TokenizationTextModelPart } from './tokens/tokenizationTextModelPart.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
