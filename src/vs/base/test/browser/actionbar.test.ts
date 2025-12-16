@@ -7,6 +7,8 @@ import assert from 'assert';
 import { ActionBar, prepareActions } from '../../browser/ui/actionbar/actionbar.js';
 import { Action, Separator } from '../../common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+import { createToggleActionViewItemProvider, ToggleActionViewItem, unthemedToggleStyles } from '../../browser/ui/toggle/toggle.js';
+import { ActionViewItem } from '../../browser/ui/actionbar/actionViewItems.js';
 
 suite('Actionbar', () => {
 
@@ -59,5 +61,85 @@ suite('Actionbar', () => {
 		assert.strictEqual(actionbar.hasAction(a1), true);
 		actionbar.clear();
 		assert.strictEqual(actionbar.hasAction(a1), false);
+	});
+
+	suite('ToggleActionViewItemProvider', () => {
+
+		test('renders toggle for actions with checked state', function () {
+			const container = document.createElement('div');
+			const provider = createToggleActionViewItemProvider(unthemedToggleStyles);
+			const actionbar = store.add(new ActionBar(container, {
+				actionViewItemProvider: provider
+			}));
+
+			const toggleAction = store.add(new Action('toggle', 'Toggle', undefined, true, undefined));
+			toggleAction.checked = true;
+
+			actionbar.push(toggleAction);
+
+			// Verify that the action was rendered as a toggle
+			assert.strictEqual(actionbar.viewItems.length, 1);
+			assert(actionbar.viewItems[0] instanceof ToggleActionViewItem, 'Action with checked state should render as ToggleActionViewItem');
+		});
+
+		test('renders button for actions without checked state', function () {
+			const container = document.createElement('div');
+			const provider = createToggleActionViewItemProvider(unthemedToggleStyles);
+			const actionbar = store.add(new ActionBar(container, {
+				actionViewItemProvider: provider
+			}));
+
+			const buttonAction = store.add(new Action('button', 'Button'));
+
+			actionbar.push(buttonAction);
+
+			// Verify that the action was rendered as a regular button (ActionViewItem)
+			assert.strictEqual(actionbar.viewItems.length, 1);
+			assert(actionbar.viewItems[0] instanceof ActionViewItem, 'Action without checked state should render as ActionViewItem');
+			assert(!(actionbar.viewItems[0] instanceof ToggleActionViewItem), 'Action without checked state should not render as ToggleActionViewItem');
+		});
+
+		test('handles mixed actions (toggles and buttons)', function () {
+			const container = document.createElement('div');
+			const provider = createToggleActionViewItemProvider(unthemedToggleStyles);
+			const actionbar = store.add(new ActionBar(container, {
+				actionViewItemProvider: provider
+			}));
+
+			const toggleAction = store.add(new Action('toggle', 'Toggle'));
+			toggleAction.checked = false;
+			const buttonAction = store.add(new Action('button', 'Button'));
+
+			actionbar.push([toggleAction, buttonAction]);
+
+			// Verify that we have both types of items
+			assert.strictEqual(actionbar.viewItems.length, 2);
+			assert(actionbar.viewItems[0] instanceof ToggleActionViewItem, 'First action should be a toggle');
+			assert(actionbar.viewItems[1] instanceof ActionViewItem, 'Second action should be a button');
+			assert(!(actionbar.viewItems[1] instanceof ToggleActionViewItem), 'Second action should not be a toggle');
+		});
+
+		test('toggle state changes when action checked changes', function () {
+			const container = document.createElement('div');
+			const provider = createToggleActionViewItemProvider(unthemedToggleStyles);
+			const actionbar = store.add(new ActionBar(container, {
+				actionViewItemProvider: provider
+			}));
+
+			const toggleAction = store.add(new Action('toggle', 'Toggle'));
+			toggleAction.checked = false;
+
+			actionbar.push(toggleAction);
+
+			// Verify the toggle element has the correct aria-checked attribute
+			const toggleViewItem = actionbar.viewItems[0] as ToggleActionViewItem;
+			const toggleElement = toggleViewItem.element?.querySelector('[role="checkbox"]') as HTMLElement;
+			assert(toggleElement, 'Toggle element should exist');
+			assert.strictEqual(toggleElement.getAttribute('aria-checked'), 'false', 'Initial checked state should be false');
+
+			// Change the action's checked state
+			toggleAction.checked = true;
+			assert.strictEqual(toggleElement.getAttribute('aria-checked'), 'true', 'Toggle should update when action checked changes');
+		});
 	});
 });

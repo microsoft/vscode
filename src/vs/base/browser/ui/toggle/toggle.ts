@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../../common/themables.js';
 import { $, addDisposableListener, EventType, isActiveElement } from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
+import { IActionViewItemProvider } from '../actionbar/actionbar.js';
 import { HoverStyle, IHoverLifecycleOptions } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { Widget } from '../widget.js';
@@ -496,3 +497,22 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 	}
 
 }
+
+/**
+ * Creates an action view item provider that renders toggles for actions with a checked state
+ * and falls back to default button rendering for regular actions.
+ *
+ * @param toggleStyles - Optional styles to apply to toggle items
+ * @returns An IActionViewItemProvider that can be used with ActionBar
+ */
+export function createToggleActionViewItemProvider(toggleStyles?: IToggleStyles): IActionViewItemProvider {
+	return (action: IAction, options: IActionViewItemOptions) => {
+		// Only render as a toggle if the action has a checked property
+		if (action.checked !== undefined) {
+			return new ToggleActionViewItem(null, action, { ...options, toggleStyles });
+		}
+		// Return undefined to fall back to default button rendering
+		return undefined;
+	};
+}
+
