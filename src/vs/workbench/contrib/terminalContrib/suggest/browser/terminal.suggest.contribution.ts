@@ -207,11 +207,8 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this._prepareAddonLayout(this._ctx.instance.xterm.raw);
 	}
 
-	private _prepareAddonLayout(xterm: RawXtermTerminal): void {
-		this._prepareAddonLayoutAsync(xterm);
-	}
 
-	private async _prepareAddonLayoutAsync(xterm: RawXtermTerminal): Promise<void> {
+	private async _prepareAddonLayout(xterm: RawXtermTerminal): Promise<void> {
 		const addon = this._addon.value;
 		if (!addon || this.isDisposed) {
 			return;
