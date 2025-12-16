@@ -91,12 +91,12 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 				const type = pointToType(contributionPoint);
 				for (const raw of ext.value) {
 					if (!raw.path) {
-						ext.collector.error(localize('extension.missing.path', "Extension '{0}' cannot register {1} entry '{2}' without path.", ext.description.identifier.value, contributionPoint, raw.name));
+						ext.collector.error(localize('extension.missing.path', "Extension '{0}' cannot register {1} entry without path.", ext.description.identifier.value, contributionPoint));
 						continue;
 					}
 					const fileUri = joinPath(ext.description.extensionLocation, raw.path);
 					if (!isEqualOrParent(fileUri, ext.description.extensionLocation)) {
-						ext.collector.error(localize('extension.invalid.path', "Extension '{0}' {1} entry '{2}' path resolves outside the extension.", ext.description.identifier.value, contributionPoint, raw.name));
+						ext.collector.error(localize('extension.invalid.path', "Extension '{0}' {1} entry '{2}' resolves outside the extension.", ext.description.identifier.value, contributionPoint, raw.path));
 						continue;
 					}
 					try {
@@ -104,7 +104,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 						this.registrations.set(key(ext.description.identifier, type, raw.path), d);
 					} catch (e) {
 						const msg = e instanceof Error ? e.message : String(e);
-						ext.collector.error(localize('extension.registration.failed', "Failed to register {0} entry '{1}': {2}", contributionPoint, raw.name, msg));
+						ext.collector.error(localize('extension.registration.failed', "Extension '{0}' {1}. Failed to register {2}: {3}", ext.description.identifier.value, contributionPoint, raw.path, msg));
 					}
 				}
 			}

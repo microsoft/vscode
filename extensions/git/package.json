@@ -572,12 +572,6 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.createWorktreeWithDefaults",
-        "title": "Create Worktree With Defaults",
-        "category": "Git",
-        "enablement": "!operationInProgress"
-      },
-      {
         "command": "git.deleteWorktree",
         "title": "%command.deleteWorktree%",
         "category": "Git",
@@ -3827,6 +3821,11 @@
           "type": "string",
           "default": "${subject}, ${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameEditorDecoration.template%"
+        },
+        "git.blame.editorDecoration.disableHover": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameEditorDecoration.disableHover%"
         },
         "git.blame.statusBarItem.enabled": {
           "type": "boolean",

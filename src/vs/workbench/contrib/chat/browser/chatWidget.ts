@@ -674,8 +674,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
-		this.onDidStyleChange();
+		this._register(Event.runAndSubscribe(this.editorOptions.onDidChange, () => this.onDidStyleChange()));
 
 		// Do initial render
 		if (this.viewModel) {
