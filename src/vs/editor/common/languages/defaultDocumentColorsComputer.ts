@@ -98,10 +98,11 @@ function _findMatches(model: IDocumentColorComputerTarget | string, regex: RegEx
 	}
 }
 
+
 function computeColors(model: IDocumentColorComputerTarget): IColorInformation[] {
 	const result: IColorInformation[] = [];
-	// Early validation for RGB and HSL
-	const initialValidationRegex = /\b(rgb|rgba|hsl|hsla)(\([0-9\s,.\%]*\))|^(#)([A-Fa-f0-9]{3})\b|^(#)([A-Fa-f0-9]{4})\b|^(#)([A-Fa-f0-9]{6})\b|^(#)([A-Fa-f0-9]{8})\b|(?<=['"\s])(#)([A-Fa-f0-9]{3})\b|(?<=['"\s])(#)([A-Fa-f0-9]{4})\b|(?<=['"\s])(#)([A-Fa-f0-9]{6})\b|(?<=['"\s])(#)([A-Fa-f0-9]{8})\b/gm;
+	// Use negative lookahead to avoid matching JS private members (e.g. #add) as colors.
+	const initialValidationRegex = /\b(rgb|rgba|hsl|hsla)(\([0-9\s,\.\%]*\))|^(#)([A-Fa-f0-9]{3})(?!\s*[\(\{])\b|^(#)([A-Fa-f0-9]{4})(?!\s*[\(\{])\b|^(#)([A-Fa-f0-9]{6})(?!\s*[\(\{])\b|^(#)([A-Fa-f0-9]{8})(?!\s*[\(\{])\b|(?<=['"\s])(#)([A-Fa-f0-9]{3})(?![A-Fa-f0-9a-zA-Z_]|\s*[\(\{])|(?<=['"\s])(#)([A-Fa-f0-9]{4})(?![A-Fa-f0-9a-zA-Z_]|\s*[\(\{])|(?<=['"\s])(#)([A-Fa-f0-9]{6})(?!\s*[\(\{])\b|(?<=['"\s])(#)([A-Fa-f0-9]{8})(?!\s*[\(\{])\b/gm;
 	const initialValidationMatches = _findMatches(model, initialValidationRegex);
 
 	// Potential colors have been found, validate the parameters

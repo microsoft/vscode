@@ -99,4 +99,35 @@ suite('Default Document Colors Computer', () => {
 		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
 		assert.strictEqual(colors[0].color.alpha, 1, 'Alpha should be 1 (ff/255)');
 	});
+
+	test('Private JavaScript class members should not be detected as colors', () => {
+		// Test case from issue #231852: Private members like #add should not be marked as colors
+		const model = new TestDocumentModel(`class Calc {
+		#add(a, b) { return a + b; }
+		#sub(a, b) { return a - b; }
+	}`);
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 0, 'Should not detect private class members as colors');
+	});
+
+	test('Private JavaScript class members with hex-like names should not be detected as colors', () => {
+		// Edge cases: #ADD, #abc, #dec are all valid hex colors but shouldn't match private members
+		const model = new TestDocumentModel(`class Calc {
+		#ADD(a, b) { return a + b; }
+		#abc(a, b) { return a - b; }
+		#decrement(x) { return x - 1; }
+	}`);
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 0, 'Should not detect any colors in private class members');
+	});
+
+	test('Hex colors after operators should still be detected', () => {
+		// Make sure we can still detect colors like: = '#abc' or : '#fff'
+		const model = new TestDocumentModel(`const config = { color: '#abc' };`);
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 1, 'Should detect hex color after colon and space');
+	});
 });
