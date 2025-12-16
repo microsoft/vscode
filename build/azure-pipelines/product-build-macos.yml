@@ -75,8 +75,10 @@ extends:
           - job: Compile
             timeoutInMinutes: 90
             pool:
-              name: ACESLabTest
+              name: AcesShared
               os: macOS
+              demands:
+                - ImageOverride -equals ACES_VM_SharedPool_Sequoia
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
 
@@ -84,8 +86,10 @@ extends:
         dependsOn:
           - Compile
         pool:
-          name: ACESLabTest
+          name: AcesShared
           os: macOS
+          demands:
+            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
         variables:
           BUILDSECMON_OPT_IN: true
         jobs:

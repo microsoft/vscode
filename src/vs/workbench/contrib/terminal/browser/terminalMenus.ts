@@ -759,7 +759,7 @@ export function setupTerminalMenus(): void {
 			command: {
 				id: TerminalCommandId.StartVoice,
 				title: localize('workbench.action.terminal.startVoiceEditor', "Start Dictation"),
-				icon: Codicon.run
+				icon: Codicon.mic
 			},
 			group: 'navigation',
 			order: 9,
