@@ -22,8 +22,8 @@
 		.chat-view-title-label {
 			text-transform: uppercase;
 			font-size: 11px;
+			font-weight: 700;
 			line-height: 16px;
-			color: var(--vscode-descriptionForeground);
 			display: block;
 			overflow: hidden;
 			white-space: nowrap;
@@ -32,7 +32,6 @@
 		}
 
 		.chat-view-title-icon {
-			color: var(--vscode-descriptionForeground);
 			margin-left: 4px;
 		}
 
