@@ -169,11 +169,12 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 
 	private async handlePermissionDeniedError(repository: Repository, remote: Remote, refspec: string, owner: string, repo: string): Promise<void> {
 		const yes = l10n.t('Create Fork');
+		const yesDefault = l10n.t('Create Fork (Default only)');
 		const no = l10n.t('No');
 		const askFork = l10n.t('You don\'t have permissions to push to "{0}/{1}" on GitHub. Would you like to create a fork and push to it instead?', owner, repo);
 
-		const answer = await window.showWarningMessage(askFork, { modal: true }, yes, no);
-		if (answer !== yes) {
+		const answer = await window.showWarningMessage(askFork, { modal: true }, yes, yesDefault, no);
+		if (answer !== yes && answer !== yesDefault) {
 			return;
 		}
 
@@ -209,7 +210,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 						remoteName = ref;
 					}
 				} else {
-					const resp = await octokit.repos.createFork({ owner, repo });
+					const resp = await octokit.repos.createFork({ owner, repo, default_branch_only: answer === yesDefault });
 					ghRepository = resp.data;
 				}
 			} catch (ex) {
