@@ -21,6 +21,7 @@ interface IChatHistoryEntry {
 
 /** The collected input state for chat history entries */
 interface IChatInputState {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	[key: string]: any;
 	chatContextAttachments?: ReadonlyArray<IChatRequestVariableEntry>;
 
@@ -83,6 +84,7 @@ export class ChatWidgetHistoryService extends Disposable implements IChatWidgetH
 		return history.map(entry => this.migrateHistoryEntry(entry));
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private migrateHistoryEntry(entry: any): IChatModelInputState {
 		// If it's already in the new format (has 'inputText' property), return as-is
 		if (entry.inputText !== undefined) {

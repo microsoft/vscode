@@ -283,6 +283,10 @@ export class ToolBar extends Disposable {
 			return;
 		}
 
+		// Ensure that the container width respects the minimum width of the
+		// element which is set based on the `responsiveBehavior.minItems` option
+		containerWidth = Math.max(containerWidth, parseInt(this.element.style.minWidth));
+
 		// Each action is assumed to have a minimum width so that actions with a label
 		// can shrink to the action's minimum width. We do this so that action visibility
 		// takes precedence over the action label.

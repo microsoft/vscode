@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../../../base/browser/dom.js';
-import { itemsEquals } from '../../../../../../base/common/equals.js';
+import { equals } from '../../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -165,7 +165,7 @@ export class InlineEditsView extends Disposable {
 			return undefined;
 		})));
 		const wordReplacements = derivedOpts({
-			equalsFn: itemsEquals<WordReplacementsViewData>((a, b) => a.equals(b))
+			equalsFn: equals.arrayC(equals.thisC())
 		}, reader => {
 			const s = this._uiState.read(reader);
 			return s?.state?.kind === InlineCompletionViewKind.WordReplacements ? s.state.replacements.map(replacement => new WordReplacementsViewData(replacement, s.state?.alternativeAction)) : [];
@@ -348,15 +348,11 @@ export class InlineEditsView extends Disposable {
 			diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, newText);
 		}
 
-		const tm = this._editorObs.model.read(reader);
-		if (!tm) {
-			return undefined;
-		}
-		this._previewTextModel.setLanguage(tm.getLanguageId());
+		this._previewTextModel.setLanguage(textModel.getLanguageId());
 
 		const previousNewText = this._previewTextModel.getValue();
 		if (previousNewText !== newText.getValue()) {
-			this._previewTextModel.setEOL(tm.getEndOfLineSequence());
+			this._previewTextModel.setEOL(textModel.getEndOfLineSequence());
 			const updateOldValueEdit = StringEdit.replace(new OffsetRange(0, previousNewText.length), newText.getValue());
 			const updateOldValueEditSmall = updateOldValueEdit.removeCommonSuffixPrefix(previousNewText);
 
@@ -368,7 +364,7 @@ export class InlineEditsView extends Disposable {
 			state = { kind: InlineCompletionViewKind.Collapsed as const, viewData: state.viewData };
 		}
 
-		model.handleInlineEditShown(state.kind, state.viewData); // call this in the next animation frame
+		model.handleInlineEditShownNextFrame(state.kind, state.viewData);
 
 		const nextCursorPosition = inlineEdit.action?.kind === 'jumpTo' ? inlineEdit.action.position : null;
 

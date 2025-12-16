@@ -117,16 +117,21 @@ export class ChatSuggestNextWidget extends Disposable {
 
 		// Get chat session contributions to show in chevron dropdown
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
-		const availableContributions = contributions.filter(c => c.canDelegate !== false);
+		const availableContributions = contributions.filter(c => c.canDelegate);
 
 		if (showContinueOn && availableContributions.length > 0) {
-			const separator = dom.append(button, dom.$('.chat-suggest-next-separator'));
+			button.classList.add('chat-suggest-next-has-dropdown');
+			// Create a dropdown container that wraps separator and chevron for a larger hit area
+			const dropdownContainer = dom.append(button, dom.$('.chat-suggest-next-dropdown'));
+			dropdownContainer.setAttribute('tabindex', '0');
+			dropdownContainer.setAttribute('role', 'button');
+			dropdownContainer.setAttribute('aria-label', localize('chat.suggestNext.moreOptions', 'More options for {0}', handoff.label));
+			dropdownContainer.setAttribute('aria-haspopup', 'true');
+
+			const separator = dom.append(dropdownContainer, dom.$('.chat-suggest-next-separator'));
 			separator.setAttribute('aria-hidden', 'true');
-			const chevron = dom.append(button, dom.$('.codicon.codicon-chevron-down.dropdown-chevron'));
-			chevron.setAttribute('tabindex', '0');
-			chevron.setAttribute('role', 'button');
-			chevron.setAttribute('aria-label', localize('chat.suggestNext.moreOptions', 'More options for {0}', handoff.label));
-			chevron.setAttribute('aria-haspopup', 'true');
+			const chevron = dom.append(dropdownContainer, dom.$('.codicon.codicon-chevron-down.dropdown-chevron'));
+			chevron.setAttribute('aria-hidden', 'true');
 
 			const showContextMenu = (e: MouseEvent | KeyboardEvent, anchor?: HTMLElement) => {
 				e.preventDefault();
@@ -148,23 +153,23 @@ export class ChatSuggestNextWidget extends Disposable {
 				});
 
 				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor || button,
+					getAnchor: () => anchor || dropdownContainer,
 					getActions: () => actions,
 					autoSelectFirstItem: true,
 				});
 			};
 
-			disposables.add(dom.addDisposableListener(chevron, 'click', (e: MouseEvent) => {
-				showContextMenu(e, chevron);
+			disposables.add(dom.addDisposableListener(dropdownContainer, 'click', (e: MouseEvent) => {
+				showContextMenu(e, dropdownContainer);
 			}));
 
-			disposables.add(dom.addDisposableListener(chevron, 'keydown', (e) => {
+			disposables.add(dom.addDisposableListener(dropdownContainer, 'keydown', (e) => {
 				if (e.key === 'Enter' || e.key === ' ') {
-					showContextMenu(e, chevron);
+					showContextMenu(e, dropdownContainer);
 				}
 			}));
 			disposables.add(dom.addDisposableListener(button, 'click', (e: MouseEvent) => {
-				if ((e.target as HTMLElement).classList.contains('dropdown-chevron')) {
+				if (dom.isHTMLElement(e.target) && e.target.closest('.chat-suggest-next-dropdown')) {
 					return;
 				}
 				this._onDidSelectPrompt.fire({ handoff });

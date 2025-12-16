@@ -107,6 +107,7 @@ export const IChatAccessibilityService = createDecorator<IChatAccessibilityServi
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
 	acceptRequest(): number;
+	disposeRequest(requestId: number): void;
 	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;
 }
@@ -202,6 +203,10 @@ export interface IChatAcceptInputOptions {
 	noCommandDetection?: boolean;
 	isVoiceInput?: boolean;
 	enableImplicitContext?: boolean; // defaults to true
+	// Whether to store the input to history. This defaults to 'true' if the input
+	// box's current content is being accepted, or 'false' if a specific input
+	// is being submitted to the widget.
+	storeToHistory?: boolean;
 }
 
 export interface IChatWidget {
@@ -261,6 +266,7 @@ export interface IChatWidget {
 	clear(): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
+	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
 }

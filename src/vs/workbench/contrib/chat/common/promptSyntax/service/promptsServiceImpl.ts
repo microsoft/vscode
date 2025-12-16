@@ -16,7 +16,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -30,7 +30,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -215,6 +215,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return result;
 		}
 
+		// Activate extensions that might provide custom agents
+		await this.extensionService.activateByEvent(CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT);
+
 		// Collect agents from all providers
 		for (const providerEntry of this.customAgentsProviders) {
 			try {
@@ -224,11 +227,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 
 				for (const agent of agents) {
-					try {
-						await this.filesConfigService.updateReadonly(agent.uri, true);
-					} catch (e) {
-						const msg = e instanceof Error ? e.message : String(e);
-						this.logger.error(`[listCustomAgentsFromProvider] Failed to make agent file readonly: ${agent.uri}`, msg);
+					if (!agent.isEditable) {
+						try {
+							await this.filesConfigService.updateReadonly(agent.uri, true);
+						} catch (e) {
+							const msg = e instanceof Error ? e.message : String(e);
+							this.logger.error(`[listCustomAgentsFromProvider] Failed to make agent file readonly: ${agent.uri}`, msg);
+						}
 					}
 
 					result.push({
@@ -382,11 +387,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		let agentFiles = await this.listPromptFiles(PromptsType.agent, token);
 		const disabledAgents = this.getDisabledPromptFiles(PromptsType.agent);
 		agentFiles = agentFiles.filter(promptPath => !disabledAgents.has(promptPath.uri));
-		const customAgents = await Promise.all(
+		const customAgentsResults = await Promise.allSettled(
 			agentFiles.map(async (promptPath): Promise<ICustomAgent> => {
 				const uri = promptPath.uri;
 				const ast = await this.parseNew(uri, token);
 
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				let metadata: any | undefined;
 				if (ast.header) {
 					const advanced = ast.header.getAttribute(PromptHeaderAttributes.advancedOptions);
@@ -426,6 +432,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return { uri, name, description, model, tools, handOffs, argumentHint, target, infer, agentInstructions, source };
 			})
 		);
+
+		const customAgents: ICustomAgent[] = [];
+		for (let i = 0; i < customAgentsResults.length; i++) {
+			const result = customAgentsResults[i];
+			if (result.status === 'fulfilled') {
+				customAgents.push(result.value);
+			} else {
+				const uri = agentFiles[i].uri;
+				const error = result.reason;
+				if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+					this.logger.warn(`[computeCustomAgents] Skipping agent file that does not exist: ${uri}`, error.message);
+				} else {
+					this.logger.error(`[computeCustomAgents] Failed to parse agent file: ${uri}`, error);
+				}
+			}
+		}
+
 		return customAgents;
 	}
 
@@ -442,7 +465,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return new PromptFileParser().parse(uri, fileContent.value.toString());
 	}
 
-	public registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription) {
+	public registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name?: string, description?: string) {
 		const bucket = this.contributedFiles[type];
 		if (bucket.has(uri)) {
 			// keep first registration per extension (handler filters duplicates per extension already)
