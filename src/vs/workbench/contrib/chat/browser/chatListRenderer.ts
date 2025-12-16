@@ -769,7 +769,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 
-		if (collapsedToolsMode === CollapsedToolsDisplayMode.Always || (collapsedToolsMode === CollapsedToolsDisplayMode.WithThinking && this.getLastThinkingPart(templateData.renderedParts))) {
+		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+
+		if (lastThinking &&
+			(collapsedToolsMode === CollapsedToolsDisplayMode.Always ||
+				collapsedToolsMode === CollapsedToolsDisplayMode.WithThinking)) {
 			if (!lastPart || lastPart.kind === 'thinking' || lastPart.kind === 'toolInvocation' || lastPart.kind === 'prepareToolInvocation' || lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') {
 				return false;
 			}
