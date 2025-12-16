@@ -208,3 +208,6 @@ export function observeColor(colorIdentifier: ColorIdentifier, themeService: ITh
 		}
 	);
 }
+
+// Styles
+export const INLINE_EDITS_BORDER_RADIUS = 3; // also used in CSS file

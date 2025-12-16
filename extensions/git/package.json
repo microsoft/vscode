@@ -448,13 +448,12 @@
       {
         "command": "git.commitMessageAccept",
         "title": "%command.commitMessageAccept%",
-        "icon": "$(check)",
         "category": "Git"
       },
       {
         "command": "git.commitMessageDiscard",
         "title": "%command.commitMessageDiscard%",
-        "icon": "$(discard)",
+        "icon": "$(close)",
         "category": "Git"
       },
       {
@@ -569,12 +568,6 @@
       {
         "command": "git.createWorktree",
         "title": "%command.createWorktree%",
-        "category": "Git",
-        "enablement": "!operationInProgress"
-      },
-      {
-        "command": "git.createWorktreeWithDefaults",
-        "title": "Create Worktree With Defaults",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1655,19 +1648,19 @@
         },
         {
           "command": "git.stashView",
-          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+          "when": "config.git.enabled && !git.missing"
         },
         {
           "command": "git.viewChanges",
-          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+          "when": "config.git.enabled && !git.missing"
         },
         {
           "command": "git.viewStagedChanges",
-          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+          "when": "config.git.enabled && !git.missing"
         },
         {
           "command": "git.viewUntrackedChanges",
-          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled && config.git.untrackedChanges == separate"
+          "when": "config.git.enabled && !git.missing && config.git.untrackedChanges == separate"
         },
         {
           "command": "git.viewCommit",
@@ -2585,16 +2578,6 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges"
         },
         {
-          "command": "git.commitMessageAccept",
-          "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit"
-        },
-        {
-          "command": "git.commitMessageDiscard",
-          "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit"
-        },
-        {
           "command": "git.stashApplyEditor",
           "alt": "git.stashPopEditor",
           "group": "navigation@1",
@@ -2667,6 +2650,16 @@
           "command": "git.openMergeEditor",
           "group": "navigation@-10",
           "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges && git.activeResourceHasMergeConflicts"
+        },
+        {
+          "command": "git.commitMessageAccept",
+          "group": "navigation",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit"
+        },
+        {
+          "command": "git.commitMessageDiscard",
+          "group": "secondary",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit"
         }
       ],
       "multiDiffEditor/resource/title": [
@@ -3828,6 +3821,11 @@
           "type": "string",
           "default": "${subject}, ${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameEditorDecoration.template%"
+        },
+        "git.blame.editorDecoration.disableHover": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameEditorDecoration.disableHover%"
         },
         "git.blame.statusBarItem.enabled": {
           "type": "boolean",
