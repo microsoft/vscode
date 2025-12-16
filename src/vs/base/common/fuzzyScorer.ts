@@ -906,7 +906,7 @@ function normalizeQuery(original: string): { pathNormalized: string; normalized:
 	// - whitespace: are used to separate queries
 	// - ellipsis: sometimes used to indicate any path segments
 	// - trailing hash: used by some language servers (e.g. rust-analyzer) as query modifiers
-	const normalized = pathNormalized.replace(/[\*\u2026\s"]/g, '').replace(/#$/, '');
+	const normalized = pathNormalized.replace(/[\*\u2026\s"]/g, '').replace(/(?<=.)#$/, '');
 
 	return {
 		pathNormalized,

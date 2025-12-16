@@ -1343,6 +1343,14 @@ suite('Fuzzy Scorer', () => {
 		[score, matches] = _doScore2('#SpecialFunction', '#SpecialFunction');
 		assert.ok(typeof score === 'number' && score > 0, 'Should match "#SpecialFunction" symbol when query is "#SpecialFunction"');
 		assert.ok(matches.length > 0);
+
+		// Make sure standalone # is not removed
+		query = prepareQuery('#');
+		assert.strictEqual(query.original, '#');
+		assert.strictEqual(query.normalized, '#', 'Standalone # should not be removed');
+		[score, matches] = _doScore2('#', '#');
+		assert.ok(typeof score === 'number' && score > 0, 'Should match "#" symbol when query is "#"');
+		assert.ok(matches.length > 0);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
