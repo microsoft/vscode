@@ -1128,10 +1128,10 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
-		// Ignore path that is ignored
+		// Ignore path that is git ignored
 		const ignored = await this.checkIgnore([uri.fsPath]);
 		if (ignored.size > 0) {
-			this.logger.trace(`[Repository][provideOriginalResource] Resource is ignored: ${uri.toString()}`);
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is git ignored: ${uri.toString()}`);
 			return undefined;
 		}
 
