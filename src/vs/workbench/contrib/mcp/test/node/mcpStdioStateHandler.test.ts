@@ -46,7 +46,7 @@ suite('McpStdioStateHandler', () => {
 			process.on('SIGTERM', () => process.stdout.write('SIGTERM received'));
 		`);
 
-		child.stdin.write('Hello MCP!');
+		await new Promise(r => child.stdin.write('Hello MCP!', () => r()));
 		handler.stop();
 		const result = await output;
 		assert.strictEqual(result.trim(), 'Data received: Hello MCP!');
@@ -59,7 +59,9 @@ suite('McpStdioStateHandler', () => {
 			process.stdin.on('end', () => process.stdout.write('stdin ended\\n'));
 			process.stdin.resume();
 			process.on('SIGTERM', () => {
-				process.stdout.write('SIGTERM received', () => process.exit(0));
+				process.stdout.write('SIGTERM received', () => {
+					process.stdout.end(() => process.exit(0));
+				});
 			});
 		`);
 
