@@ -191,7 +191,6 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	private _isDragging: boolean;
 	private _mouseIsOver: boolean;
-
 	private _mouseIsDown: boolean;
 
 	private readonly _hideTimeout: TimeoutTimer;
@@ -607,17 +606,11 @@ export abstract class AbstractScrollableElement extends Widget {
 		if (!this.options.handleDragScroll) {
 			return;
 		}
-
-		// Is mouse down, and only the left button triggered?
-		if (!this._mouseIsDown && e.buttons === 1 && e.leftButton) {
-			this._mouseIsDown = true;
-		}
+		this._mouseIsDown = true;
 	}
 
 	private _onMouseUp(): void {
-		if (this._mouseIsDown && this.options.handleDragScroll) {
-			this._mouseIsDown = false;
-		}
+		this._mouseIsDown = false;
 	}
 
 	private _onMouseMove(e: IMouseEvent): void {
@@ -627,13 +620,15 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		const posX = e.posx;
 		const posY = e.posy;
-		const node = this.getDomNode();
-		const rect = node.getBoundingClientRect();
+		const rect = this.getDomNode().getBoundingClientRect();
 
-		const currentScrollTop = this._scrollable.getCurrentScrollPosition().scrollTop;
-		const currentScrollLeft = this._scrollable.getCurrentScrollPosition().scrollLeft;
-		const maxScrollTop = this._scrollable.getScrollDimensions().scrollHeight - this._scrollable.getScrollDimensions().height;
-		const maxScrollLeft = this._scrollable.getScrollDimensions().scrollWidth - this._scrollable.getScrollDimensions().width;
+		const scrollPosition = this._scrollable.getCurrentScrollPosition();
+		const currentScrollTop = scrollPosition.scrollTop;
+		const currentScrollLeft = scrollPosition.scrollLeft;
+
+		const scrollDimensions = this._scrollable.getScrollDimensions();
+		const maxScrollTop = scrollDimensions.scrollHeight - scrollDimensions.height;
+		const maxScrollLeft = scrollDimensions.scrollWidth - scrollDimensions.width;
 
 		const topTriggerZone = rect.top + DRAG_SCROLL_TRIGGER_OFFSET;
 		const bottomTriggerZone = rect.bottom - DRAG_SCROLL_TRIGGER_OFFSET;
