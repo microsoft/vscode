@@ -57,6 +57,9 @@
 	// Dark mode button
 	const btnDarkMode = document.getElementById('btn-dark-mode');
 
+	// Sync toggle button
+	const btnSyncToggle = document.getElementById('btn-sync-toggle');
+
 	// State
 	let pdf = null;
 	let currentPage = 1;
@@ -79,6 +82,10 @@
 	// Dark mode state - load from vscode state if available
 	const state = vscode.getState() || {};
 	let isDarkMode = state.darkMode || false;
+
+	// Sync enabled state - default to true (enabled)
+	// Uses stored state if available, otherwise defaults to true
+	let isSyncEnabled = state.syncEnabled !== undefined ? state.syncEnabled : true;
 
 	// Initialize dark mode from saved state
 	function initDarkMode() {
@@ -104,8 +111,46 @@
 		vscode.setState({ ...vscode.getState(), darkMode: isDarkMode });
 	}
 
+	// Initialize sync toggle button - only show if sync is available
+	function initSyncToggle() {
+		if (settings.enableSyncClick && btnSyncToggle) {
+			// Show the button only when sync is available (LaTeX/Typst preview)
+			btnSyncToggle.style.display = '';
+
+			// Apply initial state
+			updateSyncButtonState();
+		}
+	}
+
+	// Update sync button visual state
+	function updateSyncButtonState() {
+		if (btnSyncToggle) {
+			if (isSyncEnabled) {
+				btnSyncToggle.classList.add('active');
+				btnSyncToggle.classList.remove('sync-disabled');
+				btnSyncToggle.title = 'Editor Sync Enabled (Click to disable)';
+			} else {
+				btnSyncToggle.classList.remove('active');
+				btnSyncToggle.classList.add('sync-disabled');
+				btnSyncToggle.title = 'Editor Sync Disabled (Click to enable)';
+			}
+		}
+	}
+
+	// Toggle sync enabled/disabled
+	function toggleSync() {
+		isSyncEnabled = !isSyncEnabled;
+		updateSyncButtonState();
+
+		// Persist state
+		vscode.setState({ ...vscode.getState(), syncEnabled: isSyncEnabled });
+	}
+
 	// Initialize dark mode on load
 	initDarkMode();
+
+	// Initialize sync toggle on load
+	initSyncToggle();
 
 	// Show error
 	function showError(message) {
@@ -287,7 +332,10 @@
 			// Add click handler for SyncTeX on the text layer (it's on top)
 			if (settings.enableSyncClick) {
 				textLayerDiv.addEventListener('click', (e) => {
-					// Only trigger SyncTeX if no text is selected
+					// Only trigger SyncTeX if sync is enabled and no text is selected
+					if (!isSyncEnabled) {
+						return;
+					}
 					const selection = window.getSelection();
 					if (selection && selection.toString().length > 0) {
 						return;
@@ -561,6 +609,11 @@
 	// Dark mode toggle
 	if (btnDarkMode) {
 		btnDarkMode.addEventListener('click', toggleDarkMode);
+	}
+
+	// Sync toggle
+	if (btnSyncToggle) {
+		btnSyncToggle.addEventListener('click', toggleSync);
 	}
 
 	// ==================== SEARCH/FIND FUNCTIONALITY ====================
@@ -1000,7 +1053,8 @@
 
 	// Scroll to a percentage of the document (for source-to-preview sync)
 	function scrollToPercent(percent) {
-		if (!container) { return; }
+		// Only scroll if sync is enabled
+		if (!container || !isSyncEnabled) { return; }
 		const maxScroll = container.scrollHeight - container.clientHeight;
 		if (maxScroll > 0) {
 			let targetScroll = Math.round(maxScroll * percent);
@@ -1024,7 +1078,8 @@
 	 * This provides accurate source-to-preview sync by finding actual text content
 	 */
 	function scrollToText(searchText) {
-		if (!container || !searchText) { return; }
+		// Only scroll if sync is enabled
+		if (!container || !searchText || !isSyncEnabled) { return; }
 
 		// Normalize the search text
 		const normalizedSearch = searchText.trim().toLowerCase();

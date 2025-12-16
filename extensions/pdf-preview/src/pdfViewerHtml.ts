@@ -48,7 +48,9 @@ export function getPdfViewerHtml(
 		pdfUrl: pdfSrcUri,
 		pdfjsWorkerUrl: pdfjsWorkerUri.toString(),
 		syncPosition: syncPosition,
-		enableSyncClick: enableSyncClick || false
+		enableSyncClick: enableSyncClick || false,
+		// Sync is enabled by default when syncClick is available
+		syncEnabled: true
 	};
 
 	return `<!DOCTYPE html>
@@ -116,6 +118,9 @@ export function getPdfViewerHtml(
 		</div>
 		-->
 		<div class="toolbar-group toolbar-group-right">
+			<button class="toolbar-button toolbar-button-icon sync-toggle-btn" id="btn-sync-toggle" title="Toggle Editor Sync (Enabled)" style="display: none;">
+				<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+			</button>
 			<button class="toolbar-button toolbar-button-icon" id="btn-dark-mode" title="Toggle Dark Mode">
 				<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9c0-.5-.04-.99-.13-1.46A5.47 5.47 0 0 1 14.5 13a5.5 5.5 0 0 1-5.5-5.5c0-2.47 1.64-4.56 3.88-5.24A9.1 9.1 0 0 0 12 3z"/></svg>
 			</button>

@@ -420,6 +420,32 @@ body.pdf-dark-mode .page-number-overlay {
 	fill: #8ab4f8;
 }
 
+/* Sync toggle button styles */
+#btn-sync-toggle.active svg path {
+	fill: #8ab4f8;
+}
+
+/* Sync toggle button disabled state - show strikethrough effect */
+#btn-sync-toggle.sync-disabled svg path {
+	fill: #9aa0a6;
+}
+
+#btn-sync-toggle.sync-disabled {
+	position: relative;
+}
+
+#btn-sync-toggle.sync-disabled::after {
+	content: '';
+	position: absolute;
+	width: 22px;
+	height: 2px;
+	background: #f28b82;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%) rotate(-45deg);
+	border-radius: 1px;
+}
+
 /* ==================== FINDBAR STYLES ==================== */
 
 .findbar {
