@@ -23,6 +23,7 @@ import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/c
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
+import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 
 export interface INewEditSessionActionContext {
 
@@ -118,6 +119,7 @@ export function registerNewChatActions() {
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatAccessibilityService = accessor.get(IChatAccessibilityService);
 			chatAccessibilityService.disposeRequest();
+			alert('Session will continue in the background');
 			const executeCommandContext = args[0] as INewEditSessionActionContext | undefined;
 
 			// Context from toolbar or lastFocusedWidget
