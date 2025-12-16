@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getSizeRegistry, registerSize, size, sizeForAllThemes, sizeValueToCss, asCssVariableName, asCssVariable } from '../../common/sizeRegistry.js';
 // Import baseSizes to ensure base size tokens are registered
-import * as baseSizes from '../../common/sizes/baseSizes.js';
+import { bodyFontSize, bodyFontSizeSmall, codiconFontSize, cornerRadiusMedium, cornerRadiusSmall, cornerRadiusLarge, strokeThickness } from '../../common/sizes/baseSizes.js';
 
 suite('Size Registry', () => {
 
@@ -58,12 +58,14 @@ suite('Size Registry', () => {
 	test('size tokens should be available', () => {
 		const sizes = getSizeRegistry().getSizes();
 
-		// Check that base sizes are registered (baseSizes import ensures they're loaded)
-		assert.ok(baseSizes); // Reference to ensure import side effects execute
-		assert.ok(sizes.find(s => s.id === 'bodyFontSize'), 'bodyFontSize should be registered');
-		assert.ok(sizes.find(s => s.id === 'cornerRadius.medium'), 'cornerRadius.medium should be registered');
-		assert.ok(sizes.find(s => s.id === 'strokeThickness'), 'strokeThickness should be registered');
-		assert.ok(sizes.find(s => s.id === 'codiconFontSize'), 'codiconFontSize should be registered');
+		// Check that base sizes are registered
+		assert.ok(sizes.find(s => s.id === bodyFontSize), 'bodyFontSize should be registered');
+		assert.ok(sizes.find(s => s.id === bodyFontSizeSmall), 'bodyFontSizeSmall should be registered');
+		assert.ok(sizes.find(s => s.id === codiconFontSize), 'codiconFontSize should be registered');
+		assert.ok(sizes.find(s => s.id === cornerRadiusMedium), 'cornerRadius.medium should be registered');
+		assert.ok(sizes.find(s => s.id === cornerRadiusSmall), 'cornerRadius.small should be registered');
+		assert.ok(sizes.find(s => s.id === cornerRadiusLarge), 'cornerRadius.large should be registered');
+		assert.ok(sizes.find(s => s.id === strokeThickness), 'strokeThickness should be registered');
 	});
 
 	test('sizeForAllThemes should create same value for all themes', () => {
