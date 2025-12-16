@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
