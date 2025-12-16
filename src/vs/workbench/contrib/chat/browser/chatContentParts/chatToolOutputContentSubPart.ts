@@ -25,6 +25,8 @@ import { IProgressService, ProgressLocation } from '../../../../../platform/prog
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../files/browser/fileConstants.js';
 import { getAttachableImageExtension } from '../../common/chatModel.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatCodeBlockInfo } from '../chat.js';
 import { CodeBlockPart, ICodeBlockData } from '../codeBlockPart.js';
@@ -44,20 +46,27 @@ export class ChatToolOutputContentSubPart extends Disposable {
 	private _currentWidth: number = 0;
 	private readonly _editorReferences: IDisposableReference<CodeBlockPart>[] = [];
 	public readonly domNode: HTMLElement;
-
 	readonly codeblocks: IChatCodeBlockInfo[] = [];
 
 	constructor(
 		private readonly context: IChatContentPartRenderContext,
 		private readonly parts: ChatCollapsibleIOPart[],
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IFileService private readonly _fileService: IFileService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 		this.domNode = this.createOutputContents();
 		this._currentWidth = context.currentWidth();
+	}
+
+	private toMdString(value: string | IMarkdownString): MarkdownString {
+		if (typeof value === 'string') {
+			return new MarkdownString('').appendText(value);
+		}
+		return new MarkdownString(value.value, { isTrusted: value.isTrusted });
 	}
 
 	private createOutputContents(): HTMLElement {
@@ -147,7 +156,8 @@ export class ChatToolOutputContentSubPart extends Disposable {
 	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
 		if (part.title) {
 			const title = dom.$('div.chat-confirmation-widget-title');
-			title.textContent = part.title;
+			const renderedTitle = this._register(this._markdownRendererService.render(this.toMdString(part.title)));
+			title.appendChild(renderedTitle.element);
 			container.appendChild(title);
 		}
 

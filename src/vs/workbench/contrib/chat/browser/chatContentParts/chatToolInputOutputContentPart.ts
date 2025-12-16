@@ -33,7 +33,7 @@ export interface IChatCollapsibleIOCodePart {
 	languageId: string;
 	options: ICodeBlockRenderOptions;
 	codeBlockInfo: IChatCodeBlockInfo;
-	title?: string;
+	title?: string | IMarkdownString;
 }
 
 export interface IChatCollapsibleIODataPart {
