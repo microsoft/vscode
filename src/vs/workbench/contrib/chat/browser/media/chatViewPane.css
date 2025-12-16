@@ -129,89 +129,44 @@
 }
 
 /*
- * Below is a very complicated set of CSS rules that try to align the
- * agent sessions title and sections to the surrounding elements depending on:
- * - the activity bar position
- * - the chat view container (sidebar, panel, auxiliarybar)
- * - the container orientation (left, right)
- * - the visiblity of side by side
+ * Padding rules for agent sessions elements based on:
+ * - orientation (stacked vs sidebyside)
+ * - view position (left vs right)
+ * - activity bar location (default vs other for auxiliarybar)
  */
 .chat-viewpane.has-sessions-control {
 
-	&.sessions-control-orientation-stacked {
+	/* Base padding: left-aligned content */
+	.agent-sessions-title-container {
+		padding: 0 8px 0 20px;
+	}
 
-		/* Default padding for all view locations */
-		&.chat-view-location-sidebar,
-		&.chat-view-location-panel,
-		&.chat-view-location-auxiliarybar {
-			.agent-sessions-title-container {
-				padding: 0 8px 0 20px;
-			}
+	.agent-session-section {
+		padding: 0 12px 0 20px;
+	}
 
-			.agent-session-section {
-				padding: 0 12px 0 20px;
-			}
-		}
+	/* Right position: symmetric padding */
+	&.sessions-control-orientation-sidebyside.chat-view-position-right {
 
-		/* Auxiliarybar with non-default activity bar position */
-		&.activity-bar-location-other.chat-view-location-auxiliarybar {
-			.agent-sessions-title-container {
-				padding: 0 4px 0 20px;
-			}
-
-			.agent-session-section {
-				padding: 0 12px 0 20px;
-			}
+		.agent-sessions-title-container,
+		.agent-session-section {
+			padding: 0 8px;
 		}
 	}
 
-	&.sessions-control-orientation-sidebyside {
+	/* Auxiliarybar with non-default activity bar: tighter title padding */
+	&.activity-bar-location-other.chat-view-location-auxiliarybar {
 
-		/* Default padding for all view locations */
-		&.chat-view-location-sidebar,
-		&.chat-view-location-panel,
-		&.chat-view-location-auxiliarybar {
-
-			&.chat-view-position-left {
-
-				.agent-session-section,
-				.agent-sessions-title-container {
-					padding: 0 8px 0 20px;
-				}
-			}
-
-			&.chat-view-position-right {
-
-				.agent-session-section,
-				.agent-sessions-title-container {
-					padding: 0 8px;
-				}
-			}
+		.agent-sessions-title-container {
+			padding-right: 4px;
 		}
 
-		/* Auxiliarybar with non-default activity bar position */
-		&.activity-bar-location-other.chat-view-location-auxiliarybar {
+		/* Right position needs adjusted left padding too */
+		&.sessions-control-orientation-sidebyside.chat-view-position-right {
 
-			&.chat-view-position-left {
-
-				.agent-sessions-title-container {
-					padding: 0 4px 0 20px;
-				}
-
-				.agent-session-section {
-					padding: 0 12px 0 20px;
-				}
-			}
-
-			&.chat-view-position-right {
-
-				.agent-sessions-title-container {
-					padding: 0 4px 0 8px;
-				}
-
-				.agent-session-section {
-					padding: 0 12px 0 8px;
-				}
+			.agent-sessions-title-container,
+			.agent-session-section {
+				padding-left: 8px;
 			}
 		}
 	}
