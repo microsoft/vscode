@@ -7,12 +7,12 @@ import { BrowserFeatures } from '../../canIUse.js';
 import * as DOM from '../../dom.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../common/layout.js';
 import * as platform from '../../../common/platform.js';
 import { OmitOptional } from '../../../common/types.js';
 import './contextview.css';
-import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../common/layout.js';
 
-export { AnchorAlignment, AnchorAxisAlignment, AnchorPosition };
+export { AnchorAlignment, AnchorAxisAlignment, AnchorPosition } from '../../../common/layout.js';
 
 export const enum ContextViewDOMPosition {
 	ABSOLUTE = 1,
