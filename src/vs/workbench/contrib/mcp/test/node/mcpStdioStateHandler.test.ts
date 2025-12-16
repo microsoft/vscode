@@ -46,7 +46,7 @@ suite('McpStdioStateHandler', () => {
 			process.on('SIGTERM', () => process.stdout.write('SIGTERM received'));
 		`);
 
-		await new Promise(r => child.stdin.write('Hello MCP!', () => r()));
+		await new Promise<void>(r => child.stdin.write('Hello MCP!', () => r()));
 		handler.stop();
 		const result = await output;
 		assert.strictEqual(result.trim(), 'Data received: Hello MCP!');
