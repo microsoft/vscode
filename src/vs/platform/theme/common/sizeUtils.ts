@@ -131,7 +131,7 @@ export interface ISizeRegistry {
 	getSizeSchema(): IJSONSchema;
 
 	/**
-	 * JSON schema to for a reference to a size contribution.
+	 * JSON schema for a reference to a size contribution.
 	 */
 	getSizeReferenceSchema(): IJSONSchema;
 
