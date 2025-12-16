@@ -102,10 +102,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 								checkProposedApiEnabled(extension, 'quickPickItemTooltip');
 							}
 
-							if (item.resourceUri) {
-								checkProposedApiEnabled(extension, 'quickPickItemResource');
-							}
-
 							pickItems.push({
 								label: item.label,
 								iconPathDto: IconPath.from(item.iconPath),
@@ -574,10 +570,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				} else {
 					if (item.tooltip) {
 						checkProposedApiEnabled(this._extension, 'quickPickItemTooltip');
-					}
-
-					if (item.resourceUri) {
-						checkProposedApiEnabled(this._extension, 'quickPickItemResource');
 					}
 
 					pickItems.push({
