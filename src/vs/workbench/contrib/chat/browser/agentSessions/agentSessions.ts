@@ -33,7 +33,7 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 		case AgentSessionProviders.Local:
 			return Codicon.vm;
 		case AgentSessionProviders.Background:
-			return Codicon.collection;
+			return Codicon.worktree;
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
 	}
