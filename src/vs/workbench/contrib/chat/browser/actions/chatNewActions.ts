@@ -119,7 +119,7 @@ export function registerNewChatActions() {
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatAccessibilityService = accessor.get(IChatAccessibilityService);
 			chatAccessibilityService.disposeRequest();
-			alert('Session will continue in the background');
+			alert(localize2('chat.session.continuesInBackground', "Session will continue in the background"));
 			const executeCommandContext = args[0] as INewEditSessionActionContext | undefined;
 
 			// Context from toolbar or lastFocusedWidget
