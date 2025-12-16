@@ -16,6 +16,11 @@
 			.chat-view-title-action-item {
 				flex: 1 1 auto;
 				min-width: 0;
+
+				.chat-view-title-label-container {
+					display: flex;
+					gap: 4px;
+				}
 			}
 		}
 
@@ -29,10 +34,6 @@
 			white-space: nowrap;
 			text-overflow: ellipsis;
 			min-width: 0;
-		}
-
-		.chat-view-title-icon {
-			margin-left: 4px;
 		}
 
 		.chat-view-title-actions-toolbar {

@@ -7,7 +7,6 @@ import './media/chatViewTitleControl.css';
 import { addDisposableListener, EventType, h } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -21,7 +20,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatModel } from '../common/chatModel.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProviderIcon } from './agentSessions/agentSessions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { AgentSessionsPicker } from './agentSessions/agentSessionsPicker.js';
@@ -42,7 +41,6 @@ export class ChatViewTitleControl extends Disposable {
 
 	private titleContainer: HTMLElement | undefined;
 	private titleLabel = this._register(new MutableDisposable<ChatViewTitleLabel>());
-	private titleIcon: HTMLElement | undefined;
 
 	private model: IChatModel | undefined;
 	private modelDisposables = this._register(new MutableDisposable());
@@ -112,7 +110,7 @@ export class ChatViewTitleControl extends Disposable {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === ChatViewTitleControl.PICK_AGENT_SESSION_ACTION_ID) {
 					this.titleLabel.value = new ChatViewTitleLabel(action);
-					this.titleLabel.value.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
+					this.titleLabel.value.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE, this.getIcon());
 
 					return this.titleLabel.value;
 				}
@@ -131,13 +129,6 @@ export class ChatViewTitleControl extends Disposable {
 
 		// Title controls
 		this.titleContainer = elements.root;
-		this.titleIcon = elements.icon;
-		this._register(getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.titleIcon, () => ({
-			content: this.getIconHoverContent() ?? '',
-			appearance: { compact: true }
-		})));
-
-		// Click to focus chat
 		this._register(Gesture.addTarget(this.titleContainer));
 		for (const eventType of [TouchEventType.Tap, EventType.CLICK]) {
 			this._register(addDisposableListener(this.titleContainer, eventType, () => {
@@ -165,7 +156,6 @@ export class ChatViewTitleControl extends Disposable {
 		this.title = renderAsPlaintext(markdownTitle);
 
 		this.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
-		this.updateIcon();
 
 		const context = this.model && {
 			$mid: MarshalledId.ChatViewContext,
@@ -181,16 +171,19 @@ export class ChatViewTitleControl extends Disposable {
 		}
 	}
 
-	private updateIcon(): void {
-		if (!this.titleIcon) {
+	private updateTitle(title: string): void {
+		if (!this.titleContainer) {
 			return;
 		}
 
-		const icon = this.getIcon();
-		if (icon) {
-			this.titleIcon.className = `chat-view-title-icon ${ThemeIcon.asClassName(icon)}`;
-		} else {
-			this.titleIcon.className = 'chat-view-title-icon';
+		this.titleContainer.classList.toggle('visible', this.shouldRender());
+		this.titleLabel.value?.updateTitle(title, this.getIcon());
+
+		const currentHeight = this.getHeight();
+		if (currentHeight !== this.lastKnownHeight) {
+			this.lastKnownHeight = currentHeight;
+
+			this._onDidChangeHeight.fire();
 		}
 	}
 
@@ -203,33 +196,6 @@ export class ChatViewTitleControl extends Disposable {
 		}
 
 		return undefined;
-	}
-
-	private getIconHoverContent(): string | undefined {
-		const sessionType = this.model?.contributedChatSession?.chatSessionType;
-		switch (sessionType) {
-			case AgentSessionProviders.Background:
-			case AgentSessionProviders.Cloud:
-				return localize('backgroundSession', "{0} Agent Session", getAgentSessionProviderName(sessionType));
-		}
-
-		return undefined;
-	}
-
-	private updateTitle(title: string): void {
-		if (!this.titleContainer) {
-			return;
-		}
-
-		this.titleContainer.classList.toggle('visible', this.shouldRender());
-		this.titleLabel.value?.updateTitle(title);
-
-		const currentHeight = this.getHeight();
-		if (currentHeight !== this.lastKnownHeight) {
-			this.lastKnownHeight = currentHeight;
-
-			this._onDidChangeHeight.fire();
-		}
 	}
 
 	private shouldRender(): boolean {
@@ -257,6 +223,9 @@ class ChatViewTitleLabel extends ActionViewItem {
 
 	private title: string | undefined;
 
+	private titleLabel: HTMLSpanElement | undefined = undefined;
+	private titleIcon: HTMLSpanElement | undefined = undefined;
+
 	constructor(action: IAction, options?: IActionViewItemOptions) {
 		super(null, action, { ...options, icon: false, label: true });
 	}
@@ -265,19 +234,34 @@ class ChatViewTitleLabel extends ActionViewItem {
 		super.render(container);
 
 		container.classList.add('chat-view-title-action-item');
+		this.label?.classList.add('chat-view-title-label-container');
 
-		this.label?.classList.add('chat-view-title-label');
+		this.titleIcon = this.label?.appendChild(h('span').root);
+		this.titleLabel = this.label?.appendChild(h('span.chat-view-title-label').root);
 	}
 
-	protected override updateLabel(): void {
-		if (this.options.label && this.label && typeof this.title === 'string') {
-			this.label.textContent = this.title;
-		}
-	}
-
-	updateTitle(title: string): void {
+	updateTitle(title: string, icon: ThemeIcon | undefined): void {
 		this.title = title;
 
 		this.updateLabel();
+		this.updateIcon(icon);
+	}
+
+	protected override updateLabel(): void {
+		if (this.options.label && this.titleLabel && typeof this.title === 'string') {
+			this.titleLabel.textContent = this.title;
+		}
+	}
+
+	private updateIcon(icon: ThemeIcon | undefined): void {
+		if (!this.titleIcon) {
+			return;
+		}
+
+		if (icon) {
+			this.titleIcon.className = ThemeIcon.asClassName(icon);
+		} else {
+			this.titleIcon.className = '';
+		}
 	}
 }
