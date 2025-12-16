@@ -947,6 +947,13 @@ registerEditorCommand(new SuggestCommand({
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
 		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
+	},
+	menuOpts: {
+		menuId: suggestWidgetStatusbarMenu,
+		group: 'left',
+		order: 0,
+		when: SuggestContext.HasFocusedSuggestion.toNegated(),
+		title: nls.localize('focus.suggestion', "Select")
 	}
 }));
 
