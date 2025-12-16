@@ -148,9 +148,12 @@
 	/* Right position: symmetric padding */
 	&.sessions-control-orientation-sidebyside.chat-view-position-right {
 
-		.agent-sessions-title-container,
-		.agent-session-section {
+		.agent-sessions-title-container {
 			padding: 0 8px;
+		}
+
+		.agent-session-section {
+			padding: 0 12px 0 8px;
 		}
 	}
 
