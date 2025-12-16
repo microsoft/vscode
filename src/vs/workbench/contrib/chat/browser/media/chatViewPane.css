@@ -24,9 +24,24 @@
 			min-width: 0;
 		}
 	}
+
+	&:not(.chat-view-welcome-enabled) {
+
+		.interactive-session {
+
+			/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
+			.chat-welcome-view .chat-welcome-view-icon,
+			.chat-welcome-view .chat-welcome-view-title,
+			.chat-welcome-view .chat-welcome-view-message,
+			.chat-welcome-view .chat-welcome-view-disclaimer,
+			.chat-welcome-view .chat-welcome-view-tips {
+				visibility: hidden;
+			}
+		}
+	}
 }
 
-/* Sessions control: either sidebar or compact */
+/* Sessions control: either sidebar or stacked */
 .chat-viewpane.has-sessions-control .agent-sessions-container {
 	display: flex;
 	flex-direction: column;
@@ -51,7 +66,8 @@
 	.agent-sessions-toolbar {
 
 		.action-item {
-			margin-right: 4px; /* align with the title actions*/
+			/* align with the title actions*/
+			margin-right: 4px;
 		}
 
 		&.filtered .action-label.codicon.codicon-filter {
@@ -79,10 +95,18 @@
 	}
 }
 
+/* Sessions control: stacked */
+.chat-viewpane.has-sessions-control.sessions-control-orientation-stacked {
+
+	.agent-sessions-container {
+		border-bottom: 1px solid var(--vscode-panel-border);
+	}
+}
+
 /* Sessions control: side by side */
 .chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
 
-	&.sessions-control-position-left {
+	&.chat-view-position-left {
 		flex-direction: row;
 
 		.agent-sessions-container {
@@ -90,7 +114,7 @@
 		}
 	}
 
-	&:not(.sessions-control-position-left) {
+	&.chat-view-position-right {
 		flex-direction: row-reverse;
 
 		.agent-sessions-container {
@@ -98,51 +122,52 @@
 		}
 	}
 
-	&:not(.activity-bar-location-default) .agent-sessions-title-container {
-		padding: 0 4px 0 8px; /* align with container title and actions */
-	}
-
-	&.activity-bar-location-default .agent-sessions-title-container {
-		padding: 0 8px; /* align with container title and actions */
-	}
-
 	.agent-sessions-link-container {
-		display: none; /* hide link to show more when side by side */
+		/* hide link to show more when side by side */
+		display: none;
 	}
 }
 
-/* Sessions control: compact */
-.chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
+/*
+ * Padding rules for agent sessions elements based on:
+ * - orientation (stacked vs sidebyside)
+ * - view position (left vs right)
+ * - activity bar location (default vs other for auxiliarybar)
+ */
+.chat-viewpane.has-sessions-control {
 
-	&:not(.activity-bar-location-default) .agent-sessions-title-container {
-		padding: 0 4px 0 20px; /* align with container title and actions */
+	/* Base padding: left-aligned content */
+	.agent-sessions-title-container {
+		padding: 0 8px 0 20px;
 	}
 
-	&.activity-bar-location-default .agent-sessions-title-container {
-		padding: 0 8px 0 20px; /* align with container title and actions */
+	.agent-session-section {
+		padding: 0 12px 0 20px;
 	}
 
-	.agent-sessions-container {
-		border-bottom: 1px solid var(--vscode-panel-border);
+	/* Right position: symmetric padding */
+	&.sessions-control-orientation-sidebyside.chat-view-position-right {
 
+		.agent-sessions-title-container,
 		.agent-session-section {
-			padding: 0 8px 0 18px; /* align with container title */
+			padding: 0 8px;
 		}
 	}
-}
 
-/* Welcome disabled */
-.chat-viewpane:not(.chat-view-welcome-enabled) {
+	/* Auxiliarybar with non-default activity bar: tighter title padding */
+	&.activity-bar-location-other.chat-view-location-auxiliarybar {
 
-	.interactive-session {
+		.agent-sessions-title-container {
+			padding-right: 4px;
+		}
 
-		/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
-		.chat-welcome-view .chat-welcome-view-icon,
-		.chat-welcome-view .chat-welcome-view-title,
-		.chat-welcome-view .chat-welcome-view-message,
-		.chat-welcome-view .chat-welcome-view-disclaimer,
-		.chat-welcome-view .chat-welcome-view-tips {
-			visibility: hidden;
+		/* Right position needs adjusted left padding too */
+		&.sessions-control-orientation-sidebyside.chat-view-position-right {
+
+			.agent-sessions-title-container,
+			.agent-session-section {
+				padding-left: 8px;
+			}
 		}
 	}
 }

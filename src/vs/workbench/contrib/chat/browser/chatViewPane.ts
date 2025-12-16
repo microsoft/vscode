@@ -131,6 +131,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private updateContextKeys(fromEvent: boolean): void {
+		const { position, location } = this.getViewPositionAndLocation();
+
+		this.sessionsViewerLimitedContext.set(this.sessionsViewerLimited);
+		this.chatViewLocationContext.set(location ?? ViewContainerLocation.AuxiliaryBar);
+		this.sessionsViewerOrientationContext.set(this.sessionsViewerOrientation);
+		this.sessionsViewerPositionContext.set(position === Position.RIGHT ? AgentSessionsViewerPosition.Right : AgentSessionsViewerPosition.Left);
+
+		if (fromEvent && this.lastDimensions) {
+			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+		}
+	}
+
+	private getViewPositionAndLocation(): { position: Position; location: ViewContainerLocation } {
 		const viewLocation = this.viewDescriptorService.getViewLocationById(this.id);
 		const sideBarPosition = this.layoutService.getSideBarPosition();
 		const panelPosition = this.layoutService.getPanelPosition();
@@ -148,16 +161,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				break;
 		}
 
-		this.sessionsViewerPosition = sideSessionsOnRightPosition ? AgentSessionsViewerPosition.Right : AgentSessionsViewerPosition.Left;
-
-		this.sessionsViewerLimitedContext.set(this.sessionsViewerLimited);
-		this.chatViewLocationContext.set(viewLocation ?? ViewContainerLocation.AuxiliaryBar);
-		this.sessionsViewerOrientationContext.set(this.sessionsViewerOrientation);
-		this.sessionsViewerPositionContext.set(this.sessionsViewerPosition);
-
-		if (fromEvent && this.lastDimensions) {
-			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-		}
+		return {
+			position: sideSessionsOnRightPosition ? Position.RIGHT : Position.LEFT,
+			location: viewLocation ?? ViewContainerLocation.AuxiliaryBar
+		};
 	}
 
 	private updateViewPaneClasses(fromEvent: boolean): void {
@@ -166,6 +173,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const activityBarLocationDefault = this.configurationService.getValue<string>(LayoutSettings.ACTIVITY_BAR_LOCATION) === 'default';
 		this.viewPaneContainer?.classList.toggle('activity-bar-location-default', activityBarLocationDefault);
+		this.viewPaneContainer?.classList.toggle('activity-bar-location-other', !activityBarLocationDefault);
+
+		const { position, location } = this.getViewPositionAndLocation();
+
+		this.viewPaneContainer?.classList.toggle('chat-view-location-auxiliarybar', location === ViewContainerLocation.AuxiliaryBar);
+		this.viewPaneContainer?.classList.toggle('chat-view-location-sidebar', location === ViewContainerLocation.Sidebar);
+		this.viewPaneContainer?.classList.toggle('chat-view-location-panel', location === ViewContainerLocation.Panel);
+
+		this.viewPaneContainer?.classList.toggle('chat-view-position-left', position === Position.LEFT);
+		this.viewPaneContainer?.classList.toggle('chat-view-position-right', position === Position.RIGHT);
 
 		if (fromEvent && this.lastDimensions) {
 			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
@@ -178,9 +195,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.onDidChangeAgents()));
 
 		// Layout changes
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sideBar.location'))(() => this.updateContextKeys(true)));
-		this._register(this.layoutService.onDidChangePanelPosition(() => this.updateContextKeys(true)));
-		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))(() => this.updateContextKeys(true)));
+		this._register(Event.any(
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sideBar.location')),
+			this.layoutService.onDidChangePanelPosition,
+			Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))
+		)(() => {
+			this.updateContextKeys(false);
+			this.updateViewPaneClasses(true /* layout here */);
+		}));
 
 		// Settings changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
@@ -288,7 +310,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsViewerOrientationContext: IContextKey<AgentSessionsViewerOrientation>;
 	private sessionsViewerLimitedContext: IContextKey<boolean>;
 	private sessionsViewerVisibilityContext: IContextKey<boolean>;
-	private sessionsViewerPosition = AgentSessionsViewerPosition.Right;
 	private sessionsViewerPositionContext: IContextKey<AgentSessionsViewerPosition>;
 
 	private createSessionsControl(parent: HTMLElement): AgentSessionsControl {
@@ -346,7 +367,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-			getHoverPosition: () => this.sessionsViewerPosition === AgentSessionsViewerPosition.Right ? HoverPosition.LEFT : HoverPosition.RIGHT,
+			getHoverPosition: () => {
+				const { position } = this.getViewPositionAndLocation();
+				return position === Position.RIGHT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+			},
 			overrideCompare(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined {
 
 				// When limited where only few sessions show, sort unread sessions to the top
@@ -816,12 +840,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsViewerOrientation = newSessionsViewerOrientation;
 
 		if (newSessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			this.viewPaneContainer.classList.add('sessions-control-orientation-sidebyside');
-			this.viewPaneContainer.classList.toggle('sessions-control-position-left', this.sessionsViewerPosition === AgentSessionsViewerPosition.Left);
+			this.viewPaneContainer.classList.toggle('sessions-control-orientation-sidebyside', true);
+			this.viewPaneContainer.classList.toggle('sessions-control-orientation-stacked', false);
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.SideBySide);
 		} else {
-			this.viewPaneContainer.classList.remove('sessions-control-orientation-sidebyside');
-			this.viewPaneContainer.classList.remove('sessions-control-position-left');
+			this.viewPaneContainer.classList.toggle('sessions-control-orientation-sidebyside', false);
+			this.viewPaneContainer.classList.toggle('sessions-control-orientation-stacked', true);
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.Stacked);
 		}
 
