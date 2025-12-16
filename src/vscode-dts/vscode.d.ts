@@ -2001,6 +2001,13 @@ declare module 'vscode' {
 		placeHolder?: string;
 
 		/**
+		 * Optional text that provides instructions or context to the user.
+		 *
+		 * The prompt is displayed below the input box and above the list of items.
+		 */
+		prompt?: string;
+
+		/**
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
 		 * This setting is ignored on iPad and is always `false`.
 		 */
@@ -13123,6 +13130,13 @@ declare module 'vscode' {
 		 * Optional placeholder text displayed in the filter text box when no value has been entered.
 		 */
 		placeholder: string | undefined;
+
+		/**
+		 * Optional text that provides instructions or context to the user.
+		 *
+		 * The prompt is displayed below the input box and above the list of items.
+		 */
+		prompt: string | undefined;
 
 		/**
 		 * An event signaling when the value of the filter text has changed.
