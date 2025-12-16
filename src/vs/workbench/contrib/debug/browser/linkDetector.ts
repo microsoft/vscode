@@ -316,6 +316,9 @@ export class LinkDetector implements ILinkDetector {
 	}
 
 	private decorateLink(link: HTMLElement, uri: URI | undefined, fulltext: string | undefined, hoverBehavior: DebugLinkHoverBehaviorTypeData, onClick: (preserveFocus: boolean) => void) {
+		if (hoverBehavior.store.isDisposed) {
+			return
+		}
 		link.classList.add('link');
 		const followLink = uri && this.tunnelService.canTunnel(uri) ? localize('followForwardedLink', "follow link using forwarded port") : localize('followLink', "follow link");
 		const title = link.ariaLabel = fulltext
