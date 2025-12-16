@@ -51,7 +51,8 @@
 	.agent-sessions-toolbar {
 
 		.action-item {
-			margin-right: 4px; /* align with the title actions*/
+			/* align with the title actions*/
+			margin-right: 4px;
 		}
 
 		&.filtered .action-label.codicon.codicon-filter {
