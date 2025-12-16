@@ -817,6 +817,6 @@ export function detectsCommandFinishedHelpPattern(output: string): boolean {
 		// Dev server help prompts like "press h + enter to show help" or "press h to show help"
 		/press\s+h\s*(?:\+\s*enter|\+\s*return)?\s+to\s+show\s+help/i,
 		// Similar patterns: "press r to restart", "press u to update", etc. - common in dev servers
-		/press\s+[a-z]\s*(?:\+\s*enter|\+\s*return)?\s+to\s+(?:restart|update|clear|quit|exit)/i,
+		/press\s+[a-zA-Z]\s*(?:\+\s*enter|\+\s*return)?\s+to\s+(?:restart|update|clear|quit|exit)/i,
 	].some(e => e.test(output));
 }
