@@ -266,7 +266,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		};
 	}
 
-	private async collectVariables (modeTools: UserSelectedTools | undefined, token: CancellationToken): Promise<ChatRequestVariableSet> {
+	private async collectVariables(modeTools: UserSelectedTools | undefined, token: CancellationToken): Promise<ChatRequestVariableSet> {
 		let enabledTools: IToolAndToolSetEnablementMap | undefined;
 
 		if (modeTools) {
@@ -276,8 +276,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			const tools = enabledToolIds.map(id => this.languageModelToolsService.getTool(id)).filter(tool => !!tool);
 
 			const fullReferenceNames = tools.map(tool => this.languageModelToolsService.getFullReferenceName(tool));
-			if (fullReferenceNames.length > 0)
-			{
+			if (fullReferenceNames.length > 0) {
 				enabledTools = this.languageModelToolsService.toToolAndToolSetEnablementMap(fullReferenceNames, undefined);
 			}
 		}
