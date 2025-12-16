@@ -487,7 +487,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			}
 		}
 
-		ruleCollector.addRule(`.monaco-workbench { ${colorVariables.join('\n')} ${sizeVariables.join('\n')} }`);
+		ruleCollector.addRule(`.monaco-workbench { ${(colorVariables.concat(sizeVariables)).join('\n')} }`);
 
 		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
 	}
