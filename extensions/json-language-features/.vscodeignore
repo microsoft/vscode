@@ -10,10 +10,10 @@ server/tsconfig.json
 server/test/**
 server/bin/**
 server/build/**
-server/yarn.lock
+server/package-lock.json
 server/.npmignore
 server/README.md
-yarn.lock
+package-lock.json
 CONTRIBUTING.md
 server/extension.webpack.config.js
 extension.webpack.config.js

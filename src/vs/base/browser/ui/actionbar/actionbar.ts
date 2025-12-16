@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as types from 'vs/base/common/types';
-import 'vs/css!./actionbar';
+import * as DOM from '../../dom.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from './actionViewItems.js';
+import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from '../../../common/actions.js';
+import { Emitter } from '../../../common/event.js';
+import { KeyCode, KeyMod } from '../../../common/keyCodes.js';
+import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
+import * as types from '../../../common/types.js';
+import './actionbar.css';
 
 export interface IActionViewItem extends IDisposable {
 	action: IAction;
@@ -95,17 +95,17 @@ export class ActionBar extends Disposable implements IActionRunner {
 	protected readonly actionsList: HTMLElement;
 
 	private readonly _onDidBlur = this._register(new Emitter<void>());
-	readonly onDidBlur = this._onDidBlur.event;
+	get onDidBlur() { return this._onDidBlur.event; }
 
 	private readonly _onDidCancel = this._register(new Emitter<void>({ onWillAddFirstListener: () => this.cancelHasListener = true }));
-	readonly onDidCancel = this._onDidCancel.event;
+	get onDidCancel() { return this._onDidCancel.event; }
 	private cancelHasListener = false;
 
 	private readonly _onDidRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidRun = this._onDidRun.event;
+	get onDidRun() { return this._onDidRun.event; }
 
 	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
-	readonly onWillRun = this._onWillRun.event;
+	get onWillRun() { return this._onWillRun.event; }
 
 	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
 		super();
@@ -378,11 +378,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
 
-			if (this.focusable && item instanceof BaseActionViewItem && this.viewItems.length === 0) {
-				// We need to allow for the first enabled item to be focused on using tab navigation #106441
-				item.setFocusable(true);
-			}
-
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);
 				this.viewItems.push(item);
@@ -392,6 +387,35 @@ export class ActionBar extends Disposable implements IActionRunner {
 				index++;
 			}
 		});
+
+		// We need to allow for the first enabled item to be focused on using tab navigation #106441
+		if (this.focusable) {
+			let didFocus = false;
+			for (const item of this.viewItems) {
+				if (!(item instanceof BaseActionViewItem)) {
+					continue;
+				}
+
+				let focus: boolean;
+				if (didFocus) {
+					focus = false; // already focused an item
+				} else if (item.action.id === Separator.ID) {
+					focus = false; // never focus a separator
+				} else if (!item.isEnabled() && this.options.focusOnlyEnabledItems) {
+					focus = false; // never focus a disabled item
+				} else {
+					focus = true;
+				}
+
+				if (focus) {
+					item.setFocusable(true);
+					didFocus = true;
+				} else {
+					item.setFocusable(false);
+				}
+			}
+		}
+
 		if (typeof this.focusedItem === 'number') {
 			// After a clear actions might be re-added to simply toggle some actions. We should preserve focus #97128
 			this.focus(this.focusedItem);

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriDto } from 'vs/base/common/uri';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Categories } from './actionCommonCategories';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
+import { URI, UriDto } from '../../../base/common/uri.js';
+import { ContextKeyExpression } from '../../contextkey/common/contextkey.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { Categories } from './actionCommonCategories.js';
+import { ICommandMetadata } from '../../commands/common/commands.js';
 
 export interface ILocalizedString {
 
@@ -22,11 +22,11 @@ export interface ILocalizedString {
 	original: string;
 }
 
-export function isLocalizedString(thing: any): thing is ILocalizedString {
-	return thing
+export function isLocalizedString(thing: unknown): thing is ILocalizedString {
+	return !!thing
 		&& typeof thing === 'object'
-		&& typeof thing.original === 'string'
-		&& typeof thing.value === 'string';
+		&& typeof (thing as ILocalizedString).original === 'string'
+		&& typeof (thing as ILocalizedString).value === 'string';
 }
 
 export interface ICommandActionTitle extends ILocalizedString {

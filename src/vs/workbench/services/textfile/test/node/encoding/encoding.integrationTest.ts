@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as terminalEncoding from 'vs/base/node/terminalEncoding';
-import * as encoding from 'vs/workbench/services/textfile/common/encoding';
+import * as terminalEncoding from '../../../../../../base/node/terminalEncoding.js';
+import * as encoding from '../../../common/encoding.js';
 
 suite('Encoding', function () {
 

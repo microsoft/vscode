@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Extensions as ThemeingExtensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ansiColorIdentifiers, registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Extensions as ThemeingExtensions, IColorRegistry, ColorIdentifier } from '../../../../../platform/theme/common/colorRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ansiColorIdentifiers, registerColors } from '../../common/terminalColorRegistry.js';
+import { IColorTheme } from '../../../../../platform/theme/common/themeService.js';
+import { Color } from '../../../../../base/common/color.js';
+import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 registerColors();
 

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument } from 'vs/base/common/errors';
-import { escapeIcons } from 'vs/base/common/iconLabels';
-import { isEqual } from 'vs/base/common/resources';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { illegalArgument } from './errors.js';
+import { escapeIcons } from './iconLabels.js';
+import { Schemas } from './network.js';
+import { isEqual } from './resources.js';
+import { escapeRegExpCharacters } from './strings.js';
+import { URI, UriComponents } from './uri.js';
 
 export interface MarkdownStringTrustedOptions {
 	readonly enabledCommands: readonly string[];
@@ -18,6 +19,8 @@ export interface IMarkdownString {
 	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 	readonly supportThemeIcons?: boolean;
 	readonly supportHtml?: boolean;
+	/** @internal */
+	readonly supportAlertSyntax?: boolean;
 	readonly baseUri?: UriComponents;
 	uris?: { [href: string]: UriComponents };
 }
@@ -33,11 +36,20 @@ export class MarkdownString implements IMarkdownString {
 	public isTrusted?: boolean | MarkdownStringTrustedOptions;
 	public supportThemeIcons?: boolean;
 	public supportHtml?: boolean;
+	public supportAlertSyntax?: boolean;
 	public baseUri?: URI;
+	public uris?: { [href: string]: UriComponents } | undefined;
+
+	public static lift(dto: IMarkdownString): MarkdownString {
+		const markdownString = new MarkdownString(dto.value, dto);
+		markdownString.uris = dto.uris;
+		markdownString.baseUri = dto.baseUri ? URI.revive(dto.baseUri) : undefined;
+		return markdownString;
+	}
 
 	constructor(
 		value: string = '',
-		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean } = false,
+		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean; supportAlertSyntax?: boolean } = false,
 	) {
 		this.value = value;
 		if (typeof this.value !== 'string') {
@@ -48,11 +60,13 @@ export class MarkdownString implements IMarkdownString {
 			this.isTrusted = isTrustedOrOptions;
 			this.supportThemeIcons = false;
 			this.supportHtml = false;
+			this.supportAlertSyntax = false;
 		}
 		else {
 			this.isTrusted = isTrustedOrOptions.isTrusted ?? undefined;
 			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
 			this.supportHtml = isTrustedOrOptions.supportHtml ?? false;
+			this.supportAlertSyntax = isTrustedOrOptions.supportAlertSyntax ?? false;
 		}
 	}
 
@@ -109,13 +123,14 @@ export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownStri
 	}
 }
 
-export function isMarkdownString(thing: any): thing is IMarkdownString {
+export function isMarkdownString(thing: unknown): thing is IMarkdownString {
 	if (thing instanceof MarkdownString) {
 		return true;
 	} else if (thing && typeof thing === 'object') {
 		return typeof (<IMarkdownString>thing).value === 'string'
 			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || typeof (<IMarkdownString>thing).isTrusted === 'object' || (<IMarkdownString>thing).isTrusted === undefined)
-			&& (typeof (<IMarkdownString>thing).supportThemeIcons === 'boolean' || (<IMarkdownString>thing).supportThemeIcons === undefined);
+			&& (typeof (<IMarkdownString>thing).supportThemeIcons === 'boolean' || (<IMarkdownString>thing).supportThemeIcons === undefined)
+			&& (typeof (<IMarkdownString>thing).supportAlertSyntax === 'boolean' || (<IMarkdownString>thing).supportAlertSyntax === undefined);
 	}
 	return false;
 }
@@ -130,6 +145,7 @@ export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boo
 			&& a.isTrusted === b.isTrusted
 			&& a.supportThemeIcons === b.supportThemeIcons
 			&& a.supportHtml === b.supportHtml
+			&& a.supportAlertSyntax === b.supportAlertSyntax
 			&& (a.baseUri === b.baseUri || !!a.baseUri && !!b.baseUri && isEqual(URI.from(a.baseUri), URI.from(b.baseUri)));
 	}
 }
@@ -188,4 +204,21 @@ export function parseHrefAndDimensions(href: string): { href: string; dimensions
 		}
 	}
 	return { href, dimensions };
+}
+
+export function createMarkdownLink(text: string, href: string, title?: string, escapeTokens = true): string {
+	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(text) : text}](${href}${title ? ` "${escapeMarkdownSyntaxTokens(title)}"` : ''})`;
+}
+
+export function createMarkdownCommandLink(command: { title: string; id: string; arguments?: unknown[]; tooltip?: string }, escapeTokens = true): string {
+	const uri = createCommandUri(command.id, ...(command.arguments || [])).toString();
+	return createMarkdownLink(command.title, uri, command.tooltip, escapeTokens);
+}
+
+export function createCommandUri(commandId: string, ...commandArgs: unknown[]): URI {
+	return URI.from({
+		scheme: Schemas.command,
+		path: commandId,
+		query: commandArgs.length ? encodeURIComponent(JSON.stringify(commandArgs)) : undefined,
+	});
 }

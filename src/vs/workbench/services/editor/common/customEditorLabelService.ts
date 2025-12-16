@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { ParsedPattern, parse as parseGlob } from 'vs/base/common/glob';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isAbsolute, parse as parsePath, ParsedPath, dirname } from 'vs/base/common/path';
-import { dirname as resourceDirname, relativePath as getRelativePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { MRUCache } from 'vs/base/common/map';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { ParsedPattern, parse as parseGlob } from '../../../../base/common/glob.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isAbsolute, parse as parsePath, ParsedPath, dirname } from '../../../../base/common/path.js';
+import { dirname as resourceDirname, relativePath as getRelativePath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { MRUCache } from '../../../../base/common/map.js';
 
 interface ICustomEditorLabelObject {
 	readonly [key: string]: string;
@@ -78,7 +78,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		this.enabled = this.configurationService.getValue<boolean>(CustomEditorLabelService.SETTING_ID_ENABLED);
 	}
 
-	private _templateRegexValidation: RegExp = /[a-zA-Z0-9]/;
+	private _templateRegexValidation = /[a-zA-Z0-9]/;
 	private storeCustomPatterns(): void {
 		this.patterns = [];
 		const customLabelPatterns = this.configurationService.getValue<ICustomEditorLabelObject>(CustomEditorLabelService.SETTING_ID_PATTERNS);
@@ -90,7 +90,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 			}
 
 			const isAbsolutePath = isAbsolute(pattern);
-			const parsedPattern = parseGlob(pattern);
+			const parsedPattern = parseGlob(pattern, { ignoreCase: true });
 
 			this.patterns.push({ pattern, template, isAbsolutePath, parsedPattern });
 		}
@@ -159,10 +159,10 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	private readonly _filenameCaptureExpression = /(?<filename>^\.*[^.]*)/;
 	private applyTemplate(template: string, resource: URI, relevantPath: string): string {
 		let parsedPath: undefined | ParsedPath;
-		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, ...args: any[]) => {
+		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, ...args: unknown[]) => {
 			parsedPath = parsedPath ?? parsePath(resource.path);
 			// named group matches
-			const { dirnameN = '0', extnameN = '0' }: { dirnameN?: string; extnameN?: string } = args.pop();
+			const { dirnameN = '0', extnameN = '0' } = args.pop() as { dirnameN?: string; extnameN?: string };
 
 			if (variable === 'filename') {
 				const { filename } = this._filenameCaptureExpression.exec(parsedPath.base)?.groups ?? {};

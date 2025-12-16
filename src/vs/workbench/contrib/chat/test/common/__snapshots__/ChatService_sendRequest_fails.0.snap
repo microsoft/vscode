@@ -1,12 +1,10 @@
 {
-  requesterUsername: "test",
-  requesterAvatarIconUri: undefined,
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
-  welcomeMessage: undefined,
   requests: [
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -27,12 +25,15 @@
                 value: "nullExtensionDescription",
                 _lower: "nullextensiondescription"
               },
+              extensionVersion: undefined,
               extensionPublisherId: "",
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: {  },
-              slashCommands: [  ]
+              slashCommands: [  ],
+              disambiguation: [  ]
             },
             kind: "agent"
           },
@@ -55,10 +56,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
-      result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
-      followups: undefined,
-      isCanceled: false,
-      vote: undefined,
+      shouldBeRemovedOnSend: undefined,
       agent: {
         name: "ChatProviderWithUsedContext",
         id: "ChatProviderWithUsedContext",
@@ -66,17 +64,35 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: {  },
-        slashCommands: [  ]
+        slashCommands: [  ],
+        disambiguation: [  ]
       },
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined,
+      responseId: undefined,
+      result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
+      responseMarkdownInfo: undefined,
+      followups: undefined,
+      modelState: {
+        value: 3,
+        completedAt: undefined
+      },
+      vote: undefined,
+      voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timeSpentWaiting: 0
     }
   ]
 }

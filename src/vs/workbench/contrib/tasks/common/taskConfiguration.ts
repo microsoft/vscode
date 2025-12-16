@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
-import * as Objects from 'vs/base/common/objects';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Platform } from 'vs/base/common/platform';
-import * as Types from 'vs/base/common/types';
-import * as UUID from 'vs/base/common/uuid';
+import * as Objects from '../../../../base/common/objects.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
+import { Platform } from '../../../../base/common/platform.js';
+import * as Types from '../../../../base/common/types.js';
+import * as UUID from '../../../../base/common/uuid.js';
 
-import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/base/common/parsers';
+import { ValidationStatus, IProblemReporter as IProblemReporterBase } from '../../../../base/common/parsers.js';
 import {
 	INamedProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
 	isNamedProblemMatcher, ProblemMatcherRegistry, ProblemMatcher
-} from 'vs/workbench/contrib/tasks/common/problemMatcher';
+} from './problemMatcher.js';
 
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import * as Tasks from './tasks';
-import { ITaskDefinitionRegistry, TaskDefinitionRegistry } from './taskDefinitionRegistry';
-import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { URI } from 'vs/base/common/uri';
-import { ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkspaceFolder, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import * as Tasks from './tasks.js';
+import { ITaskDefinitionRegistry, TaskDefinitionRegistry } from './taskDefinitionRegistry.js';
+import { ConfiguredInput } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from './taskService.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const enum ShellQuoting {
 	/**
@@ -136,12 +136,18 @@ export interface IPresentationOptionsConfig {
 	 * Note that if the terminal process exits with a non-zero exit code, it will not close.
 	 */
 	close?: boolean;
+
+	/**
+	 * Controls whether to preserve the task name in the terminal after task completion.
+	 */
+	preserveTerminalName?: boolean;
 }
 
 export interface IRunOptionsConfig {
 	reevaluateOnRerun?: boolean;
 	runOn?: string;
 	instanceLimit?: number;
+	instancePolicy?: Tasks.InstancePolicy;
 }
 
 export interface ITaskIdentifier {
@@ -224,7 +230,7 @@ export interface ILegacyCommandProperties {
 	isShellCommand?: boolean | IShellConfiguration;
 }
 
-export type CommandString = string | string[] | { value: string | string[]; quoting: 'escape' | 'strong' | 'weak' };
+export type CommandString = Types.SingleOrMany<string> | { value: Types.SingleOrMany<string>; quoting: 'escape' | 'strong' | 'weak' };
 
 export namespace CommandString {
 	export function value(value: CommandString): string {
@@ -708,12 +714,13 @@ export namespace RunOnOptions {
 }
 
 export namespace RunOptions {
-	const properties: IMetaData<Tasks.IRunOptions, void>[] = [{ property: 'reevaluateOnRerun' }, { property: 'runOn' }, { property: 'instanceLimit' }];
+	const properties: IMetaData<Tasks.IRunOptions, void>[] = [{ property: 'reevaluateOnRerun' }, { property: 'runOn' }, { property: 'instanceLimit' }, { property: 'instancePolicy' }];
 	export function fromConfiguration(value: IRunOptionsConfig | undefined): Tasks.IRunOptions {
 		return {
 			reevaluateOnRerun: value ? value.reevaluateOnRerun : true,
 			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default,
-			instanceLimit: value ? value.instanceLimit : 1
+			instanceLimit: value?.instanceLimit ? Math.max(value.instanceLimit, 1) : 1,
+			instancePolicy: value ? InstancePolicy.fromString(value.instancePolicy) : Tasks.InstancePolicy.prompt
 		};
 	}
 
@@ -723,6 +730,27 @@ export namespace RunOptions {
 
 	export function fillProperties(target: Tasks.IRunOptions, source: Tasks.IRunOptions | undefined): Tasks.IRunOptions {
 		return _fillProperties(target, source, properties)!;
+	}
+}
+
+export namespace InstancePolicy {
+	export function fromString(value: string | undefined): Tasks.InstancePolicy {
+		if (!value) {
+			return Tasks.InstancePolicy.prompt;
+		}
+		switch (value.toLowerCase()) {
+			case 'terminatenewest':
+				return Tasks.InstancePolicy.terminateNewest;
+			case 'terminateoldest':
+				return Tasks.InstancePolicy.terminateOldest;
+			case 'warn':
+				return Tasks.InstancePolicy.warn;
+			case 'silent':
+				return Tasks.InstancePolicy.silent;
+			case 'prompt':
+			default:
+				return Tasks.InstancePolicy.prompt;
+		}
 	}
 }
 
@@ -856,7 +884,7 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: IMetaData<Tasks.IPresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblems' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }, { property: 'close' }];
+		const properties: IMetaData<Tasks.IPresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblems' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }, { property: 'close' }, { property: 'preserveTerminalName' }];
 
 		interface IPresentationOptionsShape extends ILegacyCommandProperties {
 			presentation?: IPresentationOptionsConfig;
@@ -872,6 +900,7 @@ namespace CommandConfiguration {
 			let clear: boolean;
 			let group: string | undefined;
 			let close: boolean | undefined;
+			let preserveTerminalName: boolean | undefined;
 			let hasProps = false;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
@@ -910,12 +939,15 @@ namespace CommandConfiguration {
 				if (Types.isBoolean(presentation.close)) {
 					close = presentation.close;
 				}
+				if (Types.isBoolean(presentation.preserveTerminalName)) {
+					preserveTerminalName = presentation.preserveTerminalName;
+				}
 				hasProps = true;
 			}
 			if (!hasProps) {
 				return undefined;
 			}
-			return { echo: echo!, reveal: reveal!, revealProblems: revealProblems!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group, close: close };
+			return { echo: echo!, reveal: reveal!, revealProblems: revealProblems!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group, close: close, preserveTerminalName };
 		}
 
 		export function assignProperties(target: Tasks.IPresentationOptions, source: Tasks.IPresentationOptions | undefined): Tasks.IPresentationOptions | undefined {
@@ -928,7 +960,7 @@ namespace CommandConfiguration {
 
 		export function fillDefaults(value: Tasks.IPresentationOptions, context: IParseContext): Tasks.IPresentationOptions | undefined {
 			const defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false, preserveTerminalName: false }, properties, context);
 		}
 
 		export function freeze(value: Tasks.IPresentationOptions): Readonly<Tasks.IPresentationOptions> | undefined {
@@ -1685,6 +1717,7 @@ export namespace TaskParser {
 
 	function isCustomTask(value: ICustomTask | IConfiguringTask): value is ICustomTask {
 		const type = value.type;
+		// eslint-disable-next-line local/code-no-any-casts
 		const customize = (value as any).customize;
 		return customize === undefined && (type === undefined || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
 	}
@@ -1957,8 +1990,8 @@ export interface IProblemReporter extends IProblemReporterBase {
 
 export class UUIDMap {
 
-	private last: IStringDictionary<string | string[]> | undefined;
-	private current: IStringDictionary<string | string[]>;
+	private last: IStringDictionary<Types.SingleOrMany<string>> | undefined;
+	private current: IStringDictionary<Types.SingleOrMany<string>>;
 
 	constructor(other?: UUIDMap) {
 		this.current = Object.create(null);

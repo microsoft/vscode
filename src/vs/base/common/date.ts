@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize } from '../../nls.js';
+import { Lazy } from './lazy.js';
+import { LANGUAGE_DEFAULT } from './platform.js';
 
 const minute = 60;
 const hour = minute * 60;
@@ -199,6 +201,27 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 }
 
+export function fromNowByDay(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean): string {
+	if (typeof date !== 'number') {
+		date = date.getTime();
+	}
+
+	const todayMidnightTime = new Date();
+	todayMidnightTime.setHours(0, 0, 0, 0);
+	const yesterdayMidnightTime = new Date(todayMidnightTime.getTime());
+	yesterdayMidnightTime.setDate(yesterdayMidnightTime.getDate() - 1);
+
+	if (date > todayMidnightTime.getTime()) {
+		return localize('today', 'Today');
+	}
+
+	if (date > yesterdayMidnightTime.getTime()) {
+		return localize('yesterday', 'Yesterday');
+	}
+
+	return fromNow(date, appendAgoLabel, useFullTimeWords);
+}
+
 /**
  * Gets a readable duration with intelligent/lossy precision. For example "40ms" or "3.040s")
  * @param ms The duration to get in milliseconds.
@@ -240,3 +263,51 @@ export function toLocalISOString(date: Date): string {
 		'.' + (date.getMilliseconds() / 1000).toFixed(3).slice(2, 5) +
 		'Z';
 }
+
+export const safeIntl = {
+	DateTimeFormat(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): Lazy<Intl.DateTimeFormat> {
+		return new Lazy(() => {
+			try {
+				return new Intl.DateTimeFormat(locales, options);
+			} catch {
+				return new Intl.DateTimeFormat(undefined, options);
+			}
+		});
+	},
+	Collator(locales?: Intl.LocalesArgument, options?: Intl.CollatorOptions): Lazy<Intl.Collator> {
+		return new Lazy(() => {
+			try {
+				return new Intl.Collator(locales, options);
+			} catch {
+				return new Intl.Collator(undefined, options);
+			}
+		});
+	},
+	Segmenter(locales?: Intl.LocalesArgument, options?: Intl.SegmenterOptions): Lazy<Intl.Segmenter> {
+		return new Lazy(() => {
+			try {
+				return new Intl.Segmenter(locales, options);
+			} catch {
+				return new Intl.Segmenter(undefined, options);
+			}
+		});
+	},
+	Locale(tag: Intl.Locale | string, options?: Intl.LocaleOptions): Lazy<Intl.Locale> {
+		return new Lazy(() => {
+			try {
+				return new Intl.Locale(tag, options);
+			} catch {
+				return new Intl.Locale(LANGUAGE_DEFAULT, options);
+			}
+		});
+	},
+	NumberFormat(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): Lazy<Intl.NumberFormat> {
+		return new Lazy(() => {
+			try {
+				return new Intl.NumberFormat(locales, options);
+			} catch {
+				return new Intl.NumberFormat(undefined, options);
+			}
+		});
+	}
+};

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { FoldingController, RangesLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
-import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
-import { IndentRangeProvider } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { StickyElement, StickyModel, StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
-import { Iterable } from 'vs/base/common/iterator';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { OutlineElement, OutlineGroup, OutlineModel } from '../../documentSymbols/browser/outlineModel.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancelablePromise, createCancelablePromise, Delayer } from '../../../../base/common/async.js';
+import { FoldingController, RangesLimitReporter } from '../../folding/browser/folding.js';
+import { SyntaxRangeProvider } from '../../folding/browser/syntaxRangeProvider.js';
+import { IndentRangeProvider } from '../../folding/browser/indentRangeProvider.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { FoldingRegions } from '../../folding/browser/foldingRanges.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { StickyElement, StickyModel, StickyRange } from './stickyScrollElement.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 
 enum ModelProvider {
 	OUTLINE_MODEL = 'outlineModel',
@@ -239,7 +239,7 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 			} else {
 				let tempID = '';
 				let maxTotalSumOfRanges = -1;
-				let optimalOutlineGroup = undefined;
+				let optimalOutlineGroup: OutlineGroup | OutlineElement | undefined = undefined;
 				for (const [_key, outlineGroup] of outlineModel.children.entries()) {
 					const totalSumRanges = this._findSumOfRangesOfGroup(outlineGroup);
 					if (totalSumRanges > maxTotalSumOfRanges) {
@@ -316,7 +316,7 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 
 	constructor(editor: IActiveCodeEditor) {
 		super(editor);
-		this._foldingLimitReporter = new RangesLimitReporter(editor);
+		this._foldingLimitReporter = this._register(new RangesLimitReporter(editor));
 	}
 
 	protected createStickyModel(token: CancellationToken, model: FoldingRegions): StickyModel {
@@ -385,17 +385,26 @@ class StickyModelFromCandidateIndentationFoldingProvider extends StickyModelFrom
 
 class StickyModelFromCandidateSyntaxFoldingProvider extends StickyModelFromCandidateFoldingProvider {
 
-	private readonly provider: SyntaxRangeProvider | undefined;
+	private readonly provider: MutableDisposable<SyntaxRangeProvider> = this._register(new MutableDisposable<SyntaxRangeProvider>());
 
-	constructor(editor: IActiveCodeEditor,
+	constructor(
+		editor: IActiveCodeEditor,
 		onProviderUpdate: () => void,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService
 	) {
 		super(editor);
+		this._register(this._languageFeaturesService.foldingRangeProvider.onDidChange(() => {
+			this._updateProvider(editor, onProviderUpdate);
+		}));
+		this._updateProvider(editor, onProviderUpdate);
+	}
+
+	private _updateProvider(editor: IActiveCodeEditor, onProviderUpdate: () => void): void {
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, editor.getModel());
-		if (selectedProviders.length > 0) {
-			this.provider = this._register(new SyntaxRangeProvider(editor.getModel(), selectedProviders, onProviderUpdate, this._foldingLimitReporter, undefined));
+		if (selectedProviders.length === 0) {
+			return;
 		}
+		this.provider.value = new SyntaxRangeProvider(editor.getModel(), selectedProviders, onProviderUpdate, this._foldingLimitReporter, undefined);
 	}
 
 	protected override isProviderValid(): boolean {
@@ -403,6 +412,6 @@ class StickyModelFromCandidateSyntaxFoldingProvider extends StickyModelFromCandi
 	}
 
 	protected override async createModelFromProvider(token: CancellationToken): Promise<FoldingRegions | null> {
-		return this.provider?.compute(token) ?? null;
+		return this.provider.value?.compute(token) ?? null;
 	}
 }

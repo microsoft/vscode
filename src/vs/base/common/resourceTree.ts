@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { memoize } from 'vs/base/common/decorators';
-import { PathIterator } from 'vs/base/common/ternarySearchTree';
-import * as paths from 'vs/base/common/path';
-import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+import { memoize } from './decorators.js';
+import { PathIterator } from './ternarySearchTree.js';
+import * as paths from './path.js';
+import { extUri as defaultExtUri, IExtUri } from './resources.js';
+import { URI } from './uri.js';
 
 export interface IResourceNode<T, C = void> {
 	readonly uri: URI;
@@ -75,7 +75,7 @@ function collect<T, C>(node: IResourceNode<T, C>, result: T[]): T[] {
 	return result;
 }
 
-export class ResourceTree<T extends NonNullable<any>, C> {
+export class ResourceTree<T extends NonNullable<unknown>, C> {
 
 	readonly root: Node<T, C>;
 
@@ -91,7 +91,7 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 		return collect(node, []);
 	}
 
-	static isResourceNode<T, C>(obj: any): obj is IResourceNode<T, C> {
+	static isResourceNode<T, C>(obj: unknown): obj is IResourceNode<T, C> {
 		return obj instanceof Node;
 	}
 

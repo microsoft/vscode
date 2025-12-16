@@ -61,7 +61,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
-			API.fromSimpleString('5.5.4')));
+			API.fromSimpleString('5.9.0')));
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -101,7 +101,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		await startPreloadWorkspaceContentsIfNeeded(context, logger);
 	}));
 
-	context.subscriptions.push(registerAtaSupport());
+	context.subscriptions.push(registerAtaSupport(logger));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }

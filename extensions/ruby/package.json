@@ -9,7 +9,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/ruby.tmbundle Syntaxes/Ruby.plist ./syntaxes/ruby.tmLanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin Shopify/ruby-lsp vscode/grammars/ruby.cson.json ./syntaxes/ruby.tmLanguage.json"
   },
   "categories": ["Programming Languages"],
   "contributes": {
@@ -66,7 +66,12 @@
         "scopeName": "source.ruby",
         "path": "./syntaxes/ruby.tmLanguage.json"
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "[ruby]": {
+        "editor.defaultColorDecorators": "never"
+      }
+    }
   },
   "repository": {
     "type": "git",

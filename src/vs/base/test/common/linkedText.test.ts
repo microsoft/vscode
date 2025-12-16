@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { parseLinkedText } from '../../common/linkedText.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('LinkedText', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

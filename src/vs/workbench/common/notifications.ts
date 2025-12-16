@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority, INotificationSource, isNotificationSource } from 'vs/platform/notification/common/notification';
-import { toErrorMessage, isErrorWithActions } from 'vs/base/common/errorMessage';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Action } from 'vs/base/common/actions';
-import { equals } from 'vs/base/common/arrays';
-import { parseLinkedText, LinkedText } from 'vs/base/common/linkedText';
-import { mapsStrictEqualIgnoreOrder } from 'vs/base/common/map';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority, INotificationSource, isNotificationSource, IStatusHandle } from '../../platform/notification/common/notification.js';
+import { toErrorMessage, isErrorWithActions } from '../../base/common/errorMessage.js';
+import { Event, Emitter } from '../../base/common/event.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { isCancellationError } from '../../base/common/errors.js';
+import { Action } from '../../base/common/actions.js';
+import { equals } from '../../base/common/arrays.js';
+import { parseLinkedText, LinkedText } from '../../base/common/linkedText.js';
+import { mapsStrictEqualIgnoreOrder } from '../../base/common/map.js';
 
 export interface INotificationsModel {
 
@@ -29,13 +29,13 @@ export interface INotificationsModel {
 	//#endregion
 
 
-	//#region  Notifications as Status
+	//#region Notifications as Status
 
 	readonly statusMessage: IStatusMessageViewItem | undefined;
 
 	readonly onDidChangeStatusMessage: Event<IStatusMessageChangeEvent>;
 
-	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle;
 
 	//#endregion
 }
@@ -275,24 +275,23 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 		return item;
 	}
 
-	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
+	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle {
 		const item = StatusMessageViewItem.create(message, options);
 		if (!item) {
-			return Disposable.None;
+			return { close: () => { } };
 		}
 
-		// Remember as current status message and fire events
 		this._statusMessage = item;
 		this._onDidChangeStatusMessage.fire({ kind: StatusMessageChangeType.ADD, item });
 
-		return toDisposable(() => {
-
-			// Only reset status message if the item is still the one we had remembered
-			if (this._statusMessage === item) {
-				this._statusMessage = undefined;
-				this._onDidChangeStatusMessage.fire({ kind: StatusMessageChangeType.REMOVE, item });
+		return {
+			close: () => {
+				if (this._statusMessage === item) {
+					this._statusMessage = undefined;
+					this._onDidChangeStatusMessage.fire({ kind: StatusMessageChangeType.REMOVE, item });
+				}
 			}
-		});
+		};
 	}
 }
 
@@ -468,7 +467,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	static create(notification: INotification, filter: INotificationsFilter): INotificationViewItem | undefined {
-		if (!notification || !notification.message || isCancellationError(notification.message)) {
+		if (!notification?.message || isCancellationError(notification.message)) {
 			return undefined; // we need a message to show
 		}
 
@@ -492,7 +491,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		}
 
 		let priority = notification.priority ?? NotificationPriority.DEFAULT;
-		if (priority === NotificationPriority.DEFAULT && severity !== Severity.Error) {
+		if ((priority === NotificationPriority.DEFAULT || priority === NotificationPriority.OPTIONAL) && severity !== Severity.Error) {
 			if (filter.global === NotificationsFilter.ERROR) {
 				priority = NotificationPriority.SILENT; // filtered globally
 			} else if (isNotificationSource(notification.source) && filter.sources.get(notification.source.id) === NotificationsFilter.ERROR) {
@@ -737,8 +736,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return false;
 		}
 
-		const primaryActions = (this._actions && this._actions.primary) || [];
-		const otherPrimaryActions = (other.actions && other.actions.primary) || [];
+		const primaryActions = this._actions?.primary || [];
+		const otherPrimaryActions = other.actions?.primary || [];
 		return equals(primaryActions, otherPrimaryActions, (action, otherAction) => (action.id + action.label) === (otherAction.id + otherAction.label));
 	}
 }

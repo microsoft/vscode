@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ValidDiffEditorBaseOptions } from 'vs/editor/common/config/editorOptions';
+import { ValidDiffEditorBaseOptions } from './editorOptions.js';
 
 export const diffEditorDefaultOptions = {
 	enableSplitViewResizing: true,

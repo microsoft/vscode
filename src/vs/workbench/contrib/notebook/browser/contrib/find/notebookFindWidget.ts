@@ -3,30 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch } from 'vs/editor/common/model';
-import { MATCHES_LIMIT } from 'vs/editor/contrib/find/browser/findModel';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/browser/findWidget';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
-import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
-import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
-import { CellEditState, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookFindScope } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { IKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { alert as alertFn } from '../../../../../../base/browser/ui/aria/aria.js';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import * as strings from '../../../../../../base/common/strings.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { FindMatch } from '../../../../../../editor/common/model.js';
+import { MATCHES_LIMIT, CONTEXT_FIND_WIDGET_VISIBLE } from '../../../../../../editor/contrib/find/browser/findModel.js';
+import { FindReplaceState } from '../../../../../../editor/contrib/find/browser/findState.js';
+import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from '../../../../../../editor/contrib/find/browser/findWidget.js';
+import { FindWidgetSearchHistory } from '../../../../../../editor/contrib/find/browser/findWidgetSearchHistory.js';
+import { ReplaceWidgetHistory } from '../../../../../../editor/contrib/find/browser/replaceWidgetHistory.js';
+import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { NotebookFindFilters } from './findFilters.js';
+import { FindModel } from './findModel.js';
+import { SimpleFindReplaceWidget } from './notebookFindReplaceWidget.js';
+import { CellEditState, ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
+import { INotebookFindScope } from '../../../common/notebookCommon.js';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from '../../../common/notebookContextKeys.js';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -47,7 +50,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 
 	static readonly id: string = 'workbench.notebook.find';
 
-	private readonly widget: Lazy<NotebookFindWidget>;
+	private readonly _widget: Lazy<NotebookFindWidget>;
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -55,24 +58,46 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 	) {
 		super();
 
-		this.widget = new Lazy(() => this._register(this.instantiationService.createInstance(NotebookFindWidget, this.notebookEditor)));
+		this._widget = new Lazy(() => this._register(this.instantiationService.createInstance(NotebookFindWidget, this.notebookEditor)));
+	}
+
+	get widget(): NotebookFindWidget {
+		return this._widget.value;
 	}
 
 	show(initialInput?: string, options?: IShowNotebookFindWidgetOptions): Promise<void> {
-		return this.widget.value.show(initialInput, options);
+		return this._widget.value.show(initialInput, options);
 	}
 
 	hide() {
-		this.widget.rawValue?.hide();
+		this._widget.rawValue?.hide();
 	}
 
 	replace(searchString: string | undefined) {
-		return this.widget.value.replace(searchString);
+		return this._widget.value.replace(searchString);
+	}
+
+	isVisible(): boolean {
+		return this._widget.rawValue?.isVisible ?? false;
+	}
+
+	findNext(): void {
+		if (this._widget.rawValue) {
+			this._widget.value.findNext();
+		}
+	}
+
+	findPrevious(): void {
+		if (this._widget.rawValue) {
+			this._widget.value.findPrevious();
+		}
 	}
 }
 
 class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
 	protected _findWidgetFocused: IContextKey<boolean>;
+	protected _findWidgetVisible: IContextKey<boolean>;
+	private _isFocused: boolean = false;
 	private _showTimeout: number | null = null;
 	private _hideTimeout: number | null = null;
 	private _previousFocusElement?: HTMLElement;
@@ -86,12 +111,17 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
 	) {
-		super(contextViewService, contextKeyService, configurationService, contextMenuService, instantiationService, hoverService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
+		const findSearchHistory = FindWidgetSearchHistory.getOrCreate(storageService);
+		const replaceHistory = ReplaceWidgetHistory.getOrCreate(storageService);
+
+		super(contextViewService, contextKeyService, configurationService, contextMenuService, instantiationService, hoverService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor, findSearchHistory, replaceHistory);
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
+		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
 		this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));
 
@@ -124,6 +154,13 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		}, true));
 	}
 
+	get findModel(): FindModel {
+		return this._findModel;
+	}
+
+	get isFocused(): boolean {
+		return this._isFocused;
+	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 		if (e.equals(KeyCode.Enter)) {
@@ -162,6 +199,14 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 	protected find(previous: boolean): void {
 		this._findModel.find({ previous });
+	}
+
+	public findNext(): void {
+		this.find(false);
+	}
+
+	public findPrevious(): void {
+		this.find(true);
 	}
 
 	protected replaceOne() {
@@ -227,11 +272,13 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 	protected onFocusTrackerFocus() {
 		this._findWidgetFocused.set(true);
+		this._isFocused = true;
 	}
 
 	protected onFocusTrackerBlur() {
 		this._previousFocusElement = undefined;
 		this._findWidgetFocused.reset();
+		this._isFocused = false;
 	}
 
 	protected onReplaceInputFocusTrackerFocus(): void {
@@ -248,13 +295,14 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		const searchStringUpdate = this._state.searchString !== initialInput;
 		super.show(initialInput, options);
 		this._state.change({ searchString: initialInput ?? this._state.searchString, isRevealed: true }, false);
+		this._findWidgetVisible.set(true);
 
 		if (typeof options?.matchIndex === 'number') {
 			if (!this._findModel.findMatches.length) {
 				await this._findModel.research();
 			}
 			this.findIndex(options.matchIndex);
-		} else {
+		} else if (options?.focus !== false) {
 			this._findInput.select();
 		}
 
@@ -304,6 +352,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 	override hide() {
 		super.hide();
 		this._state.change({ isRevealed: false }, false);
+		this._findWidgetVisible.set(false);
 		this._findModel.clear();
 		this._notebookEditor.findStop();
 		this._progressBar.stop();
@@ -343,7 +392,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			return;
 		}
 
-		this._matchesCount.style.width = MAX_MATCHES_COUNT_WIDTH + 'px';
+		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
 		this._matchesCount.title = '';
 
 		// remove previous content

@@ -11,7 +11,9 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammars.js"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -58,10 +60,12 @@
           ".jshintrc",
           ".swcrc",
           ".hintrc",
-          ".babelrc"
+          ".babelrc",
+          ".toolset.jsonc"
         ],
         "filenames": [
           "babel.config.json",
+          "bun.lock",
           ".babelrc.json",
           ".ember-cli",
           "typedoc.json"
@@ -74,7 +78,8 @@
           "JSON Lines"
         ],
         "extensions": [
-          ".jsonl"
+          ".jsonl",
+          ".ndjson"
         ],
         "filenames": [],
         "configuration": "./language-configuration.json"
@@ -82,14 +87,15 @@
       {
         "id": "snippets",
         "aliases": [
-            "Code Snippets"
+          "Code Snippets"
         ],
         "extensions": [
           ".code-snippets"
         ],
         "filenamePatterns": [
           "**/User/snippets/*.json",
-          "**/User/profiles/*/snippets/*.json"
+          "**/User/profiles/*/snippets/*.json",
+          "**/snippets*.json"
         ],
         "configuration": "./language-configuration.json"
       }

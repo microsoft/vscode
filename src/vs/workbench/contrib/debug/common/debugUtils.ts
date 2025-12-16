@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IDebuggerContribution, IDebugSession, IConfigPresentation } from 'vs/workbench/contrib/debug/common/debug';
-import { URI as uri } from 'vs/base/common/uri';
-import { isAbsolute } from 'vs/base/common/path';
-import { deepClone } from 'vs/base/common/objects';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextModel } from 'vs/editor/common/model';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { coalesce } from 'vs/base/common/arrays';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
+import { IDebuggerContribution, IDebugSession, IConfigPresentation, State } from './debug.js';
+import { URI as uri } from '../../../../base/common/uri.js';
+import { isAbsolute } from '../../../../base/common/path.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -63,7 +63,7 @@ export function getExtensionHostDebugSession(session: IDebugSession): IDebugSess
 	}
 
 	if (type === 'vslsShare') {
-		type = (<any>session.configuration).adapterProxy.configuration.type;
+		type = (session.configuration as { adapterProxy?: { configuration?: { type?: string } } }).adapterProxy?.configuration?.type || type;
 	}
 
 	if (equalsIgnoreCase(type, 'extensionhost') || equalsIgnoreCase(type, 'pwa-extensionhost')) {
@@ -78,11 +78,14 @@ export function isDebuggerMainContribution(dbg: IDebuggerContribution) {
 	return dbg.type && (dbg.label || dbg.program || dbg.runtime);
 }
 
+/**
+ * Note- uses 1-indexed numbers
+ */
 export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number; end: number } {
 	let matchingExpression: string | undefined = undefined;
 	let startOffset = 0;
 
-	// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
+	// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar, ...foo
 	// Match any character except a set of characters which often break interesting sub-expressions
 	const expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
 	let result: RegExpExecArray | null = null;
@@ -96,6 +99,15 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 			matchingExpression = result[0];
 			startOffset = start;
 			break;
+		}
+	}
+
+	// Handle spread syntax: if the expression starts with '...', extract just the identifier
+	if (matchingExpression) {
+		const spreadMatch = matchingExpression.match(/^\.\.\.(.+)/);
+		if (spreadMatch) {
+			matchingExpression = spreadMatch[1];
+			startOffset += 3; // Skip the '...' prefix
 		}
 	}
 
@@ -162,7 +174,7 @@ export async function getEvaluatableExpressionAtPosition(languageFeaturesService
 // RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
 const _schemePattern = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
 
-export function isUri(s: string | undefined): boolean {
+export function isUriString(s: string | undefined): boolean {
 	// heuristics: a valid uri starts with a scheme and
 	// the scheme has at least 2 characters so that it doesn't look like a drive letter.
 	return !!(s && s.match(_schemePattern));
@@ -173,7 +185,7 @@ function stringToUri(source: PathContainer): string | undefined {
 		if (typeof source.sourceReference === 'number' && source.sourceReference > 0) {
 			// if there is a source reference, don't touch path
 		} else {
-			if (isUri(source.path)) {
+			if (isUriString(source.path)) {
 				return <string><unknown>uri.parse(source.path);
 			} else {
 				// assume path
@@ -307,6 +319,9 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 							di.body?.instructions.forEach(di => fixSourcePath(false, di.location));
 						}
 						break;
+					case 'locations':
+						fixSourcePath(false, (<DebugProtocol.LocationsResponse>response).body?.source);
+						break;
 					default:
 						break;
 				}
@@ -376,3 +391,25 @@ export async function saveAllBeforeDebugStart(configurationService: IConfigurati
 
 export const sourcesEqual = (a: DebugProtocol.Source | undefined, b: DebugProtocol.Source | undefined): boolean =>
 	!a || !b ? a === b : a.name === b.name && a.path === b.path && a.sourceReference === b.sourceReference;
+
+/**
+ * Resolves the best child session to focus when a parent session is selected.
+ * Always prefer child sessions over parent wrapper sessions to ensure console responsiveness.
+ * Fixes issue #152407: Using debug console picker when not paused leaves console unresponsive.
+ */
+export function resolveChildSession(session: IDebugSession, allSessions: readonly IDebugSession[]): IDebugSession {
+	// Always focus child session instead of parent wrapper session #152407
+	const childSessions = allSessions.filter(s => s.parentSession === session);
+	if (childSessions.length > 0) {
+		// Prefer stopped child session if available #112595
+		const stoppedChildSession = childSessions.find(s => s.state === State.Stopped);
+		if (stoppedChildSession) {
+			return stoppedChildSession;
+		} else {
+			// If no stopped child, focus the first available child session
+			return childSessions[0];
+		}
+	}
+	// Return the original session if it has no children
+	return session;
+}

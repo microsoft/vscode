@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRelativePattern, match as matchGlobPattern } from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { normalize } from 'vs/base/common/path';
+import { IRelativePattern, match as matchGlobPattern } from '../../base/common/glob.js';
+import { URI } from '../../base/common/uri.js';
+import { normalize } from '../../base/common/path.js';
 
 export interface LanguageFilter {
 	readonly language?: string;

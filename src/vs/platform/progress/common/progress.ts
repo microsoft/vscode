@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationSource, NotificationPriority } from 'vs/platform/notification/common/notification';
+import { IAction } from '../../../base/common/actions.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { INotificationSource, NotificationPriority } from '../../notification/common/notification.js';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -55,7 +55,7 @@ export interface IProgressOptions {
 	readonly title?: string;
 	readonly source?: string | INotificationSource;
 	readonly total?: number;
-	readonly cancellable?: boolean;
+	readonly cancellable?: boolean | string;
 	readonly buttons?: string[];
 }
 
@@ -123,61 +123,6 @@ export class Progress<T> implements IProgress<T> {
 	}
 }
 
-export class AsyncProgress<T> implements IProgress<T> {
-
-	private _value?: T;
-	get value(): T | undefined { return this._value; }
-
-	private _asyncQueue?: T[];
-	private _processingAsyncQueue?: boolean;
-	private _drainListener: (() => void) | undefined;
-
-	constructor(private callback: (data: T) => unknown) { }
-
-	report(item: T) {
-		if (!this._asyncQueue) {
-			this._asyncQueue = [item];
-		} else {
-			this._asyncQueue.push(item);
-		}
-		this._processAsyncQueue();
-	}
-
-	private async _processAsyncQueue() {
-		if (this._processingAsyncQueue) {
-			return;
-		}
-		try {
-			this._processingAsyncQueue = true;
-
-			while (this._asyncQueue && this._asyncQueue.length) {
-				const item = this._asyncQueue.shift()!;
-				this._value = item;
-				await this.callback(this._value);
-			}
-
-		} finally {
-			this._processingAsyncQueue = false;
-			const drainListener = this._drainListener;
-			this._drainListener = undefined;
-			drainListener?.();
-		}
-	}
-
-	drain(): Promise<void> {
-		if (this._processingAsyncQueue) {
-			return new Promise<void>(resolve => {
-				const prevListener = this._drainListener;
-				this._drainListener = () => {
-					prevListener?.();
-					resolve();
-				};
-			});
-		}
-		return Promise.resolve();
-	}
-}
-
 /**
  * A helper to show progress during a long running operation. If the operation
  * is started multiple times, only the last invocation will drive the progress.
@@ -228,7 +173,7 @@ export class LongRunningOperation extends Disposable {
 	private currentOperationId = 0;
 	private readonly currentOperationDisposables = this._register(new DisposableStore());
 	private currentProgressRunner: IProgressRunner | undefined;
-	private currentProgressTimeout: any;
+	private currentProgressTimeout: Timeout | undefined = undefined;
 
 	constructor(
 		private progressIndicator: IProgressIndicator

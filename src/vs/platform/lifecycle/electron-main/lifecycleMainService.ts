@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { Barrier, Promises, timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { cwd } from 'vs/base/common/process';
-import { assertIsDefined } from 'vs/base/common/types';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
-import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/window/electron-main/window';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { Barrier, Promises, timeout } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { cwd } from '../../../base/common/process.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IStateService } from '../../state/node/state.js';
+import { ICodeWindow, LoadReason, UnloadReason } from '../../window/electron-main/window.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
+import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -230,7 +231,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }
 
-	private _wasRestarted: boolean = false;
+	private _wasRestarted = false;
 	get wasRestarted(): boolean { return this._wasRestarted; }
 
 	private _phase = LifecycleMainPhase.Starting;
@@ -427,14 +428,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace, reason: e.reason })));
 
 		// Window Before Closing: Main -> Renderer
-		const win = assertIsDefined(window.win);
+		const win = assertReturnsDefined(window.win);
 		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'close')(e => {
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
-			if (this.windowToCloseRequest.has(windowId)) {
-				this.windowToCloseRequest.delete(windowId);
-
+			if (this.windowToCloseRequest.delete(windowId)) {
 				return;
 			}
 
@@ -477,7 +476,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	registerAuxWindow(auxWindow: IAuxiliaryWindow): void {
-		const win = assertIsDefined(auxWindow.win);
+		const win = assertReturnsDefined(auxWindow.win);
 
 		const windowListeners = new DisposableStore();
 		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'close')(e => {
@@ -727,7 +726,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// to a participant within the window. this is not wanted when we
 			// are asked to kill the application.
 			(async () => {
-				for (const window of electron.BrowserWindow.getAllWindows()) {
+				for (const window of getAllWindowsExcludingOffscreen()) {
 					if (window && !window.isDestroyed()) {
 						let whenWindowClosed: Promise<void>;
 						if (window.webContents && !window.webContents.isDestroyed()) {

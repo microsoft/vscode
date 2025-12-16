@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import * as dom from './dom.js';
+import { DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
 
 export interface IPointerMoveCallback {
 	(event: PointerEvent): void;

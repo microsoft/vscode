@@ -3,39 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { isFirefox } from 'vs/base/browser/browser';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as types from 'vs/base/common/types';
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/cursor/cursorColumnSelection';
-import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/cursorCommon';
-import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { CursorMove as CursorMove_, CursorMoveCommands } from 'vs/editor/common/cursor/cursorMoveCommands';
-import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Handler, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { VerticalRevealType } from 'vs/editor/common/viewEvents';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IViewModel } from 'vs/editor/common/viewModel';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { getActiveElement } from 'vs/base/browser/dom';
-import { EnterOperation } from 'vs/editor/common/cursor/cursorTypeEditOperations';
+import * as nls from '../../nls.js';
+import { isFirefox } from '../../base/browser/browser.js';
+import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
+import * as types from '../../base/common/types.js';
+import { status } from '../../base/browser/ui/aria/aria.js';
+import { ICodeEditor } from './editorBrowser.js';
+import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from './editorExtensions.js';
+import { ICodeEditorService } from './services/codeEditorService.js';
+import { ColumnSelection, IColumnSelectResult } from '../common/cursor/cursorColumnSelection.js';
+import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from '../common/cursorCommon.js';
+import { DeleteOperations } from '../common/cursor/cursorDeleteOperations.js';
+import { CursorChangeReason } from '../common/cursorEvents.js';
+import { CursorMove as CursorMove_, CursorMoveCommands } from '../common/cursor/cursorMoveCommands.js';
+import { TypeOperations } from '../common/cursor/cursorTypeOperations.js';
+import { IPosition, Position } from '../common/core/position.js';
+import { Range } from '../common/core/range.js';
+import { Handler, ScrollType } from '../common/editorCommon.js';
+import { EditorContextKeys } from '../common/editorContextKeys.js';
+import { VerticalRevealType } from '../common/viewEvents.js';
+import { ICommandMetadata } from '../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight, KeybindingsRegistry } from '../../platform/keybinding/common/keybindingsRegistry.js';
+import { EditorOption } from '../common/config/editorOptions.js';
+import { IViewModel } from '../common/viewModel.js';
+import { ISelection } from '../common/core/selection.js';
+import { getActiveElement, isEditableElement } from '../../base/browser/dom.js';
+import { EnterOperation } from '../common/cursor/cursorTypeEditOperations.js';
+import { TextEditorSelectionSource } from '../../platform/editor/common/editor.js';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
 export abstract class CoreEditorCommand<T> extends EditorCommand {
-	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args?: Partial<T> | null): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args?: Partial<T> | null): void {
 		const viewModel = editor._getViewModel();
 		if (!viewModel) {
 			// the editor has no view => has no cursors
@@ -49,12 +50,12 @@ export abstract class CoreEditorCommand<T> extends EditorCommand {
 
 export namespace EditorScroll_ {
 
-	const isEditorScrollArgs = function (arg: any): boolean {
+	const isEditorScrollArgs = function (arg: unknown): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
 
-		const scrollArg: RawArguments = arg;
+		const scrollArg: RawArguments = arg as RawArguments;
 
 		if (!types.isString(scrollArg.to)) {
 			return false;
@@ -235,12 +236,12 @@ export namespace EditorScroll_ {
 
 export namespace RevealLine_ {
 
-	const isRevealLineArgs = function (arg: any): boolean {
+	const isRevealLineArgs = function (arg: unknown): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
 
-		const reveaLineArg: RawArguments = arg;
+		const reveaLineArg: RawArguments = arg as RawArguments;
 
 		if (!types.isNumber(reveaLineArg.lineNumber) && !types.isString(reveaLineArg.lineNumber)) {
 			return false;
@@ -318,7 +319,7 @@ abstract class EditorOrNativeTextInputCommand {
 		target.addImplementation(1000, 'generic-dom-input-textarea', (accessor: ServicesAccessor, args: unknown) => {
 			// Only if focused on an element that allows for entering text
 			const activeElement = getActiveElement();
-			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+			if (activeElement && isEditableElement(activeElement)) {
 				this.runDOMCommand(activeElement);
 				return true;
 			}
@@ -604,13 +605,16 @@ export namespace CoreNavigationCommands {
 		}
 
 		private _runCursorMove(viewModel: IViewModel, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
+			// If noHistory is true, use PROGRAMMATIC source to prevent adding to navigation history
+			const effectiveSource = args.noHistory ? TextEditorSelectionSource.PROGRAMMATIC : source;
+
 			viewModel.model.pushStackElement();
 			viewModel.setCursorStates(
-				source,
+				effectiveSource,
 				CursorChangeReason.Explicit,
 				CursorMoveImpl._move(viewModel, viewModel.getCursorStates(), args)
 			);
-			viewModel.revealAllCursors(source, true);
+			viewModel.revealAllCursors(effectiveSource, true);
 		}
 
 		private static _move(viewModel: IViewModel, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
@@ -1319,8 +1323,7 @@ export namespace CoreNavigationCommands {
 				EditorScroll_.Unit.WrappedLine,
 				EditorScroll_.Unit.Page,
 				EditorScroll_.Unit.HalfPage,
-				EditorScroll_.Unit.Editor,
-				EditorScroll_.Unit.Column
+				EditorScroll_.Unit.Editor
 			];
 			const horizontalDirections = [EditorScroll_.Direction.Left, EditorScroll_.Direction.Right];
 			const verticalDirections = [EditorScroll_.Direction.Up, EditorScroll_.Direction.Down];
@@ -2095,7 +2098,7 @@ export namespace CoreEditingCommands {
 		public runDOMCommand(activeElement: Element): void {
 			activeElement.ownerDocument.execCommand('undo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void> {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 				return;
 			}
@@ -2110,7 +2113,7 @@ export namespace CoreEditingCommands {
 		public runDOMCommand(activeElement: Element): void {
 			activeElement.ownerDocument.execCommand('redo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void> {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 				return;
 			}

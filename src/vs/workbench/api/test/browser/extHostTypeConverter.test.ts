@@ -5,12 +5,12 @@
 
 
 import assert from 'assert';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from 'vs/workbench/api/common/extHostTypeConverters';
-import { isEmptyObject } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as extHostTypes from '../../common/extHostTypes.js';
+import { MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from '../../common/extHostTypeConverters.js';
+import { isEmptyObject } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkspaceTextEditDto } from '../../common/extHost.protocol.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostTypeConverter', function () {
 

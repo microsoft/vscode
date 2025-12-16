@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from 'vs/editor/common/config/editorOptions';
-import { CursorConfiguration, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from 'vs/editor/common/cursorCommon';
-import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
-import { WordCharacterClass, WordCharacterClassifier, IntlWordSegmentData, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { AutoClosingPairs } from 'vs/editor/common/languages/languageConfiguration';
+import { CharCode } from '../../../base/common/charCode.js';
+import * as strings from '../../../base/common/strings.js';
+import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from '../config/editorOptions.js';
+import { CursorConfiguration, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from '../cursorCommon.js';
+import { DeleteOperations } from './cursorDeleteOperations.js';
+import { WordCharacterClass, WordCharacterClassifier, IntlWordSegmentData, getMapForWordSeparators } from '../core/wordCharacterClassifier.js';
+import { Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { Selection } from '../core/selection.js';
+import { ITextModel } from '../model.js';
+import { IWordAtPosition } from '../core/wordHelper.js';
+import { AutoClosingPairs } from '../languages/languageConfiguration.js';
 
 interface IFindWordResult {
 	/**
@@ -484,7 +484,7 @@ export class WordOperations {
 		return new Range(lineNumber, column, position.lineNumber, position.column);
 	}
 
-	public static deleteInsideWord(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range {
+	public static deleteInsideWord(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection, onlyWord: boolean = false): Range {
 		if (!selection.isEmpty()) {
 			return selection;
 		}
@@ -496,7 +496,7 @@ export class WordOperations {
 			return r;
 		}
 
-		return this._deleteInsideWordDetermineDeleteRange(wordSeparators, model, position);
+		return this._deleteInsideWordDetermineDeleteRange(wordSeparators, model, position, onlyWord);
 	}
 
 	private static _charAtIsWhitespace(str: string, index: number): boolean {
@@ -538,7 +538,7 @@ export class WordOperations {
 		return new Range(position.lineNumber, leftIndex + 1, position.lineNumber, rightIndex + 2);
 	}
 
-	private static _deleteInsideWordDetermineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Range {
+	private static _deleteInsideWordDetermineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, onlyWord: boolean): Range {
 		const lineContent = model.getLineContent(position.lineNumber);
 		const lineLength = lineContent.length;
 		if (lineLength === 0) {
@@ -566,6 +566,9 @@ export class WordOperations {
 		const deleteWordAndAdjacentWhitespace = (word: IFindWordResult) => {
 			let startColumn = word.start + 1;
 			let endColumn = word.end + 1;
+			if (onlyWord) {
+				return createRangeWithPosition(startColumn, endColumn);
+			}
 			let expandedToTheRight = false;
 			while (endColumn - 1 < lineLength && this._charAtIsWhitespace(lineContent, endColumn - 1)) {
 				expandedToTheRight = true;
@@ -746,11 +749,19 @@ export class WordOperations {
 			let endColumn: number;
 
 			if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end) {
-				// isTouchingPrevWord
+				// isTouchingPrevWord (Regular word)
+				startColumn = prevWord.start + 1;
+				endColumn = prevWord.end + 1;
+			} else if (prevWord && prevWord.wordType === WordType.Separator && prevWord.start <= position.column - 1 && position.column - 1 < prevWord.end) {
+				// isTouchingPrevWord (Separator word) - stricter check, don't include end boundary
 				startColumn = prevWord.start + 1;
 				endColumn = prevWord.end + 1;
 			} else if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end) {
-				// isTouchingNextWord
+				// isTouchingNextWord (Regular word)
+				startColumn = nextWord.start + 1;
+				endColumn = nextWord.end + 1;
+			} else if (nextWord && nextWord.wordType === WordType.Separator && nextWord.start <= position.column - 1 && position.column - 1 < nextWord.end) {
+				// isTouchingNextWord (Separator word) - stricter check, don't include end boundary
 				startColumn = nextWord.start + 1;
 				endColumn = nextWord.end + 1;
 			} else {
@@ -776,11 +787,11 @@ export class WordOperations {
 		let endColumn: number;
 
 		if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start < position.column - 1 && position.column - 1 < prevWord.end) {
-			// isInsidePrevWord
+			// isInsidePrevWord (Regular word)
 			startColumn = prevWord.start + 1;
 			endColumn = prevWord.end + 1;
 		} else if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start < position.column - 1 && position.column - 1 < nextWord.end) {
-			// isInsideNextWord
+			// isInsideNextWord (Regular word)
 			startColumn = nextWord.start + 1;
 			endColumn = nextWord.end + 1;
 		} else {

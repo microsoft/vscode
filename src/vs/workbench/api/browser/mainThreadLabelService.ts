@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { MainContext, MainThreadLabelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { ILabelService, ResourceLabelFormatter } from '../../../platform/label/common/label.js';
+import { MainContext, MainThreadLabelServiceShape } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLabelService)
 export class MainThreadLabelService extends Disposable implements MainThreadLabelServiceShape {

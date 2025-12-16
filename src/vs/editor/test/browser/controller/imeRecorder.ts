@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextAreaWrapper } from 'vs/editor/browser/controller/textAreaInput';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IRecorded, IRecordedCompositionEvent, IRecordedEvent, IRecordedInputEvent, IRecordedKeyboardEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
-import * as browser from 'vs/base/browser/browser';
-import * as platform from 'vs/base/common/platform';
-import { mainWindow } from 'vs/base/browser/window';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IRecorded, IRecordedCompositionEvent, IRecordedEvent, IRecordedInputEvent, IRecordedKeyboardEvent, IRecordedTextareaState } from './imeRecordedTypes.js';
+import * as browser from '../../../../base/browser/browser.js';
+import * as platform from '../../../../base/common/platform.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { TextAreaWrapper } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
 
 (() => {
 
+	// eslint-disable-next-line no-restricted-syntax
 	const startButton = <HTMLButtonElement>mainWindow.document.getElementById('startRecording')!;
+	// eslint-disable-next-line no-restricted-syntax
 	const endButton = <HTMLButtonElement>mainWindow.document.getElementById('endRecording')!;
 
 	let inputarea: HTMLTextAreaElement;

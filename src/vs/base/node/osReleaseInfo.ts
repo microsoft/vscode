@@ -5,7 +5,7 @@
 
 import { constants as FSConstants, promises as FSPromises } from 'fs';
 import { createInterface as readLines } from 'readline';
-import * as Platform from 'vs/base/common/platform';
+import * as Platform from '../common/platform.js';
 
 type ReleaseInfo = {
 	id: string;
@@ -13,7 +13,7 @@ type ReleaseInfo = {
 	version_id?: string;
 };
 
-export async function getOSReleaseInfo(errorLogger: (error: any) => void): Promise<ReleaseInfo | undefined> {
+export async function getOSReleaseInfo(errorLogger: (error: string | Error) => void): Promise<ReleaseInfo | undefined> {
 	if (Platform.isMacintosh || Platform.isWindows) {
 		return;
 	}

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
+import { createRandomIPCHandle } from '../../../base/parts/ipc/node/ipc.net.js';
 import * as http from 'http';
 import * as fs from 'fs';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IWindowOpenable, IOpenWindowOptions } from 'vs/platform/window/common/window';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
+import { IExtHostCommands } from '../common/extHostCommands.js';
+import { IWindowOpenable, IOpenWindowOptions } from '../../../platform/window/common/window.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { hasWorkspaceFileExtension } from '../../../platform/workspace/common/workspace.js';
 
 export interface OpenCommandPipeArgs {
 	type: 'open';
@@ -20,6 +20,7 @@ export interface OpenCommandPipeArgs {
 	diffMode?: boolean;
 	mergeMode?: boolean;
 	addMode?: boolean;
+	removeMode?: boolean;
 	gotoLineMode?: boolean;
 	forceReuseWindow?: boolean;
 	waitMarkerFilePath?: string;
@@ -119,7 +120,7 @@ export class CLIServerBase {
 	}
 
 	private async open(data: OpenCommandPipeArgs): Promise<undefined> {
-		const { fileURIs, folderURIs, forceNewWindow, diffMode, mergeMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath, remoteAuthority } = data;
+		const { fileURIs, folderURIs, forceNewWindow, diffMode, mergeMode, addMode, removeMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath, remoteAuthority } = data;
 		const urisToOpen: IWindowOpenable[] = [];
 		if (Array.isArray(folderURIs)) {
 			for (const s of folderURIs) {
@@ -144,8 +145,8 @@ export class CLIServerBase {
 			}
 		}
 		const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
-		const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode;
-		const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, mergeMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI, remoteAuthority };
+		const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode && !removeMode;
+		const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, mergeMode, addMode, removeMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI, remoteAuthority };
 		this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
 	}
 

@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
-import { WebviewInput } from './webviewEditorInput';
-import { IWebviewWorkbenchService } from './webviewWorkbenchService';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorSerializer } from '../../../common/editor.js';
+import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from '../../webview/browser/webview.js';
+import { WebviewIcons, WebviewInput } from './webviewEditorInput.js';
+import { IWebviewWorkbenchService } from './webviewWorkbenchService.js';
 
 export type SerializedWebviewOptions = WebviewOptions & WebviewContentOptions;
 
@@ -107,7 +106,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 		return {
 			origin: input.webview.origin,
 			viewType: input.viewType,
-			providedId: input.providedId,
+			providedId: input.providerId,
 			title: input.getName(),
 			options: { ...input.webview.options, ...input.webview.contentOptions },
 			extensionLocation: input.extension?.location,

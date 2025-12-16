@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isStandalone } from 'vs/base/browser/browser';
-import { mainWindow } from 'vs/base/browser/window';
-import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { parse } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
-import { posix } from 'vs/base/common/path';
-import { isEqual } from 'vs/base/common/resources';
-import { ltrim } from 'vs/base/common/strings';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import product from 'vs/platform/product/common/product';
-import { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
-import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
-import type { IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/browser/web.api';
-import { AuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
-import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import { create } from 'vs/workbench/workbench.web.main';
+import { isStandalone } from '../../../base/browser/browser.js';
+import { addDisposableListener } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { VSBuffer, decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { parse } from '../../../base/common/marshalling.js';
+import { Schemas } from '../../../base/common/network.js';
+import { posix } from '../../../base/common/path.js';
+import { isEqual } from '../../../base/common/resources.js';
+import { ltrim } from '../../../base/common/strings.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import product from '../../../platform/product/common/product.js';
+import { ISecretStorageProvider } from '../../../platform/secrets/common/secrets.js';
+import { isFolderToOpen, isWorkspaceToOpen } from '../../../platform/window/common/window.js';
+import type { IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from '../../../workbench/browser/web.api.js';
+import { AuthenticationSessionInfo } from '../../../workbench/services/authentication/browser/authenticationService.js';
+import type { IURLCallbackProvider } from '../../../workbench/services/url/browser/urlService.js';
+import { create } from '../../../workbench/workbench.web.main.internal.js';
 
 interface ISecretStorageCrypto {
 	seal(data: string): Promise<string>;
@@ -28,6 +29,7 @@ interface ISecretStorageCrypto {
 }
 
 class TransparentCrypto implements ISecretStorageCrypto {
+
 	async seal(data: string): Promise<string> {
 		return data;
 	}
@@ -43,11 +45,23 @@ const enum AESConstants {
 	IV_LENGTH = 12,
 }
 
-class ServerKeyedAESCrypto implements ISecretStorageCrypto {
-	private _serverKey: Uint8Array | undefined;
+class NetworkError extends Error {
 
-	/** Gets whether the algorithm is supported; requires a secure context */
-	public static supported() {
+	constructor(inner: Error) {
+		super(inner.message);
+		this.name = inner.name;
+		this.stack = inner.stack;
+	}
+}
+
+class ServerKeyedAESCrypto implements ISecretStorageCrypto {
+
+	private serverKey: Uint8Array | undefined;
+
+	/**
+	 * Gets whether the algorithm is supported; requires a secure context
+	 */
+	static supported() {
 		return !!crypto.subtle;
 	}
 
@@ -96,9 +110,9 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 		// Do the decryption and parse the result as JSON
 		const key = await this.getKey(clientKey.buffer);
 		const decrypted = await mainWindow.crypto.subtle.decrypt(
-			{ name: AESConstants.ALGORITHM as const, iv: iv.buffer },
+			{ name: AESConstants.ALGORITHM as const, iv: iv.buffer as Uint8Array<ArrayBuffer> },
 			key,
-			cipherText.buffer
+			cipherText.buffer as Uint8Array<ArrayBuffer>
 		);
 
 		return new TextDecoder().decode(new Uint8Array(decrypted));
@@ -117,7 +131,7 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 		const keyData = new Uint8Array(AESConstants.KEY_LENGTH / 8);
 
 		for (let i = 0; i < keyData.byteLength; i++) {
-			keyData[i] = clientKey[i]! ^ serverKey[i]!;
+			keyData[i] = clientKey[i] ^ serverKey[i];
 		}
 
 		return mainWindow.crypto.subtle.importKey(
@@ -133,12 +147,12 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 	}
 
 	private async getServerKeyPart(): Promise<Uint8Array> {
-		if (this._serverKey) {
-			return this._serverKey;
+		if (this.serverKey) {
+			return this.serverKey;
 		}
 
 		let attempt = 0;
-		let lastError: unknown | undefined;
+		let lastError: Error | undefined;
 
 		while (attempt <= 3) {
 			try {
@@ -146,14 +160,17 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 				if (!res.ok) {
 					throw new Error(res.statusText);
 				}
-				const serverKey = new Uint8Array(await await res.arrayBuffer());
+
+				const serverKey = new Uint8Array(await res.arrayBuffer());
 				if (serverKey.byteLength !== AESConstants.KEY_LENGTH / 8) {
 					throw Error(`The key retrieved by the server is not ${AESConstants.KEY_LENGTH} bit long.`);
 				}
-				this._serverKey = serverKey;
-				return this._serverKey;
+
+				this.serverKey = serverKey;
+
+				return this.serverKey;
 			} catch (e) {
-				lastError = e;
+				lastError = e instanceof Error ? e : new Error(String(e));
 				attempt++;
 
 				// exponential backoff
@@ -161,33 +178,43 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 			}
 		}
 
-		throw lastError;
+		if (lastError) {
+			throw new NetworkError(lastError);
+		}
+
+		throw new Error('Unknown error');
 	}
 }
 
 export class LocalStorageSecretStorageProvider implements ISecretStorageProvider {
-	private readonly _storageKey = 'secrets.provider';
 
-	private _secretsPromise: Promise<Record<string, string>> = this.load();
+	private readonly storageKey = 'secrets.provider';
+
+	private secretsPromise: Promise<Record<string, string>>;
 
 	type: 'in-memory' | 'persisted' | 'unknown' = 'persisted';
 
 	constructor(
 		private readonly crypto: ISecretStorageCrypto,
-	) { }
+	) {
+		this.secretsPromise = this.load();
+	}
 
 	private async load(): Promise<Record<string, string>> {
 		const record = this.loadAuthSessionFromElement();
-		// Get the secrets from localStorage
-		const encrypted = localStorage.getItem(this._storageKey);
+
+		const encrypted = localStorage.getItem(this.storageKey);
 		if (encrypted) {
 			try {
 				const decrypted = JSON.parse(await this.crypto.unseal(encrypted));
+
 				return { ...record, ...decrypted };
 			} catch (err) {
 				// TODO: send telemetry
 				console.error('Failed to decrypt secrets from localStorage', err);
-				localStorage.removeItem(this._storageKey);
+				if (!(err instanceof NetworkError)) {
+					localStorage.removeItem(this.storageKey);
+				}
 			}
 		}
 
@@ -196,6 +223,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 
 	private loadAuthSessionFromElement(): Record<string, string> {
 		let authSessionInfo: (AuthenticationSessionInfo & { scopes: string[][] }) | undefined;
+		// eslint-disable-next-line no-restricted-syntax
 		const authSessionElement = mainWindow.document.getElementById('vscode-workbench-auth-session');
 		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
 		if (authSessionElementAttribute) {
@@ -230,32 +258,39 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 	}
 
 	async get(key: string): Promise<string | undefined> {
-		const secrets = await this._secretsPromise;
+		const secrets = await this.secretsPromise;
+
 		return secrets[key];
 	}
+
 	async set(key: string, value: string): Promise<void> {
-		const secrets = await this._secretsPromise;
+		const secrets = await this.secretsPromise;
 		secrets[key] = value;
-		this._secretsPromise = Promise.resolve(secrets);
+		this.secretsPromise = Promise.resolve(secrets);
 		this.save();
 	}
+
 	async delete(key: string): Promise<void> {
-		const secrets = await this._secretsPromise;
+		const secrets = await this.secretsPromise;
 		delete secrets[key];
-		this._secretsPromise = Promise.resolve(secrets);
+		this.secretsPromise = Promise.resolve(secrets);
 		this.save();
+	}
+
+	async keys(): Promise<string[]> {
+		const secrets = await this.secretsPromise;
+		return Object.keys(secrets) || [];
 	}
 
 	private async save(): Promise<void> {
 		try {
-			const encrypted = await this.crypto.seal(JSON.stringify(await this._secretsPromise));
-			localStorage.setItem(this._storageKey, encrypted);
+			const encrypted = await this.crypto.seal(JSON.stringify(await this.secretsPromise));
+			localStorage.setItem(this.storageKey, encrypted);
 		} catch (err) {
 			console.error(err);
 		}
 	}
 }
-
 
 class LocalStorageURLCallbackProvider extends Disposable implements IURLCallbackProvider {
 
@@ -274,7 +309,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 	private pendingCallbacks = new Set<number>();
 	private lastTimeChecked = Date.now();
-	private checkCallbacksTimeout: unknown | undefined = undefined;
+	private checkCallbacksTimeout: Timeout | undefined = undefined;
 	private onDidChangeLocalStorageDisposable: IDisposable | undefined;
 
 	constructor(private readonly _callbackRoute: string) {
@@ -312,9 +347,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 			return;
 		}
 
-		const fn = () => this.onDidChangeLocalStorage();
-		mainWindow.addEventListener('storage', fn);
-		this.onDidChangeLocalStorageDisposable = { dispose: () => mainWindow.removeEventListener('storage', fn) };
+		this.onDidChangeLocalStorageDisposable = addDisposableListener(mainWindow, 'storage', () => this.onDidChangeLocalStorage());
 	}
 
 	private stopListening(): void {
@@ -472,6 +505,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				return !!result;
 			}
 		}
+
 		return false;
 	}
 
@@ -564,6 +598,7 @@ function readCookie(name: string): string | undefined {
 (function () {
 
 	// Find config by checking for DOM
+	// eslint-disable-next-line no-restricted-syntax
 	const configElement = mainWindow.document.getElementById('vscode-workbench-web-configuration');
 	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
 	if (!configElement || !configElementAttribute) {

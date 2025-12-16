@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, getWindow, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import * as types from 'vs/base/common/types';
-import 'vs/css!./splitview';
-export { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { $, addDisposableListener, append, getWindow, scheduleAtNextAnimationFrame } from '../../dom.js';
+import { DomEmitter } from '../../event.js';
+import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from '../sash/sash.js';
+import { SmoothScrollableElement } from '../scrollbar/scrollableElement.js';
+import { pushToEnd, pushToStart, range } from '../../../common/arrays.js';
+import { Color } from '../../../common/color.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { clamp } from '../../../common/numbers.js';
+import { Scrollable, ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
+import * as types from '../../../common/types.js';
+import './splitview.css';
+export { Orientation } from '../sash/sash.js';
 
 export interface ISplitViewStyles {
 	readonly separatorBorder: Color;

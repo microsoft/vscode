@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Emitter } from 'vs/base/common/event';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorPlaceholder, IEditorPlaceholderContents } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { localize } from '../../../../nls.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { BinaryEditorModel } from '../../../common/editor/binaryEditorModel.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ByteSize } from '../../../../platform/files/common/files.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { EditorPlaceholder, IEditorPlaceholderContents } from './editorPlaceholder.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;

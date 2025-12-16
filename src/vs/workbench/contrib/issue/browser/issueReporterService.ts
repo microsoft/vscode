@@ -2,10 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { IProductConfiguration } from 'vs/base/common/product';
-import { localize } from 'vs/nls';
-import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/baseIssueReporterService';
-import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
+import { IProductConfiguration } from '../../../../base/common/product.js';
+import { localize } from '../../../../nls.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IIssueFormService, IssueReporterData } from '../common/issue.js';
+import { BaseIssueReporterService } from './baseIssueReporterService.js';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
@@ -21,10 +27,17 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		},
 		product: IProductConfiguration,
 		window: Window,
-		@IIssueFormService issueFormService: IIssueFormService
+		@IIssueFormService issueFormService: IIssueFormService,
+		@IThemeService themeService: IThemeService,
+		@IFileService fileService: IFileService,
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IOpenerService openerService: IOpenerService
 	) {
-		super(disableExtensions, data, os, product, window, true, issueFormService);
+		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService);
 
+		// eslint-disable-next-line no-restricted-syntax
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 
 		const webInfo = this.window.navigator.userAgent;
@@ -45,12 +58,13 @@ export class IssueWebReporter extends BaseIssueReporterService {
 			this.issueReporterModel.update({ issueType: issueType });
 
 			// Resets placeholder
+			// eslint-disable-next-line no-restricted-syntax
 			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
 			if (descriptionTextArea) {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
-			this.updatePreviewButtonState();
+			this.updateButtonStates();
 			this.setSourceOptions();
 			this.render();
 		});

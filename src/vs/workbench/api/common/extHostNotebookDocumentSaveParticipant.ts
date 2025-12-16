@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { AsyncEmitter, Event } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookDocumentSaveParticipantShape, IWorkspaceEditDto, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { TextDocumentSaveReason, WorkspaceEdit as WorksapceEditConverter } from 'vs/workbench/api/common/extHostTypeConverters';
-import { WorkspaceEdit } from 'vs/workbench/api/common/extHostTypes';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { AsyncEmitter, Event } from '../../../base/common/event.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { ExtHostNotebookDocumentSaveParticipantShape, IWorkspaceEditDto, MainThreadBulkEditsShape } from './extHost.protocol.js';
+import { ExtHostNotebookController } from './extHostNotebook.js';
+import { TextDocumentSaveReason, WorkspaceEdit as WorksapceEditConverter } from './extHostTypeConverters.js';
+import { WorkspaceEdit } from './extHostTypes.js';
+import { SaveReason } from '../../common/editor.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { NotebookDocumentWillSaveEvent } from 'vscode';
 
 interface IExtensionListener<E> {

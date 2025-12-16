@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ProcessItem } from 'vs/base/common/processes';
-import { UriComponents } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { ProcessItem } from '../../../base/common/processes.js';
+import { UriComponents } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IWorkspace } from '../../workspace/common/workspace.js';
 
 export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
@@ -66,7 +66,6 @@ export interface IRemoteDiagnosticError {
 export interface IDiagnosticInfoOptions {
 	includeProcesses?: boolean;
 	folders?: UriComponents[];
-	includeExtensions?: boolean;
 }
 
 export interface WorkspaceStatItem {
@@ -94,8 +93,9 @@ export interface IWorkspaceInformation extends IWorkspace {
 	rendererSessionId: string;
 }
 
-export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {
-	return !!x.hostName && !!x.errorMessage;
+export function isRemoteDiagnosticError(x: unknown): x is IRemoteDiagnosticError {
+	const candidate = x as IRemoteDiagnosticError | undefined;
+	return !!candidate?.hostName && !!candidate?.errorMessage;
 }
 
 export class NullDiagnosticsService implements IDiagnosticsService {

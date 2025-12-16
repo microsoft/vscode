@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getHoverProviderResultsAsAsyncIterable } from 'vs/editor/contrib/hover/browser/getHover';
-import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { RenderedInlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
-import { asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { AsyncIterableProducer } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { IModelDecoration } from '../../../common/model.js';
+import { ModelDecorationInjectedTextOptions } from '../../../common/model/textModel.js';
+import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from '../../hover/browser/hoverTypes.js';
+import { ITextModelService } from '../../../common/services/resolverService.js';
+import { getHoverProviderResultsAsAsyncIterable } from '../../hover/browser/getHover.js';
+import { MarkdownHover, MarkdownHoverParticipant } from '../../hover/browser/markdownHoverParticipant.js';
+import { RenderedInlayHintLabelPart, InlayHintsController } from './inlayHintsController.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { localize } from '../../../../nls.js';
+import * as platform from '../../../../base/common/platform.js';
+import { asCommandLink } from './inlayHints.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { HoverStartSource } from '../../hover/browser/hoverOperation.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(
@@ -45,16 +45,15 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 
 	constructor(
 		editor: ICodeEditor,
-		@ILanguageService languageService: ILanguageService,
-		@IOpenerService openerService: IOpenerService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly _resolverService: ITextModelService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@ICommandService commandService: ICommandService
+		@ICommandService commandService: ICommandService,
 	) {
-		super(editor, languageService, openerService, configurationService, languageFeaturesService, keybindingService, hoverService, commandService);
+		super(editor, markdownRendererService, configurationService, languageFeaturesService, keybindingService, hoverService, commandService);
 	}
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
@@ -76,12 +75,12 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		return [];
 	}
 
-	override computeAsync(anchor: HoverAnchor, _lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<MarkdownHover> {
+	override computeAsync(anchor: HoverAnchor, _lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableProducer<MarkdownHover> {
 		if (!(anchor instanceof InlayHintsHoverAnchor)) {
-			return AsyncIterableObject.EMPTY;
+			return AsyncIterableProducer.EMPTY;
 		}
 
-		return new AsyncIterableObject<MarkdownHover>(async executor => {
+		return new AsyncIterableProducer<MarkdownHover>(async executor => {
 
 			const { part } = anchor;
 			await part.item.resolve(token);
@@ -142,27 +141,31 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 
 
 			// (3) Inlay Label Part Location tooltip
-			const iterable = await this._resolveInlayHintLabelPartHover(part, token);
+			const iterable = this._resolveInlayHintLabelPartHover(part, token);
 			for await (const item of iterable) {
 				executor.emitOne(item);
 			}
 		});
 	}
 
-	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableObject<MarkdownHover>> {
+	private async *_resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): AsyncIterable<MarkdownHover> {
 		if (!part.part.location) {
-			return AsyncIterableObject.EMPTY;
+			return;
 		}
+
 		const { uri, range } = part.part.location;
 		const ref = await this._resolverService.createModelReference(uri);
 		try {
 			const model = ref.object.textEditorModel;
 			if (!this._languageFeaturesService.hoverProvider.has(model)) {
-				return AsyncIterableObject.EMPTY;
+				return;
 			}
-			return getHoverProviderResultsAsAsyncIterable(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)
-				.filter(item => !isEmptyMarkdownString(item.hover.contents))
-				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, false, 2 + item.ordinal));
+
+			for await (const item of getHoverProviderResultsAsAsyncIterable(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)) {
+				if (!isEmptyMarkdownString(item.hover.contents)) {
+					yield new MarkdownHover(this, part.item.anchor.range, item.hover.contents, false, 2 + item.ordinal);
+				}
+			}
 		} finally {
 			ref.dispose();
 		}

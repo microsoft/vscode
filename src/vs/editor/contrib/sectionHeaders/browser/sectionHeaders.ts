@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EditorOption, IEditorMinimapOptions } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IModelDeltaDecoration, MinimapPosition, MinimapSectionHeaderStyle, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { FindSectionHeaderOptions, SectionHeader } from 'vs/editor/common/services/findSectionHeaders';
+import { CancelablePromise, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { EditorOption, IEditorMinimapOptions } from '../../../common/config/editorOptions.js';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../common/editorCommon.js';
+import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { IModelDeltaDecoration, MinimapPosition, MinimapSectionHeaderStyle, TrackedRangeStickiness } from '../../../common/model.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
+import { FindSectionHeaderOptions, SectionHeader } from '../../../common/services/findSectionHeaders.js';
 
 export class SectionHeaderDetector extends Disposable implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.sectionHeaderDetector';
 
 	private options: FindSectionHeaderOptions | undefined;
-	private decorations = this.editor.createDecorationsCollection();
+	private decorations: IEditorDecorationsCollection;
 	private computeSectionHeaders: RunOnceScheduler;
 	private computePromise: CancelablePromise<SectionHeader[]> | null;
 	private currentOccurrences: { [decorationId: string]: SectionHeaderOccurrence };
@@ -32,6 +32,7 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 	) {
 		super();
+		this.decorations = this.editor.createDecorationsCollection();
 
 		this.options = this.createOptions(editor.getOption(EditorOption.minimap));
 		this.computePromise = null;
@@ -114,6 +115,7 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 
 		return {
 			foldingRules,
+			markSectionHeaderRegex: minimap.markSectionHeaderRegex,
 			findMarkSectionHeaders: minimap.showMarkSectionHeaders,
 			findRegionSectionHeaders: minimap.showRegionSectionHeaders,
 		};
@@ -154,8 +156,10 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 				const tokens = model.tokenization.getLineTokens(validRange.startLineNumber);
 				const idx = tokens.findTokenIndexAtOffset(validRange.startColumn - 1);
 				const tokenType = tokens.getStandardTokenType(idx);
-				const languageId = tokens.getLanguageId(idx);
-				return (languageId === model.getLanguageId() && tokenType === StandardTokenType.Comment);
+
+				const languageIdAtPosition = model.getLanguageIdAtPosition(validRange.startLineNumber, validRange.startColumn);
+				const tokenLanguageId = tokens.getLanguageId(idx);
+				return (tokenLanguageId === languageIdAtPosition && tokenType === StandardTokenType.Comment);
 			});
 		}
 

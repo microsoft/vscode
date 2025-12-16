@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize } from '../../../../nls.js';
 
-import * as Objects from 'vs/base/common/objects';
-import * as Strings from 'vs/base/common/strings';
-import * as Assert from 'vs/base/common/assert';
-import { join, normalize } from 'vs/base/common/path';
-import * as Types from 'vs/base/common/types';
-import * as UUID from 'vs/base/common/uuid';
-import * as Platform from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { asArray } from 'vs/base/common/arrays';
-import { Schemas as NetworkSchemas } from 'vs/base/common/network';
+import * as Objects from '../../../../base/common/objects.js';
+import * as Strings from '../../../../base/common/strings.js';
+import * as Assert from '../../../../base/common/assert.js';
+import { join, normalize } from '../../../../base/common/path.js';
+import * as Types from '../../../../base/common/types.js';
+import * as UUID from '../../../../base/common/uuid.js';
+import * as Platform from '../../../../base/common/platform.js';
+import Severity from '../../../../base/common/severity.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { ValidationStatus, ValidationState, IProblemReporter, Parser } from '../../../../base/common/parsers.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { asArray } from '../../../../base/common/arrays.js';
+import { Schemas as NetworkSchemas } from '../../../../base/common/network.js';
 
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { Event, Emitter } from 'vs/base/common/event';
-import { FileType, IFileService, IFileStatWithPartialMetadata, IFileSystemProvider } from 'vs/platform/files/common/files';
+import { IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { ExtensionsRegistry, ExtensionMessageCollector } from '../../../services/extensions/common/extensionsRegistry.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { FileType, IFileService, IFileStatWithPartialMetadata, IFileSystemProvider } from '../../../../platform/files/common/files.js';
 
 export enum FileLocationKind {
 	Default,
@@ -33,7 +33,7 @@ export enum FileLocationKind {
 	Search
 }
 
-export module FileLocationKind {
+export namespace FileLocationKind {
 	export function fromString(value: string): FileLocationKind | undefined {
 		value = value.toLowerCase();
 		if (value === 'absolute') {
@@ -55,7 +55,7 @@ export enum ProblemLocationKind {
 	Location
 }
 
-export module ProblemLocationKind {
+export namespace ProblemLocationKind {
 	export function fromString(value: string): ProblemLocationKind | undefined {
 		value = value.toLowerCase();
 		if (value === 'file') {
@@ -117,7 +117,7 @@ export enum ApplyToKind {
 	closedDocuments
 }
 
-export module ApplyToKind {
+export namespace ApplyToKind {
 	export function fromString(value: string): ApplyToKind | undefined {
 		value = value.toLowerCase();
 		if (value === 'alldocuments') {
@@ -138,7 +138,7 @@ export interface ProblemMatcher {
 	applyTo: ApplyToKind;
 	fileLocation: FileLocationKind;
 	filePrefix?: string | Config.SearchFileLocationArgs;
-	pattern: IProblemPattern | IProblemPattern[];
+	pattern: Types.SingleOrMany<IProblemPattern>;
 	severity?: Severity;
 	watching?: IWatchingMatcher;
 	uriProvider?: (path: string) => URI;
@@ -358,6 +358,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 			if (trim) {
 				value = Strings.trim(value)!;
 			}
+			// eslint-disable-next-line local/code-no-any-casts
 			(data as any)[property] += endOfLine + value;
 		}
 	}
@@ -370,6 +371,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 				if (trim) {
 					value = Strings.trim(value)!;
 				}
+				// eslint-disable-next-line local/code-no-any-casts
 				(data as any)[property] = value;
 			}
 		}
@@ -779,9 +781,9 @@ export namespace Config {
 	export interface IBackgroundMonitor {
 
 		/**
-		* If set to true the watcher is in active mode when the task
-		* starts. This is equals of issuing a line that matches the
-		* beginsPattern.
+		* If set to true the watcher starts in active mode. This is the
+		* same as outputting a line that matches beginsPattern when the
+		* task starts.
 		*/
 		activeOnStart?: boolean;
 
@@ -870,14 +872,14 @@ export namespace Config {
 		*    `include` is not unprovided, the current workspace directory should
 		*    be used as the default.
 		*/
-		fileLocation?: string | string[] | ['search', SearchFileLocationArgs];
+		fileLocation?: Types.SingleOrMany<string> | ['search', SearchFileLocationArgs];
 
 		/**
 		* The name of a predefined problem pattern, the inline definition
 		* of a problem pattern or an array of problem patterns to match
 		* problems spread over multiple lines.
 		*/
-		pattern?: string | IProblemPattern | IProblemPattern[];
+		pattern?: string | Types.SingleOrMany<IProblemPattern>;
 
 		/**
 		* A regular expression signaling that a watched tasks begins executing
@@ -898,8 +900,8 @@ export namespace Config {
 	}
 
 	export type SearchFileLocationArgs = {
-		include?: string | string[];
-		exclude?: string | string[];
+		include?: Types.SingleOrMany<string>;
+		exclude?: Types.SingleOrMany<string>;
 	};
 
 	export type ProblemMatcherType = string | ProblemMatcher | Array<string | ProblemMatcher>;
@@ -987,6 +989,10 @@ export class ProblemPatternParser extends Parser {
 			}
 			result.push(pattern);
 		}
+		if (!result || result.length === 0) {
+			this.error(localize('ProblemPatternParser.problemPattern.emptyPattern', 'The problem pattern is invalid. It must contain at least one pattern.'));
+			return null;
+		}
 		if (result[0].kind === undefined) {
 			result[0].kind = ProblemLocationKind.Location;
 		}
@@ -1006,6 +1012,7 @@ export class ProblemPatternParser extends Parser {
 		function copyProperty(result: IProblemPattern, source: Config.IProblemPattern, resultKey: keyof IProblemPattern, sourceKey: keyof Config.IProblemPattern) {
 			const value = source[sourceKey];
 			if (typeof value === 'number') {
+				// eslint-disable-next-line local/code-no-any-casts
 				(result as any)[resultKey] = value;
 			}
 		}
@@ -1042,6 +1049,10 @@ export class ProblemPatternParser extends Parser {
 	}
 
 	private validateProblemPattern(values: IProblemPattern[]): boolean {
+		if (!values || values.length === 0) {
+			this.error(localize('ProblemPatternParser.problemPattern.emptyPattern', 'The problem pattern is invalid. It must contain at least one pattern.'));
+			return false;
+		}
 		let file: boolean = false, message: boolean = false, location: boolean = false, line: boolean = false;
 		const locationKind = (values[0].kind === undefined) ? ProblemLocationKind.Location : values[0].kind;
 
@@ -1323,7 +1334,7 @@ export namespace Schemas {
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
-						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginsPattern')
+						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor starts in active mode. This is the same as outputting a line that matches beginsPattern when the task starts.')
 					},
 					beginsPattern: {
 						oneOf: [
@@ -1353,7 +1364,7 @@ export namespace Schemas {
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
-						description: localize('ProblemMatcherSchema.watching.activeOnStart', 'If set to true the watcher is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
+						description: localize('ProblemMatcherSchema.watching.activeOnStart', 'If set to true the watcher starts in active mode. This is the same as outputting a line that matches beginsPattern when the task starts.')
 					},
 					beginsPattern: {
 						oneOf: [
@@ -1425,7 +1436,7 @@ export interface IProblemPatternRegistry {
 
 class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
-	private patterns: IStringDictionary<IProblemPattern | IProblemPattern[]>;
+	private patterns: IStringDictionary<Types.SingleOrMany<IProblemPattern>>;
 	private readyPromise: Promise<void>;
 
 	constructor() {
@@ -1480,11 +1491,11 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 		return this.readyPromise;
 	}
 
-	public add(key: string, value: IProblemPattern | IProblemPattern[]): void {
+	public add(key: string, value: Types.SingleOrMany<IProblemPattern>): void {
 		this.patterns[key] = value;
 	}
 
-	public get(key: string): IProblemPattern | IProblemPattern[] {
+	public get(key: string): Types.SingleOrMany<IProblemPattern> {
 		return this.patterns[key];
 	}
 
@@ -1745,7 +1756,7 @@ export class ProblemMatcherParser extends Parser {
 		return result;
 	}
 
-	private createProblemPattern(value: string | Config.IProblemPattern | Config.MultiLineProblemPattern): IProblemPattern | IProblemPattern[] | null {
+	private createProblemPattern(value: string | Config.IProblemPattern | Config.MultiLineProblemPattern): Types.SingleOrMany<IProblemPattern> | null {
 		if (Types.isString(value)) {
 			const variableName: string = <string>value;
 			if (variableName.length > 1 && variableName[0] === '$') {
@@ -1892,6 +1903,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 				}
 				const matcher = this.get('tsc-watch');
 				if (matcher) {
+					// eslint-disable-next-line local/code-no-any-casts
 					(<any>matcher).tscWatch = true;
 				}
 				resolve(undefined);

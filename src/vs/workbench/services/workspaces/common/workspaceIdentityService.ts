@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isEqualOrParent, joinPath, relativePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceStateFolder } from 'vs/platform/userDataSync/common/userDataSync';
-import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceStateFolder } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { EditSessionIdentityMatch, IEditSessionIdentityService } from '../../../../platform/workspace/common/editSessions.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 
 export const IWorkspaceIdentityService = createDecorator<IWorkspaceIdentityService>('IWorkspaceIdentityService');
 export interface IWorkspaceIdentityService {
 	_serviceBrand: undefined;
-	matches(folders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<((obj: any) => any) | false>;
+	matches(folders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<((obj: unknown) => unknown) | false>;
 	getWorkspaceStateFolders(cancellationToken: CancellationToken): Promise<IWorkspaceStateFolder[]>;
 }
 
@@ -40,7 +40,7 @@ export class WorkspaceIdentityService implements IWorkspaceIdentityService {
 		return workspaceStateFolders;
 	}
 
-	async matches(incomingWorkspaceFolders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<((value: any) => any) | false> {
+	async matches(incomingWorkspaceFolders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<((value: unknown) => unknown) | false> {
 		const incomingToCurrentWorkspaceFolderUris: { [key: string]: string } = {};
 
 		const incomingIdentitiesToIncomingWorkspaceFolders: { [key: string]: string } = {};
@@ -107,13 +107,13 @@ export class WorkspaceIdentityService implements IWorkspaceIdentityService {
 
 		// Recursively look for any URIs in the provided object and
 		// replace them with the URIs of the current workspace folders
-		const uriReplacer = (obj: any, depth = 0) => {
+		const uriReplacer = (obj: unknown, depth = 0) => {
 			if (!obj || depth > 200) {
 				return obj;
 			}
 
 			if (obj instanceof VSBuffer || obj instanceof Uint8Array) {
-				return <any>obj;
+				return obj;
 			}
 
 			if (URI.isUri(obj)) {
@@ -128,7 +128,7 @@ export class WorkspaceIdentityService implements IWorkspaceIdentityService {
 				// walk object
 				for (const key in obj) {
 					if (Object.hasOwnProperty.call(obj, key)) {
-						obj[key] = uriReplacer(obj[key], depth + 1);
+						(obj as Record<string, unknown>)[key] = uriReplacer((obj as Record<string, unknown>)[key], depth + 1);
 					}
 				}
 			}

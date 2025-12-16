@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ContextKeyExpr, ContextKeyExpression, implies } from 'vs/platform/contextkey/common/contextkey';
+import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ContextKeyExpr, ContextKeyExpression, implies } from '../../common/contextkey.js';
 
 function createContext(ctx: any) {
 	return {
@@ -93,7 +93,9 @@ suite('ContextKeyExpr', () => {
 			testExpression(expr + ' != true', !value);
 			testExpression(expr + ' == false', !value);
 			testExpression(expr + ' != false', !!value);
+			// eslint-disable-next-line local/code-no-any-casts
 			testExpression(expr + ' == 5', value == <any>'5');
+			// eslint-disable-next-line local/code-no-any-casts
 			testExpression(expr + ' != 5', value != <any>'5');
 			testExpression('!' + expr, !value);
 			testExpression(expr + ' =~ /d.*/', /d.*/.test(value));

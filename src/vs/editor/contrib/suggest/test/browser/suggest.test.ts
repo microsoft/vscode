@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
-import { CompletionOptions, provideSuggestionItems, SnippetSortOrder } from 'vs/editor/contrib/suggest/browser/suggest';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { CompletionItemKind, CompletionItemProvider } from '../../../../common/languages.js';
+import { CompletionOptions, provideSuggestionItems, SnippetSortOrder } from '../../browser/suggest.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 
 suite('Suggest', function () {

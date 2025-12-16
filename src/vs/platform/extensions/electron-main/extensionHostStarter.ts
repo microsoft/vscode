@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
-import { canceled } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WindowUtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { Promises } from '../../../base/common/async.js';
+import { canceled } from '../../../base/common/errors.js';
+import { Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { IExtensionHostProcessOptions, IExtensionHostStarter } from '../common/extensionHostStarter.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { WindowUtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 
 export class ExtensionHostStarter extends Disposable implements IDisposable, IExtensionHostStarter {
 
@@ -28,6 +29,7 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -59,7 +61,7 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 		return this._getExtHost(id).onStderr;
 	}
 
-	onDynamicMessage(id: string): Event<any> {
+	onDynamicMessage(id: string): Event<unknown> {
 		return this._getExtHost(id).onMessage;
 	}
 
@@ -105,14 +107,18 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 			throw canceled();
 		}
 		const extHost = this._getExtHost(id);
+		const args = ['--skipWorkspaceStorageLock'];
+		if (this._configurationService.getValue<boolean>('extensions.supportNodeGlobalNavigator')) {
+			args.push('--supportGlobalNavigator');
+		}
 		extHost.start({
 			...opts,
 			type: 'extensionHost',
+			name: 'extension-host',
 			entryPoint: 'vs/workbench/api/node/extensionHostProcess',
-			args: ['--skipWorkspaceStorageLock'],
+			args,
 			execArgv: opts.execArgv,
 			allowLoadingUnsignedLibraries: true,
-			forceAllocationsToV8Sandbox: true,
 			respondToAuthRequestsFromMainProcess: true,
 			correlationId: id
 		});

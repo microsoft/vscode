@@ -1,10 +1,11 @@
 [
   {
     content: {
-      value: "text before",
+      value: "text before ",
       isTrusted: false,
       supportThemeIcons: false,
-      supportHtml: false
+      supportHtml: false,
+      supportAlertSyntax: false
     },
     kind: "markdownContent"
   },
@@ -14,10 +15,11 @@
   },
   {
     content: {
-      value: "text after",
+      value: " text after",
       isTrusted: false,
       supportThemeIcons: false,
-      supportHtml: false
+      supportHtml: false,
+      supportAlertSyntax: false
     },
     kind: "markdownContent"
   }

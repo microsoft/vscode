@@ -146,7 +146,7 @@ pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
 		.stdout(Stdio::piped())
 		.spawn()
 		.map_err(|e| CodeError::CommandFailed {
-			command: format!("pgrep -P {}", parent_id),
+			command: format!("pgrep -P {parent_id}"),
 			code: -1,
 			output: e.to_string(),
 		})?;

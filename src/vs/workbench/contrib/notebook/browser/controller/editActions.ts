@@ -3,47 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Mimes } from 'vs/base/common/mime';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/model';
-import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
-import { localize, localize2 } from 'vs/nls';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { changeCellToKind, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, executeNotebookCondition, findTargetCellEditor } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NotebookChangeTabDisplaySize, NotebookIndentUsingSpaces, NotebookIndentUsingTabs, NotebookIndentationToSpacesAction, NotebookIndentationToTabsAction } from 'vs/workbench/contrib/notebook/browser/controller/notebookIndentationActions';
-import { CHANGE_CELL_LANGUAGE, CellEditState, DETECT_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { CommandExecutor } from '../../../../../editor/common/cursor/cursor.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { LineCommentCommand, Type } from '../../../../../editor/contrib/comment/browser/lineCommentCommand.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext, InputFocusedContextKey } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
+import { CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.js';
+import { changeCellToKind, runDeleteAction } from './cellOperations.js';
+import { CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, executeNotebookCondition, findTargetCellEditor } from './coreActions.js';
+import { NotebookChangeTabDisplaySize, NotebookIndentUsingSpaces, NotebookIndentUsingTabs, NotebookIndentationToSpacesAction, NotebookIndentationToTabsAction } from './notebookIndentationActions.js';
+import { CHANGE_CELL_LANGUAGE, CellEditState, DETECT_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, getNotebookEditorFromEditorPane } from '../notebookBrowser.js';
+import * as icons from '../notebookIcons.js';
+import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState, NotebookSetting } from '../../common/notebookCommon.js';
+import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from '../../common/notebookContextKeys.js';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { INotebookKernelService } from '../../common/notebookKernelService.js';
+import { ICellRange } from '../../common/notebookRange.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { NotebookInlineVariablesController } from '../contrib/notebookVariables/notebookInlineVariables.js';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
+const QUIT_EDIT_ALL_CELLS_COMMAND_ID = 'notebook.quitEditAllCells';
 export const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 export const SELECT_NOTEBOOK_INDENTATION_ID = 'notebook.selectIndentation';
 export const COMMENT_SELECTED_CELLS_ID = 'notebook.commentSelectedCells';
@@ -58,7 +60,6 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_CELL_LIST_FOCUSED,
 						ContextKeyExpr.not(InputFocusedContextKey),
-						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 						EditorContextKeys.hoverFocused.toNegated(),
 						NOTEBOOK_OUTPUT_INPUT_FOCUSED.toNegated()
 					),
@@ -80,7 +81,7 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		if (!context.notebookEditor.hasModel() || context.notebookEditor.isReadOnly) {
+		if (!context.notebookEditor.hasModel()) {
 			return;
 		}
 
@@ -148,6 +149,41 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 		}
 
 		await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
+	}
+});
+
+registerAction2(class QuitEditAllCellsAction extends NotebookAction {
+	constructor() {
+		super(
+			{
+				id: QUIT_EDIT_ALL_CELLS_COMMAND_ID,
+				title: localize('notebookActions.quitEditAllCells', "Stop Editing All Cells")
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		if (!context.notebookEditor.hasModel()) {
+			return;
+		}
+
+		const viewModel = context.notebookEditor.getViewModel();
+		if (!viewModel) {
+			return;
+		}
+
+		const activeCell = context.notebookEditor.getActiveCell();
+
+		const editingCells = viewModel.viewCells.filter(cell =>
+			cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Editing
+		);
+
+		editingCells.forEach(cell => {
+			cell.updateEditState(CellEditState.Preview, QUIT_EDIT_ALL_CELLS_COMMAND_ID);
+		});
+
+		if (activeCell) {
+			await context.notebookEditor.focusNotebookCell(activeCell, 'container', { skipReveal: true });
+		}
 	}
 });
 
@@ -339,6 +375,9 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 		if (clearExecutionMetadataEdits.length) {
 			context.notebookEditor.textModel.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined, computeUndoRedo);
 		}
+
+		const controller = editor.getContribution<NotebookInlineVariablesController>(NotebookInlineVariablesController.id);
+		controller.clearNotebookInlineDecorations();
 	}
 });
 
@@ -358,6 +397,11 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		super({
 			id: CHANGE_CELL_LANGUAGE,
 			title: localize('changeLanguage', 'Change Cell Language'),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyM),
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE)
+			},
 			metadata: {
 				description: localize('changeLanguage', 'Change Cell Language'),
 				args: [
@@ -646,44 +690,35 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext): Promise<void> {
 		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 
-		const selectedCellEditors: ICodeEditor[] = [];
-		context.selectedCells.forEach(cell => {
-			const findContext = { notebookEditor: context.notebookEditor, cell };
-			const foundEditor = findTargetCellEditor(findContext, cell);
-			if (foundEditor) {
-				selectedCellEditors.push(foundEditor);
-			}
-		});
+		context.selectedCells.forEach(async cellViewModel => {
+			const textModel = await cellViewModel.resolveTextModel();
 
-
-		selectedCellEditors.forEach(editor => {
-			if (!editor.hasModel()) {
-				return;
-			}
-
-			const model = editor.getModel();
-			const commands: ICommand[] = [];
-			const modelOptions = model.getOptions();
-			const commentsOptions = editor.getOption(EditorOption.comments);
-
-			const selection = editor.getSelection();
-
-			commands.push(new LineCommentCommand(
+			const commentsOptions = cellViewModel.commentOptions;
+			const cellCommentCommand = new LineCommentCommand(
 				languageConfigurationService,
-				new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount())),
-				modelOptions.indentSize,
+				new Selection(1, 1, textModel.getLineCount(), textModel.getLineMaxColumn(textModel.getLineCount())), // comment the entire cell
+				textModel.getOptions().tabSize,
 				Type.Toggle,
-				commentsOptions.insertSpace,
-				commentsOptions.ignoreEmptyLines,
+				commentsOptions.insertSpace ?? true,
+				commentsOptions.ignoreEmptyLines ?? true,
 				false
-			));
+			);
 
-			editor.pushUndoStop();
-			editor.executeCommands(COMMENT_SELECTED_CELLS_ID, commands);
-			editor.pushUndoStop();
+			// store any selections that are in the cell, allows them to be shifted by comments and preserved
+			const cellEditorSelections = cellViewModel.getSelections();
+			const initialTrackedRangesIDs: string[] = cellEditorSelections.map(selection => {
+				return textModel._setTrackedRange(null, selection, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
+			});
 
-			editor.setSelection(selection);
-		});
+			CommandExecutor.executeCommands(textModel, cellEditorSelections, [cellCommentCommand]);
+
+			const newTrackedSelections = initialTrackedRangesIDs.map(i => {
+				return textModel._getTrackedRange(i);
+			}).filter(r => !!r).map((range,) => {
+				return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+			});
+			cellViewModel.setSelections(newTrackedSelections ?? []);
+		}); // end of cells forEach
 	}
 
 });

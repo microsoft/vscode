@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { Delayer } from 'vs/base/common/async';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellEditType, ICellMoveEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { Delayer } from '../../../../../../base/common/async.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import * as platform from '../../../../../../base/common/platform.js';
+import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
+import { CellContentPart } from '../cellPart.js';
+import { BaseCellRenderTemplate, INotebookCellList } from '../notebookRenderingCommon.js';
+import { cloneNotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
+import { CellEditType, ICellMoveEdit, SelectionStateType } from '../../../common/notebookCommon.js';
+import { cellRangesToIndexes, ICellRange } from '../../../common/notebookRange.js';
 
 const $ = DOM.$;
 

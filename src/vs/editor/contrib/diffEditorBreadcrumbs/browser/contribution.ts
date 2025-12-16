@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { reverseOrder, compareBy, numberComparator } from 'vs/base/common/arrays';
-import { observableValue, observableSignalFromEvent, autorunWithStore, IReader } from 'vs/base/common/observable';
-import { HideUnchangedRegionsFeature, IDiffEditorBreadcrumbsSource } from 'vs/editor/browser/widget/diffEditor/features/hideUnchangedRegionsFeature';
-import { DisposableCancellationTokenSource } from 'vs/editor/browser/widget/diffEditor/utils';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IOutlineModelService, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { SymbolKind } from 'vs/editor/common/languages';
+import { reverseOrder, compareBy, numberComparator } from '../../../../base/common/arrays.js';
+import { observableValue, observableSignalFromEvent, autorunWithStore, IReader } from '../../../../base/common/observable.js';
+import { HideUnchangedRegionsFeature, IDiffEditorBreadcrumbsSource } from '../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
+import { DisposableCancellationTokenSource } from '../../../browser/widget/diffEditor/utils.js';
+import { LineRange } from '../../../common/core/ranges/lineRange.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { IOutlineModelService, OutlineModel } from '../../documentSymbols/browser/outlineModel.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import { SymbolKind } from '../../../common/languages.js';
 
 class DiffEditorBreadcrumbsSource extends Disposable implements IDiffEditorBreadcrumbsSource {
 	private readonly _currentModel = observableValue<OutlineModel | undefined>(this, undefined);
@@ -53,6 +53,17 @@ class DiffEditorBreadcrumbsSource extends Disposable implements IDiffEditorBread
 		const symbols = m.asListOfDocumentSymbols()
 			.filter(s => startRange.contains(s.range.startLineNumber) && !startRange.contains(s.range.endLineNumber));
 		symbols.sort(reverseOrder(compareBy(s => s.range.endLineNumber - s.range.startLineNumber, numberComparator)));
+		return symbols.map(s => ({ name: s.name, kind: s.kind, startLineNumber: s.range.startLineNumber }));
+	}
+
+	public getAt(lineNumber: number, reader: IReader): { name: string; kind: SymbolKind; startLineNumber: number }[] {
+		const m = this._currentModel.read(reader);
+		if (!m) { return []; }
+		const symbols = m.asListOfDocumentSymbols()
+			.filter(s => new LineRange(s.range.startLineNumber, s.range.endLineNumber).contains(lineNumber));
+		if (symbols.length === 0) { return []; }
+		symbols.sort(reverseOrder(compareBy(s => s.range.endLineNumber - s.range.startLineNumber, numberComparator)));
+
 		return symbols.map(s => ({ name: s.name, kind: s.kind, startLineNumber: s.range.startLineNumber }));
 	}
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../nls.js';
 
 export const LANGUAGE_DEFAULT = 'en';
 
@@ -77,7 +77,7 @@ if (typeof nodeProcess === 'object') {
 	_isLinux = (nodeProcess.platform === 'linux');
 	_isLinuxSnap = _isLinux && !!nodeProcess.env['SNAP'] && !!nodeProcess.env['SNAP_REVISION'];
 	_isElectron = isElectronProcess;
-	_isCI = !!nodeProcess.env['CI'] || !!nodeProcess.env['BUILD_ARTIFACTSTAGINGDIRECTORY'];
+	_isCI = !!nodeProcess.env['CI'] || !!nodeProcess.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!nodeProcess.env['GITHUB_WORKSPACE'];
 	_locale = LANGUAGE_DEFAULT;
 	_language = LANGUAGE_DEFAULT;
 	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
@@ -103,8 +103,7 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isMobile = _userAgent?.indexOf('Mobi') >= 0;
 	_isWeb = true;
-	// VSCODE_GLOBALS: NLS
-	_language = globalThis._VSCODE_NLS_LANGUAGE || LANGUAGE_DEFAULT;
+	_language = nls.getNLSLanguage() || LANGUAGE_DEFAULT;
 	_locale = navigator.language.toLowerCase();
 	_platformLocale = _locale;
 }
@@ -276,6 +275,6 @@ export const isSafari = !!(!isChrome && (userAgent && userAgent.indexOf('Safari'
 export const isEdge = !!(userAgent && userAgent.indexOf('Edg/') >= 0);
 export const isAndroid = !!(userAgent && userAgent.indexOf('Android') >= 0);
 
-export function isBigSurOrNewer(osVersion: string): boolean {
-	return parseFloat(osVersion) >= 20;
+export function isTahoeOrNewer(osVersion: string): boolean {
+	return parseFloat(osVersion) >= 25;
 }

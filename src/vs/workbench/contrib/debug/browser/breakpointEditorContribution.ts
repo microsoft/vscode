@@ -3,43 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari } from 'vs/base/browser/browser';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import * as dom from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { distinct } from 'vs/base/common/arrays';
-import { RunOnceScheduler, timeout } from 'vs/base/common/async';
-import { memoize } from 'vs/base/common/decorators';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { dispose, disposeIfDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as env from 'vs/base/common/platform';
-import severity from 'vs/base/common/severity';
-import { noBreakWhitespace } from 'vs/base/common/strings';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { GlyphMarginLane, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
-import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DebuggerString, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, IDebugService, IDebugSession, State } from 'vs/workbench/contrib/debug/common/debug';
+import { isSafari } from '../../../../base/browser/browser.js';
+import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
+import { memoize } from '../../../../base/common/decorators.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { dispose, disposeIfDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import * as env from '../../../../base/common/platform.js';
+import severity from '../../../../base/common/severity.js';
+import { noBreakWhitespace } from '../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { registerThemingParticipant, themeColorFromId } from '../../../../platform/theme/common/themeService.js';
+import { GutterActionsRegistry } from '../../codeEditor/browser/editorLineNumberMenu.js';
+import { getBreakpointMessageAndIcon } from './breakpointsView.js';
+import { BreakpointWidget } from './breakpointWidget.js';
+import * as icons from './debugIcons.js';
+import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DebuggerString, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, IDebugService, IDebugSession, State } from '../common/debug.js';
 
 const $ = dom.$;
 
@@ -406,94 +406,79 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 		if (breakpoints.length === 1) {
 			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
-			actions.push(new Action('debug.removeBreakpoint', nls.localize('removeBreakpoint', "Remove {0}", breakpointType), undefined, true, async () => {
-				await this.debugService.removeBreakpoints(breakpoints[0].getId());
+			actions.push(toAction({
+				id: 'debug.removeBreakpoint', label: nls.localize('removeBreakpoint', "Remove {0}", breakpointType), enabled: true, run: async () => {
+					await this.debugService.removeBreakpoints(breakpoints[0].getId());
+				}
 			}));
-			actions.push(new Action(
-				'workbench.debug.action.editBreakpointAction',
-				nls.localize('editBreakpoint', "Edit {0}...", breakpointType),
-				undefined,
-				true,
-				() => Promise.resolve(this.showBreakpointWidget(breakpoints[0].lineNumber, breakpoints[0].column))
-			));
-
-			actions.push(new Action(
-				`workbench.debug.viewlet.action.toggleBreakpoint`,
-				breakpoints[0].enabled ? nls.localize('disableBreakpoint', "Disable {0}", breakpointType) : nls.localize('enableBreakpoint', "Enable {0}", breakpointType),
-				undefined,
-				true,
-				() => this.debugService.enableOrDisableBreakpoints(!breakpoints[0].enabled, breakpoints[0])
-			));
+			actions.push(toAction({
+				id: 'workbench.debug.action.editBreakpointAction',
+				label: nls.localize('editBreakpoint', "Edit {0}...", breakpointType),
+				enabled: true,
+				run: () => Promise.resolve(this.showBreakpointWidget(breakpoints[0].lineNumber, breakpoints[0].column))
+			})); actions.push(toAction({
+				id: `workbench.debug.viewlet.action.toggleBreakpoint`,
+				label: breakpoints[0].enabled ? nls.localize('disableBreakpoint', "Disable {0}", breakpointType) : nls.localize('enableBreakpoint', "Enable {0}", breakpointType),
+				enabled: true,
+				run: () => this.debugService.enableOrDisableBreakpoints(!breakpoints[0].enabled, breakpoints[0])
+			}));
 		} else if (breakpoints.length > 1) {
 			const sorted = breakpoints.slice().sort((first, second) => (first.column && second.column) ? first.column - second.column : 1);
-			actions.push(new SubmenuAction('debug.removeBreakpoints', nls.localize('removeBreakpoints', "Remove Breakpoints"), sorted.map(bp => new Action(
-				'removeInlineBreakpoint',
-				bp.column ? nls.localize('removeInlineBreakpointOnColumn', "Remove Inline Breakpoint on Column {0}", bp.column) : nls.localize('removeLineBreakpoint', "Remove Line Breakpoint"),
-				undefined,
-				true,
-				() => this.debugService.removeBreakpoints(bp.getId())
-			))));
-
-			actions.push(new SubmenuAction('debug.editBreakpoints', nls.localize('editBreakpoints', "Edit Breakpoints"), sorted.map(bp =>
-				new Action('editBreakpoint',
-					bp.column ? nls.localize('editInlineBreakpointOnColumn', "Edit Inline Breakpoint on Column {0}", bp.column) : nls.localize('editLineBreakpoint', "Edit Line Breakpoint"),
-					undefined,
-					true,
-					() => Promise.resolve(this.showBreakpointWidget(bp.lineNumber, bp.column))
-				)
-			)));
-
-			actions.push(new SubmenuAction('debug.enableDisableBreakpoints', nls.localize('enableDisableBreakpoints', "Enable/Disable Breakpoints"), sorted.map(bp => new Action(
-				bp.enabled ? 'disableColumnBreakpoint' : 'enableColumnBreakpoint',
-				bp.enabled ? (bp.column ? nls.localize('disableInlineColumnBreakpoint', "Disable Inline Breakpoint on Column {0}", bp.column) : nls.localize('disableBreakpointOnLine', "Disable Line Breakpoint"))
+			actions.push(new SubmenuAction('debug.removeBreakpoints', nls.localize('removeBreakpoints', "Remove Breakpoints"), sorted.map(bp => toAction({
+				id: 'removeInlineBreakpoint',
+				label: bp.column ? nls.localize('removeInlineBreakpointOnColumn', "Remove Inline Breakpoint on Column {0}", bp.column) : nls.localize('removeLineBreakpoint', "Remove Line Breakpoint"),
+				enabled: true,
+				run: () => this.debugService.removeBreakpoints(bp.getId())
+			})))); actions.push(new SubmenuAction('debug.editBreakpoints', nls.localize('editBreakpoints', "Edit Breakpoints"), sorted.map(bp =>
+				toAction({
+					id: 'editBreakpoint',
+					label: bp.column ? nls.localize('editInlineBreakpointOnColumn', "Edit Inline Breakpoint on Column {0}", bp.column) : nls.localize('editLineBreakpoint', "Edit Line Breakpoint"),
+					enabled: true,
+					run: () => Promise.resolve(this.showBreakpointWidget(bp.lineNumber, bp.column))
+				})
+			))); actions.push(new SubmenuAction('debug.enableDisableBreakpoints', nls.localize('enableDisableBreakpoints', "Enable/Disable Breakpoints"), sorted.map(bp => toAction({
+				id: bp.enabled ? 'disableColumnBreakpoint' : 'enableColumnBreakpoint',
+				label: bp.enabled ? (bp.column ? nls.localize('disableInlineColumnBreakpoint', "Disable Inline Breakpoint on Column {0}", bp.column) : nls.localize('disableBreakpointOnLine', "Disable Line Breakpoint"))
 					: (bp.column ? nls.localize('enableBreakpoints', "Enable Inline Breakpoint on Column {0}", bp.column) : nls.localize('enableBreakpointOnLine', "Enable Line Breakpoint")),
-				undefined,
-				true,
-				() => this.debugService.enableOrDisableBreakpoints(!bp.enabled, bp)
-			))));
+				enabled: true,
+				run: () => this.debugService.enableOrDisableBreakpoints(!bp.enabled, bp)
+			}))));
 		} else {
-			actions.push(new Action(
-				'addBreakpoint',
-				nls.localize('addBreakpoint', "Add Breakpoint"),
-				undefined,
-				true,
-				() => this.debugService.addBreakpoints(uri, [{ lineNumber, column }])
-			));
-			actions.push(new Action(
-				'addConditionalBreakpoint',
-				nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint..."),
-				undefined,
-				true,
-				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.CONDITION))
-			));
-			actions.push(new Action(
-				'addLogPoint',
-				nls.localize('addLogPoint', "Add Logpoint..."),
-				undefined,
-				true,
-				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.LOG_MESSAGE))
-			));
-			actions.push(new Action(
-				'addTriggeredBreakpoint',
-				nls.localize('addTriggeredBreakpoint', "Add Triggered Breakpoint..."),
-				undefined,
-				true,
-				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.TRIGGER_POINT))
-			));
+			actions.push(toAction({
+				id: 'addBreakpoint',
+				label: nls.localize('addBreakpoint', "Add Breakpoint"),
+				enabled: true,
+				run: () => this.debugService.addBreakpoints(uri, [{ lineNumber, column }])
+			}));
+			actions.push(toAction({
+				id: 'addConditionalBreakpoint',
+				label: nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint..."),
+				enabled: true,
+				run: () => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.CONDITION))
+			}));
+			actions.push(toAction({
+				id: 'addLogPoint',
+				label: nls.localize('addLogPoint', "Add Logpoint..."),
+				enabled: true,
+				run: () => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.LOG_MESSAGE))
+			}));
+			actions.push(toAction({
+				id: 'addTriggeredBreakpoint',
+				label: nls.localize('addTriggeredBreakpoint', "Add Triggered Breakpoint..."),
+				enabled: true,
+				run: () => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.TRIGGER_POINT))
+			}));
 		}
 
 		if (this.debugService.state === State.Stopped) {
 			actions.push(new Separator());
-			actions.push(new Action(
-				'runToLine',
-				nls.localize('runToLine', "Run to Line"),
-				undefined,
-				true,
-				() => this.debugService.runTo(uri, lineNumber).catch(onUnexpectedError)
-			));
-		}
-
-		return actions;
+			actions.push(toAction({
+				id: 'runToLine',
+				label: nls.localize('runToLine', "Run to Line"),
+				enabled: true,
+				run: () => this.debugService.runTo(uri, lineNumber).catch(onUnexpectedError)
+			}));
+		} return actions;
 	}
 
 	private marginFreeFromNonDebugDecorations(line: number): boolean {
@@ -680,6 +665,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 	dispose(): void {
 		this.breakpointWidget?.dispose();
+		this.setDecorationsScheduler.dispose();
 		this.editor.removeDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId));
 		dispose(this.toDispose);
 	}
@@ -730,6 +716,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			if (this.range && !this.range.equalsRange(range)) {
 				this.range = range;
 				this.editor.layoutContentWidget(this);
+				this.updateSize();
 			}
 		}));
 		this.create(cssClass);
@@ -767,19 +754,20 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			});
 		}));
 
-		const updateSize = () => {
-			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-			this.domNode.style.height = `${lineHeight}px`;
-			this.domNode.style.width = `${Math.ceil(0.8 * lineHeight)}px`;
-			this.domNode.style.marginLeft = `4px`;
-		};
-		updateSize();
+		this.updateSize();
 
 		this.toDispose.push(this.editor.onDidChangeConfiguration(c => {
 			if (c.hasChanged(EditorOption.fontSize) || c.hasChanged(EditorOption.lineHeight)) {
-				updateSize();
+				this.updateSize();
 			}
 		}));
+	}
+
+	private updateSize() {
+		const lineHeight = this.range ? this.editor.getLineHeightForPosition(this.range.getStartPosition()) : this.editor.getOption(EditorOption.lineHeight);
+		this.domNode.style.height = `${lineHeight}px`;
+		this.domNode.style.width = `${Math.ceil(0.8 * lineHeight)}px`;
+		this.domNode.style.marginLeft = `4px`;
 	}
 
 	@memoize
@@ -811,7 +799,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 }
 
 registerThemingParticipant((theme, collector) => {
-	const scope = '.monaco-editor .glyph-margin-widgets, .monaco-workbench .debug-breakpoints, .monaco-workbench .disassembly-view';
+	const scope = '.monaco-editor .glyph-margin-widgets, .monaco-workbench .debug-breakpoints, .monaco-workbench .disassembly-view, .monaco-editor .contentWidgets';
 	const debugIconBreakpointColor = theme.getColor(debugIconBreakpointForeground);
 	if (debugIconBreakpointColor) {
 		collector.addRule(`${scope} {

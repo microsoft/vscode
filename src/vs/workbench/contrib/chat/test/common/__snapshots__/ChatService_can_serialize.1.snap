@@ -1,12 +1,10 @@
 {
-  requesterUsername: "test",
-  requesterAvatarIconUri: undefined,
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
-  welcomeMessage: undefined,
   requests: [
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -27,12 +25,15 @@
                 value: "nullExtensionDescription",
                 _lower: "nullextensiondescription"
               },
+              extensionVersion: undefined,
               extensionPublisherId: "",
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
-              metadata: { requester: { name: "test" } },
-              slashCommands: [  ]
+              modes: [ "ask" ],
+              metadata: {  },
+              slashCommands: [  ],
+              disambiguation: [  ]
             },
             kind: "agent"
           },
@@ -55,10 +56,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
-      result: { metadata: { metadataKey: "value" } },
-      followups: undefined,
-      isCanceled: false,
-      vote: undefined,
+      shouldBeRemovedOnSend: undefined,
       agent: {
         name: "ChatProviderWithUsedContext",
         id: "ChatProviderWithUsedContext",
@@ -66,13 +64,37 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
-        metadata: { requester: { name: "test" } },
-        slashCommands: [  ]
+        modes: [ "ask" ],
+        metadata: {  },
+        slashCommands: [  ],
+        disambiguation: [  ]
       },
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined,
+      responseId: undefined,
+      result: { metadata: { metadataKey: "value" } },
+      responseMarkdownInfo: undefined,
+      followups: [
+        {
+          kind: "reply",
+          message: "Something else",
+          agentId: "",
+          tooltip: "a tooltip"
+        }
+      ],
+      modelState: {
+        value: 1,
+        completedAt: undefined
+      },
+      vote: undefined,
+      voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: {
         documents: [
@@ -92,7 +114,70 @@
         kind: "usedContext"
       },
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timeSpentWaiting: 0
+    },
+    {
+      requestId: undefined,
+      message: {
+        parts: [
+          {
+            range: {
+              start: 0,
+              endExclusive: 14
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 1,
+              endLineNumber: 1,
+              endColumn: 15
+            },
+            text: "test request 2",
+            kind: "text"
+          }
+        ],
+        text: "test request 2"
+      },
+      variableData: { variables: [  ] },
+      response: [  ],
+      shouldBeRemovedOnSend: undefined,
+      agent: {
+        name: "testAgent",
+        id: "testAgent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        extensionVersion: undefined,
+        extensionPublisherId: "",
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        locations: [ "panel" ],
+        modes: [ "ask" ],
+        metadata: {  },
+        slashCommands: [  ],
+        disambiguation: [  ],
+        isDefault: true
+      },
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined,
+      responseId: undefined,
+      result: {  },
+      responseMarkdownInfo: undefined,
+      followups: [  ],
+      modelState: {
+        value: 1,
+        completedAt: undefined
+      },
+      vote: undefined,
+      voteDownReason: undefined,
+      slashCommand: undefined,
+      usedContext: undefined,
+      contentReferences: [  ],
+      codeCitations: [  ],
+      timeSpentWaiting: 0
     }
   ]
 }

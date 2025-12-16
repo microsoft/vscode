@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import * as fs from 'fs';
-import * as platform from 'vs/base/common/platform';
-import { enumeratePowerShellInstallations, getFirstAvailablePowerShellInstallation, IPowerShellExeDetails } from 'vs/base/node/powershell';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as platform from '../../common/platform.js';
+import { enumeratePowerShellInstallations, getFirstAvailablePowerShellInstallation, IPowerShellExeDetails } from '../../node/powershell.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 function checkPath(exePath: string) {
 	// Check to see if the path exists

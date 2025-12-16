@@ -31,7 +31,8 @@ const CONSOLE_OUTPUT = `.repl .output.expression .value`;
 const CONSOLE_EVALUATION_RESULT = `.repl .evaluation-result.expression .value`;
 const CONSOLE_LINK = `.repl .value a.link`;
 
-const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
+const REPL_FOCUSED_NATIVE_EDIT_CONTEXT = '.repl-input-wrapper .monaco-editor .native-edit-context';
+const REPL_FOCUSED_TEXTAREA = '.repl-input-wrapper .monaco-editor textarea';
 
 export interface IStackFrame {
 	name: string;
@@ -56,13 +57,9 @@ export class Debug extends Viewlet {
 	}
 
 	async openDebugViewlet(): Promise<any> {
-		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+shift+d');
-		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+d');
-		}
-
-		await this.code.waitForElement(DEBUG_VIEW);
+		await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+d' : 'ctrl+shift+d', async () => {
+			await this.code.waitForElement(DEBUG_VIEW);
+		});
 	}
 
 	async configure(): Promise<any> {
@@ -77,9 +74,10 @@ export class Debug extends Viewlet {
 	}
 
 	async startDebugging(): Promise<number> {
-		await this.code.dispatchKeybinding('f5');
-		await this.code.waitForElement(PAUSE);
-		await this.code.waitForElement(DEBUG_STATUS_BAR);
+		await this.code.dispatchKeybinding('f5', async () => {
+			await this.code.waitForElement(PAUSE);
+			await this.code.waitForElement(DEBUG_STATUS_BAR);
+		});
 		const portPrefix = 'Port: ';
 
 		const output = await this.waitForOutput(output => output.some(line => line.indexOf(portPrefix) >= 0));
@@ -127,14 +125,16 @@ export class Debug extends Viewlet {
 
 	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
 		await this.commands.runCommand('Debug: Focus on Debug Console View');
-		await this.code.waitForActiveElement(REPL_FOCUSED);
-		await this.code.waitForSetValue(REPL_FOCUSED, text);
+		const selector = !this.code.editContextEnabled ? REPL_FOCUSED_TEXTAREA : REPL_FOCUSED_NATIVE_EDIT_CONTEXT;
+		await this.code.waitForActiveElement(selector);
+		await this.code.waitForSetValue(selector, text);
 
 		// Wait for the keys to be picked up by the editor model such that repl evaluates what just got typed
 		await this.editor.waitForEditorContents('debug:replinput', s => s.indexOf(text) >= 0);
-		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElements(CONSOLE_EVALUATION_RESULT, false,
-			elements => !!elements.length && accept(elements[elements.length - 1].textContent));
+		await this.code.dispatchKeybinding('enter', async () => {
+			await this.code.waitForElements(CONSOLE_EVALUATION_RESULT, false,
+				elements => !!elements.length && accept(elements[elements.length - 1].textContent));
+		});
 	}
 
 	// Different node versions give different number of variables. As a workaround be more relaxed when checking for variable count

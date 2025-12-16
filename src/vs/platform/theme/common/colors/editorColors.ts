@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
 // Import the effects we need
-import { Color, RGBA } from 'vs/base/common/color';
-import { registerColor, transparent, lessProminent, darken, lighten } from 'vs/platform/theme/common/colorUtils';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { registerColor, transparent, lessProminent, darken, lighten } from '../colorUtils.js';
 
 // Import the colors we need
-import { foreground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colors/baseColors';
-import { scrollbarShadow, badgeBackground } from 'vs/platform/theme/common/colors/miscColors';
+import { foreground, contrastBorder, activeContrastBorder } from './baseColors.js';
+import { scrollbarShadow, badgeBackground } from './miscColors.js';
 
 
 // ----- editor
@@ -28,6 +28,10 @@ export const editorForeground = registerColor('editor.foreground',
 export const editorStickyScrollBackground = registerColor('editorStickyScroll.background',
 	editorBackground,
 	nls.localize('editorStickyScrollBackground', "Background color of sticky scroll in the editor"));
+
+export const editorStickyScrollGutterBackground = registerColor('editorStickyScrollGutter.background',
+	editorBackground,
+	nls.localize('editorStickyScrollGutterBackground', "Background color of the gutter part of sticky scroll in the editor"));
 
 export const editorStickyScrollHoverBackground = registerColor('editorStickyScrollHover.background',
 	{ dark: '#2A2D2E', light: '#F0F0F0', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) },
@@ -90,11 +94,11 @@ export const editorInfoBackground = registerColor('editorInfo.background',
 	nls.localize('editorInfo.background', 'Background color of info text in the editor. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const editorInfoForeground = registerColor('editorInfo.foreground',
-	{ dark: '#3794FF', light: '#1a85ff', hcDark: '#3794FF', hcLight: '#1a85ff' },
+	{ dark: '#59a4f9', light: '#0063d3', hcDark: '#59a4f9', hcLight: '#0063d3' },
 	nls.localize('editorInfo.foreground', 'Foreground color of info squigglies in the editor.'));
 
 export const editorInfoBorder = registerColor('editorInfo.border',
-	{ dark: null, light: null, hcDark: Color.fromHex('#3794FF').transparent(0.8), hcLight: '#292929' },
+	{ dark: null, light: null, hcDark: Color.fromHex('#59a4f9').transparent(0.8), hcLight: '#292929' },
 	nls.localize('infoBorder', 'If set, color of double underlines for infos in the editor.'));
 
 
@@ -133,6 +137,10 @@ export const editorSelectionHighlight = registerColor('editor.selectionHighlight
 export const editorSelectionHighlightBorder = registerColor('editor.selectionHighlightBorder',
 	{ light: null, dark: null, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
 	nls.localize('editorSelectionHighlightBorder', "Border color for regions with the same content as the selection."));
+
+export const editorCompositionBorder = registerColor('editor.compositionBorder',
+	{ light: '#000000', dark: '#ffffff', hcLight: '#000000', hcDark: '#ffffff' },
+	nls.localize('editorCompositionBorder', "The border color for an IME composition."));
 
 
 // ----- editor find
@@ -426,7 +434,7 @@ export const overviewRulerCommonContentForeground = registerColor('editorOvervie
 	nls.localize('overviewRulerCommonContentForeground', 'Common ancestor overview ruler foreground for inline merge-conflicts.'));
 
 export const overviewRulerFindMatchForeground = registerColor('editorOverviewRuler.findMatchForeground',
-	{ dark: '#d186167e', light: '#d186167e', hcDark: '#AB5A00', hcLight: '' },
+	{ dark: '#d186167e', light: '#d186167e', hcDark: '#AB5A00', hcLight: '#AB5A00' },
 	nls.localize('overviewRulerFindMatchForeground', 'Overview ruler marker color for find matches. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const overviewRulerSelectionHighlightForeground = registerColor('editorOverviewRuler.selectionHighlightForeground',

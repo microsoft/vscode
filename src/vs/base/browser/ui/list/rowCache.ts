@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IListRenderer } from './list';
+import { $ } from '../../dom.js';
+import { IDisposable } from '../../../common/lifecycle.js';
+import { IListRenderer } from './list.js';
 
 export interface IRow {
 	domNode: HTMLElement;
@@ -33,10 +33,7 @@ export class RowCache<T> implements IDisposable {
 
 		let isStale = false;
 		if (result) {
-			isStale = this.transactionNodesPendingRemoval.has(result.domNode);
-			if (isStale) {
-				this.transactionNodesPendingRemoval.delete(result.domNode);
-			}
+			isStale = this.transactionNodesPendingRemoval.delete(result.domNode);
 		} else {
 			const domNode = $('.monaco-list-row');
 			const renderer = this.getRenderer(templateId);

@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { booleanComparator, compareBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
-import { findMaxIdx } from 'vs/base/common/arraysFind';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, derivedWithStore, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
-import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { PlaceholderViewZone, ViewZoneOverlayWidget, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditor/utils';
-import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { OffsetRange, OffsetRangeSet } from 'vs/editor/common/core/offsetRange';
-import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { localize } from 'vs/nls';
+import { h } from '../../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { Action } from '../../../../../base/common/actions.js';
+import { booleanComparator, compareBy, numberComparator, tieBreakComparators } from '../../../../../base/common/arrays.js';
+import { findMaxIdx } from '../../../../../base/common/arraysFind.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ICodeEditor } from '../../../editorBrowser.js';
+import { DiffEditorEditors } from '../components/diffEditorEditors.js';
+import { DiffEditorViewModel } from '../diffEditorViewModel.js';
+import { PlaceholderViewZone, ViewZoneOverlayWidget, applyStyle, applyViewZones } from '../utils.js';
+import { EditorLayoutInfo } from '../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../common/core/ranges/lineRange.js';
+import { OffsetRange, OffsetRangeSet } from '../../../../common/core/ranges/offsetRange.js';
+import { MovedText } from '../../../../common/diff/linesDiffComputer.js';
+import { localize } from '../../../../../nls.js';
 
 export class MovedBlocksLinesFeature extends Disposable {
 	public static readonly movedCodeBlockPadding = 4;
 
 	private readonly _element: SVGElement;
-	private readonly _originalScrollTop = observableFromEvent(this, this._editors.original.onDidScrollChange, () => this._editors.original.getScrollTop());
-	private readonly _modifiedScrollTop = observableFromEvent(this, this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
-	private readonly _viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
+	private readonly _originalScrollTop;
+	private readonly _modifiedScrollTop;
+	private readonly _viewZonesChanged;
 
-	public readonly width = observableValue(this, 0);
+	public readonly width;
 
 	constructor(
 		private readonly _rootElement: HTMLElement,
@@ -40,6 +40,122 @@ export class MovedBlocksLinesFeature extends Disposable {
 		private readonly _editors: DiffEditorEditors,
 	) {
 		super();
+		this._originalScrollTop = observableFromEvent(this, this._editors.original.onDidScrollChange, () => this._editors.original.getScrollTop());
+		this._modifiedScrollTop = observableFromEvent(this, this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
+		this._viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
+		this.width = observableValue(this, 0);
+		this._modifiedViewZonesChangedSignal = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
+		this._originalViewZonesChangedSignal = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
+		this._state = derived(this, (reader) => {
+			/** @description state */
+
+			this._element.replaceChildren();
+			const model = this._diffModel.read(reader);
+			const moves = model?.diff.read(reader)?.movedTexts;
+			if (!moves || moves.length === 0) {
+				this.width.set(0, undefined);
+				return;
+			}
+
+			this._viewZonesChanged.read(reader);
+
+			const infoOrig = this._originalEditorLayoutInfo.read(reader);
+			const infoMod = this._modifiedEditorLayoutInfo.read(reader);
+			if (!infoOrig || !infoMod) {
+				this.width.set(0, undefined);
+				return;
+			}
+
+			this._modifiedViewZonesChangedSignal.read(reader);
+			this._originalViewZonesChangedSignal.read(reader);
+
+			const lines = moves.map((move) => {
+				function computeLineStart(range: LineRange, editor: ICodeEditor) {
+					const t1 = editor.getTopForLineNumber(range.startLineNumber, true);
+					const t2 = editor.getTopForLineNumber(range.endLineNumberExclusive, true);
+					return (t1 + t2) / 2;
+				}
+
+				const start = computeLineStart(move.lineRangeMapping.original, this._editors.original);
+				const startOffset = this._originalScrollTop.read(reader);
+				const end = computeLineStart(move.lineRangeMapping.modified, this._editors.modified);
+				const endOffset = this._modifiedScrollTop.read(reader);
+
+				const from = start - startOffset;
+				const to = end - endOffset;
+
+				const top = Math.min(start, end);
+				const bottom = Math.max(start, end);
+
+				return { range: new OffsetRange(top, bottom), from, to, fromWithoutScroll: start, toWithoutScroll: end, move };
+			});
+
+			lines.sort(tieBreakComparators(
+				compareBy(l => l.fromWithoutScroll > l.toWithoutScroll, booleanComparator),
+				compareBy(l => l.fromWithoutScroll > l.toWithoutScroll ? l.fromWithoutScroll : -l.toWithoutScroll, numberComparator)
+			));
+
+			const layout = LinesLayout.compute(lines.map(l => l.range));
+
+			const padding = 10;
+			const lineAreaLeft = infoOrig.verticalScrollbarWidth;
+			const lineAreaWidth = (layout.getTrackCount() - 1) * 10 + padding * 2;
+			const width = lineAreaLeft + lineAreaWidth + (infoMod.contentLeft - MovedBlocksLinesFeature.movedCodeBlockPadding);
+
+			let idx = 0;
+			for (const line of lines) {
+				const track = layout.getTrack(idx);
+				const verticalY = lineAreaLeft + padding + track * 10;
+
+				const arrowHeight = 15;
+				const arrowWidth = 15;
+				const right = width;
+
+				const rectWidth = infoMod.glyphMarginWidth + infoMod.lineNumbersWidth;
+				const rectHeight = 18;
+				const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+				rect.classList.add('arrow-rectangle');
+				rect.setAttribute('x', `${right - rectWidth}`);
+				rect.setAttribute('y', `${line.to - rectHeight / 2}`);
+				rect.setAttribute('width', `${rectWidth}`);
+				rect.setAttribute('height', `${rectHeight}`);
+				this._element.appendChild(rect);
+
+				const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+				const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+
+				path.setAttribute('d', `M ${0} ${line.from} L ${verticalY} ${line.from} L ${verticalY} ${line.to} L ${right - arrowWidth} ${line.to}`);
+				path.setAttribute('fill', 'none');
+				g.appendChild(path);
+
+				const arrowRight = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+				arrowRight.classList.add('arrow');
+
+				reader.store.add(autorun(reader => {
+					path.classList.toggle('currentMove', line.move === model.activeMovedText.read(reader));
+					arrowRight.classList.toggle('currentMove', line.move === model.activeMovedText.read(reader));
+				}));
+
+				arrowRight.setAttribute('points', `${right - arrowWidth},${line.to - arrowHeight / 2} ${right},${line.to} ${right - arrowWidth},${line.to + arrowHeight / 2}`);
+				g.appendChild(arrowRight);
+
+				this._element.appendChild(g);
+
+				/*
+				TODO@hediet
+				path.addEventListener('mouseenter', () => {
+					model.setHoveredMovedText(line.move);
+				});
+				path.addEventListener('mouseleave', () => {
+					model.setHoveredMovedText(undefined);
+				});*/
+
+				idx++;
+			}
+
+			this.width.set(lineAreaWidth, undefined);
+		});
 
 		this._element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 		this._element.setAttribute('class', 'moved-blocks-lines');
@@ -95,11 +211,13 @@ export class MovedBlocksLinesFeature extends Disposable {
 		let lastChangedEditor: 'original' | 'modified' = 'modified';
 
 		this._register(autorunHandleChanges({
-			createEmptyChangeSummary: () => undefined,
-			handleChange: (ctx, summary) => {
-				if (ctx.didChange(originalHasFocus)) { lastChangedEditor = 'original'; }
-				if (ctx.didChange(modifiedHasFocus)) { lastChangedEditor = 'modified'; }
-				return true;
+			changeTracker: {
+				createChangeSummary: () => undefined,
+				handleChange: (ctx, summary) => {
+					if (ctx.didChange(originalHasFocus)) { lastChangedEditor = 'original'; }
+					if (ctx.didChange(modifiedHasFocus)) { lastChangedEditor = 'modified'; }
+					return true;
+				}
 			}
 		}, reader => {
 			/** @description MovedBlocksLines.setActiveMovedTextFromCursor */
@@ -126,126 +244,17 @@ export class MovedBlocksLinesFeature extends Disposable {
 				}
 			}
 
-			if (movedText !== m.movedTextToCompare.get()) {
+			if (movedText !== m.movedTextToCompare.read(undefined)) {
 				m.movedTextToCompare.set(undefined, undefined);
 			}
 			m.setActiveMovedText(movedText);
 		}));
 	}
 
-	private readonly _modifiedViewZonesChangedSignal = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
-	private readonly _originalViewZonesChangedSignal = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
+	private readonly _modifiedViewZonesChangedSignal;
+	private readonly _originalViewZonesChangedSignal;
 
-	private readonly _state = derivedWithStore(this, (reader, store) => {
-		/** @description state */
-
-		this._element.replaceChildren();
-		const model = this._diffModel.read(reader);
-		const moves = model?.diff.read(reader)?.movedTexts;
-		if (!moves || moves.length === 0) {
-			this.width.set(0, undefined);
-			return;
-		}
-
-		this._viewZonesChanged.read(reader);
-
-		const infoOrig = this._originalEditorLayoutInfo.read(reader);
-		const infoMod = this._modifiedEditorLayoutInfo.read(reader);
-		if (!infoOrig || !infoMod) {
-			this.width.set(0, undefined);
-			return;
-		}
-
-		this._modifiedViewZonesChangedSignal.read(reader);
-		this._originalViewZonesChangedSignal.read(reader);
-
-		const lines = moves.map((move) => {
-			function computeLineStart(range: LineRange, editor: ICodeEditor) {
-				const t1 = editor.getTopForLineNumber(range.startLineNumber, true);
-				const t2 = editor.getTopForLineNumber(range.endLineNumberExclusive, true);
-				return (t1 + t2) / 2;
-			}
-
-			const start = computeLineStart(move.lineRangeMapping.original, this._editors.original);
-			const startOffset = this._originalScrollTop.read(reader);
-			const end = computeLineStart(move.lineRangeMapping.modified, this._editors.modified);
-			const endOffset = this._modifiedScrollTop.read(reader);
-
-			const from = start - startOffset;
-			const to = end - endOffset;
-
-			const top = Math.min(start, end);
-			const bottom = Math.max(start, end);
-
-			return { range: new OffsetRange(top, bottom), from, to, fromWithoutScroll: start, toWithoutScroll: end, move };
-		});
-
-		lines.sort(tieBreakComparators(
-			compareBy(l => l.fromWithoutScroll > l.toWithoutScroll, booleanComparator),
-			compareBy(l => l.fromWithoutScroll > l.toWithoutScroll ? l.fromWithoutScroll : -l.toWithoutScroll, numberComparator)
-		));
-
-		const layout = LinesLayout.compute(lines.map(l => l.range));
-
-		const padding = 10;
-		const lineAreaLeft = infoOrig.verticalScrollbarWidth;
-		const lineAreaWidth = (layout.getTrackCount() - 1) * 10 + padding * 2;
-		const width = lineAreaLeft + lineAreaWidth + (infoMod.contentLeft - MovedBlocksLinesFeature.movedCodeBlockPadding);
-
-		let idx = 0;
-		for (const line of lines) {
-			const track = layout.getTrack(idx);
-			const verticalY = lineAreaLeft + padding + track * 10;
-
-			const arrowHeight = 15;
-			const arrowWidth = 15;
-			const right = width;
-
-			const rectWidth = infoMod.glyphMarginWidth + infoMod.lineNumbersWidth;
-			const rectHeight = 18;
-			const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-			rect.classList.add('arrow-rectangle');
-			rect.setAttribute('x', `${right - rectWidth}`);
-			rect.setAttribute('y', `${line.to - rectHeight / 2}`);
-			rect.setAttribute('width', `${rectWidth}`);
-			rect.setAttribute('height', `${rectHeight}`);
-			this._element.appendChild(rect);
-
-			const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-
-			const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-
-			path.setAttribute('d', `M ${0} ${line.from} L ${verticalY} ${line.from} L ${verticalY} ${line.to} L ${right - arrowWidth} ${line.to}`);
-			path.setAttribute('fill', 'none');
-			g.appendChild(path);
-
-			const arrowRight = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-			arrowRight.classList.add('arrow');
-
-			store.add(autorun(reader => {
-				path.classList.toggle('currentMove', line.move === model.activeMovedText.read(reader));
-				arrowRight.classList.toggle('currentMove', line.move === model.activeMovedText.read(reader));
-			}));
-
-			arrowRight.setAttribute('points', `${right - arrowWidth},${line.to - arrowHeight / 2} ${right},${line.to} ${right - arrowWidth},${line.to + arrowHeight / 2}`);
-			g.appendChild(arrowRight);
-
-			this._element.appendChild(g);
-
-			/*
-			TODO@hediet
-			path.addEventListener('mouseenter', () => {
-				model.setHoveredMovedText(line.move);
-			});
-			path.addEventListener('mouseleave', () => {
-				model.setHoveredMovedText(undefined);
-			});*/
-
-			idx++;
-		}
-
-		this.width.set(lineAreaWidth, undefined);
-	});
+	private readonly _state;
 }
 
 class LinesLayout {

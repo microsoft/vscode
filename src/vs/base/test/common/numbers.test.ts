@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { isPointWithinTriangle } from 'vs/base/common/numbers';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { isPointWithinTriangle } from '../../common/numbers.js';
 
 suite('isPointWithinTriangle', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

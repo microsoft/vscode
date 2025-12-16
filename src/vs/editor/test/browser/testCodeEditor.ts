@@ -3,67 +3,82 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { mock } from 'vs/base/test/common/mock';
-import { EditorConfiguration } from 'vs/editor/browser/config/editorConfiguration';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { View } from 'vs/editor/browser/view';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
-import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browser/editorTestServices';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { TestEditorWorkerService } from 'vs/editor/test/common/services/testEditorWorkerService';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
-import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { BrandedService, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { NullOpenerService } from 'vs/platform/opener/test/common/nullOpenerService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { mock } from '../../../base/test/common/mock.js';
+import { EditorConfiguration } from '../../browser/config/editorConfiguration.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../browser/editorBrowser.js';
+import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
+import { View } from '../../browser/view.js';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../browser/widget/codeEditor/codeEditorWidget.js';
+import * as editorOptions from '../../common/config/editorOptions.js';
+import { IEditorContribution } from '../../common/editorCommon.js';
+import { ILanguageService } from '../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
+import { ITextBufferFactory, ITextModel } from '../../common/model.js';
+import { IEditorWorkerService } from '../../common/services/editorWorker.js';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from '../../common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../common/services/languageFeaturesService.js';
+import { LanguageService } from '../../common/services/languageService.js';
+import { IModelService } from '../../common/services/model.js';
+import { ModelService } from '../../common/services/modelService.js';
+import { ITextResourcePropertiesService } from '../../common/services/textResourceConfiguration.js';
+import { ViewModel } from '../../common/viewModel/viewModelImpl.js';
+import { TestConfiguration } from './config/testConfiguration.js';
+import { TestCodeEditorService, TestCommandService } from './editorTestServices.js';
+import { TestLanguageConfigurationService } from '../common/modes/testLanguageConfigurationService.js';
+import { TestEditorWorkerService } from '../common/services/testEditorWorkerService.js';
+import { TestTextResourcePropertiesService } from '../common/services/testTextResourcePropertiesService.js';
+import { instantiateTextModel } from '../common/testTextModel.js';
+import { AccessibilitySupport, IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { MenuId } from '../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../platform/clipboard/test/common/testClipboardService.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService, IContextKeyServiceTarget } from '../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../platform/dialogs/test/common/testDialogService.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { BrandedService, IInstantiationService, ServiceIdentifier, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILoggerService, ILogService, NullLoggerService, NullLogService } from '../../../platform/log/common/log.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { NullOpenerService } from '../../../platform/opener/test/common/nullOpenerService.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
+import { IUndoRedoService } from '../../../platform/undoRedo/common/undoRedo.js';
+import { UndoRedoService } from '../../../platform/undoRedo/common/undoRedoService.js';
+import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../common/services/testTreeSitterLibraryService.js';
+import { IInlineCompletionsService, InlineCompletionsService } from '../../browser/services/inlineCompletionsService.js';
+import { EditorCommand } from '../../browser/editorExtensions.js';
+import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
 	registerAndInstantiateContribution<T extends IEditorContribution, Services extends BrandedService[]>(id: string, ctor: new (editor: ICodeEditor, ...services: Services) => T): T;
 	registerDisposable(disposable: IDisposable): void;
+	runCommand(command: ITestEditorCommand, args?: any): void | Promise<void>;
+	runAction(action: ITestEditorAction, args?: any): void | Promise<void>;
+}
+
+export interface ITestEditorCommand {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args?: any): void | Promise<void>;
+}
+
+export interface ITestEditorAction {
+	run(accessor: ServicesAccessor, editor: ICodeEditor, args?: any): void | Promise<void>;
 }
 
 export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
@@ -96,6 +111,16 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 	}
 	public registerDisposable(disposable: IDisposable): void {
 		this._register(disposable);
+	}
+	public runCommand(command: EditorCommand, args?: any): void | Promise<void> {
+		return this._instantiationService.invokeFunction((accessor) => {
+			return command.runEditorCommand(accessor, this, args);
+		});
+	}
+	public runAction(action: ITestEditorAction, args?: any): void | Promise<void> {
+		return this._instantiationService.invokeFunction((accessor) => {
+			return action.run(accessor, this, args);
+		});
 	}
 }
 
@@ -169,7 +194,7 @@ function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFa
 	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model, options));
 	const viewModel = editor.getViewModel()!;
 	viewModel.setHasFocus(true);
-	const result = callback(<ITestCodeEditor>editor, editor.getViewModel()!, instantiationService);
+	const result = callback(editor, editor.getViewModel()!, instantiationService);
 	if (result) {
 		return result.then(() => disposables.dispose());
 	}
@@ -177,7 +202,7 @@ function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFa
 	disposables.dispose();
 }
 
-export function createCodeEditorServices(disposables: DisposableStore, services: ServiceCollection = new ServiceCollection()): TestInstantiationService {
+export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add'>, services: ServiceCollection = new ServiceCollection()): TestInstantiationService {
 	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
 	const define = <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
 		if (!services.has(id)) {
@@ -211,6 +236,8 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	define(IContextKeyService, MockContextKeyService);
 	define(ICommandService, TestCommandService);
 	define(ITelemetryService, NullTelemetryServiceShape);
+	define(ILoggerService, NullLoggerService);
+	define(IDataChannelService, NullDataChannelService);
 	define(IEnvironmentService, class extends mock<IEnvironmentService>() {
 		declare readonly _serviceBrand: undefined;
 		override isBuilt: boolean = true;
@@ -218,6 +245,8 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	});
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 	define(ILanguageFeaturesService, LanguageFeaturesService);
+	define(ITreeSitterLibraryService, TestTreeSitterLibraryService);
+	define(IInlineCompletionsService, InlineCompletionsService);
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 	disposables.add(toDisposable(() => {
@@ -247,6 +276,7 @@ export function instantiateTestCodeEditor(instantiationService: IInstantiationSe
 	};
 	const editor = instantiationService.createInstance(
 		TestCodeEditor,
+		// eslint-disable-next-line local/code-no-any-casts
 		<HTMLElement><any>new TestEditorDomElement(),
 		options,
 		codeEditorWidgetOptions

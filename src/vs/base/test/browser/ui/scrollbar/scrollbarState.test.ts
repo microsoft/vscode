@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ScrollbarState } from '../../../../browser/ui/scrollbar/scrollbarState.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ScrollbarState', () => {
 

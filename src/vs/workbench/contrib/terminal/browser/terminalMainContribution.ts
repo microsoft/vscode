@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEmbedderTerminalService } from 'vs/workbench/services/terminal/common/embedderTerminalService';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, terminalEditorId } from './terminal.js';
+import { parseTerminalUri } from './terminalUri.js';
+import { terminalStrings } from '../common/terminalStrings.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IEmbedderTerminalService } from '../../../services/terminal/common/embedderTerminalService.js';
 
 /**
  * The main contribution for the terminal contrib. This contains calls to other components necessary

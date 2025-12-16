@@ -10,10 +10,10 @@
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain, crashReporter } = require('electron');
+const { app, BrowserWindow, ipcMain, crashReporter, session } = require('electron');
 const product = require('../../../product.json');
 const { tmpdir } = require('os');
-const { existsSync, mkdirSync } = require('fs');
+const { existsSync, mkdirSync, promises } = require('fs');
 const path = require('path');
 const mocha = require('mocha');
 const events = require('events');
@@ -30,6 +30,7 @@ const minimist = require('minimist');
  * grep: string;
  * run: string;
  * runGlob: string;
+ * testSplit: string;
  * dev: boolean;
  * reporter: string;
  * 'reporter-options': string;
@@ -46,7 +47,7 @@ const minimist = require('minimist');
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats'],
+	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -67,6 +68,7 @@ Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
 --run <file>                  only run tests from <file>
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
+--testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
 --build                       run with build output (out-build)
 --coverage                    generate coverage report
 --per-test-coverage           generate a per-test V8 coverage report, only valid with the full-json-stream reporter
@@ -218,6 +220,12 @@ class IPCRunner extends events.EventEmitter {
 
 app.on('ready', () => {
 
+	// needed when loading resources from the renderer, e.g xterm.js or the encoding lib
+	session.defaultSession.protocol.registerFileProtocol('vscode-file', (request, callback) => {
+		const path = new URL(request.url).pathname;
+		callback({ path });
+	});
+
 	ipcMain.on('error', (_, err) => {
 		if (!args.dev) {
 			console.error(err);
@@ -244,12 +252,68 @@ app.on('ready', () => {
 	// No-op since invoke the IPC as part of IIFE in the preload.
 	ipcMain.handle('vscode:fetchShellEnv', event => { });
 
+	/**
+	 * Validates that a file path is within the project root for security purposes.
+	 * @param {string} filePath - The file path to validate
+	 * @throws {Error} If the path is outside the project root
+	 */
+	function validatePathWithinProject(filePath) {
+		const projectRoot = path.join(__dirname, '../../..');
+		const resolvedPath = path.resolve(filePath);
+		const normalizedRoot = path.resolve(projectRoot);
+
+		// On Windows, paths are case-insensitive
+		const isWindows = process.platform === 'win32';
+		const rel = path.relative(
+			isWindows ? normalizedRoot.toLowerCase() : normalizedRoot,
+			isWindows ? resolvedPath.toLowerCase() : resolvedPath
+		);
+		if (rel.startsWith('..') || path.isAbsolute(rel)) {
+			const error = new Error(`Access denied: Path '${filePath}' is outside the project root`);
+			console.error(error.message);
+			throw error;
+		}
+	}
+
+	// Handle file reading for tests
+	ipcMain.handle('vscode:readFile', async (event, filePath) => {
+		validatePathWithinProject(filePath);
+
+		try {
+			return await promises.readFile(path.resolve(filePath));
+		} catch (error) {
+			console.error(`Error reading file ${filePath}:`, error);
+			throw error;
+		}
+	});
+
+	// Handle file stat for tests
+	ipcMain.handle('vscode:statFile', async (event, filePath) => {
+		validatePathWithinProject(filePath);
+
+		try {
+			const stats = await promises.stat(path.resolve(filePath));
+			return {
+				isFile: stats.isFile(),
+				isDirectory: stats.isDirectory(),
+				isSymbolicLink: stats.isSymbolicLink(),
+				ctimeMs: stats.ctimeMs,
+				mtimeMs: stats.mtimeMs,
+				size: stats.size,
+				isReadonly: (stats.mode & 0o200) === 0 // Check if owner write bit is not set
+			};
+		} catch (error) {
+			console.error(`Error stating file ${filePath}:`, error);
+			throw error;
+		}
+	});
+
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
 		show: false,
 		webPreferences: {
-			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-sandbox', 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
+			preload: path.join(__dirname, 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
 			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
 			nodeIntegration: true,
 			contextIsolation: false,
@@ -302,7 +366,9 @@ app.on('ready', () => {
 		win.webContents.send('run', args);
 	}
 
-	win.loadURL(url.format({ pathname: path.join(__dirname, 'renderer.html'), protocol: 'file:', slashes: true }));
+	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
+	target.searchParams.set('argv', JSON.stringify(args));
+	win.loadURL(target.href);
 
 	const runner = new IPCRunner(win);
 	createStatsCollector(runner);
@@ -318,12 +384,13 @@ app.on('ready', () => {
 	const reporters = [];
 
 	if (args.tfs) {
+		const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
 		reporters.push(
 			new mocha.reporters.Spec(runner),
 			new MochaJUnitReporter(runner, {
 				reporterOptions: {
 					testsuitesTitle: `${args.tfs} ${process.platform}`,
-					mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+					mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 				}
 			}),
 		);

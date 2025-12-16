@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { assertIsDefined } from 'vs/base/common/types';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { InjectedTextOptions } from 'vs/editor/common/model';
-import { ILineBreaksComputer, ILineBreaksComputerFactory, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
-import { LineInjectedText } from 'vs/editor/common/textModelEvents';
+import { createTrustedTypesPolicy } from '../../../base/browser/trustedTypes.js';
+import { CharCode } from '../../../base/common/charCode.js';
+import * as strings from '../../../base/common/strings.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
+import { applyFontInfo } from '../config/domFontInfo.js';
+import { WrappingIndent } from '../../common/config/editorOptions.js';
+import { FontInfo } from '../../common/config/fontInfo.js';
+import { StringBuilder } from '../../common/core/stringBuilder.js';
+import { InjectedTextOptions } from '../../common/model.js';
+import { ILineBreaksComputer, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
+import { LineInjectedText } from '../../common/textModelEvents.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
@@ -26,7 +26,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	constructor(private targetWindow: WeakRef<Window>) {
 	}
 
-	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ILineBreaksComputer {
+	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ILineBreaksComputer {
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		return {
@@ -35,7 +35,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 				injectedTexts.push(injectedText);
 			},
 			finalize: () => {
-				return createLineBreaks(assertIsDefined(this.targetWindow.deref()), requests, fontInfo, tabSize, wrappingColumn, wrappingIndent, wordBreak, injectedTexts);
+				return createLineBreaks(assertReturnsDefined(this.targetWindow.deref()), requests, fontInfo, tabSize, wrappingColumn, wrappingIndent, wordBreak, injectedTexts);
 			}
 		};
 	}
@@ -130,7 +130,7 @@ function createLineBreaks(targetWindow: Window, requests: string[], fontInfo: Fo
 	containerDomNode.innerHTML = trustedhtml as string;
 
 	containerDomNode.style.position = 'absolute';
-	containerDomNode.style.top = '10000';
+	containerDomNode.style.top = '10000px';
 	if (wordBreak === 'keepAll') {
 		// word-break: keep-all; overflow-wrap: anywhere
 		containerDomNode.style.wordBreak = 'keep-all';

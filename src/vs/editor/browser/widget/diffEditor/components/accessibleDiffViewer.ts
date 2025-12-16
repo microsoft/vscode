@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, addStandardDisposableListener, reset } from 'vs/base/browser/dom';
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Action } from 'vs/base/common/actions';
-import { forEachAdjacent, groupAdjacentBy } from 'vs/base/common/arrays';
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
-import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { DetailedLineRangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { RenderLineInput, renderViewLine2 } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
-import { localize } from 'vs/nls';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import 'vs/css!./accessibleDiffViewer';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
+import { addDisposableListener, addStandardDisposableListener, reset } from '../../../../../base/browser/dom.js';
+import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { forEachAdjacent, groupAdjacentBy } from '../../../../../base/common/arrays.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, observableValue, subtransaction, transaction } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { applyFontInfo } from '../../../config/domFontInfo.js';
+import { applyStyle } from '../utils.js';
+import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { DetailedLineRangeMapping, LineRangeMapping } from '../../../../common/diff/rangeMapping.js';
+import { ILanguageIdCodec } from '../../../../common/languages.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { ITextModel, TextModelResolvedOptions } from '../../../../common/model.js';
+import { LineTokens } from '../../../../common/tokens/lineTokens.js';
+import { RenderLineInput, renderViewLine2 } from '../../../../common/viewLayout/viewLineRenderer.js';
+import { ViewLineRenderingData } from '../../../../common/viewModel.js';
+import { localize } from '../../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
+import './accessibleDiffViewer.css';
+import { DiffEditorEditors } from './diffEditorEditors.js';
+import { toAction } from '../../../../../base/common/actions.js';
 
 const accessibleDiffViewerInsertIcon = registerIcon('diff-review-insert', Codicon.add, localize('accessibleDiffViewerInsertIcon', 'Icon for \'Insert\' in accessible diff viewer.'));
 const accessibleDiffViewerRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, localize('accessibleDiffViewerRemoveIcon', 'Icon for \'Remove\' in accessible diff viewer.'));
@@ -77,14 +77,14 @@ export class AccessibleDiffViewer extends Disposable {
 		super();
 	}
 
-	private readonly _state = derivedWithStore(this, (reader, store) => {
+	private readonly _state = derived(this, (reader) => {
 		const visible = this._visible.read(reader);
 		this._parentNode.style.visibility = visible ? 'visible' : 'hidden';
 		if (!visible) {
 			return null;
 		}
-		const model = store.add(this._instantiationService.createInstance(ViewModel, this._diffs, this._models, this._setVisible, this._canClose));
-		const view = store.add(this._instantiationService.createInstance(View, this._parentNode, model, this._width, this._height, this._models));
+		const model = reader.store.add(this._instantiationService.createInstance(ViewModel, this._diffs, this._models, this._setVisible, this._canClose));
+		const view = reader.store.add(this._instantiationService.createInstance(View, this._parentNode, model, this._width, this._height, this._models));
 		return { model, view, };
 	}).recomputeInitiallyAndOnChange(this._store);
 
@@ -365,13 +365,13 @@ class View extends Disposable {
 			/** @description update actions */
 			this._actionBar.clear();
 			if (this._model.canClose.read(reader)) {
-				this._actionBar.push(new Action(
-					'diffreview.close',
-					localize('label.close', "Close"),
-					'close-diff-review ' + ThemeIcon.asClassName(accessibleDiffViewerCloseIcon),
-					true,
-					async () => _model.close()
-				), { label: false, icon: true });
+				this._actionBar.push(toAction({
+					id: 'diffreview.close',
+					label: localize('label.close', "Close"),
+					class: 'close-diff-review ' + ThemeIcon.asClassName(accessibleDiffViewerCloseIcon),
+					enabled: true,
+					run: async () => _model.close()
+				}), { label: false, icon: true });
 			}
 		}));
 
@@ -617,14 +617,14 @@ class View extends Disposable {
 		if (item.modifiedLineNumber !== undefined) {
 			let html: string | TrustedHTML = this._getLineHtml(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, item.modifiedLineNumber, this._languageService.languageIdCodec);
 			if (AccessibleDiffViewer._ttPolicy) {
-				html = AccessibleDiffViewer._ttPolicy.createHTML(html as string);
+				html = AccessibleDiffViewer._ttPolicy.createHTML(html);
 			}
 			cell.insertAdjacentHTML('beforeend', html as string);
 			lineContent = modifiedModel.getLineContent(item.modifiedLineNumber);
 		} else {
 			let html: string | TrustedHTML = this._getLineHtml(originalModel, originalOptions, originalModelOpts.tabSize, item.originalLineNumber, this._languageService.languageIdCodec);
 			if (AccessibleDiffViewer._ttPolicy) {
-				html = AccessibleDiffViewer._ttPolicy.createHTML(html as string);
+				html = AccessibleDiffViewer._ttPolicy.createHTML(html);
 			}
 			cell.insertAdjacentHTML('beforeend', html as string);
 			lineContent = originalModel.getLineContent(item.originalLineNumber);
@@ -658,6 +658,7 @@ class View extends Disposable {
 	private _getLineHtml(model: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number, languageIdCodec: ILanguageIdCodec): string {
 		const lineContent = model.getLineContent(lineNumber);
 		const fontInfo = options.get(EditorOption.fontInfo);
+		const verticalScrollbarSize = options.get(EditorOption.scrollbar).verticalScrollbarSize;
 		const lineTokens = LineTokens.createEmpty(lineContent, languageIdCodec);
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
@@ -680,7 +681,9 @@ class View extends Disposable {
 			options.get(EditorOption.renderWhitespace),
 			options.get(EditorOption.renderControlCharacters),
 			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
-			null
+			null,
+			null,
+			verticalScrollbarSize
 		));
 
 		return r.html;

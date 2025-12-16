@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 
 export class ResourcePool<T extends IDisposable> extends Disposable {
 	private readonly pool: T[] = [];

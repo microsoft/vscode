@@ -40,7 +40,7 @@ export class WebTypingsInstallerClient implements ts.server.ITypingsInstaller {
 
 	private requestedRegistry = false;
 
-	private typesRegistryCache: Map<string, ts.MapLike<string>> = new Map();
+	private typesRegistryCache = new Map<string, ts.MapLike<string>>();
 
 	private readonly server: Promise<WebTypingsInstallerServer>;
 
@@ -70,10 +70,12 @@ export class WebTypingsInstallerClient implements ts.server.ITypingsInstaller {
 				break;
 			case 'event::beginInstallTypes':
 			case 'event::endInstallTypes':
+			// TODO(@zkat): maybe do something with this?
+			case 'action::watchTypingLocations':
 				// Don't care.
 				break;
 			default:
-				throw new Error(`unexpected response: ${response}`);
+				throw new Error(`unexpected response: ${JSON.stringify(response)}`);
 		}
 	}
 

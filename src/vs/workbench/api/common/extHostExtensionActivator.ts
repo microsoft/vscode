@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import * as errors from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
-import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Barrier } from 'vs/base/common/async';
+import * as errors from '../../../base/common/errors.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry.js';
+import { ExtensionIdentifier, ExtensionIdentifierMap } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionActivationReason, MissingExtensionDependency } from '../../services/extensions/common/extensions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { Barrier } from '../../../base/common/async.js';
 
 /**
  * Represents the source code (module) of an extension.
@@ -402,6 +402,7 @@ class ActivationOperation {
 				if (dep.value && dep.value.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
 					const error = new Error(`Cannot activate the '${this.friendlyName}' extension because its dependency '${dep.friendlyName}' failed to activate`);
+					// eslint-disable-next-line local/code-no-any-casts
 					(<any>error).detail = dep.value.activationFailedError;
 					this._value = new FailedExtension(error);
 					this._host.onExtensionActivationError(this._id, error, null);

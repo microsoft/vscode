@@ -4,6 +4,10 @@
 		"outDir": "./out",
 		"lib": [
 			"webworker"
+		],
+		"module": "Node16",
+		"typeRoots": [
+			"../node_modules/@types"
 		]
 	},
 	"include": [

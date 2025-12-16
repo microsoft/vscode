@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
-import { Queue } from 'vs/base/common/async';
-import { hash } from 'vs/base/common/hash';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { isMacintosh } from 'vs/base/common/platform';
-import { Promises } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { INativeOpenDialogOptions, massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { WORKSPACE_FILTER } from 'vs/platform/workspace/common/workspace';
+import { Queue } from '../../../base/common/async.js';
+import { hash } from '../../../base/common/hash.js';
+import { mnemonicButtonLabel } from '../../../base/common/labels.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { normalizeNFC } from '../../../base/common/normalization.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { Promises } from '../../../base/node/pfs.js';
+import { localize } from '../../../nls.js';
+import { INativeOpenDialogOptions, massageMessageBoxOptions } from '../common/dialogs.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { WORKSPACE_FILTER } from '../../workspace/common/workspace.js';
 
 export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
 
@@ -62,7 +62,23 @@ export class DialogMainService implements IDialogMainService {
 	}
 
 	pickFolder(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined> {
-		return this.doPick({ ...options, pickFolders: true, title: localize('openFolder', "Open Folder") }, window);
+		let optionsInternal: IInternalNativeOpenDialogOptions = {
+			...options,
+			pickFolders: true,
+			title: localize('openFolder', "Open Folder")
+		};
+
+		if (isWindows) {
+			// Due to Windows/Electron issue the labels on Open Folder dialog have no hot keys.
+			// We can fix this here for the button label, but some other labels remain inaccessible.
+			// See https://github.com/electron/electron/issues/48631 for more info.
+			optionsInternal = {
+				...optionsInternal,
+				buttonLabel: mnemonicButtonLabel(localize({ key: 'selectFolder', comment: ['&& denotes a mnemonic'] }, "&&Select folder")).withMnemonic
+			};
+		}
+
+		return this.doPick(optionsInternal, window);
 	}
 
 	pickFile(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined> {
@@ -71,7 +87,7 @@ export class DialogMainService implements IDialogMainService {
 
 	pickWorkspace(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined> {
 		const title = localize('openWorkspaceTitle', "Open Workspace from File");
-		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open"));
+		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open")).withMnemonic;
 		const filters = WORKSPACE_FILTER;
 
 		return this.doPick({ ...options, pickFiles: true, title, filters, buttonLabel }, window);
@@ -106,7 +122,7 @@ export class DialogMainService implements IDialogMainService {
 
 		// Show Dialog
 		const result = await this.showOpenDialog(dialogOptions, (window || electron.BrowserWindow.getFocusedWindow()) ?? undefined);
-		if (result && result.filePaths && result.filePaths.length > 0) {
+		if (result?.filePaths && result.filePaths.length > 0) {
 			return result.filePaths;
 		}
 

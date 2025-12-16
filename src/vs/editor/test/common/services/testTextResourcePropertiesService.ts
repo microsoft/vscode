@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import * as platform from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ITextResourcePropertiesService } from '../../../common/services/textResourceConfiguration.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 

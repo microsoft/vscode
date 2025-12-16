@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEnvConfiguration } from 'vs/editor/browser/config/editorConfiguration';
-import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
-import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvConfiguration } from '../../../browser/config/editorConfiguration.js';
+import { migrateOptions } from '../../../browser/config/migrateOptions.js';
+import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
+import { EditorZoom } from '../../../common/config/editorZoom.js';
+import { TestConfiguration } from './testConfiguration.js';
+import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 
 suite('Common Editor Config', () => {
 
@@ -66,7 +66,8 @@ suite('Common Editor Config', () => {
 				outerHeight: 100,
 				emptySelectionClipboard: true,
 				pixelRatio: 1,
-				accessibilitySupport: AccessibilitySupport.Unknown
+				accessibilitySupport: AccessibilitySupport.Unknown,
+				editContextSupported: true,
 			};
 		}
 	}
@@ -86,6 +87,7 @@ suite('Common Editor Config', () => {
 
 	test('wordWrap compat false', () => {
 		const config = new TestWrappingConfiguration({
+			// eslint-disable-next-line local/code-no-any-casts
 			wordWrap: <any>false
 		});
 		assertWrapping(config, false, -1);
@@ -94,6 +96,7 @@ suite('Common Editor Config', () => {
 
 	test('wordWrap compat true', () => {
 		const config = new TestWrappingConfiguration({
+			// eslint-disable-next-line local/code-no-any-casts
 			wordWrap: <any>true
 		});
 		assertWrapping(config, true, 80);
@@ -201,13 +204,13 @@ suite('Common Editor Config', () => {
 		const hoverOptions: IEditorHoverOptions = {};
 		Object.defineProperty(hoverOptions, 'enabled', {
 			writable: false,
-			value: true
+			value: 'on'
 		});
 		const config = new TestConfiguration({ hover: hoverOptions });
 
-		assert.strictEqual(config.options.get(EditorOption.hover).enabled, true);
-		config.updateOptions({ hover: { enabled: false } });
-		assert.strictEqual(config.options.get(EditorOption.hover).enabled, false);
+		assert.strictEqual(config.options.get(EditorOption.hover).enabled, 'on');
+		config.updateOptions({ hover: { enabled: 'off' } });
+		assert.strictEqual(config.options.get(EditorOption.hover).enabled, 'off');
 
 		config.dispose();
 	});
@@ -254,13 +257,13 @@ suite('Common Editor Config', () => {
 		const actual = config.options.get(EditorOption.unicodeHighlighting);
 		assert.deepStrictEqual(actual,
 			{
-				nonBasicASCII: "inUntrustedWorkspace",
+				nonBasicASCII: 'inUntrustedWorkspace',
 				invisibleCharacters: true,
 				ambiguousCharacters: true,
-				includeComments: "inUntrustedWorkspace",
-				includeStrings: "inUntrustedWorkspace",
-				allowedCharacters: { "x": true },
-				allowedLocales: { "_os": true, "_vscode": true }
+				includeComments: 'inUntrustedWorkspace',
+				includeStrings: 'inUntrustedWorkspace',
+				allowedCharacters: { 'x': true },
+				allowedLocales: { '_os': true, '_vscode': true }
 			}
 		);
 		config.dispose();
@@ -377,8 +380,8 @@ suite('migrateOptions', () => {
 		assert.deepStrictEqual(migrate({ quickSuggestions: { comments: 'on', strings: 'off' } }), { quickSuggestions: { comments: 'on', strings: 'off' } });
 	});
 	test('hover', () => {
-		assert.deepStrictEqual(migrate({ hover: true }), { hover: { enabled: true } });
-		assert.deepStrictEqual(migrate({ hover: false }), { hover: { enabled: false } });
+		assert.deepStrictEqual(migrate({ hover: true }), { hover: { enabled: 'on' } });
+		assert.deepStrictEqual(migrate({ hover: false }), { hover: { enabled: 'off' } });
 	});
 	test('parameterHints', () => {
 		assert.deepStrictEqual(migrate({ parameterHints: true }), { parameterHints: { enabled: true } });

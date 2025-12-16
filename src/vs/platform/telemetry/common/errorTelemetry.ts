@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch } from 'vs/base/common/arrays';
-import { errorHandler, ErrorNoTelemetry } from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { safeStringify } from 'vs/base/common/objects';
-import { FileOperationError } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { binarySearch } from '../../../base/common/arrays.js';
+import { errorHandler, ErrorNoTelemetry, PendingMigrationError } from '../../../base/common/errors.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { safeStringify } from '../../../base/common/objects.js';
+import { FileOperationError } from '../../files/common/files.js';
+import { ITelemetryService } from './telemetry.js';
 
 type ErrorEventFragment = {
 	owner: 'lramos15, sbatten';
@@ -50,7 +50,7 @@ export default abstract class BaseErrorTelemetry {
 
 	private _telemetryService: ITelemetryService;
 	private _flushDelay: number;
-	private _flushHandle: any = -1;
+	private _flushHandle: Timeout | undefined = undefined;
 	private _buffer: ErrorEvent[] = [];
 	protected readonly _disposables = new DisposableStore();
 
@@ -89,7 +89,11 @@ export default abstract class BaseErrorTelemetry {
 
 		// If it's the no telemetry error it doesn't get logged
 		// TOOD @lramos15 hacking in FileOperation error because it's too messy to adopt ErrorNoTelemetry. A better solution should be found
-		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || (typeof err?.message === 'string' && err.message.includes('Unable to read file'))) {
+		//
+		// Explicitly filter out PendingMigrationError for https://github.com/microsoft/vscode/issues/250648#issuecomment-3394040431
+		// We don't inherit from ErrorNoTelemetry to preserve the name used in reporting for exthostdeprecatedapiusage event.
+		// TODO(deepak1556): remove when PendingMigrationError is no longer needed.
+		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || PendingMigrationError.is(err) || (typeof err?.message === 'string' && err.message.includes('Unable to read file'))) {
 			return;
 		}
 
@@ -115,13 +119,13 @@ export default abstract class BaseErrorTelemetry {
 			if (!this._buffer[idx].count) {
 				this._buffer[idx].count = 0;
 			}
-			this._buffer[idx].count! += 1;
+			this._buffer[idx].count += 1;
 		}
 
-		if (this._flushHandle === -1) {
+		if (this._flushHandle === undefined) {
 			this._flushHandle = setTimeout(() => {
 				this._flushBuffer();
-				this._flushHandle = -1;
+				this._flushHandle = undefined;
 			}, this._flushDelay);
 		}
 	}

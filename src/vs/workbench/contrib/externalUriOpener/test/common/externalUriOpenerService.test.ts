@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ExternalUriOpenerPriority } from 'vs/editor/common/languages';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { ExternalUriOpenerService, IExternalOpenerProvider, IExternalUriOpener } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ExternalUriOpenerPriority } from '../../../../../editor/common/languages.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ExternalUriOpenerService, IExternalOpenerProvider, IExternalUriOpener } from '../../common/externalUriOpenerService.js';
 
 
 class MockQuickInputService implements Partial<IQuickInputService> {

@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./whitespace';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { Selection } from 'vs/editor/common/core/selection';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewLineData } from 'vs/editor/common/viewModel';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import * as strings from 'vs/base/common/strings';
-import { CharCode } from 'vs/base/common/charCode';
-import { LineRange } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { Position } from 'vs/editor/common/core/position';
-import { editorWhitespaces } from 'vs/editor/common/core/editorColorRegistry';
+import './whitespace.css';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
+import { Selection } from '../../../common/core/selection.js';
+import { RenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { ViewLineRenderingData } from '../../../common/viewModel.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
+import * as strings from '../../../../base/common/strings.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { Position } from '../../../common/core/position.js';
+import { editorWhitespaces } from '../../../common/core/editorColorRegistry.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 
+/**
+ * The whitespace overlay will visual certain whitespace depending on the
+ * current editor configuration (boundary, selection, etc.).
+ */
 export class WhitespaceOverlay extends DynamicViewOverlay {
 
 	private readonly _context: ViewContext;
@@ -86,21 +90,12 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			return;
 		}
 
-		const startLineNumber = ctx.visibleRange.startLineNumber;
-		const endLineNumber = ctx.visibleRange.endLineNumber;
-		const lineCount = endLineNumber - startLineNumber + 1;
-		const needed = new Array<boolean>(lineCount);
-		for (let i = 0; i < lineCount; i++) {
-			needed[i] = true;
-		}
-		const viewportData = this._context.viewModel.getMinimapLinesRenderingData(ctx.viewportData.startLineNumber, ctx.viewportData.endLineNumber, needed);
-
 		this._renderResult = [];
 		for (let lineNumber = ctx.viewportData.startLineNumber; lineNumber <= ctx.viewportData.endLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - ctx.viewportData.startLineNumber;
-			const lineData = viewportData.data[lineIndex]!;
+			const lineData = this._context.viewModel.getViewLineRenderingData(lineNumber);
 
-			let selectionsOnLine: LineRange[] | null = null;
+			let selectionsOnLine: OffsetRange[] | null = null;
 			if (this._options.renderWhitespace === 'selection') {
 				const selections = this._selection;
 				for (const selection of selections) {
@@ -117,7 +112,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 						if (!selectionsOnLine) {
 							selectionsOnLine = [];
 						}
-						selectionsOnLine.push(new LineRange(startColumn - 1, endColumn - 1));
+						selectionsOnLine.push(new OffsetRange(startColumn - 1, endColumn - 1));
 					}
 				}
 			}
@@ -126,7 +121,10 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		}
 	}
 
-	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: LineRange[] | null, lineData: ViewLineData): string {
+	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: OffsetRange[] | null, lineData: ViewLineRenderingData): string {
+		if (lineData.hasVariableFonts) {
+			return '';
+		}
 		if (this._options.renderWhitespace === 'selection' && !selections) {
 			return '';
 		}
@@ -142,7 +140,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		const fauxIndentLength = lineData.minColumn - 1;
 		const onlyBoundary = (this._options.renderWhitespace === 'boundary');
 		const onlyTrailing = (this._options.renderWhitespace === 'trailing');
-		const lineHeight = this._options.lineHeight;
+		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
 		const middotWidth = this._options.middotWidth;
 		const wsmiddotWidth = this._options.wsmiddotWidth;
 		const spaceWidth = this._options.spaceWidth;
@@ -175,7 +173,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		for (let charIndex = fauxIndentLength; charIndex < len; charIndex++) {
 			const chCode = lineContent.charCodeAt(charIndex);
 
-			if (currentSelection && charIndex >= currentSelection.endOffset) {
+			if (currentSelection && currentSelection.endExclusive <= charIndex) {
 				currentSelectionIndex++;
 				currentSelection = selections && selections[currentSelectionIndex];
 			}
@@ -206,7 +204,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 				}
 			}
 
-			if (selections && (!currentSelection || currentSelection.startOffset > charIndex || currentSelection.endOffset <= charIndex)) {
+			if (selections && !(currentSelection && currentSelection.start <= charIndex && charIndex < currentSelection.endExclusive)) {
 				// If rendering whitespace on selection, check that the charIndex falls within a selection
 				continue;
 			}

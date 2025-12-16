@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextModel } from 'vs/editor/common/model';
-import { IOutlineModelService, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { MockDocumentSymbol } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { IOutlineModelService, OutlineModel } from '../../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { ICellViewModel } from '../../../browser/notebookBrowser.js';
+import { NotebookOutlineEntryFactory } from '../../../browser/viewModel/notebookOutlineEntryFactory.js';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
+import { MockDocumentSymbol } from '../testNotebookEditor.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IReference } from '../../../../../../base/common/lifecycle.js';
 
 suite('Notebook Symbols', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,9 +45,24 @@ suite('Notebook Symbols', function () {
 			return 0;
 		}
 	};
+	const textModelService = new class extends mock<ITextModelService>() {
+		override createModelReference(uri: URI) {
+			return Promise.resolve({
+				object: {
+					textEditorModel: {
+						id: uri.toString(),
+						getVersionId() { return 1; }
+					}
+				},
+				dispose() { }
+			} as IReference<IResolvedTextEditorModel>);
+		}
+	};
 
 	function createCellViewModel(version: number = 1, textmodelId = 'textId') {
 		return {
+			id: textmodelId,
+			uri: { toString() { return textmodelId; } },
 			textBuffer: {
 				getLineCount() { return 0; }
 			},
@@ -65,7 +83,7 @@ suite('Notebook Symbols', function () {
 
 	test('Cell without symbols cache', function () {
 		setSymbolsForTextModel([{ name: 'var', range: {} }]);
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		const entries = entryFactory.getOutlineEntries(createCellViewModel(), 0);
 
 		assert.equal(entries.length, 1, 'no entries created');
@@ -74,10 +92,10 @@ suite('Notebook Symbols', function () {
 
 	test('Cell with simple symbols', async function () {
 		setSymbolsForTextModel([{ name: 'var1', range: {} }, { name: 'var2', range: {} }]);
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		const cell = createCellViewModel();
 
-		await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		const entries = entryFactory.getOutlineEntries(cell, 0);
 
 		assert.equal(entries.length, 3, 'wrong number of outline entries');
@@ -96,10 +114,10 @@ suite('Notebook Symbols', function () {
 			{ name: 'root1', range: {}, children: [{ name: 'nested1', range: {} }, { name: 'nested2', range: {} }] },
 			{ name: 'root2', range: {}, children: [{ name: 'nested1', range: {} }] }
 		]);
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		const cell = createCellViewModel();
 
-		await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		const entries = entryFactory.getOutlineEntries(createCellViewModel(), 0);
 
 		assert.equal(entries.length, 6, 'wrong number of outline entries');
@@ -119,12 +137,12 @@ suite('Notebook Symbols', function () {
 	test('Multiple Cells with symbols', async function () {
 		setSymbolsForTextModel([{ name: 'var1', range: {} }], '$1');
 		setSymbolsForTextModel([{ name: 'var2', range: {} }], '$2');
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 
 		const cell1 = createCellViewModel(1, '$1');
 		const cell2 = createCellViewModel(1, '$2');
-		await entryFactory.cacheSymbols(cell1, outlineModelService, CancellationToken.None);
-		await entryFactory.cacheSymbols(cell2, outlineModelService, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell1, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell2, CancellationToken.None);
 
 		const entries1 = entryFactory.getOutlineEntries(createCellViewModel(1, '$1'), 0);
 		const entries2 = entryFactory.getOutlineEntries(createCellViewModel(1, '$2'), 0);

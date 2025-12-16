@@ -3,184 +3,192 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { basename, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IActiveEditorChangeEvent, EditorPaneSelectionChangeReason, IEditorPaneSelection, IToolbarActions } from 'vs/workbench/common/editor';
-import { EditorServiceImpl, IEditorGroupView, IEditorGroupsView, IEditorGroupTitleHeight, DEFAULT_EDITOR_PART_OPTIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IConfigurationService, ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService, PanelAlignment, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorOptions, IResourceEditorInput, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent, IWillShutdownEventJoiner } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, IFileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata, IFileSystemWatcher, IWatchOptionsWithCorrelation, IFileSystemProviderActivationEvent } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/model';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions, ITextFileEditorModel, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { MenuBarVisibility, IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
-import { IMenuService, MenuId, IMenu, IMenuChangeEvent, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { ContextKeyValue, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, ITextSnapshot } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
-import { IDialogService, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
-import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorPart, IAuxiliaryEditorPart, IEditorGroupsContainer, IEditorWorkingSet, IEditorGroupContextKeyProvider, IEditorWorkingSetOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { IDimension } from 'vs/base/browser/dom';
-import { ILoggerService, ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { Part } from 'vs/workbench/browser/part';
-import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { Schemas } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/productService';
-import product from 'vs/platform/product/common/product';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/browserTextFileService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { Direction } from 'vs/base/browser/ui/grid/grid';
-import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress, IProgressDialogOptions, IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEditorService';
-import { MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService, TestHistoryService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/browser/textFileService';
-import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { Iterable } from 'vs/base/common/iterator';
-import { InMemoryWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
-import { BrowserWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
-import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { assertIsDefined, upcast } from 'vs/base/common/types';
-import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
-import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
-import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkingCopyEditorService, WorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/elevatedFileService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ResourceMap } from 'vs/base/common/map';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { ITextEditorService, TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { env } from 'vs/base/common/process';
-import { isValidBasename } from 'vs/base/common/extpath';
-import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
-import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { TextEditorPaneSelection } from 'vs/workbench/browser/parts/editor/textEditor';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
-import { TestEditorWorkerService } from 'vs/editor/test/common/services/testEditorWorkerService';
-import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { ExtensionType, IExtension, IExtensionDescription, IRelaxedExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
-import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { EnablementState, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo, UninstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { Codicon } from 'vs/base/common/codicons';
-import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
-import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
-import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
-import { mainWindow } from 'vs/base/browser/window';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
-import { EditorPaneService } from 'vs/workbench/services/editor/browser/editorPaneService';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { CustomEditorLabelService, ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
-import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
-import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogService';
-import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
-import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
+import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
+import { IDimension } from '../../../base/browser/dom.js';
+import { Direction, IViewSize } from '../../../base/browser/ui/grid/grid.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { isValidBasename } from '../../../base/common/extpath.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { posix, win32 } from '../../../base/common/path.js';
+import { IProcessEnvironment, isWindows, OperatingSystem } from '../../../base/common/platform.js';
+import { env } from '../../../base/common/process.js';
+import { basename, isEqual } from '../../../base/common/resources.js';
+import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/stream.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { assertReturnsDefined, upcast } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
+import { Position as EditorPosition, IPosition } from '../../../editor/common/core/position.js';
+import { Range } from '../../../editor/common/core/range.js';
+import { Selection } from '../../../editor/common/core/selection.js';
+import { IDiffEditor, IEditor } from '../../../editor/common/editorCommon.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../editor/common/languages/languageConfigurationRegistry.js';
+import { DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory, ITextSnapshot } from '../../../editor/common/model.js';
+import { createTextBufferFactoryFromStream } from '../../../editor/common/model/textModel.js';
+import { IEditorWorkerService } from '../../../editor/common/services/editorWorker.js';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from '../../../editor/common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../../editor/common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../../editor/common/services/languageFeaturesService.js';
+import { LanguageService } from '../../../editor/common/services/languageService.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ModelService } from '../../../editor/common/services/modelService.js';
+import { ITextModelService } from '../../../editor/common/services/resolverService.js';
+import { ITextResourceConfigurationService, ITextResourcePropertiesService } from '../../../editor/common/services/textResourceConfiguration.js';
+import { ITreeSitterLibraryService } from '../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TestCodeEditor } from '../../../editor/test/browser/testCodeEditor.js';
+import { TestLanguageConfigurationService } from '../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { TestEditorWorkerService } from '../../../editor/test/common/services/testEditorWorkerService.js';
+import { TestTreeSitterLibraryService } from '../../../editor/test/common/services/testTreeSitterLibraryService.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IAccessibilitySignalService } from '../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IActionViewItemService, NullActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
+import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IFolderBackupInfo, IWorkspaceBackupInfo } from '../../../platform/backup/common/backup.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyValue, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
+import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
+import { ContextViewService } from '../../../platform/contextview/browser/contextViewService.js';
+import { IDiagnosticInfo, IDiagnosticInfoOptions } from '../../../platform/diagnostics/common/diagnostics.js';
+import { ConfirmResult, IDialogService, IFileDialogService, IOpenDialogOptions, IPickAndOpenOptions, ISaveDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../platform/dialogs/test/common/testDialogService.js';
+import { IEditorOptions, IResourceEditorInput, IResourceEditorInputIdentifier, ITextEditorOptions, ITextResourceEditorInput } from '../../../platform/editor/common/editor.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IExtensionManagementParticipant, IExtensionsControlManifest, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionInfo, InstallExtensionResult, InstallExtensionSummary, InstallOptions, Metadata, UninstallExtensionInfo, UninstallOptions } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionType, IExtension, IExtensionDescription, IRelaxedExtensionManifest, TargetPlatform } from '../../../platform/extensions/common/extensions.js';
+import { FileOperationError, FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileService, IFileStatWithMetadata, IFileSystemProvider, IFileSystemProviderWithFileReadStreamCapability, IFileWriteOptions, IStat, IWatchOptions } from '../../../platform/files/common/files.js';
+import { FileService } from '../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService, ServiceIdentifier } from '../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { ILayoutOffsetInfo } from '../../../platform/layout/browser/layoutService.js';
+import { IListService } from '../../../platform/list/browser/listService.js';
+import { ILoggerService, ILogService, NullLogService } from '../../../platform/log/common/log.js';
+import { IMarkerService } from '../../../platform/markers/common/markers.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
+import product from '../../../platform/product/common/product.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressIndicator, IProgressNotificationOptions, IProgressOptions, IProgressService, IProgressStep, IProgressWindowOptions, Progress } from '../../../platform/progress/common/progress.js';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { IRemoteAgentEnvironment } from '../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';
+import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from '../../../platform/remote/common/remoteSocketFactoryService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
+import { TerminalLogService } from '../../../platform/terminal/common/terminalLogService.js';
+import { ColorScheme } from '../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
+import { IUndoRedoService } from '../../../platform/undoRedo/common/undoRedo.js';
+import { UndoRedoService } from '../../../platform/undoRedo/common/undoRedoService.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IUserDataProfile, IUserDataProfilesService, UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
+import { IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable, MenuBarVisibility } from '../../../platform/window/common/window.js';
+import { IWorkspaceContextService, IWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../platform/workspace/common/workspaceTrust.js';
+import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
+import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../browser/editor.js';
+import { PaneComposite, PaneCompositeDescriptor } from '../../browser/panecomposite.js';
+import { Part } from '../../browser/part.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, EditorServiceImpl, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView } from '../../browser/parts/editor/editor.js';
+import { EditorPane } from '../../browser/parts/editor/editorPane.js';
+import { MainEditorPart } from '../../browser/parts/editor/editorPart.js';
+import { EditorParts } from '../../browser/parts/editor/editorParts.js';
+import { SideBySideEditor } from '../../browser/parts/editor/sideBySideEditor.js';
+import { TextEditorPaneSelection } from '../../browser/parts/editor/textEditor.js';
+import { TextResourceEditor } from '../../browser/parts/editor/textResourceEditor.js';
+import { IPaneCompositePart } from '../../browser/parts/paneCompositePart.js';
+import { EditorExtensions, EditorInputCapabilities, EditorInputWithOptions, EditorPaneSelectionChangeReason, EditorsOrder, EditorExtensions as Extensions, GroupIdentifier, IActiveEditorChangeEvent, IEditorCloseEvent, IEditorFactoryRegistry, IEditorIdentifier, IEditorOpenContext, IEditorPane, IEditorPaneSelection, IEditorPartOptions, IEditorSerializer, IEditorWillMoveEvent, IEditorWillOpenEvent, IFileEditorInput, IMoveResult, IResourceDiffEditorInput, IRevertOptions, ISaveOptions, ITextDiffEditorPane, IToolbarActions, IUntitledTextResourceEditorInput, IUntypedEditorInput, IVisibleEditorPane } from '../../common/editor.js';
+import { IGroupModelChangeEvent } from '../../common/editor/editorGroupModel.js';
+import { EditorInput } from '../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput.js';
+import { TextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
+import { IPaneComposite } from '../../common/panecomposite.js';
+import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '../../common/views.js';
+import { FileEditorInput } from '../../contrib/files/browser/editors/fileEditorInput.js';
+import { TextFileEditor } from '../../contrib/files/browser/editors/textFileEditor.js';
+import { FILE_EDITOR_INPUT_ID } from '../../contrib/files/common/files.js';
+import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from '../../contrib/terminal/browser/terminal.js';
+import { TerminalConfigurationService } from '../../contrib/terminal/browser/terminalConfigurationService.js';
+import { TerminalEditorInput } from '../../contrib/terminal/browser/terminalEditorInput.js';
+import { IEnvironmentVariableService } from '../../contrib/terminal/common/environmentVariable.js';
+import { EnvironmentVariableService } from '../../contrib/terminal/common/environmentVariableService.js';
+import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
+import { IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
+import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
+import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
+import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
+import { CustomEditorLabelService, ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
+import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions } from '../../services/editor/common/editorGroupsService.js';
+import { IEditorPaneService } from '../../services/editor/common/editorPaneService.js';
+import { IEditorResolverService } from '../../services/editor/common/editorResolverService.js';
+import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, PreferredGroup } from '../../services/editor/common/editorService.js';
+import { BrowserWorkbenchEnvironmentService } from '../../services/environment/browser/environmentService.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { BrowserElevatedFileService } from '../../services/files/browser/elevatedFileService.js';
+import { IElevatedFileService } from '../../services/files/common/elevatedFileService.js';
+import { FilesConfigurationService, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IHistoryService } from '../../services/history/common/history.js';
+import { IHostService } from '../../services/host/browser/host.js';
+import { LabelService } from '../../services/label/common/labelService.js';
+import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts } from '../../services/layout/browser/layoutService.js';
+import { BeforeShutdownErrorEvent, ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, LifecyclePhase, ShutdownReason, StartupKind, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
+import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
+import { IPathService } from '../../services/path/common/pathService.js';
+import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
+import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from '../../services/remote/common/remoteAgentService.js';
+import { BrowserTextFileService } from '../../services/textfile/browser/browserTextFileService.js';
+import { EncodingOracle, IEncodingOverride } from '../../services/textfile/browser/textFileService.js';
+import { UTF16be, UTF16le, UTF8_with_bom } from '../../services/textfile/common/encoding.js';
+import { ITextEditorService, TextEditorService } from '../../services/textfile/common/textEditorService.js';
+import { TextFileEditorModel } from '../../services/textfile/common/textFileEditorModel.js';
+import { IReadTextFileOptions, ITextFileEditorModel, ITextFileEditorModelManager, ITextFileService, ITextFileStreamContent, IWriteTextFileOptions } from '../../services/textfile/common/textfiles.js';
+import { TextModelResolverService } from '../../services/textmodelResolver/common/textModelResolverService.js';
+import { UntitledTextEditorInput } from '../../services/untitled/common/untitledTextEditorInput.js';
+import { IUntitledTextEditorModelManager, IUntitledTextEditorService, UntitledTextEditorService } from '../../services/untitled/common/untitledTextEditorService.js';
+import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
+import { UserDataProfileService } from '../../services/userDataProfile/common/userDataProfileService.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
+import { BrowserWorkingCopyBackupService } from '../../services/workingCopy/browser/workingCopyBackupService.js';
+import { IWorkingCopy, IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from '../../services/workingCopy/common/workingCopy.js';
+import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackup.js';
+import { InMemoryWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackupService.js';
+import { IWorkingCopyEditorService, WorkingCopyEditorService } from '../../services/workingCopy/common/workingCopyEditorService.js';
+import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
+import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
+import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
+
+// Backcompat export
+export { TestFileService };
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -257,7 +265,10 @@ export function workbenchInstantiationService(
 	},
 	disposables: Pick<DisposableStore, 'add'> = new DisposableStore()
 ): TestInstantiationService {
-	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, disposables.add(new TestLifecycleService())])));
+	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+		[ILifecycleService, disposables.add(new TestLifecycleService())],
+		[IActionViewItemService, new SyncDescriptor(NullActionViewItemService)],
+	)));
 
 	instantiationService.stub(IProductService, TestProductService);
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
@@ -291,6 +302,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
+	// eslint-disable-next-line local/code-no-any-casts
 	instantiationService.stub(IAccessibilitySignalService, {
 		playSignal: async () => { },
 		isSoundEnabled(signal: unknown) { return false; },
@@ -305,6 +317,7 @@ export function workbenchInstantiationService(
 	const themeService = new TestThemeService();
 	instantiationService.stub(IThemeService, themeService);
 	instantiationService.stub(ILanguageConfigurationService, disposables.add(new TestLanguageConfigurationService()));
+	instantiationService.stub(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 	const fileService = overrides?.fileService ? overrides.fileService(instantiationService) : disposables.add(new TestFileService());
 	instantiationService.stub(IFileService, fileService);
@@ -359,6 +372,8 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IRemoteSocketFactoryService, new RemoteSocketFactoryService());
 	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));
 	instantiationService.stub(IHoverService, NullHoverService);
+	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
 
 	return instantiationService;
 }
@@ -409,7 +424,7 @@ export class TestTextFileService extends BrowserTextFileService {
 
 	constructor(
 		@IFileService fileService: IFileService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorModelManager,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
@@ -540,7 +555,7 @@ export class TestDecorationsService implements IDecorationsService {
 
 	declare readonly _serviceBrand: undefined;
 
-	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
+	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
 
 	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
 	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration | undefined { return undefined; }
@@ -615,18 +630,19 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	containers = [mainWindow.document.body];
 	activeContainer: HTMLElement = mainWindow.document.body;
 
-	onDidChangeZenMode: Event<boolean> = Event.None;
-	onDidChangeMainEditorCenteredLayout: Event<boolean> = Event.None;
-	onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
-	onDidChangePanelPosition: Event<string> = Event.None;
-	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
-	onDidChangePartVisibility: Event<void> = Event.None;
+	readonly onDidChangeZenMode: Event<boolean> = Event.None;
+	readonly onDidChangeMainEditorCenteredLayout: Event<boolean> = Event.None;
+	readonly onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
+	readonly onDidChangePanelPosition: Event<string> = Event.None;
+	readonly onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
+	readonly onDidChangePartVisibility: Event<void> = Event.None;
 	onDidLayoutMainContainer = Event.None;
 	onDidLayoutActiveContainer = Event.None;
 	onDidLayoutContainer = Event.None;
 	onDidChangeNotificationsVisibility = Event.None;
 	onDidAddContainer = Event.None;
 	onDidChangeActiveContainer = Event.None;
+	onDidChangeAuxiliaryBarMaximized = Event.None;
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
@@ -637,7 +653,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	hasMainWindowBorder(): boolean { return false; }
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
-	getContainer(): HTMLElement { return null!; }
+	getContainer(): HTMLElement { return mainWindow.document.body; }
 	whenContainerStylesLoaded() { return undefined; }
 	isTitleBarHidden(): boolean { return false; }
 	isStatusBarHidden(): boolean { return false; }
@@ -653,6 +669,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	async setPanelHidden(_hidden: boolean): Promise<void> { }
 	toggleMaximizedPanel(): void { }
 	isPanelMaximized(): boolean { return false; }
+	toggleMaximizedAuxiliaryBar(): void { }
+	setAuxiliaryBarMaximized(maximized: boolean): boolean { return false; }
+	isAuxiliaryBarMaximized(): boolean { return false; }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
@@ -667,6 +686,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isMainEditorLayoutCentered(): boolean { return false; }
 	centerMainEditorLayout(_active: boolean): void { }
 	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }
+	getSize(part: Parts): IViewSize { throw new Error('Method not implemented.'); }
+	setSize(part: Parts, size: IViewSize): void { throw new Error('Method not implemented.'); }
 	registerPart(part: Part): IDisposable { return Disposable.None; }
 	isWindowMaximized(targetWindow: Window) { return false; }
 	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void { }
@@ -674,13 +695,14 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	focus() { }
 }
 
+// eslint-disable-next-line local/code-no-any-casts
 const activeViewlet: PaneComposite = {} as any;
 
 export class TestPaneCompositeService extends Disposable implements IPaneCompositePartService {
 	declare readonly _serviceBrand: undefined;
 
-	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
-	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
+	readonly onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
+	readonly onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
 
 	private parts = new Map<ViewContainerLocation, IPaneCompositePart>();
 
@@ -724,8 +746,12 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		throw new Error('Method not implemented.');
 	}
 
+	getPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		throw new Error('Method not implemented.');
+	}
+
 	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
-		return assertIsDefined(this.parts.get(viewContainerLocation));
+		return assertReturnsDefined(this.parts.get(viewContainerLocation));
 	}
 }
 
@@ -759,6 +785,7 @@ export class TestSideBarPart implements IPaneCompositePart {
 	dispose() { }
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
+	getPaneCompositeIds() { return []; }
 	layout(width: number, height: number, top: number, left: number): void { }
 }
 
@@ -780,6 +807,7 @@ export class TestPanelPart implements IPaneCompositePart {
 	getPaneComposites() { return []; }
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
+	getPaneCompositeIds() { return []; }
 	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
@@ -795,6 +823,7 @@ export class TestViewsService implements IViewsService {
 
 	onDidChangeViewContainerVisibility = new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>().event;
 	isViewContainerVisible(id: string): boolean { return true; }
+	isViewContainerActive(id: string): boolean { return true; }
 	getVisibleViewContainer(): ViewContainer | null { return null; }
 	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null> { return Promise.resolve(null); }
 	closeViewContainer(id: string): void { }
@@ -811,6 +840,7 @@ export class TestViewsService implements IViewsService {
 	getViewProgressIndicator(id: string) { return null!; }
 	getActiveViewPaneContainerWithId(id: string) { return null; }
 	getFocusedViewName(): string { return ''; }
+	getFocusedView(): IViewDescriptor | null { return null; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
@@ -823,17 +853,17 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	windowId = mainWindow.vscodeWindowId;
 
-	onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
-	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
-	onDidActivateGroup: Event<IEditorGroup> = Event.None;
-	onDidAddGroup: Event<IEditorGroup> = Event.None;
-	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
-	onDidMoveGroup: Event<IEditorGroup> = Event.None;
-	onDidChangeGroupIndex: Event<IEditorGroup> = Event.None;
-	onDidChangeGroupLabel: Event<IEditorGroup> = Event.None;
-	onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
-	onDidChangeGroupMaximized: Event<boolean> = Event.None;
-	onDidLayout: Event<IDimension> = Event.None;
+	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
+	readonly onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidActivateGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidAddGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidRemoveGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidMoveGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidChangeGroupIndex: Event<IEditorGroup> = Event.None;
+	readonly onDidChangeGroupLabel: Event<IEditorGroup> = Event.None;
+	readonly onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
+	readonly onDidChangeGroupMaximized: Event<boolean> = Event.None;
+	readonly onDidLayout: Event<IDimension> = Event.None;
 	onDidChangeEditorPartOptions = Event.None;
 	onDidScroll = Event.None;
 	onWillDispose = Event.None;
@@ -874,7 +904,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	removeGroup(_group: number | IEditorGroup): void { }
 	moveGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	mergeGroup(_group: number | IEditorGroup, _target: number | IEditorGroup, _options?: IMergeGroupOptions): boolean { throw new Error('not implemented'); }
-	mergeAllGroups(_group: number | IEditorGroup): boolean { throw new Error('not implemented'); }
+	mergeAllGroups(_group: number | IEditorGroup, _options?: IMergeGroupOptions): boolean { throw new Error('not implemented'); }
 	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	centerLayout(active: boolean): void { }
 	isLayoutCentered(): boolean { return false; }
@@ -919,16 +949,16 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	isEmpty = true;
 
-	onWillDispose: Event<void> = Event.None;
-	onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
-	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onDidOpenEditorFail: Event<EditorInput> = Event.None;
-	onDidFocus: Event<void> = Event.None;
-	onDidChange: Event<{ width: number; height: number }> = Event.None;
-	onWillMoveEditor: Event<IEditorWillMoveEvent> = Event.None;
-	onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
-	onDidActiveEditorChange: Event<IActiveEditorChangeEvent> = Event.None;
+	readonly onWillDispose: Event<void> = Event.None;
+	readonly onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
+	readonly onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
+	readonly onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
+	readonly onDidOpenEditorFail: Event<EditorInput> = Event.None;
+	readonly onDidFocus: Event<void> = Event.None;
+	readonly onDidChange: Event<{ width: number; height: number }> = Event.None;
+	readonly onWillMoveEditor: Event<IEditorWillMoveEvent> = Event.None;
+	readonly onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
+	readonly onDidActiveEditorChange: Event<IActiveEditorChangeEvent> = Event.None;
 
 	getEditors(_order?: EditorsOrder): readonly EditorInput[] { return []; }
 	findEditors(_resource: URI): readonly EditorInput[] { return []; }
@@ -951,7 +981,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	copyEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
 	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean> { return true; }
 	async closeEditors(_editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean> { return true; }
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean> { return true; }
+	closeAllEditors(options?: ICloseAllEditorsOptions): any { return true; }
 	async replaceEditors(_editors: IEditorReplacement[]): Promise<void> { }
 	pinEditor(_editor?: EditorInput): void { }
 	stickEditor(editor?: EditorInput | undefined): void { }
@@ -1000,13 +1030,13 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 
 	declare readonly _serviceBrand: undefined;
 
-	onDidActiveEditorChange: Event<void> = Event.None;
-	onDidVisibleEditorsChange: Event<void> = Event.None;
-	onDidEditorsChange: Event<IEditorsChangeEvent> = Event.None;
-	onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
-	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
-	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
+	readonly onDidActiveEditorChange: Event<void> = Event.None;
+	readonly onDidVisibleEditorsChange: Event<void> = Event.None;
+	readonly onDidEditorsChange: Event<IEditorsChangeEvent> = Event.None;
+	readonly onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
+	readonly onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
+	readonly onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
+	readonly onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
 
 	private _activeTextEditorControl: ICodeEditor | IDiffEditor | undefined;
 	public get activeTextEditorControl(): ICodeEditor | IDiffEditor | undefined { return this._activeTextEditorControl; }
@@ -1023,6 +1053,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	mostRecentlyActiveEditors: readonly IEditorIdentifier[] = [];
 	visibleEditorPanes: readonly IVisibleEditorPane[] = [];
 	visibleTextEditorControls = [];
+	getVisibleTextEditorControls(order: EditorsOrder): readonly (IEditor | IDiffEditor)[] { return this.visibleTextEditorControls; }
 	visibleEditors: readonly EditorInput[] = [];
 	count = this.editors.length;
 
@@ -1031,6 +1062,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	}
 	createScoped(editorGroupsContainer: IEditorGroupsContainer): IEditorService { return this; }
 	getEditors() { return []; }
+	// eslint-disable-next-line local/code-no-any-casts
 	findEditors() { return [] as any; }
 	openEditor(editor: EditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
@@ -1060,164 +1092,6 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	saveAll(options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> { throw new Error('Method not implemented.'); }
 	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
-}
-
-export class TestFileService implements IFileService {
-
-	declare readonly _serviceBrand: undefined;
-
-	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
-	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
-	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
-
-	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
-	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
-	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
-
-	private readonly _onDidChangeFileSystemProviderCapabilities = new Emitter<IFileSystemProviderCapabilitiesChangeEvent>();
-	get onDidChangeFileSystemProviderCapabilities(): Event<IFileSystemProviderCapabilitiesChangeEvent> { return this._onDidChangeFileSystemProviderCapabilities.event; }
-	fireFileSystemProviderCapabilitiesChangeEvent(event: IFileSystemProviderCapabilitiesChangeEvent): void { this._onDidChangeFileSystemProviderCapabilities.fire(event); }
-
-	private _onWillActivateFileSystemProvider = new Emitter<IFileSystemProviderActivationEvent>();
-	readonly onWillActivateFileSystemProvider = this._onWillActivateFileSystemProvider.event;
-	readonly onDidWatchError = Event.None;
-
-	private content = 'Hello Html';
-	private lastReadFileUri!: URI;
-
-	readonly = false;
-
-	setContent(content: string): void { this.content = content; }
-	getContent(): string { return this.content; }
-	getLastReadFileUri(): URI { return this.lastReadFileUri; }
-
-	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
-	async resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
-		return createFileStat(resource, this.readonly);
-	}
-
-	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
-		return this.resolve(resource, { resolveMetadata: true });
-	}
-
-	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]> {
-		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
-
-		return stats.map(stat => ({ stat, success: true }));
-	}
-
-	readonly notExistsSet = new ResourceMap<boolean>();
-
-	async exists(_resource: URI): Promise<boolean> { return !this.notExistsSet.has(_resource); }
-
-	readShouldThrowError: Error | undefined = undefined;
-
-	async readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
-		if (this.readShouldThrowError) {
-			throw this.readShouldThrowError;
-		}
-
-		this.lastReadFileUri = resource;
-
-		return {
-			...createFileStat(resource, this.readonly),
-			value: VSBuffer.fromString(this.content)
-		};
-	}
-
-	async readFileStream(resource: URI, options?: IReadFileStreamOptions | undefined): Promise<IFileStreamContent> {
-		if (this.readShouldThrowError) {
-			throw this.readShouldThrowError;
-		}
-
-		this.lastReadFileUri = resource;
-
-		return {
-			...createFileStat(resource, this.readonly),
-			value: bufferToStream(VSBuffer.fromString(this.content))
-		};
-	}
-
-	writeShouldThrowError: Error | undefined = undefined;
-
-	async writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
-		await timeout(0);
-
-		if (this.writeShouldThrowError) {
-			throw this.writeShouldThrowError;
-		}
-
-		return createFileStat(resource, this.readonly);
-	}
-
-	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-	async cloneFile(_source: URI, _target: URI): Promise<void> { }
-	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-	createFolder(_resource: URI): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-
-	onDidChangeFileSystemProviderRegistrations = Event.None;
-
-	private providers = new Map<string, IFileSystemProvider>();
-
-	registerProvider(scheme: string, provider: IFileSystemProvider) {
-		this.providers.set(scheme, provider);
-
-		return toDisposable(() => this.providers.delete(scheme));
-	}
-
-	getProvider(scheme: string) {
-		return this.providers.get(scheme);
-	}
-
-	async activateProvider(_scheme: string): Promise<void> {
-		this._onWillActivateFileSystemProvider.fire({ scheme: _scheme, join: () => { } });
-	}
-	async canHandleResource(resource: URI): Promise<boolean> { return this.hasProvider(resource); }
-	hasProvider(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
-	listCapabilities() {
-		return [
-			{ scheme: Schemas.file, capabilities: FileSystemProviderCapabilities.FileOpenReadWriteClose },
-			...Iterable.map(this.providers, ([scheme, p]) => { return { scheme, capabilities: p.capabilities }; })
-		];
-	}
-	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
-		if (capability === FileSystemProviderCapabilities.PathCaseSensitive && isLinux) {
-			return true;
-		}
-
-		const provider = this.getProvider(resource.scheme);
-
-		return !!(provider && (provider.capabilities & capability));
-	}
-
-	async del(_resource: URI, _options?: { useTrash?: boolean; recursive?: boolean }): Promise<void> { }
-
-	createWatcher(resource: URI, options: IWatchOptions): IFileSystemWatcher {
-		return {
-			onDidChange: Event.None,
-			dispose: () => { }
-		};
-	}
-
-
-	readonly watches: URI[] = [];
-	watch(_resource: URI, options: IWatchOptionsWithCorrelation): IFileSystemWatcher;
-	watch(_resource: URI): IDisposable;
-	watch(_resource: URI): IDisposable {
-		this.watches.push(_resource);
-
-		return toDisposable(() => this.watches.splice(this.watches.indexOf(_resource), 1));
-	}
-
-	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
-	dispose(): void { }
-
-	async canCreateFile(source: URI, options?: ICreateFileOptions): Promise<Error | true> { return true; }
-	async canMove(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
-	async canCopy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
-	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined } | undefined): Promise<Error | true> { return true; }
 }
 
 export class TestWorkingCopyBackupService extends InMemoryWorkingCopyBackupService {
@@ -1353,6 +1227,7 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 	}
 
 	startupKind!: StartupKind;
+	willShutdown = false;
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
 	get onBeforeShutdown(): Event<InternalBeforeShutdownEvent> { return this._onBeforeShutdown.event; }
@@ -1437,7 +1312,7 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 	getValue<T>(resource: URI, arg2?: any, arg3?: any): T {
 		const position: IPosition | null = EditorPosition.isIPosition(arg2) ? arg2 : null;
 		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
-		return this.configurationService.getValue(section, { resource });
+		return this.configurationService.getValue(section, { resource }) as T;
 	}
 
 	inspect<T>(resource: URI | undefined, position: IPosition | null, section: string): IConfigurationValue<Readonly<T>> {
@@ -1451,17 +1326,21 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 
 export class RemoteFileSystemProvider implements IFileSystemProvider {
 
-	constructor(private readonly wrappedFsp: IFileSystemProvider, private readonly remoteAuthority: string) { }
+	constructor(private readonly wrappedFsp: IFileSystemProvider, private readonly remoteAuthority: string) {
+		this.capabilities = this.wrappedFsp.capabilities;
+		this.onDidChangeCapabilities = this.wrappedFsp.onDidChangeCapabilities;
+		this.onDidChangeFile = Event.map(this.wrappedFsp.onDidChangeFile, changes => changes.map(c => {
+			return {
+				type: c.type,
+				resource: c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }),
+			};
+		}));
+	}
 
-	readonly capabilities: FileSystemProviderCapabilities = this.wrappedFsp.capabilities;
-	readonly onDidChangeCapabilities: Event<void> = this.wrappedFsp.onDidChangeCapabilities;
+	readonly capabilities: FileSystemProviderCapabilities;
+	readonly onDidChangeCapabilities: Event<void>;
 
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.map(this.wrappedFsp.onDidChangeFile, changes => changes.map(c => {
-		return {
-			type: c.type,
-			resource: c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }),
-		};
-	}));
+	readonly onDidChangeFile: Event<readonly IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.wrappedFsp.watch(this.toFileResource(resource), opts); }
 
 	stat(resource: URI): Promise<IStat> { return this.wrappedFsp.stat(this.toFileResource(resource)); }
@@ -1552,16 +1431,18 @@ export class TestHostService implements IHostService {
 	async moveTop(): Promise<void> { }
 	async getCursorScreenPoint(): Promise<undefined> { return undefined; }
 
+	async getWindows(options: unknown) { return []; }
+
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 
 	async toggleFullScreen(): Promise<void> { }
 
+	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
+
+	async getNativeWindowHandle(_windowId: number): Promise<VSBuffer | undefined> { return undefined; }
+
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
-
-	getPathForFile(file: File): string | undefined {
-		return undefined;
-	}
 }
 
 export class TestFilesConfigurationService extends FilesConfigurationService {
@@ -1712,7 +1593,7 @@ export function registerTestSideBySideEditor(): IDisposable {
 
 export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
-	readonly preferredResource = this.resource;
+	readonly preferredResource;
 
 	gotDisposed = false;
 	gotSaved = false;
@@ -1729,6 +1610,8 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		private _typeId: string
 	) {
 		super();
+
+		this.preferredResource = this.resource;
 	}
 
 	override get typeId() { return this._typeId; }
@@ -1835,12 +1718,12 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	}
 
 	clearState(): void {
-		const workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as Record<string, unknown>;
 		for (const key of Object.keys(workspaceMemento)) {
 			delete workspaceMemento[key];
 		}
 
-		const profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		const profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE) as Record<string, unknown>;
 		for (const key of Object.keys(profileMemento)) {
 			delete profileMemento[key];
 		}
@@ -1967,13 +1850,14 @@ export class TestWorkspacesService implements IWorkspacesService {
 
 export class TestTerminalInstanceService implements ITerminalInstanceService {
 	onDidCreateInstance = Event.None;
+	onDidRegisterBackend = Event.None;
 	declare readonly _serviceBrand: undefined;
 
 	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig { throw new Error('Method not implemented.'); }
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> { throw new Error('Method not implemented.'); }
 	createInstance(options: ICreateTerminalOptions, target: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
 	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> { throw new Error('Method not implemented.'); }
-	didRegisterBackend(remoteAuthority?: string): void { throw new Error('Method not implemented.'); }
+	didRegisterBackend(backend: ITerminalBackend): void { throw new Error('Method not implemented.'); }
 	getRegisteredBackends(): IterableIterator<ITerminalBackend> { throw new Error('Method not implemented.'); }
 }
 
@@ -2023,8 +1907,8 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	onDidChangeInstances = Event.None;
 	createGroup(instance?: any): ITerminalGroup { throw new Error('Method not implemented.'); }
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined { throw new Error('Method not implemented.'); }
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void { throw new Error('Method not implemented.'); }
-	moveGroupToEnd(source: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	moveGroup(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	moveGroupToEnd(source: ITerminalInstance | ITerminalInstance[]): void { throw new Error('Method not implemented.'); }
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void { throw new Error('Method not implemented.'); }
 	unsplitInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	joinInstances(instances: ITerminalInstance[]): void { throw new Error('Method not implemented.'); }
@@ -2083,6 +1967,7 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 
 export class TestTerminalConfigurationService extends TerminalConfigurationService {
 	get fontMetrics() { return this._fontMetrics; }
+	// eslint-disable-next-line local/code-no-any-casts
 	setConfig(config: Partial<ITerminalConfiguration>) { this._config = config as any; }
 }
 
@@ -2100,6 +1985,7 @@ export class TestQuickInputService implements IQuickInputService {
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
 		if (Array.isArray(picks)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			return <any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' };
 		} else {
 			return undefined;
@@ -2108,15 +1994,18 @@ export class TestQuickInputService implements IQuickInputService {
 
 	async input(options?: IInputOptions, token?: CancellationToken): Promise<string> { return options ? 'resolved' + options.prompt : 'resolved'; }
 
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> { throw new Error('not implemented.'); }
+	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T, { useSeparators: boolean }> { throw new Error('not implemented.'); }
 	createInputBox(): IInputBox { throw new Error('not implemented.'); }
 	createQuickWidget(): IQuickWidget { throw new Error('Method not implemented.'); }
+	createQuickTree<T extends IQuickTreeItem>(): IQuickTree<T> { throw new Error('not implemented.'); }
 	focus(): void { throw new Error('not implemented.'); }
 	toggle(): void { throw new Error('not implemented.'); }
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void { throw new Error('not implemented.'); }
 	accept(): Promise<void> { throw new Error('not implemented.'); }
 	back(): Promise<void> { throw new Error('not implemented.'); }
 	cancel(): Promise<void> { throw new Error('not implemented.'); }
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void { throw new Error('not implemented.'); }
+	toggleHover(): void { throw new Error('not implemented.'); }
 }
 
 class TestLanguageDetectionService implements ILanguageDetectionService {
@@ -2145,7 +2034,7 @@ export class TestRemoteAgentService implements IRemoteAgentService {
 
 export class TestRemoteExtensionsScannerService implements IRemoteExtensionsScannerService {
 	declare readonly _serviceBrand: undefined;
-	async whenExtensionsReady(): Promise<void> { }
+	async whenExtensionsReady(): Promise<InstallExtensionSummary> { return { failed: [] }; }
 	scanExtensions(): Promise<IExtensionDescription[]> { throw new Error('Method not implemented.'); }
 }
 
@@ -2175,8 +2064,11 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onProfileAwareDidInstallExtensions = Event.None;
 	onProfileAwareUninstallExtension = Event.None;
 	onProfileAwareDidUninstallExtension = Event.None;
+	onDidProfileAwareUninstallExtensions = Event.None;
+	onProfileAwareDidUpdateExtensionMetadata = Event.None;
 	onDidChangeProfile = Event.None;
 	onDidEnableExtensions = Event.None;
+	preferPreReleases = true;
 	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
@@ -2196,7 +2088,8 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	install(vsix: URI, options?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
-	async canInstall(extension: IGalleryExtension): Promise<boolean> { return false; }
+	isAllowed(): true | IMarkdownString { return true; }
+	async canInstall(extension: IGalleryExtension): Promise<true> { return true; }
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
@@ -2204,9 +2097,6 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 		throw new Error('Method not implemented.');
 	}
 	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
 	async getInstalled(type?: ExtensionType | undefined): Promise<ILocalExtension[]> { return []; }
@@ -2221,7 +2111,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 		throw new Error('Method not implemented.');
 	}
 	copyExtensions(): Promise<void> { throw new Error('Not Supported'); }
-	toggleAppliationScope(): Promise<ILocalExtension> { throw new Error('Not Supported'); }
+	toggleApplicationScope(): Promise<ILocalExtension> { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
 	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
 	getInstalledWorkspaceExtensionLocations(): URI[] { throw new Error('Method not implemented.'); }
@@ -2229,16 +2119,15 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	installResourceExtension(): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
 	getExtensions(): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
 	resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void> { throw new Error('Method not implemented.'); }
+	getInstallableServers(extension: IGalleryExtension): Promise<IExtensionManagementServer[]> { throw new Error('Method not implemented.'); }
+	isPublisherTrusted(extension: IGalleryExtension): boolean { return false; }
+	getTrustedPublishers() { return []; }
+	trustPublishers(): void { }
+	untrustPublishers(): void { }
+	async requestPublisherTrust(extensions: InstallExtensionInfo[]): Promise<void> { }
 }
 
-export class TestUserDataProfileService implements IUserDataProfileService {
 
-	readonly _serviceBrand: undefined;
-	readonly onDidChangeCurrentProfile = Event.None;
-	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
-	async updateCurrentProfile(): Promise<void> { }
-	getShortName(profile: IUserDataProfile): string { return profile.shortName ?? profile.name; }
-}
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {
 	_serviceBrand: undefined;
@@ -2286,4 +2175,16 @@ export async function workbenchTeardown(instantiationService: IInstantiationServ
 			editorGroupService.removeGroup(group);
 		}
 	});
+}
+
+export class TestContextMenuService implements IContextMenuService {
+
+	_serviceBrand: undefined;
+
+	readonly onDidShowContextMenu = Event.None;
+	readonly onDidHideContextMenu = Event.None;
+
+	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
+		throw new Error('Method not implemented.');
+	}
 }

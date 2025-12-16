@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken } from './cancellation.js';
 
 type SparseEmbedding = Record</* word */ string, /* weight */number>;
 type TermFrequencies = Map</* word */ string, /*occurrences*/ number>;

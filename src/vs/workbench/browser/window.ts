@@ -3,34 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { matchesScheme, Schemas } from 'vs/base/common/network';
-import { isIOS, isMacintosh } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
-import { CodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isSafari, setFullscreen } from '../../base/browser/browser.js';
+import { addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
+import { DomEmitter } from '../../base/browser/event.js';
+import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from '../../base/browser/deviceAccess.js';
+import { timeout } from '../../base/common/async.js';
+import { Event } from '../../base/common/event.js';
+import { Disposable, IDisposable, dispose, toDisposable } from '../../base/common/lifecycle.js';
+import { matchesScheme, Schemas } from '../../base/common/network.js';
+import { isIOS, isMacintosh } from '../../base/common/platform.js';
+import Severity from '../../base/common/severity.js';
+import { URI } from '../../base/common/uri.js';
+import { localize } from '../../nls.js';
+import { CommandsRegistry } from '../../platform/commands/common/commands.js';
+import { IDialogService, IPromptButton } from '../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../platform/label/common/label.js';
+import { IOpenerService } from '../../platform/opener/common/opener.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
+import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
+import { BrowserLifecycleService } from '../services/lifecycle/browser/lifecycleService.js';
+import { ILifecycleService, ShutdownReason } from '../services/lifecycle/common/lifecycle.js';
+import { IHostService } from '../services/host/browser/host.js';
+import { registerWindowDriver } from '../services/driver/browser/driver.js';
+import { CodeWindow, isAuxiliaryWindow, mainWindow } from '../../base/browser/window.js';
+import { createSingleCallFunction } from '../../base/common/functional.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { IWorkbenchEnvironmentService } from '../services/environment/common/environmentService.js';
+import { MarkdownString } from '../../base/common/htmlContent.js';
+import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
 
 export abstract class BaseWindow extends Disposable {
 
@@ -41,7 +43,9 @@ export abstract class BaseWindow extends Disposable {
 		targetWindow: CodeWindow,
 		dom = { getWindowsCount, getWindows }, /* for testing */
 		@IHostService protected readonly hostService: IHostService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -49,6 +53,7 @@ export abstract class BaseWindow extends Disposable {
 		this.enableMultiWindowAwareTimeout(targetWindow, dom);
 
 		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
+		this.registerContextMenuListeners(targetWindow);
 	}
 
 	//#region focus handling in multi-window applications
@@ -137,7 +142,7 @@ export abstract class BaseWindow extends Disposable {
 				// this can happen for timeouts on unfocused windows
 				let didClear = false;
 
-				const handle = (window as any).vscodeOriginalSetTimeout.apply(this, [(...args: unknown[]) => {
+				const handle = (window as { vscodeOriginalSetTimeout?: typeof window.setTimeout }).vscodeOriginalSetTimeout?.apply(this, [(...args: unknown[]) => {
 					if (didClear) {
 						return;
 					}
@@ -146,7 +151,7 @@ export abstract class BaseWindow extends Disposable {
 
 				const timeoutDisposable = toDisposable(() => {
 					didClear = true;
-					(window as any).vscodeOriginalClearTimeout(handle);
+					(window as { vscodeOriginalClearTimeout?: typeof window.clearTimeout }).vscodeOriginalClearTimeout?.apply(this, [handle]);
 					timeoutDisposables.delete(timeoutDisposable);
 				});
 
@@ -169,17 +174,6 @@ export abstract class BaseWindow extends Disposable {
 	}
 
 	//#endregion
-
-	private registerFullScreenListeners(targetWindowId: number): void {
-		this._register(this.hostService.onDidChangeFullScreen(({ windowId, fullscreen }) => {
-			if (windowId === targetWindowId) {
-				const targetWindow = getWindowById(targetWindowId);
-				if (targetWindow) {
-					setFullscreen(fullscreen, targetWindow.window);
-				}
-			}
-		}));
-	}
 
 	//#region Confirm on Shutdown
 
@@ -211,6 +205,29 @@ export abstract class BaseWindow extends Disposable {
 	}
 
 	//#endregion
+
+	private registerFullScreenListeners(targetWindowId: number): void {
+		this._register(this.hostService.onDidChangeFullScreen(({ windowId, fullscreen }) => {
+			if (windowId === targetWindowId) {
+				const targetWindow = getWindowById(targetWindowId);
+				if (targetWindow) {
+					setFullscreen(fullscreen, targetWindow.window);
+				}
+			}
+		}));
+	}
+
+	private registerContextMenuListeners(targetWindow: Window): void {
+		if (targetWindow !== mainWindow) {
+			// we only need to listen in the main window as the code
+			// will go by the active container and update accordingly
+			return;
+		}
+
+		const update = (visible: boolean) => this.layoutService.activeContainer.classList.toggle('context-menu-visible', visible);
+		this._register(this.contextMenuService.onDidShowContextMenu(() => update(true)));
+		this._register(this.contextMenuService.onDidHideContextMenu(() => update(false)));
+	}
 }
 
 export class BrowserWindow extends BaseWindow {
@@ -222,11 +239,12 @@ export class BrowserWindow extends BaseWindow {
 		@ILabelService private readonly labelService: ILabelService,
 		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly browserEnvironmentService: IBrowserWorkbenchEnvironmentService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
-		super(mainWindow, undefined, hostService, browserEnvironmentService);
+		super(mainWindow, undefined, hostService, browserEnvironmentService, contextMenuService, layoutService);
 
 		this.registerListeners();
 		this.create();
@@ -339,25 +357,25 @@ export class BrowserWindow extends BaseWindow {
 						if (!opened) {
 							await this.dialogService.prompt({
 								type: Severity.Warning,
-								message: localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
-								detail: href,
+								message: localize('unableToOpenExternal', "The browser blocked opening a new tab or window. Press 'Retry' to try again."),
+								custom: {
+									markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-vscode-popup'), true) }]
+								},
 								buttons: [
 									{
-										label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"),
+										label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
 										run: () => isAllowedOpener ? windowOpenPopup(href) : windowOpenNoOpener(href)
-									},
-									{
-										label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
-										run: () => this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'))
 									}
 								],
 								cancelButton: true
 							});
 						}
 					} else {
-						isAllowedOpener
-							? windowOpenPopup(href)
-							: windowOpenNoOpener(href);
+						if (isAllowedOpener) {
+							windowOpenPopup(href);
+						} else {
+							windowOpenNoOpener(href);
+						}
 					}
 				}
 

@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../nls.js';
 
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { memoize } from 'vs/base/common/decorators';
-import { URI } from 'vs/base/common/uri';
+import { NativeEnvironmentService } from '../../platform/environment/node/environmentService.js';
+import { OPTIONS, OptionDescriptions } from '../../platform/environment/node/argv.js';
+import { refineServiceDecorator } from '../../platform/instantiation/common/instantiation.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../platform/environment/common/environment.js';
+import { memoize } from '../../base/common/decorators.js';
+import { URI } from '../../base/common/uri.js';
+import { joinPath } from '../../base/common/resources.js';
+import { join } from '../../base/common/path.js';
+import { ProtocolConstants } from '../../base/parts/ipc/common/ipc.net.js';
 
 export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
@@ -35,11 +38,13 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'user-data-dir': OPTIONS['user-data-dir'],
 	'enable-smoke-test-driver': OPTIONS['enable-smoke-test-driver'],
 	'disable-telemetry': OPTIONS['disable-telemetry'],
+	'disable-experiments': OPTIONS['disable-experiments'],
 	'disable-workspace-trust': OPTIONS['disable-workspace-trust'],
 	'file-watcher-polling': { type: 'string', deprecates: ['fileWatcherPolling'] },
 	'log': OPTIONS['log'],
 	'logsPath': OPTIONS['logsPath'],
 	'force-disable-user-env': OPTIONS['force-disable-user-env'],
+	'enable-proposed-api': OPTIONS['enable-proposed-api'],
 
 	/* ----- vs code web options ----- */
 
@@ -69,6 +74,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'category': OPTIONS['category'],
 	'force': OPTIONS['force'],
 	'do-not-sync': OPTIONS['do-not-sync'],
+	'do-not-include-pack-dependencies': OPTIONS['do-not-include-pack-dependencies'],
 	'pre-release': OPTIONS['pre-release'],
 	'start-server': { type: 'boolean', cat: 'e', description: nls.localize('start-server', "Start the server when installing or uninstalling extensions. To be used in combination with 'install-extension', 'install-builtin-extension' and 'uninstall-extension'.") },
 
@@ -77,9 +83,11 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	'enable-remote-auto-shutdown': { type: 'boolean' },
 	'remote-auto-shutdown-without-delay': { type: 'boolean' },
+	'inspect-ptyhost': { type: 'string', allowEmptyValue: true },
 
 	'use-host-proxy': { type: 'boolean' },
 	'without-browser-env-var': { type: 'boolean' },
+	'reconnection-grace-time': { type: 'string', cat: 'o', args: 'seconds', description: nls.localize('reconnection-grace-time', "Override the reconnection grace time window in seconds. Defaults to 10800 (3 hours).") },
 
 	/* ----- server cli ----- */
 
@@ -156,12 +164,14 @@ export interface ServerParsedArgs {
 	'enable-smoke-test-driver'?: boolean;
 
 	'disable-telemetry'?: boolean;
+	'disable-experiments'?: boolean;
 	'file-watcher-polling'?: string;
 
 	'log'?: string[];
 	'logsPath'?: string;
 
 	'force-disable-user-env'?: boolean;
+	'enable-proposed-api'?: string[];
 
 	/* ----- vs code web options ----- */
 
@@ -194,6 +204,8 @@ export interface ServerParsedArgs {
 	force?: boolean; // used by install-extension
 	'do-not-sync'?: boolean; // used by install-extension
 	'pre-release'?: boolean; // used by install-extension
+	'do-not-include-pack-dependencies'?: boolean; // used by install-extension
+
 
 	'start-server'?: boolean;
 
@@ -201,9 +213,11 @@ export interface ServerParsedArgs {
 
 	'enable-remote-auto-shutdown'?: boolean;
 	'remote-auto-shutdown-without-delay'?: boolean;
+	'inspect-ptyhost'?: string;
 
 	'use-host-proxy'?: boolean;
 	'without-browser-env-var'?: boolean;
+	'reconnection-grace-time'?: string;
 
 	/* ----- server cli ----- */
 	help: boolean;
@@ -218,11 +232,39 @@ export interface ServerParsedArgs {
 export const IServerEnvironmentService = refineServiceDecorator<IEnvironmentService, IServerEnvironmentService>(IEnvironmentService);
 
 export interface IServerEnvironmentService extends INativeEnvironmentService {
+	readonly machineSettingsResource: URI;
+	readonly mcpResource: URI;
 	readonly args: ServerParsedArgs;
+	readonly reconnectionGraceTime: number;
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
 	@memoize
 	override get userRoamingDataHome(): URI { return this.appSettingsHome; }
+	@memoize
+	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
+	@memoize
+	get mcpResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'User')), 'mcp.json'); }
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
+	@memoize
+	get reconnectionGraceTime(): number { return parseGraceTime(this.args['reconnection-grace-time'], ProtocolConstants.ReconnectionGraceTime); }
+}
+
+function parseGraceTime(rawValue: string | undefined, fallback: number): number {
+	if (typeof rawValue !== 'string' || rawValue.trim().length === 0) {
+		console.log(`[reconnection-grace-time] No CLI argument provided, using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
+		return fallback;
+	}
+	const parsedSeconds = Number(rawValue);
+	if (!isFinite(parsedSeconds) || parsedSeconds < 0) {
+		console.log(`[reconnection-grace-time] Invalid value '${rawValue}', using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
+		return fallback;
+	}
+	const millis = Math.floor(parsedSeconds * 1000);
+	if (!isFinite(millis) || millis > Number.MAX_SAFE_INTEGER) {
+		console.log(`[reconnection-grace-time] Value too large '${rawValue}', using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
+		return fallback;
+	}
+	console.log(`[reconnection-grace-time] Parsed CLI argument: ${parsedSeconds}s -> ${millis}ms`);
+	return millis;
 }

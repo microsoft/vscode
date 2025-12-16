@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService, IKeyMods, IPickOptions, IQuickPickSeparator, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, TerminalSettingPrefix, type ITerminalExecutable } from 'vs/platform/terminal/common/terminal';
-import { getUriClasses, getColorClass, createColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import * as nls from 'vs/nls';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IQuickPickTerminalObject, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
-import { basename } from 'vs/base/common/path';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IQuickInputService, IKeyMods, IPickOptions, IQuickPickSeparator, IQuickInputButton, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, TerminalSettingPrefix, type ITerminalExecutable } from '../../../../platform/terminal/common/terminal.js';
+import { getUriClasses, getColorClass, createColorStyleElement } from './terminalIcon.js';
+import { configureTerminalProfileIcon } from './terminalIcons.js';
+import * as nls from '../../../../nls.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ITerminalProfileResolverService, ITerminalProfileService } from '../common/terminal.js';
+import { IQuickPickTerminalObject, ITerminalInstance } from './terminal.js';
+import { IPickerQuickAccessItem } from '../../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
+import { basename } from '../../../../base/common/path.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { hasKey, isString } from '../../../../base/common/types.js';
 
 
 type DefaultProfileName = string;
@@ -40,9 +41,7 @@ export class TerminalProfileQuickpick {
 			return;
 		}
 		if (type === 'setDefault') {
-			if ('command' in result.profile) {
-				return; // Should never happen
-			} else if ('id' in result.profile) {
+			if (hasKey(result.profile, { id: true })) {
 				// extension contributed profile
 				await this._configurationService.updateValue(defaultProfileKey, result.profile.title, ConfigurationTarget.USER);
 				return {
@@ -60,7 +59,7 @@ export class TerminalProfileQuickpick {
 			}
 
 			// Add the profile to settings if necessary
-			if ('isAutoDetected' in result.profile) {
+			if (hasKey(result.profile, { profileName: true })) {
 				const profilesConfig = await this._configurationService.getValue(profilesKey);
 				if (typeof profilesConfig === 'object') {
 					const newProfile: ITerminalProfileObject = {
@@ -76,7 +75,7 @@ export class TerminalProfileQuickpick {
 			// Set the default profile
 			await this._configurationService.updateValue(defaultProfileKey, result.profileName, ConfigurationTarget.USER);
 		} else if (type === 'createInstance') {
-			if ('id' in result.profile) {
+			if (hasKey(result.profile, { id: true })) {
 				return {
 					config: {
 						extensionIdentifier: result.profile.extensionIdentifier,
@@ -94,7 +93,7 @@ export class TerminalProfileQuickpick {
 			}
 		}
 		// for tests
-		return 'profileName' in result.profile ? result.profile.profileName : result.profile.title;
+		return hasKey(result.profile, { profileName: true }) ? result.profile.profileName : result.profile.title;
 	}
 
 	private async _createAndShow(type: 'setDefault' | 'createInstance'): Promise<IProfileQuickPickItem | undefined> {
@@ -110,13 +109,10 @@ export class TerminalProfileQuickpick {
 				if (!await this._isProfileSafe(context.item.profile)) {
 					return;
 				}
-				if ('command' in context.item.profile) {
+				if (hasKey(context.item.profile, { id: true })) {
 					return;
 				}
-				if ('id' in context.item.profile) {
-					return;
-				}
-				const configProfiles: { [key: string]: any } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
+				const configProfiles: { [key: string]: ITerminalExecutable | null | undefined } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
 				const existingProfiles = !!configProfiles ? Object.keys(configProfiles) : [];
 				const name = await this._quickInputService.input({
 					prompt: nls.localize('enterTerminalProfileName', "Enter terminal profile name"),
@@ -131,7 +127,7 @@ export class TerminalProfileQuickpick {
 				if (!name) {
 					return;
 				}
-				const newConfigValue: { [key: string]: ITerminalExecutable } = {
+				const newConfigValue: { [key: string]: ITerminalExecutable | null | undefined } = {
 					...configProfiles,
 					[name]: this._createNewProfileConfig(context.item.profile)
 				};
@@ -154,7 +150,7 @@ export class TerminalProfileQuickpick {
 		const contributedProfiles: IProfileQuickPickItem[] = [];
 		for (const contributed of this._terminalProfileService.contributedProfiles) {
 			let icon: ThemeIcon | undefined;
-			if (typeof contributed.icon === 'string') {
+			if (isString(contributed.icon)) {
 				if (contributed.icon.startsWith('$(')) {
 					icon = ThemeIcon.fromString(contributed.icon);
 				} else {
@@ -223,8 +219,8 @@ export class TerminalProfileQuickpick {
 	}
 
 	private async _isProfileSafe(profile: ITerminalProfile | IExtensionTerminalProfile): Promise<boolean> {
-		const isUnsafePath = 'isUnsafePath' in profile && profile.isUnsafePath;
-		const requiresUnsafePath = 'requiresUnsafePath' in profile && profile.requiresUnsafePath;
+		const isUnsafePath = hasKey(profile, { profileName: true }) && profile.isUnsafePath;
+		const requiresUnsafePath = hasKey(profile, { profileName: true }) && profile.requiresUnsafePath;
 		if (!isUnsafePath && !requiresUnsafePath) {
 			return true;
 		}
@@ -270,7 +266,7 @@ export class TerminalProfileQuickpick {
 		}
 
 		if (profile.args) {
-			if (typeof profile.args === 'string') {
+			if (isString(profile.args)) {
 				return { label, description: `${profile.path} ${profile.args}`, profile, profileName: profile.profileName, buttons, iconClasses };
 			}
 			const argsString = profile.args.map(e => {

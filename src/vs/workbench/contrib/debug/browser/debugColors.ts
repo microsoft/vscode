@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerColor, foreground, editorInfoForeground, editorWarningForeground, errorForeground, badgeBackground, badgeForeground, listDeemphasizedForeground, contrastBorder, inputBorder, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Color } from 'vs/base/common/color';
-import { localize } from 'vs/nls';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { registerColor, foreground, editorInfoForeground, editorWarningForeground, errorForeground, badgeBackground, badgeForeground, listDeemphasizedForeground, contrastBorder, inputBorder, toolbarHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Color } from '../../../../base/common/color.js';
+import { localize } from '../../../../nls.js';
+import * as icons from './debugIcons.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 
 export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	dark: '#333333',

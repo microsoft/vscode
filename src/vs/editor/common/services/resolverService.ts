@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { IResolvableEditorModel } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { ITextModel, ITextSnapshot } from '../model.js';
+import { IResolvableEditorModel } from '../../../platform/editor/common/editor.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 
 export const ITextModelService = createDecorator<ITextModelService>('textModelService');
 

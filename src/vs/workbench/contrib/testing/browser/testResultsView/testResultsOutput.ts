@@ -3,53 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Delayer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, IDisposable, IReference, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { peekViewResultsBackground } from 'vs/editor/contrib/peekView/browser/peekView';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { DetachedProcessInfo } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
-import { IDetachedTerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { colorizeTestMessageInEditor } from 'vs/workbench/contrib/testing/browser/testMessageColorizer';
-import { InspectSubject, MessageSubject, TaskSubject, TestOutputSubject } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsSubject';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ITaskRawOutput, ITestResult, ITestRunTaskResults, LiveTestResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestMessage, TestMessageType, getMarkId } from 'vs/workbench/contrib/testing/common/testTypes';
+import * as dom from '../../../../../base/browser/dom.js';
+import { Delayer } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ScrollEvent } from '../../../../../base/common/scrollable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ICodeEditor, IDiffEditorConstructionOptions } from '../../../../../editor/browser/editorBrowser.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { EmbeddedCodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
+import { EmbeddedDiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/embeddedDiffEditorWidget.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IDiffEditorOptions, IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { peekViewResultsBackground } from '../../../../../editor/contrib/peekView/browser/peekView.js';
+import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { formatMessageForTerminal } from '../../../../../platform/terminal/common/terminalStrings.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IEditorConfiguration } from '../../../../browser/parts/editor/textEditor.js';
+import { EditorModel } from '../../../../common/editor/editorModel.js';
+import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../common/theme.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { CALL_STACK_WIDGET_HEADER_HEIGHT } from '../../../debug/browser/callStackWidget.js';
+import { DetachedProcessInfo } from '../../../terminal/browser/detachedTerminal.js';
+import { IDetachedTerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { getXtermScaledDimensions } from '../../../terminal/browser/xterm/xtermTerminal.js';
+import { TERMINAL_BACKGROUND_COLOR } from '../../../terminal/common/terminalColorRegistry.js';
+import { Testing } from '../../common/constants.js';
+import { MutableObservableValue } from '../../common/observableValue.js';
+import { ITaskRawOutput, ITestResult, ITestRunTaskResults, LiveTestResult, TestResultItemChangeReason } from '../../common/testResult.js';
+import { ITestMessage, TestMessageType, getMarkId } from '../../common/testTypes.js';
+import { colorizeTestMessageInEditor } from '../testMessageColorizer.js';
+import { InspectSubject, MessageSubject, TaskSubject, TestOutputSubject } from './testResultsSubject.js';
 
 
 class SimpleDiffEditorModel extends EditorModel {
-	public readonly original = this._original.object.textEditorModel;
-	public readonly modified = this._modified.object.textEditorModel;
+	public readonly original: ITextModel;
+	public readonly modified: ITextModel;
 
 	constructor(
 		private readonly _original: IReference<IResolvedTextEditorModel>,
 		private readonly _modified: IReference<IResolvedTextEditorModel>,
 	) {
 		super();
+		this.original = this._original.object.textEditorModel;
+		this.modified = this._modified.object.textEditorModel;
 	}
 
 	public override dispose() {
@@ -61,11 +67,12 @@ class SimpleDiffEditorModel extends EditorModel {
 
 
 export interface IPeekOutputRenderer extends IDisposable {
-	onDidContentSizeChange?: Event<void>;
+	readonly onDidContentSizeChange?: Event<void>;
+	onScrolled?(evt: ScrollEvent): void;
 	/** Updates the displayed test. Should clear if it cannot display the test. */
 	update(subject: InspectSubject): Promise<boolean>;
 	/** Recalculate content layout. Returns the height it should be rendered at. */
-	layout(dimension: dom.IDimension): number | undefined;
+	layout(dimension: dom.IDimension, hasMultipleFrames: boolean): number | undefined;
 	/** Dispose the content provider. */
 	dispose(): void;
 }
@@ -76,12 +83,12 @@ const commonEditorOptions: IEditorOptions = {
 	lineNumbers: 'off',
 	glyphMargin: false,
 	scrollbar: {
-		verticalScrollbarSize: 14,
+		vertical: 'hidden',
 		horizontal: 'auto',
 		useShadows: false,
 		verticalHasArrows: false,
 		horizontalHasArrows: false,
-		alwaysConsumeMouseWheel: false
+		handleMouseWheel: false,
 	},
 	overviewRulerLanes: 0,
 	fixedOverflowWidgets: true,
@@ -104,11 +111,41 @@ const diffEditorOptions: IDiffEditorConstructionOptions = {
 	diffAlgorithm: 'advanced',
 };
 
+function applyEditorMirrorOptions<T extends IEditorOptions>(base: T, cfg: IConfigurationService, update: (options: Partial<IEditorOptions>) => void) {
+	const immutable = new Set(Object.keys(base));
+	function applyCurrent() {
+		const configuration = cfg.getValue<IEditorConfiguration>('editor');
+
+		let changed = false;
+		const patch: Partial<IEditorOptions> = {};
+		for (const [key, value] of Object.entries(configuration)) {
+			if (!immutable.has(key) && (base as Record<string, unknown>)[key] !== value) {
+				(patch as Record<string, unknown>)[key] = value;
+				changed = true;
+			}
+		}
+
+		return changed ? patch : undefined;
+	}
+
+	Object.assign(base, applyCurrent());
+
+	return cfg.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration('editor')) {
+			const patch = applyCurrent();
+			if (patch) {
+				update(patch);
+				Object.assign(base, patch);
+			}
+		}
+	});
+}
 
 export class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 	private readonly widget = this._register(new MutableDisposable<DiffEditorWidget>());
 	private readonly model = this._register(new MutableDisposable());
 	private dimension?: dom.IDimension;
+	private helper?: ScrollHelper;
 
 	public get onDidContentSizeChange() {
 		return this.widget.value?.onDidContentSizeChange || Event.None;
@@ -119,6 +156,7 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 		private readonly container: HTMLElement,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService private readonly modelService: ITextModelService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -141,21 +179,32 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 
 		const model = this.model.value = new SimpleDiffEditorModel(original, modified);
 		if (!this.widget.value) {
-			this.widget.value = this.editor ? this.instantiationService.createInstance(
+			const options = { ...diffEditorOptions };
+			const listener = applyEditorMirrorOptions(
+				options,
+				this.configurationService,
+				u => editor.updateOptions(u)
+			);
+
+			const editor = this.widget.value = this.editor ? this.instantiationService.createInstance(
 				EmbeddedDiffEditorWidget,
 				this.container,
-				diffEditorOptions,
+				options,
 				{},
 				this.editor,
 			) : this.instantiationService.createInstance(
 				DiffEditorWidget,
 				this.container,
-				diffEditorOptions,
+				options,
 				{},
 			);
 
+			Event.once(editor.onDidDispose)(() => {
+				listener.dispose();
+			});
+
 			if (this.dimension) {
-				this.widget.value.layout(this.dimension);
+				editor.layout(this.dimension);
 			}
 		}
 
@@ -172,7 +221,7 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 		this.widget.clear();
 	}
 
-	public layout(dimensions: dom.IDimension) {
+	public layout(dimensions: dom.IDimension, hasMultipleFrames: boolean) {
 		this.dimension = dimensions;
 		const editor = this.widget.value;
 		if (!editor) {
@@ -180,9 +229,17 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 		}
 
 		editor.layout(dimensions);
-		const height = Math.min(10000, Math.max(editor.getOriginalEditor().getContentHeight(), editor.getModifiedEditor().getContentHeight()));
-		editor.layout({ height, width: dimensions.width });
+		const height = Math.max(
+			editor.getOriginalEditor().getContentHeight(),
+			editor.getModifiedEditor().getContentHeight()
+		);
+		editor.updateOptions({ scrollbar: { ...commonEditorOptions.scrollbar, handleMouseWheel: !hasMultipleFrames } });
+		this.helper = new ScrollHelper(hasMultipleFrames, height, dimensions.height);
 		return height;
+	}
+
+	public onScrolled(evt: ScrollEvent): void {
+		this.helper?.onScrolled(evt, this.widget.value?.getDomNode(), this.widget.value?.getOriginalEditor());
 	}
 
 	protected getOptions(isMultiline: boolean): IDiffEditorOptions {
@@ -194,35 +251,38 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 
 
 export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer {
-	private readonly markdown = new Lazy(
-		() => this._register(this.instantiationService.createInstance(MarkdownRenderer, {})),
-	);
+
+	private readonly rendered = this._register(new DisposableStore());
 
 	private element?: HTMLElement;
 
-	constructor(private readonly container: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService) {
+	constructor(
+		private readonly container: HTMLElement,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+	) {
 		super();
 		this._register(toDisposable(() => this.clear()));
 	}
 
 	public async update(subject: InspectSubject) {
+		this.clear();
 		if (!(subject instanceof MessageSubject)) {
-			this.clear();
 			return false;
 		}
 
 		const message = subject.message;
 		if (ITestMessage.isDiffable(message) || typeof message.message === 'string') {
-			this.clear();
 			return false;
 		}
 
 
-		const rendered = this._register(this.markdown.value.render(message.message, {}));
+		const rendered = this.rendered.add(this.markdownRendererService.render(message.message, {}));
 		rendered.element.style.userSelect = 'text';
 		rendered.element.classList.add('preview-text');
 		this.container.appendChild(rendered.element);
 		this.element = rendered.element;
+		this.rendered.add(toDisposable(() => rendered.element.remove()));
+
 		return true;
 	}
 
@@ -236,10 +296,28 @@ export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRe
 	}
 
 	private clear() {
-		if (this.element) {
-			this.element.remove();
-			this.element = undefined;
+		this.rendered.clear();
+		this.element = undefined;
+	}
+}
+
+class ScrollHelper {
+	constructor(
+		private readonly hasMultipleFrames: boolean,
+		private readonly contentHeight: number,
+		private readonly viewHeight: number,
+	) { }
+
+	public onScrolled(evt: ScrollEvent, container: HTMLElement | undefined | null, editor: ICodeEditor | undefined) {
+		if (!editor || !container) {
+			return;
 		}
+
+		let delta = Math.max(0, evt.scrollTop - (this.hasMultipleFrames ? CALL_STACK_WIDGET_HEADER_HEIGHT : 0));
+		delta = Math.min(Math.max(0, this.contentHeight - this.viewHeight), delta);
+
+		editor.setScrollTop(delta);
+		container.style.transform = `translateY(${delta}px)`;
 	}
 }
 
@@ -248,6 +326,7 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 	private readonly widget = this._register(new MutableDisposable<CodeEditorWidget>());
 	private readonly model = this._register(new MutableDisposable());
 	private dimension?: dom.IDimension;
+	private helper?: ScrollHelper;
 
 	public get onDidContentSizeChange() {
 		return this.widget.value?.onDidContentSizeChange || Event.None;
@@ -258,6 +337,7 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 		private readonly container: HTMLElement,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService private readonly modelService: ITextModelService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -276,21 +356,32 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 
 		const modelRef = this.model.value = await this.modelService.createModelReference(subject.messageUri);
 		if (!this.widget.value) {
-			this.widget.value = this.editor ? this.instantiationService.createInstance(
+			const options = { ...commonEditorOptions };
+			const listener = applyEditorMirrorOptions(
+				options,
+				this.configurationService,
+				u => editor.updateOptions(u)
+			);
+
+			const editor = this.widget.value = this.editor ? this.instantiationService.createInstance(
 				EmbeddedCodeEditorWidget,
 				this.container,
-				commonEditorOptions,
+				options,
 				{},
 				this.editor,
 			) : this.instantiationService.createInstance(
 				CodeEditorWidget,
 				this.container,
-				commonEditorOptions,
+				options,
 				{ isSimpleWidget: true }
 			);
 
+			Event.once(editor.onDidDispose)(() => {
+				listener.dispose();
+			});
+
 			if (this.dimension) {
-				this.widget.value.layout(this.dimension);
+				editor.layout(this.dimension);
 			}
 		}
 
@@ -306,7 +397,11 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 		this.model.clear();
 	}
 
-	public layout(dimensions: dom.IDimension) {
+	onScrolled(evt: ScrollEvent): void {
+		this.helper?.onScrolled(evt, this.widget.value?.getDomNode(), this.widget.value);
+	}
+
+	public layout(dimensions: dom.IDimension, hasMultipleFrames: boolean) {
 		this.dimension = dimensions;
 		const editor = this.widget.value;
 		if (!editor) {
@@ -315,7 +410,9 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 
 		editor.layout(dimensions);
 		const height = editor.getContentHeight();
-		editor.layout({ height, width: dimensions.width });
+		this.helper = new ScrollHelper(hasMultipleFrames, height, dimensions.height);
+		editor.updateOptions({ scrollbar: { ...commonEditorOptions.scrollbar, handleMouseWheel: !hasMultipleFrames } });
+
 		return height;
 	}
 }
@@ -345,9 +442,8 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 		if (prev) {
 			prev.xterm.clearBuffer();
 			prev.xterm.clearSearchDecorations();
-			// clearBuffer tries to retain the prompt line, but this doesn't exist for tests.
-			// So clear the screen (J) and move to home (H) to ensure previous data is cleaned up.
-			prev.xterm.write(`\x1b[2J\x1b[0;0H`);
+			// clearBuffer tries to retain the prompt. Reset prompt, scrolling state, etc.
+			prev.xterm.write(`\x1bc`);
 			return prev;
 		}
 

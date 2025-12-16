@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { VSBuffer } from 'vs/base/common/buffer';
-import type { CancellationToken } from 'vs/base/common/cancellation';
+import type { VSBuffer } from '../../../../base/common/buffer.js';
+import type { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export interface IRPCProtocol {
 	/**
@@ -20,7 +20,7 @@ export interface IRPCProtocol {
 	/**
 	 * Assert these identifiers are already registered via `.set`.
 	 */
-	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
+	assertRegistered(identifiers: ProxyIdentifier<unknown>[]): void;
 
 	/**
 	 * Wait for the write buffer (if applicable) to become empty.
@@ -43,7 +43,7 @@ export class ProxyIdentifier<T> {
 	}
 }
 
-const identifiers: ProxyIdentifier<any>[] = [];
+const identifiers: ProxyIdentifier<unknown>[] = [];
 
 export function createProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
 	const result = new ProxyIdentifier<T>(identifier);

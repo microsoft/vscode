@@ -6,20 +6,20 @@
 import assert from 'assert';
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync, writeFileSync, promises } from 'fs';
 import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
-import { bufferToReadable, bufferToStream, streamToBuffer, streamToBufferReadableStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { basename, dirname, join, posix } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError, IFileAtomicOptions } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { timeout } from '../../../../base/common/async.js';
+import { bufferToReadable, bufferToStream, streamToBuffer, streamToBufferReadableStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
+import { basename, dirname, join, posix } from '../../../../base/common/path.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Promises } from '../../../../base/node/pfs.js';
+import { flakySuite, getRandomTestPath } from '../../../../base/test/node/testUtils.js';
+import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError, IFileAtomicOptions } from '../../common/files.js';
+import { FileService } from '../../common/fileService.js';
+import { DiskFileSystemProvider } from '../../node/diskFileSystemProvider.js';
+import { NullLogService } from '../../../log/common/log.js';
 
 function getByName(root: IFileStat, name: string): IFileStat | undefined {
 	if (root.children === undefined) {
@@ -72,7 +72,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
-				FileSystemProviderCapabilities.FileClone;
+				FileSystemProviderCapabilities.FileClone |
+				FileSystemProviderCapabilities.FileRealpath;
 
 			if (isLinux) {
 				this._testCapabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -102,10 +103,13 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		const res = await super.stat(resource);
 
 		if (this.invalidStatSize) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(res as any).size = String(res.size) as any; // for https://github.com/microsoft/vscode/issues/72909
 		} else if (this.smallStatSize) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(res as any).size = 1;
 		} else if (this.readonly) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(res as any).permissions = FilePermission.Readonly;
 		}
 
@@ -427,7 +431,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(r2.name, 'deep');
 	});
 
-	test('resolve - folder symbolic link', async () => {
+	test('resolve / realpath - folder symbolic link', async () => {
 		const link = URI.file(join(testDir, 'deep-link'));
 		await promises.symlink(join(testDir, 'deep'), link.fsPath, 'junction');
 
@@ -435,6 +439,10 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(resolved.children!.length, 4);
 		assert.strictEqual(resolved.isDirectory, true);
 		assert.strictEqual(resolved.isSymbolicLink, true);
+
+		const realpath = await service.realpath(link);
+		assert.ok(realpath);
+		assert.strictEqual(basename(realpath.fsPath), 'deep');
 	});
 
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('resolve - file symbolic link', async () => {
@@ -2404,6 +2412,46 @@ flakySuite('Disk File Service', function () {
 		}
 
 		assert.ok(!error);
+	});
+
+	test('writeFile - no error when writing to file where content is the same', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath).toString();
+		assert.strictEqual(content, 'Small File');
+
+		const newContent = content; // same content
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: 'anything', mtime: 0 } /* fake it */);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(!error);
+	});
+
+	test('writeFile - error when writing to file where content is the same length but different', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath).toString();
+		assert.strictEqual(content, 'Small File');
+
+		const newContent = content.split('').reverse().join(''); // reverse content
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: 'anything', mtime: 0 } /* fake it */);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.ok(error instanceof FileOperationError);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
 	});
 
 	test('writeFile - no error when writing to same nonexistent folder multiple times different new files', async () => {

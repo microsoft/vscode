@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { SnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/abstractSnippetsActions';
-import { pickSnippet } from 'vs/workbench/contrib/snippets/browser/snippetPicker';
-import { Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { ISnippetsService } from '../snippets';
-import { localize2 } from 'vs/nls';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SnippetEditorAction } from './abstractSnippetsActions.js';
+import { pickSnippet } from '../snippetPicker.js';
+import { Snippet } from '../snippetsFile.js';
+import { ISnippetsService } from '../snippets.js';
+import { localize2 } from '../../../../../nls.js';
 
 export async function getSurroundableSnippets(snippetsService: ISnippetsService, model: ITextModel, position: Position, includeDisabledSnippets: boolean): Promise<Snippet[]> {
 

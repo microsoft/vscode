@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BreadcrumbsWidget } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as glob from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { GroupIdentifier, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { BreadcrumbsWidget } from '../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import * as glob from '../../../../base/common/glob.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationOverrides, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions, IConfigurationRegistry, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
 
 export const IBreadcrumbsService = createDecorator<IBreadcrumbsService>('IEditorBreadcrumbsService');
 
@@ -71,8 +71,10 @@ export abstract class BreadcrumbsConfig<T> {
 	static readonly FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static readonly SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
 	static readonly SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
+	static readonly SymbolPathSeparator = BreadcrumbsConfig._stub<string>('breadcrumbs.symbolPathSeparator');
 	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
 	static readonly TitleScrollbarSizing = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarSizing']>('workbench.editor.titleScrollbarSizing');
+	static readonly TitleScrollbarVisibility = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarVisibility']>('workbench.editor.titleScrollbarVisibility');
 
 	static readonly FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
@@ -163,6 +165,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('icons', "Render breadcrumb items with icons."),
 			type: 'boolean',
 			default: true
+		},
+		'breadcrumbs.symbolPathSeparator': {
+			description: localize('symbolPathSeparator', "The separator used when copying the breadcrumb symbol path."),
+			type: 'string',
+			default: '.',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'breadcrumbs.showFiles': {
 			type: 'boolean',

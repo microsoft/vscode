@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { getEnterAction } from 'vs/editor/common/languages/enterAction';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { CharCode } from '../../../base/common/charCode.js';
+import * as strings from '../../../base/common/strings.js';
+import { CursorColumns } from '../core/cursorColumns.js';
+import { Range } from '../core/range.js';
+import { Selection, SelectionDirection } from '../core/selection.js';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../editorCommon.js';
+import { ITextModel } from '../model.js';
+import { EditorAutoIndentStrategy } from '../config/editorOptions.js';
+import { getEnterAction } from '../languages/enterAction.js';
+import { ILanguageConfigurationService } from '../languages/languageConfigurationRegistry.js';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;

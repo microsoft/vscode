@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
-import { OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI } from '../../../../../base/common/uri.js';
+import { isMacintosh, isLinux, isWindows } from '../../../../../base/common/platform.js';
+import { OutputLinkComputer } from '../../common/outputLinkComputer.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('OutputLinkProvider', () => {
 

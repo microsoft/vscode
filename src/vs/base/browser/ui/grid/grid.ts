@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
-import { equals, tail2 as tail } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./gridview';
-import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing, GridLocation } from './gridview';
-import type { SplitView, AutoSizing as SplitViewAutoSizing } from 'vs/base/browser/ui/splitview/splitview';
+import { IBoundarySashes, Orientation } from '../sash/sash.js';
+import { equals, tail } from '../../../common/arrays.js';
+import { Event } from '../../../common/event.js';
+import { Disposable } from '../../../common/lifecycle.js';
+import './gridview.css';
+import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing, GridLocation } from './gridview.js';
+import type { SplitView, AutoSizing as SplitViewAutoSizing } from '../splitview/splitview.js';
 
 export type { IViewSize };
-export { LayoutPriority, Orientation, orthogonal } from './gridview';
+export { LayoutPriority, Orientation, orthogonal } from './gridview.js';
 
 export const enum Direction {
 	Up,
@@ -63,6 +63,7 @@ export interface GridBranchNode<T extends IView> {
 export type GridNode<T extends IView> = GridLeafNode<T> | GridBranchNode<T>;
 
 export function isGridBranchNode<T extends IView>(node: GridNode<T>): node is GridBranchNode<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !!(node as any).children;
 }
 
@@ -749,7 +750,7 @@ export interface IViewDeserializer<T extends ISerializableView> {
 
 export interface ISerializedLeafNode {
 	type: 'leaf';
-	data: any;
+	data: unknown;
 	size: number;
 	visible?: boolean;
 	maximized?: boolean;
@@ -869,7 +870,9 @@ function isGridBranchNodeDescriptor<T>(nodeDescriptor: GridNodeDescriptor<T>): n
 }
 
 export function sanitizeGridNodeDescriptor<T>(nodeDescriptor: GridNodeDescriptor<T>, rootNode: boolean): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	if (!rootNode && (nodeDescriptor as any).groups && (nodeDescriptor as any).groups.length <= 1) {
+		// eslint-disable-next-line local/code-no-any-casts
 		(nodeDescriptor as any).groups = undefined;
 	}
 

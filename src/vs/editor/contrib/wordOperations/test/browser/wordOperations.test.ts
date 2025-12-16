@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isFirefox } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect, CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteInsideWord, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight } from 'vs/editor/contrib/wordOperations/browser/wordOperations';
-import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/browser/wordTestUtils';
-import { createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isFirefox } from '../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditorCommand } from '../../../../browser/editorExtensions.js';
+import { Position } from '../../../../common/core/position.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
+import { CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect, CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteInsideWord, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight } from '../../browser/wordOperations.js';
+import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from './wordTestUtils.js';
+import { createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { instantiateTextModel } from '../../../../test/common/testTextModel.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 suite('WordOperations', () => {
 
@@ -112,8 +112,8 @@ suite('WordOperations', () => {
 	function deleteWordEndRight(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordEndRight);
 	}
-	function deleteInsideWord(editor: ICodeEditor): void {
-		_deleteInsideWord.run(null!, editor, null);
+	function deleteInsideWord(editor: ICodeEditor, args?: unknown): void {
+		_deleteInsideWord.run(null!, editor, args);
 	}
 
 	test('cursorWordLeft - simple', () => {
@@ -319,7 +319,7 @@ suite('WordOperations', () => {
 
 			assert.strictEqual(editor.getValue(), 'foo qbar baz');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			editor.runCommand(CoreEditingCommands.Undo, null);
 			assert.strictEqual(editor.getValue(), 'foo bar baz');
 		});
 	});
@@ -1001,6 +1001,28 @@ suite('WordOperations', () => {
 			assert.strictEqual(model.getValue(), '');
 			deleteInsideWord(editor);
 			assert.strictEqual(model.getValue(), '');
+		});
+	});
+
+	test('deleteInsideWord - onlyWord: does not delete whitespace before last word', () => {
+		withTestCodeEditor([
+			'hello world'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 9));
+			deleteInsideWord(editor, { onlyWord: true });
+			assert.strictEqual(model.getValue(), 'hello ');
+		});
+	});
+
+	test('deleteInsideWord - onlyWord: deletes just the word (leaves double spaces)', () => {
+		withTestCodeEditor([
+			'This is interesting'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 7));
+			deleteInsideWord(editor, { onlyWord: true });
+			assert.strictEqual(model.getValue(), 'This  interesting');
 		});
 	});
 });

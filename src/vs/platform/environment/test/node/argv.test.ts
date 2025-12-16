@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from 'vs/platform/environment/node/argv';
-import { addArg } from 'vs/platform/environment/node/argvHelper';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from '../../node/argv.js';
+import { addArg } from '../../node/argvHelper.js';
 
 function o(description: string, type: 'boolean' | 'string' | 'string[]' = 'string'): Option<any> {
 	return {
@@ -44,6 +44,7 @@ suite('formatOptions', () => {
 	test('Text should wrap', () => {
 		assert.deepStrictEqual(
 			formatOptions({
+				// eslint-disable-next-line local/code-no-any-casts
 				'add': o((<any>'bar ').repeat(9))
 			}, 40),
 			[
@@ -55,6 +56,7 @@ suite('formatOptions', () => {
 	test('Text should revert to the condensed view when the terminal is too narrow', () => {
 		assert.deepStrictEqual(
 			formatOptions({
+				// eslint-disable-next-line local/code-no-any-casts
 				'add': o((<any>'bar ').repeat(9))
 			}, 30),
 			[
@@ -133,6 +135,27 @@ suite('parseArgs', () => {
 			['testcmd', '--testArg=foo', '--testX'],
 			{ testcmd: { testArg: 'foo', '_': [] }, '_': [] },
 			['testcmd-onUnknownOption testX']
+		);
+
+		assertParse(
+			options1,
+			['--testArg=foo', 'testcmd', '--testX'],
+			{ testcmd: { testArg: 'foo', '_': [] }, '_': [] },
+			['testcmd-onUnknownOption testX']
+		);
+
+		assertParse(
+			options1,
+			['--testArg=foo', 'testcmd'],
+			{ testcmd: { testArg: 'foo', '_': [] }, '_': [] },
+			[]
+		);
+
+		assertParse(
+			options1,
+			['--testArg', 'foo', 'testcmd'],
+			{ testcmd: { testArg: 'foo', '_': [] }, '_': [] },
+			[]
 		);
 
 		interface TestArgs2 {

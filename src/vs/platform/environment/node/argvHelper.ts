@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ErrorReporter, NATIVE_CLI_COMMANDS, OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
+import { IProcessEnvironment } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
+import { NativeParsedArgs } from '../common/argv.js';
+import { ErrorReporter, NATIVE_CLI_COMMANDS, OPTIONS, parseArgs } from './argv.js';
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): NativeParsedArgs {
 	const onMultipleValues = (id: string, val: string) => {

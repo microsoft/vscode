@@ -3,29 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
-import { AbstractEditorNavigationQuickAccessProvider, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
-import { localize } from 'vs/nls';
-import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colors/inputColors.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { getCodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption, RenderLineNumbersType } from '../../../common/config/editorOptions.js';
+import { IPosition } from '../../../common/core/position.js';
+import { IRange } from '../../../common/core/range.js';
+import { IEditor, ScrollType } from '../../../common/editorCommon.js';
+import { AbstractEditorNavigationQuickAccessProvider, IQuickAccessTextEditorContext } from './editorNavigationQuickAccess.js';
 
 interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 
 export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
-	static PREFIX = ':';
+	static readonly GO_TO_LINE_PREFIX = ':';
+	static readonly GO_TO_OFFSET_PREFIX = '::';
+	private static readonly ZERO_BASED_OFFSET_STORAGE_KEY = 'gotoLine.useZeroBasedOffset';
 
 	constructor() {
 		super({ canAcceptInBackground: true });
 	}
 
-	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem>): IDisposable {
-		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line.");
+	protected abstract readonly storageService: IStorageService;
+
+	private get useZeroBasedOffset() {
+		return this.storageService.getBoolean(
+			AbstractGotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY,
+			StorageScope.APPLICATION,
+			false);
+	}
+
+	private set useZeroBasedOffset(value: boolean) {
+		this.storageService.store(
+			AbstractGotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY,
+			value,
+			StorageScope.APPLICATION,
+			StorageTarget.USER);
+	}
+
+	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
+		const label = localize('gotoLine.noEditor', "Open a text editor first to go to a line or an offset.");
 
 		picker.items = [{ label }];
 		picker.ariaLabel = label;
@@ -33,7 +57,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		return Disposable.None;
 	}
 
-	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoLineQuickPickItem>, token: CancellationToken): IDisposable {
+	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 		const editor = context.editor;
 		const disposables = new DisposableStore();
 
@@ -41,7 +65,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		disposables.add(picker.onDidAccept(event => {
 			const [item] = picker.selectedItems;
 			if (item) {
-				if (!this.isValidLineNumber(editor, item.lineNumber)) {
+				if (!item.lineNumber) {
 					return;
 				}
 
@@ -55,32 +79,61 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// React to picker changes
 		const updatePickerAndEditor = () => {
-			const position = this.parsePosition(editor, picker.value.trim().substr(AbstractGotoLineQuickAccessProvider.PREFIX.length));
-			const label = this.getPickLabel(editor, position.lineNumber, position.column);
+			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX.length);
+			const { inOffsetMode, lineNumber, column, label } = this.parsePosition(editor, inputText);
+
+			// Show toggle only when input text starts with '::'.
+			toggle.visible = !!inOffsetMode;
 
 			// Picker
 			picker.items = [{
-				lineNumber: position.lineNumber,
-				column: position.column,
-				label
+				lineNumber,
+				column,
+				label,
 			}];
 
 			// ARIA Label
-			picker.ariaLabel = label;
+			const cursor = editor.getPosition() ?? { lineNumber: 1, column: 1 };
+			picker.ariaLabel = localize(
+				{
+					key: 'gotoLine.ariaLabel',
+					comment: ['{0} is the line number, {1} is the column number, {2} is instructions for typing in the Go To Line picker']
+				},
+				"Current position: line {0}, column {1}. {2}", cursor.lineNumber, cursor.column, label
+			);
 
 			// Clear decorations for invalid range
-			if (!this.isValidLineNumber(editor, position.lineNumber)) {
+			if (!lineNumber) {
 				this.clearDecorations(editor);
 				return;
 			}
 
 			// Reveal
-			const range = this.toRange(position.lineNumber, position.column);
+			const range = this.toRange(lineNumber, column);
 			editor.revealRangeInCenter(range, ScrollType.Smooth);
 
 			// Decorate
 			this.addDecorations(editor, range);
 		};
+
+		// Add a toggle to switch between 1- and 0-based offsets.
+		const toggle = new Toggle({
+			title: localize('gotoLineToggle', "Use Zero-Based Offset"),
+			icon: Codicon.indexZero,
+			isChecked: this.useZeroBasedOffset,
+			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
+		});
+
+		disposables.add(
+			toggle.onChange(() => {
+				this.useZeroBasedOffset = !this.useZeroBasedOffset;
+				updatePickerAndEditor();
+			}));
+
+		picker.toggles = [toggle];
+
 		updatePickerAndEditor();
 		disposables.add(picker.onDidChangeValue(() => updatePickerAndEditor()));
 
@@ -108,63 +161,80 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		};
 	}
 
-	private parsePosition(editor: IEditor, value: string): IPosition {
-
-		// Support line-col formats of `line,col`, `line:col`, `line#col`
-		const numbers = value.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
-		const endLine = this.lineCount(editor) + 1;
-
-		return {
-			lineNumber: numbers[0] > 0 ? numbers[0] : endLine + numbers[0],
-			column: numbers[1]
-		};
-	}
-
-	private getPickLabel(editor: IEditor, lineNumber: number, column: number | undefined): string {
-
-		// Location valid: indicate this as picker label
-		if (this.isValidLineNumber(editor, lineNumber)) {
-			if (this.isValidColumn(editor, lineNumber, column)) {
-				return localize('gotoLineColumnLabel', "Go to line {0} and character {1}.", lineNumber, column);
-			}
-
-			return localize('gotoLineLabel', "Go to line {0}.", lineNumber);
-		}
-
-		// Location invalid: show generic label
-		const position = editor.getPosition() || { lineNumber: 1, column: 1 };
-		const lineCount = this.lineCount(editor);
-		if (lineCount > 1) {
-			return localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}, Character: {1}. Type a line number between 1 and {2} to navigate to.", position.lineNumber, position.column, lineCount);
-		}
-
-		return localize('gotoLineLabelEmpty', "Current Line: {0}, Character: {1}. Type a line number to navigate to.", position.lineNumber, position.column);
-	}
-
-	private isValidLineNumber(editor: IEditor, lineNumber: number | undefined): boolean {
-		if (!lineNumber || typeof lineNumber !== 'number') {
-			return false;
-		}
-
-		return lineNumber > 0 && lineNumber <= this.lineCount(editor);
-	}
-
-	private isValidColumn(editor: IEditor, lineNumber: number, column: number | undefined): boolean {
-		if (!column || typeof column !== 'number') {
-			return false;
-		}
-
+	protected parsePosition(editor: IEditor, value: string): Partial<IPosition> & { inOffsetMode?: boolean; label: string } {
 		const model = this.getModel(editor);
 		if (!model) {
-			return false;
+			return {
+				label: localize('gotoLine.noEditor', "Open a text editor first to go to a line or an offset.")
+			};
 		}
 
-		const positionCandidate = { lineNumber, column };
+		// Support ::<offset> notation to navigate to a specific offset in the model.
+		if (value.startsWith(':')) {
+			let offset = parseInt(value.substring(1), 10);
+			const maxOffset = model.getValueLength();
+			if (isNaN(offset)) {
+				// No valid offset specified.
+				return {
+					inOffsetMode: true,
+					label: this.useZeroBasedOffset ?
+						localize('gotoLine.offsetPromptZero', "Type a character position to go to (from 0 to {0}).", maxOffset - 1) :
+						localize('gotoLine.offsetPrompt', "Type a character position to go to (from 1 to {0}).", maxOffset)
+				};
+			} else {
+				const reverse = offset < 0;
+				if (!this.useZeroBasedOffset) {
+					// Convert 1-based offset to model's 0-based.
+					offset -= Math.sign(offset);
+				}
+				if (reverse) {
+					// Offset from the end of the buffer
+					offset += maxOffset;
+				}
+				const pos = model.getPositionAt(offset);
+				return {
+					...pos,
+					inOffsetMode: true,
+					label: localize('gotoLine.goToPosition', "Press 'Enter' to go to line {0} at column {1}.", pos.lineNumber, pos.column)
+				};
+			}
+		} else {
+			// Support line-col formats of `line,col`, `line:col`, `line#col`
+			const parts = value.split(/,|:|#/);
 
-		return model.validatePosition(positionCandidate).equals(positionCandidate);
-	}
+			const maxLine = model.getLineCount();
+			let lineNumber = parseInt(parts[0]?.trim(), 10);
+			if (parts.length < 1 || isNaN(lineNumber)) {
+				return {
+					label: localize('gotoLine.linePrompt', "Type a line number to go to (from 1 to {0}).", maxLine)
+				};
+			}
 
-	private lineCount(editor: IEditor): number {
-		return this.getModel(editor)?.getLineCount() ?? 0;
+			// Handle negative line numbers and clip to valid range.
+			lineNumber = lineNumber >= 0 ? lineNumber : (maxLine + 1) + lineNumber;
+			lineNumber = Math.min(Math.max(1, lineNumber), maxLine);
+
+			const maxColumn = model.getLineMaxColumn(lineNumber);
+			let column = parseInt(parts[1]?.trim(), 10);
+			if (parts.length < 2 || isNaN(column)) {
+				return {
+					lineNumber,
+					column: 1,
+					label: parts.length < 2 ?
+						localize('gotoLine.lineColumnPrompt', "Press 'Enter' to go to line {0} or enter colon : to add a column number.", lineNumber) :
+						localize('gotoLine.columnPrompt', "Press 'Enter' to go to line {0} or enter a column number (from 1 to {1}).", lineNumber, maxColumn)
+				};
+			}
+
+			// Handle negative column numbers and clip to valid range.
+			column = column >= 0 ? column : maxColumn + column;
+			column = Math.min(Math.max(1, column), maxColumn);
+
+			return {
+				lineNumber,
+				column,
+				label: localize('gotoLine.goToPosition', "Press 'Enter' to go to line {0} at column {1}.", lineNumber, column)
+			};
+		}
 	}
 }

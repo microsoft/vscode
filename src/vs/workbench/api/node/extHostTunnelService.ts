@@ -5,26 +5,27 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MovingAverage } from 'vs/base/common/numbers';
-import { isLinux } from 'vs/base/common/platform';
-import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { ISocket, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ManagedSocket, RemoteSocketHalf, connectManagedSocket } from 'vs/platform/remote/common/managedSocket';
-import { ManagedRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { isAllInterfaces, isLocalhost } from 'vs/platform/tunnel/common/tunnel';
-import { NodeRemoteTunnel } from 'vs/platform/tunnel/node/tunnelService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
-import { CandidatePort, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Emitter } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { MovingAverage } from '../../../base/common/numbers.js';
+import { isLinux } from '../../../base/common/platform.js';
+import * as resources from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import * as pfs from '../../../base/node/pfs.js';
+import { ISocket, SocketCloseEventType } from '../../../base/parts/ipc/common/ipc.net.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { ManagedSocket, RemoteSocketHalf, connectManagedSocket } from '../../../platform/remote/common/managedSocket.js';
+import { ManagedRemoteConnection } from '../../../platform/remote/common/remoteAuthorityResolver.js';
+import { ISignService } from '../../../platform/sign/common/sign.js';
+import { isAllInterfaces, isLocalhost } from '../../../platform/tunnel/common/tunnel.js';
+import { NodeRemoteTunnel } from '../../../platform/tunnel/node/tunnelService.js';
+import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
+import { IExtHostRpcService } from '../common/extHostRpcService.js';
+import { ExtHostTunnelService } from '../common/extHostTunnelService.js';
+import { CandidatePort, parseAddress } from '../../services/remote/common/tunnelModel.js';
 import * as vscode from 'vscode';
+import { IExtHostConfiguration } from '../common/extHostConfiguration.js';
 
 export function getSockets(stdout: string): Record<string, { pid: number; socket: number }> {
 	const lines = stdout.trim().split('\n');
@@ -105,6 +106,9 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 }
 
 function knownExcludeCmdline(command: string): boolean {
+	if (command.length > 500) {
+		return false;
+	}
 	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
 		|| (command.indexOf('out/server-main.js') !== -1)
 		|| (command.indexOf('_productName=VSCode') !== -1);
@@ -184,6 +188,7 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
 		@ILogService logService: ILogService,
 		@ISignService private readonly signService: ISignService,
+		@IExtHostConfiguration private readonly configurationService: IExtHostConfiguration,
 	) {
 		super(extHostRpc, initData, logService);
 		if (isLinux && initData.remote.isRemote && initData.remote.authority) {
@@ -309,6 +314,11 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 		});
 	}
 
+	private async defaultTunnelHost(): Promise<string> {
+		const settingValue = (await this.configurationService.getConfigProvider()).getConfiguration('remote').get('localPortHost');
+		return (!settingValue || settingValue === 'localhost') ? '127.0.0.1' : '0.0.0.0';
+	}
+
 	protected override makeManagedTunnelFactory(authority: vscode.ManagedResolvedAuthority): vscode.RemoteAuthorityResolver['tunnelFactory'] {
 		return async (tunnelOptions) => {
 			const t = new NodeRemoteTunnel(
@@ -339,7 +349,7 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 					},
 					signService: this.signService,
 				},
-				'localhost',
+				await this.defaultTunnelHost(),
 				tunnelOptions.remoteAddress.host || 'localhost',
 				tunnelOptions.remoteAddress.port,
 				tunnelOptions.localAddressPort,

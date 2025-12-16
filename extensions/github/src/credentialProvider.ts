@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CredentialsProvider, Credentials, API as GitAPI } from './typings/git';
+import { CredentialsProvider, Credentials, API as GitAPI } from './typings/git.js';
 import { workspace, Uri, Disposable } from 'vscode';
-import { getSession } from './auth';
+import { getSession } from './auth.js';
 
 const EmptyDisposable: Disposable = { dispose() { } };
 

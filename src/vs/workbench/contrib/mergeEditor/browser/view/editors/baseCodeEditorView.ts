@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, reset } from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { IObservable, autorun, autorunWithStore, derived } from 'vs/base/common/observable';
-import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { applyObservableDecorations } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
-import { EditorGutter } from 'vs/workbench/contrib/mergeEditor/browser/view/editorGutter';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { CodeEditorView, TitleMenu, createSelectionsAutorun } from './codeEditorView';
+import { h, reset } from '../../../../../../base/browser/dom.js';
+import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { BugIndicatingError } from '../../../../../../base/common/errors.js';
+import { IObservable, autorun, autorunWithStore, derived } from '../../../../../../base/common/observable.js';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from '../../../../../../editor/common/model.js';
+import { localize } from '../../../../../../nls.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { applyObservableDecorations } from '../../utils.js';
+import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from '../colors.js';
+import { EditorGutter } from '../editorGutter.js';
+import { MergeEditorViewModel } from '../viewModel.js';
+import { CodeEditorView, TitleMenu, createSelectionsAutorun } from './codeEditorView.js';
 
 export class BaseCodeEditorView extends CodeEditorView {
 	constructor(

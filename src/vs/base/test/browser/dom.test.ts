@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle } from 'vs/base/browser/dom';
-import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle } from '../../browser/dom.js';
+import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
+import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
+import { DeferredPromise, timeout } from '../../common/async.js';
+import { runWithFakedTimers } from '../common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('dom', () => {
 	test('hasClass', () => {
@@ -73,12 +74,6 @@ suite('dom', () => {
 		element.classList.remove('foo-bar');
 		assert(!element.classList.contains('foo-bar'));
 		assert(!element.classList.contains('bar'));
-	});
-
-	test('multibyteAwareBtoa', () => {
-		assert.ok(multibyteAwareBtoa('hello world').length > 0);
-		assert.ok(multibyteAwareBtoa('平仮名').length > 0);
-		assert.ok(multibyteAwareBtoa(new Array(100000).fill('vs').join('')).length > 0); // https://github.com/microsoft/vscode/issues/112013
 	});
 
 	suite('$', () => {
@@ -409,7 +404,7 @@ suite('dom', () => {
 
 	suite('SafeTriangle', () => {
 		const fakeElement = (left: number, right: number, top: number, bottom: number): HTMLElement => {
-			return { getBoundingClientRect: () => ({ left, right, top, bottom }) } as any;
+			return { getBoundingClientRect: () => ({ left, right, top, bottom }) } as HTMLElement;
 		};
 
 		test('works', () => {

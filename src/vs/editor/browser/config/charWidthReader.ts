@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { applyFontInfo } from './domFontInfo.js';
+import { BareFontInfo } from '../../common/config/fontInfo.js';
 
 export const enum CharWidthRequestType {
 	Regular = 0,

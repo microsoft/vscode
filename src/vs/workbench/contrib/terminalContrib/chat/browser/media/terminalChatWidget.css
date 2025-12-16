@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.terminal-inline-chat {
+.monaco-workbench .terminal-inline-chat {
 	position: absolute;
 	left: 0;
 	bottom: 0;
@@ -11,19 +11,63 @@
 	height: auto !important;
 }
 
-.terminal-inline-chat .inline-chat {
+.monaco-workbench .terminal-inline-chat .inline-chat {
 	margin-top: 0 !important;
+	color: inherit;
+	border-radius: unset;
+	border: unset;
+	box-shadow: unset;
+	background: var(--vscode-inlineChat-background);
+	position: relative;
+	outline: none;
+
+	border-top-style: solid;
+	border-bottom-style: solid;
+	border-top-color: rgb(0, 122, 204);
+	border-bottom-color: rgb(0, 122, 204);
+	border-top-width: 1px;
+	border-bottom-width: 1px;
 }
 
-.terminal-inline-chat.hide {
+.monaco-workbench .terminal-inline-chat .interactive-session {
+	margin: initial;
+}
+
+.monaco-workbench .terminal-inline-chat.hide {
 	visibility: hidden;
 }
 
-.terminal-inline-chat .chatMessageContent .value {
+.monaco-workbench .terminal-inline-chat .chatMessageContent .value {
 	padding-top: 10px;
 }
 
-.terminal-inline-chat .inline-chat-input .monaco-editor-background {
+.monaco-workbench .terminal-inline-chat .inline-chat-input .monaco-editor-background {
 	/* Override the global panel rule for monaco backgrounds */
 	background-color: var(--vscode-inlineChatInput-background) !important;
+}
+
+@property --inline-chat-frame-progress {
+	syntax: '<percentage>';
+	initial-value: 0%;
+	inherits: false;
+}
+
+@keyframes shift {
+	0% {
+		--inline-chat-frame-progress: 0%;
+	}
+
+	50% {
+		--inline-chat-frame-progress: 100%;
+	}
+
+	100% {
+		--inline-chat-frame-progress: 0%;
+	}
+}
+
+.monaco-workbench .terminal-inline-chat.busy .inline-chat {
+	--inline-chat-frame-progress: 0%;
+	border-image: linear-gradient(90deg, var(--vscode-editorGutter-addedBackground) var(--inline-chat-frame-progress), var(--vscode-button-background)) 1;
+	animation: 3s shift linear infinite;
 }

@@ -3,39 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/markers/browser/markersFileDecorations';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { localize, localize2 } from 'vs/nls';
-import { Marker, RelatedInformation, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { MarkersViewMode, Markers, MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
-import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { problemsConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import './markersFileDecorations.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Marker, RelatedInformation, ResourceMarkers } from './markersModel.js';
+import { MarkersView } from './markersView.js';
+import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { MarkersViewMode, Markers, MarkersContextKeys } from '../common/markers.js';
+import Messages from './messages.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IMarkersView } from './markers.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
+import { IMarkerService, MarkerStatistics } from '../../../../platform/markers/common/markers.js';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { getVisbileViewContextKey, FocusedViewContext } from '../../../common/contextkeys.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { ViewAction } from '../../../browser/parts/views/viewPane.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { problemsConfigurationNodeBase } from '../../../common/configuration.js';
+import { MarkerChatContextContribution } from './markersChatContext.js';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -140,7 +141,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	id: Markers.MARKERS_VIEW_ID,
 	containerIcon: markersViewIcon,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
-	canToggleVisibility: false,
+	canToggleVisibility: true,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(MarkersView),
 	openCommandActionDescriptor: {
@@ -160,6 +161,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.table.${Markers.MARKERS_VIEW_ID}.viewAsTree`,
 			title: localize('viewAsTree', "View as Tree"),
+			metadata: {
+				description: localize2('viewAsTreeDescription', "Show the problems view as a tree.")
+			},
 			menu: {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersViewModeContextKey.isEqualTo(MarkersViewMode.Table)),
@@ -181,6 +185,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.table.${Markers.MARKERS_VIEW_ID}.viewAsTable`,
 			title: localize('viewAsTable', "View as Table"),
+			metadata: {
+				description: localize2('viewAsTableDescription', "Show the problems view as a table.")
+			},
 			menu: {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersViewModeContextKey.isEqualTo(MarkersViewMode.Tree)),
@@ -202,6 +209,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleErrors`,
 			title: localize('show errors', "Show Errors"),
+			metadata: {
+				description: localize2('toggleErrorsDescription', "Show or hide errors in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowErrorsFilterContextKey,
 			menu: {
@@ -224,6 +234,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleWarnings`,
 			title: localize('show warnings', "Show Warnings"),
+			metadata: {
+				description: localize2('toggleWarningsDescription', "Show or hide warnings in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowWarningsFilterContextKey,
 			menu: {
@@ -248,6 +261,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			title: localize('show infos', "Show Infos"),
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowInfoFilterContextKey,
+			metadata: {
+				description: localize2('toggleInfosDescription', "Show or hide infos in the problems view.")
+			},
 			menu: {
 				id: viewFilterSubmenu,
 				group: '1_filter',
@@ -268,6 +284,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleActiveFile`,
 			title: localize('show active file', "Show Active File Only"),
+			metadata: {
+				description: localize2('toggleActiveFileDescription', "Show or hide problems (errors, warnings, info) only from the active file in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowActiveFileFilterContextKey,
 			menu: {
@@ -290,6 +309,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleExcludedFiles`,
 			title: localize('show excluded files', "Show Excluded Files"),
+			metadata: {
+				description: localize2('toggleExcludedFilesDescription', "Show or hide excluded files in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowExcludedFilesFilterContextKey.negate(),
 			menu: {
@@ -321,7 +343,28 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
+abstract class MarkersViewAction extends ViewAction<IMarkersView> {
+
+	protected getSelectedMarkers(markersView: IMarkersView): Marker[] {
+		const selection = markersView.getFocusedSelectedElements() || markersView.getAllResourceMarkers();
+		const markers: Marker[] = [];
+		const addMarker = (marker: Marker) => {
+			if (!markers.includes(marker)) {
+				markers.push(marker);
+			}
+		};
+		for (const selected of selection) {
+			if (selected instanceof ResourceMarkers) {
+				selected.markers.forEach(addMarker);
+			} else if (selected instanceof Marker) {
+				addMarker(selected);
+			}
+		}
+		return markers;
+	}
+}
+
+registerAction2(class extends MarkersViewAction {
 	constructor() {
 		const when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersTreeVisibilityContextKey, MarkersContextKeys.RelatedInformationFocusContextKey.toNegated());
 		super({
@@ -342,27 +385,14 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-		const selection = markersView.getFocusedSelectedElements() || markersView.getAllResourceMarkers();
-		const markers: Marker[] = [];
-		const addMarker = (marker: Marker) => {
-			if (!markers.includes(marker)) {
-				markers.push(marker);
-			}
-		};
-		for (const selected of selection) {
-			if (selected instanceof ResourceMarkers) {
-				selected.markers.forEach(addMarker);
-			} else if (selected instanceof Marker) {
-				addMarker(selected);
-			}
-		}
+		const markers = this.getSelectedMarkers(markersView);
 		if (markers.length) {
 			await clipboardService.writeText(`[${markers}]`);
 		}
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
+registerAction2(class extends MarkersViewAction {
 	constructor() {
 		super({
 			id: Markers.MARKER_COPY_MESSAGE_ACTION_ID,
@@ -377,9 +407,10 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-		const element = markersView.getFocusElement();
-		if (element instanceof Marker) {
-			await clipboardService.writeText(element.marker.message);
+
+		const markers = this.getSelectedMarkers(markersView);
+		if (markers.length) {
+			await clipboardService.writeText(markers.map(m => m.marker.message).join('\n'));
 		}
 	}
 });
@@ -655,6 +686,8 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 }
 
 workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, LifecyclePhase.Restored);
+
+registerWorkbenchContribution2(MarkerChatContextContribution.ID, MarkerChatContextContribution, WorkbenchPhase.AfterRestored);
 
 class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 

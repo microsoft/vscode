@@ -1,0 +1,152 @@
+name: Code OSS
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  VSCODE_QUALITY: 'oss'
+
+jobs:
+  compile:
+    name: Compile & Hygiene
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Prepare node_modules cache key
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache/restore@v5
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-compile-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
+
+      - name: Install build tools
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+
+      - name: Type check /build/ scripts
+        run: npm run typecheck
+        working-directory: build
+
+      - name: Compile & Hygiene
+        run: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  linux-cli-tests:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-cli-test.yml
+    with:
+      job_name: CLI
+      rustup_toolchain: 1.85
+
+  linux-electron-tests:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron
+      electron_tests: true
+
+  linux-browser-tests:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Browser
+      browser_tests: true
+
+  linux-remote-tests:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Remote
+      remote_tests: true
+
+  macos-electron-tests:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Electron
+      electron_tests: true
+
+  macos-browser-tests:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Browser
+      browser_tests: true
+
+  macos-remote-tests:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Remote
+      remote_tests: true
+
+  windows-electron-tests:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Electron
+      electron_tests: true
+
+  windows-browser-tests:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Browser
+      browser_tests: true
+
+  windows-remote-tests:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Remote
+      remote_tests: true

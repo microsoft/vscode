@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookRange } from 'vs/workbench/api/common/extHostTypes';
-import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import * as extHostProtocol from './extHost.protocol.js';
+import { ExtHostDocuments } from './extHostDocuments.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import * as extHostTypeConverters from './extHostTypeConverters.js';
+import { NotebookRange } from './extHostTypes.js';
+import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
 import * as vscode from 'vscode';
+import { isTextStreamMime } from '../../../base/common/mime.js';
 
 class RawContentChangeEvent {
 
@@ -40,7 +41,8 @@ export class ExtHostCell {
 			languageId: cell.language,
 			uri: cell.uri,
 			isDirty: false,
-			versionId: 1
+			versionId: 1,
+			encoding: 'utf8'
 		};
 	}
 
@@ -110,7 +112,7 @@ export class ExtHostCell {
 			}
 			output.items.push(...newItems);
 
-			if (output.items.length > 1 && output.items.every(item => notebookCommon.isTextStreamMime(item.mime))) {
+			if (output.items.length > 1 && output.items.every(item => isTextStreamMime(item.mime))) {
 				// Look for the mimes in the items, and keep track of their order.
 				// Merge the streams into one output item, per mime type.
 				const mimeOutputs = new Map<string, Uint8Array[]>();

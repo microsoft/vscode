@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { format } from 'vs/base/common/strings';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
+import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { format } from '../../../../../../base/common/strings.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TerminalBuiltinLinkType } from '../../browser/links.js';
+import { assertLinkHelper } from './linkTestUtils.js';
 import type { Terminal } from '@xterm/xterm';
-import { timeout } from 'vs/base/common/async';
+import { timeout } from '../../../../../../base/common/async.js';
 import { strictEqual } from 'assert';
-import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
-import { URI } from 'vs/base/common/uri';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { TerminalMultiLineLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalMultiLineLinkDetector';
-import { importAMDNodeModule } from 'vs/amdX';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TerminalLinkResolver } from '../../browser/terminalLinkResolver.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { createFileStat } from '../../../../../test/common/workbenchTestServices.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
+import { TerminalMultiLineLinkDetector } from '../../browser/terminalMultiLineLinkDetector.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { isString } from '../../../../../../base/common/types.js';
 
 const unixLinks: (string | { link: string; resource: URI })[] = [
 	// Absolute
@@ -168,8 +169,8 @@ suite('Workbench - TerminalMultiLineLinkDetector', () => {
 		});
 
 		for (const l of unixLinks) {
-			const baseLink = typeof l === 'string' ? l : l.link;
-			const resource = typeof l === 'string' ? URI.file(l) : l.resource;
+			const baseLink = isString(l) ? l : l.link;
+			const resource = isString(l) ? URI.file(l) : l.resource;
 			suite(`Link: ${baseLink}`, () => {
 				for (let i = 0; i < supportedLinkFormats.length; i++) {
 					const linkFormat = supportedLinkFormats[i];
@@ -197,8 +198,8 @@ suite('Workbench - TerminalMultiLineLinkDetector', () => {
 			});
 
 			for (const l of windowsLinks) {
-				const baseLink = typeof l === 'string' ? l : l.link;
-				const resource = typeof l === 'string' ? URI.file(l) : l.resource;
+				const baseLink = isString(l) ? l : l.link;
+				const resource = isString(l) ? URI.file(l) : l.resource;
 				suite(`Link "${baseLink}"`, () => {
 					for (let i = 0; i < supportedLinkFormats.length; i++) {
 						const linkFormat = supportedLinkFormats[i];

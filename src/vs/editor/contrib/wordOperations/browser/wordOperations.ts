@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, ICommandOptions, registerEditorAction, registerEditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CursorState } from 'vs/editor/common/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { DeleteWordContext, WordNavigationType, WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
-import { getMapForWordSeparators, WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import * as nls from 'vs/nls';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import * as nls from '../../../../nls.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IsWindowsContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorCommand, ICommandOptions, registerEditorAction, registerEditorCommand, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { ReplaceCommand } from '../../../common/commands/replaceCommand.js';
+import { EditorOption, EditorOptions } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { getMapForWordSeparators, WordCharacterClassifier } from '../../../common/core/wordCharacterClassifier.js';
+import { DeleteWordContext, WordNavigationType, WordOperations } from '../../../common/cursor/cursorWordOperations.js';
+import { CursorState } from '../../../common/cursorCommon.js';
+import { CursorChangeReason } from '../../../common/cursorEvents.js';
+import { ScrollType } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { ITextModel } from '../../../common/model.js';
 
 export interface MoveWordOptions extends ICommandOptions {
 	inSelectionMode: boolean;
@@ -41,7 +41,7 @@ export abstract class MoveWordCommand extends EditorCommand {
 		this._wordNavigationType = opts.wordNavigationType;
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -325,15 +325,15 @@ export abstract class DeleteWordCommand extends EditorCommand {
 	private readonly _wordNavigationType: WordNavigationType;
 
 	constructor(opts: DeleteWordOptions) {
-		super(opts);
+		super({ canTriggerInlineEdits: true, ...opts });
 		this._whitespaceHeuristics = opts.whitespaceHeuristics;
 		this._wordNavigationType = opts.wordNavigationType;
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
+		const languageConfigurationService = accessor?.get(ILanguageConfigurationService);
 
-		if (!editor.hasModel()) {
+		if (!editor.hasModel() || !languageConfigurationService) {
 			return;
 		}
 		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators), editor.getOption(EditorOption.wordSegmenterLocales));
@@ -473,21 +473,39 @@ export class DeleteInsideWord extends EditorAction {
 		super({
 			id: 'deleteInsideWord',
 			precondition: EditorContextKeys.writable,
-			label: nls.localize('deleteInsideWord', "Delete Word"),
-			alias: 'Delete Word'
+			label: nls.localize2('deleteInsideWord', "Delete Word"),
+			metadata: {
+				description: nls.localize2('deleteInsideWord.description', "Delete the word at the cursor"),
+				args: [{
+					name: 'args',
+					schema: {
+						type: 'object',
+						properties: {
+							'onlyWord': {
+								type: 'boolean',
+								default: false,
+								description: nls.localize('deleteInsideWord.args.onlyWord', "Delete only the word and leave surrounding whitespace")
+							}
+						}
+					}
+				}]
+			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 		if (!editor.hasModel()) {
 			return;
 		}
+
+		type DeleteInsideWordArgs = { readonly onlyWord?: boolean };
+		const onlyWord = !!(args && typeof args === 'object' && (args as DeleteInsideWordArgs).onlyWord);
 		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators), editor.getOption(EditorOption.wordSegmenterLocales));
 		const model = editor.getModel();
 		const selections = editor.getSelections();
 
 		const commands = selections.map((sel) => {
-			const deleteRange = WordOperations.deleteInsideWord(wordSeparators, model, sel);
+			const deleteRange = WordOperations.deleteInsideWord(wordSeparators, model, sel, onlyWord);
 			return new ReplaceCommand(deleteRange, '');
 		});
 

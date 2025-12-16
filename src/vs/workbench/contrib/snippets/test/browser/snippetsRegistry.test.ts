@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getNonWhitespacePrefix } from 'vs/workbench/contrib/snippets/browser/snippetsService';
-import { Position } from 'vs/editor/common/core/position';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { getNonWhitespacePrefix } from '../../browser/snippetsService.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('getNonWhitespacePrefix', () => {
 

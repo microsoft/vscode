@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as path from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionStoragePaths as CommonExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { IntervalTimer, timeout } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Promises } from 'vs/base/node/pfs';
+import * as path from '../../../base/common/path.js';
+import { URI } from '../../../base/common/uri.js';
+import { ExtensionStoragePaths as CommonExtensionStoragePaths } from '../common/extHostStoragePaths.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IntervalTimer, timeout } from '../../../base/common/async.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { Promises } from '../../../base/node/pfs.js';
 
 export class ExtensionStoragePaths extends CommonExtensionStoragePaths {
 

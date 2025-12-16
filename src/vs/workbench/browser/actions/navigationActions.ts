@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from 'vs/nls';
-import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Direction } from 'vs/base/browser/ui/grid/grid';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IComposite } from 'vs/workbench/common/composite';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { isAuxiliaryWindow } from 'vs/base/browser/window';
+import { localize2 } from '../../../nls.js';
+import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from '../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
+import { Action2, IAction2Options, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
+import { Direction } from '../../../base/browser/ui/grid/grid.js';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IPaneComposite } from '../../common/panecomposite.js';
+import { IComposite } from '../../common/composite.js';
+import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../common/views.js';
+import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { getActiveWindow } from '../../../base/browser/dom.js';
+import { isAuxiliaryWindow } from '../../../base/browser/window.js';
 
 abstract class BaseNavigationAction extends Action2 {
 

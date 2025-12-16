@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IndentationContextProcessor, ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentationLineProcessor';
-import { Language, registerLanguage, registerLanguageConfiguration, registerTokenizationSupport, StandardTokenTypeData } from 'vs/editor/contrib/indentation/test/browser/indentation.test';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { Range } from 'vs/editor/common/core/range';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { IndentationContextProcessor, ProcessedIndentRulesSupport } from '../../../../common/languages/supports/indentationLineProcessor.js';
+import { Language, registerLanguage, registerLanguageConfiguration, registerTokenizationSupport, StandardTokenTypeData } from './indentation.test.js';
+import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { Range } from '../../../../common/core/range.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { LanguageService } from '../../../../common/services/languageService.js';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
 
 suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 
@@ -50,7 +50,7 @@ suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [[
 				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
 				{ startIndex: 16, standardTokenType: StandardTokenType.String },
@@ -74,7 +74,7 @@ suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [
 				[
 					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
@@ -104,7 +104,7 @@ suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [
 				[
 					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
@@ -163,7 +163,7 @@ suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [
 				[
 					{ startIndex: 0, standardTokenType: StandardTokenType.Other }
@@ -199,7 +199,7 @@ suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [
 				[{ startIndex: 0, standardTokenType: StandardTokenType.Other }],
 				[{ startIndex: 0, standardTokenType: StandardTokenType.String }],
@@ -227,7 +227,7 @@ suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [
 				[
 					{ startIndex: 0, standardTokenType: StandardTokenType.Other }

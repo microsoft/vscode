@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
-import { TestUserDataSyncUtilService } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { merge } from '../../common/keybindingsMerge.js';
+import { TestUserDataSyncUtilService } from './userDataSyncClient.js';
 
 suite('KeybindingsMerge - No Conflicts', () => {
 

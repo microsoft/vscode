@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ColorId, FontStyle, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
-import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { ColorId, FontStyle, MetadataConsts, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
+import { ILanguageConfigurationService, LanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { LanguageIdCodec } from '../../../common/services/languagesRegistry.js';
+import { LineTokens } from '../../../common/tokens/lineTokens.js';
+import { SparseMultilineTokens } from '../../../common/tokens/sparseMultilineTokens.js';
+import { SparseTokensStore } from '../../../common/tokens/sparseTokensStore.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
 
 suite('TokensStore', () => {
 
@@ -494,4 +494,95 @@ suite('TokensStore', () => {
 			18, createTMMetadata(1, FontStyle.None, 53)
 		]);
 	});
+
+
+	test('BUG: setPartial with startLineNumber > 1 and token removal creates invalid state', () => {
+		/**
+		 * The bug is the same regardless of the starting line number.
+		 * If a piece starts at line 5 and all tokens are removed via setPartial:
+		 * - startLineNumber stays at 5
+		 * - endLineNumber becomes 5 + (-1) = 4
+		 */
+		const codec = new LanguageIdCodec();
+		const store = new SparseTokensStore(codec);
+
+		// Set initial tokens on line 5
+		store.set([
+			SparseMultilineTokens.create(5, new Uint32Array([
+				0, 5, 10, 1,  // line 5, chars 5-10
+			]))
+		], false);
+
+		assert.strictEqual(store.isEmpty(), false);
+
+		// Remove all tokens via setPartial
+		store.setPartial(new Range(5, 1, 5, 20), []);
+
+		// BUG: During processing, pieces can have invalid line numbers
+		// The store should remove empty pieces and remain valid
+		assert.strictEqual(store.isEmpty(), true,
+			'Store should be empty after setPartial removes all tokens');
+	});
+
+	test('BUG: setPartial with split that creates empty first piece with invalid line numbers', () => {
+		const codec = new LanguageIdCodec();
+		const store = new SparseTokensStore(codec);
+
+		// Set initial tokens - token is on line 11
+		store.set([
+			SparseMultilineTokens.create(1, new Uint32Array([
+				10, 5, 10, 1,  // line 11 (deltaLine=10 from startLineNumber=1), chars 5-10
+			]))
+		], false);
+
+		// setPartial with a range [1,1 -> 5,1] that will cause a split where the first piece is empty
+		store.setPartial(new Range(1, 1, 5, 1), []);
+
+		assert.strictEqual(store.isEmpty(), false, 'Store should still have the token on line 11');
+
+		// The token at line 11 should be retrievable after the split
+		const lineTokens = store.addSparseTokens(11, new LineTokens(new Uint32Array([22, 1]), `    test line text    `, codec));
+		assert.strictEqual(lineTokens.getCount(), 3, 'Should have 3 tokens: base token start + semantic token from line 11 + base token end');
+		assert.strictEqual(lineTokens.getStartOffset(1), 5, 'Semantic token should start at offset 5');
+		assert.strictEqual(lineTokens.getEndOffset(1), 10, 'Semantic token should end at offset 10');
+	});
+
+	test('piece with startLineNumber 0 and endLineNumber -1 after encompassing deletion', () => {
+		const codec = new LanguageIdCodec();
+		const store = new SparseTokensStore(codec);
+
+		// Set initial tokens on lines 5-10
+		const piece = SparseMultilineTokens.create(5, new Uint32Array([
+			0, 0, 5, 1,  // line 5, chars 0-5
+			5, 0, 5, 2,  // line 10, chars 0-5
+		]));
+
+		store.set([piece], false);
+
+		// Verify initial state
+		assert.strictEqual(piece.startLineNumber, 5);
+		assert.strictEqual(piece.endLineNumber, 10);
+		assert.strictEqual(piece.isEmpty(), false);
+
+		// Perform an edit that completely encompasses the token range
+		// Delete from line 1 to line 20 (encompasses lines 5-10)
+		// This triggers the case in _acceptDeleteRange where:
+		// if (firstLineIndex < 0 && lastLineIndex >= tokenMaxDeltaLine + 1)
+		// Which sets this._startLineNumber = 0 and calls this._tokens.clear()
+		store.acceptEdit(
+			{ startLineNumber: 1, startColumn: 1, endLineNumber: 20, endColumn: 1 },
+			0, // eolCount - no new lines inserted
+			0, // firstLineLength
+			0, // lastLineLength
+			0  // firstCharCode
+		);
+
+		// After an encompassing deletion, the piece should be empty
+		assert.strictEqual(piece.isEmpty(), true, 'Piece should be empty after encompassing deletion');
+
+		// EXPECTED BEHAVIOR: The store should be empty (no pieces with invalid line numbers)
+		// Currently fails because the piece remains with startLineNumber=0, endLineNumber=-1
+		assert.strictEqual(store.isEmpty(), true, 'Store should be empty after all tokens are deleted by encompassing edit');
+	});
 });
+

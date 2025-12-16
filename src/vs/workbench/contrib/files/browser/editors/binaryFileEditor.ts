@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { BINARY_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from 'vs/workbench/services/editor/common/editorResolverService';
-import { isEditorInputWithOptions } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { localize } from '../../../../../nls.js';
+import { BaseBinaryResourceEditor } from '../../../../browser/parts/editor/binaryEditor.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { FileEditorInput } from './fileEditorInput.js';
+import { BINARY_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from '../../common/files.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { EditorResolution, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from '../../../../services/editor/common/editorResolverService.js';
+import { isEditorInputWithOptions } from '../../../../common/editor.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.

@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isCI } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { WorkbenchPhase, WorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, TestSingletonFileEditorInput, createEditorPart, registerTestEditor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { isCI } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { EditorPart } from '../../browser/parts/editor/editorPart.js';
+import { WorkbenchPhase, WorkbenchContributionsRegistry } from '../../common/contributions.js';
+import { EditorService } from '../../services/editor/browser/editorService.js';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { IEditorService, SIDE_GROUP } from '../../services/editor/common/editorService.js';
+import { LifecyclePhase } from '../../services/lifecycle/common/lifecycle.js';
+import { ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, TestSingletonFileEditorInput, createEditorPart, registerTestEditor, workbenchInstantiationService } from './workbenchTestServices.js';
 
 suite('Contributions', () => {
 	const disposables = new DisposableStore();

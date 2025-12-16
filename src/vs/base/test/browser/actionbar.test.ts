@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ActionBar, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action, Separator } from 'vs/base/common/actions';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ActionBar, prepareActions } from '../../browser/ui/actionbar/actionbar.js';
+import { Action, Separator } from '../../common/actions.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('Actionbar', () => {
 

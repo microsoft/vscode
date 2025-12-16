@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PersistentProtocol, ProtocolConstants, ISocket } from 'vs/base/parts/ipc/common/ipc.net';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Emitter, Event } from 'vs/base/common/event';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
+import { PersistentProtocol, ISocket, ProtocolConstants } from '../../base/parts/ipc/common/ipc.net.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { Emitter, Event } from '../../base/common/event.js';
+import { VSBuffer } from '../../base/common/buffer.js';
+import { ProcessTimeRunOnceScheduler } from '../../base/common/async.js';
 
 function printTime(ms: number): string {
 	let h = 0;
@@ -50,10 +50,12 @@ export class ManagementConnection {
 		private readonly _logService: ILogService,
 		private readonly _reconnectionToken: string,
 		remoteAddress: string,
-		protocol: PersistentProtocol
+		protocol: PersistentProtocol,
+		reconnectionGraceTime: number
 	) {
-		this._reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
-		this._reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
+		this._reconnectionGraceTime = reconnectionGraceTime;
+		const defaultShortGrace = ProtocolConstants.ReconnectionShortGraceTime;
+		this._reconnectionShortGraceTime = reconnectionGraceTime > 0 ? Math.min(defaultShortGrace, reconnectionGraceTime) : 0;
 		this._remoteAddress = remoteAddress;
 
 		this.protocol = protocol;

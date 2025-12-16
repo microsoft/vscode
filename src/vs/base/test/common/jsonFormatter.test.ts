@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import * as Formatter from 'vs/base/common/jsonFormatter';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as Formatter from '../../common/jsonFormatter.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('JSON - formatter', () => {
 

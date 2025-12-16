@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { getCodeCitationsMessage } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatCodeCitations, IChatRendererContent } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import * as dom from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ChatTreeItem } from '../chat.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { getCodeCitationsMessage } from '../../common/chatModel.js';
+import { IChatCodeCitations, IChatRendererContent } from '../../common/chatViewModel.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 type ChatCodeCitationOpenedClassification = {
 	owner: 'roblourens';

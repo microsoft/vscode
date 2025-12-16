@@ -4,21 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneStrings.js';
+import { FocusedViewContext, SidebarFocusContext } from '../../../common/contextkeys.js';
+import { BREAKPOINTS_VIEW_ID, CALLSTACK_VIEW_ID, LOADED_SCRIPTS_VIEW_ID, VARIABLES_VIEW_ID, WATCH_VIEW_ID } from '../common/debug.js';
 
-export class RunAndDebugAccessibilityHelp implements IAccessibleViewImplentation {
+export class RunAndDebugAccessibilityHelp implements IAccessibleViewImplementation {
 	priority = 120;
 	name = 'runAndDebugHelp';
-	when = ContextKeyExpr.equals('activeViewlet', 'workbench.view.debug');
+	when = ContextKeyExpr.or(
+		ContextKeyExpr.and(ContextKeyExpr.equals('activeViewlet', 'workbench.view.debug'), SidebarFocusContext),
+		ContextKeyExpr.equals(FocusedViewContext.key, VARIABLES_VIEW_ID),
+		ContextKeyExpr.equals(FocusedViewContext.key, WATCH_VIEW_ID),
+		ContextKeyExpr.equals(FocusedViewContext.key, CALLSTACK_VIEW_ID),
+		ContextKeyExpr.equals(FocusedViewContext.key, LOADED_SCRIPTS_VIEW_ID),
+		ContextKeyExpr.equals(FocusedViewContext.key, BREAKPOINTS_VIEW_ID)
+	);
 	type: AccessibleViewType = AccessibleViewType.Help;
 	getProvider(accessor: ServicesAccessor) {
 		return new RunAndDebugAccessibilityHelpProvider(accessor.get(ICommandService), accessor.get(IViewsService));
@@ -61,6 +70,7 @@ class RunAndDebugAccessibilityHelpProvider extends Disposable implements IAccess
 		return [
 			localize('debug.showRunAndDebug', "The Show Run and Debug view command{0} will open the current view.", '<keybinding:workbench.view.debug>'),
 			localize('debug.startDebugging', "The Debug: Start Debugging command{0} will start a debug session.", '<keybinding:workbench.action.debug.start>'),
+			localize('debug.help', "Access debug output and evaluate expressions in the debug console, which can be focused with{0}.", '<keybinding:workbench.panel.repl.view.focus>'),
 			AccessibilityHelpNLS.setBreakpoint,
 			AccessibilityHelpNLS.addToWatch,
 			localize('onceDebugging', "Once debugging, the following commands will be available:"),
@@ -75,7 +85,6 @@ class RunAndDebugAccessibilityHelpProvider extends Disposable implements IAccess
 			localize('debug.focusCallStack', "- Debug: Focus Call Stack View command{0} will focus the call stack view.", '<keybinding:workbench.debug.action.focusCallStackView>'),
 			localize('debug.focusVariables', "- Debug: Focus Variables View command{0} will focus the variables view.", '<keybinding:workbench.debug.action.focusVariablesView>'),
 			localize('debug.focusWatch', "- Debug: Focus Watch View command{0} will focus the watch view.", '<keybinding:workbench.debug.action.focusWatchView>'),
-			localize('debug.help', "The debug console is a Read-Eval-Print-Loop that allows you to evaluate expressions and run commands and can be focused with{0}.", '<keybinding:workbench.panel.repl.view.focus>'),
 			localize('debug.watchSetting', "The setting {0} controls whether watch variable changes are announced.", 'accessibility.debugWatchVariableAnnouncements'),
 		].join('\n');
 	}

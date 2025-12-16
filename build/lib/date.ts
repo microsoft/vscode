@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
+import path from 'path';
+import fs from 'fs';
 
-const root = path.join(__dirname, '..', '..');
+const root = path.join(import.meta.dirname, '..', '..');
 
 /**
  * Writes a `outDir/date` file with the contents of the build

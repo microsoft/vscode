@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExternalTerminalService } from '../common/externalTerminal.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IExternalTerminalMainService = createDecorator<IExternalTerminalMainService>('externalTerminal');
 

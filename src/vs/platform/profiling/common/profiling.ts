@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, isAbsolute, join } from 'vs/base/common/path';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { basename, isAbsolute, join } from '../../../base/common/path.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export interface IV8Profile {
 	nodes: IV8ProfileNode[];

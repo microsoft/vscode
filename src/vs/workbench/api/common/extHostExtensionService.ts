@@ -5,49 +5,49 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
-import * as performance from 'vs/base/common/performance';
-import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { asPromise, Barrier, IntervalTimer, timeout } from 'vs/base/common/async';
-import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionDescriptionDelta, IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
-import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, isProposedApiEnabled, ExtensionActivationReason } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionDescriptionRegistry, IActivationEventsReader } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import * as errors from 'vs/base/common/errors';
+import * as nls from '../../../nls.js';
+import * as path from '../../../base/common/path.js';
+import * as performance from '../../../base/common/performance.js';
+import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { asPromise, Barrier, IntervalTimer, timeout } from '../../../base/common/async.js';
+import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from './extHost.protocol.js';
+import { IExtensionDescriptionDelta, IExtensionHostInitData } from '../../services/extensions/common/extensionHostProtocol.js';
+import { ExtHostConfiguration, IExtHostConfiguration } from './extHostConfiguration.js';
+import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from './extHostExtensionActivator.js';
+import { ExtHostStorage, IExtHostStorage } from './extHostStorage.js';
+import { ExtHostWorkspace, IExtHostWorkspace } from './extHostWorkspace.js';
+import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, isProposedApiEnabled, ExtensionActivationReason } from '../../services/extensions/common/extensions.js';
+import { ExtensionDescriptionRegistry, IActivationEventsReader } from '../../services/extensions/common/extensionDescriptionRegistry.js';
+import * as errors from '../../../base/common/errors.js';
 import type * as vscode from 'vscode';
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
-import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime, ManagedResolvedAuthority as ExtHostManagedResolvedAuthority } from 'vs/workbench/api/common/extHostTypes';
-import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData, getRemoteAuthorityPrefix, TunnelInformation, ManagedRemoteConnection, WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostLanguageModels } from 'vs/workbench/api/common/extHostLanguageModels';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/services/extensions/common/workspaceContains';
-import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common/extHostSecretState';
-import { ExtensionSecrets } from 'vs/workbench/api/common/extHostSecrets';
-import { Schemas } from 'vs/base/common/network';
-import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { isCI, setTimeout0 } from 'vs/base/common/platform';
-import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
-import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { ExtensionGlobalMemento, ExtensionMemento } from './extHostMemento.js';
+import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime, ManagedResolvedAuthority as ExtHostManagedResolvedAuthority } from './extHostTypes.js';
+import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData, getRemoteAuthorityPrefix, TunnelInformation, ManagedRemoteConnection, WebSocketRemoteConnection } from '../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IInstantiationService, createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { IExtensionStoragePaths } from './extHostStoragePaths.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { IExtHostTunnelService } from './extHostTunnelService.js';
+import { IExtHostTerminalService } from './extHostTerminalService.js';
+import { IExtHostLanguageModels } from './extHostLanguageModels.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from '../../services/extensions/common/workspaceContains.js';
+import { ExtHostSecretState, IExtHostSecretState } from './extHostSecretState.js';
+import { ExtensionSecrets } from './extHostSecrets.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IResolveAuthorityResult } from '../../services/extensions/common/extensionHostProxy.js';
+import { IExtHostLocalizationService } from './extHostLocalizationService.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { isCI, setTimeout0 } from '../../../base/common/platform.js';
+import { IExtHostManagedSockets } from './extHostManagedSockets.js';
+import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -482,10 +482,14 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._logService.info(`ExtensionService#_doActivateExtension ${extensionDescription.identifier.value}, startup: ${reason.startup}, activationEvent: '${reason.activationEvent}'${extensionDescription.identifier.value !== reason.extensionId.value ? `, root cause: ${reason.extensionId.value}` : ``}`);
 		this._logService.flush();
 
+		const isESM = this._isESM(extensionDescription);
+
 		const extensionInternalStore = new DisposableStore(); // disposables that follow the extension lifecycle
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
 		return Promise.all([
-			this._loadCommonJSModule<IExtensionModule>(extensionDescription, joinPath(extensionDescription.extensionLocation, entryPoint), activationTimesBuilder),
+			isESM
+				? this._loadESMModule<IExtensionModule>(extensionDescription, joinPath(extensionDescription.extensionLocation, entryPoint), activationTimesBuilder)
+				: this._loadCommonJSModule<IExtensionModule>(extensionDescription, joinPath(extensionDescription.extensionLocation, entryPoint), activationTimesBuilder),
 			this._loadExtensionContext(extensionDescription, extensionInternalStore)
 		]).then(values => {
 			performance.mark(`code/extHost/willActivateExtension/${extensionDescription.identifier.value}`);
@@ -559,6 +563,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 						messagePort.start();
 						messagePassingProtocol = {
 							onDidReceiveMessage,
+							// eslint-disable-next-line local/code-no-any-casts
 							postMessage: messagePort.postMessage.bind(messagePort) as any
 						};
 					}
@@ -589,8 +594,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			try {
 				activationTimesBuilder.activateCallStart();
 				logService.trace(`ExtensionService#_callActivateOptional ${extensionId.value}`);
-				const scope = typeof global === 'object' ? global : self; // `global` is nodejs while `self` is for workers
-				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(scope, [context]);
+				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(globalThis, [context]);
 				activationTimesBuilder.activateCallStop();
 
 				activationTimesBuilder.activateResolveStart();
@@ -743,8 +747,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			throw new Error(nls.localize('extensionTestError1', "Cannot load test runner."));
 		}
 
+		const extensionDescription = (await this.getExtensionPathIndex()).findSubstr(extensionTestsLocationURI);
+		const isESM = this._isESM(extensionDescription, extensionTestsLocationURI.path);
+
 		// Require the test runner via node require from the provided path
-		const testRunner = await this._loadCommonJSModule<ITestRunner | INewTestRunner | undefined>(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false));
+		const testRunner = await (isESM
+			? this._loadESMModule<ITestRunner | INewTestRunner | undefined>(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false))
+			: this._loadCommonJSModule<ITestRunner | INewTestRunner | undefined>(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false)));
 
 		if (!testRunner || typeof testRunner.run !== 'function') {
 			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsLocationURI.toString()));
@@ -997,6 +1006,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		const { globalRegistry, myExtensions } = applyExtensionsDelta(this._activationEventsReader, this._globalRegistry, this._myRegistry, extensionsDelta);
@@ -1037,6 +1047,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		// First build up and update the trie and only afterwards apply the delta
@@ -1077,9 +1088,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._onDidChangeRemoteConnectionData.fire();
 	}
 
+	protected _isESM(extensionDescription: IExtensionDescription | undefined, modulePath?: string): boolean {
+		modulePath ??= extensionDescription ? this._getEntryPoint(extensionDescription) : modulePath;
+		return modulePath?.endsWith('.mjs') || (extensionDescription?.type === 'module' && !modulePath?.endsWith('.cjs'));
+	}
+
 	protected abstract _beforeAlmostReadyToRunExtensions(): Promise<void>;
 	protected abstract _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined;
 	protected abstract _loadCommonJSModule<T extends object | undefined>(extensionId: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
+	protected abstract _loadESMModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
 	public abstract $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
 
@@ -1145,7 +1162,7 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
 	getRemoteExecServer(authority: string): Promise<vscode.ExecServer | undefined>;
 
-	onDidChangeRemoteConnectionData: Event<void>;
+	readonly onDidChangeRemoteConnectionData: Event<void>;
 	getRemoteConnectionData(): IRemoteConnectionData | null;
 }
 

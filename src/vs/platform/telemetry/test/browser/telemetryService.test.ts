@@ -5,17 +5,17 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import sinonTest from 'sinon-test';
-import { mainWindow } from 'vs/base/browser/window';
-import * as Errors from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { mainWindow } from '../../../../base/browser/window.js';
+import * as Errors from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import product from '../../../product/common/product.js';
+import { IProductService } from '../../../product/common/productService.js';
+import ErrorTelemetry from '../../browser/errorTelemetry.js';
+import { TelemetryConfiguration, TelemetryLevel } from '../../common/telemetry.js';
+import { ITelemetryServiceConfig, TelemetryService } from '../../common/telemetryService.js';
+import { ITelemetryAppender, NullAppender } from '../../common/telemetryUtils.js';
 
 const sinonTestFn = sinonTest(sinon);
 
@@ -278,7 +278,7 @@ suite('TelemetryService', () => {
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		const testError = new Error('test');
-		(<any>mainWindow.onerror)('Error Message', 'file.js', 2, 42, testError);
+		(mainWindow.onerror)('Error Message', 'file.js', 2, 42, testError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.alwaysCalledWithExactly('Error Message', 'file.js', 2, 42, testError), true);
@@ -308,7 +308,7 @@ suite('TelemetryService', () => {
 		const personInfoWithSpaces = settings.personalInfo.slice(0, 2) + ' ' + settings.personalInfo.slice(2);
 		const dangerousFilenameError: any = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
-		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces) + '/test.js', 2, 42, dangerousFilenameError);
+		mainWindow.onerror('dangerousFilename', settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces) + '/test.js', 2, 42, dangerousFilenameError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -331,14 +331,14 @@ suite('TelemetryService', () => {
 
 		let dangerousFilenameError: any = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
-		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
+		mainWindow.onerror('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
 		clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 		assert.strictEqual(errorStub.callCount, 1);
 		assert.strictEqual(testAppender.events[0].data.file.indexOf(settings.dangerousPathWithImportantInfo), -1);
 
 		dangerousFilenameError = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
-		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
+		mainWindow.onerror('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
 		clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 		assert.strictEqual(errorStub.callCount, 2);
 		assert.strictEqual(testAppender.events[0].data.file.indexOf(settings.dangerousPathWithImportantInfo), -1);
@@ -389,7 +389,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithoutImportantInfoError: any = new Error('dangerousPathWithoutImportantInfo');
 		dangerousPathWithoutImportantInfoError.stack = settings.stack;
-		(<any>mainWindow.onerror)(settings.dangerousPathWithoutImportantInfo, 'test.js', 2, 42, dangerousPathWithoutImportantInfoError);
+		mainWindow.onerror(settings.dangerousPathWithoutImportantInfo, 'test.js', 2, 42, dangerousPathWithoutImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -451,7 +451,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
 		dangerousPathWithImportantInfoError.stack = settings.stack;
-		(<any>mainWindow.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
+		mainWindow.onerror(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -550,7 +550,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
 		dangerousPathWithImportantInfoError.stack = settings.stack;
-		(<any>mainWindow.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
+		mainWindow.onerror(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -614,7 +614,7 @@ suite('TelemetryService', () => {
 
 		const missingModelError: any = new Error('missingModelMessage');
 		missingModelError.stack = settings.stack;
-		(<any>mainWindow.onerror)(settings.missingModelMessage, 'test.js', 2, 42, missingModelError);
+		mainWindow.onerror(settings.missingModelMessage, 'test.js', 2, 42, missingModelError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -683,7 +683,7 @@ suite('TelemetryService', () => {
 
 			const noSuchFileError: any = new Error('noSuchFileMessage');
 			noSuchFileError.stack = settings.stack;
-			(<any>mainWindow.onerror)(settings.noSuchFileMessage, 'test.js', 2, 42, noSuchFileError);
+			mainWindow.onerror(settings.noSuchFileMessage, 'test.js', 2, 42, noSuchFileError);
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 			assert.strictEqual(errorStub.callCount, 1);
@@ -725,8 +725,8 @@ suite('TelemetryService', () => {
 			appenders: [testAppender]
 		}, new class extends TestConfigurationService {
 			override onDidChangeConfiguration = emitter.event;
-			override getValue() {
-				return telemetryLevel as any;
+			override getValue<T>(): T {
+				return telemetryLevel as T;
 			}
 		}(), TestProductService);
 
@@ -742,6 +742,241 @@ suite('TelemetryService', () => {
 
 		service.dispose();
 	});
+
+	test('Unexpected Error Telemetry removes Windows PII but preserves code path', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			const windowsUserPath = 'c:/Users/bpasero/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/resources/app/';
+			const codePath = 'out/vs/workbench/workbench.desktop.main.js';
+			const stack = [
+				`    at cTe.gc (vscode-file://vscode-app/${windowsUserPath}${codePath}:2724:81492)`,
+				`    at async cTe.setInput (vscode-file://vscode-app/${windowsUserPath}${codePath}:2724:80650)`,
+				`    at async qJe.S (vscode-file://vscode-app/${windowsUserPath}${codePath}:698:58520)`,
+				`    at async qJe.L (vscode-file://vscode-app/${windowsUserPath}${codePath}:698:57080)`,
+				`    at async qJe.openEditor (vscode-file://vscode-app/${windowsUserPath}${codePath}:698:56162)`
+			];
+
+			const windowsError: any = new Error('The editor could not be opened because the file was not found.');
+			windowsError.stack = stack.join('\n');
+
+			Errors.onUnexpectedError(windowsError);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			// Verify PII (username and path) is removed
+			assert.strictEqual(testAppender.events[0].data.callstack.indexOf('bpasero'), -1);
+			assert.strictEqual(testAppender.events[0].data.callstack.indexOf('Users'), -1);
+			assert.strictEqual(testAppender.events[0].data.callstack.indexOf('c:/Users'), -1);
+			// Verify important code path is preserved
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(codePath), -1);
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('out/vs/workbench'), -1);
+
+			errorTelemetry.dispose();
+			service.dispose();
+		} finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Uncaught Error Telemetry removes Windows PII but preserves code path', sinonTestFn(function (this: any) {
+		const errorStub = sinon.stub();
+		mainWindow.onerror = errorStub;
+
+		const testAppender = new TestTelemetryAppender();
+		const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+		const errorTelemetry = new ErrorTelemetry(service);
+
+		const windowsUserPath = 'c:/Users/bpasero/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/resources/app/';
+		const codePath = 'out/vs/workbench/workbench.desktop.main.js';
+		const stack = [
+			`    at cTe.gc (vscode-file://vscode-app/${windowsUserPath}${codePath}:2724:81492)`,
+			`    at async cTe.setInput (vscode-file://vscode-app/${windowsUserPath}${codePath}:2724:80650)`,
+			`    at async qJe.S (vscode-file://vscode-app/${windowsUserPath}${codePath}:698:58520)`
+		];
+
+		const windowsError: any = new Error('The editor could not be opened because the file was not found.');
+		windowsError.stack = stack.join('\n');
+
+		mainWindow.onerror('The editor could not be opened because the file was not found.', 'test.js', 2, 42, windowsError);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+		assert.strictEqual(errorStub.callCount, 1);
+		// Verify PII (username and path) is removed
+		assert.strictEqual(testAppender.events[0].data.callstack.indexOf('bpasero'), -1);
+		assert.strictEqual(testAppender.events[0].data.callstack.indexOf('Users'), -1);
+		assert.strictEqual(testAppender.events[0].data.callstack.indexOf('c:/Users'), -1);
+		// Verify important code path is preserved
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(codePath), -1);
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('out/vs/workbench'), -1);
+
+		errorTelemetry.dispose();
+		service.dispose();
+		sinon.restore();
+	}));
+
+	test('Unexpected Error Telemetry removes macOS PII but preserves code path', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			const macUserPath = 'Applications/Visual%20Studio%20Code%20-%20Insiders.app/Contents/Resources/app/';
+			const codePath = 'out/vs/workbench/workbench.desktop.main.js';
+			const stack = [
+				`    at uTe.gc (vscode-file://vscode-app/${macUserPath}${codePath}:2720:81492)`,
+				`    at async uTe.setInput (vscode-file://vscode-app/${macUserPath}${codePath}:2720:80650)`,
+				`    at async JJe.S (vscode-file://vscode-app/${macUserPath}${codePath}:698:58520)`,
+				`    at async JJe.L (vscode-file://vscode-app/${macUserPath}${codePath}:698:57080)`,
+				`    at async JJe.openEditor (vscode-file://vscode-app/${macUserPath}${codePath}:698:56162)`
+			];
+
+			const macError: any = new Error('The editor could not be opened because the file was not found.');
+			macError.stack = stack.join('\n');
+
+			Errors.onUnexpectedError(macError);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			// Verify PII (application path) is removed
+			assert.strictEqual(testAppender.events[0].data.callstack.indexOf('Applications/Visual'), -1);
+			assert.strictEqual(testAppender.events[0].data.callstack.indexOf('Visual%20Studio%20Code'), -1);
+			// Verify important code path is preserved
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(codePath), -1);
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('out/vs/workbench'), -1);
+
+			errorTelemetry.dispose();
+			service.dispose();
+		} finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Uncaught Error Telemetry removes macOS PII but preserves code path', sinonTestFn(function (this: any) {
+		const errorStub = sinon.stub();
+		mainWindow.onerror = errorStub;
+
+		const testAppender = new TestTelemetryAppender();
+		const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+		const errorTelemetry = new ErrorTelemetry(service);
+
+		const macUserPath = 'Applications/Visual%20Studio%20Code%20-%20Insiders.app/Contents/Resources/app/';
+		const codePath = 'out/vs/workbench/workbench.desktop.main.js';
+		const stack = [
+			`    at uTe.gc (vscode-file://vscode-app/${macUserPath}${codePath}:2720:81492)`,
+			`    at async uTe.setInput (vscode-file://vscode-app/${macUserPath}${codePath}:2720:80650)`,
+			`    at async JJe.S (vscode-file://vscode-app/${macUserPath}${codePath}:698:58520)`
+		];
+
+		const macError: any = new Error('The editor could not be opened because the file was not found.');
+		macError.stack = stack.join('\n');
+
+		mainWindow.onerror('The editor could not be opened because the file was not found.', 'test.js', 2, 42, macError);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+		assert.strictEqual(errorStub.callCount, 1);
+		// Verify PII (application path) is removed
+		assert.strictEqual(testAppender.events[0].data.callstack.indexOf('Applications/Visual'), -1);
+		assert.strictEqual(testAppender.events[0].data.callstack.indexOf('Visual%20Studio%20Code'), -1);
+		// Verify important code path is preserved
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(codePath), -1);
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('out/vs/workbench'), -1);
+
+		errorTelemetry.dispose();
+		service.dispose();
+		sinon.restore();
+	}));
+
+	test('Unexpected Error Telemetry removes Linux PII but preserves code path', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			const linuxUserPath = '/home/parallels/GitDevelopment/vscode-node-sqlite3-perf/';
+			const linuxSystemPath = 'usr/share/code-insiders/resources/app/';
+			const codePath = 'out/vs/workbench/workbench.desktop.main.js';
+			const stack = [
+				`    at _kt.G (vscode-file://vscode-app/${linuxSystemPath}${codePath}:3825:65940)`,
+				`    at _kt.F (vscode-file://vscode-app/${linuxSystemPath}${codePath}:3825:65765)`,
+				`    at async axt.L (vscode-file://vscode-app/${linuxSystemPath}${codePath}:3830:9998)`,
+				`    at async axt.readStream (vscode-file://vscode-app/${linuxSystemPath}${codePath}:3830:9773)`,
+				`    at async mye.Eb (vscode-file://vscode-app/${linuxSystemPath}${codePath}:1313:12359)`
+			];
+
+			const linuxError: any = new Error(`Invalid fake file 'git:${linuxUserPath}index.js.git?{"path":"${linuxUserPath}index.js","ref":""}' (Canceled: Canceled)`);
+			linuxError.stack = stack.join('\n');
+
+			Errors.onUnexpectedError(linuxError);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			// Verify PII (username and home directory) is removed
+			assert.strictEqual(testAppender.events[0].data.msg.indexOf('parallels'), -1);
+			assert.strictEqual(testAppender.events[0].data.msg.indexOf('/home/parallels'), -1);
+			assert.strictEqual(testAppender.events[0].data.msg.indexOf('GitDevelopment'), -1);
+			assert.strictEqual(testAppender.events[0].data.callstack.indexOf('parallels'), -1);
+			assert.strictEqual(testAppender.events[0].data.callstack.indexOf('/home/parallels'), -1);
+			// Verify important code path is preserved
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(codePath), -1);
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('out/vs/workbench'), -1);
+
+			errorTelemetry.dispose();
+			service.dispose();
+		} finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Uncaught Error Telemetry removes Linux PII but preserves code path', sinonTestFn(function (this: any) {
+		const errorStub = sinon.stub();
+		mainWindow.onerror = errorStub;
+
+		const testAppender = new TestTelemetryAppender();
+		const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+		const errorTelemetry = new ErrorTelemetry(service);
+
+		const linuxUserPath = '/home/parallels/GitDevelopment/vscode-node-sqlite3-perf/';
+		const linuxSystemPath = 'usr/share/code-insiders/resources/app/';
+		const codePath = 'out/vs/workbench/workbench.desktop.main.js';
+		const stack = [
+			`    at _kt.G (vscode-file://vscode-app/${linuxSystemPath}${codePath}:3825:65940)`,
+			`    at _kt.F (vscode-file://vscode-app/${linuxSystemPath}${codePath}:3825:65765)`,
+			`    at async axt.L (vscode-file://vscode-app/${linuxSystemPath}${codePath}:3830:9998)`
+		];
+
+		const linuxError: any = new Error(`Unable to read file 'git:${linuxUserPath}index.js.git'`);
+		linuxError.stack = stack.join('\n');
+
+		mainWindow.onerror(`Unable to read file 'git:${linuxUserPath}index.js.git'`, 'test.js', 2, 42, linuxError);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+		assert.strictEqual(errorStub.callCount, 1);
+		// Verify PII (username and home directory) is removed
+		assert.strictEqual(testAppender.events[0].data.msg.indexOf('parallels'), -1);
+		assert.strictEqual(testAppender.events[0].data.msg.indexOf('/home/parallels'), -1);
+		assert.strictEqual(testAppender.events[0].data.msg.indexOf('GitDevelopment'), -1);
+		assert.strictEqual(testAppender.events[0].data.callstack.indexOf('parallels'), -1);
+		assert.strictEqual(testAppender.events[0].data.callstack.indexOf('/home/parallels'), -1);
+		// Verify important code path is preserved
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(codePath), -1);
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('out/vs/workbench'), -1);
+
+		errorTelemetry.dispose();
+		service.dispose();
+		sinon.restore();
+	}));
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

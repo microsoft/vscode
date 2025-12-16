@@ -3,61 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/remoteViewlet';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { URI } from 'vs/base/common/uri';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ReconnectionWaitEvent, PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
-import Severity from 'vs/base/common/severity';
-import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { SwitchRemoteViewItem } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
-import { isStringArray } from 'vs/base/common/types';
-import { HelpInformation, IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
-import { IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { Schemas } from 'vs/base/common/network';
-import { mainWindow } from 'vs/base/browser/window';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import './media/remoteViewlet.css';
+import * as nls from '../../../../nls.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { FilterViewPaneContainer } from '../../../browser/parts/views/viewsViewlet.js';
+import { VIEWLET_ID } from './remoteExplorer.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from '../../../common/views.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IProgress, IProgressStep, IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ReconnectionWaitEvent, PersistentConnectionEventType } from '../../../../platform/remote/common/remoteAgentConnection.js';
+import Severity from '../../../../base/common/severity.js';
+import { ReloadWindowAction } from '../../../browser/actions/windowActions.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { SwitchRemoteViewItem } from './explorerViewItems.js';
+import { isStringArray } from '../../../../base/common/types.js';
+import { HelpInformation, IRemoteExplorerService } from '../../../services/remote/common/remoteExplorerService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { ITreeRenderer, ITreeNode, IAsyncDataSource } from '../../../../base/browser/ui/tree/tree.js';
+import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import * as icons from './remoteIcons.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ITimerService } from '../../../services/timer/browser/timerService.js';
+import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
+import { getVirtualWorkspaceLocation } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 interface IViewModel {
-	onDidChangeHelpInformation: Event<void>;
+	readonly onDidChangeHelpInformation: Event<void>;
 	helpInformation: HelpInformation[];
 }
 
@@ -86,7 +86,7 @@ class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem
 		return { parent, icon };
 	}
 
-	renderElement(element: ITreeNode<IHelpItem, IHelpItem>, index: number, templateData: IHelpItemTemplateData, height: number | undefined): void {
+	renderElement(element: ITreeNode<IHelpItem, IHelpItem>, index: number, templateData: IHelpItemTemplateData): void {
 		const container = templateData.parent;
 		dom.append(container, templateData.icon);
 		templateData.icon.classList.add(...element.element.iconClasses);
@@ -120,7 +120,7 @@ interface IHelpItem {
 	handleClick(): Promise<void>;
 }
 
-class HelpModel {
+class HelpModel extends Disposable {
 	items: IHelpItem[] | undefined;
 
 	constructor(
@@ -133,8 +133,10 @@ class HelpModel {
 		private workspaceContextService: IWorkspaceContextService,
 		private walkthroughsService: IWalkthroughsService
 	) {
+		super();
+
 		this.updateItems();
-		viewModel.onDidChangeHelpInformation(() => this.updateItems());
+		this._register(viewModel.onDidChangeHelpInformation(() => this.updateItems()));
 	}
 
 	private createHelpItemValue(info: HelpInformation, infoKey: Exclude<keyof HelpInformation, 'extensionDescription' | 'remoteName' | 'virtualWorkspace'>) {
@@ -246,7 +248,7 @@ class HelpItemValue {
 				if (url.authority) {
 					this._url = this.urlOrCommandOrId;
 				} else {
-					const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommandOrId).then((result) => {
+					const urlCommand = this.commandService.executeCommand<string>(this.urlOrCommandOrId).then((result) => {
 						// if executing this command times out, cache its value whenever it eventually resolves
 						this._url = result;
 						return this._url;
@@ -460,12 +462,11 @@ class HelpPanel extends ViewPane {
 		@IRemoteExplorerService protected readonly remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWalkthroughsService private readonly walkthroughsService: IWalkthroughsService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -476,7 +477,7 @@ class HelpPanel extends ViewPane {
 		treeContainer.classList.add('remote-help-content');
 		container.appendChild(treeContainer);
 
-		this.tree = <WorkbenchAsyncDataTree<HelpModel, IHelpItem, IHelpItem>>this.instantiationService.createInstance(WorkbenchAsyncDataTree,
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree<HelpModel, IHelpItem, IHelpItem>,
 			'RemoteHelp',
 			treeContainer,
 			new HelpTreeVirtualDelegate(),
@@ -492,7 +493,7 @@ class HelpPanel extends ViewPane {
 			}
 		);
 
-		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService, this.workspaceContextService, this.walkthroughsService);
+		const model = this._register(new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService, this.workspaceContextService, this.walkthroughsService));
 
 		this.tree.setInput(model);
 
@@ -540,14 +541,15 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@ILogService logService: ILogService,
 	) {
-		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
+		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService, logService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
 		this._register(this.remoteSwitcher = this.instantiationService.createInstance(SwitchRemoteViewItem));
-		this.remoteExplorerService.onDidChangeHelpInformation(extensions => {
+		this._register(this.remoteExplorerService.onDidChangeHelpInformation(extensions => {
 			this._setHelpInformation(extensions);
-		});
+		}));
 
 		this._setHelpInformation(this.remoteExplorerService.helpInformation);
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
@@ -799,12 +801,12 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			let quickInputVisible = false;
-			quickInputService.onShow(() => quickInputVisible = true);
-			quickInputService.onHide(() => quickInputVisible = false);
+			this._register(quickInputService.onShow(() => quickInputVisible = true));
+			this._register(quickInputService.onHide(() => quickInputVisible = false));
 
 			let visibleProgress: VisibleProgress | null = null;
 			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
-			let disposableListener: IDisposable | null = null;
+			const disposableListener = this._register(new MutableDisposable());
 
 			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification | null, buttons: { label: string; callback: () => void }[], initialReport: string | null = null): VisibleProgress {
 				if (visibleProgress) {
@@ -886,13 +888,10 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 			// ReconnectionWait    -> ReconnectionRunning
 			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
 
-			connection.onDidStateChange((e) => {
+			this._register(connection.onDidStateChange((e) => {
 				visibleProgress?.stopTimer();
+				disposableListener.clear();
 
-				if (disposableListener) {
-					disposableListener.dispose();
-					disposableListener = null;
-				}
 				switch (e.type) {
 					case PersistentConnectionEventType.ConnectionLost:
 						reconnectionToken = e.reconnectionToken;
@@ -961,7 +960,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 							visibleProgress.report(nls.localize('reconnectionRunning', "Disconnected. Attempting to reconnect..."));
 
 							// Register to listen for quick input is opened
-							disposableListener = quickInputService.onShow(() => {
+							disposableListener.value = quickInputService.onShow(() => {
 								// Need to move from dialog if being shown and user needs to type in a prompt
 								if (visibleProgress && visibleProgress.location === ProgressLocation.Dialog) {
 									visibleProgress = showProgress(ProgressLocation.Notification, [reloadButton], visibleProgress.lastReport);
@@ -1048,7 +1047,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						hideProgress();
 						break;
 				}
-			});
+			}));
 		}
 	}
 }

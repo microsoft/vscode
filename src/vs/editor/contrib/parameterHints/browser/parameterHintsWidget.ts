@@ -3,31 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { assertIsDefined } from 'vs/base/common/types';
-import 'vs/css!./parameterHints';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as languages from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
-import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
-import * as nls from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { listHighlightForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import * as dom from '../../../../base/browser/dom.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
+import './parameterHints.css';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
+import * as languages from '../../../common/languages.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { ParameterHintsModel } from './parameterHintsModel.js';
+import { Context } from './provideSignatureHelp.js';
+import * as nls from '../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { listHighlightForeground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const $ = dom.$;
 
@@ -38,7 +36,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
-	private readonly markdownRenderer: MarkdownRenderer;
 	private readonly renderDisposeables = this._register(new DisposableStore());
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
@@ -61,13 +58,9 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		private readonly editor: ICodeEditor,
 		private readonly model: ParameterHintsModel,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IOpenerService openerService: IOpenerService,
-		@ILanguageService languageService: ILanguageService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
-
-		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, languageService, openerService));
 
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
@@ -274,45 +267,28 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.domNodes.scrollbar.scanDomNode();
 	}
 
-	private renderMarkdownDocs(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
-		const stopWatch = new StopWatch();
-		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
+	private renderMarkdownDocs(markdown: IMarkdownString): IRenderedMarkdown {
+		const renderedContents = this.renderDisposeables.add(this.markdownRendererService.render(markdown, {
+			context: this.editor,
 			asyncRenderCallback: () => {
 				this.domNodes?.scrollbar.scanDomNode();
 			}
 		}));
 		renderedContents.element.classList.add('markdown-docs');
-
-		type RenderMarkdownPerformanceClassification = {
-			owner: 'donjayamanne';
-			comment: 'Measure the time taken to render markdown for parameter hints';
-			renderDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time in ms to render the markdown' };
-		};
-
-		type RenderMarkdownPerformanceEvent = {
-			renderDuration: number;
-		};
-		const renderDuration = stopWatch.elapsed();
-		if (renderDuration > 300) {
-			this.telemetryService.publicLog2<RenderMarkdownPerformanceEvent, RenderMarkdownPerformanceClassification>('parameterHints.parseMarkdown', {
-				renderDuration
-			});
-		}
-
 		return renderedContents;
 	}
 
 	private hasDocs(signature: languages.SignatureInformation, activeParameter: languages.ParameterInformation | undefined): boolean {
-		if (activeParameter && typeof activeParameter.documentation === 'string' && assertIsDefined(activeParameter.documentation).length > 0) {
+		if (activeParameter && typeof activeParameter.documentation === 'string' && assertReturnsDefined(activeParameter.documentation).length > 0) {
 			return true;
 		}
-		if (activeParameter && typeof activeParameter.documentation === 'object' && assertIsDefined(activeParameter.documentation).value.length > 0) {
+		if (activeParameter && typeof activeParameter.documentation === 'object' && assertReturnsDefined(activeParameter.documentation).value.length > 0) {
 			return true;
 		}
-		if (signature.documentation && typeof signature.documentation === 'string' && assertIsDefined(signature.documentation).length > 0) {
+		if (signature.documentation && typeof signature.documentation === 'string' && assertReturnsDefined(signature.documentation).length > 0) {
 			return true;
 		}
-		if (signature.documentation && typeof signature.documentation === 'object' && assertIsDefined(signature.documentation.value).length > 0) {
+		if (signature.documentation && typeof signature.documentation === 'object' && assertReturnsDefined(signature.documentation.value).length > 0) {
 			return true;
 		}
 		return false;
@@ -380,6 +356,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
 		const maxHeight = `${height}px`;
 		this.domNodes.element.style.maxHeight = maxHeight;
+		// eslint-disable-next-line no-restricted-syntax
 		const wrapper = this.domNodes.element.getElementsByClassName('phwrapper') as HTMLCollectionOf<HTMLElement>;
 		if (wrapper.length) {
 			wrapper[0].style.maxHeight = maxHeight;

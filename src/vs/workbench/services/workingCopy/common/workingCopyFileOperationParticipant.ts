@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyFileOperationParticipant, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { FileOperation } from 'vs/platform/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LinkedList } from 'vs/base/common/linkedList';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IDisposable, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IWorkingCopyFileOperationParticipant, SourceTargetPair, IFileOperationUndoRedoInfo } from './workingCopyFileService.js';
+import { FileOperation } from '../../../../platform/files/common/files.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
 
 export class WorkingCopyFileOperationParticipant extends Disposable {
 

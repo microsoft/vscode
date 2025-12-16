@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as url from 'url';
-import ansiColors = require('ansi-colors');
-import { IExtensionDefinition } from './builtInExtensions';
+import fs from 'fs';
+import path from 'path';
+import url from 'url';
+import ansiColors from 'ansi-colors';
+import type { IExtensionDefinition } from './builtInExtensions.ts';
 
-const root = path.dirname(path.dirname(__dirname));
+const root = path.dirname(path.dirname(import.meta.dirname));
 const rootCG = path.join(root, 'extensionsCG');
-const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions || [];
-const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions || [];
+const productjson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
+const builtInExtensions = productjson.builtInExtensions as IExtensionDefinition[] || [];
+const webBuiltInExtensions = productjson.webBuiltInExtensions as IExtensionDefinition[] || [];
 const token = process.env['GITHUB_TOKEN'];
 
 const contentBasePath = 'raw.githubusercontent.com';
-const contentFileNames = ['package.json', 'package-lock.json', 'yarn.lock'];
+const contentFileNames = ['package.json', 'package-lock.json'];
 
 async function downloadExtensionDetails(extension: IExtensionDefinition): Promise<void> {
 	const extensionLabel = `${extension.name}@${extension.version}`;
@@ -61,9 +61,8 @@ async function downloadExtensionDetails(extension: IExtensionDefinition): Promis
 	if (!results.find(r => r.fileName === 'package.json')?.body) {
 		// throw new Error(`The "package.json" file could not be found for the built-in extension - ${extensionLabel}`);
 	}
-	if (!results.find(r => r.fileName === 'package-lock.json')?.body &&
-		!results.find(r => r.fileName === 'yarn.lock')?.body) {
-		// throw new Error(`The "package-lock.json"/"yarn.lock" could not be found for the built-in extension - ${extensionLabel}`);
+	if (!results.find(r => r.fileName === 'package-lock.json')?.body) {
+		// throw new Error(`The "package-lock.json" could not be found for the built-in extension - ${extensionLabel}`);
 	}
 }
 

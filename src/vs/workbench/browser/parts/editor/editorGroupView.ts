@@ -3,61 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorgroupview';
-import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
-import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorContext, ActiveEditorReadonlyContext, ActiveEditorCanRevertContext, ActiveEditorCanToggleReadonlyContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { Emitter, Relay } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement } from 'vs/base/browser/dom';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
-import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement, IActiveEditorActions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorPanes } from 'vs/workbench/browser/parts/editor/editorPanes';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
-import { localize } from 'vs/nls';
-import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DeferredPromise, Promises, RunOnceWorker } from 'vs/base/common/async';
-import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView, IEditorGroupViewOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IAction, SubmenuAction } from 'vs/base/common/actions';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { hash } from 'vs/base/common/hash';
-import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
-import { extname, isEqual } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
-import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { isLinux, isMacintosh, isNative, isWindows } from 'vs/base/common/platform';
-import { ILogService } from 'vs/platform/log/common/log';
-import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
-import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { EditorGroupWatermark } from 'vs/workbench/browser/parts/editor/editorGroupWatermark';
-import { EditorTitleControl } from 'vs/workbench/browser/parts/editor/editorTitleControl';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import './media/editorgroupview.css';
+import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, TEXT_DIFF_EDITOR_ID } from '../../../common/editor.js';
+import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorContext, ActiveEditorReadonlyContext, ActiveEditorCanRevertContext, ActiveEditorCanToggleReadonlyContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey } from '../../../common/contextkeys.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
+import { Emitter, Event, Relay } from '../../../../base/common/event.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement, $ } from '../../../../base/browser/dom.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { editorBackground, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_BORDER } from '../../../common/theme.js';
+import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement, IActiveEditorActions } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorPanes } from './editorPanes.js';
+import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { EditorProgressIndicator } from '../../../services/progress/browser/progressIndicator.js';
+import { localize } from '../../../../nls.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ITelemetryData, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { DeferredPromise, Promises, RunOnceWorker } from '../../../../base/common/async.js';
+import { EventType as TouchEventType, GestureEvent } from '../../../../base/browser/touch.js';
+import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView, IEditorGroupViewOptions } from './editor.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { SubmenuAction } from '../../../../base/common/actions.js';
+import { IMenuChangeEvent, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { getActionBarActions, PrimaryAndSecondaryActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { hash } from '../../../../base/common/hash.js';
+import { getMimeTypes } from '../../../../editor/common/services/languagesAssociations.js';
+import { extname, isEqual } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IFileDialogService, ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFilesConfigurationService, AutoSaveMode } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { isLinux, isMacintosh, isNative, isWindows } from '../../../../base/common/platform.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
+import { EditorGroupWatermark } from './editorGroupWatermark.js';
+import { EditorTitleControl } from './editorTitleControl.js';
+import { EditorPane } from './editorPane.js';
+import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -208,16 +208,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.handleGroupContextKeys();
 
 			// Title container
-			this.titleContainer = document.createElement('div');
-			this.titleContainer.classList.add('title');
+			this.titleContainer = $('.title');
 			this.element.appendChild(this.titleContainer);
 
 			// Title control
 			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model));
 
 			// Editor container
-			this.editorContainer = document.createElement('div');
-			this.editorContainer.classList.add('editor-container');
+			this.editorContainer = $('.editor-container');
 			this.element.appendChild(this.editorContainer);
 
 			// Editor pane
@@ -338,6 +336,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				case GroupModelChangeKind.EDITOR_CLOSE:
 					groupActiveEditorPinnedContext.set(this.model.activeEditor ? this.model.isPinned(this.model.activeEditor) : false);
 					groupActiveEditorStickyContext.set(this.model.activeEditor ? this.model.isSticky(this.model.activeEditor) : false);
+					break;
 				case GroupModelChangeKind.EDITOR_OPEN:
 				case GroupModelChangeKind.EDITOR_MOVE:
 					groupActiveEditorFirstContext.set(this.model.isFirst(this.model.activeEditor));
@@ -406,8 +405,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private createContainerToolbar(): void {
 
 		// Toolbar Container
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('editor-group-container-toolbar');
+		const toolbarContainer = $('.editor-group-container-toolbar');
 		this.element.appendChild(toolbarContainer);
 
 		// Toolbar
@@ -419,16 +417,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Toolbar actions
 		const containerToolbarMenu = this._register(this.menuService.createMenu(MenuId.EmptyEditorGroup, this.scopedContextKeyService));
 		const updateContainerToolbar = () => {
-			const actions: IToolbarActions = { primary: [], secondary: [] };
 
 			// Clear old actions
 			this.containerToolBarMenuDisposable.value = toDisposable(() => containerToolbar.clear());
 
 			// Create new actions
-			createAndFillInActionBarActions(
-				containerToolbarMenu,
-				{ arg: { groupId: this.id }, shouldForwardArgs: true },
-				actions,
+			const actions = getActionBarActions(
+				containerToolbarMenu.getActions({ arg: { groupId: this.id }, shouldForwardArgs: true }),
 				'navigation'
 			);
 
@@ -462,9 +457,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			menuId: MenuId.EmptyEditorGroupContext,
 			contextKeyService: this.contextKeyService,
 			getAnchor: () => anchor,
-			onHide: () => {
-				this.focus();
-			}
+			onHide: () => this.focus()
 		});
 	}
 
@@ -653,7 +646,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		/* __GDPR__
 			"editorOpened" : {
-				"owner": "bpasero",
+				"owner": "isidorn",
 				"${include}": [
 					"${EditorTelemetryDescriptor}"
 				]
@@ -687,16 +680,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				editor.dispose();
 			}
 		}
-
-		/* __GDPR__
-			"editorClosed" : {
-				"owner": "bpasero",
-				"${include}": [
-					"${EditorTelemetryDescriptor}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(editor));
 
 		// Update container
 		this.updateContainer();
@@ -741,7 +724,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		};
 	}
 
-	private toEditorTelemetryDescriptor(editor: EditorInput): object {
+	private toEditorTelemetryDescriptor(editor: EditorInput): ITelemetryData {
 		const descriptor = editor.getTelemetryDescriptor();
 
 		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
@@ -1054,7 +1037,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	findEditors(resource: URI, options?: IFindEditorOptions): EditorInput[] {
 		const canonicalResource = this.uriIdentityService.asCanonicalUri(resource);
-		return this.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
+		return this.getEditors(options?.order ?? EditorsOrder.SEQUENTIAL).filter(editor => {
 			if (editor.resource && isEqual(editor.resource, canonicalResource)) {
 				return true;
 			}
@@ -1195,7 +1178,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			sticky: options?.sticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
 			transient: !!options?.transient,
 			inactiveSelection: internalOptions?.inactiveSelection,
-			active: this.count === 0 || !options || !options.inactive,
+			active: this.count === 0 || !options?.inactive,
 			supportSideBySide: internalOptions?.supportSideBySide
 		};
 
@@ -1224,7 +1207,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// opening as active editor.
 			// If preserveFocus is enabled, we only restore but never
 			// activate the group.
-			activateGroup = !options || !options.preserveFocus;
+			activateGroup = !options?.preserveFocus;
 			restoreGroup = !activateGroup;
 		}
 
@@ -1324,7 +1307,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editorsToOpen = coalesce(editors).filter(({ editor }) => !editor.isDisposed());
 
 		// Use the first editor as active editor
-		const firstEditor = firstOrDefault(editorsToOpen);
+		const firstEditor = editorsToOpen.at(0);
 		if (!firstEditor) {
 			return;
 		}
@@ -1470,7 +1453,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const options = fillActiveEditorViewState(this, editor, {
 			...openOptions,
 			pinned: true, 																// always pin moved editor
-			sticky: openOptions?.sticky ?? (!keepCopy && this.model.isSticky(editor))	// preserve sticky state only if editor is moved or eplicitly wanted (https://github.com/microsoft/vscode/issues/99035)
+			sticky: openOptions?.sticky ?? (!keepCopy && this.model.isSticky(editor))	// preserve sticky state only if editor is moved or explicitly wanted (https://github.com/microsoft/vscode/issues/99035)
 		});
 
 		// Indicate will move event
@@ -1781,7 +1764,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (!autoSave) {
 
 			// Switch to editor that we want to handle for confirmation unless showing already
-			if (!this.activeEditor || !this.activeEditor.matches(editor)) {
+			if (!this.activeEditor?.matches(editor)) {
 				await this.doOpenEditor(editor);
 			}
 
@@ -1789,12 +1772,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			await this.hostService.focus(getWindow(this.element));
 
 			// Let editor handle confirmation if implemented
+			let handlerDidError = false;
 			if (typeof editor.closeHandler?.confirm === 'function') {
-				confirmation = await editor.closeHandler.confirm([{ editor, groupId: this.id }]);
+				try {
+					confirmation = await editor.closeHandler.confirm([{ editor, groupId: this.id }]);
+				} catch (e) {
+					this.logService.error(e);
+					handlerDidError = true;
+				}
 			}
 
-			// Show a file specific confirmation
-			else {
+			// Show a file specific confirmation if there is no handler or it errored
+			if (typeof editor.closeHandler?.confirm !== 'function' || handlerDidError) {
 				let name: string;
 				if (editor instanceof SideBySideEditorInput) {
 					name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
@@ -1814,7 +1803,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// However, we only do this unless a custom confirm handler is installed
 		// that may not be fit to be asked a second time right after.
 		if (!editor.closeHandler && !this.shouldConfirmClose(editor)) {
-			return confirmation === ConfirmResult.CANCEL ? true : false;
+			return confirmation === ConfirmResult.CANCEL;
 		}
 
 		// Otherwise, handle accordingly
@@ -1857,7 +1846,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private shouldConfirmClose(editor: EditorInput): boolean {
 		if (editor.closeHandler) {
-			return editor.closeHandler.showConfirm(); // custom handling of confirmation on close
+			try {
+				return editor.closeHandler.showConfirm(); // custom handling of confirmation on close
+			} catch (error) {
+				this.logService.error(error);
+			}
 		}
 
 		return editor.isDirty() && !editor.isSaving(); // editor must be dirty and not saving
@@ -1943,7 +1936,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeAllEditors()
 
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean> {
+	closeAllEditors(options: { excludeConfirming: true }): boolean;
+	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
+	closeAllEditors(options?: ICloseAllEditorsOptions): boolean | Promise<boolean> {
 		if (this.isEmpty) {
 
 			// If the group is empty and the request is to close all editors, we still close
@@ -1956,22 +1951,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return true;
 		}
 
-		// Apply the `excludeConfirming` filter if present
-		let editors = this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options);
+		// We can go ahead and close "sync" when we exclude confirming editors
 		if (options?.excludeConfirming) {
-			editors = editors.filter(editor => !this.shouldConfirmClose(editor));
+			this.doCloseAllEditors(options);
+			return true;
 		}
 
-		// Check for confirmation and veto
-		const veto = await this.handleCloseConfirmation(editors);
-		if (veto) {
-			return false;
-		}
+		// Otherwise go through potential confirmation "async"
+		return this.handleCloseConfirmation(this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options)).then(veto => {
+			if (veto) {
+				return false;
+			}
 
-		// Do close
-		this.doCloseAllEditors(options);
-
-		return true;
+			this.doCloseAllEditors(options);
+			return true;
+		});
 	}
 
 	private doCloseAllEditors(options?: ICloseAllEditorsOptions): void {
@@ -2091,37 +2085,33 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region Editor Actions
 
-	createEditorActions(disposables: DisposableStore): IActiveEditorActions {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-
-		let onDidChange;
+	createEditorActions(disposables: DisposableStore, menuId = MenuId.EditorTitle): IActiveEditorActions {
+		let actions: PrimaryAndSecondaryActions = { primary: [], secondary: [] };
+		let onDidChange: Event<IMenuChangeEvent | void> | undefined;
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.activeEditorPane;
 		if (activeEditorPane instanceof EditorPane) {
 			const editorScopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.scopedContextKeyService;
-			const editorTitleMenu = disposables.add(this.menuService.createMenu(MenuId.EditorTitle, editorScopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 }));
+			const editorTitleMenu = disposables.add(this.menuService.createMenu(menuId, editorScopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 }));
 			onDidChange = editorTitleMenu.onDidChange;
 
 			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
 
-			createAndFillInActionBarActions(
-				editorTitleMenu,
-				{ arg: this.resourceContext.get(), shouldForwardArgs: true },
-				{ primary, secondary },
+			actions = getActionBarActions(
+				editorTitleMenu.getActions({ arg: this.resourceContext.get(), shouldForwardArgs: true }),
 				'navigation',
 				shouldInlineGroup
 			);
 		} else {
 			// If there is no active pane in the group (it's the last group and it's empty)
 			// Trigger the change event when the active editor changes
-			const _onDidChange = disposables.add(new Emitter<void>());
-			onDidChange = _onDidChange.event;
-			disposables.add(this.onDidActiveEditorChange(() => _onDidChange.fire()));
+			const onDidChangeEmitter = disposables.add(new Emitter<void>());
+			onDidChange = onDidChangeEmitter.event;
+			disposables.add(this.onDidActiveEditorChange(() => onDidChangeEmitter.fire()));
 		}
 
-		return { actions: { primary, secondary }, onDidChange };
+		return { actions, onDidChange };
 	}
 
 	//#endregion
@@ -2159,7 +2149,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region ISerializableView
 
-	readonly element: HTMLElement = document.createElement('div');
+	readonly element: HTMLElement = $('div');
 
 	get minimumWidth(): number { return this.editorPane.minimumWidth; }
 	get minimumHeight(): number { return this.editorPane.minimumHeight; }

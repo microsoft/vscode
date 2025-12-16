@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/path';
-import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import * as glob from '../../../../base/common/glob.js';
+import { URI } from '../../../../base/common/uri.js';
+import { basename } from '../../../../base/common/path.js';
+import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from './notebookCommon.js';
+import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 
 type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 
@@ -21,6 +21,10 @@ export interface NotebookEditorDescriptor {
 	readonly providerDisplayName: string;
 }
 
+interface INotebookEditorDescriptorDto {
+	readonly _selectors: readonly NotebookSelector[];
+}
+
 export class NotebookProviderInfo {
 
 	readonly extension?: ExtensionIdentifier;
@@ -29,7 +33,7 @@ export class NotebookProviderInfo {
 	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
 
-	private _selectors: NotebookSelector[];
+	public _selectors: NotebookSelector[];
 	get selectors() {
 		return this._selectors;
 	}
@@ -45,7 +49,9 @@ export class NotebookProviderInfo {
 		this._selectors = descriptor.selectors?.map(selector => ({
 			include: selector.filenamePattern,
 			exclude: selector.excludeFileNamePattern || ''
-		})) || [];
+		}))
+			|| (descriptor as unknown as INotebookEditorDescriptorDto)._selectors
+			|| [];
 		this.priority = descriptor.priority;
 		this.providerDisplayName = descriptor.providerDisplayName;
 		this._options = {
@@ -71,15 +77,8 @@ export class NotebookProviderInfo {
 	}
 
 	static selectorMatches(selector: NotebookSelector, resource: URI): boolean {
-		if (typeof selector === 'string') {
-			// filenamePattern
-			if (glob.match(selector.toLowerCase(), basename(resource.fsPath).toLowerCase())) {
-				return true;
-			}
-		}
-
-		if (glob.isRelativePattern(selector)) {
-			if (glob.match(selector, basename(resource.fsPath).toLowerCase())) {
+		if (typeof selector === 'string' || glob.isRelativePattern(selector)) {
+			if (glob.match(selector, basename(resource.fsPath), { ignoreCase: true })) {
 				return true;
 			}
 		}
@@ -91,9 +90,9 @@ export class NotebookProviderInfo {
 		const filenamePattern = selector.include;
 		const excludeFilenamePattern = selector.exclude;
 
-		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
+		if (glob.match(filenamePattern, basename(resource.fsPath), { ignoreCase: true })) {
 			if (excludeFilenamePattern) {
-				if (glob.match(excludeFilenamePattern, basename(resource.fsPath).toLowerCase())) {
+				if (glob.match(excludeFilenamePattern, basename(resource.fsPath), { ignoreCase: true })) {
 					return false;
 				}
 			}

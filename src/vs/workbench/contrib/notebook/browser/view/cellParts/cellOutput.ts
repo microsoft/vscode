@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { Action, IAction } from 'vs/base/common/actions';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import * as nls from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellUri, IOrderedMimeType, NotebookCellExecutionState, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { COPY_OUTPUT_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
-import { TEXT_BASED_MIMETYPES } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
-import { autorun, observableValue } from 'vs/base/common/observable';
-import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { FastDomNode } from '../../../../../../base/browser/fastDomNode.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { Action } from '../../../../../../base/common/actions.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import * as nls from '../../../../../../nls.js';
+import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
+import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from '../../notebookBrowser.js';
+import { mimetypeIcon } from '../../notebookIcons.js';
+import { CellContentPart } from '../cellPart.js';
+import { CodeCellRenderTemplate } from '../notebookRenderingCommon.js';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { CellUri, IOrderedMimeType, NotebookCellExecutionState, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from '../../../common/notebookCommon.js';
+import { isTextStreamMime } from '../../../../../../base/common/mime.js';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
+import { INotebookKernel } from '../../../common/notebookKernelService.js';
+import { INotebookService } from '../../../common/notebookService.js';
+import { COPY_OUTPUT_COMMAND_ID } from '../../controller/cellOutputActions.js';
+import { autorun, observableValue } from '../../../../../../base/common/observable.js';
+import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT, NOTEBOOK_CELL_OUTPUT_MIMETYPE } from '../../../common/notebookContextKeys.js';
+import { TEXT_BASED_MIMETYPES } from '../../viewModel/cellOutputTextHelper.js';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -80,7 +79,7 @@ class CellOutputElement extends Disposable {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IContextKeyService parentContextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -196,7 +195,7 @@ class CellOutputElement extends Disposable {
 		const notebookTextModel = this.notebookEditor.textModel;
 
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel, this.notebookEditor.activeKernel?.preloadProvides);
-
+		const currentMimeType = mimeTypes[pick];
 		if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
 			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#noMimeType');
 			return undefined;
@@ -210,12 +209,12 @@ class CellOutputElement extends Disposable {
 
 		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
 		if (index === 0 || this.output.visible.get()) {
-			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, currentMimeType, mimeTypes);
 		} else {
 			this._register(autorun((reader) => {
 				const visible = reader.readObservable(this.output.visible);
 				if (visible && !this.toolbarAttached) {
-					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, currentMimeType, mimeTypes);
 				} else if (!visible) {
 					this.toolbarDisposables.clear();
 				}
@@ -294,7 +293,7 @@ class CellOutputElement extends Disposable {
 		return true;
 	}
 
-	private async _attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, mimeTypes: readonly IOrderedMimeType[]) {
+	private async _attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, currentMimeType: IOrderedMimeType, mimeTypes: readonly IOrderedMimeType[]) {
 		const hasMultipleMimeTypes = mimeTypes.filter(mimeType => mimeType.isTrusted).length > 1;
 		const isCopyEnabled = this.shouldEnableCopy(mimeTypes);
 		if (index > 0 && !hasMultipleMimeTypes && !isCopyEnabled) {
@@ -329,16 +328,14 @@ class CellOutputElement extends Disposable {
 		const menuContextKeyService = this.toolbarDisposables.add(this.contextKeyService.createScoped(outputItemDiv));
 		const hasHiddenOutputs = NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS.bindTo(menuContextKeyService);
 		const isFirstCellOutput = NOTEBOOK_CELL_IS_FIRST_OUTPUT.bindTo(menuContextKeyService);
+		const cellOutputMimetype = NOTEBOOK_CELL_OUTPUT_MIMETYPE.bindTo(menuContextKeyService);
 		isFirstCellOutput.set(index === 0);
-		this.toolbarDisposables.add(autorun((reader) => { hasHiddenOutputs.set(reader.readObservable(this.cellOutputContainer.hasHiddenOutputs)); }));
+		cellOutputMimetype.set(currentMimeType.mimeType);
+		this.toolbarDisposables.add(autorun((r) => { hasHiddenOutputs.set(this.cellOutputContainer.hasHiddenOutputs.read(r)); }));
 		const menu = this.toolbarDisposables.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
 
 		const updateMenuToolbar = () => {
-			const primary: IAction[] = [];
-			let secondary: IAction[] = [];
-			const result = { primary, secondary };
-
-			createAndFillInActionBarActions(menu!, { shouldForwardArgs: true }, result, () => false);
+			let { secondary } = getActionBarActions(menu!.getActions({ shouldForwardArgs: true }), () => false);
 			if (!isCopyEnabled) {
 				secondary = secondary.filter((action) => action.id !== COPY_OUTPUT_COMMAND_ID);
 			}
@@ -381,7 +378,8 @@ class CellOutputElement extends Disposable {
 			});
 		}
 
-		const picker = this.quickInputService.createQuickPick();
+		const disposables = new DisposableStore();
+		const picker = disposables.add(this.quickInputService.createQuickPick({ useSeparators: true }));
 		picker.items = [
 			...items,
 			{ type: 'separator' },
@@ -393,10 +391,10 @@ class CellOutputElement extends Disposable {
 			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
 
 		const pick = await new Promise<IMimeTypeRenderer | undefined>(resolve => {
-			picker.onDidAccept(() => {
+			disposables.add(picker.onDidAccept(() => {
 				resolve(picker.selectedItems.length === 1 ? (picker.selectedItems[0] as IMimeTypeRenderer) : undefined);
-				picker.dispose();
-			});
+				disposables.dispose();
+			}));
 			picker.show();
 		});
 
@@ -429,9 +427,7 @@ class CellOutputElement extends Disposable {
 	}
 
 	private async _showJupyterExtension() {
-		const viewlet = await this.paneCompositeService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-		view?.search(`@id:${JUPYTER_EXTENSION_ID}`);
+		await this.extensionsWorkbenchService.openSearch(`@id:${JUPYTER_EXTENSION_ID}`);
 	}
 
 	private _generateRendererInfo(renderId: string): string {
@@ -445,7 +441,7 @@ class CellOutputElement extends Disposable {
 		return nls.localize('unavailableRenderInfo', "renderer not available");
 	}
 
-	private _outputHeightTimer: any = null;
+	private _outputHeightTimer: Timeout | null = null;
 
 	private _validateFinalOutputHeight(synchronous: boolean) {
 		if (this._outputHeightTimer !== null) {
@@ -495,7 +491,7 @@ export class CellOutputContainer extends CellContentPart {
 
 	hasHiddenOutputs = observableValue<boolean>('hasHiddenOutputs', false);
 	checkForHiddenOutputs() {
-		if (this._outputEntries.find(entry => { return entry.model.visible; })) {
+		if (this._outputEntries.find(entry => { return !entry.model.visible.get(); })) {
 			this.hasHiddenOutputs.set(true, undefined);
 		} else {
 			this.hasHiddenOutputs.set(false, undefined);
@@ -626,7 +622,7 @@ export class CellOutputContainer extends CellContentPart {
 		}
 	}
 
-	private _outputHeightTimer: any = null;
+	private _outputHeightTimer: Timeout | null = null;
 
 	private _validateFinalOutputHeight(synchronous: boolean) {
 		if (this._outputHeightTimer !== null) {
@@ -773,19 +769,13 @@ export class CellOutputContainer extends CellContentPart {
 			supportThemeIcons: true
 		};
 
-		const rendered = renderMarkdown(md, {
-			actionHandler: {
-				callback: (content) => {
-					if (content === 'command:workbench.action.openLargeOutput') {
-						this.openerService.open(CellUri.generateCellOutputUri(this.notebookEditor.textModel!.uri));
-					}
-
-					return;
-				},
-				disposables
-			}
-		});
-		disposables.add(rendered);
+		const rendered = disposables.add(renderMarkdown(md, {
+			actionHandler: (content) => {
+				if (content === 'command:workbench.action.openLargeOutput') {
+					this.openerService.open(CellUri.generateCellOutputUriWithId(this.notebookEditor.textModel!.uri));
+				}
+			},
+		}));
 
 		rendered.element.classList.add('output-show-more');
 		return rendered.element;

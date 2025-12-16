@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { Event } from '../../../../../base/common/event.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ITerminalChildProcess, type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
+import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;
@@ -26,9 +26,9 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 		throw new Error('Method not implemented.');
 	}
 
-	onProcessOverrideDimensions?: Event<any> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
-	onDidChangeHasChildProcesses?: Event<any> | undefined;
+	readonly onProcessOverrideDimensions?: Event<any> | undefined;
+	readonly onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
+	readonly onDidChangeHasChildProcesses?: Event<any> | undefined;
 
 	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;
@@ -39,6 +39,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	async start(): Promise<undefined> { return undefined; }
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }
+	sendSignal(signal: string): void { }
 	resize(cols: number, rows: number): void { }
 	clearBuffer(): void { }
 	acknowledgeDataEvent(charCount: number): void { }
@@ -50,7 +51,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 }
 
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
-	getBackend() {
+	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
 			onPtyHostUnresponsive: Event.None,
@@ -69,7 +70,7 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 				shouldPersist: boolean
 			) => new TestTerminalChildProcess(shouldPersist),
 			getLatency: () => Promise.resolve([])
-		} as any;
+		} as unknown as ITerminalBackend;
 	}
 }
 
@@ -93,8 +94,9 @@ suite('Workbench - TerminalProcessManager', () => {
 		});
 		configurationService.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: () => true,
-		} as any);
+		} satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
+		instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
 
 		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));
 	});

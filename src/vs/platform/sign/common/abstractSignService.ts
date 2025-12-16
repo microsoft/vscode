@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMessage, ISignService } from 'vs/platform/sign/common/sign';
+import { IMessage, ISignService } from './sign.js';
 
 export interface IVsdaSigner {
 	sign(arg: string): string;

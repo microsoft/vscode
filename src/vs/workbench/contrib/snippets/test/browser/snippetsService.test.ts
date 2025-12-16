@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SnippetCompletion, SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from 'vs/editor/common/languages';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
-import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
-import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
-import { EditorOptions } from 'vs/editor/common/config/editorOptions';
+import { SnippetCompletion, SnippetCompletionProvider } from '../../browser/snippetCompletionProvider.js';
+import { IPosition, Position } from '../../../../../editor/common/core/position.js';
+import { createModelServices, instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { ISnippetsService } from '../../browser/snippets.js';
+import { Snippet, SnippetSource } from '../../browser/snippetsFile.js';
+import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { TestLanguageConfigurationService } from '../../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { CompletionModel } from '../../../../../editor/contrib/suggest/browser/completionModel.js';
+import { CompletionItem } from '../../../../../editor/contrib/suggest/browser/suggest.js';
+import { WordDistance } from '../../../../../editor/contrib/suggest/browser/wordDistance.js';
+import { EditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
@@ -154,7 +154,7 @@ suite('SnippetsService', function () {
 				label: 'bar',
 				description: 'barTest'
 			});
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
+			assert.strictEqual((result.suggestions[0].range as CompletionItemRanges).insert.startColumn, 1);
 			assert.strictEqual(result.suggestions[0].insertText, 'barCodeSnippet');
 		});
 
@@ -164,7 +164,7 @@ suite('SnippetsService', function () {
 			label: 'bar',
 			description: 'barTest'
 		});
-		assert.strictEqual((completions.items[0].completion.range as any).insert.startColumn, 1);
+		assert.strictEqual((completions.items[0].completion.range as CompletionItemRanges).insert.startColumn, 1);
 		assert.strictEqual(completions.items[0].completion.insertText, 'barCodeSnippet');
 	});
 
@@ -279,13 +279,13 @@ suite('SnippetsService', function () {
 					description: 'barTest'
 				});
 				assert.strictEqual(result.suggestions[0].insertText, 's1');
-				assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 5);
+				assert.strictEqual((result.suggestions[0].range as CompletionItemRanges).insert.startColumn, 5);
 				assert.deepStrictEqual(result.suggestions[1].label, {
 					label: 'bar-bar',
 					description: 'name'
 				});
 				assert.strictEqual(result.suggestions[1].insertText, 's2');
-				assert.strictEqual((result.suggestions[1].range as any).insert.startColumn, 1);
+				assert.strictEqual((result.suggestions[1].range as CompletionItemRanges).insert.startColumn, 1);
 			});
 
 			const completions = await asCompletionModel(model, new Position(1, 6), provider);
@@ -295,13 +295,13 @@ suite('SnippetsService', function () {
 				description: 'name'
 			});
 			assert.strictEqual(completions.items[0].completion.insertText, 's2');
-			assert.strictEqual((completions.items[0].completion.range as any).insert.startColumn, 1);
+			assert.strictEqual((completions.items[0].completion.range as CompletionItemRanges).insert.startColumn, 1);
 			assert.deepStrictEqual(completions.items[1].completion.label, {
 				label: 'bar',
 				description: 'barTest'
 			});
 			assert.strictEqual(completions.items[1].completion.insertText, 's1');
-			assert.strictEqual((completions.items[1].completion.range as any).insert.startColumn, 5);
+			assert.strictEqual((completions.items[1].completion.range as CompletionItemRanges).insert.startColumn, 5);
 		}
 	});
 
@@ -331,21 +331,21 @@ suite('SnippetsService', function () {
 		model = instantiateTextModel(instantiationService, '\t<?', 'fooLang');
 		await provider.provideCompletionItems(model, new Position(1, 4), defaultCompletionContext).then(result => {
 			assert.strictEqual(result.suggestions.length, 1);
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 2);
+			assert.strictEqual((result.suggestions[0].range as CompletionItemRanges).insert.startColumn, 2);
 		});
 		const completions2 = await asCompletionModel(model, new Position(1, 4), provider);
 		assert.strictEqual(completions2.items.length, 1);
-		assert.strictEqual((completions2.items[0].completion.range as any).insert.startColumn, 2);
+		assert.strictEqual((completions2.items[0].completion.range as CompletionItemRanges).insert.startColumn, 2);
 
 		model.dispose();
 		model = instantiateTextModel(instantiationService, 'a<?', 'fooLang');
 		await provider.provideCompletionItems(model, new Position(1, 4), defaultCompletionContext)!.then(result => {
 			assert.strictEqual(result.suggestions.length, 1);
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 2);
+			assert.strictEqual((result.suggestions[0].range as CompletionItemRanges).insert.startColumn, 2);
 		});
 		const completions3 = await asCompletionModel(model, new Position(1, 4), provider);
 		assert.strictEqual(completions3.items.length, 1);
-		assert.strictEqual((completions3.items[0].completion.range as any).insert.startColumn, 2);
+		assert.strictEqual((completions3.items[0].completion.range as CompletionItemRanges).insert.startColumn, 2);
 		model.dispose();
 	});
 
@@ -646,7 +646,7 @@ suite('SnippetsService', function () {
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), defaultCompletionContext)!;
 		assert.strictEqual(result.suggestions.length, 1);
 		let [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.startColumn, 2);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.startColumn, 2);
 
 		let completions = await asCompletionModel(model, new Position(1, 3), provider);
 		assert.strictEqual(completions.items.length, 1);
@@ -659,7 +659,7 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.startColumn, 1);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.startColumn, 1);
 		assert.strictEqual(completions.items.length, 1);
 		assert.strictEqual(completions.items[0].editStart.column, 1);
 
@@ -686,8 +686,8 @@ suite('SnippetsService', function () {
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), defaultCompletionContext)!;
 		assert.strictEqual(result.suggestions.length, 1);
 		let [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 3);
-		assert.strictEqual((first.range as any).replace.endColumn, 9);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.endColumn, 3);
+		assert.strictEqual((first.range as CompletionItemRanges).replace.endColumn, 9);
 
 		let completions = await asCompletionModel(model, new Position(1, 3), provider);
 		assert.strictEqual(completions.items.length, 1);
@@ -700,8 +700,8 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 3);
-		assert.strictEqual((first.range as any).replace.endColumn, 3);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.endColumn, 3);
+		assert.strictEqual((first.range as CompletionItemRanges).replace.endColumn, 3);
 
 		completions = await asCompletionModel(model, new Position(1, 3), provider);
 		assert.strictEqual(completions.items.length, 1);
@@ -714,8 +714,8 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 1);
-		assert.strictEqual((first.range as any).replace.endColumn, 9);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.endColumn, 1);
+		assert.strictEqual((first.range as CompletionItemRanges).replace.endColumn, 9);
 
 		completions = await asCompletionModel(model, new Position(1, 1), provider);
 		assert.strictEqual(completions.items.length, 1);
@@ -747,8 +747,8 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		const [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 9);
-		assert.strictEqual((first.range as any).replace.endColumn, 9);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.endColumn, 9);
+		assert.strictEqual((first.range as CompletionItemRanges).replace.endColumn, 9);
 
 		assert.strictEqual(completions.items.length, 1);
 		assert.strictEqual(completions.items[0].editInsertEnd.column, 9);
@@ -787,9 +787,9 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		const [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 5);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.endColumn, 5);
 		// This is 6 because it should eat the `]` at the end of the text even if cursor is before it
-		assert.strictEqual((first.range as any).replace.endColumn, 6);
+		assert.strictEqual((first.range as CompletionItemRanges).replace.endColumn, 6);
 
 		assert.strictEqual(completions.items.length, 1);
 		assert.strictEqual(completions.items[0].editInsertEnd.column, 5);

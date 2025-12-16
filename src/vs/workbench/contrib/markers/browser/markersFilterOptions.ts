@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFilter, matchesFuzzy, matchesFuzzy2 } from 'vs/base/common/filters';
-import { IExpression, splitGlobAware, getEmptyExpression, ParsedExpression, parse } from 'vs/base/common/glob';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { relativePath } from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IFilter, matchesFuzzy, matchesFuzzy2 } from '../../../../base/common/filters.js';
+import { IExpression, splitGlobAware, getEmptyExpression, ParsedExpression, parse } from '../../../../base/common/glob.js';
+import * as strings from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { relativePath } from '../../../../base/common/resources.js';
+import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+
+const SOURCE_FILTER_REGEX = /(!)?@source:("[^"]*"|[^\s,]+)(\s*)/i;
 
 export class ResourceGlobMatcher {
 
@@ -52,6 +54,9 @@ export class FilterOptions {
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
 
+	readonly includeSourceFilters: string[];
+	readonly excludeSourceFilters: string[];
+
 	static EMPTY(uriIdentityService: IUriIdentityService) { return new FilterOptions('', [], false, false, false, uriIdentityService); }
 
 	constructor(
@@ -79,6 +84,27 @@ export class FilterOptions {
 			}
 		}
 
+		const includeSourceFilters: string[] = [];
+		const excludeSourceFilters: string[] = [];
+		let sourceMatch;
+		while ((sourceMatch = SOURCE_FILTER_REGEX.exec(filter)) !== null) {
+			const negate = !!sourceMatch[1];
+			let source = sourceMatch[2];
+			// Remove quotes if present
+			if (source.startsWith('"') && source.endsWith('"')) {
+				source = source.slice(1, -1);
+			}
+			if (negate) {
+				excludeSourceFilters.push(source.toLowerCase());
+			} else {
+				includeSourceFilters.push(source.toLowerCase());
+			}
+			// Remove the entire match (including trailing whitespace)
+			filter = (filter.substring(0, sourceMatch.index) + filter.substring(sourceMatch.index + sourceMatch[0].length)).trim();
+		}
+		this.includeSourceFilters = includeSourceFilters;
+		this.excludeSourceFilters = excludeSourceFilters;
+
 		const negate = filter.startsWith('!');
 		this.textFilter = { text: (negate ? strings.ltrim(filter, '!') : filter).trim(), negate };
 		const includeExpression: IExpression = getEmptyExpression();
@@ -99,6 +125,26 @@ export class FilterOptions {
 
 		this.excludesMatcher = new ResourceGlobMatcher(excludesExpression, filesExcludeByRoot, uriIdentityService);
 		this.includesMatcher = new ResourceGlobMatcher(includeExpression, [], uriIdentityService);
+	}
+
+	matchesSourceFilters(markerSource: string | undefined): boolean {
+		if (this.includeSourceFilters.length === 0 && this.excludeSourceFilters.length === 0) {
+			return true;
+		}
+
+		const source = markerSource?.toLowerCase();
+
+		// Check negative filters first - if any match, exclude
+		if (source && this.excludeSourceFilters.includes(source)) {
+			return false;
+		}
+
+		// If there are positive filters, check if any match
+		if (this.includeSourceFilters.length > 0) {
+			return source ? this.includeSourceFilters.includes(source) : false;
+		}
+
+		return true;
 	}
 
 	private setPattern(expression: IExpression, pattern: string) {

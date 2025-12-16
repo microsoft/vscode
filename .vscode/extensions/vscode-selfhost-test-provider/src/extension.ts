@@ -45,7 +45,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.tests.registerTestFollowupProvider({
 		async provideFollowup(_result, test, taskIndex, messageIndex, _token) {
 			return [{
-				title: '$(sparkle) Fix with Copilot',
+				title: '$(sparkle) Fix',
 				command: 'github.copilot.tests.fixTestFailure',
 				arguments: [{ source: 'peekFollowup', test, message: test.taskStates[taskIndex].messages[messageIndex] }]
 			}];
@@ -86,10 +86,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			}, uri => ctrl.items.get(uri.toString().toLowerCase()));
 		ctrl.relatedCodeProvider = graph;
 
-		context.subscriptions.push(
-			new FailureTracker(context, folder.uri.fsPath),
-			fileChangedEmitter.event(e => graph.didChange(e.uri, e.removed)),
-		);
+		if (context.storageUri) {
+			context.subscriptions.push(new FailureTracker(context.storageUri.fsPath, folder.uri.fsPath));
+		}
+
+		context.subscriptions.push(fileChangedEmitter.event(e => graph.didChange(e.uri, e.removed)));
 	});
 
 	const createRunHandler = (

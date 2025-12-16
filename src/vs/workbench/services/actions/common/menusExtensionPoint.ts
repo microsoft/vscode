@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import * as resources from 'vs/base/common/resources';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { index } from 'vs/base/common/arrays';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData, Extensions as ExtensionFeaturesExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { IExtensionManifest, IKeyBinding } from 'vs/platform/extensions/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { platform } from 'vs/base/common/process';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
+import { localize } from '../../../../nls.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import * as resources from '../../../../base/common/resources.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from '../../../../platform/actions/common/actions.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { index } from '../../../../base/common/arrays.js';
+import { isProposedApiEnabled } from '../../extensions/common/extensions.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData, Extensions as ExtensionFeaturesExtensions } from '../../extensionManagement/common/extensionFeatures.js';
+import { IExtensionManifest, IKeyBinding } from '../../../../platform/extensions/common/extensions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { platform } from '../../../../base/common/process.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ApiProposalName } from '../../../../platform/extensions/common/extensionsApiProposals.js';
 
 interface IAPIMenu {
 	readonly key: string;
@@ -106,9 +106,20 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugVariablesContext', "The debug variables view context menu")
 	},
 	{
+		key: 'debug/watch/context',
+		id: MenuId.DebugWatchContext,
+		description: localize('menus.debugWatchContext', "The debug watch view context menu")
+	},
+	{
 		key: 'debug/toolBar',
 		id: MenuId.DebugToolBar,
 		description: localize('menus.debugToolBar', "The debug toolbar menu")
+	},
+	{
+		key: 'debug/createConfiguration',
+		id: MenuId.DebugCreateConfiguration,
+		proposed: 'contribDebugCreateConfiguration',
+		description: localize('menus.debugCreateConfiguation', "The debug create configuration menu")
 	},
 	{
 		key: 'notebook/variables/context',
@@ -138,10 +149,15 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.scmSourceControl', "The Source Control menu")
 	},
 	{
-		key: 'scm/sourceControl/title',
+		key: 'scm/repositories/title',
 		id: MenuId.SCMSourceControlTitle,
-		description: localize('menus.scmSourceControlTitle', "The Source Control title menu"),
+		description: localize('menus.scmSourceControlTitle', "The Source Control Repositories title menu"),
 		proposed: 'contribSourceControlTitleMenu'
+	},
+	{
+		key: 'scm/repository',
+		id: MenuId.SCMSourceControlInline,
+		description: localize('menus.scmSourceControlInline', "The Source Control repository menu"),
 	},
 	{
 		key: 'scm/resourceState/context',
@@ -170,64 +186,34 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlInputBoxMenu'
 	},
 	{
-		key: 'scm/historyItemChanges/title',
-		id: MenuId.SCMChangesSeparator,
-		description: localize('menus.historyItemChanges', "The Source Control incoming/outgoing changes title menu"),
-		proposed: 'contribSourceControlHistoryItemChangesMenu'
+		key: 'scm/history/title',
+		id: MenuId.SCMHistoryTitle,
+		description: localize('menus.scmHistoryTitle', "The Source Control History title menu"),
+		proposed: 'contribSourceControlHistoryTitleMenu'
 	},
 	{
 		key: 'scm/historyItem/context',
-		id: MenuId.SCMChangesContext,
+		id: MenuId.SCMHistoryItemContext,
 		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
-		proposed: 'contribSourceControlHistoryItemChangesMenu'
-	},
-	{
-		key: 'scm/incomingChanges',
-		id: MenuId.SCMIncomingChanges,
-		description: localize('menus.incomingChanges', "The Source Control incoming changes menu"),
-		proposed: 'contribSourceControlHistoryItemGroupMenu'
-	},
-	{
-		key: 'scm/incomingChanges/context',
-		id: MenuId.SCMIncomingChangesContext,
-		description: localize('menus.incomingChangesContext', "The Source Control incoming changes context menu"),
-		proposed: 'contribSourceControlHistoryItemGroupMenu'
-	},
-	{
-		key: 'scm/outgoingChanges',
-		id: MenuId.SCMOutgoingChanges,
-		description: localize('menus.outgoingChanges', "The Source Control outgoing changes menu"),
-		proposed: 'contribSourceControlHistoryItemGroupMenu'
-	},
-	{
-		key: 'scm/outgoingChanges/context',
-		id: MenuId.SCMOutgoingChangesContext,
-		description: localize('menus.outgoingChangesContext', "The Source Control outgoing changes context menu"),
-		proposed: 'contribSourceControlHistoryItemGroupMenu'
-	},
-	{
-		key: 'scm/incomingChanges/allChanges/context',
-		id: MenuId.SCMIncomingChangesAllChangesContext,
-		description: localize('menus.incomingChangesAllChangesContext', "The Source Control all incoming changes context menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
 	},
 	{
-		key: 'scm/incomingChanges/historyItem/context',
-		id: MenuId.SCMIncomingChangesHistoryItemContext,
-		description: localize('menus.incomingChangesHistoryItemContext', "The Source Control incoming changes history item context menu"),
+		key: 'scm/historyItemRef/context',
+		id: MenuId.SCMHistoryItemRefContext,
+		description: localize('menus.historyItemRefContext', "The Source Control history item reference context menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
 	},
 	{
-		key: 'scm/outgoingChanges/allChanges/context',
-		id: MenuId.SCMOutgoingChangesAllChangesContext,
-		description: localize('menus.outgoingChangesAllChangesContext', "The Source Control all outgoing changes context menu"),
-		proposed: 'contribSourceControlHistoryItemMenu'
+		key: 'scm/artifactGroup/context',
+		id: MenuId.SCMArtifactGroupContext,
+		description: localize('menus.artifactGroupContext', "The Source Control artifact group context menu"),
+		proposed: 'contribSourceControlArtifactGroupMenu'
 	},
 	{
-		key: 'scm/outgoingChanges/historyItem/context',
-		id: MenuId.SCMOutgoingChangesHistoryItemContext,
-		description: localize('menus.outgoingChangesHistoryItemContext', "The Source Control outgoing changes history item context menu"),
-		proposed: 'contribSourceControlHistoryItemMenu'
+		key: 'scm/artifact/context',
+		id: MenuId.SCMArtifactContext,
+		description: localize('menus.artifactContext', "The Source Control artifact context menu"),
+		proposed: 'contribSourceControlArtifactMenu'
 	},
 	{
 		key: 'statusBar/remoteIndicator',
@@ -282,7 +268,7 @@ const apiMenus: IAPIMenu[] = [
 		key: 'comments/commentThread/additionalActions',
 		id: MenuId.CommentThreadAdditionalActions,
 		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
-		supportsSubmenus: false,
+		supportsSubmenus: true,
 		proposed: 'contribCommentThreadAdditionalMenu'
 	},
 	{
@@ -348,8 +334,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'issue/reporter',
 		id: MenuId.IssueReporter,
-		description: localize('issue.reporter', "The contributed issue reporter menu"),
-		proposed: 'contribIssueReporter'
+		description: localize('issue.reporter', "The contributed issue reporter menu")
 	},
 	{
 		key: 'testing/item/context',
@@ -436,13 +421,6 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'inlineCompletionsAdditions'
 	},
 	{
-		key: 'editor/inlineEdit/actions',
-		id: MenuId.InlineEditActions,
-		description: localize('inlineEdit.actions', "The actions shown when hovering on an inline edit"),
-		supportsSubmenus: false,
-		proposed: 'inlineEdit'
-	},
-	{
 		key: 'editor/content',
 		id: MenuId.EditorContent,
 		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
@@ -458,6 +436,12 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.MergeInputResultToolbar,
 		description: localize('menus.mergeEditorResult', "The result toolbar of the merge editor"),
 		proposed: 'contribMergeEditorMenus'
+	},
+	{
+		key: 'multiDiffEditor/content',
+		id: MenuId.MultiDiffEditorContent,
+		description: localize('menus.multiDiffEditorContent', "A prominent button overlaying the multi diff editor"),
+		proposed: 'contribEditorContentMenu'
 	},
 	{
 		key: 'multiDiffEditor/resource/title',
@@ -476,7 +460,47 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.DiffEditorSelectionToolbar,
 		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
 		proposed: 'contribDiffEditorGutterToolBarMenus'
-	}
+	},
+	{
+		key: 'searchPanel/aiResults/commands',
+		id: MenuId.SearchActionMenu,
+		description: localize('searchPanel.aiResultsCommands', "The commands that will contribute to the menu rendered as buttons next to the AI search title"),
+	},
+	{
+		key: 'editor/context/chat',
+		id: MenuId.ChatTextEditorMenu,
+		description: localize('menus.chatTextEditor', "The Chat submenu in the text editor context menu."),
+		supportsSubmenus: false,
+		proposed: 'chatParticipantPrivate'
+	},
+	{
+		key: 'chat/input/editing/sessionToolbar',
+		id: MenuId.ChatEditingSessionChangesToolbar,
+		description: localize('menus.chatEditingSessionChangesToolbar', "The Chat Editing widget toolbar menu for session changes."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		// TODO: rename this to something like: `chatSessions/item/inline`
+		key: 'chat/chatSessions',
+		id: MenuId.AgentSessionsContext,
+		description: localize('menus.chatSessions', "The Chat Sessions menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chatSessions/newSession',
+		id: MenuId.AgentSessionsCreateSubMenu,
+		description: localize('menus.chatSessionsNewSession', "Menu for new chat sessions."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chat/multiDiff/context',
+		id: MenuId.ChatMultiDiffContext,
+		description: localize('menus.chatMultiDiffContext', "The Chat Multi-Diff context menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider',
+	},
 ];
 
 namespace schema {
@@ -638,7 +662,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize({ key: 'vscode.extension.contributes.submenu.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.submenu.icon', comment: ['do not translate or change "\\$(zap)", \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like "\\$(zap)"'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -774,7 +798,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change "\\$(zap)", \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like "\\$(zap)"'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -812,10 +836,10 @@ const _commandRegistrations = new DisposableStore();
 export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
 	extensionPoint: 'commands',
 	jsonSchema: schema.commandsContribution,
-	activationEventsGenerator: (contribs: schema.IUserFriendlyCommand[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly schema.IUserFriendlyCommand[]) {
 		for (const contrib of contribs) {
 			if (contrib.command) {
-				result.push(`onCommand:${contrib.command}`);
+				yield `onCommand:${contrib.command}`;
 			}
 		}
 	}
@@ -823,7 +847,7 @@ export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<
 
 commandsExtensionPoint.setHandler(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<unknown>) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;
@@ -1085,12 +1109,36 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 		const menus = manifest.contributes?.menus || {};
 
+		// Add to commandPalette array any commands not explicitly contributed to it
+		const implicitlyOnCommandPalette = index(commands, c => c.id);
+		if (menus['commandPalette']) {
+			for (const command of menus['commandPalette']) {
+				delete implicitlyOnCommandPalette[command.command];
+			}
+		}
+
+		if (Object.keys(implicitlyOnCommandPalette).length) {
+			if (!menus['commandPalette']) {
+				menus['commandPalette'] = [];
+			}
+			for (const command in implicitlyOnCommandPalette) {
+				menus['commandPalette'].push({ command });
+			}
+		}
+
 		for (const context in menus) {
 			for (const menu of menus[context]) {
+
+				// This typically happens for the commandPalette context
+				if (menu.when === 'false') {
+					continue;
+				}
 				if (menu.command) {
 					let command = byId[menu.command];
 					if (command) {
-						command.menus.push(context);
+						if (!command.menus.includes(context)) {
+							command.menus.push(context);
+						}
 					} else {
 						command = { id: menu.command, title: '', keybindings: [], menus: [context] };
 						byId[command.id] = command;
@@ -1137,7 +1185,7 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 					new MarkdownString().appendMarkdown(`\`${command.id}\``),
 					typeof command.title === 'string' ? command.title : command.title.value,
 					command.keybindings,
-					new MarkdownString().appendMarkdown(`${command.menus.map(menu => `\`${menu}\``).join('&nbsp;')}`),
+					new MarkdownString().appendMarkdown(`${command.menus.sort((a, b) => a.localeCompare(b)).map(menu => `\`${menu}\``).join('&nbsp;')}`),
 				];
 			});
 

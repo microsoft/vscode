@@ -12,7 +12,7 @@ build/node_modules
 coverage/
 test_data/
 test-results/
-yarn-error.log
+test-results.xml
 vscode.lsif
 vscode.db
 /.profile-oss
@@ -20,4 +20,6 @@ vscode.db
 /cli/openssl
 product.overrides.json
 *.snap.actual
+*.tsbuildinfo
 .vscode-test
+vscode-telemetry-docs/

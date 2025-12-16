@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { flakySuite } from 'vs/base/test/node/testUtils';
-import { IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, ISearchEngine, ISearchEngineStats, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isSerializedSearchComplete, isSerializedSearchSuccess, QueryType } from 'vs/workbench/services/search/common/search';
-import { IProgressCallback, SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
+import { CancelablePromise, createCancelablePromise } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../../../base/common/network.js';
+import * as path from '../../../../../base/common/path.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { flakySuite } from '../../../../../base/test/node/testUtils.js';
+import { IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, ISearchEngine, ISearchEngineStats, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isSerializedSearchComplete, isSerializedSearchSuccess, QueryType } from '../../common/search.js';
+import { IProgressCallback, SearchService as RawSearchService } from '../../node/rawSearchService.js';
 
 const TEST_FOLDER_QUERIES = [
 	{ folder: URI.file(path.normalize('/some/where')) }

@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { mockObject } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellUri, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mockObject } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IProgress } from '../../../../../platform/progress/common/progress.js';
+import { UndoRedoGroup, UndoRedoSource } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { BulkCellEdits, ResourceNotebookCellEdit } from '../../browser/bulkCellEdits.js';
+import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
+import { CellEditType, CellUri, IResolvedNotebookEditorModel } from '../../../notebook/common/notebookCommon.js';
+import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
+import { TestEditorService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('BulkCellEdits', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,6 +26,7 @@ suite('BulkCellEdits', function () {
 		const notebook = mockObject<NotebookTextModel>()();
 		notebook.uri.returns(URI.file('/project/notebook.ipynb'));
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const notebookEditorModel = mockObject<IResolvedNotebookEditorModel>()({ notebook: notebook as any });
 		notebookEditorModel.isReadonly.returns(false);
 
@@ -35,6 +36,7 @@ suite('BulkCellEdits', function () {
 		const edits = [
 			new ResourceNotebookCellEdit(inputUri, { index: 0, count: 1, editType: CellEditType.Replace, cells: [] })
 		];
+		// eslint-disable-next-line local/code-no-any-casts
 		const bce = new BulkCellEdits(new UndoRedoGroup(), new UndoRedoSource(), progress, CancellationToken.None, edits, editorService, notebookService as any);
 		await bce.apply();
 

@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ParseError, parse, getNodeType } from 'vs/base/common/json';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as types from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { hash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
+import * as nls from '../../../../nls.js';
+import { ParseError, parse, getNodeType } from '../../../../base/common/json.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import * as types from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from '../../../../editor/common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { Extensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { hash } from '../../../../base/common/hash.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 interface IRegExp {
 	pattern: string;
@@ -161,11 +161,22 @@ export class LanguageConfigurationFileHandler extends Disposable {
 
 		let result: CommentRule | undefined = undefined;
 		if (typeof source.lineComment !== 'undefined') {
-			if (typeof source.lineComment !== 'string') {
-				console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment\` to be a string.`);
-			} else {
+			if (typeof source.lineComment === 'string') {
 				result = result || {};
 				result.lineComment = source.lineComment;
+			} else if (types.isObject(source.lineComment)) {
+				const lineCommentObj = source.lineComment;
+				if (typeof lineCommentObj.comment === 'string') {
+					result = result || {};
+					result.lineComment = {
+						comment: lineCommentObj.comment,
+						noIndent: lineCommentObj.noIndent
+					};
+				} else {
+					console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment.comment\` to be a string.`);
+				}
+			} else {
+				console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment\` to be a string or an object with comment property.`);
 			}
 		}
 		if (typeof source.blockComment !== 'undefined') {
@@ -519,7 +530,7 @@ const schema: IJSONSchema = {
 		comments: {
 			default: {
 				blockComment: ['/*', '*/'],
-				lineComment: '//'
+				lineComment: { comment: '//', noIndent: false }
 			},
 			description: nls.localize('schema.comments', 'Defines the comment symbols'),
 			type: 'object',
@@ -536,8 +547,21 @@ const schema: IJSONSchema = {
 					}]
 				},
 				lineComment: {
-					type: 'string',
-					description: nls.localize('schema.lineComment', 'The character sequence that starts a line comment.')
+					type: 'object',
+					description: nls.localize('schema.lineComment.object', 'Configuration for line comments.'),
+					properties: {
+						comment: {
+							type: 'string',
+							description: nls.localize('schema.lineComment.comment', 'The character sequence that starts a line comment.')
+						},
+						noIndent: {
+							type: 'boolean',
+							description: nls.localize('schema.lineComment.noIndent', 'Whether the comment token should not be indented and placed at the first column. Defaults to false.'),
+							default: false
+						}
+					},
+					required: ['comment'],
+					additionalProperties: false
 				}
 			}
 		},

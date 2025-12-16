@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, equals as arrayEquals } from 'vs/base/common/arrays';
-import { Queue, RunOnceScheduler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { JSONPath, ParseError, parse } from 'vs/base/common/json';
-import { applyEdits, setProperty } from 'vs/base/common/jsonEdit';
-import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { equals } from 'vs/base/common/objects';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, isConfigurationOverrides, isConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationChangeEvent, ConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
-import { keyFromOverrideIdentifiers } from 'vs/platform/configuration/common/configurationRegistry';
-import { DefaultConfiguration, IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
+import { distinct, equals as arrayEquals } from '../../../base/common/arrays.js';
+import { Queue, RunOnceScheduler } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { JSONPath, ParseError, parse } from '../../../base/common/json.js';
+import { applyEdits, setProperty } from '../../../base/common/jsonEdit.js';
+import { Edit, FormattingOptions } from '../../../base/common/jsonFormatter.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { equals } from '../../../base/common/objects.js';
+import { OS, OperatingSystem } from '../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, isConfigurationOverrides, isConfigurationUpdateOverrides } from './configuration.js';
+import { Configuration, ConfigurationChangeEvent, ConfigurationModel, UserSettings } from './configurationModels.js';
+import { keyFromOverrideIdentifiers } from './configurationRegistry.js';
+import { DefaultConfiguration, IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from './configurations.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { IPolicyService, NullPolicyService } from '../../policy/common/policy.js';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
@@ -93,21 +93,21 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	getValue<T>(section: string): T;
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
-	getValue(arg1?: any, arg2?: any): any {
+	getValue(arg1?: unknown, arg2?: unknown): unknown {
 		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
 		return this.configuration.getValue(section, overrides, undefined);
 	}
 
-	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
-	async updateValue(key: string, value: any, arg3?: any, arg4?: any, options?: any): Promise<void> {
+	updateValue(key: string, value: unknown): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
+	updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
+	async updateValue(key: string, value: unknown, arg3?: unknown, arg4?: unknown, options?: IConfigurationUpdateOptions): Promise<void> {
 		const overrides: IConfigurationUpdateOverrides | undefined = isConfigurationUpdateOverrides(arg3) ? arg3
 			: isConfigurationOverrides(arg3) ? { resource: arg3.resource, overrideIdentifiers: arg3.overrideIdentifier ? [arg3.overrideIdentifier] : undefined } : undefined;
 
-		const target: ConfigurationTarget | undefined = overrides ? arg4 : arg3;
+		const target: ConfigurationTarget | undefined = (overrides ? arg4 : arg3) as ConfigurationTarget | undefined;
 		if (target !== undefined) {
 			if (target !== ConfigurationTarget.USER_LOCAL && target !== ConfigurationTarget.USER) {
 				throw new Error(`Unable to write ${key} to target ${target}.`);
@@ -149,6 +149,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 	keys(): {
 		default: string[];
+		policy: string[];
 		user: string[];
 		workspace: string[];
 		workspaceFolder: string[];
@@ -198,11 +199,11 @@ class ConfigurationEditing {
 		this.queue = new Queue<void>();
 	}
 
-	write(path: JSONPath, value: any): Promise<void> {
+	write(path: JSONPath, value: unknown): Promise<void> {
 		return this.queue.queue(() => this.doWriteConfiguration(path, value)); // queue up writes to prevent race conditions
 	}
 
-	private async doWriteConfiguration(path: JSONPath, value: any): Promise<void> {
+	private async doWriteConfiguration(path: JSONPath, value: unknown): Promise<void> {
 		let content: string;
 		try {
 			const fileContent = await this.fileService.readFile(this.settingsResource);
@@ -227,7 +228,7 @@ class ConfigurationEditing {
 		await this.fileService.writeFile(this.settingsResource, VSBuffer.fromString(content));
 	}
 
-	private getEdits(content: string, path: JSONPath, value: any): Edit[] {
+	private getEdits(content: string, path: JSONPath, value: unknown): Edit[] {
 		const { tabSize, insertSpaces, eol } = this.formattingOptions;
 
 		// With empty path the entire file is being replaced, so we just use JSON.stringify

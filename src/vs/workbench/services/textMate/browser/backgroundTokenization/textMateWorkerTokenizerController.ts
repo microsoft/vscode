@@ -3,49 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule } from 'vs/amdX';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, keepObserved } from 'vs/base/common/observable';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { Range } from 'vs/editor/common/core/range';
-import { IBackgroundTokenizationStore, ILanguageIdCodec } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
-import { IModelContentChange, IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { ArrayEdit, MonotonousIndexTransformer, SingleArrayEdit } from 'vs/workbench/services/textMate/browser/arrayOperation';
-import type { StateDeltas, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
+import { importAMDNodeModule } from '../../../../../amdX.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, autorun, keepObserved } from '../../../../../base/common/observable.js';
+import { Proxied } from '../../../../../base/common/worker/webWorker.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IBackgroundTokenizationStore, ILanguageIdCodec } from '../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { TokenizationStateStore } from '../../../../../editor/common/model/textModelTokens.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { IModelContentChange } from '../../../../../editor/common/model/mirrorTextModel.js';
+import { ContiguousMultilineTokensBuilder } from '../../../../../editor/common/tokens/contiguousMultilineTokensBuilder.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { MonotonousIndexTransformer } from '../indexTransformer.js';
+import type { StateDeltas, TextMateTokenizationWorker } from './worker/textMateTokenizationWorker.worker.js';
 import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
+import { linesLengthEditFromModelContentChange } from '../../../../../editor/common/model/textModelStringEdit.js';
 
 export class TextMateWorkerTokenizerController extends Disposable {
 	private static _id = 0;
 
-	public readonly controllerId = TextMateWorkerTokenizerController._id++;
-	private readonly _pendingChanges: IModelContentChangedEvent[] = [];
+	public readonly controllerId;
+	private readonly _pendingChanges: IModelContentChangedEvent[];
 
 	/**
 	 * These states will eventually equal the worker states.
 	 * _states[i] stores the state at the end of line number i+1.
 	 */
-	private readonly _states = new TokenizationStateStore<StateStack>();
+	private readonly _states;
 
-	private readonly _loggingEnabled = observableConfigValue('editor.experimental.asyncTokenizationLogging', false, this._configurationService);
+	private readonly _loggingEnabled;
 
 	private _applyStateStackDiffFn?: typeof applyStateStackDiff;
 	private _initialState?: StateStack;
 
 	constructor(
 		private readonly _model: ITextModel,
-		private readonly _worker: TextMateTokenizationWorker,
+		private readonly _worker: Proxied<TextMateTokenizationWorker>,
 		private readonly _languageIdCodec: ILanguageIdCodec,
 		private readonly _backgroundTokenizationStore: IBackgroundTokenizationStore,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _maxTokenizationLineLength: IObservable<number>,
 	) {
 		super();
+		this.controllerId = TextMateWorkerTokenizerController._id++;
+		this._pendingChanges = [];
+		this._states = new TokenizationStateStore<StateStack>();
+		this._loggingEnabled = observableConfigValue('editor.experimental.asyncTokenizationLogging', false, this._configurationService);
 
 		this._register(keepObserved(this._loggingEnabled));
 
@@ -56,7 +62,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 					changes: changesToString(e.changes),
 				});
 			}
-			this._worker.acceptModelChanged(this.controllerId, e);
+			this._worker.$acceptModelChanged(this.controllerId, e);
 			this._pendingChanges.push(e);
 		}));
 
@@ -64,7 +70,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			const languageId = this._model.getLanguageId();
 			const encodedLanguageId =
 				this._languageIdCodec.encodeLanguageId(languageId);
-			this._worker.acceptModelLanguageChanged(
+			this._worker.$acceptModelLanguageChanged(
 				this.controllerId,
 				languageId,
 				encodedLanguageId
@@ -73,7 +79,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 
 		const languageId = this._model.getLanguageId();
 		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(languageId);
-		this._worker.acceptNewModel({
+		this._worker.$acceptNewModel({
 			uri: this._model.uri,
 			versionId: this._model.getVersionId(),
 			lines: this._model.getLinesContent(),
@@ -87,23 +93,23 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		this._register(autorun(reader => {
 			/** @description update maxTokenizationLineLength */
 			const maxTokenizationLineLength = this._maxTokenizationLineLength.read(reader);
-			this._worker.acceptMaxTokenizationLineLength(this.controllerId, maxTokenizationLineLength);
+			this._worker.$acceptMaxTokenizationLineLength(this.controllerId, maxTokenizationLineLength);
 		}));
 	}
 
 	public override dispose(): void {
 		super.dispose();
-		this._worker.acceptRemovedModel(this.controllerId);
+		this._worker.$acceptRemovedModel(this.controllerId);
 	}
 
 	public requestTokens(startLineNumber: number, endLineNumberExclusive: number): void {
-		this._worker.retokenize(this.controllerId, startLineNumber, endLineNumberExclusive);
+		this._worker.$retokenize(this.controllerId, startLineNumber, endLineNumberExclusive);
 	}
 
 	/**
 	 * This method is called from the worker through the worker host.
 	 */
-	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: ArrayBuffer, stateDeltas: StateDeltas[]): Promise<void> {
+	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: Uint8Array, stateDeltas: StateDeltas[]): Promise<void> {
 		if (this.controllerId !== controllerId) {
 			// This event is for an outdated controller (the worker didn't receive the delete/create messages yet), ignore the event.
 			return;
@@ -146,7 +152,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			}
 
 			const curToFutureTransformerTokens = MonotonousIndexTransformer.fromMany(
-				this._pendingChanges.map((c) => fullLineArrayEditFromModelContentChange(c.changes))
+				this._pendingChanges.map((c) => linesLengthEditFromModelContentChange(c.changes))
 			);
 
 			// Filter tokens in lines that got changed in the future to prevent flickering
@@ -175,7 +181,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		}
 
 		const curToFutureTransformerStates = MonotonousIndexTransformer.fromMany(
-			this._pendingChanges.map((c) => fullLineArrayEditFromModelContentChange(c.changes))
+			this._pendingChanges.map((c) => linesLengthEditFromModelContentChange(c.changes))
 		);
 
 		if (!this._applyStateStackDiffFn || !this._initialState) {
@@ -220,21 +226,6 @@ export class TextMateWorkerTokenizerController extends Disposable {
 
 }
 
-function fullLineArrayEditFromModelContentChange(c: IModelContentChange[]): ArrayEdit {
-	return new ArrayEdit(
-		c.map(
-			(c) =>
-				new SingleArrayEdit(
-					c.range.startLineNumber - 1,
-					// Expand the edit range to include the entire line
-					c.range.endLineNumber - c.range.startLineNumber + 1,
-					countEOL(c.text)[0] + 1
-				)
-		)
-	);
-}
-
 function changesToString(changes: IModelContentChange[]): string {
 	return changes.map(c => Range.lift(c.range).toString() + ' => ' + c.text).join(' & ');
 }
-
