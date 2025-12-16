@@ -43,7 +43,8 @@ import {
 	SplitEditorToFirstGroupAction, SplitEditorToLastGroupAction, SplitEditorToLeftGroupAction, SplitEditorToNextGroupAction, SplitEditorToPreviousGroupAction, SplitEditorToRightGroupAction, NavigateForwardInEditsAction,
 	NavigateBackwardsInEditsAction, NavigateForwardInNavigationsAction, NavigateBackwardsInNavigationsAction, NavigatePreviousInNavigationsAction, NavigatePreviousInEditsAction, NavigateToLastNavigationLocationAction,
 	MaximizeGroupHideSidebarAction, MoveEditorToNewWindowAction, CopyEditorToNewindowAction, RestoreEditorsToMainWindowAction, ToggleMaximizeEditorGroupAction, MinimizeOtherGroupsHideSidebarAction, CopyEditorGroupToNewWindowAction,
-	MoveEditorGroupToNewWindowAction, NewEmptyEditorWindowAction
+	MoveEditorGroupToNewWindowAction, NewEmptyEditorWindowAction,
+	ClearEditorHistoryWithoutConfirmAction
 } from './editorActions.js';
 import {
 	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
@@ -58,8 +59,6 @@ import { inQuickPickContext, getQuickNavigateHandler } from '../../quickaccess.j
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
-import { FloatingEditorClickMenu } from '../../codeeditor.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorAutoSave } from './editorAutoSave.js';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
@@ -134,8 +133,6 @@ registerWorkbenchContribution2(EditorAutoSave.ID, EditorAutoSave, WorkbenchPhase
 registerWorkbenchContribution2(EditorStatusContribution.ID, EditorStatusContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(UntitledTextEditorWorkingCopyEditorHandler.ID, UntitledTextEditorWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(DynamicEditorConfigurations.ID, DynamicEditorConfigurations, WorkbenchPhase.BlockRestore);
-
-registerEditorContribution(FloatingEditorClickMenu.ID, FloatingEditorClickMenu, EditorContributionInstantiation.AfterFirstRender);
 
 //#endregion
 
@@ -282,6 +279,7 @@ registerAction2(NavigateBackwardsInNavigationsAction);
 registerAction2(NavigatePreviousInNavigationsAction);
 registerAction2(NavigateToLastNavigationLocationAction);
 registerAction2(ClearEditorHistoryAction);
+registerAction2(ClearEditorHistoryWithoutConfirmAction);
 
 registerAction2(EditorLayoutSingleAction);
 registerAction2(EditorLayoutTwoColumnsAction);

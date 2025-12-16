@@ -53,6 +53,7 @@ export const codeSpecOptionsAndSubcommands = [
 	'--status',
 	'--sync <sync>',
 	'--telemetry',
+	'--transient',
 	'--uninstall-extension <extension-id>',
 	'--update-extensions',
 	'--user-data-dir <dir>',
@@ -76,7 +77,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 
 	const typingTests: ITestSpec[] = [];
 	for (let i = 1; i < executable.length; i++) {
-		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name ? (codeCompletionSpec as any).description : (codeInsidersCompletionSpec as any).description }];
+		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name ? (codeCompletionSpec as Fig.Subcommand).description : (codeInsidersCompletionSpec as Fig.Subcommand).description }];
 		const input = `${executable.slice(0, i)}|`;
 		typingTests.push({ input, expectedCompletions, expectedResourceRequests: input.endsWith(' ') ? undefined : { type: 'both', cwd: testPaths.cwd } });
 	}
@@ -167,6 +168,7 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		'--status',
 		'--sync <sync>',
 		'--telemetry',
+		'--transient',
 		'--uninstall-extension <extension-id>',
 		'--update-extensions',
 		'--use-version [<use_version>]',
@@ -263,7 +265,7 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 
 	const typingTests: ITestSpec[] = [];
 	for (let i = 1; i < executable.length; i++) {
-		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name || executable === codeTunnelCompletionSpec.name ? (codeCompletionSpec as any).description : (codeInsidersCompletionSpec as any).description }];
+		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name || executable === codeTunnelCompletionSpec.name ? (codeCompletionSpec as Fig.Subcommand).description : (codeInsidersCompletionSpec as Fig.Subcommand).description }];
 		const input = `${executable.slice(0, i)}|`;
 		typingTests.push({ input, expectedCompletions, expectedResourceRequests: input.endsWith(' ') ? undefined : { type: 'both', cwd: testPaths.cwd } });
 	}

@@ -150,7 +150,7 @@ export class MouseTarget {
 	}
 
 	public static toString(target: IMouseTarget): string {
-		return this._typeToString(target.type) + ': ' + target.position + ' - ' + target.range + ' - ' + JSON.stringify((<any>target).detail);
+		return this._typeToString(target.type) + ': ' + target.position + ' - ' + target.range + ' - ' + JSON.stringify((target as unknown as Record<string, unknown>).detail);
 	}
 }
 
@@ -448,7 +448,7 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public override toString(): string {
-		return `pos(${this.pos.x},${this.pos.y}), editorPos(${this.editorPos.x},${this.editorPos.y}), relativePos(${this.relativePos.x},${this.relativePos.y}), mouseVerticalOffset: ${this.mouseVerticalOffset}, mouseContentHorizontalOffset: ${this.mouseContentHorizontalOffset}\n\ttarget: ${this.target ? (<HTMLElement>this.target).outerHTML : null}`;
+		return `pos(${this.pos.x},${this.pos.y}), editorPos(${this.editorPos.x},${this.editorPos.y}), relativePos(${this.relativePos.x},${this.relativePos.y}), mouseVerticalOffset: ${this.mouseVerticalOffset}, mouseContentHorizontalOffset: ${this.mouseContentHorizontalOffset}\n\ttarget: ${this.target ? this.target.outerHTML : null}`;
 	}
 
 	public get wouldBenefitFromHitTestTargetSwitch(): boolean {
@@ -481,7 +481,8 @@ class HitTestRequest extends BareHitTestRequest {
 		return MouseTarget.createMargin(type, this.target, this._getMouseColumn(position), position, range, detail);
 	}
 	public fulfillViewZone(type: MouseTargetType.GUTTER_VIEW_ZONE | MouseTargetType.CONTENT_VIEW_ZONE, position: Position, detail: IMouseTargetViewZoneData): IMouseTargetViewZone {
-		return MouseTarget.createViewZone(type, this.target, this._getMouseColumn(position), position, detail);
+		// Always return the usual mouse column for a view zone.
+		return MouseTarget.createViewZone(type, this.target, this._getMouseColumn(), position, detail);
 	}
 	public fulfillContentText(position: Position, range: EditorRange | null, detail: IMouseTargetContentTextData): IMouseTargetContentText {
 		return MouseTarget.createContentText(this.target, this._getMouseColumn(position), position, range, detail);
@@ -989,12 +990,15 @@ export class MouseTargetFactory {
 		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
 		let range: Range;
 		if (shadowRoot) {
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			if (typeof (<any>shadowRoot).caretRangeFromPoint === 'undefined') {
 				range = shadowCaretRangeFromPoint(shadowRoot, coords.clientX, coords.clientY);
 			} else {
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				range = (<any>shadowRoot).caretRangeFromPoint(coords.clientX, coords.clientY);
 			}
 		} else {
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			range = (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint(coords.clientX, coords.clientY);
 		}
 
@@ -1024,7 +1028,7 @@ export class MouseTargetFactory {
 			const parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : null;
 
 			if (parent2ClassName === ViewLine.CLASS_NAME) {
-				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>startContainer, (<HTMLElement>startContainer).textContent!.length);
+				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>startContainer, (<HTMLElement>startContainer).textContent.length);
 			} else {
 				return new UnknownHitTestResult(<HTMLElement>startContainer);
 			}
@@ -1037,6 +1041,7 @@ export class MouseTargetFactory {
 	 * Most probably Gecko
 	 */
 	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		const hitResult: { offsetNode: Node; offset: number } = (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY);
 
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
@@ -1089,8 +1094,10 @@ export class MouseTargetFactory {
 	public static doHitTest(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
 
 		let result: HitTestResult = new UnknownHitTestResult();
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		if (typeof (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint === 'function') {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		} else if ((<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint) {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates(dom.getWindow(ctx.viewDomNode)));
 		}
@@ -1110,6 +1117,7 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 	const range = document.createRange();
 
 	// Get the element under the point
+	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 	let el: HTMLElement | null = (<any>shadowRoot).elementFromPoint(x, y);
 	// When el is not null, it may be div.monaco-mouse-cursor-text Element, which has not childNodes, we don't need to handle it.
 	if (el?.hasChildNodes()) {

@@ -14,7 +14,7 @@ import type { IGrammar, StateStack } from 'vscode-textmate';
 export class TextMateTokenizationSupport extends Disposable implements ITokenizationSupport {
 	private readonly _seenLanguages: boolean[] = [];
 	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = this._register(new Emitter<LanguageId>());
-	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
+	public get onDidEncounterLanguage(): Event<LanguageId> { return this._onDidEncounterLanguage.event; }
 
 	constructor(
 		private readonly _grammar: IGrammar,
@@ -62,7 +62,7 @@ export class TextMateTokenizationSupport extends Disposable implements ITokeniza
 		if (textMateResult.stoppedEarly) {
 			console.warn(`Time limit reached when tokenizing line: ${line.substring(0, 100)}`);
 			// return the state at the beginning of the line
-			return new EncodedTokenizationResult(textMateResult.tokens, state);
+			return new EncodedTokenizationResult(textMateResult.tokens, textMateResult.fonts, state);
 		}
 
 		if (this._containsEmbeddedLanguages) {
@@ -89,6 +89,6 @@ export class TextMateTokenizationSupport extends Disposable implements ITokeniza
 			endState = textMateResult.ruleStack;
 		}
 
-		return new EncodedTokenizationResult(textMateResult.tokens, endState);
+		return new EncodedTokenizationResult(textMateResult.tokens, textMateResult.fonts, endState);
 	}
 }

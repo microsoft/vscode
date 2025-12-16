@@ -117,10 +117,10 @@ export class InputBox extends Widget {
 	private readonly hover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _onDidChange = this._register(new Emitter<string>());
-	public readonly onDidChange: Event<string> = this._onDidChange.event;
+	public get onDidChange(): Event<string> { return this._onDidChange.event; }
 
 	private _onDidHeightChange = this._register(new Emitter<number>());
-	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
+	public get onDidHeightChange(): Event<number> { return this._onDidHeightChange.event; }
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IInputOptions) {
 		super();
@@ -536,6 +536,12 @@ export class InputBox extends Widget {
 		this.state = 'idle';
 	}
 
+	private layoutMessage(): void {
+		if (this.state === 'open' && this.contextViewProvider) {
+			this.contextViewProvider.layout();
+		}
+	}
+
 	private onValueChange(): void {
 		this._onDidChange.fire(this.value);
 
@@ -586,6 +592,7 @@ export class InputBox extends Widget {
 
 	public layout(): void {
 		if (!this.mirror) {
+			this.layoutMessage();
 			return;
 		}
 
@@ -597,6 +604,8 @@ export class InputBox extends Widget {
 			this.input.style.height = this.cachedHeight + 'px';
 			this._onDidHeightChange.fire(this.cachedContentHeight);
 		}
+
+		this.layoutMessage();
 	}
 
 	public insertAtCursor(text: string): void {

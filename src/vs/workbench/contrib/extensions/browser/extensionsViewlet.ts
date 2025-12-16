@@ -45,7 +45,6 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { MementoObject } from '../../../common/memento.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
@@ -91,6 +90,10 @@ const SortByUpdateDateContext = new RawContextKey<boolean>('sortByUpdateDate', f
 export const ExtensionsSearchValueContext = new RawContextKey<string>('extensionsSearchValue', '');
 
 const REMOTE_CATEGORY: ILocalizedString = localize2({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote");
+
+interface IExtensionsViewletState {
+	'query.value'?: string;
+}
 
 export class ExtensionsViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -506,7 +509,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 }
 
-export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IExtensionsViewPaneContainer {
+export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsViewletState> implements IExtensionsViewPaneContainer {
 
 	private readonly extensionsSearchValueContextKey: IContextKey<string>;
 	private readonly defaultViewsContextKey: IContextKey<boolean>;
@@ -534,7 +537,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private header: HTMLElement | undefined;
 	private searchBox: SuggestEnabledInput | undefined;
 	private notificationContainer: HTMLElement | undefined;
-	private readonly searchViewletState: MementoObject;
+	private readonly searchViewletState: IExtensionsViewletState;
 	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
 
 	constructor(

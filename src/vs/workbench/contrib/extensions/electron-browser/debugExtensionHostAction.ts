@@ -23,20 +23,19 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IConfig, IDebugService } from '../../debug/common/debug.js';
 import { RuntimeExtensionsEditor } from './runtimeExtensionsEditor.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { IsDevelopmentContext } from '../../../../platform/contextkey/common/contextkeys.js';
 
 interface IExtensionHostQuickPickItem extends IQuickPickItem {
 	portInfo: IExtensionInspectInfo;
 }
 
-export class DevtoolsExtensionHostAction extends Action2 {
+export class DebugExtensionHostInDevToolsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.extensions.action.devtoolsExtensionHost',
-			title: nls.localize2('openDevToolsForExtensionHost', 'Open Developer Tools for Extension Host'),
+			title: nls.localize2('openDevToolsForExtensionHost', 'Debug Extension Host In Dev Tools'),
 			category: Categories.Developer,
-			precondition: IsDevelopmentContext,
 			f1: true,
+			icon: Codicon.debugStart,
 		});
 	}
 
@@ -76,11 +75,11 @@ export class DevtoolsExtensionHostAction extends Action2 {
 	}
 }
 
-export class DebugExtensionHostAction extends Action2 {
+export class DebugExtensionHostInNewWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.extensions.action.debugExtensionHost',
-			title: { value: nls.localize('debugExtensionHost', "Start Debugging Extension Host In New Window"), original: 'Start Debugging Extension Host In New Window' },
+			title: nls.localize2('debugExtensionHost', "Debug Extension Host In New Window"),
 			category: Categories.Developer,
 			f1: true,
 			icon: Codicon.debugStart,

@@ -103,7 +103,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 				label: text,
 				run() {
 					vm.model.telemetry.reportConflictCounterClicked();
-					vm.goToNextModifiedBaseRange(m => !model.isHandled(m).get());
+					vm.goToNextModifiedBaseRange(m => !model.isHandled(m).read(undefined));
 				},
 				tooltip: count > 0
 					? localize('goToNextConflict', 'Go to next conflict')

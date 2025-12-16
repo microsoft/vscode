@@ -121,9 +121,9 @@ export interface QuickInputUI {
 	progressBar: ProgressBar;
 	list: QuickInputList;
 	tree: QuickInputTreeController;
-	onDidAccept: Event<void>;
-	onDidCustom: Event<void>;
-	onDidTriggerButton: Event<IQuickInputButton>;
+	readonly onDidAccept: Event<void>;
+	readonly onDidCustom: Event<void>;
+	readonly onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
 	keyMods: Writeable<IKeyMods>;
 	show(controller: QuickInput): void;
@@ -170,7 +170,7 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	private buttonsUpdated = false;
 	private _toggles: IQuickInputToggle[] = [];
 	private togglesUpdated = false;
-	protected noValidationMessage = QuickInput.noPromptMessage;
+	protected noValidationMessage: string | undefined = QuickInput.noPromptMessage;
 	private _validationMessage: string | undefined;
 	private _lastValidationMessage: string | undefined;
 	private _severity: Severity = Severity.Ignore;
@@ -421,11 +421,13 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			this.busyDelay.setIfNotSet(() => {
 				if (this.visible) {
 					this.ui.progressBar.infinite();
+					this.ui.progressBar.getContainer().removeAttribute('aria-hidden');
 				}
 			}, 800);
 		}
 		if (!this.busy && this.busyDelay) {
 			this.ui.progressBar.stop();
+			this.ui.progressBar.getContainer().setAttribute('aria-hidden', 'true');
 			this.busyDelay.cancel();
 			this.busyDelay = undefined;
 		}
@@ -461,8 +463,11 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
 			// a layering issue as quick input's interface is in common but Toggle is in browser and
 			// it requires a HTMLElement on its interface
-			const concreteToggles = this.toggles?.filter(opts => opts instanceof Toggle) as Toggle[] ?? [];
+			const concreteToggles = this.toggles?.filter(opts => opts instanceof Toggle) ?? [];
 			this.ui.inputBox.toggles = concreteToggles;
+			// Adjust count badge position based on number of toggles (each toggle is ~22px wide)
+			const toggleOffset = concreteToggles.length * 22;
+			this.ui.countContainer.style.right = toggleOffset > 0 ? `${4 + toggleOffset}px` : '4px';
 		}
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
@@ -472,12 +477,14 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		if (this._lastValidationMessage !== validationMessage) {
 			this._lastValidationMessage = validationMessage;
 			dom.reset(this.ui.message);
-			renderQuickInputDescription(validationMessage, this.ui.message, {
-				callback: (content) => {
-					this.ui.linkOpenerDelegate(content);
-				},
-				disposables: this.visibleDisposables,
-			});
+			if (validationMessage) {
+				renderQuickInputDescription(validationMessage, this.ui.message, {
+					callback: (content) => {
+						this.ui.linkOpenerDelegate(content);
+					},
+					disposables: this.visibleDisposables,
+				});
+			}
 		}
 		if (this._lastSeverity !== this.severity) {
 			this._lastSeverity = this.severity;
@@ -585,6 +592,11 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	readonly type = QuickInputType.QuickPick;
 
+	constructor(ui: QuickInputUI) {
+		super(ui);
+		this.noValidationMessage = undefined;
+	}
+
 	get quickNavigate() {
 		return this._quickNavigate;
 	}
@@ -635,6 +647,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set placeholder(placeholder: string | undefined) {
 		this._placeholder = placeholder;
+		this.update();
+	}
+
+	get prompt() {
+		return this.noValidationMessage;
+	}
+
+	set prompt(prompt: string | undefined) {
+		this.noValidationMessage = prompt;
 		this.update();
 	}
 
@@ -1037,7 +1058,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			count: this.canSelectMany && !this._hideCountBadge,
 			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
 			list: true,
-			message: !!this.validationMessage,
+			message: !!this.validationMessage || !!this.prompt,
 			customButton: this.customButton
 		};
 		this.ui.setVisibilities(visibilities);
@@ -1056,10 +1077,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		let ariaLabel = this.ariaLabel;
 		// Only set aria label to the input box placeholder if we actually have an input box.
 		if (!ariaLabel && visibilities.inputBox) {
-			ariaLabel = this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+			ariaLabel = this.placeholder;
 			// If we have a title, include it in the aria label.
 			if (this.title) {
-				ariaLabel += ` - ${this.title}`;
+				ariaLabel = ariaLabel
+					? `${ariaLabel} - ${this.title}`
+					: this.title;
+			}
+			if (!ariaLabel) {
+				ariaLabel = QuickPick.DEFAULT_ARIA_LABEL;
 			}
 		}
 		if (this.ui.list.ariaLabel !== ariaLabel) {
@@ -1158,11 +1184,11 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			return; // needs to be enabled
 		}
 
-		if (this.activeItems[0]) {
+		if (this.activeItems[0] && !this._canSelectMany) {
 			this._selectedItems = [this.activeItems[0]];
 			this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-			this.handleAccept(inBackground ?? false);
 		}
+		this.handleAccept(inBackground ?? false);
 	}
 }
 
@@ -1261,6 +1287,10 @@ export class InputBox extends QuickInput implements IInputBox {
 		super.show();
 	}
 
+	accept(): void {
+		this.onDidAcceptEmitter.fire();
+	}
+
 	protected override update() {
 		if (!this.visible) {
 			return;
@@ -1331,7 +1361,7 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super('element', undefined, (options) => this.getOverrideOptions(options), configurationService, hoverService);
+		super('mouse', undefined, (options) => this.getOverrideOptions(options), configurationService, hoverService);
 	}
 
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {

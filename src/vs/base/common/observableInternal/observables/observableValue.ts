@@ -9,6 +9,7 @@ import { BaseObservable } from './baseObservable.js';
 import { EqualityComparer, IDisposable, strictEquals } from '../commonFacade/deps.js';
 import { DebugNameData } from '../debugName.js';
 import { getLogger } from '../logging/logging.js';
+import { DebugLocation } from '../debugLocation.js';
 
 /**
  * Creates an observable value.
@@ -19,14 +20,14 @@ import { getLogger } from '../logging/logging.js';
 
 export function observableValue<T, TChange = void>(name: string, initialValue: T): ISettableObservable<T, TChange>;
 export function observableValue<T, TChange = void>(owner: object, initialValue: T): ISettableObservable<T, TChange>;
-export function observableValue<T, TChange = void>(nameOrOwner: string | object, initialValue: T): ISettableObservable<T, TChange> {
+export function observableValue<T, TChange = void>(nameOrOwner: string | object, initialValue: T, debugLocation = DebugLocation.ofCaller()): ISettableObservable<T, TChange> {
 	let debugNameData: DebugNameData;
 	if (typeof nameOrOwner === 'string') {
 		debugNameData = new DebugNameData(undefined, nameOrOwner, undefined);
 	} else {
 		debugNameData = new DebugNameData(nameOrOwner, undefined, undefined);
 	}
-	return new ObservableValue(debugNameData, initialValue, strictEquals);
+	return new ObservableValue(debugNameData, initialValue, strictEquals, debugLocation);
 }
 
 export class ObservableValue<T, TChange = void>
@@ -41,9 +42,10 @@ export class ObservableValue<T, TChange = void>
 	constructor(
 		private readonly _debugNameData: DebugNameData,
 		initialValue: T,
-		private readonly _equalityComparator: EqualityComparer<T>
+		private readonly _equalityComparator: EqualityComparer<T>,
+		debugLocation: DebugLocation
 	) {
-		super();
+		super(debugLocation);
 		this._value = initialValue;
 
 		getLogger()?.handleObservableUpdated(this, { hadValue: false, newValue: initialValue, change: undefined, didChange: true, oldValue: undefined });
@@ -100,14 +102,14 @@ export class ObservableValue<T, TChange = void>
  * When a new value is set, the previous value is disposed.
  */
 
-export function disposableObservableValue<T extends IDisposable | undefined, TChange = void>(nameOrOwner: string | object, initialValue: T): ISettableObservable<T, TChange> & IDisposable {
+export function disposableObservableValue<T extends IDisposable | undefined, TChange = void>(nameOrOwner: string | object, initialValue: T, debugLocation = DebugLocation.ofCaller()): ISettableObservable<T, TChange> & IDisposable {
 	let debugNameData: DebugNameData;
 	if (typeof nameOrOwner === 'string') {
 		debugNameData = new DebugNameData(undefined, nameOrOwner, undefined);
 	} else {
 		debugNameData = new DebugNameData(nameOrOwner, undefined, undefined);
 	}
-	return new DisposableObservableValue(debugNameData, initialValue, strictEquals);
+	return new DisposableObservableValue(debugNameData, initialValue, strictEquals, debugLocation);
 }
 
 export class DisposableObservableValue<T extends IDisposable | undefined, TChange = void> extends ObservableValue<T, TChange> implements IDisposable {

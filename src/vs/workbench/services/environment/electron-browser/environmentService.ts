@@ -147,15 +147,6 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	@memoize
 	get filesToWait(): IPathsToWaitFor | undefined { return this.configuration.filesToWait; }
 
-	@memoize
-	get startupExperimentGroup(): string | undefined {
-		const group = this.args['startup-experiment-group'];
-		if (typeof group === 'string') {
-			return group;
-		}
-		return undefined;
-	}
-
 	constructor(
 		private readonly configuration: INativeWindowConfiguration,
 		productService: IProductService

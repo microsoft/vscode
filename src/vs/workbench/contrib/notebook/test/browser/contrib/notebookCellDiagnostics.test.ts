@@ -55,7 +55,7 @@ suite('notebookCellDiagnostics', () => {
 
 	interface ITestMarkerService extends IMarkerService {
 		markers: ResourceMap<IMarkerData[]>;
-		onMarkersUpdated: Event<void>;
+		readonly onMarkersUpdated: Event<void>;
 	}
 
 	setup(function () {
@@ -68,6 +68,7 @@ suite('notebookCellDiagnostics', () => {
 
 		const agentData = {
 			extensionId: nullExtensionDescription.identifier,
+			extensionVersion: undefined,
 			extensionDisplayName: '',
 			extensionPublisherId: '',
 			name: 'testEditorAgent',

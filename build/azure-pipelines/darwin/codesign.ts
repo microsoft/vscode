@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign';
-import { e } from '../common/publish';
+import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign.ts';
+import { e } from '../common/publish.ts';
 
 async function main() {
 	const arch = e('VSCODE_ARCH');
 	const esrpCliDLLPath = e('EsrpCliDllPath');
 	const pipelineWorkspace = e('PIPELINE_WORKSPACE');
 
-	const folder = `${pipelineWorkspace}/unsigned_vscode_client_darwin_${arch}_archive`;
+	const folder = `${pipelineWorkspace}/vscode_client_darwin_${arch}_archive`;
 	const glob = `VSCode-darwin-${arch}.zip`;
 
 	// Codesign

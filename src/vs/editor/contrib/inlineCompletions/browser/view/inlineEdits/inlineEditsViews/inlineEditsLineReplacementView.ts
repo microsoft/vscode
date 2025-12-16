@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, getWindow, n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
+import { $, n } from '../../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorunDelta, constObservable, derived, IObservable } from '../../../../../../../base/common/observable.js';
@@ -24,14 +23,14 @@ import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel/inlineDecorations.js';
-import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedChangedLineBackgroundColor, originalBackgroundColor } from '../theme.js';
+import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, modifiedChangedLineBackgroundColor, originalBackgroundColor } from '../theme.js';
 import { getEditorValidOverlayRect, getPrefixTrim, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsLineReplacementView extends Disposable implements IInlineEditsView {
 
-	private readonly _onDidClick;
-	readonly onDidClick;
+	private readonly _onDidClick = this._register(new Emitter<InlineEditClickEvent>());
+	readonly onDidClick = this._onDidClick.event;
 
 	private readonly _maxPrefixTrim;
 
@@ -45,6 +44,8 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 	private readonly _div;
 
 	readonly isHovered;
+
+	readonly minEditorScrollHeight;
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
@@ -60,10 +61,8 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
-		this._onDidClick = this._register(new Emitter<IMouseEvent>());
-		this.onDidClick = this._onDidClick.event;
-		this._maxPrefixTrim = this._edit.map(e => e ? getPrefixTrim(e.replacements.flatMap(r => [r.originalRange, r.modifiedRange]), e.originalRange, e.modifiedLines, this._editor.editor) : undefined);
-		this._modifiedLineElements = derived(reader => {
+		this._maxPrefixTrim = this._edit.map((e, reader) => e ? getPrefixTrim(e.replacements.flatMap(r => [r.originalRange, r.modifiedRange]), e.originalRange, e.modifiedLines, this._editor.editor, reader) : undefined);
+		this._modifiedLineElements = derived(this, reader => {
 			const lines = [];
 			let requiredWidth = 0;
 
@@ -188,10 +187,17 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			const viewZoneLineNumber = edit.originalRange.endLineNumberExclusive;
 			return { height: viewZoneHeight, lineNumber: viewZoneLineNumber };
 		});
+		this.minEditorScrollHeight = derived(this, reader => {
+			const layout = mapOutFalsy(this._layout).read(reader);
+			if (!layout || this._viewZoneInfo.read(reader) !== undefined) {
+				return 0;
+			}
+			return layout.read(reader).lowerText.bottom + this._editor.editor.getScrollTop();
+		});
 		this._div = n.div({
 			class: 'line-replacement',
 		}, [
-			derived(reader => {
+			derived(this, reader => {
 				const layout = mapOutFalsy(this._layout).read(reader);
 				const modifiedLineElements = this._modifiedLineElements.read(reader);
 				if (!layout || !modifiedLineElements) {
@@ -226,7 +232,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).background.translateX(-contentLeft).withMargin(separatorWidth)),
-								borderRadius: '4px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 
 								border: `${separatorWidth + 1}px solid ${asCssVariable(editorBackground)}`,
 								boxSizing: 'border-box',
@@ -238,7 +244,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).background.translateX(-contentLeft)),
-								borderRadius: '4px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 
 								border: getEditorBlendedColor(originalBorderColor, this._themeService).map(c => `1px solid ${c.toString()}`),
 								pointerEvents: 'none',
@@ -251,7 +257,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).lowerBackground.translateX(-contentLeft)),
-								borderRadius: '0 0 4px 4px',
+								borderRadius: `0 0 ${INLINE_EDITS_BORDER_RADIUS}px ${INLINE_EDITS_BORDER_RADIUS}px`,
 								background: asCssVariable(editorBackground),
 								boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
 								border: `1px solid ${asCssVariable(modifiedBorderColor)}`,
@@ -263,7 +269,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							onmousedown: e => {
 								e.preventDefault(); // This prevents that the editor loses focus
 							},
-							onclick: (e) => this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)),
+							onclick: (e) => this._onDidClick.fire(InlineEditClickEvent.create(e)),
 						}, [
 							n.div({
 								style: {
@@ -283,7 +289,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 								fontWeight: this._editor.getOption(EditorOption.fontWeight),
 								pointerEvents: 'none',
 								whiteSpace: 'nowrap',
-								borderRadius: '0 0 4px 4px',
+								borderRadius: `0 0 ${INLINE_EDITS_BORDER_RADIUS}px ${INLINE_EDITS_BORDER_RADIUS}px`,
 								overflow: 'hidden',
 							}
 						}, [...modifiedLineElements.lines]),
@@ -309,7 +315,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 
 		this._register(this._editor.createOverlayWidget({
 			domNode: this._div.element,
-			minContentWidthInPx: derived(reader => {
+			minContentWidthInPx: derived(this, reader => {
 				return this._layout.read(reader)?.minContentWidthRequired ?? 0;
 			}),
 			position: constObservable({ preference: { top: 0, left: 0 } }),

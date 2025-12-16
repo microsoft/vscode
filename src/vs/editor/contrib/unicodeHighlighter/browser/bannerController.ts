@@ -9,7 +9,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILinkDescriptor, Link } from '../../../../platform/opener/browser/link.js';
@@ -51,18 +51,15 @@ export class BannerController extends Disposable {
 class Banner extends Disposable {
 	public element: HTMLElement;
 
-	private readonly markdownRenderer: MarkdownRenderer;
-
 	private messageActionsContainer: HTMLElement | undefined;
 
 	private actionBar: ActionBar | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
-
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		this.element = $('div.editor-banner');
 		this.element.tabIndex = 0;
@@ -86,7 +83,7 @@ class Banner extends Disposable {
 			return element;
 		}
 
-		return this.markdownRenderer.render(message).element;
+		return this.markdownRendererService.render(message).element;
 	}
 
 	public clear() {

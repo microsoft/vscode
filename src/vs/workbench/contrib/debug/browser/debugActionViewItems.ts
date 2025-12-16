@@ -8,7 +8,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { SelectBox, ISelectOptionItem } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { SelectBox, ISelectOptionItem, SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from '../common/debug.js';
@@ -28,12 +28,11 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 
 const $ = dom.$;
 
 export class StartDebugActionViewItem extends BaseActionViewItem {
-
-	private static readonly SEPARATOR = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 
 	private container!: HTMLElement;
 	private start!: HTMLElement;
@@ -87,12 +86,15 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.start.setAttribute('role', 'button');
 		this._setAriaLabel(title);
 
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
-			this.start.blur();
-			if (this.debugService.state !== State.Initializing) {
-				this.actionRunner.run(this.action, this.context);
-			}
-		}));
+		this._register(Gesture.addTarget(this.start));
+		for (const event of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this.toDispose.push(dom.addDisposableListener(this.start, event, () => {
+				this.start.blur();
+				if (this.debugService.state !== State.Initializing) {
+					this.actionRunner.run(this.action, this.context);
+				}
+			}));
+		}
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (this.action.enabled && e.button === 0) {
@@ -202,7 +204,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			if (lastGroup !== presentation?.group) {
 				lastGroup = presentation?.group;
 				if (this.debugOptions.length) {
-					this.debugOptions.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
+					this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
 					disabledIdxs.push(this.debugOptions.length - 1);
 				}
 			}
@@ -237,7 +239,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			this.debugOptions.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: async () => false });
 		}
 
-		this.debugOptions.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
+		this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
 		disabledIdxs.push(this.debugOptions.length - 1);
 
 		this.providers.forEach(p => {

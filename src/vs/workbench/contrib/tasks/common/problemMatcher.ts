@@ -33,7 +33,7 @@ export enum FileLocationKind {
 	Search
 }
 
-export module FileLocationKind {
+export namespace FileLocationKind {
 	export function fromString(value: string): FileLocationKind | undefined {
 		value = value.toLowerCase();
 		if (value === 'absolute') {
@@ -55,7 +55,7 @@ export enum ProblemLocationKind {
 	Location
 }
 
-export module ProblemLocationKind {
+export namespace ProblemLocationKind {
 	export function fromString(value: string): ProblemLocationKind | undefined {
 		value = value.toLowerCase();
 		if (value === 'file') {
@@ -117,7 +117,7 @@ export enum ApplyToKind {
 	closedDocuments
 }
 
-export module ApplyToKind {
+export namespace ApplyToKind {
 	export function fromString(value: string): ApplyToKind | undefined {
 		value = value.toLowerCase();
 		if (value === 'alldocuments') {
@@ -138,7 +138,7 @@ export interface ProblemMatcher {
 	applyTo: ApplyToKind;
 	fileLocation: FileLocationKind;
 	filePrefix?: string | Config.SearchFileLocationArgs;
-	pattern: IProblemPattern | IProblemPattern[];
+	pattern: Types.SingleOrMany<IProblemPattern>;
 	severity?: Severity;
 	watching?: IWatchingMatcher;
 	uriProvider?: (path: string) => URI;
@@ -358,6 +358,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 			if (trim) {
 				value = Strings.trim(value)!;
 			}
+			// eslint-disable-next-line local/code-no-any-casts
 			(data as any)[property] += endOfLine + value;
 		}
 	}
@@ -370,6 +371,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 				if (trim) {
 					value = Strings.trim(value)!;
 				}
+				// eslint-disable-next-line local/code-no-any-casts
 				(data as any)[property] = value;
 			}
 		}
@@ -870,14 +872,14 @@ export namespace Config {
 		*    `include` is not unprovided, the current workspace directory should
 		*    be used as the default.
 		*/
-		fileLocation?: string | string[] | ['search', SearchFileLocationArgs];
+		fileLocation?: Types.SingleOrMany<string> | ['search', SearchFileLocationArgs];
 
 		/**
 		* The name of a predefined problem pattern, the inline definition
 		* of a problem pattern or an array of problem patterns to match
 		* problems spread over multiple lines.
 		*/
-		pattern?: string | IProblemPattern | IProblemPattern[];
+		pattern?: string | Types.SingleOrMany<IProblemPattern>;
 
 		/**
 		* A regular expression signaling that a watched tasks begins executing
@@ -898,8 +900,8 @@ export namespace Config {
 	}
 
 	export type SearchFileLocationArgs = {
-		include?: string | string[];
-		exclude?: string | string[];
+		include?: Types.SingleOrMany<string>;
+		exclude?: Types.SingleOrMany<string>;
 	};
 
 	export type ProblemMatcherType = string | ProblemMatcher | Array<string | ProblemMatcher>;
@@ -1010,6 +1012,7 @@ export class ProblemPatternParser extends Parser {
 		function copyProperty(result: IProblemPattern, source: Config.IProblemPattern, resultKey: keyof IProblemPattern, sourceKey: keyof Config.IProblemPattern) {
 			const value = source[sourceKey];
 			if (typeof value === 'number') {
+				// eslint-disable-next-line local/code-no-any-casts
 				(result as any)[resultKey] = value;
 			}
 		}
@@ -1433,7 +1436,7 @@ export interface IProblemPatternRegistry {
 
 class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
-	private patterns: IStringDictionary<IProblemPattern | IProblemPattern[]>;
+	private patterns: IStringDictionary<Types.SingleOrMany<IProblemPattern>>;
 	private readyPromise: Promise<void>;
 
 	constructor() {
@@ -1488,11 +1491,11 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 		return this.readyPromise;
 	}
 
-	public add(key: string, value: IProblemPattern | IProblemPattern[]): void {
+	public add(key: string, value: Types.SingleOrMany<IProblemPattern>): void {
 		this.patterns[key] = value;
 	}
 
-	public get(key: string): IProblemPattern | IProblemPattern[] {
+	public get(key: string): Types.SingleOrMany<IProblemPattern> {
 		return this.patterns[key];
 	}
 
@@ -1753,7 +1756,7 @@ export class ProblemMatcherParser extends Parser {
 		return result;
 	}
 
-	private createProblemPattern(value: string | Config.IProblemPattern | Config.MultiLineProblemPattern): IProblemPattern | IProblemPattern[] | null {
+	private createProblemPattern(value: string | Config.IProblemPattern | Config.MultiLineProblemPattern): Types.SingleOrMany<IProblemPattern> | null {
 		if (Types.isString(value)) {
 			const variableName: string = <string>value;
 			if (variableName.length > 1 && variableName[0] === '$') {
@@ -1900,6 +1903,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 				}
 				const matcher = this.get('tsc-watch');
 				if (matcher) {
+					// eslint-disable-next-line local/code-no-any-casts
 					(<any>matcher).tscWatch = true;
 				}
 				resolve(undefined);

@@ -8,7 +8,6 @@ import { streamToBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { IRequestService } from '../../request/common/request.js';
-import * as https from 'https';
 import { AbstractOneDataSystemAppender, IAppInsightsCore } from '../common/1dsAppender.js';
 
 type OnCompleteFunc = (status: number, headers: { [headerName: string]: string }, response?: string) => void;
@@ -29,7 +28,7 @@ async function makeTelemetryRequest(options: IRequestOptions, requestService: IR
 	const response = await requestService.request(options, CancellationToken.None);
 	const responseData = (await streamToBuffer(response.stream)).toString();
 	const statusCode = response.res.statusCode ?? 200;
-	const headers = response.res.headers as Record<string, any>;
+	const headers = response.res.headers as Record<string, string>;
 	return {
 		headers,
 		statusCode,
@@ -43,6 +42,7 @@ async function makeTelemetryRequest(options: IRequestOptions, requestService: IR
  * @returns An object containing the headers, statusCode, and responseData
  */
 async function makeLegacyTelemetryRequest(options: IRequestOptions): Promise<IResponseData> {
+	const https = await import('https'); // Lazy due to https://github.com/nodejs/node/issues/59686
 	const httpsOptions = {
 		method: options.type,
 		headers: options.headers
@@ -51,7 +51,7 @@ async function makeLegacyTelemetryRequest(options: IRequestOptions): Promise<IRe
 		const req = https.request(options.url ?? '', httpsOptions, res => {
 			res.on('data', function (responseData) {
 				resolve({
-					headers: res.headers as Record<string, any>,
+					headers: res.headers as Record<string, string>,
 					statusCode: res.statusCode ?? 200,
 					responseData: responseData.toString()
 				});
@@ -100,7 +100,7 @@ export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 		requestService: IRequestService | undefined,
 		isInternalTelemetry: boolean,
 		eventPrefix: string,
-		defaultData: { [key: string]: any } | null,
+		defaultData: { [key: string]: unknown } | null,
 		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
 	) {
 		// Override the way events get sent since node doesn't have XHTMLRequest

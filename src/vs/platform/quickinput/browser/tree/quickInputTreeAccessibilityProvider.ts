@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
+import { CheckBoxAccessibleState } from '../../../../base/browser/ui/list/listView.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { Event, IValueWithChangeEvent } from '../../../../base/common/event.js';
 import { getCodiconAriaLabel } from '../../../../base/common/iconLabels.js';
@@ -20,7 +21,7 @@ export class QuickTreeAccessibilityProvider<T extends IQuickTreeItem> implements
 	}
 
 	getAriaLabel(element: T): string {
-		return element.ariaLabel || [element.label, element.description, element.detail]
+		return element.ariaLabel || [element.label, element.description]
 			.map(s => getCodiconAriaLabel(s))
 			.filter(s => !!s)
 			.join(', ');
@@ -34,9 +35,9 @@ export class QuickTreeAccessibilityProvider<T extends IQuickTreeItem> implements
 		return 'checkbox';
 	}
 
-	isChecked(element: T): IValueWithChangeEvent<boolean> | undefined {
+	isChecked(element: T): IValueWithChangeEvent<CheckBoxAccessibleState> | undefined {
 		return {
-			get value() { return element.checked === true; },
+			get value() { return element.checked === 'mixed' ? 'mixed' : !!element.checked; },
 			onDidChange: e => Event.filter(this.onCheckedEvent, e => e.item === element)(_ => e()),
 		};
 	}

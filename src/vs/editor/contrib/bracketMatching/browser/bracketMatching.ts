@@ -76,6 +76,7 @@ class SelectToBracketAction extends EditorAction {
 		BracketMatchingController.get(editor)?.selectToBracket(selectBrackets);
 	}
 }
+
 class RemoveBracketsAction extends EditorAction {
 	constructor() {
 		super({
@@ -86,7 +87,8 @@ class RemoveBracketsAction extends EditorAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 

@@ -37,6 +37,11 @@
 	display: flex;
 }
 
+.monaco-editor .monaco-hover .hover-row.hover-row-with-copy {
+	position: relative;
+	padding-right: 20px;
+}
+
 .monaco-editor .monaco-hover .hover-row .hover-row-contents {
 	min-width: 0;
 	display: flex;
@@ -77,4 +82,36 @@
 
 .monaco-editor .monaco-hover code {
 	background-color: var(--vscode-textCodeBlock-background);
+}
+
+.monaco-editor .monaco-hover .hover-copy-button {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	padding: 2px 4px;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0;
+}
+
+.monaco-editor .monaco-hover .hover-row-with-copy:hover .hover-copy-button,
+.monaco-editor .monaco-hover .hover-row-with-copy:focus-within .hover-copy-button {
+	opacity: 1;
+}
+
+.monaco-editor .monaco-hover .hover-copy-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	cursor: pointer;
+}
+
+.monaco-editor .monaco-hover .hover-copy-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.monaco-editor .monaco-hover .hover-copy-button .codicon {
+	font-size: 16px;
+	color: var(--vscode-foreground);
 }

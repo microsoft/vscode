@@ -1,0 +1,12 @@
+{
+	"servers": {
+		"vscode-playwright-mcp": {
+			"type": "stdio",
+			"command": "npm",
+			// Look at the [README](../test/mcp/README.md) to see what arguments are supported
+			"args": ["run", "start-stdio"],
+			"cwd": "${workspaceFolder}/test/mcp"
+		}
+	},
+	"inputs": []
+}

@@ -198,6 +198,7 @@ suite('SearchModel', () => {
 				}
 				return new Promise(resolve => {
 					queueMicrotask(() => {
+						// eslint-disable-next-line local/code-no-any-casts
 						resolve(<any>{});
 					});
 				});
@@ -225,6 +226,7 @@ suite('SearchModel', () => {
 					},
 					asyncResults: new Promise(resolve => {
 						queueMicrotask(() => {
+							// eslint-disable-next-line local/code-no-any-casts
 							resolve(<any>{
 								results: [],
 								messages: []
@@ -394,7 +396,7 @@ suite('SearchModel', () => {
 		};
 
 		const notebookSearchService = instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([aRawMatchWithCells('/1', cellMatchMd, cellMatchCode)], undefined));
-		const notebookSearch = sinon.spy(notebookSearchService, "notebookSearch");
+		const notebookSearch = sinon.spy(notebookSearchService, 'notebookSearch');
 		const model: SearchModelImpl = instantiationService.createInstance(SearchModelImpl);
 		store.add(model);
 		await model.search({ contentPattern: { pattern: 'test' }, type: QueryType.Text, folderQueries }).asyncResults;

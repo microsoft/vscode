@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
@@ -44,6 +44,8 @@ export interface Stash {
 	readonly index: number;
 	readonly description: string;
 	readonly branchName?: string;
+	readonly authorDate?: Date;
+	readonly commitDate?: Date;
 }
 
 interface MutableRemote extends Remote {
@@ -117,7 +119,7 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 			}
 
 			// must check if XCode is installed
-			cp.exec('xcode-select -p', (err: any) => {
+			cp.exec('xcode-select -p', (err) => {
 				if (err && err.code === 2) {
 					// git is not installed, and launching /usr/bin/git
 					// will prompt the user to install it
@@ -307,8 +309,8 @@ export class GitError extends Error {
 			stderr: this.stderr
 		}, null, 2);
 
-		if (this.error) {
-			result += (<any>this.error).stack;
+		if (this.error?.stack) {
+			result += this.error.stack;
 		}
 
 		return result;
@@ -370,7 +372,7 @@ function sanitizeRelativePath(path: string): string {
 }
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
-const STASH_FORMAT = '%H%n%P%n%gd%n%gs';
+const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
@@ -999,12 +1001,12 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
-const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)*on([^:]+):(.*)(?:\x00)/gmi;
+const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
 
 function parseGitStashes(raw: string): Stash[] {
 	const result: Stash[] = [];
 
-	let match, hash, parents, index, wip, branchName, description;
+	let match, hash, parents, index, wip, branchName, description, authorDate, commitDate;
 
 	do {
 		match = stashRegex.exec(raw);
@@ -1012,13 +1014,15 @@ function parseGitStashes(raw: string): Stash[] {
 			break;
 		}
 
-		[, hash, parents, index, wip, branchName, description] = match;
+		[, hash, parents, index, wip, branchName, description, authorDate, commitDate] = match;
 		result.push({
 			hash,
 			parents: parents.split(' '),
 			index: parseInt(index),
 			branchName: branchName.trim(),
-			description: wip ? `WIP (${description.trim()})` : description.trim()
+			description: wip ? `WIP (${description.trim()})` : description.trim(),
+			authorDate: authorDate ? new Date(Number(authorDate) * 1000) : undefined,
+			commitDate: commitDate ? new Date(Number(commitDate) * 1000) : undefined,
 		});
 	} while (true);
 
@@ -1620,7 +1624,7 @@ export class Repository {
 	diffWithHEAD(path?: string | undefined): Promise<string | Change[]>;
 	async diffWithHEAD(path?: string | undefined): Promise<string | Change[]> {
 		if (!path) {
-			return await this.diffFiles(false);
+			return await this.diffFiles(undefined, { cached: false });
 		}
 
 		const args = ['diff', '--', this.sanitizeRelativePath(path)];
@@ -1628,12 +1632,16 @@ export class Repository {
 		return result.stdout;
 	}
 
+	async diffWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.diffFilesShortStat(undefined, { cached: false, path });
+	}
+
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
 	async diffWith(ref: string, path?: string): Promise<string | Change[]> {
 		if (!path) {
-			return await this.diffFiles(false, ref);
+			return await this.diffFiles(ref, { cached: false });
 		}
 
 		const args = ['diff', ref, '--', this.sanitizeRelativePath(path)];
@@ -1646,7 +1654,7 @@ export class Repository {
 	diffIndexWithHEAD(path?: string | undefined): Promise<Change[]>;
 	async diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
 		if (!path) {
-			return await this.diffFiles(true);
+			return await this.diffFiles(undefined, { cached: true });
 		}
 
 		const args = ['diff', '--cached', '--', this.sanitizeRelativePath(path)];
@@ -1654,12 +1662,16 @@ export class Repository {
 		return result.stdout;
 	}
 
+	async diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.diffFilesShortStat(undefined, { cached: true, path });
+	}
+
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffIndexWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
 	async diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
 		if (!path) {
-			return await this.diffFiles(true, ref);
+			return await this.diffFiles(ref, { cached: true });
 		}
 
 		const args = ['diff', '--cached', ref, '--', this.sanitizeRelativePath(path)];
@@ -1679,7 +1691,7 @@ export class Repository {
 	async diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
 		const range = `${ref1}...${ref2}`;
 		if (!path) {
-			return await this.diffFiles(false, range);
+			return await this.diffFiles(range, { cached: false });
 		}
 
 		const args = ['diff', range, '--', this.sanitizeRelativePath(path)];
@@ -1688,8 +1700,51 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async diffBetweenShortStat(ref1: string, ref2: string): Promise<{ files: number; insertions: number; deletions: number }> {
-		const args = ['diff', '--shortstat', `${ref1}...${ref2}`];
+	async diffBetween2(ref1: string, ref2: string, options: { similarityThreshold?: number }): Promise<Change[]> {
+		return await this.diffFiles(`${ref1}...${ref2}`, { cached: false, similarityThreshold: options.similarityThreshold });
+	}
+
+	private async diffFiles(ref: string | undefined, options: { cached: boolean; similarityThreshold?: number }): Promise<Change[]> {
+		const args = ['diff', '--name-status', '-z', '--diff-filter=ADMR'];
+
+		if (options.cached) {
+			args.push('--cached');
+		}
+
+		if (options.similarityThreshold) {
+			args.push(`--find-renames=${options.similarityThreshold}%`);
+		}
+
+		if (ref) {
+			args.push(ref);
+		}
+
+		args.push('--');
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
+	}
+
+	private async diffFilesShortStat(ref: string | undefined, options: { cached: boolean; path?: string }): Promise<CommitShortStat> {
+		const args = ['diff', '--shortstat'];
+
+		if (options.cached) {
+			args.push('--cached');
+		}
+
+		if (ref !== undefined) {
+			args.push(ref);
+		}
+
+		args.push('--');
+
+		if (options.path) {
+			args.push(this.sanitizeRelativePath(options.path));
+		}
 
 		const result = await this.exec(args);
 		if (result.exitCode) {
@@ -1699,23 +1754,6 @@ export class Repository {
 		return parseGitDiffShortStat(result.stdout.trim());
 	}
 
-	private async diffFiles(cached: boolean, ref?: string): Promise<Change[]> {
-		const args = ['diff', '--name-status', '-z', '--diff-filter=ADMR'];
-		if (cached) {
-			args.push('--cached');
-		}
-
-		if (ref) {
-			args.push(ref);
-		}
-
-		const gitResult = await this.exec(args);
-		if (gitResult.exitCode) {
-			return [];
-		}
-
-		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
-	}
 
 	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<Change[]> {
 		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR'];
@@ -1729,6 +1767,8 @@ export class Repository {
 		if (treeish2) {
 			args.push(treeish2);
 		}
+
+		args.push('--');
 
 		const gitResult = await this.exec(args);
 		if (gitResult.exitCode) {
@@ -1939,11 +1979,12 @@ export class Repository {
 		}
 	}
 
-	private async handleCommitError(commitErr: any): Promise<void> {
-		if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
+
+	private async handleCommitError(commitErr: unknown): Promise<void> {
+		if (commitErr instanceof GitError && /not possible because you have unmerged files/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
 			throw commitErr;
-		} else if (/Aborting commit due to empty commit message/.test(commitErr.stderr || '')) {
+		} else if (commitErr instanceof GitError && /Aborting commit due to empty commit message/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.EmptyCommitMessage;
 			throw commitErr;
 		}
@@ -2077,8 +2118,8 @@ export class Repository {
 		const pathsByGroup = groupBy(paths.map(sanitizePath), p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
 
-		const limiter = new Limiter(5);
-		const promises: Promise<any>[] = [];
+		const limiter = new Limiter<IExecutionResult<string>>(5);
+		const promises: Promise<IExecutionResult<string>>[] = [];
 		const args = ['clean', '-f', '-q'];
 
 		for (const paths of groups) {
@@ -2424,13 +2465,19 @@ export class Repository {
 		}
 	}
 
-	async popStash(index?: number): Promise<void> {
+	async popStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
 		const args = ['stash', 'pop'];
+		if (options?.reinstateStagedChanges) {
+			args.push('--index');
+		}
 		await this.popOrApplyStash(args, index);
 	}
 
-	async applyStash(index?: number): Promise<void> {
+	async applyStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
 		const args = ['stash', 'apply'];
+		if (options?.reinstateStagedChanges) {
+			args.push('--index');
+		}
 		await this.popOrApplyStash(args, index);
 	}
 
@@ -2972,8 +3019,8 @@ export class Repository {
 					const result = await this.exec(['rev-list', '--left-right', '--count', `${branch.name}...${branch.upstream.remote}/${branch.upstream.name}`]);
 					const [ahead, behind] = result.stdout.trim().split('\t');
 
-					(branch as any).ahead = Number(ahead) || 0;
-					(branch as any).behind = Number(behind) || 0;
+					(branch as Mutable<Branch>).ahead = Number(ahead) || 0;
+					(branch as Mutable<Branch>).behind = Number(behind) || 0;
 				} catch { }
 			}
 
@@ -3053,9 +3100,27 @@ export class Repository {
 		return commits[0];
 	}
 
-	async showCommit(ref: string): Promise<string> {
+	async showChanges(ref: string): Promise<string> {
 		try {
-			const result = await this.exec(['show', ref]);
+			const result = await this.exec(['log', '-p', '-n1', ref, '--']);
+			return result.stdout.trim();
+		} catch (err) {
+			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.BadRevision;
+			}
+
+			throw err;
+		}
+	}
+
+	async showChangesBetween(ref1: string, ref2: string, path?: string): Promise<string> {
+		try {
+			const args = ['log', '-p', `${ref1}..${ref2}`, '--'];
+			if (path) {
+				args.push(this.sanitizeRelativePath(path));
+			}
+
+			const result = await this.exec(args);
 			return result.stdout.trim();
 		} catch (err) {
 			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {

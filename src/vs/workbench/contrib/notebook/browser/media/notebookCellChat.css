@@ -180,6 +180,7 @@
 }
 
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .markdownMessage .message {
+	line-clamp: initial;
 	-webkit-line-clamp: initial;
 	-webkit-box-orient: vertical;
 	overflow: hidden;

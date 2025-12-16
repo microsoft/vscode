@@ -56,6 +56,10 @@ export class RipgrepTextSearchEngine {
 			}
 		})}`);
 
+		if (!query.pattern) {
+			return Promise.resolve({ limitHit: false });
+		}
+
 		return new Promise((resolve, reject) => {
 			token.onCancellationRequested(() => cancel());
 

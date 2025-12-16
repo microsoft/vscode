@@ -27,7 +27,8 @@ import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrow
 import { EditorAction, registerEditorAction } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EDITOR_FONT_DEFAULTS, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../editor/common/editorCommon.js';
@@ -68,6 +69,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, IDebugConfiguration, IDebugService, IDebugSession, IReplConfiguration, IReplElement, IReplOptions, REPL_VIEW_ID, State, getStateLabel } from '../common/debug.js';
 import { Variable } from '../common/debugModel.js';
+import { resolveChildSession } from '../common/debugUtils.js';
 import { ReplEvaluationResult, ReplGroup } from '../common/replModel.js';
 import { FocusSessionActionViewItem } from './debugActionViewItems.js';
 import { DEBUG_COMMAND_CATEGORY, FOCUS_REPL_ID } from './debugCommands.js';
@@ -162,7 +164,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.replOptions = this._register(this.instantiationService.createInstance(ReplOptions, this.id, () => this.getLocationBasedColors().background));
 		this._register(this.replOptions.onDidChange(() => this.onDidStyleChange()));
 
-		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
+		this._register(codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {}));
 		this.multiSessionRepl.set(this.isMultiSessionView);
 		this.registerListeners();
 	}
@@ -1046,13 +1048,7 @@ registerAction2(class extends ViewAction<Repl> {
 		const debugService = accessor.get(IDebugService);
 		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== debugService.getViewModel().focusedSession) {
-			if (session.state !== State.Stopped) {
-				// Focus child session instead if it is stopped #112595
-				const stopppedChildSession = debugService.getModel().getSessions().find(s => s.parentSession === session && s.state === State.Stopped);
-				if (stopppedChildSession) {
-					session = stopppedChildSession;
-				}
-			}
+			session = resolveChildSession(session, debugService.getModel().getSessions());
 			await debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
 		}
 		// Need to select the session in the view since the focussed session might not have changed
@@ -1192,7 +1188,9 @@ registerAction2(class extends Action2 {
 		if (selectedText && selectedText.length > 0) {
 			return clipboardService.writeText(selectedText);
 		} else if (element) {
-			return clipboardService.writeText(await this.tryEvaluateAndCopy(debugService, element) || element.toString());
+			const retValue = await this.tryEvaluateAndCopy(debugService, element);
+			const textToCopy = retValue || removeAnsiEscapeCodes(element.toString());
+			return clipboardService.writeText(textToCopy);
 		}
 	}
 

@@ -63,6 +63,7 @@ export interface GridBranchNode<T extends IView> {
 export type GridNode<T extends IView> = GridLeafNode<T> | GridBranchNode<T>;
 
 export function isGridBranchNode<T extends IView>(node: GridNode<T>): node is GridBranchNode<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !!(node as any).children;
 }
 
@@ -869,7 +870,9 @@ function isGridBranchNodeDescriptor<T>(nodeDescriptor: GridNodeDescriptor<T>): n
 }
 
 export function sanitizeGridNodeDescriptor<T>(nodeDescriptor: GridNodeDescriptor<T>, rootNode: boolean): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	if (!rootNode && (nodeDescriptor as any).groups && (nodeDescriptor as any).groups.length <= 1) {
+		// eslint-disable-next-line local/code-no-any-casts
 		(nodeDescriptor as any).groups = undefined;
 	}
 

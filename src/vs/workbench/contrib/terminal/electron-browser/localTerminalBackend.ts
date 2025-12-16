@@ -152,6 +152,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 				const pty = this._ptys.get(e.id);
 				if (pty) {
 					pty.handleExit(e.event);
+					pty.dispose();
 					this._ptys.delete(e.id);
 				}
 			}));
@@ -189,6 +190,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	async updateIcon(id: number, userInitiated: boolean, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
 		await this._proxy.updateIcon(id, userInitiated, icon, color);
+	}
+
+	async setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		await this._proxy.setNextCommandId(id, commandLine, commandId);
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
@@ -299,7 +304,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),
-			tabs: layoutInfo ? layoutInfo.tabs : []
+			tabs: layoutInfo ? layoutInfo.tabs : [],
+			background: layoutInfo ? layoutInfo.background : null
 		};
 		await this._proxy.setTerminalLayoutInfo(args);
 		// Store in the storage service as well to be used when reviving processes as normally this
@@ -346,7 +352,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch (e: unknown) {
-				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
+				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', (<{ message?: string }>e).message ?? e);
 			}
 		}
 

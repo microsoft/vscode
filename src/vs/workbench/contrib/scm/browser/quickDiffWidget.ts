@@ -108,7 +108,7 @@ export class QuickDiffPickerBaseAction extends Action {
 
 class QuickDiffWidgetActionRunner extends ActionRunner {
 
-	protected override runAction(action: IAction, context: any): Promise<any> {
+	protected override runAction(action: IAction, context: unknown[]): Promise<void> {
 		if (action instanceof MenuItemAction) {
 			return action.run(...context);
 		}
@@ -140,7 +140,7 @@ class QuickDiffWidgetEditorAction extends Action {
 		this.editor = editor;
 	}
 
-	override run(): Promise<any> {
+	override run(): Promise<void> {
 		return Promise.resolve(this.instantiationService.invokeFunction(accessor => this.action.run(accessor, this.editor, null)));
 	}
 }
@@ -358,9 +358,11 @@ class QuickDiffWidget extends PeekViewWidget {
 		super._fillHead(container, true);
 
 		// Render an empty picker which will be populated later
+		const action = new QuickDiffPickerBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event));
+		this._disposables.add(action);
+
 		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
-		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem,
-			new QuickDiffPickerBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)));
+		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem, action);
 		this.dropdown.render(this.dropdownContainer);
 	}
 
@@ -463,8 +465,9 @@ class QuickDiffWidget extends PeekViewWidget {
 	}
 
 	override dispose() {
-		super.dispose();
+		this.dropdown?.dispose();
 		this.menu?.dispose();
+		super.dispose();
 	}
 }
 

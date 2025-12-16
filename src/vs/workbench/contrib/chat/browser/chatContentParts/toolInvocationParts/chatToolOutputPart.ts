@@ -18,7 +18,7 @@ import { IToolResultOutputDetails } from '../../../common/languageModelToolsServ
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { IChatOutputRendererService } from '../../chatOutputItemRenderer.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
-import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
+import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 interface OutputState {
@@ -48,7 +48,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		super(toolInvocation);
 
 		const details: IToolResultOutputDetails = toolInvocation.kind === 'toolInvocation'
-			? toolInvocation.resultDetails as IToolResultOutputDetails
+			? IChatToolInvocation.resultDetails(toolInvocation) as IToolResultOutputDetails
 			: {
 				output: {
 					type: 'data',
@@ -77,7 +77,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private createOutputPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, details: IToolResultOutputDetails): HTMLElement {
-		const vm = this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.viewModel;
+		const vm = this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.viewModel;
 
 		const parent = dom.$('div.webview-output');
 		parent.style.maxHeight = '80vh';
@@ -104,7 +104,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 
 		const progressMessage = dom.$('span');
 		progressMessage.textContent = localize('loading', 'Rendering tool output...');
-		const progressPart = this.instantiationService.createInstance(ChatCustomProgressPart, progressMessage, ThemeIcon.modify(Codicon.loading, 'spin'));
+		const progressPart = this._register(this.instantiationService.createInstance(ChatProgressSubPart, progressMessage, ThemeIcon.modify(Codicon.loading, 'spin'), undefined));
 		parent.appendChild(progressPart.domNode);
 
 		// TODO: we also need to show the tool output in the UI
@@ -124,7 +124,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 			}));
 
 			this._register(renderedItem.webview.onDidWheel(e => {
-				this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.delegateScrollFromMouseWheelEvent({
+				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.delegateScrollFromMouseWheelEvent({
 					...e,
 					preventDefault: () => { },
 					stopPropagation: () => { }
@@ -132,15 +132,33 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 			}));
 
 			// When the webview is disconnected from the DOM due to being hidden, we need to reload it when it is shown again.
-			const widget = this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId);
+			const widget = this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource);
 			if (widget) {
 				this._register(widget?.onDidShow(() => {
 					renderedItem.reinitialize();
 				}));
 			}
 		}, (error) => {
-			// TODO: show error in UI too
 			console.error('Error rendering tool output:', error);
+
+			const errorNode = dom.$('.output-error');
+
+			const errorHeaderNode = dom.$('.output-error-header');
+			dom.append(errorNode, errorHeaderNode);
+
+			const iconElement = dom.$('div');
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
+			errorHeaderNode.append(iconElement);
+
+			const errorTitleNode = dom.$('.output-error-title');
+			errorTitleNode.textContent = localize('chat.toolOutputError', "Error rendering the tool output");
+			errorHeaderNode.append(errorTitleNode);
+
+			const errorMessageNode = dom.$('.output-error-details');
+			errorMessageNode.textContent = error?.message || String(error);
+			errorNode.append(errorMessageNode);
+
+			progressPart.domNode.replaceWith(errorNode);
 		});
 
 		return parent;
