@@ -1057,14 +1057,33 @@ class ToolReferenceNamesContribution extends Disposable implements IWorkbenchCon
 				.sort((a, b) => a.toolReferenceName.localeCompare(b.toolReferenceName));
 		toolReferenceNameEnumValues.length = 0;
 		toolReferenceNameEnumDescriptions.length = 0;
+		const addedNames = new Set<string>();
 		for (const tool of tools) {
-			toolReferenceNameEnumValues.push(tool.toolReferenceName);
-			toolReferenceNameEnumDescriptions.push(nls.localize(
-				'chat.toolReferenceName.description',
-				"{0} - {1}",
-				tool.toolReferenceName,
-				tool.userDescription || tool.displayName
-			));
+			if (!addedNames.has(tool.toolReferenceName)) {
+				addedNames.add(tool.toolReferenceName);
+				toolReferenceNameEnumValues.push(tool.toolReferenceName);
+				toolReferenceNameEnumDescriptions.push(nls.localize(
+					'chat.toolReferenceName.description',
+					"{0} - {1}",
+					tool.toolReferenceName,
+					tool.userDescription || tool.displayName
+				));
+			}
+			// Add legacy names to schema for backwards compatibility validation
+			if (tool.legacyToolReferenceFullNames) {
+				for (const legacyName of tool.legacyToolReferenceFullNames) {
+					if (!addedNames.has(legacyName)) {
+						addedNames.add(legacyName);
+						toolReferenceNameEnumValues.push(legacyName);
+						toolReferenceNameEnumDescriptions.push(nls.localize(
+							'chat.toolReferenceName.legacy.description',
+							"{0} - {1} (legacy name)",
+							legacyName,
+							tool.userDescription || tool.displayName
+						));
+					}
+				}
+			}
 		}
 		configurationRegistry.notifyConfigurationSchemaUpdated({
 			id: 'chatSidebar',

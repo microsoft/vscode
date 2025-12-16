@@ -2498,6 +2498,189 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result3.content[0].value, 'unchanged executed');
 	});
 
+	test('eligibleForAutoApproval with extension-provided tools using short name', async () => {
+		// Test that extension tools can be configured using just the toolReferenceName (short name)
+		// instead of requiring the full 'extensionId/toolName' format
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'issue_fetch': false  // Short name only, not 'github.vscode-pull-request-github/issue_fetch'
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Extension-provided tool with extension source
+		const extensionTool = registerToolForTest(testService, store, 'extensionToolId', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'extension tool ran' }] })
+		}, {
+			toolReferenceName: 'issue_fetch',
+			source: {
+				type: 'extension',
+				label: 'GitHub Pull Requests',
+				extensionId: new ExtensionIdentifier('github.vscode-pull-request-github')
+			}
+		});
+
+		const sessionId = 'test-extension-short-name';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1', capture });
+
+		// Tool should be ineligible when configured by short name
+		const promise = testService.invokeTool(
+			extensionTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'extension tool should require confirmation when configured by short name');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'extension tool ran');
+	});
+
+	test('eligibleForAutoApproval with extension-provided tools using full reference name', async () => {
+		// Test that extension tools can still be configured using the full 'extensionId/toolName' format
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'github.vscode-pull-request-github/pr_create': false  // Full reference name
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Extension-provided tool with extension source
+		const extensionTool = registerToolForTest(testService, store, 'prCreateToolId', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'pr tool ran' }] })
+		}, {
+			toolReferenceName: 'pr_create',
+			source: {
+				type: 'extension',
+				label: 'GitHub Pull Requests',
+				extensionId: new ExtensionIdentifier('github.vscode-pull-request-github')
+			}
+		});
+
+		const sessionId = 'test-extension-full-name';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1', capture });
+
+		// Tool should be ineligible when configured by full reference name
+		const promise = testService.invokeTool(
+			extensionTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'extension tool should require confirmation when configured by full name');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'pr tool ran');
+	});
+
+	test('eligibleForAutoApproval full reference name takes precedence over short name for extension tools', async () => {
+		// Test that full reference name takes precedence when both are configured
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'github.vscode-pull-request-github/review_comment': false,  // Full name says ineligible
+			'review_comment': true  // Short name says eligible
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Extension-provided tool with extension source
+		const extensionTool = registerToolForTest(testService, store, 'reviewCommentToolId', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'review comment tool ran' }] })
+		}, {
+			toolReferenceName: 'review_comment',
+			source: {
+				type: 'extension',
+				label: 'GitHub Pull Requests',
+				extensionId: new ExtensionIdentifier('github.vscode-pull-request-github')
+			}
+		});
+
+		const sessionId = 'test-extension-precedence';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1', capture });
+
+		// Full reference name should take precedence, so tool should be ineligible
+		const promise = testService.invokeTool(
+			extensionTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'full reference name should take precedence over short name');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'review comment tool ran');
+	});
+
+	test('eligibleForAutoApproval with extension tools - eligible by short name', async () => {
+		// Test that extension tools are eligible when configured as true by short name
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'list_issues': true  // Explicitly eligible
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Extension-provided tool with extension source
+		const extensionTool = registerToolForTest(testService, store, 'listIssuesToolId', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'list issues ran' }] })
+		}, {
+			toolReferenceName: 'list_issues',
+			source: {
+				type: 'extension',
+				label: 'GitHub Pull Requests',
+				extensionId: new ExtensionIdentifier('github.vscode-pull-request-github')
+			}
+		});
+
+		const sessionId = 'test-extension-eligible';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool should be eligible - no confirmation needed
+		const result = await testService.invokeTool(
+			extensionTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'list issues ran');
+	});
+
 
 
 });

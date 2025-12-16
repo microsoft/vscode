@@ -606,9 +606,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 		const eligibilityConfig = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
 		if (eligibilityConfig && typeof eligibilityConfig === 'object' && fullReferenceName) {
-			// Direct match
+			// Direct match with full reference name (e.g., 'extensionId/toolName' or 'toolName')
 			if (Object.prototype.hasOwnProperty.call(eligibilityConfig, fullReferenceName)) {
 				return eligibilityConfig[fullReferenceName];
+			}
+			// Short name match for extension tools - allows users to configure just 'toolName'
+			// instead of 'extensionId/toolName' which matches the settings intellisense
+			const shortName = toolData.toolReferenceName ?? toolData.displayName;
+			if (shortName && shortName !== fullReferenceName && Object.prototype.hasOwnProperty.call(eligibilityConfig, shortName)) {
+				return eligibilityConfig[shortName];
 			}
 			// Back compat with legacy names
 			if (toolData.legacyToolReferenceFullNames) {
