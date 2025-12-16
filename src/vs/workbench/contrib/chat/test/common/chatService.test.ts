@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -171,7 +171,9 @@ suite('ChatService', () => {
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
+					state: constObservable('idle'),
 					requestDisablement: observableValue('requestDisablement', []),
+					entries: constObservable([]),
 					dispose: () => { }
 				} as unknown as IChatEditingSession;
 			}
@@ -404,8 +406,10 @@ suite('ChatService', () => {
 
 		let disposed = false;
 		testDisposables.add(testService.onDidDisposeSession(e => {
-			if (e.sessionResource.toString() === model.sessionResource.toString()) {
-				disposed = true;
+			for (const resource of e.sessionResource) {
+				if (resource.toString() === model.sessionResource.toString()) {
+					disposed = true;
+				}
 			}
 		}));
 

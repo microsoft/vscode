@@ -9591,6 +9591,10 @@ declare module 'vscode' {
 		 * - a relative path to exclude (for example `build/output`)
 		 * - a simple glob pattern (for example `**​/build`, `output/**`)
 		 *
+		 * *Note* that case-sensitivity of the {@link excludes} patterns for built-in file system providers
+		 * will depend on the underlying file system: on Windows and macOS the matching will be case-insensitive and
+		 * on Linux it will be case-sensitive.
+		 *
 		 * It is the file system provider's job to call {@linkcode FileSystemProvider.onDidChangeFile onDidChangeFile}
 		 * for every change given these rules. No event should be emitted for files that match any of the provided
 		 * excludes.
@@ -13889,6 +13893,10 @@ declare module 'vscode' {
 		 * all opened workspace folders. It cannot be used to add more folders for file watching, nor will
 		 * it report any file events from folders that are not part of the opened workspace folders.
 		 *
+		 * *Note* that case-sensitivity of the {@link globPattern} parameter will depend on the file system
+		 * where the watcher is running: on Windows and macOS the matching will be case-insensitive and
+		 * on Linux it will be case-sensitive.
+		 *
 		 * Optionally, flags to ignore certain kinds of events can be provided.
 		 *
 		 * To stop listening to events the watcher must be disposed.
@@ -13896,7 +13904,7 @@ declare module 'vscode' {
 		 * *Note* that file events from deleting a folder may not include events for the contained files.
 		 * For example, when a folder is moved to the trash, only one event is reported because technically
 		 * this is a rename/move operation and not a delete operation for each files within.
-		 * On top of that, performance optimisations are in place to fold multiple events that all belong
+		 * On top of that, performance optimizations are in place to fold multiple events that all belong
 		 * to the same parent operation (e.g. delete folder) into one event for that parent. As such, if
 		 * you need to know about all deleted files, you have to watch with `**` and deal with all file
 		 * events yourself.

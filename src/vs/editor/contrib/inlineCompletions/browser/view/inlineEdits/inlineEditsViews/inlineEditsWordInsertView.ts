@@ -15,7 +15,7 @@ import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { TextReplacement } from '../../../../../../common/core/edits/textEdit.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getModifiedBorderColor } from '../theme.js';
+import { getModifiedBorderColor, INLINE_EDITS_BORDER_RADIUS } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsWordInsertView extends Disposable implements IInlineEditsView {
@@ -77,7 +77,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 						style: {
 							position: 'absolute',
 							...rectToProps(reader => layout.read(reader).lowerBackground),
-							borderRadius: '4px',
+							borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 							background: 'var(--vscode-editor-background)'
 						}
 					}, []),
@@ -85,7 +85,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 						style: {
 							position: 'absolute',
 							...rectToProps(reader => layout.read(reader).modified),
-							borderRadius: '4px',
+							borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 							padding: '0px',
 							textAlign: 'center',
 							background: 'var(--vscode-inlineEdit-modifiedChangedTextBackground)',
@@ -100,7 +100,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 						style: {
 							position: 'absolute',
 							...rectToProps(reader => layout.read(reader).background),
-							borderRadius: '4px',
+							borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 							border: `1px solid ${modifiedBorderColor}`,
 							//background: 'rgba(122, 122, 122, 0.12)', looks better
 							background: 'var(--vscode-inlineEdit-wordReplacementView-background)',

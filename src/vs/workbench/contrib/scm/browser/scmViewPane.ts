@@ -1239,13 +1239,17 @@ abstract class RepositorySelectionModeAction extends Action2 {
 			menu: [
 				{
 					id: Menus.Repositories,
-					when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.has('scm.providerCount'),
+						ContextKeyExpr.greater('scm.providerCount', 1)),
 					group: '2_selectionMode',
 					order
 				},
 				{
 					id: MenuId.SCMSourceControlTitle,
-					when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.has('scm.providerCount'),
+						ContextKeyExpr.greater('scm.providerCount', 1)),
 					group: '2_selectionMode',
 					order
 				},
@@ -2432,7 +2436,14 @@ export class SCMViewPane extends ViewPane {
 					// Repository, Resource Group, Resource Folder (Tree) are not collapsed by default
 					return !(isSCMRepository(e) || isSCMResourceGroup(e) || isSCMResourceNode(e));
 				},
-				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
+				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
+				twistieAdditionalCssClass: (e: unknown) => {
+					if (isSCMActionButton(e) || isSCMInput(e)) {
+						return 'force-no-twistie';
+					}
+
+					return undefined;
+				},
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
 		this.disposables.add(this.tree);

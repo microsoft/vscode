@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -409,7 +410,9 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		qp.title = localize2('showChatTerminals.title', 'Chat Terminals').value;
 		qp.matchOnDescription = true;
 		qp.matchOnDetail = true;
-		qp.onDidAccept(async () => {
+		const qpDisposables = new DisposableStore();
+		qpDisposables.add(qp);
+		qpDisposables.add(qp.onDidAccept(async () => {
 			const sel = qp.selectedItems[0];
 			if (sel) {
 				const instance = all.get(Number(sel.id));
@@ -424,8 +427,11 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			} else {
 				qp.hide();
 			}
-		});
-		qp.onDidHide(() => qp.dispose());
+		}));
+		qpDisposables.add(qp.onDidHide(() => {
+			qpDisposables.dispose();
+			qp.dispose();
+		}));
 		qp.show();
 	}
 });
@@ -519,4 +525,3 @@ CommandsRegistry.registerCommand(TerminalChatCommandId.DisableSessionAutoApprova
 	const terminalChatService = accessor.get(ITerminalChatService);
 	terminalChatService.setChatSessionAutoApproval(chatSessionId, false);
 });
-

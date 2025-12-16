@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { BrowserWindow, BrowserWindowConstructorOptions, Event } from 'electron';
+import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, OnBeforeSendHeadersListenerDetails } from 'electron';
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -29,6 +29,7 @@ export class WebPageLoader extends Disposable {
 	private static readonly POST_LOAD_TIMEOUT = 5000; // 5 seconds - increased for dynamic content
 	private static readonly FRAME_TIMEOUT = 500; // 0.5 seconds
 	private static readonly IDLE_DEBOUNCE_TIME = 500; // 0.5 seconds - wait after last network request
+	private static readonly MIN_CONTENT_LENGTH = 100; // Minimum content length to consider extraction successful
 
 	private readonly _window: BrowserWindow;
 	private readonly _debugger: Electron.Debugger;
@@ -71,7 +72,11 @@ export class WebPageLoader extends Disposable {
 			.once('did-finish-load', this.onFinishLoad.bind(this))
 			.once('did-fail-load', this.onFailLoad.bind(this))
 			.once('will-navigate', this.onRedirect.bind(this))
-			.once('will-redirect', this.onRedirect.bind(this));
+			.once('will-redirect', this.onRedirect.bind(this))
+			.on('select-client-certificate', (event) => event.preventDefault());
+
+		this._window.webContents.session.webRequest.onBeforeSendHeaders(
+			this.onBeforeSendHeaders.bind(this));
 	}
 
 	private trace(message: string) {
@@ -127,6 +132,19 @@ export class WebPageLoader extends Disposable {
 	}
 
 	/**
+	 * Updates HTTP headers for each web request.
+	 */
+	private onBeforeSendHeaders(details: OnBeforeSendHeadersListenerDetails, callback: (beforeSendResponse: BeforeSendResponse) => void) {
+		const headers = { ...details.requestHeaders };
+
+		// Request privacy for web-sites that respect these.
+		headers['DNT'] = '1';
+		headers['Sec-GPC'] = '1';
+
+		callback({ requestHeaders: headers });
+	}
+
+	/**
 	 * Handles the 'did-start-loading' event, enabling network tracking.
 	 */
 	private onStartLoading() {
@@ -164,7 +182,12 @@ export class WebPageLoader extends Disposable {
 		}
 
 		this.trace(`Received 'did-fail-load' event, code: ${statusCode}, error: '${error}'`);
-		void this._queue.queue(() => this.extractContent({ status: 'error', statusCode, error }));
+		if (statusCode === -3) {
+			this.trace(`Ignoring ERR_ABORTED (-3) as it may be caused by CSP or other measures`);
+			void this._queue.queue(() => this.extractContent());
+		} else {
+			void this._queue.queue(() => this.extractContent({ status: 'error', statusCode, error }));
+		}
 	}
 
 	/**
@@ -287,12 +310,18 @@ export class WebPageLoader extends Disposable {
 		}
 
 		try {
-			this.trace(`Extracting content using Accessibility domain`);
 			const title = this._window.webContents.getTitle();
-			const { nodes } = await this._debugger.sendCommand('Accessibility.getFullAXTree') as { nodes: AXNode[] };
-			const result = convertAXTreeToMarkdown(this._uri, nodes);
 
-			if (errorResult !== undefined) {
+			let result = await this.extractAccessibilityTreeContent() ?? '';
+			if (result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
+				this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
+				const domContent = await this.extractMainDomElementContent() ?? '';
+				result = domContent.length > result.length ? domContent : result;
+			}
+
+			if (result.length === 0) {
+				this._onResult({ status: 'error', error: 'Failed to extract meaningful content from the web page' });
+			} else if (errorResult !== undefined) {
 				this._onResult({ ...errorResult, result, title });
 			} else {
 				this._onResult({ status: 'ok', result, title });
@@ -306,6 +335,47 @@ export class WebPageLoader extends Disposable {
 					error: e instanceof Error ? e.message : String(e)
 				});
 			}
+		}
+	}
+
+	/**
+	 * Extracts content from the Accessibility tree of the loaded web page.
+	 * @return The extracted content, or undefined if extraction fails.
+	 */
+	private async extractAccessibilityTreeContent(): Promise<string | undefined> {
+		this.trace(`Extracting content using Accessibility domain`);
+		try {
+			const { nodes } = await this._debugger.sendCommand('Accessibility.getFullAXTree') as { nodes: AXNode[] };
+			return convertAXTreeToMarkdown(this._uri, nodes);
+		} catch (error) {
+			this.trace(`Accessibility tree extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Fallback method for extracting web page content when Accessibility tree extraction yields insufficient content.
+	 * Attempts to extract meaningful text content from the main DOM elements of the loaded web page.
+	 * @returns The extracted text content, or undefined if extraction fails.
+	 */
+	private async extractMainDomElementContent(): Promise<string | undefined> {
+		try {
+			this.trace(`Extracting content from main DOM element`);
+			return await this._window.webContents.executeJavaScript(`
+				(() => {
+					const selectors = ['main','article','[role="main"]','.main-content','#main-content','.article-body','.post-content','.entry-content','.content','body'];
+					for (const selector of selectors) {
+						const content = document.querySelector(selector)?.textContent?.replace(/[ \\t]+/g, ' ').replace(/\\s{2,}/gm, '\\n').trim();
+						if (content && content.length > ${WebPageLoader.MIN_CONTENT_LENGTH}) {
+							return content;
+						}
+					}
+					return undefined;
+				})();
+			`);
+		} catch (error) {
+			this.trace(`DOM extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
 		}
 	}
 }

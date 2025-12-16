@@ -9,14 +9,14 @@ import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { itemsEquals } from '../../../../base/common/equals.js';
+import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableFromEventOpts, ObservableSet } from '../../../../base/common/observable.js';
+import { derived, IObservable, IReader, observableFromEventOpts, ObservableSet } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -29,6 +29,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import * as JSONContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -40,7 +41,7 @@ import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } f
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { CountTokensCallback, createToolSchemaUri, GithubCopilotToolReference, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -93,6 +94,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private readonly _callsByRequestId = new Map<string, ITrackedCall[]>();
 
+	private readonly _isAgentModeEnabled: IObservable<boolean>;
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -109,6 +112,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	) {
 		super();
 
+		this._isAgentModeEnabled = observableConfigValue(ChatConfiguration.AgentEnabled, true, this._configurationService);
+
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
 				// Not worth it to compute a delta here unless we have many tools changing often
@@ -117,7 +122,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled) || e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
 				this._onDidChangeToolsScheduler.schedule();
 			}
 		}));
@@ -148,7 +153,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this.executeToolSet = this._register(this.createToolSet(
 			ToolDataSource.Internal,
 			'execute',
-			VSCodeToolReference.execute,
+			SpecedToolAliases.execute,
 			{
 				icon: ThemeIcon.fromId(Codicon.terminal.id),
 				description: localize('copilot.toolSet.execute.description', 'Execute code and applications on your machine'),
@@ -159,13 +164,34 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this.readToolSet = this._register(this.createToolSet(
 			ToolDataSource.Internal,
 			'read',
-			VSCodeToolReference.read,
+			SpecedToolAliases.read,
 			{
 				icon: ThemeIcon.fromId(Codicon.eye.id),
 				description: localize('copilot.toolSet.read.description', 'Read files in your workspace'),
 			}
 		));
 	}
+
+	/**
+	 * Returns if the given tool or toolset is permitted in the current context.
+	 * When agent mode is enabled, all tools are permitted (no restriction)
+	 * When agent mode is disabled only a subset of read-only tools are permitted in agentic-loop contexts.
+	 */
+	private isPermitted(toolOrToolSet: IToolData | ToolSet, reader?: IReader): boolean {
+		const agentModeEnabled = this._isAgentModeEnabled.read(reader);
+		if (agentModeEnabled !== false) {
+			return true;
+		}
+		const permittedInternalToolSetIds = [SpecedToolAliases.read, SpecedToolAliases.search, SpecedToolAliases.web];
+		if (toolOrToolSet instanceof ToolSet) {
+			const permitted = toolOrToolSet.source.type === 'internal' && permittedInternalToolSetIds.includes(toolOrToolSet.referenceName);
+			this._logService.trace(`LanguageModelToolsService#isPermitted: ToolSet ${toolOrToolSet.id} (${toolOrToolSet.referenceName}) permitted=${permitted}`);
+			return permitted;
+		}
+		this._logService.trace(`LanguageModelToolsService#isPermitted: Tool ${toolOrToolSet.id} (${toolOrToolSet.toolReferenceName}) permitted=false`);
+		return false;
+	}
+
 	override dispose(): void {
 		super.dispose();
 
@@ -243,11 +269,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolData => {
 				const satisfiesWhenClause = includeDisabled || !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
-				return satisfiesWhenClause && satisfiesExternalToolCheck;
+				const satisfiesPermittedCheck = includeDisabled || this.isPermitted(toolData);
+				return satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesPermittedCheck;
 			});
 	}
 
-	readonly toolsObservable = observableFromEventOpts<readonly IToolData[], void>({ equalsFn: itemsEquals() }, this.onDidChangeTools, () => Array.from(this.getTools()));
+	readonly toolsObservable = observableFromEventOpts<readonly IToolData[], void>({ equalsFn: arrayEqualsC() }, this.onDidChangeTools, () => Array.from(this.getTools()));
 
 	getTool(id: string): IToolData | undefined {
 		return this._getToolEntry(id)?.data;
@@ -310,7 +337,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const request = model.getRequests().at(-1)!;
 				requestId = request.id;
 				dto.modelId = request.modelId;
-				dto.userSelectedTools = request.userSelectedTools;
+				dto.userSelectedTools = request.userSelectedTools && { ...request.userSelectedTools };
 
 				// Replace the token with a new token that we can cancel when cancelToolCallsForRequest is called
 				if (!this._callsByRequestId.has(requestId)) {
@@ -493,7 +520,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// TODO: This should be more detailed per tool.
 			prepared.confirmationMessages = {
 				...prepared.confirmationMessages,
-				title: localize('defaultToolConfirmation.title', 'Allow tool to execute?'),
+				title: localize('defaultToolConfirmation.title', 'Confirm tool execution'),
 				message: localize('defaultToolConfirmation.message', 'Run the \'{0}\' tool?', fullReferenceName),
 				disclaimer: new MarkdownString(localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted via {1}.', getToolFullReferenceName(tool.data), createMarkdownCommandLink({ title: '`' + ChatConfiguration.EligibleForAutoApproval + '`', id: 'workbench.action.openSettings', arguments: [ChatConfiguration.EligibleForAutoApproval] }, false)), { isTrusted: true }),
 				allowAutoConfirm: false,
@@ -728,19 +755,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					yield alias + '/*';
 				}
 				break;
-			case VSCodeToolReference.execute: // 'execute'
-				yield GithubCopilotToolReference.shell;
+			case SpecedToolAliases.execute: // 'execute'
+				yield 'shell'; // legacy alias
 				break;
-			case VSCodeToolReference.agent: // 'agent'
-				yield VSCodeToolReference.runSubagent;
-				yield GithubCopilotToolReference.customAgent;
+			case SpecedToolAliases.agent: // 'agent'
+				yield VSCodeToolReference.runSubagent; // prefer the tool set over th old tool name
+				yield 'custom-agent'; // legacy alias
 				break;
 		}
 	}
 
 	private * getToolAliases(toolSet: IToolData, fullReferenceName: string): Iterable<string> {
 		const referenceName = toolSet.toolReferenceName ?? toolSet.displayName;
-		if (fullReferenceName !== referenceName) {
+		if (fullReferenceName !== referenceName && referenceName !== VSCodeToolReference.runSubagent) {
 			yield referenceName; // simple name, without toolset name
 		}
 		if (toolSet.legacyToolReferenceFullNames) {
@@ -853,7 +880,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private readonly _toolSets = new ObservableSet<ToolSet>();
 
-	readonly toolSets: IObservable<Iterable<ToolSet>> = this._toolSets.observable;
+	readonly toolSets: IObservable<Iterable<ToolSet>> = derived(this, reader => {
+		const allToolSets = Array.from(this._toolSets.observable.read(reader));
+		return allToolSets.filter(toolSet => this.isPermitted(toolSet, reader));
+	});
 
 	getToolSet(id: string): ToolSet | undefined {
 		for (const toolSet of this._toolSets) {
@@ -916,7 +946,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 		for (const tool of this.toolsObservable.read(reader)) {
-			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool)) {
+			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool) && this.isPermitted(tool, reader)) {
 				result.push([tool, getToolFullReferenceName(tool)]);
 			}
 		}

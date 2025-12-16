@@ -299,7 +299,7 @@ abstract class ModelsTableColumnRenderer<T extends IModelTableColumnTemplateData
 }
 
 interface IToggleCollapseColumnTemplateData extends IModelTableColumnTemplateData {
-	readonly rowContainer: HTMLElement | null;
+	readonly listRowElement: HTMLElement | null;
 	readonly container: HTMLElement;
 	readonly actionBar: ActionBar;
 }
@@ -322,7 +322,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 		container.classList.add('models-gutter-column');
 		const actionBar = disposables.add(new ActionBar(container));
 		return {
-			rowContainer: container.parentElement,
+			listRowElement: container.parentElement?.parentElement ?? null,
 			container,
 			actionBar,
 			disposables,
@@ -336,16 +336,20 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 	}
 
 	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
-		templateData.actionBar.push(this.createToggleCollapseAction(entry), { icon: true, label: false });
+		this.renderCollapsableElement(entry, templateData);
 	}
 
 	override renderGroupElement(entry: IGroupItemEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
-		templateData.actionBar.push(this.createToggleCollapseAction(entry), { icon: true, label: false });
+		this.renderCollapsableElement(entry, templateData);
 	}
 
-	private createToggleCollapseAction(entry: IVendorItemEntry | IGroupItemEntry): IAction {
+	private renderCollapsableElement(entry: IVendorItemEntry | IGroupItemEntry, templateData: IToggleCollapseColumnTemplateData): void {
+		if (templateData.listRowElement) {
+			templateData.listRowElement.setAttribute('aria-expanded', entry.collapsed ? 'false' : 'true');
+		}
+
 		const label = entry.collapsed ? localize('expand', 'Expand') : localize('collapse', 'Collapse');
-		return {
+		const toggleCollapseAction = {
 			id: 'toggleCollapse',
 			label,
 			tooltip: label,
@@ -353,6 +357,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 			class: ThemeIcon.asClassName(entry.collapsed ? Codicon.chevronRight : Codicon.chevronDown),
 			run: () => this.viewModel.toggleCollapsed(entry)
 		};
+		templateData.actionBar.push(toggleCollapseAction, { icon: true, label: false });
 	}
 
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
@@ -471,6 +476,12 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 
 	readonly templateId: string = MultiplierColumnRenderer.TEMPLATE_ID;
 
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService
+	) {
+		super();
+	}
+
 	renderTemplate(container: HTMLElement): IMultiplierColumnTemplateData {
 		const disposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
@@ -492,7 +503,18 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 	}
 
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
-		templateData.multiplierElement.textContent = (entry.modelEntry.metadata.detail && entry.modelEntry.metadata.detail.trim().toLowerCase() !== entry.modelEntry.vendor.trim().toLowerCase()) ? entry.modelEntry.metadata.detail : '-';
+		const multiplierText = (entry.modelEntry.metadata.detail && entry.modelEntry.metadata.detail.trim().toLowerCase() !== entry.modelEntry.vendor.trim().toLowerCase()) ? entry.modelEntry.metadata.detail : '-';
+		templateData.multiplierElement.textContent = multiplierText;
+
+		if (multiplierText !== '-') {
+			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
+				content: localize('multiplier.tooltip', "Every chat message counts {0} towards your premium model request quota", multiplierText),
+				appearance: {
+					compact: true,
+					skipFadeInAnimation: true
+				}
+			})));
+		}
 	}
 }
 
@@ -844,6 +866,17 @@ export class ChatModelsWidget extends Disposable {
 				this.searchWidget.focus();
 			}
 		));
+		const collapseAllAction = this._register(new Action(
+			'workbench.models.collapseAll',
+			localize('collapseAll', "Collapse All"),
+			ThemeIcon.asClassName(Codicon.collapseAll),
+			false,
+			() => {
+				this.viewModel.collapseAll();
+			}
+		));
+		collapseAllAction.enabled = this.viewModel.viewModelEntries.some(e => isVendorEntry(e) || isGroupEntry(e));
+		this._register(this.viewModel.onDidChange(() => collapseAllAction.enabled = this.viewModel.viewModelEntries.some(e => isVendorEntry(e) || isGroupEntry(e))));
 
 		this._register(this.searchWidget.onInputDidChange(() => {
 			clearSearchAction.enabled = !!this.searchWidget.getValue();
@@ -851,7 +884,7 @@ export class ChatModelsWidget extends Disposable {
 		}));
 
 		this.searchActionsContainer = DOM.append(searchContainer, $('.models-search-actions'));
-		const actions = [clearSearchAction, filterAction];
+		const actions = [clearSearchAction, collapseAllAction, filterAction];
 		const toolBar = this._register(new ToolBar(this.searchActionsContainer, this.contextMenuService, {
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action.id === filterAction.id) {
@@ -890,7 +923,6 @@ export class ChatModelsWidget extends Disposable {
 		// Create table
 		this.createTable();
 		this._register(this.viewModel.onDidChangeGrouping(() => this.createTable()));
-		return;
 	}
 
 	private createTable(): void {
@@ -946,19 +978,19 @@ export class ChatModelsWidget extends Disposable {
 
 		columns.push(
 			{
-				label: localize('capabilities', 'Capabilities'),
-				tooltip: '',
-				weight: 0.25,
-				minimumWidth: 180,
-				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
-				project(row: TableEntry): TableEntry { return row; }
-			},
-			{
 				label: localize('tokenLimits', 'Context Size'),
 				tooltip: '',
 				weight: 0.1,
 				minimumWidth: 140,
 				templateId: TokenLimitsColumnRenderer.TEMPLATE_ID,
+				project(row: TableEntry): TableEntry { return row; }
+			},
+			{
+				label: localize('capabilities', 'Capabilities'),
+				tooltip: '',
+				weight: 0.25,
+				minimumWidth: 180,
+				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
 				project(row: TableEntry): TableEntry { return row; }
 			},
 			{
@@ -1001,11 +1033,28 @@ export class ChatModelsWidget extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: (e: TableEntry) => {
 						if (isVendorEntry(e)) {
-							return localize('vendor.ariaLabel', '{0} provider', e.vendorEntry.vendorDisplayName);
+							return localize('vendor.ariaLabel', '{0} Models', e.vendorEntry.vendorDisplayName);
 						} else if (isGroupEntry(e)) {
-							return e.label;
+							return e.id === 'visible' ? localize('visible.ariaLabel', 'Visible Models') : localize('hidden.ariaLabel', 'Hidden Models');
 						}
-						return localize('model.ariaLabel', '{0} from {1}', e.modelEntry.metadata.name, e.modelEntry.vendorDisplayName);
+						const ariaLabels = [];
+						ariaLabels.push(localize('model.name', '{0} from {1}', e.modelEntry.metadata.name, e.modelEntry.vendorDisplayName));
+						if (e.modelEntry.metadata.maxInputTokens && e.modelEntry.metadata.maxOutputTokens) {
+							ariaLabels.push(localize('model.contextSize', 'Context size: {0} input tokens and {1} output tokens', formatTokenCount(e.modelEntry.metadata.maxInputTokens), formatTokenCount(e.modelEntry.metadata.maxOutputTokens)));
+						}
+						if (e.modelEntry.metadata.capabilities) {
+							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.modelEntry.metadata.capabilities).join(', ')));
+						}
+						const multiplierText = (e.modelEntry.metadata.detail && e.modelEntry.metadata.detail.trim().toLowerCase() !== e.modelEntry.vendor.trim().toLowerCase()) ? e.modelEntry.metadata.detail : '-';
+						if (multiplierText !== '-') {
+							ariaLabels.push(localize('multiplier.tooltip', "Every chat message counts {0} towards your premium model request quota", multiplierText));
+						}
+						if (e.modelEntry.metadata.isUserSelectable) {
+							ariaLabels.push(localize('model.visible', 'This model is visible in the chat model picker'));
+						} else {
+							ariaLabels.push(localize('model.hidden', 'This model is hidden in the chat model picker'));
+						}
+						return ariaLabels.join('. ');
 					},
 					getWidgetAriaLabel: () => localize('modelsTable.ariaLabel', 'Language Models')
 				},
