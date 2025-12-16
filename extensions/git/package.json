@@ -3828,10 +3828,10 @@
           "default": "${subject}, ${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameEditorDecoration.template%"
         },
-        "git.blame.editorDecoration.disablePreview": {
+        "git.blame.editorDecoration.disableHover": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "%config.blameEditorDecoration.disablePreview%"
+          "markdownDescription": "%config.blameEditorDecoration.disableHover%"
         },
         "git.blame.statusBarItem.enabled": {
           "type": "boolean",

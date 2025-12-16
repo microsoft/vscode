@@ -579,7 +579,7 @@ class GitBlameEditorDecoration implements HoverProvider {
 		if (e &&
 			!e.affectsConfiguration('git.commitShortHashLength') &&
 			!e.affectsConfiguration('git.blame.editorDecoration.template') &&
-			!e.affectsConfiguration('git.blame.editorDecoration.disablePreview')) {
+			!e.affectsConfiguration('git.blame.editorDecoration.disableHover')) {
 			return;
 		}
 
@@ -644,9 +644,8 @@ class GitBlameEditorDecoration implements HoverProvider {
 		this._hoverDisposable?.dispose();
 
 		const config = workspace.getConfiguration('git');
-		const disablePreview = config.get<boolean>('blame.editorDecoration.disablePreview', false);
-
-		if (!disablePreview && window.activeTextEditor && isResourceSchemeSupported(window.activeTextEditor.document.uri)) {
+		const disableHover = config.get<boolean>('blame.editorDecoration.disableHover', false);
+		if (!disableHover && window.activeTextEditor && isResourceSchemeSupported(window.activeTextEditor.document.uri)) {
 			this._hoverDisposable = languages.registerHoverProvider({
 				pattern: window.activeTextEditor.document.uri.fsPath
 			}, this);
