@@ -222,6 +222,7 @@ export class ChatViewTitleControl extends Disposable {
 class ChatViewTitleLabel extends ActionViewItem {
 
 	private title: string | undefined;
+	private icon: ThemeIcon | undefined;
 
 	private titleLabel: HTMLSpanElement | undefined = undefined;
 	private titleIcon: HTMLSpanElement | undefined = undefined;
@@ -238,28 +239,38 @@ class ChatViewTitleLabel extends ActionViewItem {
 
 		this.titleIcon = this.label?.appendChild(h('span').root);
 		this.titleLabel = this.label?.appendChild(h('span.chat-view-title-label').root);
+
+		this.updateLabel();
+		this.updateIcon();
 	}
 
 	updateTitle(title: string, icon: ThemeIcon | undefined): void {
 		this.title = title;
+		this.icon = icon;
 
 		this.updateLabel();
-		this.updateIcon(icon);
+		this.updateIcon();
 	}
 
 	protected override updateLabel(): void {
-		if (this.options.label && this.titleLabel && typeof this.title === 'string') {
+		if (!this.titleLabel) {
+			return;
+		}
+
+		if (this.title) {
 			this.titleLabel.textContent = this.title;
+		} else {
+			this.titleLabel.textContent = '';
 		}
 	}
 
-	private updateIcon(icon: ThemeIcon | undefined): void {
+	private updateIcon(): void {
 		if (!this.titleIcon) {
 			return;
 		}
 
-		if (icon) {
-			this.titleIcon.className = ThemeIcon.asClassName(icon);
+		if (this.icon) {
+			this.titleIcon.className = ThemeIcon.asClassName(this.icon);
 		} else {
 			this.titleIcon.className = '';
 		}

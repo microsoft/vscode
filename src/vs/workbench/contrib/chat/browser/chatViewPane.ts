@@ -303,7 +303,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsLinkContainer: HTMLElement | undefined;
 	private sessionsLink: Link | undefined;
 	private sessionsCount = 0;
-	private sessionsFirstGroupLabel: string | undefined;
 	private sessionsViewerLimited = true;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationConfiguration: 'auto' | 'stacked' | 'sideBySide' = 'auto';
@@ -354,9 +353,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			notifyResults(count: number) {
 				that.notifySessionsControlCountChanged(count);
 			},
-			notifyFirstGroupLabel(label: string | undefined) {
-				that.notifySessionsControlFirstGroupLabelChanged(label);
-			}
 		}));
 		this._register(Event.runAndSubscribe(sessionsFilter.onDidChange, () => {
 			sessionsToolbarContainer.classList.toggle('filtered', !sessionsFilter.isDefault());
@@ -476,12 +472,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private notifySessionsControlFirstGroupLabelChanged(label: string | undefined): void {
-		this.sessionsFirstGroupLabel = label;
-
-		this.updateSessionsControlTitle();
-	}
-
 	private updateSessionsControlTitle(): void {
 		if (!this.sessionsTitle) {
 			return;
@@ -490,7 +480,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (this.sessionsViewerLimited) {
 			this.sessionsTitle.textContent = localize('recentSessions', "Recent Sessions");
 		} else {
-			this.sessionsTitle.textContent = this.sessionsFirstGroupLabel ?? localize('allSessions', "All Sessions");
+			this.sessionsTitle.textContent = localize('sessions', "Sessions");
 		}
 	}
 
