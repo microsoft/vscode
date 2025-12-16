@@ -1219,7 +1219,7 @@ export class DebugSession implements IDebugSession {
 					return;
 				}
 
-				// Make sure to append output in the correct order by properly waiting on preivous promises #33822
+				// Make sure to append output in the correct order by properly waiting on previous promises #33822
 				const source = event.body.source && event.body.line ? {
 					lineNumber: event.body.line,
 					column: event.body.column ? event.body.column : 1,
@@ -1490,7 +1490,7 @@ export class DebugSession implements IDebugSession {
 	private shutdown(): void {
 		this.rawListeners.clear();
 		if (this.raw) {
-			// Send out disconnect and immediatly dispose (do not wait for response) #127418
+			// Send out disconnect and immediately dispose (do not wait for response) #127418
 			this.raw.disconnect({});
 			this.raw.dispose();
 			this.raw = undefined;

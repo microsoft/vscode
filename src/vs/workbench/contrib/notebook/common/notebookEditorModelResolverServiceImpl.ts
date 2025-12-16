@@ -148,7 +148,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 				this._modelListener.delete(model);
 				model.dispose();
 			} catch (err) {
-				this._notebookLoggingService.error('NotebookModelCollection', 'FAILED to destory notebook - ' + err);
+				this._notebookLoggingService.error('NotebookModelCollection', 'FAILED to destroy notebook - ' + err);
 			} finally {
 				this.modelsToDispose.delete(key); // Untrack as being disposed
 			}

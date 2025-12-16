@@ -589,7 +589,7 @@ export class DebugService implements IDebugService {
 
 				const result = await this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options, userConfirmedConcurrentSession);
 				if (result && guess && activeEditor && activeEditor.resource) {
-					// Remeber user choice of environment per active editor to make starting debugging smoother #124770
+					// Remember user choice of environment per active editor to make starting debugging smoother #124770
 					this.chosenEnvironments[activeEditor.resource.toString()] = { type: guess.debugger.type, dynamicLabel: guess.withConfig?.label };
 					this.debugStorage.storeChosenEnvironments(this.chosenEnvironments);
 				}

@@ -820,7 +820,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 	private renderImageOutput(resource: URI, attachment: INotebookOutputVariableEntry) {
 		let ariaLabel: string;
 		if (attachment.omittedState === OmittedState.Full) {
-			ariaLabel = localize('chat.omittedNotebookImageAttachment', "Omitted this Notebook ouput: {0}", attachment.name);
+			ariaLabel = localize('chat.omittedNotebookImageAttachment', "Omitted this Notebook output: {0}", attachment.name);
 		} else if (attachment.omittedState === OmittedState.Partial) {
 			ariaLabel = localize('chat.partiallyOmittedNotebookImageAttachment', "Partially omitted this Notebook output: {0}", attachment.name);
 		} else {
