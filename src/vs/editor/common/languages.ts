@@ -1048,6 +1048,7 @@ export enum InlineCompletionEndOfLifeReasonKind {
 
 export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
 	kind: InlineCompletionEndOfLifeReasonKind.Accepted; // User did an explicit action to accept
+	alternativeAction: boolean; // Whether the user performed an alternative action.
 } | {
 	kind: InlineCompletionEndOfLifeReasonKind.Rejected; // User did an explicit action to reject
 } | {
@@ -1067,6 +1068,7 @@ export type LifetimeSummary = {
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilActuallyShown: number | undefined;
 	timeUntilProviderRequest: number;
 	timeUntilProviderResponse: number;
 	notShownReason: string | undefined;
@@ -1088,10 +1090,11 @@ export type LifetimeSummary = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
-	sku: string | undefined;
-	renameCreated: boolean;
+	skuPlan: string | undefined;
+	skuType: string | undefined;
+	renameCreated: boolean | undefined;
 	renameDuration: number | undefined;
-	renameTimedOut: boolean;
+	renameTimedOut: boolean | undefined;
 	renameDroppedOtherEdits: number | undefined;
 	renameDroppedRenameEdits: number | undefined;
 	editKind: string | undefined;

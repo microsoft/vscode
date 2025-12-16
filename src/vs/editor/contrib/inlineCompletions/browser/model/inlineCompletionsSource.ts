@@ -7,7 +7,7 @@ import { booleanComparator, compareBy, compareUndefinedSmallest, numberComparato
 import { findLastMax } from '../../../../../base/common/arraysFind.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
+import { equalsIfDefined, thisEqualsC } from '../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { cloneAndChange } from '../../../../../base/common/objects.js';
 import { derived, IObservable, IObservableWithChange, ITransaction, observableValue, recordChangesLazy, transaction } from '../../../../../base/common/observable.js';
@@ -460,7 +460,8 @@ export class InlineCompletionsSource extends Disposable {
 			extensionVersion: '0.0.0',
 			groupId: 'empty',
 			shown: false,
-			sku: requestResponseInfo.requestInfo.sku,
+			skuPlan: requestResponseInfo.requestInfo.sku?.plan,
+			skuType: requestResponseInfo.requestInfo.sku?.type,
 			editorType: requestResponseInfo.requestInfo.editorType,
 			requestReason: requestResponseInfo.requestInfo.reason,
 			typingInterval: requestResponseInfo.requestInfo.typingInterval,
@@ -475,6 +476,7 @@ export class InlineCompletionsSource extends Disposable {
 			preceeded: undefined,
 			superseded: undefined,
 			reason: undefined,
+			acceptedAlternativeAction: undefined,
 			correlationId: undefined,
 			shownDuration: undefined,
 			shownDurationUncollapsed: undefined,
@@ -529,7 +531,7 @@ class UpdateRequest {
 
 	public satisfies(other: UpdateRequest): boolean {
 		return this.position.equals(other.position)
-			&& equalsIfDefined(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, itemEquals())
+			&& equalsIfDefined(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, thisEqualsC())
 			&& (other.context.triggerKind === InlineCompletionTriggerKind.Automatic
 				|| this.context.triggerKind === InlineCompletionTriggerKind.Explicit)
 			&& this.versionId === other.versionId

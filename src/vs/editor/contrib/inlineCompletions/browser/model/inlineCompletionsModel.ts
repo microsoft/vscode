@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
-import { itemsEquals } from '../../../../../base/common/equals.js';
+import { arrayEqualsC } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, constObservable, derived, derivedHandleChanges, derivedOpts, mapObservableArrayCached, observableFromEvent, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -39,7 +39,7 @@ import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionsSource } from './inlineCompletionsSource.js';
 import { InlineCompletionItem, InlineEditItem, InlineSuggestionItem } from './inlineSuggestionItem.js';
-import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType, InlineSuggestRequestInfo } from './provideInlineCompletions.js';
+import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType, InlineSuggestRequestInfo, InlineSuggestSku } from './provideInlineCompletions.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 import { TextModelEditSource, EditSources } from '../../../../common/textModelEditSource.js';
@@ -51,6 +51,7 @@ import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -66,7 +67,7 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
 	public readonly allPositions = derived(this, reader => this._positions.read(reader));
 
-	private readonly sku = observableValue<string | undefined>(this, undefined);
+	private readonly sku = observableValue<InlineSuggestSku | undefined>(this, undefined);
 
 	private _isAcceptingPartially = false;
 	private readonly _appearedInsideViewport = derived<boolean>(this, reader => {
@@ -142,8 +143,8 @@ export class InlineCompletionsModel extends Disposable {
 		const snippetController = SnippetController2.get(this._editor);
 		this._isInSnippetMode = snippetController?.isInSnippetObservable ?? constObservable(false);
 
-		defaultAccountService.getDefaultAccount().then(account => this.sku.set(account?.access_type_sku, undefined));
-		this._register(defaultAccountService.onDidChangeDefaultAccount(account => this.sku.set(account?.access_type_sku, undefined)));
+		defaultAccountService.getDefaultAccount().then(createDisposableCb(account => this.sku.set(skuFromAccount(account), undefined), this._store));
+		this._register(defaultAccountService.onDidChangeDefaultAccount(account => this.sku.set(skuFromAccount(account), undefined)));
 
 		this._typing = this._register(new TypingInterval(this.textModel));
 
@@ -538,7 +539,7 @@ export class InlineCompletionsModel extends Disposable {
 		};
 	});
 
-	private readonly _filteredInlineCompletionItems = derivedOpts({ owner: this, equalsFn: itemsEquals() }, reader => {
+	private readonly _filteredInlineCompletionItems = derivedOpts({ owner: this, equalsFn: arrayEqualsC() }, reader => {
 		const c = this._inlineCompletionItems.read(reader);
 		return c?.inlineCompletions ?? [];
 	});
@@ -562,7 +563,7 @@ export class InlineCompletionsModel extends Disposable {
 		return filteredCompletions[idx];
 	});
 
-	public readonly activeCommands = derivedOpts<InlineCompletionCommand[]>({ owner: this, equalsFn: itemsEquals() },
+	public readonly activeCommands = derivedOpts<InlineCompletionCommand[]>({ owner: this, equalsFn: arrayEqualsC() },
 		r => this.selectedInlineCompletion.read(r)?.source.inlineSuggestions.commands ?? []
 	);
 
@@ -881,11 +882,13 @@ export class InlineCompletionsModel extends Disposable {
 				providerId: completion.source.provider.providerId,
 				languageId,
 				type,
+				correlationId: completion.getSourceCompletion().correlationId,
 			});
 		} else {
 			return EditSources.inlineCompletionAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
+				correlationId: completion.getSourceCompletion().correlationId,
 				providerId: completion.source.provider.providerId,
 				languageId
 			});
@@ -916,14 +919,17 @@ export class InlineCompletionsModel extends Disposable {
 		completion.addRef();
 
 		try {
+			let followUpTrigger = false;
 			editor.pushUndoStop();
 			if (isNextEditUri) {
 				// Do nothing
 			} else if (completion.action?.kind === 'edit') {
 				const action = completion.action;
-				if (action.alternativeAction && alternativeAction) {
+				if (alternativeAction && action.alternativeAction) {
+					followUpTrigger = true;
+					const altCommand = action.alternativeAction.command;
 					await this._commandService
-						.executeCommand(action.alternativeAction?.id, ...(action.alternativeAction?.arguments || []))
+						.executeCommand(altCommand.id, ...(altCommand.arguments || []))
 						.then(undefined, onUnexpectedExternalError);
 				} else if (action.snippetInfo) {
 					const mainEdit = TextReplacement.delete(action.textReplacement.range);
@@ -975,7 +981,12 @@ export class InlineCompletionsModel extends Disposable {
 					.then(undefined, onUnexpectedExternalError);
 			}
 
-			completion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });
+			// TODO: how can we make alternative actions to retrigger?
+			if (followUpTrigger) {
+				this.trigger(undefined);
+			}
+
+			completion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted, alternativeAction });
 		} finally {
 			completion.removeRef();
 			this._inAcceptFlow.set(true, undefined);
@@ -1129,7 +1140,7 @@ export class InlineCompletionsModel extends Disposable {
 			transaction(tx => {
 				if (suggestion.action?.kind === 'jumpTo') {
 					this.stop(undefined, tx);
-					suggestion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });
+					suggestion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted, alternativeAction: false });
 				}
 
 				this._jumpedToId.set(s.inlineSuggestion.semanticId, tx);
@@ -1156,8 +1167,8 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData): Promise<void> {
-		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind, viewData, this.textModel);
+	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, timeWhenShown: number): Promise<void> {
+		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind, viewData, this.textModel, timeWhenShown);
 	}
 }
 
@@ -1261,4 +1272,33 @@ export function isSuggestionInViewport(editor: ICodeEditor, suggestion: InlineSu
 		visibleRanges[visibleRanges.length - 1].endColumn
 	);
 	return viewportRange.containsRange(targetRange);
+}
+
+function skuFromAccount(account: IDefaultAccount | null): InlineSuggestSku | undefined {
+	if (account?.access_type_sku && account?.copilot_plan) {
+		return { type: account.access_type_sku, plan: account.copilot_plan };
+	}
+	return undefined;
+}
+
+class DisposableCallback<T> {
+	private _cb: ((e: T) => void) | undefined;
+
+	constructor(cb: (e: T) => void) {
+		this._cb = cb;
+	}
+
+	dispose(): void {
+		this._cb = undefined;
+	}
+
+	readonly handler = (val: T) => {
+		return this._cb?.(val);
+	};
+}
+
+function createDisposableCb<T>(cb: (e: T) => void, store: DisposableStore): (e: T) => void {
+	const dcb = new DisposableCallback(cb);
+	store.add(dcb);
+	return dcb.handler;
 }

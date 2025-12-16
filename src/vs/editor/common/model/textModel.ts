@@ -5,6 +5,8 @@
 
 import { ArrayQueue, pushMany } from '../../../base/common/arrays.js';
 import { VSBuffer, VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { CharCode } from '../../../base/common/charCode.js';
+import { SetWithKey } from '../../../base/common/collections.js';
 import { Color } from '../../../base/common/color.js';
 import { BugIndicatingError, illegalArgument, onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -15,19 +17,30 @@ import * as strings from '../../../base/common/strings.js';
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Constants } from '../../../base/common/uint.js';
 import { URI } from '../../../base/common/uri.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { isDark } from '../../../platform/theme/common/theme.js';
+import { IColorTheme } from '../../../platform/theme/common/themeService.js';
+import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
 import { ISingleEditOperation } from '../core/editOperation.js';
+import { TextEdit } from '../core/edits/textEdit.js';
 import { countEOL } from '../core/misc/eolCounter.js';
 import { normalizeIndentation } from '../core/misc/indentation.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { IPosition, Position } from '../core/position.js';
 import { IRange, Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
 import { TextChange } from '../core/textChange.js';
-import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { IWordAtPosition } from '../core/wordHelper.js';
 import { FormattingOptions } from '../languages.js';
 import { ILanguageSelection, ILanguageService } from '../languages/language.js';
 import { ILanguageConfigurationService } from '../languages/languageConfigurationRegistry.js';
 import * as model from '../model.js';
+import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
+import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelFontChanged, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChanged, ModelLineHeightChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../textModelEvents.js';
+import { IGuidesTextModelPart } from '../textModelGuides.js';
+import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
+import { TokenArray } from '../tokens/lineTokens.js';
 import { BracketPairsTextModelPart } from './bracketPairsTextModelPart/bracketPairsImpl.js';
 import { ColorizedBracketPairsDecorationProvider } from './bracketPairsTextModelPart/colorizedBracketPairsDecorationProvider.js';
 import { EditStack } from './editStack.js';
@@ -37,7 +50,6 @@ import { IntervalNode, IntervalTree, recomputeMaxEnd } from './intervalTree.js';
 import { PieceTreeTextBuffer } from './pieceTreeTextBuffer/pieceTreeTextBuffer.js';
 import { PieceTreeTextBufferBuilder } from './pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { SearchParams, TextModelSearch } from './textModelSearch.js';
-import { TokenizationTextModelPart } from './tokens/tokenizationTextModelPart.js';
 import { AttachedViews } from './tokens/abstractSyntaxTokenBackend.js';
 import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged, ModelFontChangedEvent, ModelFontChanged, LineInjectedText } from '../textModelEvents.js';
@@ -53,6 +65,7 @@ import { TextEdit } from '../core/edits/textEdit.js';
 import { TokenizationFontDecorationProvider } from './tokens/tokenizationFontDecorationsProvider.js';
 import { LineFontChangingDecoration, LineHeightChangingDecoration } from './decorationProvider.js';
 import { isDark } from '../../../platform/theme/common/theme.js';
+import { TokenizationTextModelPart } from './tokens/tokenizationTextModelPart.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -1288,10 +1301,29 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (rawOperation instanceof model.ValidAnnotatedEditOperation) {
 			return rawOperation;
 		}
+
+		const validatedRange = this.validateRange(rawOperation.range);
+
+		// Normalize edit when replacement text ends with lone CR
+		// and the range ends right before a CRLF in the buffer.
+		// We strip the trailing CR from the replacement text.
+		let opText = rawOperation.text;
+		if (opText) {
+			const endsWithLoneCR = (
+				opText.length > 0 && opText.charCodeAt(opText.length - 1) === CharCode.CarriageReturn
+			);
+			const removeTrailingCR = (
+				this.getEOL() === '\r\n' && endsWithLoneCR && validatedRange.endColumn === this.getLineMaxColumn(validatedRange.endLineNumber)
+			);
+			if (removeTrailingCR) {
+				opText = opText.substring(0, opText.length - 1);
+			}
+		}
+
 		return new model.ValidAnnotatedEditOperation(
 			rawOperation.identifier || null,
-			this.validateRange(rawOperation.range),
-			rawOperation.text,
+			validatedRange,
+			opText,
 			rawOperation.forceMoveMarkers || false,
 			rawOperation.isAutoWhitespaceEdit || false,
 			rawOperation._isTracked || false

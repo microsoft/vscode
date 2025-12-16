@@ -16,22 +16,14 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
- * Target environment for custom agents.
+ * Activation event for custom agent providers.
  */
-export enum CustomAgentTarget {
-	GitHubCopilot = 'github-copilot',
-	VSCode = 'vscode',
-}
+export const CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentsProvider';
 
 /**
  * Options for querying custom agents.
  */
-export interface ICustomAgentQueryOptions {
-	/**
-	 * Filter agents by target environment.
-	 */
-	readonly target?: CustomAgentTarget;
-}
+export interface ICustomAgentQueryOptions { }
 
 /**
  * Represents a custom agent resource from an external provider.
@@ -51,6 +43,11 @@ export interface IExternalCustomAgent {
 	 * The URI to the agent or prompt resource file.
 	 */
 	readonly uri: URI;
+
+	/**
+	 * Indicates whether the custom agent resource is editable. Defaults to false.
+	 */
+	readonly isEditable?: boolean;
 }
 
 /**
@@ -111,9 +108,9 @@ export interface IPromptPathBase {
 export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.extension;
 	readonly extension: IExtensionDescription;
-	readonly name: string;
-	readonly description: string;
 	readonly source: ExtensionAgentSourceType;
+	readonly name?: string;
+	readonly description?: string;
 }
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
@@ -281,7 +278,7 @@ export interface IPromptsService extends IDisposable {
 	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
 	 * Not intended for extension authors; used by contribution point handler.
 	 */
-	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription): IDisposable;
+	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined): IDisposable;
 
 
 	getPromptLocationLabel(promptPath: IPromptPath): string;

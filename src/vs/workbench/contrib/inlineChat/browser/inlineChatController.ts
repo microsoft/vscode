@@ -30,7 +30,7 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection, Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { TextEdit, VersionedExtensionId } from '../../../../editor/common/languages.js';
-import { IValidEditOperation } from '../../../../editor/common/model.js';
+import { ITextModel, IValidEditOperation } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { DefaultModelSHA1Computer } from '../../../../editor/common/services/modelService.js';
@@ -101,6 +101,7 @@ export abstract class InlineChatRunOptions {
 	existingSession?: Session;
 	position?: IPosition;
 	modelSelector?: ILanguageModelChatSelector;
+	blockOnResponse?: boolean;
 
 	static isInlineChatRunOptions(options: unknown): options is InlineChatRunOptions {
 
@@ -108,7 +109,7 @@ export abstract class InlineChatRunOptions {
 			return false;
 		}
 
-		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachments, modelSelector } = <InlineChatRunOptions>options;
+		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachments, modelSelector, blockOnResponse } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
@@ -118,6 +119,7 @@ export abstract class InlineChatRunOptions {
 			|| typeof existingSession !== 'undefined' && !(existingSession instanceof Session)
 			|| typeof attachments !== 'undefined' && (!Array.isArray(attachments) || !attachments.every(item => item instanceof URI))
 			|| typeof modelSelector !== 'undefined' && !isILanguageModelChatSelector(modelSelector)
+			|| typeof blockOnResponse !== 'undefined' && typeof blockOnResponse !== 'boolean'
 		) {
 			return false;
 		}
@@ -180,6 +182,11 @@ export class InlineChatController implements IEditorContribution {
 	acceptSession() {
 		return this._delegate.get().acceptSession();
 	}
+}
+
+// TODO@jrieken THIS should be shared with the code in MainThreadEditors
+function getEditorId(editor: ICodeEditor, model: ITextModel): string {
+	return `${editor.getId()},${model.id}`;
 }
 
 /**
@@ -250,6 +257,7 @@ export class InlineChatController1 implements IEditorContribution {
 					assertType(this._session);
 					return {
 						type: ChatAgentLocation.EditorInline,
+						id: getEditorId(this._editor, this._session.textModelN),
 						selection: this._editor.getSelection(),
 						document: this._session.textModelN.uri,
 						wholeRange: this._session?.wholeRange.trackedInitialRange,
@@ -1288,6 +1296,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
+			assertType(this._editor.hasModel(), '[Illegal State] widget should only be created when the editor has a model');
 
 			const location: IChatWidgetLocationOptions = {
 				location: ChatAgentLocation.EditorInline,
@@ -1298,6 +1307,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 					return {
 						type: ChatAgentLocation.EditorInline,
+						id: getEditorId(this._editor, this._editor.getModel()),
 						selection: this._editor.getSelection(),
 						document,
 						wholeRange,
@@ -1416,19 +1426,27 @@ export class InlineChatController2 implements IEditorContribution {
 			}
 		}));
 
+		const defaultPlaceholderObs = visibleSessionObs.map((session, r) => {
+			return session?.initialSelection.isEmpty()
+				? localize('placeholder', "Generate code")
+				: localize('placeholderWithSelection', "Modify selected code");
+		});
+
+
 		this._store.add(autorun(r => {
 
 			// HIDE/SHOW
 			const session = visibleSessionObs.read(r);
 			if (!session) {
 				this._zone.rawValue?.hide();
-				this._zone.value.widget.chatWidget.setModel(undefined);
+				this._zone.rawValue?.widget.chatWidget.setModel(undefined);
 				_editor.focus();
 				ctxInlineChatVisible.reset();
 			} else {
 				ctxInlineChatVisible.set(true);
 				this._zone.value.widget.chatWidget.setModel(session.chatModel);
 				if (!this._zone.value.position) {
+					this._zone.value.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
 					this._zone.value.widget.chatWidget.input.renderAttachedContext(); // TODO - fights layout bug
 					this._zone.value.show(session.initialPosition);
 				}
@@ -1465,31 +1483,32 @@ export class InlineChatController2 implements IEditorContribution {
 			return observableFromEvent(this, response.onDidChange, () => response.response.value.findLast(part => part.kind === 'progressMessage')).read(r);
 		});
 
+
 		this._store.add(autorun(r => {
 			const response = lastResponseObs.read(r);
 
-			this._zone.value.widget.updateInfo('');
+			this._zone.rawValue?.widget.updateInfo('');
 
 			if (!response?.isInProgress.read(r)) {
 
 				if (response?.result?.errorDetails) {
 					// ERROR case
-					this._zone.value.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
+					this._zone.rawValue?.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
 					alert(response.result.errorDetails.message);
 				}
 
 				// no response or not in progress
-				this._zone.value.widget.domNode.classList.toggle('request-in-progress', false);
-				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder', "Edit, refactor, and generate code"));
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', false);
+				this._zone.rawValue?.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
 
 			} else {
-				this._zone.value.widget.domNode.classList.toggle('request-in-progress', true);
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', true);
 				let placeholder = response.request?.message.text;
 				const lastProgress = lastResponseProgressObs.read(r);
 				if (lastProgress) {
 					placeholder = renderAsPlaintext(lastProgress.content);
 				}
-				this._zone.value.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
+				this._zone.rawValue?.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
 			}
 
 		}));

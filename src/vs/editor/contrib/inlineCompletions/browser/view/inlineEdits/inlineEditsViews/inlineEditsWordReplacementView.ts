@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ModifierKeyEmitter, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
+import { $, ModifierKeyEmitter, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { IEquatable } from '../../../../../../../base/common/equals.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { ResolvedChord, ResolvedKeybinding, SingleModifierChord } from '../../../../../../../base/common/keybindings.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableFromEvent, observableFromPromise, observableValue } from '../../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../../base/common/platform.js';
+import { localize } from '../../../../../../../nls.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { editorBackground, editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { contrastBorder } from '../../../../../../../platform/theme/common/colors/baseColors.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -21,17 +26,18 @@ import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { StringReplacement } from '../../../../../../common/core/edits/stringEdit.js';
 import { TextReplacement } from '../../../../../../common/core/edits/textEdit.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
-import { Command } from '../../../../../../common/languages.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
+import { inlineSuggestCommitAlternativeActionId } from '../../../controller/commandIds.js';
+import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
 import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getModifiedBorderColor, getOriginalBorderColor, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
+import { getModifiedBorderColor, getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
 import { getEditorValidOverlayRect, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
-export class WordReplacementsViewData {
+export class WordReplacementsViewData implements IEquatable<WordReplacementsViewData> {
 	constructor(
 		public readonly edit: TextReplacement,
-		public readonly alternativeAction: Command | undefined,
+		public readonly alternativeAction: InlineSuggestAlternativeAction | undefined,
 	) { }
 
 	equals(other: WordReplacementsViewData): boolean {
@@ -40,6 +46,10 @@ export class WordReplacementsViewData {
 }
 
 const BORDER_WIDTH = 1;
+const DOM_ID_OVERLAY = 'word-replacement-view-overlay';
+const DOM_ID_WIDGET = 'word-replacement-view-widget';
+const DOM_ID_REPLACEMENT = 'word-replacement-view-replacement';
+const DOM_ID_RENAME = 'word-replacement-view-rename';
 
 export class InlineEditsWordReplacementView extends Disposable implements IInlineEditsView {
 
@@ -66,6 +76,8 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		protected readonly _tabAction: IObservable<InlineEditTabAction>,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 		this._start = this._editor.observePosition(constObservable(this._viewData.edit.range.getStartPosition()), this._store);
@@ -91,6 +103,8 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			this._line.style.width = `${res.minWidthInPx}px`;
 		});
 		const modifiedLineHeight = this._editor.observeLineHeightForPosition(this._viewData.edit.range.getStartPosition());
+		const altCount = observableFromPromise(this._viewData.alternativeAction?.count ?? new Promise<undefined>(resolve => resolve(undefined))).map(c => c.value);
+		const altModifierActive = observableFromEvent(this, ModifierKeyEmitter.getInstance().event, () => ModifierKeyEmitter.getInstance().keyStatus.shiftKey);
 		this._layout = derived(this, reader => {
 			this._renderTextEffect.read(reader);
 			const widgetStart = this._start.read(reader);
@@ -110,11 +124,22 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			const modifiedOffset = new Point(modifiedLeftOffset, modifiedTopOffset);
 
 			let alternativeAction = undefined;
-			if (this._viewData.alternativeAction) { // TODO: make this customizable and not rename specific
-				const modifier = ModifierKeyEmitter.getInstance();
+			if (this._viewData.alternativeAction) {
+				const label = this._viewData.alternativeAction.label;
+				const count = altCount.read(reader);
+				const active = altModifierActive.read(reader);
+				const occurrencesLabel = count !== undefined ? count === 1 ?
+					localize('labelOccurence', "{0} 1 occurrence", label) :
+					localize('labelOccurences', "{0} {1} occurrences", label, count)
+					: label;
+				const keybindingTooltip = localize('shiftToSeeOccurences', "{0} show occurrences", '[shift]');
 				alternativeAction = {
-					label: this._viewData.alternativeAction.title,
-					active: observableFromEvent(this, modifier.event, () => modifier.keyStatus.shiftKey)
+					label: count !== undefined ? (active ? occurrencesLabel : label) : label,
+					tooltip: occurrencesLabel ? `${occurrencesLabel}\n${keybindingTooltip}` : undefined,
+					icon: undefined, //this._viewData.alternativeAction.icon, Do not render icon fo the moment
+					count,
+					keybinding: this._keybindingService.lookupKeybinding(inlineSuggestCommitAlternativeActionId),
+					active: altModifierActive,
 				};
 			}
 
@@ -158,23 +183,39 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 				const alternativeAction = layout.map(l => l.alternativeAction);
 				const alternativeActionActive = derived(reader => (alternativeAction.read(reader)?.active.read(reader) ?? false) || secondaryElementHovered.read(reader));
 
-				const activeStyles = {
-					borderColor: modifiedBorderColor,
+				const isHighContrast = observableFromEvent(this._themeService.onDidColorThemeChange, () => {
+					const theme = this._themeService.getColorTheme();
+					return theme.type === 'hcDark' || theme.type === 'hcLight';
+				}).read(reader);
+				const hcBorderColor = isHighContrast ? observeColor(contrastBorder, this._themeService).read(reader) : null;
+
+				const primaryActiveStyles = {
+					borderColor: hcBorderColor ? hcBorderColor.toString() : modifiedBorderColor,
 					backgroundColor: asCssVariable(modifiedChangedTextOverlayColor),
+					color: '',
+					opacity: '1',
+				};
+
+				const secondaryActiveStyles = {
+					borderColor: hcBorderColor ? hcBorderColor.toString() : asCssVariable(inlineEditIndicatorPrimaryBorder),
+					backgroundColor: asCssVariable(inlineEditIndicatorPrimaryBackground),
+					color: asCssVariable(inlineEditIndicatorPrimaryForeground),
 					opacity: '1',
 				};
 
 				const passiveStyles = {
-					borderColor: observeColor(editorHoverForeground, this._themeService).map(c => c.transparent(0.2).toString()).read(reader),
+					borderColor: hcBorderColor ? hcBorderColor.toString() : observeColor(editorHoverForeground, this._themeService).map(c => c.transparent(0.2).toString()).read(reader),
 					backgroundColor: asCssVariable(editorBackground),
+					color: '',
 					opacity: '0.7',
 				};
 
-				const primaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? passiveStyles : activeStyles);
-				const secondaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? activeStyles : passiveStyles);
-
+				const primaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? primaryActiveStyles : primaryActiveStyles);
+				const secondaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? secondaryActiveStyles : passiveStyles);
+				// TODO@benibenj clicking the arrow does not accept suggestion anymore
 				return [
 					n.div({
+						id: DOM_ID_OVERLAY,
 						style: {
 							position: 'absolute',
 							...rectToProps((r) => getEditorValidOverlayRect(this._editor).read(r)),
@@ -187,19 +228,20 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH, BORDER_WIDTH, 0)),
 								background: asCssVariable(editorBackground),
+								cursor: 'pointer',
+								pointerEvents: 'auto',
 							},
-							onmousedown: e => {
-								e.preventDefault(); // This prevents that the editor loses focus
-							},
+							onmousedown: (e) => this._mouseDown(e),
 						}),
 						n.div({
+							id: DOM_ID_WIDGET,
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).modifiedLine.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH)),
 								width: undefined,
-								pointerEvents: 'none',
+								pointerEvents: 'auto',
 								boxSizing: 'border-box',
-								borderRadius: '4px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 
 								background: asCssVariable(editorBackground),
 								display: 'flex',
@@ -207,14 +249,16 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 								outline: `2px solid ${asCssVariable(editorBackground)}`,
 							},
+							onmousedown: (e) => this._mouseDown(e),
 						}, [
 							n.div({
+								id: DOM_ID_REPLACEMENT,
 								style: {
 									fontFamily: this._editor.getOption(EditorOption.fontFamily),
 									fontSize: this._editor.getOption(EditorOption.fontSize),
 									fontWeight: this._editor.getOption(EditorOption.fontWeight),
 									width: rectToProps(reader => layout.read(reader).codeLine.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH)).width,
-									borderRadius: '4px',
+									borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 									border: primaryActionStyles.map(s => `${BORDER_WIDTH}px solid ${s.borderColor}`),
 									boxSizing: 'border-box',
 									padding: `${BORDER_WIDTH}px`,
@@ -226,7 +270,6 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 									pointerEvents: 'auto',
 									cursor: 'pointer',
 								},
-								onmouseup: (e) => this._onDidClick.fire(InlineEditClickEvent.create(e, false)),
 								obsRef: (elem) => {
 									this._primaryElement.set(elem, undefined);
 								}
@@ -238,31 +281,44 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								}
 								const keybinding = document.createElement('div');
 								const keybindingLabel = reader.store.add(new KeybindingLabel(keybinding, OS, { ...unthemedKeybindingLabelOptions, disableTitle: true }));
-								keybindingLabel.set(new ShiftKeybinding(), undefined);
+								keybindingLabel.set(altAction.keybinding);
+
 								return n.div({
+									id: DOM_ID_RENAME,
 									style: {
-										borderRadius: '4px',
+										position: 'relative',
+										borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 										borderTop: `${BORDER_WIDTH}px solid`,
 										borderRight: `${BORDER_WIDTH}px solid`,
 										borderBottom: `${BORDER_WIDTH}px solid`,
 										borderLeft: `${BORDER_WIDTH}px solid`,
 										borderColor: secondaryActionStyles.map(s => s.borderColor),
 										opacity: secondaryActionStyles.map(s => s.opacity),
+										color: secondaryActionStyles.map(s => s.color),
 										display: 'flex',
 										justifyContent: 'center',
 										alignItems: 'center',
-										padding: '0 2px',
+										padding: '0 4px 0 1px',
 										marginLeft: '4px',
 										background: secondaryActionStyles.map(s => s.backgroundColor),
-										pointerEvents: 'auto',
 										cursor: 'pointer',
+										textWrap: 'nowrap',
 									},
 									class: 'inline-edit-alternative-action-label',
-									onmouseup: (e) => this._onDidClick.fire(InlineEditClickEvent.create(e, true)),
 									obsRef: (elem) => {
 										this._secondaryElement.set(elem, undefined);
+									},
+									ref: (elem) => {
+										if (altAction.tooltip) {
+											reader.store.add(this._hoverService.setupDelayedHoverAtMouse(elem, { content: altAction.tooltip, appearance: { compact: true } }));
+										}
 									}
-								}, [keybinding, /* renderIcon(altAction.icon), */ altAction.label]);
+								}, [
+									keybinding,
+									$('div.inline-edit-alternative-action-label-separator'),
+									altAction.icon ? renderIcon(altAction.icon) : undefined,
+									altAction.label,
+								]);
 							})
 						]),
 						n.div({
@@ -270,7 +326,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).originalLine.withMargin(BORDER_WIDTH)),
 								boxSizing: 'border-box',
-								borderRadius: '4px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 								border: `${BORDER_WIDTH}px solid ${originalBorderColor}`,
 								background: asCssVariable(originalChangedTextOverlayColor),
 								pointerEvents: 'none',
@@ -286,7 +342,9 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								position: 'absolute',
 								left: layout.map(l => l.modifiedLine.left - 16),
 								top: layout.map(l => l.modifiedLine.top + Math.round((l.lineHeight - 14 - 5) / 2)),
-							}
+								pointerEvents: 'none',
+							},
+							onmousedown: (e) => this._mouseDown(e),
 						}, [
 							n.svgElem('path', {
 								d: 'M1 0C1 2.98966 1 5.92087 1 8.49952C1 9.60409 1.89543 10.5 3 10.5H10.5',
@@ -316,34 +374,24 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 	private readonly _layout;
 
 	private readonly _root;
+
+	private _mouseDown(e: MouseEvent): void {
+		const target_id = traverseParentsUntilId(e.target as HTMLElement, new Set([DOM_ID_WIDGET, DOM_ID_REPLACEMENT, DOM_ID_RENAME, DOM_ID_OVERLAY]));
+		if (!target_id) {
+			return;
+		}
+		e.preventDefault(); // This prevents that the editor loses focus
+		this._onDidClick.fire(InlineEditClickEvent.create(e, target_id === DOM_ID_RENAME));
+	}
 }
 
-class ShiftKeybinding extends ResolvedKeybinding {
-	getLabel(): string | null {
-		return 'Shift';
+function traverseParentsUntilId(element: HTMLElement, ids: Set<string>): string | null {
+	let current: HTMLElement | null = element;
+	while (current) {
+		if (ids.has(current.id)) {
+			return current.id;
+		}
+		current = current.parentElement;
 	}
-	getAriaLabel(): string | null {
-		return 'Shift';
-	}
-	getElectronAccelerator(): string | null {
-		return null;
-	}
-	getUserSettingsLabel(): string | null {
-		return 'shift';
-	}
-	isWYSIWYG(): boolean {
-		return true;
-	}
-	hasMultipleChords(): boolean {
-		return false;
-	}
-	getChords(): ResolvedChord[] {
-		return [new ResolvedChord(false, false, false, false, 'Shift', 'Shift')];
-	}
-	getDispatchChords(): (string | null)[] {
-		return [null];
-	}
-	getSingleModifierDispatchChords(): (SingleModifierChord | null)[] {
-		return ['shift'];
-	}
+	return null;
 }

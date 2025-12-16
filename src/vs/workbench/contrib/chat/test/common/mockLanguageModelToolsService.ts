@@ -49,6 +49,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	setToolAutoConfirmation(toolId: string, scope: any): void {
 
 	}

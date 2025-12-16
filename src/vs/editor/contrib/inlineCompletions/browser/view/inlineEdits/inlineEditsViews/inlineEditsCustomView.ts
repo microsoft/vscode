@@ -20,7 +20,7 @@ import { ILanguageService } from '../../../../../../common/languages/language.js
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { InlineSuggestHint } from '../../../model/inlineSuggestionItem.js';
 import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground } from '../theme.js';
+import { getEditorBlendedColor, INLINE_EDITS_BORDER_RADIUS, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground } from '../theme.js';
 import { getContentRenderWidth, maxContentWidthInRange, rectToProps } from '../utils/utils.js';
 
 const MIN_END_OF_LINE_PADDING = 14;
@@ -248,7 +248,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				boxSizing: 'border-box',
 				cursor: 'pointer',
 				border: styles.map(s => `1px solid ${s.border}`),
-				borderRadius: '4px',
+				borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 				backgroundColor: styles.map(s => s.background),
 
 				display: 'flex',
