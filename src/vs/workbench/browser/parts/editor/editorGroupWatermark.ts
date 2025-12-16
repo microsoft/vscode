@@ -448,7 +448,7 @@ Start exploring Markdown for your writing!
 		const animate = () => {
 			frameCount++;
 			if (frameCount % 60 === 0) {
-				console.log('[Starry Background] Animation running, frame:', frameCount);
+				// console.log('[Starry Background] Animation running, frame:', frameCount);
 			}
 
 			// Get current canvas dimensions on each frame to handle resizing

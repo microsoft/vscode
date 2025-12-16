@@ -18,7 +18,10 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:pdfPreview.showPdf"
+    "onCommand:pdfPreview.showPdf",
+    "onCommand:markdownPreview.showMarkdown",
+    "onCommand:markdown.showPreviewToSide",
+    "onLanguage:markdown"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -35,6 +38,19 @@
         "selector": [
           {
             "filenamePattern": "*.pdf"
+          }
+        ]
+      },
+      {
+        "viewType": "markdownPreview.editor",
+        "displayName": "%customEditor.markdownPreview.displayName%",
+        "priority": "option",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
           }
         ]
       }
@@ -90,6 +106,32 @@
         "command": "pdfPreview.find",
         "title": "%command.find%",
         "category": "PDF Preview"
+      },
+      {
+        "command": "markdownPreview.showMarkdown",
+        "title": "%command.showMarkdown%",
+        "category": "Markdown Preview"
+      },
+      {
+        "command": "markdownPreview.zoomIn",
+        "title": "%command.zoomIn%",
+        "category": "Markdown Preview"
+      },
+      {
+        "command": "markdownPreview.zoomOut",
+        "title": "%command.zoomOut%",
+        "category": "Markdown Preview"
+      },
+      {
+        "command": "markdownPreview.find",
+        "title": "%command.find%",
+        "category": "Markdown Preview"
+      },
+      {
+        "command": "markdownPreview.exportPdf",
+        "title": "%command.exportPdf%",
+        "category": "Markdown Preview",
+        "icon": "$(file-pdf)"
       }
     ],
     "menus": {
@@ -131,6 +173,26 @@
           "when": "false"
         },
         {
+          "command": "markdownPreview.showMarkdown",
+          "when": "false"
+        },
+        {
+          "command": "markdownPreview.zoomIn",
+          "when": "activeCustomEditorId == 'markdownPreview.editor'"
+        },
+        {
+          "command": "markdownPreview.zoomOut",
+          "when": "activeCustomEditorId == 'markdownPreview.editor'"
+        },
+        {
+          "command": "markdownPreview.find",
+          "when": "activeCustomEditorId == 'markdownPreview.editor'"
+        },
+        {
+          "command": "markdownPreview.exportPdf",
+          "when": "activeCustomEditorId == 'markdownPreview.editor'"
+        },
+        {
           "command": "pdfPreview.find",
           "when": "activeCustomEditorId == 'pdfPreview.editor'"
         }
@@ -154,6 +216,24 @@
         "key": "ctrl+f",
         "mac": "cmd+f",
         "when": "activeCustomEditorId == 'pdfPreview.editor'"
+      },
+      {
+        "command": "markdownPreview.zoomIn",
+        "key": "ctrl+=",
+        "mac": "cmd+=",
+        "when": "activeCustomEditorId == 'markdownPreview.editor'"
+      },
+      {
+        "command": "markdownPreview.zoomOut",
+        "key": "ctrl+-",
+        "mac": "cmd+-",
+        "when": "activeCustomEditorId == 'markdownPreview.editor'"
+      },
+      {
+        "command": "markdownPreview.find",
+        "key": "ctrl+f",
+        "mac": "cmd+f",
+        "when": "activeCustomEditorId == 'markdownPreview.editor'"
       }
     ]
   },

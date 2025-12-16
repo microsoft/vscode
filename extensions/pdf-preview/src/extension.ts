@@ -5,6 +5,8 @@
 
 import * as vscode from 'vscode';
 import { PdfPreviewManager, ShowPdfOptions } from './pdfPreviewManager';
+import { MarkdownPreviewManager } from './markdownPreviewManager';
+import { ShowMarkdownOptions } from './markdownPreview';
 import { BinarySizeStatusBarEntry } from './statusBar/binarySizeStatusBarEntry';
 import { PageStatusBarEntry } from './statusBar/pageStatusBarEntry';
 import { ZoomStatusBarEntry } from './statusBar/zoomStatusBarEntry';
@@ -21,6 +23,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const zoomStatusBarEntry = new ZoomStatusBarEntry();
 	disposables.push(zoomStatusBarEntry);
 
+	// PDF Preview Manager
 	const previewManager = new PdfPreviewManager(
 		context.extensionUri,
 		binarySizeStatusBarEntry,
@@ -28,10 +31,28 @@ export function activate(context: vscode.ExtensionContext) {
 		zoomStatusBarEntry
 	);
 
+	// Markdown Preview Manager
+	const markdownPreviewManager = new MarkdownPreviewManager(
+		context.extensionUri,
+		zoomStatusBarEntry
+	);
+
 	// Register custom editor provider for .pdf files
 	disposables.push(vscode.window.registerCustomEditorProvider(
 		PdfPreviewManager.viewType,
 		previewManager,
+		{
+			supportsMultipleEditorsPerDocument: true,
+			webviewOptions: {
+				retainContextWhenHidden: true
+			}
+		}
+	));
+
+	// Register custom editor provider for .md files
+	disposables.push(vscode.window.registerCustomEditorProvider(
+		MarkdownPreviewManager.viewType,
+		markdownPreviewManager,
 		{
 			supportsMultipleEditorsPerDocument: true,
 			webviewOptions: {
@@ -114,6 +135,133 @@ export function activate(context: vscode.ExtensionContext) {
 	// Register public API command for LaTeX/Typst integration
 	disposables.push(vscode.commands.registerCommand('pdfPreview.showPdf', async (options: ShowPdfOptions) => {
 		return previewManager.showPdfPreview(options);
+	}));
+
+	// ==================== MARKDOWN PREVIEW COMMANDS ====================
+
+	// Register markdown commands
+	disposables.push(vscode.commands.registerCommand('markdownPreview.zoomIn', () => {
+		markdownPreviewManager.activePreview?.zoomIn();
+	}));
+
+	disposables.push(vscode.commands.registerCommand('markdownPreview.zoomOut', () => {
+		markdownPreviewManager.activePreview?.zoomOut();
+	}));
+
+	disposables.push(vscode.commands.registerCommand('markdownPreview.find', () => {
+		markdownPreviewManager.activePreview?.openFind();
+	}));
+
+	disposables.push(vscode.commands.registerCommand('markdownPreview.exportPdf', () => {
+		markdownPreviewManager.activePreview?.exportPdf();
+	}));
+
+	// Register public API command for markdown preview
+	disposables.push(vscode.commands.registerCommand('markdownPreview.showMarkdown', async (options: ShowMarkdownOptions) => {
+		return markdownPreviewManager.showMarkdownPreview(options);
+	}));
+
+	// Override the built-in markdown preview command to use our preview
+	disposables.push(vscode.commands.registerCommand('markdown.showPreviewToSide', async () => {
+		const editor = vscode.window.activeTextEditor;
+		if (!editor || editor.document.languageId !== 'markdown') {
+			return;
+		}
+
+		const document = editor.document;
+		const content = document.getText();
+
+		const preview = await markdownPreviewManager.showMarkdownPreview({
+			markdownContent: content,
+			markdownUri: document.uri,
+			sourceUri: document.uri,
+			viewColumn: vscode.ViewColumn.Beside,
+			enableSyncClick: true
+		});
+
+		// Set up bidirectional sync for this preview
+		setupBidirectionalSync(preview, document.uri, disposables);
+
+		return preview;
+	}));
+
+	// Helper function to set up bidirectional scroll sync
+	function setupBidirectionalSync(preview: import('./markdownPreview').MarkdownPreview, sourceUri: vscode.Uri, disposables: vscode.Disposable[]) {
+		let isScrollingFromPreview = false;
+		let isScrollingFromEditor = false;
+
+		// Preview → Editor sync
+		const scrollListener = preview.onDidScrollPreview((percent: number) => {
+			if (isScrollingFromEditor || !preview.isSyncEnabled) { return; }
+			isScrollingFromPreview = true;
+
+			// Find the editor for this source
+			const editor = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === sourceUri.toString());
+			if (editor) {
+				const lineCount = editor.document.lineCount;
+				const targetLine = Math.floor(percent * lineCount);
+				const range = new vscode.Range(targetLine, 0, targetLine, 0);
+				editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
+			}
+
+			setTimeout(() => { isScrollingFromPreview = false; }, 100);
+		});
+		disposables.push(scrollListener);
+
+		// Editor → Preview sync
+		const editorScrollListener = vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
+			if (isScrollingFromPreview || !preview.isSyncEnabled) { return; }
+			if (e.textEditor.document.uri.toString() !== sourceUri.toString()) { return; }
+			if (e.textEditor.document.languageId !== 'markdown') { return; }
+
+			isScrollingFromEditor = true;
+
+			const visibleRanges = e.visibleRanges;
+			if (visibleRanges.length > 0) {
+				const topLine = visibleRanges[0].start.line;
+				const lineCount = e.textEditor.document.lineCount;
+				const percent = lineCount > 0 ? topLine / lineCount : 0;
+				preview.scrollToPercent(percent);
+			}
+
+			setTimeout(() => { isScrollingFromEditor = false; }, 100);
+		});
+		disposables.push(editorScrollListener);
+
+		// Update content when document changes
+		const documentChangeListener = vscode.workspace.onDidChangeTextDocument((e) => {
+			if (e.document.uri.toString() === sourceUri.toString()) {
+				preview.updateMarkdown({
+					markdownContent: e.document.getText(),
+					markdownUri: e.document.uri,
+					sourceUri: e.document.uri,
+					preserveFocus: true
+				});
+			}
+		});
+		disposables.push(documentChangeListener);
+	}
+
+	// Scroll markdown preview to a percentage
+	disposables.push(vscode.commands.registerCommand('markdownPreview.scrollToPercent', (options: { sourceUri?: string; percent: number }) => {
+		let preview = options.sourceUri ? markdownPreviewManager.getMarkdownPreviewBySource(options.sourceUri) : undefined;
+		if (!preview) {
+			preview = markdownPreviewManager.activePreview;
+		}
+		if (preview) {
+			preview.scrollToPercent(options.percent);
+		}
+	}));
+
+	// Scroll markdown preview to a line
+	disposables.push(vscode.commands.registerCommand('markdownPreview.scrollToLine', (options: { sourceUri?: string; line: number }) => {
+		let preview = options.sourceUri ? markdownPreviewManager.getMarkdownPreviewBySource(options.sourceUri) : undefined;
+		if (!preview) {
+			preview = markdownPreviewManager.activePreview;
+		}
+		if (preview) {
+			preview.scrollToLine(options.line);
+		}
 	}));
 
 	// Scroll PDF preview to a percentage (for source-to-preview sync with Typst/LaTeX)

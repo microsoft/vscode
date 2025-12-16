@@ -1,7 +1,8 @@
 {
-	"displayName": "PDF Preview",
-	"description": "Provides PDF preview support",
+	"displayName": "Document Preview",
+	"description": "Provides PDF and Markdown preview support",
 	"customEditor.pdfPreview.displayName": "PDF Preview",
+	"customEditor.markdownPreview.displayName": "Markdown Preview",
 	"command.zoomIn": "Zoom In",
 	"command.zoomOut": "Zoom Out",
 	"command.goToPage": "Go to Page",
@@ -11,5 +12,7 @@
 	"command.rotateClockwise": "Rotate Clockwise",
 	"command.rotateCounterClockwise": "Rotate Counter-Clockwise",
 	"command.showPdf": "Show PDF Preview",
-	"command.find": "Find in Document"
+	"command.showMarkdown": "Show Markdown Preview",
+	"command.find": "Find in Document",
+	"command.exportPdf": "Export to PDF"
 }
