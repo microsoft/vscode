@@ -308,6 +308,38 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			margin: 0.25em 0;
 		}
 
+		/* Task list styles */
+		ul[data-type="taskList"] {
+			list-style: none;
+			padding: 0;
+			margin: 0.5em 0;
+		}
+
+		ul[data-type="taskList"] li {
+			display: flex;
+			align-items: center;
+			margin: 0.25em 0;
+		}
+
+		ul[data-type="taskList"] li label {
+			margin-right: 0.5em;
+			display: inline-flex;
+			align-items: center;
+		}
+
+		ul[data-type="taskList"] li label input[type="checkbox"] {
+			cursor: pointer;
+			width: 16px;
+			height: 16px;
+			margin: 0;
+			accent-color: var(--vscode-checkbox-foreground, #007acc);
+		}
+
+		ul[data-type="taskList"] li div p {
+			margin: 0;
+			display: inline;
+		}
+
 		.ProseMirror blockquote {
 			border-left: 3px solid var(--vscode-textBlockQuote-border, #ddd);
 			padding-left: 1em;
@@ -397,6 +429,7 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			<div class="toolbar-separator"></div>
 			<button class="toolbar-button" data-command="bulletList" title="Bullet List">•</button>
 			<button class="toolbar-button" data-command="orderedList" title="Numbered List">1.</button>
+			<button class="toolbar-button" data-command="taskList" title="Task List">[x]</button>
 			<button class="toolbar-button" data-command="blockquote" title="Quote">&quot;</button>
 			<div class="toolbar-separator"></div>
 			<button class="toolbar-button" data-command="link" title="Link (Cmd+K)">#</button>

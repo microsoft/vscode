@@ -8,6 +8,8 @@ import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
 
 // Declare VS Code API
 declare const acquireVsCodeApi: () => {
@@ -61,6 +63,10 @@ function initEditor(): void {
 				}
 			}),
 			Image,
+			TaskList,
+			TaskItem.configure({
+				nested: true
+			}),
 			Placeholder.configure({
 				placeholder: 'Start writing...'
 			})
@@ -189,6 +195,16 @@ function nodeToMarkdown(node: Record<string, unknown>): string {
 			const src = (attrs?.src as string) || '';
 			const alt = (attrs?.alt as string) || '';
 			return `![${alt}](${src})`;
+		}
+
+		case 'taskList':
+			return content ? content.map(n => nodeToMarkdown(n)).join('\n') : '';
+
+		case 'taskItem': {
+			const checked = (attrs?.checked as boolean) || false;
+			const checkbox = checked ? '[x] ' : '[ ] ';
+			const itemContent = content ? content.map(n => nodeToMarkdown(n)).join('') : '';
+			return '- ' + checkbox + itemContent;
 		}
 
 		default:
@@ -396,9 +412,14 @@ function markdownToHtml(markdown: string): string {
 	// Blockquotes
 	html = html.replace(/^> (.+)$/gm, '<blockquote><p>$1</p></blockquote>');
 
-	// Unordered lists
-	html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-	html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+	// Task lists (must be before regular unordered lists)
+	html = html.replace(/^- \[x\] (.+)$/gm, '<li data-type="taskItem" data-checked="true">$1</li>');
+	html = html.replace(/^- \[ \] (.+)$/gm, '<li data-type="taskItem" data-checked="false">$1</li>');
+	html = html.replace(/(<li data-type="taskItem"[^>]*>.*<\/li>\n?)+/g, '<ul data-type="taskList">$&</ul>');
+
+	// Unordered lists (items not already matched as tasks)
+	html = html.replace(/^- ([^\[].*)$/gm, '<li>$1</li>');
+	html = html.replace(/(<li>(?!.*data-type).*<\/li>\n?)+/g, '<ul>$&</ul>');
 
 	// Paragraphs (lines not already wrapped)
 	const lines = html.split('\n');
@@ -526,6 +547,9 @@ function executeCommand(command: string): void {
 		case 'orderedList':
 			editor.chain().focus().toggleOrderedList().run();
 			break;
+		case 'taskList':
+			editor.chain().focus().toggleTaskList().run();
+			break;
 		case 'blockquote':
 			editor.chain().focus().toggleBlockquote().run();
 			break;
@@ -587,6 +611,9 @@ function updateToolbarState(): void {
 				break;
 			case 'orderedList':
 				isActive = editor!.isActive('orderedList');
+				break;
+			case 'taskList':
+				isActive = editor!.isActive('taskList');
 				break;
 			case 'blockquote':
 				isActive = editor!.isActive('blockquote');

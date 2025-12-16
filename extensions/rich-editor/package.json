@@ -103,8 +103,8 @@
 		"watch-web": "npx webpack-cli --config extension-browser.webpack.config.js --mode none --watch"
 	},
 	"devDependencies": {
-		"@types/node": "^25.0.2",
-		"@types/vscode": "^1.107.0",
+		"@types/node": "^20.0.0",
+		"@types/vscode": "^1.85.0",
 		"esbuild": "^0.19.12",
 		"typescript": "^5.3.0"
 	},
@@ -113,6 +113,8 @@
 		"@tiptap/extension-image": "^2.1.0",
 		"@tiptap/extension-link": "^2.1.0",
 		"@tiptap/extension-placeholder": "^2.1.0",
+		"@tiptap/extension-task-item": "^2.27.1",
+		"@tiptap/extension-task-list": "^2.27.1",
 		"@tiptap/pm": "^2.1.0",
 		"@tiptap/starter-kit": "^2.1.0"
 	}
