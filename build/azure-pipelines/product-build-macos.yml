@@ -71,16 +71,13 @@ extends:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     stages:
       - stage: Compile
+        pool:
+          name: AcesShared
+          os: macOS
+          demands:
+            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
         jobs:
-          - job: Compile
-            timeoutInMinutes: 90
-            pool:
-              name: AcesShared
-              os: macOS
-              demands:
-                - ImageOverride -equals ACES_VM_SharedPool_Sequoia
-            steps:
-              - template: build/azure-pipelines/product-compile.yml@self
+          - template: build/azure-pipelines/product-compile.yml@self
 
       - stage: macOS
         dependsOn:
