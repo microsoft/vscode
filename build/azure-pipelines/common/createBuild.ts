@@ -35,7 +35,7 @@ async function main(): Promise<void> {
 	console.log('Version:', version);
 	console.log('Commit:', commit);
 
-	const timestamp = (new Date()).toISOString();
+	const timestamp = Date.now();
 	const build = {
 		id: commit,
 		timestamp,
