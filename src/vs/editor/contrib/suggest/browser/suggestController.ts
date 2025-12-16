@@ -9,9 +9,7 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { onUnexpectedError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { KeyCodeChord } from '../../../../base/common/keybindings.js';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import * as platform from '../../../../base/common/platform.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType, isObject } from '../../../../base/common/types.js';
 import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
@@ -212,21 +210,6 @@ export class SuggestController implements IEditorContribution {
 
 				// (ctx: canResolve)
 				ctxCanResolve.set(Boolean(item.provider.resolveCompletionItem) || Boolean(item.completion.documentation) || item.completion.detail !== item.completion.label);
-			}));
-
-			this._toDispose.add(widget.onDetailsKeyDown(e => {
-				// cmd + c on macOS, ctrl + c on Win / Linux
-				if (
-					e.toKeyCodeChord().equals(new KeyCodeChord(true, false, false, false, KeyCode.KeyC)) ||
-					(platform.isMacintosh && e.toKeyCodeChord().equals(new KeyCodeChord(false, false, false, true, KeyCode.KeyC)))
-				) {
-					e.stopPropagation();
-					return;
-				}
-
-				if (!e.toKeyCodeChord().isModifierKey()) {
-					this.editor.focus();
-				}
 			}));
 
 			if (this._wantsForceRenderingAbove) {
@@ -1125,6 +1108,24 @@ registerEditorCommand(new SuggestCommand({
 	}
 }));
 
+
+registerEditorCommand(new class extends EditorCommand {
+	constructor() {
+		super({
+			id: 'suggestWidgetCopy',
+			precondition: SuggestContext.DetailsFocused,
+			kbOpts: {
+				weight: weight + 10,
+				kbExpr: SuggestContext.DetailsFocused,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyC,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.KeyC, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
+			}
+		});
+	}
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		getWindow(editor.getDomNode()).document.execCommand('copy');
+	}
+}());
 
 registerEditorAction(class extends EditorAction {
 
