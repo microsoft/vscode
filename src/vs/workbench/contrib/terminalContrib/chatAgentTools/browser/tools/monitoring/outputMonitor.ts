@@ -294,6 +294,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				waited += waitTime;
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
 				const currentOutput = execution.getOutput();
+
+				// Check if output contains a help pattern indicating the command is finished
+				if (detectsCommandFinishedHelpPattern(currentOutput)) {
+					this._logService.trace(`OutputMonitor: detected command finished help pattern`);
+					this._state = OutputMonitorState.Idle;
+					return this._state;
+				}
+
 				const promptResult = detectsInputRequiredPattern(currentOutput);
 				if (promptResult) {
 					this._state = OutputMonitorState.Idle;
@@ -770,6 +778,12 @@ interface ISuggestedOptionResult {
 }
 
 export function detectsInputRequiredPattern(cursorLine: string): boolean {
+	// First check if this is a help prompt that indicates the command is finished
+	// (like "press h + enter to show help" from dev servers)
+	if (detectsCommandFinishedHelpPattern(cursorLine)) {
+		return false;
+	}
+
 	return [
 		// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending
 		// in whitespace
@@ -792,4 +806,17 @@ export function detectsInputRequiredPattern(cursorLine: string): boolean {
 		// "Press a key" or "Press any key"
 		/press a(?:ny)? key/i,
 	].some(e => e.test(cursorLine));
+}
+
+/**
+ * Detects patterns that indicate the command has finished and is showing help/shortcuts,
+ * rather than waiting for required input. These patterns should not be treated as input prompts.
+ */
+export function detectsCommandFinishedHelpPattern(output: string): boolean {
+	return [
+		// Dev server help prompts like "press h + enter to show help" or "press h to show help"
+		/press\s+h\s*(?:\+\s*enter|\+\s*return)?\s+to\s+show\s+help/i,
+		// Similar patterns: "press r to restart", "press u to update", etc. - common in dev servers
+		/press\s+[a-z]\s*(?:\+\s*enter|\+\s*return)?\s+to\s+(?:restart|update|clear|quit|exit)/i,
+	].some(e => e.test(output));
 }

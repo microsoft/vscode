@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsInputRequiredPattern, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsInputRequiredPattern, detectsCommandFinishedHelpPattern, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -245,6 +245,50 @@ suite('OutputMonitor', () => {
 		test('detects press any key prompts', () => {
 			assert.strictEqual(detectsInputRequiredPattern('Press any key to continue...'), true);
 			assert.strictEqual(detectsInputRequiredPattern('Press a key'), true);
+		});
+
+		test('does not detect help prompts as input required', () => {
+			// Dev server help prompts should not be detected as requiring input
+			assert.strictEqual(detectsInputRequiredPattern('press h + enter to show help'), false);
+			assert.strictEqual(detectsInputRequiredPattern('press h to show help'), false);
+			assert.strictEqual(detectsInputRequiredPattern('press r + enter to restart'), false);
+			assert.strictEqual(detectsInputRequiredPattern('press u to update'), false);
+			assert.strictEqual(detectsInputRequiredPattern('  press h + enter to show help  '), false);
+		});
+	});
+
+	suite('detectsCommandFinishedHelpPattern', () => {
+		test('detects dev server help prompts', () => {
+			// Vite-style help prompts
+			assert.strictEqual(detectsCommandFinishedHelpPattern('press h + enter to show help'), true);
+			assert.strictEqual(detectsCommandFinishedHelpPattern('press h to show help'), true);
+			assert.strictEqual(detectsCommandFinishedHelpPattern('Press h + Enter to show help'), true);
+			assert.strictEqual(detectsCommandFinishedHelpPattern('  press h + enter to show help  '), true);
+			
+			// Dev server keyboard shortcuts
+			assert.strictEqual(detectsCommandFinishedHelpPattern('press r + enter to restart'), true);
+			assert.strictEqual(detectsCommandFinishedHelpPattern('press r to restart'), true);
+			assert.strictEqual(detectsCommandFinishedHelpPattern('press u to update'), true);
+			assert.strictEqual(detectsCommandFinishedHelpPattern('press q to quit'), true);
+			assert.strictEqual(detectsCommandFinishedHelpPattern('press c to clear'), true);
+		});
+
+		test('does not detect unrelated patterns', () => {
+			assert.strictEqual(detectsCommandFinishedHelpPattern('Continue? (y/n)'), false);
+			assert.strictEqual(detectsCommandFinishedHelpPattern('Press any key to continue'), false);
+			assert.strictEqual(detectsCommandFinishedHelpPattern('Password:'), false);
+			assert.strictEqual(detectsCommandFinishedHelpPattern('Enter your name:'), false);
+		});
+
+		test('detects help prompts in multi-line output', () => {
+			const viteOutput = `
+  VITE v7.2.7  ready in 237 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+`;
+			assert.strictEqual(detectsCommandFinishedHelpPattern(viteOutput), true);
 		});
 	});
 
