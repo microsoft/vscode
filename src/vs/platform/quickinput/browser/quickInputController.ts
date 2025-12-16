@@ -33,8 +33,8 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { Platform, platform, setTimeout0 } from '../../../base/common/platform.js';
 import { getWindowControlsStyle, WindowControlsStyle } from '../../window/common/window.js';
 import { getZoomFactor } from '../../../base/browser/browser.js';
-import { TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
-import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
+import { TriStateCheckbox, createToggleActionViewItemProvider } from '../../../base/browser/ui/toggle/toggle.js';
+import { defaultCheckboxStyles, defaultToggleStyles } from '../../theme/browser/defaultStyles.js';
 import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
 
@@ -146,12 +146,18 @@ export class QuickInputController extends Disposable {
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 
-		const leftActionBar = this._register(new ActionBar(titleBar, { hoverDelegate: this.options.hoverDelegate }));
+		const leftActionBar = this._register(new ActionBar(titleBar, {
+			hoverDelegate: this.options.hoverDelegate,
+			actionViewItemProvider: createToggleActionViewItemProvider(defaultToggleStyles)
+		}));
 		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
 
 		const title = dom.append(titleBar, $('.quick-input-title'));
 
-		const rightActionBar = this._register(new ActionBar(titleBar, { hoverDelegate: this.options.hoverDelegate }));
+		const rightActionBar = this._register(new ActionBar(titleBar, {
+			hoverDelegate: this.options.hoverDelegate,
+			actionViewItemProvider: createToggleActionViewItemProvider(defaultToggleStyles)
+		}));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
@@ -184,7 +190,10 @@ export class QuickInputController extends Disposable {
 		countContainer.setAttribute('aria-live', 'polite');
 		const count = this._register(new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge));
 
-		const inlineActionBar = this._register(new ActionBar(headerContainer, { hoverDelegate: this.options.hoverDelegate }));
+		const inlineActionBar = this._register(new ActionBar(headerContainer, {
+			hoverDelegate: this.options.hoverDelegate,
+			actionViewItemProvider: createToggleActionViewItemProvider(defaultToggleStyles)
+		}));
 		inlineActionBar.domNode.classList.add('quick-input-inline-action-bar');
 
 		const okContainer = dom.append(headerContainer, $('.quick-input-action'));

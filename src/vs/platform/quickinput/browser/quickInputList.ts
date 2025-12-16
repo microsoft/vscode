@@ -15,7 +15,7 @@ import { IIconLabelValueOptions, IconLabel } from '../../../base/browser/ui/icon
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, IListStyles } from '../../../base/browser/ui/list/listWidget.js';
-import { Checkbox } from '../../../base/browser/ui/toggle/toggle.js';
+import { Checkbox, createToggleActionViewItemProvider } from '../../../base/browser/ui/toggle/toggle.js';
 import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from '../../../base/browser/ui/tree/tree.js';
 import { equals } from '../../../base/common/arrays.js';
@@ -38,7 +38,7 @@ import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../list/browser/listService.js';
-import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
+import { defaultCheckboxStyles, defaultToggleStyles } from '../../theme/browser/defaultStyles.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickFocus, QuickPickItem } from '../common/quickInput.js';
@@ -371,7 +371,10 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
 
 		// Actions
-		data.actionBar = new ActionBar(data.entry, this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined);
+		data.actionBar = new ActionBar(data.entry, {
+			...(this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined),
+			actionViewItemProvider: createToggleActionViewItemProvider(defaultToggleStyles)
+		});
 		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
 		data.toDisposeTemplate.add(data.actionBar);
 
