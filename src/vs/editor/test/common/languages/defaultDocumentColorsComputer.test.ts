@@ -101,21 +101,21 @@ suite('Default Document Colors Computer', () => {
 	});
 
 	test('hsl 100 percent saturation works with decimals', () => {
-		const model = new TestDocumentModel("const color = 'hsl(253, 100.00%, 47.10%)';");
+		const model = new TestDocumentModel('const color = hsl(253, 100.00%, 47.10%);');
 		const colors = computeDefaultDocumentColors(model);
 
 		assert.strictEqual(colors.length, 1, 'Should detect one hsl color');
 	});
 
 	test('hsl 100 percent saturation works without decimals', () => {
-		const model = new TestDocumentModel("const color = 'hsl(253, 100%, 47.10%)';");
+		const model = new TestDocumentModel('const color = hsl(253, 100%, 47.10%);');
 		const colors = computeDefaultDocumentColors(model);
 
 		assert.strictEqual(colors.length, 1, 'Should detect one hsl color');
 	});
 
 	test('hsl not 100 percent saturation should also work', () => {
-		const model = new TestDocumentModel("const color = 'hsl(0, 83.60%, 47.80%)';");
+		const model = new TestDocumentModel('const color = hsl(0, 83.60%, 47.80%);');
 		const colors = computeDefaultDocumentColors(model);
 
 		assert.strictEqual(colors.length, 1, 'Should detect one hsl color');
