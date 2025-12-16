@@ -45,10 +45,12 @@
 	}
 
 	.monaco-list-row .agent-session-title-toolbar {
-		position: relative; /* for the absolute positioning of the toolbar below */
+		/* for the absolute positioning of the toolbar below */
+		position: relative;
 
 		.monaco-toolbar {
-			position: absolute; /* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
+			/* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
+			position: absolute;
 			right: 0;
 			top: 0;
 			display: none;
@@ -67,7 +69,8 @@
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 8px 12px /* to offset from possible scrollbar */ 8px 8px;
+		/* to offset from possible scrollbar */
+		padding: 8px 12px 8px 8px;
 
 		&.archived {
 			color: var(--vscode-descriptionForeground);
@@ -191,7 +194,8 @@
 
 		.agent-session-title,
 		.agent-session-description {
-			flex: 1; /* push other items to the end */
+			/* push other items to the end */
+			flex: 1;
 			text-overflow: ellipsis;
 			overflow: hidden;
 		}
@@ -210,20 +214,23 @@
 		display: flex;
 		align-items: center;
 		font-size: 11px;
+		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-		color: var(--vscode-descriptionForeground);
-		padding: 0 12px 0 8px; /* align with session item padding */
+		/* align with session item padding */
+		padding: 0 12px 0 8px;
 
 		.agent-session-section-label {
 			flex: 1;
 		}
 
 		.agent-session-section-toolbar {
-			position: relative; /* for the absolute positioning of the toolbar below */
+			/* for the absolute positioning of the toolbar below */
+			position: relative;
 
 			.monaco-toolbar {
-				position: absolute; /* this is required because the overal height (including the padding needed for hover feedback) would push down the label otherwise */
+				/* this is required because the overal height (including the padding needed for hover feedback) would push down the label otherwise */
+				position: absolute;
 				right: 0;
 				top: 0;
 				display: none;
