@@ -572,12 +572,6 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.createWorktreeWithDefaults",
-        "title": "Create Worktree With Defaults",
-        "category": "Git",
-        "enablement": "!operationInProgress"
-      },
-      {
         "command": "git.deleteWorktree",
         "title": "%command.deleteWorktree%",
         "category": "Git",
