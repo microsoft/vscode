@@ -9,7 +9,6 @@ import { generateUuid } from './util/uuid';
 export interface MarkdownViewerSettings {
 	content: string;
 	enableSyncClick?: boolean;
-	syncEnabled?: boolean;
 }
 
 export function getMarkdownViewerHtml(
@@ -34,8 +33,7 @@ export function getMarkdownViewerHtml(
 
 	const viewerSettings = {
 		markdownContent: settings.content,
-		enableSyncClick: settings.enableSyncClick || false,
-		syncEnabled: settings.syncEnabled !== false
+		enableSyncClick: settings.enableSyncClick || false
 	};
 
 	return `<!DOCTYPE html>

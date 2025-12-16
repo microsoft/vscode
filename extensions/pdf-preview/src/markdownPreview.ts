@@ -19,9 +19,9 @@ interface WebviewMessage {
 	scale?: Scale;
 	mode?: string;
 	percent?: number;
-	enabled?: boolean;
 	html?: string;
 	error?: string;
+	text?: string;
 }
 
 export interface ShowMarkdownOptions {
@@ -46,13 +46,18 @@ export class MarkdownPreview extends Disposable {
 	private readonly _onDidScrollPreview = this._register(new vscode.EventEmitter<number>());
 	public readonly onDidScrollPreview = this._onDidScrollPreview.event;
 
-	// Sync enabled state
-	private _isSyncEnabled = true;
-	public get isSyncEnabled(): boolean { return this._isSyncEnabled; }
+	// Event emitter for click sync (preview → editor)
+	private readonly _onDidClickPreview = this._register(new vscode.EventEmitter<{ percent: number; text: string }>());
+	public readonly onDidClickPreview = this._onDidClickPreview.event;
 
-	// Event emitter for sync toggle
-	private readonly _onDidChangeSyncEnabled = this._register(new vscode.EventEmitter<boolean>());
-	public readonly onDidChangeSyncEnabled = this._onDidChangeSyncEnabled.event;
+	// Sync mode state: 'off' | 'click' | 'scroll'
+	private _syncMode: 'off' | 'click' | 'scroll' = 'scroll';
+	public get syncMode(): string { return this._syncMode; }
+	public get isSyncEnabled(): boolean { return this._syncMode !== 'off'; }
+
+	// Event emitter for sync mode change
+	private readonly _onDidChangeSyncMode = this._register(new vscode.EventEmitter<string>());
+	public readonly onDidChangeSyncMode = this._onDidChangeSyncMode.event;
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -162,15 +167,15 @@ export class MarkdownPreview extends Disposable {
 		}
 	}
 
-	public scrollToPercent(percent: number): void {
+	public scrollToPercent(percent: number, source?: 'click' | 'scroll'): void {
 		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewPanel.webview.postMessage({ type: 'scrollToPercent', percent });
+			this.webviewPanel.webview.postMessage({ type: 'scrollToPercent', percent, source });
 		}
 	}
 
-	public scrollToLine(line: number): void {
+	public scrollToLine(line: number, source?: 'click' | 'scroll'): void {
 		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewPanel.webview.postMessage({ type: 'scrollToLine', line });
+			this.webviewPanel.webview.postMessage({ type: 'scrollToLine', line, source });
 		}
 	}
 
@@ -182,14 +187,23 @@ export class MarkdownPreview extends Disposable {
 				break;
 			case 'scrollChanged':
 				// Emit scroll event for bidirectional sync (preview → editor)
-				if (message.percent !== undefined && this._isSyncEnabled) {
+				if (message.percent !== undefined && this._syncMode === 'scroll') {
 					this._onDidScrollPreview.fire(message.percent);
 				}
 				break;
-			case 'syncToggled':
-				// Update sync enabled state
-				this._isSyncEnabled = message.enabled ?? true;
-				this._onDidChangeSyncEnabled.fire(this._isSyncEnabled);
+			case 'syncClick':
+				// Emit click event for click-based sync (preview → editor)
+				if (this._syncMode === 'click') {
+					this._onDidClickPreview.fire({
+						percent: message.percent ?? 0,
+						text: message.text ?? ''
+					});
+				}
+				break;
+			case 'syncModeChanged':
+				// Update sync mode state
+				this._syncMode = (message.mode as 'off' | 'click' | 'scroll') ?? 'scroll';
+				this._onDidChangeSyncMode.fire(this._syncMode);
 				break;
 			case 'exportPdf':
 				// Handle PDF export
@@ -300,8 +314,7 @@ export class MarkdownPreview extends Disposable {
 			this.resource,
 			{
 				content: this._markdownContent || '',
-				enableSyncClick: !!this._onSyncClick,
-				syncEnabled: true
+				enableSyncClick: !!this._onSyncClick
 			}
 		);
 

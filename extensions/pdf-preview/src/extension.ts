@@ -185,14 +185,14 @@ export function activate(context: vscode.ExtensionContext) {
 		return preview;
 	}));
 
-	// Helper function to set up bidirectional scroll sync
+	// Helper function to set up bidirectional sync (supports both scroll and click modes)
 	function setupBidirectionalSync(preview: import('./markdownPreview').MarkdownPreview, sourceUri: vscode.Uri, disposables: vscode.Disposable[]) {
 		let isScrollingFromPreview = false;
 		let isScrollingFromEditor = false;
 
-		// Preview → Editor sync
+		// Preview → Editor sync (scroll mode)
 		const scrollListener = preview.onDidScrollPreview((percent: number) => {
-			if (isScrollingFromEditor || !preview.isSyncEnabled) { return; }
+			if (isScrollingFromEditor || preview.syncMode !== 'scroll') { return; }
 			isScrollingFromPreview = true;
 
 			// Find the editor for this source
@@ -204,13 +204,42 @@ export function activate(context: vscode.ExtensionContext) {
 				editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
 			}
 
-			setTimeout(() => { isScrollingFromPreview = false; }, 100);
+			// Short timeout - main protection is on webview side (mouse position check)
+			setTimeout(() => { isScrollingFromPreview = false; }, 200);
 		});
 		disposables.push(scrollListener);
 
-		// Editor → Preview sync
+		// Preview → Editor sync (click mode)
+		const clickListener = preview.onDidClickPreview((data: { percent: number; text: string }) => {
+			if (preview.syncMode !== 'click') { return; }
+
+			// Find the editor for this source
+			const editor = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === sourceUri.toString());
+			if (editor) {
+				const lineCount = editor.document.lineCount;
+				const targetLine = Math.floor(data.percent * lineCount);
+
+				// Try to find the text in the document for more accurate positioning
+				let foundLine = targetLine;
+				if (data.text && data.text.length >= 3) {
+					const text = editor.document.getText();
+					const searchText = data.text.substring(0, 50);
+					const index = text.indexOf(searchText);
+					if (index !== -1) {
+						foundLine = editor.document.positionAt(index).line;
+					}
+				}
+
+				const range = new vscode.Range(foundLine, 0, foundLine, 0);
+				editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+				editor.selection = new vscode.Selection(foundLine, 0, foundLine, 0);
+			}
+		});
+		disposables.push(clickListener);
+
+		// Editor → Preview sync (scroll mode only)
 		const editorScrollListener = vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
-			if (isScrollingFromPreview || !preview.isSyncEnabled) { return; }
+			if (isScrollingFromPreview || preview.syncMode !== 'scroll') { return; }
 			if (e.textEditor.document.uri.toString() !== sourceUri.toString()) { return; }
 			if (e.textEditor.document.languageId !== 'markdown') { return; }
 
@@ -221,12 +250,34 @@ export function activate(context: vscode.ExtensionContext) {
 				const topLine = visibleRanges[0].start.line;
 				const lineCount = e.textEditor.document.lineCount;
 				const percent = lineCount > 0 ? topLine / lineCount : 0;
-				preview.scrollToPercent(percent);
+				preview.scrollToPercent(percent, 'scroll');
 			}
 
-			setTimeout(() => { isScrollingFromEditor = false; }, 100);
+			// Short timeout - main protection is on webview side (mouse position check)
+			setTimeout(() => { isScrollingFromEditor = false; }, 200);
 		});
 		disposables.push(editorScrollListener);
+
+		// Editor → Preview sync (click mode only)
+		let cursorSyncTimer: ReturnType<typeof setTimeout> | undefined;
+		const editorClickListener = vscode.window.onDidChangeTextEditorSelection((e) => {
+			if (isScrollingFromPreview || preview.syncMode !== 'click') { return; }
+			if (e.textEditor.document.uri.toString() !== sourceUri.toString()) { return; }
+			if (e.textEditor.document.languageId !== 'markdown') { return; }
+
+			// Debounce cursor sync
+			if (cursorSyncTimer) {
+				clearTimeout(cursorSyncTimer);
+			}
+
+			cursorSyncTimer = setTimeout(() => {
+				const position = e.textEditor.selection.active;
+				const lineCount = e.textEditor.document.lineCount;
+				const percent = lineCount > 1 ? position.line / (lineCount - 1) : 0;
+				preview.scrollToPercent(percent, 'click');
+			}, 100);
+		});
+		disposables.push(editorClickListener);
 
 		// Update content when document changes
 		const documentChangeListener = vscode.workspace.onDidChangeTextDocument((e) => {
@@ -243,48 +294,48 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	// Scroll markdown preview to a percentage
-	disposables.push(vscode.commands.registerCommand('markdownPreview.scrollToPercent', (options: { sourceUri?: string; percent: number }) => {
+	disposables.push(vscode.commands.registerCommand('markdownPreview.scrollToPercent', (options: { sourceUri?: string; percent: number; source?: 'click' | 'scroll' }) => {
 		let preview = options.sourceUri ? markdownPreviewManager.getMarkdownPreviewBySource(options.sourceUri) : undefined;
 		if (!preview) {
 			preview = markdownPreviewManager.activePreview;
 		}
 		if (preview) {
-			preview.scrollToPercent(options.percent);
+			preview.scrollToPercent(options.percent, options.source);
 		}
 	}));
 
 	// Scroll markdown preview to a line
-	disposables.push(vscode.commands.registerCommand('markdownPreview.scrollToLine', (options: { sourceUri?: string; line: number }) => {
+	disposables.push(vscode.commands.registerCommand('markdownPreview.scrollToLine', (options: { sourceUri?: string; line: number; source?: 'click' | 'scroll' }) => {
 		let preview = options.sourceUri ? markdownPreviewManager.getMarkdownPreviewBySource(options.sourceUri) : undefined;
 		if (!preview) {
 			preview = markdownPreviewManager.activePreview;
 		}
 		if (preview) {
-			preview.scrollToLine(options.line);
+			preview.scrollToLine(options.line, options.source);
 		}
 	}));
 
 	// Scroll PDF preview to a percentage (for source-to-preview sync with Typst/LaTeX)
-	disposables.push(vscode.commands.registerCommand('pdfPreview.scrollToPercent', (options: { sourceUri?: string; percent: number }) => {
+	disposables.push(vscode.commands.registerCommand('pdfPreview.scrollToPercent', (options: { sourceUri?: string; percent: number; source?: 'click' | 'scroll' }) => {
 		// Try to find the preview by source URI, or use active preview
 		let preview = options.sourceUri ? previewManager.getPdfPreviewBySource(options.sourceUri) : undefined;
 		if (!preview) {
 			preview = previewManager.activePreview;
 		}
 		if (preview) {
-			preview.scrollToPercent(options.percent);
+			preview.scrollToPercent(options.percent, options.source);
 		}
 	}));
 
 	// Scroll PDF preview to text (for text-based source-to-preview sync)
-	disposables.push(vscode.commands.registerCommand('pdfPreview.scrollToText', (options: { sourceUri?: string; text: string }) => {
+	disposables.push(vscode.commands.registerCommand('pdfPreview.scrollToText', (options: { sourceUri?: string; text: string; source?: 'click' | 'scroll' }) => {
 		// Try to find the preview by source URI, or use active preview
 		let preview = options.sourceUri ? previewManager.getPdfPreviewBySource(options.sourceUri) : undefined;
 		if (!preview) {
 			preview = previewManager.activePreview;
 		}
 		if (preview && options.text) {
-			preview.scrollToText(options.text);
+			preview.scrollToText(options.text, options.source);
 		}
 	}));
 

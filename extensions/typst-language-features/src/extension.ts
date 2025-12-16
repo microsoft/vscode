@@ -155,7 +155,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 						pdfData: result.pdf,
 						sourceUri: editor.document.uri,
 						viewColumn: vscode.ViewColumn.Beside,
-						onSyncClick: 'typst.syncToSource'
+						onSyncClick: 'typst.syncToSource',
+						onSyncScroll: 'typst.syncScrollFromPdf'
 					});
 					// Track that this document has an open preview
 					const docUriStr = editor.document.uri.toString();
@@ -481,6 +482,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 							sourceUri: document.uri,
 							viewColumn: vscode.ViewColumn.Beside,
 							onSyncClick: 'typst.syncToSource',
+							onSyncScroll: 'typst.syncScrollFromPdf',
 							preserveFocus: true
 						});
 						logger.appendLine(`[Auto-refresh] Preview updated for: ${document.uri.fsPath}`);
@@ -514,10 +516,93 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		})
 	);
 
-	// Source-to-preview sync: scroll preview when cursor moves in editor
+	// Flag to prevent feedback loop during sync
+	let isNavigatingFromPreview = false;
+
+	// Command to handle scroll sync from preview (scroll mode)
+	context.subscriptions.push(
+		vscode.commands.registerCommand('typst.syncScrollFromPdf', async (data: { percent: number }) => {
+			// Find the most recently used typst document
+			let targetDoc: vscode.TextDocument | undefined;
+			for (const docUri of openPreviews) {
+				const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === docUri);
+				if (doc) {
+					targetDoc = doc;
+					break;
+				}
+			}
+
+			if (!targetDoc) {
+				return;
+			}
+
+			try {
+				const targetLine = Math.floor(data.percent * targetDoc.lineCount);
+				const position = new vscode.Position(Math.min(targetLine, targetDoc.lineCount - 1), 0);
+
+				// Prevent editor→preview sync while we're moving the editor from preview
+				isNavigatingFromPreview = true;
+
+				const editor = await vscode.window.showTextDocument(targetDoc, vscode.ViewColumn.One);
+				editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.AtTop);
+
+				// Short timeout - main protection is on webview side (mouse position check)
+				setTimeout(() => {
+					isNavigatingFromPreview = false;
+				}, 200);
+			} catch (error) {
+				logger.appendLine(`Scroll sync from PDF failed: ${error}`);
+			}
+		})
+	);
+
+	// Source-to-preview sync (scroll mode): scroll preview when editor scrolls
+	context.subscriptions.push(
+		vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
+			// Skip if we're navigating from preview (prevents feedback loop)
+			if (isNavigatingFromPreview) {
+				return;
+			}
+
+			// Only process Typst files with open previews
+			if (e.textEditor.document.languageId !== 'typst') {
+				return;
+			}
+
+			const docUri = e.textEditor.document.uri.toString();
+			if (!openPreviews.has(docUri)) {
+				return;
+			}
+
+			const visibleRanges = e.visibleRanges;
+			if (visibleRanges.length > 0) {
+				const topLine = visibleRanges[0].start.line;
+				const lineCount = e.textEditor.document.lineCount;
+				const percent = lineCount > 0 ? topLine / lineCount : 0;
+
+				// Send scroll command to the PDF preview (source: 'scroll')
+				try {
+					vscode.commands.executeCommand('pdfPreview.scrollToPercent', {
+						sourceUri: docUri,
+						percent: percent,
+						source: 'scroll'
+					});
+				} catch {
+					// Silently ignore - scroll sync is best-effort
+				}
+			}
+		})
+	);
+
+	// Source-to-preview sync (click mode): scroll preview when cursor moves in editor
 	let cursorSyncTimer: ReturnType<typeof setTimeout> | undefined;
 	context.subscriptions.push(
 		vscode.window.onDidChangeTextEditorSelection((e) => {
+			// Skip if we're navigating from preview (prevents feedback loop)
+			if (isNavigatingFromPreview) {
+				return;
+			}
+
 			// Only process Typst files with open previews
 			if (e.textEditor.document.languageId !== 'typst') {
 				return;
@@ -541,11 +626,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				// Calculate scroll percentage based on cursor position
 				const scrollPercent = totalLines > 1 ? currentLine / (totalLines - 1) : 0;
 
-				// Send scroll command to the PDF preview
+				// Send scroll command to the PDF preview (source: 'click')
 				try {
 					await vscode.commands.executeCommand('pdfPreview.scrollToPercent', {
 						sourceUri: docUri,
-						percent: scrollPercent
+						percent: scrollPercent,
+						source: 'click'
 					});
 				} catch {
 					// Silently ignore - scroll sync is best-effort

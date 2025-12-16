@@ -74,8 +74,9 @@
 	// Use saved state if available, otherwise detect from VS Code theme
 	let isDarkMode = state.darkMode !== undefined ? state.darkMode : detectVsCodeDarkMode();
 
-	// Sync enabled state
-	let isSyncEnabled = state.syncEnabled !== undefined ? state.syncEnabled : true;
+	// Sync mode state: 'off', 'click', 'scroll'
+	// Default to 'scroll' for markdown (its original behavior)
+	let syncMode = state.syncMode !== undefined ? state.syncMode : 'scroll';
 
 	// Show error
 	function showError(message) {
@@ -125,28 +126,66 @@
 		}
 	}
 
-	// Update sync button visual state
+	// Update sync button visual state for 3 modes
 	function updateSyncButtonState() {
-		if (btnSyncToggle) {
-			if (isSyncEnabled) {
-				btnSyncToggle.classList.add('active');
-				btnSyncToggle.classList.remove('sync-disabled');
-				btnSyncToggle.title = 'Editor Sync Enabled (Click to disable)';
-			} else {
-				btnSyncToggle.classList.remove('active');
+		if (!btnSyncToggle) { return; }
+
+		// Remove all mode classes
+		btnSyncToggle.classList.remove('active', 'sync-disabled', 'sync-mode-click', 'sync-mode-scroll');
+
+		switch (syncMode) {
+			case 'off':
 				btnSyncToggle.classList.add('sync-disabled');
-				btnSyncToggle.title = 'Editor Sync Disabled (Click to enable)';
-			}
+				btnSyncToggle.title = 'Sync Disabled (Click to enable Click Sync)';
+				btnSyncToggle.innerHTML = getSyncIcon('off');
+				break;
+			case 'click':
+				btnSyncToggle.classList.add('active', 'sync-mode-click');
+				btnSyncToggle.title = 'Click Sync Enabled (Click to switch to Scroll Sync)';
+				btnSyncToggle.innerHTML = getSyncIcon('click');
+				break;
+			case 'scroll':
+				btnSyncToggle.classList.add('active', 'sync-mode-scroll');
+				btnSyncToggle.title = 'Scroll Sync Enabled (Click to disable)';
+				btnSyncToggle.innerHTML = getSyncIcon('scroll');
+				break;
 		}
 	}
 
-	// Toggle sync enabled/disabled
-	function toggleSync() {
-		isSyncEnabled = !isSyncEnabled;
+	// Get SVG icon for sync mode
+	function getSyncIcon(mode) {
+		// Base sync/spinner icon
+		const baseIcon = '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>';
+
+		switch (mode) {
+			case 'click':
+				// Spinner icon only (no extra indicator)
+				return baseIcon;
+			case 'scroll':
+				// Spinner icon with "A" (automatic) in bottom right corner
+				return '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/><text x="17" y="23" font-size="10" font-weight="bold" font-family="sans-serif" fill="currentColor">A</text></svg>';
+			default:
+				return baseIcon;
+		}
+	}
+
+	// Cycle through sync modes: off -> click -> scroll -> off
+	function cycleSyncMode() {
+		switch (syncMode) {
+			case 'off':
+				syncMode = 'click';
+				break;
+			case 'click':
+				syncMode = 'scroll';
+				break;
+			case 'scroll':
+				syncMode = 'off';
+				break;
+		}
 		updateSyncButtonState();
-		vscode.setState({ ...vscode.getState(), syncEnabled: isSyncEnabled });
-		// Notify extension about sync state change
-		vscode.postMessage({ type: 'syncToggled', enabled: isSyncEnabled });
+		vscode.setState({ ...vscode.getState(), syncMode: syncMode });
+		// Notify extension about sync mode change
+		vscode.postMessage({ type: 'syncModeChanged', mode: syncMode });
 	}
 
 	// Initialize
@@ -333,7 +372,7 @@
 		btnExportPdf.addEventListener('click', exportToPdf);
 	}
 	if (btnSyncToggle) {
-		btnSyncToggle.addEventListener('click', toggleSync);
+		btnSyncToggle.addEventListener('click', cycleSyncMode);
 	}
 
 	// ==================== SEARCH/FIND FUNCTIONALITY ====================
@@ -620,21 +659,30 @@
 					renderMarkdown();
 				}
 				break;
-			case 'scrollToPercent':
-				scrollToPercent(e.data.percent);
-				break;
-			case 'scrollToLine':
-				scrollToLine(e.data.line);
-				break;
+		case 'scrollToPercent':
+			scrollToPercent(e.data.percent, e.data.source);
+			break;
+		case 'scrollToLine':
+			scrollToLine(e.data.line, e.data.source);
+			break;
 		}
 	});
 
-	// Scroll to a percentage of the document (editor → preview sync)
-	let isScrollingFromExtension = false;
+	// Master-slave model: track if mouse is over preview to determine who is master
+	let isMouseOverPreview = false;
 
-	function scrollToPercent(percent) {
-		if (!container || !isSyncEnabled) { return; }
-		isScrollingFromExtension = true;
+	// Track mouse position to determine who is master
+	if (container) {
+		container.addEventListener('mouseenter', () => { isMouseOverPreview = true; });
+		container.addEventListener('mouseleave', () => { isMouseOverPreview = false; });
+	}
+
+	// Scroll to a percentage of the document (for source-to-preview sync)
+	// source: 'click' or 'scroll' - must match syncMode to process
+	function scrollToPercent(percent, source) {
+		// Only process if sync is enabled and source matches mode
+		if (!container || syncMode === 'off') { return; }
+		if (source && source !== syncMode) { return; }
 
 		const maxScroll = container.scrollHeight - container.clientHeight;
 		if (maxScroll > 0) {
@@ -650,30 +698,30 @@
 				behavior: 'smooth'
 			});
 		}
-
-		// Reset flag after animation
-		setTimeout(() => { isScrollingFromExtension = false; }, 100);
+		// No need for timeout - master-slave model prevents feedback loop via mouse position
 	}
 
 	// Scroll to a specific line (approximate based on content height)
-	function scrollToLine(line) {
-		if (!container || !content || !isSyncEnabled) { return; }
-		isScrollingFromExtension = true;
+	// source: 'click' or 'scroll' - must match syncMode to process
+	function scrollToLine(line, source) {
+		// Only process if sync is enabled and source matches mode
+		if (!container || !content || syncMode === 'off') { return; }
+		if (source && source !== syncMode) { return; }
 
 		// Try to find element with data-line attribute
 		const lineElement = content.querySelector(`[data-line="${line}"]`);
 		if (lineElement) {
 			lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
 		}
-
-		// Reset flag after animation
-		setTimeout(() => { isScrollingFromExtension = false; }, 100);
+		// No need for timeout - master-slave model prevents feedback loop via mouse position
 	}
 
 	// Bidirectional sync: report scroll position to extension (preview → editor sync)
 	let scrollReportTimeout;
 	function reportScrollPosition() {
-		if (!container || !isSyncEnabled || isScrollingFromExtension) { return; }
+		// Only report if: sync is scroll mode AND user is interacting with preview (mouse is over it)
+		// If mouse is NOT over preview, the scroll was triggered by the editor, so don't report back
+		if (!container || syncMode !== 'scroll' || !isMouseOverPreview) { return; }
 
 		clearTimeout(scrollReportTimeout);
 		scrollReportTimeout = setTimeout(() => {
@@ -691,6 +739,41 @@
 	// Listen for scroll events on container
 	if (container) {
 		container.addEventListener('scroll', reportScrollPosition);
+	}
+
+	// Click sync: report clicked position to extension (preview → editor sync)
+	if (content) {
+		content.addEventListener('click', (e) => {
+			// Only handle if click sync mode is enabled
+			if (syncMode !== 'click') { return; }
+
+			// Don't trigger on text selection
+			const selection = window.getSelection();
+			if (selection && selection.toString().length > 0) { return; }
+
+			// Get clicked text content for source mapping
+			let clickedText = '';
+			const clickedElement = e.target;
+			if (clickedElement) {
+				// Get text from clicked element or nearest parent with text
+				clickedText = clickedElement.textContent || '';
+				if (clickedText.length < 3 && clickedElement.parentElement) {
+					clickedText = clickedElement.parentElement.textContent || '';
+				}
+			}
+
+			// Calculate approximate line based on position
+			const contentRect = content.getBoundingClientRect();
+			const clickY = e.clientY - contentRect.top + container.scrollTop;
+			const totalHeight = content.scrollHeight;
+			const percent = totalHeight > 0 ? clickY / totalHeight : 0;
+
+			vscode.postMessage({
+				type: 'syncClick',
+				percent: percent,
+				text: clickedText.trim().substring(0, 200)
+			});
+		});
 	}
 
 	// Keyboard shortcuts

@@ -425,6 +425,16 @@ body.pdf-dark-mode .page-number-overlay {
 	fill: #8ab4f8;
 }
 
+/* Sync toggle button active with click mode - blue with cursor indicator */
+#btn-sync-toggle.sync-mode-click svg path {
+	fill: #8ab4f8;
+}
+
+/* Sync toggle button active with scroll mode - default blue (no extra indicator) */
+#btn-sync-toggle.sync-mode-scroll svg path {
+	fill: #8ab4f8;
+}
+
 /* Sync toggle button disabled state - show strikethrough effect */
 #btn-sync-toggle.sync-disabled svg path {
 	fill: #9aa0a6;

@@ -26,6 +26,8 @@ interface WebviewMessage {
 	y?: number;
 	error?: string;
 	text?: string;
+	mode?: string;
+	percent?: number;
 }
 
 export class PdfPreview extends Disposable {
@@ -38,6 +40,18 @@ export class PdfPreview extends Disposable {
 	private _binarySize: number | undefined;
 	private _pdfData: Uint8Array | undefined;
 	private _onSyncClick: string | undefined;
+	private _onSyncScroll: string | undefined;
+	private _syncMode: 'off' | 'click' | 'scroll' = 'click';
+
+	// Event emitter for scroll sync (preview → editor)
+	private readonly _onDidScrollPreview = this._register(new vscode.EventEmitter<number>());
+	public readonly onDidScrollPreview = this._onDidScrollPreview.event;
+
+	// Event emitter for sync mode change
+	private readonly _onDidChangeSyncMode = this._register(new vscode.EventEmitter<string>());
+	public readonly onDidChangeSyncMode = this._onDidChangeSyncMode.event;
+
+	public get syncMode(): string { return this._syncMode; }
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -52,6 +66,7 @@ export class PdfPreview extends Disposable {
 
 		this._pdfData = options?.pdfData;
 		this._onSyncClick = options?.onSyncClick;
+		this._onSyncScroll = options?.onSyncScroll;
 
 		webviewPanel.webview.options = {
 			enableScripts: true,
@@ -118,6 +133,7 @@ export class PdfPreview extends Disposable {
 	public async updatePdf(options: ShowPdfOptions): Promise<void> {
 		this._pdfData = options.pdfData;
 		this._onSyncClick = options.onSyncClick;
+		this._onSyncScroll = options.onSyncScroll;
 
 		// If we have PDF data, send it to the webview to update without losing state
 		if (this._pdfData && this._previewState !== PreviewState.Disposed) {
@@ -200,15 +216,15 @@ export class PdfPreview extends Disposable {
 		}
 	}
 
-	public scrollToPercent(percent: number): void {
+	public scrollToPercent(percent: number, source?: 'click' | 'scroll'): void {
 		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewPanel.webview.postMessage({ type: 'scrollToPercent', percent });
+			this.webviewPanel.webview.postMessage({ type: 'scrollToPercent', percent, source });
 		}
 	}
 
-	public scrollToText(text: string): void {
+	public scrollToText(text: string, source?: 'click' | 'scroll'): void {
 		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewPanel.webview.postMessage({ type: 'scrollToText', text });
+			this.webviewPanel.webview.postMessage({ type: 'scrollToText', text, source });
 		}
 	}
 
@@ -231,6 +247,23 @@ export class PdfPreview extends Disposable {
 						y: message.y,
 						text: message.text
 					});
+				}
+				break;
+			case 'syncModeChanged':
+				this._syncMode = (message.mode as 'off' | 'click' | 'scroll') ?? 'click';
+				this._onDidChangeSyncMode.fire(this._syncMode);
+				break;
+			case 'scrollChanged':
+				// Handle scroll sync (preview → editor) in scroll mode
+				if (message.percent !== undefined && this._syncMode === 'scroll') {
+					// Fire event for direct listeners
+					this._onDidScrollPreview.fire(message.percent);
+					// Call command callback if provided (for LaTeX/Typst integration)
+					if (this._onSyncScroll) {
+						vscode.commands.executeCommand(this._onSyncScroll, {
+							percent: message.percent
+						});
+					}
 				}
 				break;
 			case 'error':

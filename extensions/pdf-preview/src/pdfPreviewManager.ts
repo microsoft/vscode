@@ -15,7 +15,10 @@ export interface ShowPdfOptions {
 	sourceUri?: vscode.Uri;
 	viewColumn?: vscode.ViewColumn;
 	syncPosition?: { page: number; x?: number; y?: number };
+	/** Command to call when user clicks in PDF for source navigation (click sync mode) */
 	onSyncClick?: string;
+	/** Command to call when user scrolls in PDF for source navigation (scroll sync mode) */
+	onSyncScroll?: string;
 	/** If true, don't steal focus when updating an existing preview (useful for auto-refresh on save) */
 	preserveFocus?: boolean;
 }

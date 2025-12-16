@@ -83,9 +83,11 @@
 	const state = vscode.getState() || {};
 	let isDarkMode = state.darkMode || false;
 
-	// Sync enabled state - default to true (enabled)
-	// Uses stored state if available, otherwise defaults to true
-	let isSyncEnabled = state.syncEnabled !== undefined ? state.syncEnabled : true;
+	// Sync mode state: 'off', 'click', 'scroll'
+	// Default depends on whether click sync is available
+	// Uses stored state if available, otherwise defaults to 'click' when available
+	let syncMode = state.syncMode !== undefined ? state.syncMode :
+		(settings.enableSyncClick ? 'click' : 'off');
 
 	// Initialize dark mode from saved state
 	function initDarkMode() {
@@ -111,39 +113,79 @@
 		vscode.setState({ ...vscode.getState(), darkMode: isDarkMode });
 	}
 
-	// Initialize sync toggle button - only show if sync is available
+	// Initialize sync toggle button - show when sync is available
 	function initSyncToggle() {
 		if (settings.enableSyncClick && btnSyncToggle) {
-			// Show the button only when sync is available (LaTeX/Typst preview)
+			// Show the button when sync is available (LaTeX/Typst preview)
 			btnSyncToggle.style.display = '';
-
 			// Apply initial state
 			updateSyncButtonState();
 		}
 	}
 
-	// Update sync button visual state
+	// Update sync button visual state for 3 modes
 	function updateSyncButtonState() {
-		if (btnSyncToggle) {
-			if (isSyncEnabled) {
-				btnSyncToggle.classList.add('active');
-				btnSyncToggle.classList.remove('sync-disabled');
-				btnSyncToggle.title = 'Editor Sync Enabled (Click to disable)';
-			} else {
-				btnSyncToggle.classList.remove('active');
+		if (!btnSyncToggle) { return; }
+
+		// Remove all mode classes
+		btnSyncToggle.classList.remove('active', 'sync-disabled', 'sync-mode-click', 'sync-mode-scroll');
+
+		switch (syncMode) {
+			case 'off':
 				btnSyncToggle.classList.add('sync-disabled');
-				btnSyncToggle.title = 'Editor Sync Disabled (Click to enable)';
-			}
+				btnSyncToggle.title = 'Sync Disabled (Click to enable Click Sync)';
+				btnSyncToggle.innerHTML = getSyncIcon('off');
+				break;
+			case 'click':
+				btnSyncToggle.classList.add('active', 'sync-mode-click');
+				btnSyncToggle.title = 'Click Sync Enabled (Click to switch to Scroll Sync)';
+				btnSyncToggle.innerHTML = getSyncIcon('click');
+				break;
+			case 'scroll':
+				btnSyncToggle.classList.add('active', 'sync-mode-scroll');
+				btnSyncToggle.title = 'Scroll Sync Enabled (Click to disable)';
+				btnSyncToggle.innerHTML = getSyncIcon('scroll');
+				break;
 		}
 	}
 
-	// Toggle sync enabled/disabled
-	function toggleSync() {
-		isSyncEnabled = !isSyncEnabled;
+	// Get SVG icon for sync mode
+	function getSyncIcon(mode) {
+		// Base sync/spinner icon
+		const baseIcon = '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>';
+
+		switch (mode) {
+			case 'click':
+				// Spinner icon only (no extra indicator)
+				return baseIcon;
+			case 'scroll':
+				// Spinner icon with "A" (automatic) in bottom right corner
+				return '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/><text x="17" y="23" font-size="10" font-weight="bold" font-family="sans-serif" fill="currentColor">A</text></svg>';
+			default:
+				return baseIcon;
+		}
+	}
+
+	// Cycle through sync modes: off -> click -> scroll -> off
+	function cycleSyncMode() {
+		switch (syncMode) {
+			case 'off':
+				syncMode = 'click';
+				break;
+			case 'click':
+				syncMode = 'scroll';
+				break;
+			case 'scroll':
+				syncMode = 'off';
+				break;
+		}
 		updateSyncButtonState();
 
 		// Persist state
-		vscode.setState({ ...vscode.getState(), syncEnabled: isSyncEnabled });
+		vscode.setState({ ...vscode.getState(), syncMode: syncMode });
+
+		// Notify extension about sync mode change
+		vscode.postMessage({ type: 'syncModeChanged', mode: syncMode });
 	}
 
 	// Initialize dark mode on load
@@ -332,8 +374,8 @@
 			// Add click handler for SyncTeX on the text layer (it's on top)
 			if (settings.enableSyncClick) {
 				textLayerDiv.addEventListener('click', (e) => {
-					// Only trigger SyncTeX if sync is enabled and no text is selected
-					if (!isSyncEnabled) {
+					// Only trigger SyncTeX if sync mode is 'click' and no text is selected
+					if (syncMode !== 'click') {
 						return;
 					}
 					const selection = window.getSelection();
@@ -532,7 +574,36 @@
 		}
 	}
 
-	// Track scroll to update current page
+	// Scroll sync: report scroll position for preview → editor sync
+	// Master-slave model: only report scroll if user is interacting with preview (mouse is over it)
+	let scrollReportTimeout;
+	let isMouseOverPreview = false;
+
+	// Track mouse position to determine who is master
+	if (container) {
+		container.addEventListener('mouseenter', () => { isMouseOverPreview = true; });
+		container.addEventListener('mouseleave', () => { isMouseOverPreview = false; });
+	}
+
+	function reportScrollPosition() {
+		// Only report if: sync is scroll mode AND user is interacting with preview (mouse is over it)
+		// If mouse is NOT over preview, the scroll was triggered by the editor, so don't report back
+		if (!container || syncMode !== 'scroll' || !isMouseOverPreview) { return; }
+
+		clearTimeout(scrollReportTimeout);
+		scrollReportTimeout = setTimeout(() => {
+			const maxScroll = container.scrollHeight - container.clientHeight;
+			if (maxScroll > 0) {
+				const percent = container.scrollTop / maxScroll;
+				vscode.postMessage({
+					type: 'scrollChanged',
+					percent: percent
+				});
+			}
+		}, 50); // Debounce scroll reporting
+	}
+
+	// Track scroll to update current page and report position
 	if (container) {
 		container.addEventListener('scroll', () => {
 			if (!pdf || pageElements.length === 0) { return; }
@@ -562,6 +633,9 @@
 					break;
 				}
 			}
+
+			// Report scroll position for bidirectional sync
+			reportScrollPosition();
 		});
 	}
 
@@ -611,9 +685,9 @@
 		btnDarkMode.addEventListener('click', toggleDarkMode);
 	}
 
-	// Sync toggle
+	// Sync toggle - cycle through modes
 	if (btnSyncToggle) {
-		btnSyncToggle.addEventListener('click', toggleSync);
+		btnSyncToggle.addEventListener('click', cycleSyncMode);
 	}
 
 	// ==================== SEARCH/FIND FUNCTIONALITY ====================
@@ -1042,19 +1116,23 @@
 			case 'closeFind':
 				closeFindbar();
 				break;
-			case 'scrollToPercent':
-				scrollToPercent(e.data.percent);
-				break;
-			case 'scrollToText':
-				scrollToText(e.data.text);
-				break;
+		case 'scrollToPercent':
+			scrollToPercent(e.data.percent, e.data.source);
+			break;
+		case 'scrollToText':
+			scrollToText(e.data.text, e.data.source);
+			break;
 		}
 	});
 
 	// Scroll to a percentage of the document (for source-to-preview sync)
-	function scrollToPercent(percent) {
-		// Only scroll if sync is enabled
-		if (!container || !isSyncEnabled) { return; }
+	// source: 'click' or 'scroll' - must match syncMode to process
+	function scrollToPercent(percent, source) {
+		// Only process if sync is enabled and source matches mode
+		// If no source specified, accept any (backwards compatibility)
+		if (!container || syncMode === 'off') { return; }
+		if (source && source !== syncMode) { return; }
+
 		const maxScroll = container.scrollHeight - container.clientHeight;
 		if (maxScroll > 0) {
 			let targetScroll = Math.round(maxScroll * percent);
@@ -1071,15 +1149,18 @@
 				behavior: 'smooth'
 			});
 		}
+		// No need for timeout - master-slave model prevents feedback loop via mouse position
 	}
 
 	/**
 	 * Scroll to text by searching in the PDF's text layer
 	 * This provides accurate source-to-preview sync by finding actual text content
+	 * source: 'click' or 'scroll' - must match syncMode to process
 	 */
-	function scrollToText(searchText) {
-		// Only scroll if sync is enabled
-		if (!container || !searchText || !isSyncEnabled) { return; }
+	function scrollToText(searchText, source) {
+		// Only process if sync is enabled and source matches mode
+		if (!container || !searchText || syncMode === 'off') { return; }
+		if (source && source !== syncMode) { return; }
 
 		// Normalize the search text
 		const normalizedSearch = searchText.trim().toLowerCase();
@@ -1134,6 +1215,7 @@
 				behavior: 'smooth'
 			});
 		}
+		// No need for timeout - master-slave model prevents feedback loop via mouse position
 	}
 
 	// Keyboard shortcuts

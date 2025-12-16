@@ -27,10 +27,24 @@ export class PreviewManager implements vscode.Disposable {
 			})
 		);
 
+		// Register command to handle scroll sync from PDF preview
+		this.disposables.push(
+			vscode.commands.registerCommand('latex.syncScrollFromPdf', async (data: { percent: number }) => {
+				await this.handleScrollSyncFromPdf(data);
+			})
+		);
+
 		// Register cursor sync: editor -> preview
 		this.disposables.push(
 			vscode.window.onDidChangeTextEditorSelection((e) => {
 				this.handleEditorSelectionChange(e);
+			})
+		);
+
+		// Register scroll sync: editor -> preview (for scroll mode)
+		this.disposables.push(
+			vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
+				this.handleEditorScrollChange(e);
 			})
 		);
 	}
@@ -69,7 +83,8 @@ export class PreviewManager implements vscode.Disposable {
 				sourceUri: texUri,
 				viewColumn: vscode.ViewColumn.Beside,
 				syncPosition,
-				onSyncClick: 'latex.syncFromPdf' // Enable click-to-source navigation
+				onSyncClick: 'latex.syncFromPdf', // Enable click-to-source navigation
+				onSyncScroll: 'latex.syncScrollFromPdf' // Enable scroll-to-source navigation
 			});
 
 			this.logger.info(`Preview opened for: ${texUri.fsPath}`);
@@ -95,6 +110,7 @@ export class PreviewManager implements vscode.Disposable {
 				sourceUri: texUri,
 				viewColumn: vscode.ViewColumn.Beside,
 				onSyncClick: 'latex.syncFromPdf',
+				onSyncScroll: 'latex.syncScrollFromPdf',
 				preserveFocus: true
 			});
 			this.logger.info(`Preview updated for: ${texUri.fsPath}`);
@@ -234,7 +250,7 @@ export class PreviewManager implements vscode.Disposable {
 
 				this.logger.info(`[Sync] Navigated to line ${foundLine + 1}, column ${foundColumn + 1}`);
 
-				// Clear flag after a delay
+				// Short timeout - main protection is on webview side (mouse position check)
 				setTimeout(() => {
 					this.isNavigatingFromPreview = false;
 				}, 200);
@@ -244,6 +260,72 @@ export class PreviewManager implements vscode.Disposable {
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			this.logger.error(`Sync backward failed: ${message}`);
+		}
+	}
+
+	/**
+	 * Handle scroll sync from PDF preview (scroll mode)
+	 */
+	private async handleScrollSyncFromPdf(data: { percent: number }): Promise<void> {
+		// Find the most recently used tex URI for this preview
+		const texUri = Array.from(this.texUriMap.values()).pop();
+		if (!texUri) {
+			return;
+		}
+
+		try {
+			const document = await vscode.workspace.openTextDocument(texUri);
+			const targetLine = Math.floor(data.percent * document.lineCount);
+			const position = new vscode.Position(Math.min(targetLine, document.lineCount - 1), 0);
+
+			// Prevent feedback loop
+			this.isNavigatingFromPreview = true;
+
+			const editor = await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
+			editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.AtTop);
+
+			// Short timeout - main protection is on webview side (mouse position check)
+			setTimeout(() => {
+				this.isNavigatingFromPreview = false;
+			}, 200);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			this.logger.warn(`Scroll sync from PDF failed: ${message}`);
+		}
+	}
+
+	/**
+	 * Handle editor scroll changes for scroll sync mode
+	 */
+	private handleEditorScrollChange(e: vscode.TextEditorVisibleRangesChangeEvent): void {
+		// Skip if we're navigating from preview (prevents feedback loop)
+		if (this.isNavigatingFromPreview) {
+			return;
+		}
+
+		// Only process LaTeX files with open previews
+		const doc = e.textEditor.document;
+		if (doc.languageId !== 'latex' && doc.languageId !== 'tex') {
+			return;
+		}
+
+		const docUri = doc.uri.toString();
+		if (!this.openPreviews.has(docUri)) {
+			return;
+		}
+
+		const visibleRanges = e.visibleRanges;
+		if (visibleRanges.length > 0) {
+			const topLine = visibleRanges[0].start.line;
+			const lineCount = doc.lineCount;
+			const percent = lineCount > 0 ? topLine / lineCount : 0;
+
+			// Send scroll command to the PDF preview (source: 'scroll')
+			vscode.commands.executeCommand('pdfPreview.scrollToPercent', {
+				sourceUri: docUri,
+				percent: percent,
+				source: 'scroll'
+			});
 		}
 	}
 
@@ -289,24 +371,27 @@ export class PreviewManager implements vscode.Disposable {
 					}
 				}
 				if (!searchText) {
-					// No visible content found, fall back to percentage
+					// No visible content found, fall back to percentage (source: 'click')
 					const scrollPercent = doc.lineCount > 1 ? position.line / (doc.lineCount - 1) : 0;
 					vscode.commands.executeCommand('pdfPreview.scrollToPercent', {
 						sourceUri: docUri,
-						percent: scrollPercent
+						percent: scrollPercent,
+						source: 'click'
 					});
 					return;
 				}
-				// Use the found content text
+				// Use the found content text (source: 'click')
 				vscode.commands.executeCommand('pdfPreview.scrollToText', {
 					sourceUri: docUri,
-					text: searchText.substring(0, 100) // Limit to 100 chars
+					text: searchText.substring(0, 100), // Limit to 100 chars
+					source: 'click'
 				});
 			} else {
-				// Use the current line text to find position in PDF
+				// Use the current line text to find position in PDF (source: 'click')
 				vscode.commands.executeCommand('pdfPreview.scrollToText', {
 					sourceUri: docUri,
-					text: lineText.substring(0, 100) // Limit to 100 chars
+					text: lineText.substring(0, 100), // Limit to 100 chars
+					source: 'click'
 				});
 			}
 		}, 150); // 150ms debounce

@@ -48,9 +48,7 @@ export function getPdfViewerHtml(
 		pdfUrl: pdfSrcUri,
 		pdfjsWorkerUrl: pdfjsWorkerUri.toString(),
 		syncPosition: syncPosition,
-		enableSyncClick: enableSyncClick || false,
-		// Sync is enabled by default when syncClick is available
-		syncEnabled: true
+		enableSyncClick: enableSyncClick || false
 	};
 
 	return `<!DOCTYPE html>
