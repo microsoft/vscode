@@ -375,9 +375,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
-			enum: ['auto', 'stacked', 'sideBySide'],
+			enum: ['stacked', 'sideBySide'],
 			enumDescriptions: [
-				nls.localize('chat.viewSessions.orientation.auto', "Automatically determine the orientation based on available space."),
 				nls.localize('chat.viewSessions.orientation.stacked', "Display sessions vertically stacked unless a chat session is visible."),
 				nls.localize('chat.viewSessions.orientation.sideBySide', "Display sessions side by side if space is sufficient, otherwise stacked.")
 			],
