@@ -25,6 +25,8 @@ export interface ExtensionMessage {
 	url?: string;
 	src?: string;
 	alt?: string;
+	resourceBaseUri?: string; // Base URI for resolving relative paths (document dir)
+	workspaceRootUri?: string; // Base URI for absolute paths (workspace root)
 }
 
 /**
@@ -37,6 +39,49 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 	constructor(protected readonly context: vscode.ExtensionContext) { }
 
 	/**
+	 * Calculate relative path from document directory to target file
+	 */
+	private calculateRelativePath(fromDir: vscode.Uri, toFile: vscode.Uri): string {
+		const imageDir = vscode.Uri.joinPath(toFile, '..');
+		const fileName = toFile.path.split('/').pop() || '';
+
+		// If same directory, just return filename
+		if (fromDir.path === imageDir.path) {
+			return fileName;
+		}
+
+		// Calculate relative path
+		const fromParts = fromDir.path.split('/').filter(p => p);
+		const toParts = imageDir.path.split('/').filter(p => p);
+
+		// Find common ancestor
+		let commonLength = 0;
+		const minLength = Math.min(fromParts.length, toParts.length);
+		for (let i = 0; i < minLength; i++) {
+			if (fromParts[i] === toParts[i]) {
+				commonLength++;
+			} else {
+				break;
+			}
+		}
+
+		// Go up from fromDir to common ancestor, then down to imageDir
+		const upCount = fromParts.length - commonLength;
+		const downParts = toParts.slice(commonLength);
+
+		let relativePath = '';
+		if (upCount > 0) {
+			relativePath = '../'.repeat(upCount);
+		}
+		if (downParts.length > 0) {
+			relativePath += downParts.join('/') + '/';
+		}
+		relativePath += fileName;
+
+		return relativePath;
+	}
+
+	/**
 	 * Called when a custom editor is opened
 	 */
 	public async resolveCustomTextEditor(
@@ -45,11 +90,26 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 		_token: vscode.CancellationToken
 	): Promise<void> {
 		// Configure webview
+		// Include document directory and ALL workspace folders for loading images
+		const documentDir = vscode.Uri.joinPath(document.uri, '..');
+
+		// Build localResourceRoots: extension media + document dir + all workspace folders
+		const localResourceRoots: vscode.Uri[] = [
+			vscode.Uri.joinPath(this.context.extensionUri, 'media'),
+			documentDir
+		];
+
+		// Add all workspace folders (like markdown preview does)
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (workspaceFolders) {
+			for (const folder of workspaceFolders) {
+				localResourceRoots.push(folder.uri);
+			}
+		}
+
 		webviewPanel.webview.options = {
 			enableScripts: true,
-			localResourceRoots: [
-				vscode.Uri.joinPath(this.context.extensionUri, 'media')
-			]
+			localResourceRoots
 		};
 
 		// Set initial HTML
@@ -60,12 +120,23 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 		// Track if we're waiting for our own edit to be applied
 		let pendingVersion: number | null = null;
 
+		// Get webview URIs for resolving image paths
+		const resourceBaseUri = webviewPanel.webview.asWebviewUri(documentDir).toString();
+
+		// Get workspace root URI for absolute paths (paths starting with /)
+		let workspaceRootUri = resourceBaseUri; // default to document dir
+		if (workspaceFolders && workspaceFolders.length > 0) {
+			workspaceRootUri = webviewPanel.webview.asWebviewUri(workspaceFolders[0].uri).toString();
+		}
+
 		// Send content to webview when ready
 		const updateWebview = () => {
 			const message: ExtensionMessage = {
 				type: 'load',
 				content: document.getText(),
-				format: this.format
+				format: this.format,
+				resourceBaseUri: resourceBaseUri,
+				workspaceRootUri: workspaceRootUri
 			};
 			webviewPanel.webview.postMessage(message);
 			lastKnownVersion = document.version;
@@ -161,22 +232,52 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 							filters: {
 								'Images': ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp']
 							},
-							title: 'Select Image'
+							title: 'Select Image',
+							defaultUri: documentDir
 						});
 						if (result && result[0]) {
-							// Get relative path from document
-							const docDir = vscode.Uri.joinPath(document.uri, '..');
-							let imagePath = result[0].fsPath;
+							const selectedFile = result[0];
+							const fileName = selectedFile.path.split('/').pop() || selectedFile.path;
 
-							// Try to make path relative
-							if (imagePath.startsWith(docDir.fsPath)) {
-								imagePath = imagePath.substring(docDir.fsPath.length + 1);
+							// In VS Code web, file picker returns incomplete paths
+							// Try to find the actual file in the workspace
+							let actualImageUri: vscode.Uri | undefined;
+							let relativePath = fileName;
+
+							// Search for the file in workspace
+							const files = await vscode.workspace.findFiles(`**/${fileName}`, null, 10);
+
+							if (files.length === 1) {
+								// Found exactly one match - use it
+								actualImageUri = files[0];
+							} else if (files.length > 1) {
+								// Multiple matches - let user choose
+								const items = files.map(f => ({
+									label: vscode.workspace.asRelativePath(f),
+									uri: f
+								}));
+								const selected = await vscode.window.showQuickPick(items, {
+									placeHolder: 'Multiple images found. Select the correct one:'
+								});
+								if (selected) {
+									actualImageUri = selected.uri;
+								}
 							}
+
+							if (actualImageUri) {
+								// Calculate relative path from document to image
+								relativePath = this.calculateRelativePath(documentDir, actualImageUri);
+							} else {
+								// Fallback: assume same directory
+								actualImageUri = vscode.Uri.joinPath(documentDir, fileName);
+							}
+
+							const webviewUri = webviewPanel.webview.asWebviewUri(actualImageUri);
 
 							const imageMessage: ExtensionMessage = {
 								type: 'setImage',
-								src: imagePath,
-								alt: ''
+								src: webviewUri.toString(),
+								alt: relativePath
 							};
 							webviewPanel.webview.postMessage(imageMessage);
 						}

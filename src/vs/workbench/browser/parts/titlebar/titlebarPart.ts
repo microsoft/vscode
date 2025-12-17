@@ -831,17 +831,14 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	protected get currentMenubarVisibility(): MenuBarVisibility {
 		if (this.isAuxiliary) {
-			console.log('[TitleBar] currentMenubarVisibility - isAuxiliary, returning hidden');
 			return 'hidden';
 		}
 
 		if (this.isBare && !this.hasOpenEditors) {
-			console.log('[TitleBar] currentMenubarVisibility - isBare && !hasOpenEditors, returning hidden');
 			return 'hidden';
 		}
 
 		const visibility = getMenuBarVisibility(this.configurationService);
-		console.log('[TitleBar] currentMenubarVisibility - returning from config:', visibility, 'isBare:', this.isBare, 'hasOpenEditors:', this.hasOpenEditors);
 		return visibility;
 	}
 

@@ -33,6 +33,50 @@ let updateTimer: ReturnType<typeof setTimeout> | null = null;
 // Track last content we sent to avoid echo updates
 let lastSentContent: string | null = null;
 
+// Base URI for resolving relative resource paths (images, etc.)
+let resourceBaseUri: string | null = null;
+// Base URI for absolute paths (workspace root)
+let workspaceRootUri: string | null = null;
+
+/**
+ * Resolve a relative resource path to an absolute webview URI
+ */
+function resolveResourcePath(path: string): string {
+	// If it's already an absolute URL, return as-is
+	if (path.startsWith('http://') || path.startsWith('https://') ||
+		path.startsWith('vscode-resource://') || path.startsWith('vscode-webview://') ||
+		path.startsWith('file+.vscode-resource')) {
+		return path;
+	}
+
+	// Determine if path is absolute (starts with /) or relative
+	const isAbsolutePath = path.startsWith('/');
+
+	// Choose the appropriate base URI
+	let base = isAbsolutePath ? workspaceRootUri : resourceBaseUri;
+
+	if (!base) {
+		return path;
+	}
+
+	// Remove trailing slash from base if present
+	while (base.endsWith('/')) {
+		base = base.slice(0, -1);
+	}
+
+	// Clean the path
+	let cleanPath = path;
+	if (cleanPath.startsWith('./')) {
+		cleanPath = cleanPath.slice(2);
+	}
+	// Remove leading slashes for joining
+	while (cleanPath.startsWith('/')) {
+		cleanPath = cleanPath.slice(1);
+	}
+
+	return `${base}/${cleanPath}`;
+}
+
 /**
  * Initialize the TipTap editor
  */
@@ -252,7 +296,21 @@ function nodeToMarkdown(node: Record<string, unknown>): string {
 		case 'image': {
 			const src = (attrs?.src as string) || '';
 			const alt = (attrs?.alt as string) || '';
-			return `![${alt}](${src})`;
+			// If alt looks like a path (not starting with http/vscode), use it as the path
+			// This is where we stored the original path during parsing
+			let imagePath = src;
+			if (alt && !alt.startsWith('http') && !alt.startsWith('vscode')) {
+				imagePath = alt;
+			}
+			// If src is a webview URI, try to use alt instead
+			if (src.includes('vscode-resource') || src.includes('vscode-webview')) {
+				if (alt && !alt.startsWith('http') && !alt.startsWith('vscode')) {
+					imagePath = alt;
+				}
+			}
+			// Return with empty alt if path was stored there
+			const displayAlt = (alt === imagePath) ? '' : alt;
+			return `![${displayAlt}](${imagePath})`;
 		}
 
 		case 'taskList':
@@ -371,7 +429,18 @@ function nodeToTypst(node: Record<string, unknown>): string {
 
 		case 'image': {
 			const src = (attrs?.src as string) || '';
-			return `#image("${src}")`;
+			const alt = (attrs?.alt as string) || '';
+			// Prefer alt (original path) over src
+			let imagePath = src;
+			if (alt && !alt.startsWith('http') && !alt.startsWith('vscode')) {
+				imagePath = alt;
+			}
+			// Strip webview URI prefix if present
+			if (imagePath.includes('vscode-resource')) {
+				const parts = imagePath.split('/');
+				imagePath = parts[parts.length - 1];
+			}
+			return `#image("${imagePath}")`;
 		}
 
 		default:
@@ -467,8 +536,13 @@ function markdownToHtml(markdown: string): string {
 	// Links
 	html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
 
-	// Images
-	html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+	// Images - resolve relative paths using resourceBaseUri
+	html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt, src) => {
+		const resolvedSrc = resolveResourcePath(src);
+		// Store original path in alt if no alt text provided (for serialization)
+		const altText = alt || src;
+		return `<img src="${resolvedSrc}" alt="${altText}">`;
+	});
 
 	// Horizontal rule
 	html = html.replace(/^---$/gm, '<hr>');
@@ -527,8 +601,12 @@ function typstToHtml(typst: string): string {
 	// Links #link("url")[text]
 	html = html.replace(/#link\("([^"]+)"\)\[([^\]]+)\]/g, '<a href="$1">$2</a>');
 
-	// Images #image("path")
-	html = html.replace(/#image\("([^"]+)"\)/g, '<img src="$1">');
+	// Images #image("path") - resolve relative paths
+	html = html.replace(/#image\("([^"]+)"\)/g, (_match, src) => {
+		const resolvedSrc = resolveResourcePath(src);
+		// Store original path in alt for serialization
+		return `<img src="${resolvedSrc}" alt="${src}">`;
+	});
 
 	// Strike #strike[text]
 	html = html.replace(/#strike\[([^\]]+)\]/g, '<s>$1</s>');
@@ -783,6 +861,13 @@ window.addEventListener('message', (event) => {
 	switch (message.type) {
 		case 'load':
 			currentFormat = message.format || 'markdown';
+			// Store resource base URIs for resolving paths
+			if (message.resourceBaseUri) {
+				resourceBaseUri = message.resourceBaseUri;
+			}
+			if (message.workspaceRootUri) {
+				workspaceRootUri = message.workspaceRootUri;
+			}
 			if (editor && message.content !== undefined) {
 				// Skip if this is just our own content echoing back
 				if (lastSentContent !== null && message.content === lastSentContent) {
