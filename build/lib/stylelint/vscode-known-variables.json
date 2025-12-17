@@ -203,6 +203,7 @@
 		"--vscode-editorBracketHighlight-unexpectedBracket-foreground",
 		"--vscode-editorBracketMatch-background",
 		"--vscode-editorBracketMatch-border",
+		"--vscode-editorBracketMatch-foreground",
 		"--vscode-editorBracketPairGuide-activeBackground1",
 		"--vscode-editorBracketPairGuide-activeBackground2",
 		"--vscode-editorBracketPairGuide-activeBackground3",
