@@ -167,6 +167,7 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	private _leftButtons: IQuickInputButton[] = [];
 	private _rightButtons: IQuickInputButton[] = [];
 	private _inlineButtons: IQuickInputButton[] = [];
+	private _inputButtons: IQuickInputButton[] = [];
 	private buttonsUpdated = false;
 	private _toggles: IQuickInputToggle[] = [];
 	private togglesUpdated = false;
@@ -296,14 +297,39 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		return [
 			...this._leftButtons,
 			...this._rightButtons,
-			...this._inlineButtons
+			...this._inlineButtons,
+			...this._inputButtons
 		];
 	}
 
 	set buttons(buttons: IQuickInputButton[]) {
-		this._leftButtons = buttons.filter(b => b === backButton);
-		this._rightButtons = buttons.filter(b => b !== backButton && b.location !== QuickInputButtonLocation.Inline);
-		this._inlineButtons = buttons.filter(b => b.location === QuickInputButtonLocation.Inline);
+		const leftButtons: IQuickInputButton[] = [];
+		const rightButtons: IQuickInputButton[] = [];
+		const inlineButtons: IQuickInputButton[] = [];
+		const inputButtons: IQuickInputButton[] = [];
+
+		for (const button of buttons) {
+			if (button === backButton) {
+				leftButtons.push(button);
+			} else {
+				switch (button.location) {
+					case QuickInputButtonLocation.Inline:
+						inlineButtons.push(button);
+						break;
+					case QuickInputButtonLocation.Input:
+						inputButtons.push(button);
+						break;
+					default:
+						rightButtons.push(button);
+						break;
+				}
+			}
+		}
+
+		this._leftButtons = leftButtons;
+		this._rightButtons = rightButtons;
+		this._inlineButtons = inlineButtons;
+		this._inputButtons = inputButtons;
 		this.buttonsUpdated = true;
 		this.update();
 	}
@@ -457,6 +483,12 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 					async () => this.onDidTriggerButtonEmitter.fire(button)
 				));
 			this.ui.inlineActionBar.push(inlineButtons, { icon: true, label: false });
+			this.ui.inputBox.actions = this._inputButtons
+				.map((button, index) => quickInputButtonToAction(
+					button,
+					`id-${index}`,
+					async () => this.onDidTriggerButtonEmitter.fire(button)
+				));
 		}
 		if (this.togglesUpdated) {
 			this.togglesUpdated = false;
