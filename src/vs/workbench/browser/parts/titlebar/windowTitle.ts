@@ -30,6 +30,8 @@ import { getWindowById } from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { INotebookExecutionStateService } from '../../../contrib/notebook/common/notebookExecutionStateService.js';
+import { NOTEBOOK_EDITOR_ID, NotebookCellExecutionState } from '../../../contrib/notebook/common/notebookCommon.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -96,7 +98,8 @@ export class WindowTitle extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService
 	) {
 		super();
 
@@ -126,6 +129,7 @@ export class WindowTitle extends Disposable {
 			}
 		}));
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.titleUpdater.schedule()));
+		this._register(this.notebookExecutionStateService.onDidChangeExecution(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
@@ -360,6 +364,9 @@ export class WindowTitle extends Disposable {
 		const focusedView: string = this.viewsService.getFocusedViewName();
 		const activeEditorState = editorResource ? this.decorationsService.getDecoration(editorResource, false)?.tooltip : undefined;
 
+		// Compute notebook status for screen reader users
+		const notebookStatus = this.getNotebookStatus();
+
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
 			variables[name] = this.contextKeyService.getContextKeyValue(contextKey) ?? '';
@@ -372,6 +379,9 @@ export class WindowTitle extends Disposable {
 
 		if (!this.titleIncludesEditorState && this.accessibilityService.isScreenReaderOptimized() && this.configurationService.getValue('accessibility.windowTitleOptimized')) {
 			titleTemplate += '${separator}${activeEditorState}';
+			if (notebookStatus) {
+				titleTemplate += '${separator}${notebookStatus}';
+			}
 		}
 
 		let separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
@@ -398,8 +408,37 @@ export class WindowTitle extends Disposable {
 			profileName,
 			focusedView,
 			activeEditorState,
+			notebookStatus,
 			separator: { label: separator }
 		});
+	}
+
+	private getNotebookStatus(): string | undefined {
+		// Only show notebook status for screen reader users
+		if (!this.accessibilityService.isScreenReaderOptimized()) {
+			return undefined;
+		}
+
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane || activeEditorPane.getId() !== NOTEBOOK_EDITOR_ID) {
+			return undefined;
+		}
+
+		// Get the notebook URI
+		const notebookUri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+		if (!notebookUri) {
+			return undefined;
+		}
+
+		// Check if any cells are executing
+		const executions = this.notebookExecutionStateService.getCellExecutionsForNotebook(notebookUri);
+		const hasExecutingCells = executions.some(exe => exe.state === NotebookCellExecutionState.Executing);
+
+		if (hasExecutingCells) {
+			return localize('notebookExecuting', "Notebook Executing");
+		}
+
+		return undefined;
 	}
 
 	isCustomTitleFormat(): boolean {
