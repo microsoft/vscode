@@ -11,7 +11,7 @@ import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, AGENT_SKILLS_DEFAULT_SOURCE_FOLDER, CLAUDE_SKILLS_LEGACY_SOURCE_FOLDER, SKILLS_GLOB_PATTERN } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -366,10 +366,10 @@ export class PromptFilesLocator {
 		return undefined;
 	}
 
-	private async findAgentSkillsInFolder(uri: URI, token: CancellationToken): Promise<URI[]> {
+	private async findAgentSkillsInFolder(uri: URI, relativePath: string, token: CancellationToken): Promise<URI[]> {
 		const result = [];
 		try {
-			const stat = await this.fileService.resolve(joinPath(uri, '.agent/skills'));
+			const stat = await this.fileService.resolve(joinPath(uri, relativePath));
 			if (token.isCancellationRequested) {
 				return [];
 			}
@@ -392,22 +392,63 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Searches for skills in `.agent/skills/` directories in the workspace.
-	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 * Searches for skills in the workspace.
+	 * By default, it searches in `.agent/skills`, `.claude/skills`, and `skills/**\/SKILL.md`.
+	 * Additional locations can be configured via `chat.agentSkillsLocations`.
 	 */
 	public async findAgentSkillsInWorkspace(token: CancellationToken): Promise<URI[]> {
 		const workspace = this.workspaceService.getWorkspace();
-		const results = await Promise.all(workspace.folders.map(f => this.findAgentSkillsInFolder(f.uri, token)));
-		return results.flat();
+		const promises: Promise<URI[]>[] = [];
+
+		// 1. Default locations in each workspace folder
+		for (const folder of workspace.folders) {
+			promises.push(this.findAgentSkillsInFolder(folder.uri, AGENT_SKILLS_DEFAULT_SOURCE_FOLDER, token));
+			promises.push(this.findAgentSkillsInFolder(folder.uri, CLAUDE_SKILLS_LEGACY_SOURCE_FOLDER, token));
+			promises.push(this.searchFilesInLocation(folder.uri, SKILLS_GLOB_PATTERN, token));
+		}
+
+		// 2. Custom locations from configuration
+		const customLocations = this.configService.getValue<Record<string, boolean>>(PromptsConfig.AGENT_SKILLS_LOCATIONS_KEY);
+		if (customLocations && typeof customLocations === 'object') {
+			for (const [path, enabled] of Object.entries(customLocations)) {
+				if (!enabled) {
+					continue;
+				}
+
+				const cleanPath = path.trim();
+				if (!cleanPath) {
+					continue;
+				}
+
+				if (isAbsolute(cleanPath)) {
+					promises.push(this.findAgentSkillsInFolder(URI.file(cleanPath), '', token));
+				} else {
+					for (const folder of workspace.folders) {
+						promises.push(this.findAgentSkillsInFolder(folder.uri, cleanPath, token));
+					}
+				}
+			}
+		}
+
+		const results = await Promise.all(promises);
+		const uniqueResults = new ResourceSet(results.flat());
+		return Array.from(uniqueResults);
 	}
 
 	/**
-	 * Searches for skills in `.agent/skills/` directories  in the home folder.
-	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 * Searches for skills in the home folder.
+	 * By default, it searches in `.agent / skills` and `.claude / skills`.
 	 */
 	public async findAgentSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
 		const userHome = await this.pathService.userHome();
-		return this.findAgentSkillsInFolder(userHome, token);
+		const promises: Promise<URI[]>[] = [];
+
+		promises.push(this.findAgentSkillsInFolder(userHome, AGENT_SKILLS_DEFAULT_SOURCE_FOLDER, token));
+		promises.push(this.findAgentSkillsInFolder(userHome, CLAUDE_SKILLS_LEGACY_SOURCE_FOLDER, token));
+
+		const results = await Promise.all(promises);
+		const uniqueResults = new ResourceSet(results.flat());
+		return Array.from(uniqueResults);
 	}
 }
 
@@ -483,17 +524,17 @@ export function isValidGlob(pattern: string): boolean {
 }
 
 /**
- * Finds the first parent of the provided location that does not contain a `glob pattern`.
+ * Finds the first parent of the provided location that does not contain a glob pattern.
  *
  * Asumes that the location that is provided has a valid path (is abstract)
  *
  * ## Examples
  *
  * ```typescript
- * assert.strictDeepEqual(
- *     firstNonGlobParentAndPattern(URI.file('/home/user/{folder1,folder2}/file.md')).path,
- *     { parent: URI.file('/home/user'), filePattern: '{folder1,folder2}/file.md' },
- *     'Must find correct non-glob parent dirname.',
+	* assert.strictDeepEqual(
+ * firstNonGlobParentAndPattern(URI.file('/home/user/{folder1,folder2}/file.md')).path,
+ * { parent: URI.file('/home/user'), filePattern: '{folder1,folder2}/file.md' },
+ * 'Must find correct non-glob parent dirname.',
  * );
  * ```
  */

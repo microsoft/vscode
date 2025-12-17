@@ -84,6 +84,11 @@ export namespace PromptsConfig {
 	export const USE_AGENT_SKILLS = 'chat.useAgentSkills';
 
 	/**
+	 * Configuration key for agent skills locations.
+	 */
+	export const AGENT_SKILLS_LOCATIONS_KEY = 'chat.agentSkillsLocations';
+
+	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
 	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}.
 	 */

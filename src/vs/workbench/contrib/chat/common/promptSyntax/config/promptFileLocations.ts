@@ -54,6 +54,21 @@ export const LEGACY_MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
 export const AGENTS_SOURCE_FOLDER = '.github/agents';
 
 /**
+ * Default agent skills source folder.
+ */
+export const AGENT_SKILLS_DEFAULT_SOURCE_FOLDER = '.agent/skills';
+
+/**
+ * Legacy Claude skills source folder.
+ */
+export const CLAUDE_SKILLS_LEGACY_SOURCE_FOLDER = '.claude/skills';
+
+/**
+ * Skills glob pattern.
+ */
+export const SKILLS_GLOB_PATTERN = 'skills/**/SKILL.md';
+
+/**
  * Helper function to check if a file is directly in the .github/agents/ folder (not in subfolders).
  */
 function isInAgentsFolder(fileUri: URI): boolean {

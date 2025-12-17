@@ -596,9 +596,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			};
 
 			const workspaceSkills = await this.fileLocator.findAgentSkillsInWorkspace(token);
-			await Promise.all(workspaceSkills.map(uri => process(uri, 'project')));
+			await Promise.all(workspaceSkills.map((uri: URI) => process(uri, 'project')));
 			const userSkills = await this.fileLocator.findAgentSkillsInUserHome(token);
-			await Promise.all(userSkills.map(uri => process(uri, 'personal')));
+			await Promise.all(userSkills.map((uri: URI) => process(uri, 'personal')));
 			return result;
 		}
 		return undefined;

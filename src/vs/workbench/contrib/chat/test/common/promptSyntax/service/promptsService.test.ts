@@ -52,6 +52,7 @@ suite('PromptsService', () => {
 	let workspaceContextService: TestContextService;
 	let testConfigService: TestConfigurationService;
 	let fileService: IFileService;
+	let searchService: ISearchService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -110,7 +111,8 @@ suite('PromptsService', () => {
 		} as IPathService;
 		instaService.stub(IPathService, pathService);
 
-		instaService.stub(ISearchService, {});
+		searchService = { fileSearch: () => Promise.resolve({ results: [], limitHit: false, messages: [] }) } as Partial<ISearchService> as ISearchService;
+		instaService.stub(ISearchService, searchService);
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
@@ -1339,6 +1341,64 @@ suite('PromptsService', () => {
 			assert.strictEqual(personalSkill1.name, 'Personal Skill 1');
 			assert.strictEqual(personalSkill1.description, 'A personal skill for testing');
 			assert.strictEqual(personalSkill1.uri.path, '/home/user/.agent/skills/personal-skill-1/SKILL.md');
+		});
+
+		test('should find Agent skills in multiple locations', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.AGENT_SKILLS_LOCATIONS_KEY, {
+				'custom/skills': true,
+				'/absolute/custom/skills': true
+			});
+
+			const rootFolderName = 'agent-skills-multi-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create mock filesystem with skills in various locations
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.agent/skills/skill-1/SKILL.md`,
+					contents: ['---', 'name: "Skill 1"', '---'],
+				},
+				{
+					path: `${rootFolder}/.claude/skills/skill-2/SKILL.md`,
+					contents: ['---', 'name: "Skill 2"', '---'],
+				},
+				{
+					path: `${rootFolder}/skills/some/path/SKILL.md`,
+					contents: ['---', 'name: "Skill 3"', '---'],
+				},
+				{
+					path: `${rootFolder}/custom/skills/skill-4/SKILL.md`,
+					contents: ['---', 'name: "Skill 4"', '---'],
+				},
+				{
+					path: '/absolute/custom/skills/skill-5/SKILL.md',
+					contents: ['---', 'name: "Skill 5"', '---'],
+				},
+			]);
+
+			// Mock search service for skills/**/SKILL.md
+			sinon.stub(searchService, 'fileSearch').callsFake(async (query) => {
+				if (query.filePattern === 'skills/**/SKILL.md') {
+					return {
+						results: [{ resource: URI.file(`${rootFolder}/skills/some/path/SKILL.md`) }],
+						limitHit: false,
+						messages: []
+					};
+				}
+				return { results: [], limitHit: false, messages: [] };
+			});
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 5, 'Should find 5 skills total');
+
+			const names = result.map(s => s.name).sort();
+			assert.deepStrictEqual(names, ['Skill 1', 'Skill 2', 'Skill 3', 'Skill 4', 'Skill 5']);
 		});
 
 		test('should handle parsing errors gracefully', async () => {
