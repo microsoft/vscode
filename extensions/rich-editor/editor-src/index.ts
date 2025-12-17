@@ -10,6 +10,10 @@ import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
 
 // Declare VS Code API
 declare const acquireVsCodeApi: () => {
@@ -111,6 +115,15 @@ function initEditor(): void {
 			TaskItem.configure({
 				nested: true
 			}),
+			Table.configure({
+				resizable: true,
+				HTMLAttributes: {
+					class: 'tiptap-table'
+				}
+			}),
+			TableRow,
+			TableCell,
+			TableHeader,
 			Placeholder.configure({
 				placeholder: 'Start writing...'
 			})
@@ -354,9 +367,47 @@ function nodeToMarkdown(node: Record<string, unknown>): string {
 			return '- ' + checkbox + itemText;
 		}
 
+		case 'table': {
+			if (!content) { return ''; }
+			const rows = content.map(row => tableRowToMarkdown(row));
+			// Insert separator row after header (first row)
+			if (rows.length > 0) {
+				const firstRow = content[0];
+				const firstRowContent = firstRow.content as Array<Record<string, unknown>> | undefined;
+				const colCount = firstRowContent ? firstRowContent.length : 0;
+				const separator = '|' + ' --- |'.repeat(colCount);
+				rows.splice(1, 0, separator);
+			}
+			return rows.join('\n');
+		}
+
 		default:
 			return content ? content.map(n => inlineToMarkdown(n)).join('') : '';
 	}
+}
+
+/**
+ * Convert a table row to Markdown
+ */
+function tableRowToMarkdown(row: Record<string, unknown>): string {
+	const content = row.content as Array<Record<string, unknown>> | undefined;
+	if (!content) { return '|'; }
+
+	const cells = content.map(cell => {
+		const cellContent = cell.content as Array<Record<string, unknown>> | undefined;
+		if (!cellContent) { return ''; }
+		// Extract text from paragraph inside cell
+		const cellText = cellContent.map(node => {
+			if ((node.type as string) === 'paragraph') {
+				const paraContent = node.content as Array<Record<string, unknown>> | undefined;
+				return paraContent ? paraContent.map(c => inlineToMarkdown(c)).join('') : '';
+			}
+			return '';
+		}).join('');
+		return cellText;
+	});
+
+	return '| ' + cells.join(' | ') + ' |';
 }
 
 /**
@@ -467,6 +518,39 @@ function nodeToTypst(node: Record<string, unknown>): string {
 			return `#image("${imagePath}")`;
 		}
 
+		case 'table': {
+			if (!content) { return ''; }
+			// Get column count from first row
+			const firstRow = content[0];
+			const firstRowContent = firstRow?.content as Array<Record<string, unknown>> | undefined;
+			const colCount = firstRowContent ? firstRowContent.length : 0;
+
+			// Collect all cell contents
+			const cells: string[] = [];
+			content.forEach(row => {
+				const rowContent = row.content as Array<Record<string, unknown>> | undefined;
+				if (rowContent) {
+					rowContent.forEach(cell => {
+						const cellContent = cell.content as Array<Record<string, unknown>> | undefined;
+						if (cellContent) {
+							const cellText = cellContent.map(node => {
+								if ((node.type as string) === 'paragraph') {
+									const paraContent = node.content as Array<Record<string, unknown>> | undefined;
+									return paraContent ? paraContent.map(c => inlineToTypst(c)).join('') : '';
+								}
+								return '';
+							}).join('');
+							cells.push(`[${cellText}]`);
+						} else {
+							cells.push('[]');
+						}
+					});
+				}
+			});
+
+			return `#table(\n  columns: ${colCount},\n  ${cells.join(', ')}\n)`;
+		}
+
 		default:
 			return content ? content.map(n => inlineToTypst(n)).join('') : '';
 	}
@@ -531,6 +615,86 @@ function parseContent(content: string, format: 'markdown' | 'typst'): void {
 }
 
 /**
+ * Parse Markdown tables to HTML
+ */
+function parseMarkdownTables(html: string): string {
+	// Match table blocks: lines that start with |
+	const lines = html.split('\n');
+	const result: string[] = [];
+	let tableLines: string[] = [];
+	let inTable = false;
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i].trim();
+
+		// Check if this is a table line
+		if (line.startsWith('|') && line.endsWith('|')) {
+			inTable = true;
+			tableLines.push(line);
+		} else {
+			// End of table
+			if (inTable && tableLines.length > 0) {
+				result.push(convertTableLinesToHtml(tableLines));
+				tableLines = [];
+				inTable = false;
+			}
+			result.push(lines[i]);
+		}
+	}
+
+	// Handle table at end of document
+	if (inTable && tableLines.length > 0) {
+		result.push(convertTableLinesToHtml(tableLines));
+	}
+
+	return result.join('\n');
+}
+
+/**
+ * Convert table lines to HTML
+ */
+function convertTableLinesToHtml(lines: string[]): string {
+	if (lines.length < 2) { return lines.join('\n'); }
+
+	// Check if second line is separator (contains ---)
+	const isSeparator = lines[1].includes('---');
+	const hasHeader = isSeparator;
+
+	// Remove separator line
+	const dataLines = hasHeader ? [lines[0], ...lines.slice(2)] : lines;
+
+	let tableHtml = '<table>';
+
+	dataLines.forEach((line, index) => {
+		// Parse cells from | cell1 | cell2 |
+		const cells = line
+			.replace(/^\|/, '')
+			.replace(/\|$/, '')
+			.split('|')
+			.map(cell => cell.trim());
+
+		if (index === 0 && hasHeader) {
+			// Header row
+			tableHtml += '<tr>';
+			cells.forEach(cell => {
+				tableHtml += `<th><p>${cell}</p></th>`;
+			});
+			tableHtml += '</tr>';
+		} else {
+			// Data row
+			tableHtml += '<tr>';
+			cells.forEach(cell => {
+				tableHtml += `<td><p>${cell}</p></td>`;
+			});
+			tableHtml += '</tr>';
+		}
+	});
+
+	tableHtml += '</table>';
+	return tableHtml;
+}
+
+/**
  * Simple Markdown to HTML converter
  * TODO: Replace with proper parser
  */
@@ -571,6 +735,9 @@ function markdownToHtml(markdown: string): string {
 	// Horizontal rule
 	html = html.replace(/^---$/gm, '<hr>');
 	html = html.replace(/^\*\*\*$/gm, '<hr>');
+
+	// Tables - parse markdown tables to HTML
+	html = parseMarkdownTables(html);
 
 	// Blockquotes
 	html = html.replace(/^> (.+)$/gm, '<blockquote><p>$1</p></blockquote>');
@@ -614,11 +781,61 @@ function markdownToHtml(markdown: string): string {
 }
 
 /**
+ * Parse Typst table syntax to HTML
+ * Handles: #table(columns: N, [cell1], [cell2], ...)
+ */
+function parseTypstTables(typst: string): string {
+	// Match #table(...) blocks - handle multiline
+	const tableRegex = /#table\s*\(\s*columns:\s*(\d+)\s*,\s*([\s\S]*?)\s*\)/g;
+
+	return typst.replace(tableRegex, (_match, colCountStr, cellsStr) => {
+		const colCount = parseInt(colCountStr, 10);
+
+		// Extract cell contents from [content] patterns
+		const cellRegex = /\[([^\]]*)\]/g;
+		const cells: string[] = [];
+		let cellMatch;
+		while ((cellMatch = cellRegex.exec(cellsStr)) !== null) {
+			cells.push(cellMatch[1]);
+		}
+
+		if (cells.length === 0 || colCount === 0) {
+			return _match; // Return original if parsing fails
+		}
+
+		// Build HTML table
+		let tableHtml = '<table>';
+		const rowCount = Math.ceil(cells.length / colCount);
+
+		for (let row = 0; row < rowCount; row++) {
+			tableHtml += '<tr>';
+			for (let col = 0; col < colCount; col++) {
+				const cellIndex = row * colCount + col;
+				const cellContent = cellIndex < cells.length ? cells[cellIndex] : '';
+				// First row as header
+				if (row === 0) {
+					tableHtml += `<th><p>${cellContent}</p></th>`;
+				} else {
+					tableHtml += `<td><p>${cellContent}</p></td>`;
+				}
+			}
+			tableHtml += '</tr>';
+		}
+
+		tableHtml += '</table>';
+		return tableHtml;
+	});
+}
+
+/**
  * Simple Typst to HTML converter
  * TODO: Replace with proper parser
  */
 function typstToHtml(typst: string): string {
 	let html = typst;
+
+	// Tables - parse #table(...) syntax FIRST before other processing
+	html = parseTypstTables(html);
 
 	// Headers (= Heading)
 	html = html.replace(/^====== (.+)$/gm, '<h6>$1</h6>');
@@ -663,7 +880,7 @@ function typstToHtml(typst: string): string {
 	const lines = html.split('\n');
 	html = lines.map(line => {
 		if (line.trim() === '') { return ''; }
-		if (line.match(/^<[a-z]/i)) { return line; }
+		if (line.match(/^<\/?[a-z]/i)) { return line; }
 		return `<p>${line}</p>`;
 	}).join('\n');
 
@@ -756,6 +973,34 @@ function executeCommand(command: string): void {
 			break;
 		case 'redo':
 			editor.chain().focus().redo().run();
+			break;
+		case 'insertTable':
+			// Request table dimensions from extension
+			vscode.postMessage({ type: 'requestTable' });
+			break;
+		case 'addColumnBefore':
+			editor.chain().focus().addColumnBefore().run();
+			break;
+		case 'addColumnAfter':
+			editor.chain().focus().addColumnAfter().run();
+			break;
+		case 'deleteColumn':
+			editor.chain().focus().deleteColumn().run();
+			break;
+		case 'addRowBefore':
+			editor.chain().focus().addRowBefore().run();
+			break;
+		case 'addRowAfter':
+			editor.chain().focus().addRowAfter().run();
+			break;
+		case 'deleteRow':
+			editor.chain().focus().deleteRow().run();
+			break;
+		case 'deleteTable':
+			editor.chain().focus().deleteTable().run();
+			break;
+		case 'toggleHeaderRow':
+			editor.chain().focus().toggleHeaderRow().run();
 			break;
 	}
 
@@ -937,6 +1182,17 @@ window.addEventListener('message', (event) => {
 				editor.chain().focus().setImage({
 					src: message.src,
 					alt: message.alt || ''
+				}).run();
+			}
+			break;
+
+		case 'insertTable':
+			// Insert table with specified dimensions
+			if (editor && message.rows && message.cols) {
+				editor.chain().focus().insertTable({
+					rows: message.rows,
+					cols: message.cols,
+					withHeaderRow: true
 				}).run();
 			}
 			break;

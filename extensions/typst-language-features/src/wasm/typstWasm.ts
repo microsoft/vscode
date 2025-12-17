@@ -874,8 +874,31 @@ async function loadReferencedFiles(document: vscode.TextDocument): Promise<void>
 			const data = await vscode.workspace.fs.readFile(fileUri);
 
 			// Insert file into memory access model
-			// Use /tmp/ prefix since the compiler uses /tmp/ as default directory when mainFilePath is not specified
-			const virtualPath = '/tmp/' + cleanPath;
+			// The compiler uses /tmp/ as default directory when mainFilePath is not specified
+			// We need to resolve paths relative to /tmp/ so the compiler can find them
+			// For "../foo" from /tmp/, the resolved path is "/foo"
+			let virtualPath: string;
+			if (cleanPath.startsWith('/')) {
+				// Absolute paths stay as-is
+				virtualPath = cleanPath;
+			} else {
+				// Resolve relative path from /tmp/
+				// Split the path and resolve . and ..
+				const baseParts = ['', 'tmp']; // represents /tmp
+				const pathParts = cleanPath.split(/[/\\]/);
+				const resolvedParts = [...baseParts];
+
+				for (const part of pathParts) {
+					if (part === '..') {
+						if (resolvedParts.length > 1) {
+							resolvedParts.pop();
+						}
+					} else if (part !== '.' && part !== '') {
+						resolvedParts.push(part);
+					}
+				}
+				virtualPath = resolvedParts.join('/') || '/';
+			}
 			memoryAccessModel.insertFile(virtualPath, data, new Date(stat.mtime));
 		} catch (error) {
 			console.warn(`[Typst WASM] Failed to load file ${ref.path}:`, error);

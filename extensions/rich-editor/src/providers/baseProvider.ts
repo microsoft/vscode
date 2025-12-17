@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
  * Messages from webview to extension
  */
 export interface WebviewMessage {
-	type: 'ready' | 'update' | 'save' | 'requestLink' | 'openLink' | 'editLink' | 'requestImage';
+	type: 'ready' | 'update' | 'save' | 'requestLink' | 'openLink' | 'editLink' | 'requestImage' | 'requestTable';
 	content?: string;
 	url?: string;
 }
@@ -18,7 +18,7 @@ export interface WebviewMessage {
  * Messages from extension to webview
  */
 export interface ExtensionMessage {
-	type: 'load' | 'setTheme' | 'setLink' | 'setImage';
+	type: 'load' | 'setTheme' | 'setLink' | 'setImage' | 'insertTable';
 	content?: string;
 	format?: 'markdown' | 'typst';
 	theme?: 'light' | 'dark';
@@ -27,6 +27,8 @@ export interface ExtensionMessage {
 	alt?: string;
 	resourceBaseUri?: string; // Base URI for resolving relative paths (document dir)
 	workspaceRootUri?: string; // Base URI for absolute paths (workspace root)
+	rows?: number; // Table rows
+	cols?: number; // Table columns
 }
 
 /**
@@ -283,6 +285,61 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 						}
 						break;
 					}
+
+					case 'requestTable': {
+						// Show quick pick for table size
+						const sizeOptions = [
+							{ label: '2×2', rows: 2, cols: 2 },
+							{ label: '3×3', rows: 3, cols: 3 },
+							{ label: '3×4', rows: 3, cols: 4 },
+							{ label: '4×4', rows: 4, cols: 4 },
+							{ label: '5×5', rows: 5, cols: 5 },
+							{ label: 'Custom...', rows: 0, cols: 0 }
+						];
+
+						const selected = await vscode.window.showQuickPick(
+							sizeOptions.map(o => o.label),
+							{ placeHolder: 'Select table size' }
+						);
+
+						if (selected) {
+							let rows = 0, cols = 0;
+							const option = sizeOptions.find(o => o.label === selected);
+
+							if (option?.label === 'Custom...') {
+								// Ask for custom dimensions
+								const rowsInput = await vscode.window.showInputBox({
+									prompt: 'Number of rows',
+									value: '3',
+									validateInput: v => isNaN(parseInt(v)) || parseInt(v) < 1 ? 'Enter a valid number' : null
+								});
+								if (!rowsInput) { break; }
+
+								const colsInput = await vscode.window.showInputBox({
+									prompt: 'Number of columns',
+									value: '3',
+									validateInput: v => isNaN(parseInt(v)) || parseInt(v) < 1 ? 'Enter a valid number' : null
+								});
+								if (!colsInput) { break; }
+
+								rows = parseInt(rowsInput);
+								cols = parseInt(colsInput);
+							} else if (option) {
+								rows = option.rows;
+								cols = option.cols;
+							}
+
+							if (rows > 0 && cols > 0) {
+								const tableMessage: ExtensionMessage = {
+									type: 'insertTable',
+									rows,
+									cols
+								};
+								webviewPanel.webview.postMessage(tableMessage);
+							}
+						}
+						break;
+					}
 				}
 			},
 			undefined,
@@ -399,7 +456,15 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			border-radius: 4px;
 			cursor: pointer;
 			color: var(--vscode-editor-foreground, #333);
-			font-size: 14px;
+			font-size: 12px;
+			font-weight: 600;
+		}
+
+		.toolbar-button svg {
+			width: 16px;
+			height: 16px;
+			fill: currentColor;
+			stroke: currentColor;
 		}
 
 		.toolbar-button:hover {
@@ -548,6 +613,63 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			margin: 1em 0;
 		}
 
+		/* Table styles */
+		.ProseMirror table {
+			border-collapse: collapse;
+			margin: 1em 0;
+			width: 100%;
+			table-layout: fixed;
+			overflow: hidden;
+		}
+
+		.ProseMirror table td,
+		.ProseMirror table th {
+			border: 1px solid var(--vscode-panel-border, #e0e0e0);
+			padding: 8px 12px;
+			vertical-align: top;
+			min-width: 80px;
+			position: relative;
+		}
+
+		.ProseMirror table th {
+			background-color: var(--vscode-editor-inactiveSelectionBackground, #f0f0f0);
+			font-weight: 600;
+			text-align: left;
+		}
+
+		.ProseMirror table td p,
+		.ProseMirror table th p {
+			margin: 0;
+		}
+
+		/* Selected cell */
+		.ProseMirror table .selectedCell::after {
+			z-index: 2;
+			position: absolute;
+			content: "";
+			left: 0;
+			right: 0;
+			top: 0;
+			bottom: 0;
+			background: var(--vscode-editor-selectionBackground, rgba(0, 120, 215, 0.2));
+			pointer-events: none;
+		}
+
+		/* Column resize handle */
+		.ProseMirror .column-resize-handle {
+			position: absolute;
+			right: -2px;
+			top: 0;
+			bottom: -2px;
+			width: 4px;
+			background-color: var(--vscode-focusBorder, #007acc);
+			pointer-events: none;
+		}
+
+		.ProseMirror.resize-cursor {
+			cursor: col-resize;
+		}
+
 		.ProseMirror p.is-editor-empty:first-child::before {
 			content: attr(data-placeholder);
 			float: left;
@@ -578,26 +700,27 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 <body>
 	<div class="editor-container">
 		<div class="toolbar" id="toolbar">
-			<button class="toolbar-button" data-command="bold" title="Bold (Cmd+B)"><b>B</b></button>
-			<button class="toolbar-button" data-command="italic" title="Italic (Cmd+I)"><i>I</i></button>
-			<button class="toolbar-button" data-command="strike" title="Strikethrough"><s>S</s></button>
-			<button class="toolbar-button" data-command="code" title="Inline Code">⌘</button>
+			<button class="toolbar-button" data-command="bold" title="Bold (Cmd+B)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M4 2.5A.5.5 0 0 1 4.5 2h5.25a2.75 2.75 0 0 1 1.85 4.787A3.001 3.001 0 0 1 10.5 14H4.5a.5.5 0 0 1-.5-.5v-11zM6 8v4h4.5a1.5 1.5 0 0 0 0-3H6zm0-2h3.75a1.25 1.25 0 0 0 0-2.5H6V6z"/></svg></button>
+			<button class="toolbar-button" data-command="italic" title="Italic (Cmd+I)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M6 2.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1h-2.5l-3 10H9.5a.5.5 0 0 1 0 1h-6a.5.5 0 0 1 0-1H6L9 3H6.5a.5.5 0 0 1-.5-.5z"/></svg></button>
+			<button class="toolbar-button" data-command="strike" title="Strikethrough"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M8 1a4 4 0 0 0-3.8 2.745.5.5 0 1 0 .949.316A3 3 0 0 1 8 2c1.236 0 2.239.74 2.694 1.8a.5.5 0 0 0 .924-.384A4 4 0 0 0 8 1zM1.5 7.5a.5.5 0 0 0 0 1h13a.5.5 0 0 0 0-1h-13zM8 15a4 4 0 0 0 3.8-2.745.5.5 0 0 0-.949-.316A3 3 0 0 1 8 14c-1.236 0-2.239-.74-2.694-1.8a.5.5 0 0 0-.924.384A4 4 0 0 0 8 15z"/></svg></button>
+			<button class="toolbar-button" data-command="code" title="Inline Code"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M5.854 4.146a.5.5 0 0 1 0 .708L2.707 8l3.147 3.146a.5.5 0 0 1-.708.708l-3.5-3.5a.5.5 0 0 1 0-.708l3.5-3.5a.5.5 0 0 1 .708 0zm4.292 0a.5.5 0 0 0 0 .708L13.293 8l-3.147 3.146a.5.5 0 0 0 .708.708l3.5-3.5a.5.5 0 0 0 0-.708l-3.5-3.5a.5.5 0 0 0-.708 0z"/></svg></button>
 			<div class="toolbar-separator"></div>
 			<button class="toolbar-button" data-command="heading1" title="Heading 1">H1</button>
 			<button class="toolbar-button" data-command="heading2" title="Heading 2">H2</button>
 			<button class="toolbar-button" data-command="heading3" title="Heading 3">H3</button>
 			<div class="toolbar-separator"></div>
-			<button class="toolbar-button" data-command="bulletList" title="Bullet List">•</button>
+			<button class="toolbar-button" data-command="bulletList" title="Bullet List"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M2 4a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm0 5a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm1 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm2-9.5a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1h-10a.5.5 0 0 1-.5-.5zm0 5a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1h-10a.5.5 0 0 1-.5-.5zm0 5a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1h-10a.5.5 0 0 1-.5-.5z"/></svg></button>
 			<button class="toolbar-button" data-command="orderedList" title="Numbered List">1.</button>
-			<button class="toolbar-button" data-command="taskList" title="Task List">[x]</button>
-			<button class="toolbar-button" data-command="blockquote" title="Quote">&quot;</button>
+			<button class="toolbar-button" data-command="taskList" title="Task List"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M11.354 5.646a.5.5 0 0 1 0 .708l-3.5 3.5a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 8.793l3.146-3.147a.5.5 0 0 1 .708 0z"/><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+			<button class="toolbar-button" data-command="blockquote" title="Quote"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M3.5 4A1.5 1.5 0 0 0 2 5.5v3A1.5 1.5 0 0 0 3.5 10H4v1.5a.5.5 0 0 0 .82.384l2.048-1.703.158-.131H7.5A1.5 1.5 0 0 0 9 8.5v-3A1.5 1.5 0 0 0 7.5 4h-4zm6 0a1.5 1.5 0 0 0-1.5 1.5v3A1.5 1.5 0 0 0 9.5 10h.5v1.5a.5.5 0 0 0 .82.384l2.048-1.703.158-.131h.474a1.5 1.5 0 0 0 1.5-1.5v-3A1.5 1.5 0 0 0 13.5 4h-4z"/></svg></button>
 			<div class="toolbar-separator"></div>
-			<button class="toolbar-button" data-command="link" title="Link (Cmd+K)">#</button>
-			<button class="toolbar-button" data-command="image" title="Insert Image">IMG</button>
-			<button class="toolbar-button" data-command="horizontalRule" title="Horizontal Rule">-</button>
+			<button class="toolbar-button" data-command="link" title="Link (Cmd+K)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M4.715 6.542L3.343 7.914a3 3 0 1 0 4.243 4.243l1.828-1.829A3 3 0 0 0 8.586 5.5L8 6.086a1 1 0 0 0-.154.199 2 2 0 0 1 .861 3.337L6.88 11.45a2 2 0 1 1-2.83-2.83l.793-.792a4.018 4.018 0 0 1-.128-1.287z"/><path fill="currentColor" d="M6.586 4.672A3 3 0 0 0 7.414 9.5l.586-.586a1 1 0 0 0 .154-.199 2 2 0 0 1-.861-3.337L9.12 3.55a2 2 0 1 1 2.83 2.83l-.793.792c.112.42.155.855.128 1.287l1.372-1.372a3 3 0 0 0-4.243-4.243L6.586 4.672z"/></svg></button>
+			<button class="toolbar-button" data-command="image" title="Insert Image"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/><path fill="currentColor" d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/></svg></button>
+			<button class="toolbar-button" data-command="insertTable" title="Insert Table"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm1 3v2h4V5H1zm0 3v2h4V8H1zm0 3v1a1 1 0 0 0 1 1h3v-2H1zm5-6v2h4V5H6zm0 3v2h4V8H6zm0 3v2h4v-2H6zm5-6v2h3V5h-3zm0 3v2h3V8h-3zm0 3v1a1 1 0 0 0 1 1h2v-2h-3z"/></svg></button>
+			<button class="toolbar-button" data-command="horizontalRule" title="Horizontal Rule"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M1 8a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 0 1h-13A.5.5 0 0 1 1 8z"/></svg></button>
 			<div class="toolbar-separator"></div>
-			<button class="toolbar-button" data-command="undo" title="Undo (Cmd+Z)">&larr;</button>
-			<button class="toolbar-button" data-command="redo" title="Redo (Cmd+Shift+Z)">&rarr;</button>
+			<button class="toolbar-button" data-command="undo" title="Undo (Cmd+Z)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/><path fill="currentColor" d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/></svg></button>
+			<button class="toolbar-button" data-command="redo" title="Redo (Cmd+Shift+Z)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path fill="currentColor" d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg></button>
 		</div>
 		<div class="editor-content" id="editor">
 			<div class="loading">Loading editor...</div>
