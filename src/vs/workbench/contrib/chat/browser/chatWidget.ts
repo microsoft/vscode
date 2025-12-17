@@ -84,6 +84,7 @@ import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRen
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 
 const $ = dom.$;
 
