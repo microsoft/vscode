@@ -392,7 +392,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		this._container = container;
-		if (this._suggestWidget && (containerChanged || parentChanged)) {
+		if (this._suggestWidget) {
 			container.appendChild(this._suggestWidget.element.domNode);
 		}
 	}
