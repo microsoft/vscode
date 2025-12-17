@@ -1834,10 +1834,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			// Check if the focused element extends above the viewport (tall item case)
 			if (typeof currentlyFocusedElementIndex === 'number') {
 				const elementTop = this.view.elementTop(currentlyFocusedElementIndex);
-				const viewportTop = scrollTop;
 
 				// If the element extends above the viewport, just scroll by a page
-				if (elementTop < viewportTop) {
+				if (elementTop < scrollTop) {
 					this.view.setScrollTop(Math.max(0, this.view.getScrollTop() - this.view.renderHeight));
 					return;
 				}
