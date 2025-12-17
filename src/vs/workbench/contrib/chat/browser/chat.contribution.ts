@@ -705,10 +705,19 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
+		[PromptsConfig.USE_CLAUDE_SKILLS]: {
+			type: 'boolean',
+			title: nls.localize('chat.useClaudeSkills.title', "Use Claude skills",),
+			markdownDescription: nls.localize('chat.useClaudeSkills.description', "Controls whether Claude skills found in the workspace and user home directories under `.claude/skills` are listed in all chat requests. The language model can load these skills on-demand if the `read` tool is available.",),
+			default: false,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
 		[PromptsConfig.USE_AGENT_SKILLS]: {
 			type: 'boolean',
 			title: nls.localize('chat.useAgentSkills.title', "Use Agent skills",),
-			markdownDescription: nls.localize('chat.useAgentSkills.description', "Controls whether Agent skills found in the workspace and user home directories are listed in all chat requests. By default, it searches in `.claude/skills` and `skills/**/SKILL.md`. Additional locations can be configured via `chat.agentSkillsLocations`. The language model can load these skills on-demand if the `read` tool is available.",),
+			markdownDescription: nls.localize('chat.useAgentSkills.description', "Controls whether Agent skills found using the `skills/**/SKILL.md` pattern are listed in all chat requests. Additional locations can be configured via `chat.agentSkillsLocations`. The language model can load these skills on-demand if the `read` tool is available.",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,
@@ -717,7 +726,7 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.AGENT_SKILLS_LOCATIONS_KEY]: {
 			type: 'object',
 			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations"),
-			markdownDescription: nls.localize('chat.agentSkillsLocations.description', "Configure additional locations to search for Agent skills. Each key is a path (relative to workspace root or absolute), and the value is a boolean to enable/disable it."),
+			markdownDescription: nls.localize('chat.agentSkillsLocations.description', "Configure additional locations to search for Agent skills. Each key is a path (relative to workspace root or absolute), and the value is a boolean to enable/disable it. Requires {0} to be enabled.", '`#chat.useAgentSkills#`'),
 			default: {},
 			additionalProperties: {
 				type: 'boolean'

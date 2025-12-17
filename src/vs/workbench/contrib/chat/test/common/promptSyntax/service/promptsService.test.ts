@@ -1262,15 +1262,16 @@ suite('PromptsService', () => {
 			sinon.restore();
 		});
 
-		test('should return undefined when USE_AGENT_SKILLS is disabled', async () => {
+		test('should return undefined when both flags are disabled', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, false);
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 			assert.strictEqual(result, undefined);
 		});
 
-		test('should find Agent skills in workspace and user home', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+		test('should find Claude skills in workspace and user home', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
 
 			const rootFolderName = 'agent-skills-test';
 			const rootFolder = `/${rootFolderName}`;
@@ -1343,7 +1344,8 @@ suite('PromptsService', () => {
 			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/personal-skill-1/SKILL.md');
 		});
 
-		test('should find Agent skills in multiple locations', async () => {
+		test('should find skills in multiple locations when both flags enabled', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.AGENT_SKILLS_LOCATIONS_KEY, {
 				'custom/skills': true,
@@ -1402,7 +1404,7 @@ suite('PromptsService', () => {
 		});
 
 		test('should handle parsing errors gracefully', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
 
 			const rootFolderName = 'agent-skills-error-test';
 			const rootFolder = `/${rootFolderName}`;
