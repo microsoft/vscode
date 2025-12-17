@@ -687,6 +687,120 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.agent);
 				assert.deepStrictEqual(markers, [], 'Name with allowed characters should be valid');
 			}
+
+			// Name exceeding max length (64 characters)
+			{
+				const content = [
+					'---',
+					'name: "This is a very long agent name that exceeds the maximum allowed length of sixty four characters"',
+					'description: "Test agent"',
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+				assert.ok(markers[0].message.includes('exceeds the maximum length of 64 characters'));
+			}
+
+			// Name containing XML tags
+			{
+				const content = [
+					'---',
+					'name: "Agent <b>with</b> <em>XML</em> tags"',
+					'description: "Test agent"',
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+				assert.ok(markers[0].message.includes('contains XML tags'));
+			}
+
+			// Name with both issues
+			{
+				const content = [
+					'---',
+					'name: "Very long agent name with <b>XML tags</b> that also exceeds sixty four characters limit"',
+					'description: "Test agent"',
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 2);
+				assert.ok(markers.some(m => m.message.includes('exceeds the maximum length')));
+				assert.ok(markers.some(m => m.message.includes('contains XML tags')));
+			}
+		});
+
+		test('description attribute validation', async () => {
+			// Valid description
+			{
+				const content = [
+					'---',
+					'name: "MyAgent"',
+					'description: "This is a valid description"',
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid description should not produce errors');
+			}
+
+			// Description exceeding max length (1024 characters)
+			{
+				const longDescription = 'A'.repeat(1025);
+				const content = [
+					'---',
+					'name: "MyAgent"',
+					`description: "${longDescription}"`,
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+				assert.ok(markers[0].message.includes('exceeds the maximum length of 1024 characters'));
+			}
+
+			// Description containing XML tags
+			{
+				const content = [
+					'---',
+					'name: "MyAgent"',
+					'description: "This description has <strong>XML</strong> and <em>HTML</em> tags"',
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+				assert.ok(markers[0].message.includes('contains XML tags'));
+			}
+
+			// Description with both issues
+			{
+				const longDescription = '<p>' + 'A'.repeat(1020) + '</p>';
+				const content = [
+					'---',
+					'name: "MyAgent"',
+					`description: "${longDescription}"`,
+					'target: vscode',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 2);
+				assert.ok(markers.some(m => m.message.includes('exceeds the maximum length')));
+				assert.ok(markers.some(m => m.message.includes('contains XML tags')));
+			}
 		});
 
 		test('github-copilot target requires name attribute', async () => {
@@ -1030,6 +1144,69 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 				assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
+			}
+
+			// Name exceeding max length
+			{
+				const content = [
+					'---',
+					'name: "This is a very long prompt name that exceeds the maximum allowed length of sixty four characters"',
+					'description: "Test prompt"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.prompt);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+				assert.ok(markers[0].message.includes('exceeds the maximum length of 64 characters'));
+			}
+
+			// Name containing XML tags
+			{
+				const content = [
+					'---',
+					'name: "Prompt <b>with</b> tags"',
+					'description: "Test prompt"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.prompt);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+				assert.ok(markers[0].message.includes('contains XML tags'));
+			}
+		});
+
+		test('description attribute validation in prompts', async () => {
+			// Description exceeding max length
+			{
+				const longDescription = 'A'.repeat(1025);
+				const content = [
+					'---',
+					'name: "MyPrompt"',
+					`description: "${longDescription}"`,
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.prompt);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+				assert.ok(markers[0].message.includes('exceeds the maximum length of 1024 characters'));
+			}
+
+			// Description containing XML tags
+			{
+				const content = [
+					'---',
+					'name: "MyPrompt"',
+					'description: "Prompt with <span>XML</span> tags"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.prompt);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+				assert.ok(markers[0].message.includes('contains XML tags'));
 			}
 		});
 	});
