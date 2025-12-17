@@ -43,6 +43,8 @@ export class ReleaseNotesManager extends Disposable {
 
 	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastMeta: { text: string; base: URI } | undefined;
+	private _currentSource: 'update' | 'commandPalette' | 'fromFile' = 'commandPalette';
+	private _openTimestamp: number = 0;
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -98,7 +100,11 @@ export class ReleaseNotesManager extends Disposable {
 		const html = await this.renderBody(this._lastMeta);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
 
-		// Log telemetry for release notes being opened
+		// Store source for later use in engagement telemetry
+		this._currentSource = source;
+		this._openTimestamp = Date.now();
+
+		// Log telemetry for release notes being opened (always track, even for fromFile)
 		type ReleaseNotesOpenedClassification = {
 			owner: 'rebornix';
 			comment: 'Track when release notes are opened and from what source';
@@ -144,63 +150,100 @@ export class ReleaseNotesManager extends Disposable {
 			disposables.add(this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri))));
 
 			disposables.add(this._currentReleaseNotes.webview.onMessage(e => {
+				// Skip engagement telemetry when viewing current file as release notes (development purposes)
+				const skipEngagementTelemetry = this._currentSource === 'fromFile';
+
 				if (e.message.type === 'showReleaseNotes') {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
 				} else if (e.message.type === 'clickSetting') {
-					// Log telemetry for setting clicks in release notes
-					const settingUri = URI.parse(e.message.value.uri);
-					type ReleaseNotesSettingClickClassification = {
-						owner: 'rebornix';
-						comment: 'Track when users click on setting links within release notes';
-						settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the setting that was clicked in the release notes' };
-					};
-					type ReleaseNotesSettingClick = {
-						settingId: string;
-					};
-					this._telemetryService.publicLog2<ReleaseNotesSettingClick, ReleaseNotesSettingClickClassification>('releaseNotes.settingClick', {
-						settingId: settingUri.authority
-					});
+					if (!skipEngagementTelemetry) {
+						// Log telemetry for setting clicks in release notes
+						const settingUri = URI.parse(e.message.value.uri);
+						type ReleaseNotesSettingClickClassification = {
+							owner: 'rebornix';
+							comment: 'Track when users click on setting links within release notes';
+							settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the setting that was clicked in the release notes' };
+						};
+						type ReleaseNotesSettingClick = {
+							settingId: string;
+						};
+						this._telemetryService.publicLog2<ReleaseNotesSettingClick, ReleaseNotesSettingClickClassification>('releaseNotes.settingClick', {
+							settingId: settingUri.authority
+						});
+					}
 					const x = this._currentReleaseNotes?.webview.container.offsetLeft + e.message.value.x;
 					const y = this._currentReleaseNotes?.webview.container.offsetTop + e.message.value.y;
+					const settingUri = URI.parse(e.message.value.uri);
 					this._simpleSettingRenderer.updateSetting(settingUri, x, y);
 				} else if (e.message.type === 'tocNavigation') {
-					// Log telemetry for TOC navigation
-					type ReleaseNotesTocNavigationClassification = {
-						owner: 'rebornix';
-						comment: 'Track when users navigate to different sections via TOC';
-						section: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The section heading that was clicked in the TOC' };
-					};
-					type ReleaseNotesTocNavigation = {
-						section: string;
-					};
-					this._telemetryService.publicLog2<ReleaseNotesTocNavigation, ReleaseNotesTocNavigationClassification>('releaseNotes.tocNavigation', {
-						section: e.message.value.section
-					});
+					if (!skipEngagementTelemetry) {
+						// Log telemetry for TOC navigation
+						type ReleaseNotesTocNavigationClassification = {
+							owner: 'rebornix';
+							comment: 'Track when users navigate to different sections via TOC';
+							section: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The section heading that was clicked in the TOC' };
+						};
+						type ReleaseNotesTocNavigation = {
+							section: string;
+						};
+						this._telemetryService.publicLog2<ReleaseNotesTocNavigation, ReleaseNotesTocNavigationClassification>('releaseNotes.tocNavigation', {
+							section: e.message.value.section
+						});
+					}
 				} else if (e.message.type === 'videoInteraction') {
-					// Log telemetry for video interactions
-					type ReleaseNotesVideoInteractionClassification = {
-						owner: 'rebornix';
-						comment: 'Track when users interact with embedded videos in release notes';
-						action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action performed on the video: play, pause, or other interactions' };
-					};
-					type ReleaseNotesVideoInteraction = {
-						action: string;
-					};
-					this._telemetryService.publicLog2<ReleaseNotesVideoInteraction, ReleaseNotesVideoInteractionClassification>('releaseNotes.videoInteraction', {
-						action: e.message.value.action
-					});
+					if (!skipEngagementTelemetry) {
+						// Log telemetry for video interactions
+						type ReleaseNotesVideoInteractionClassification = {
+							owner: 'rebornix';
+							comment: 'Track when users interact with embedded videos in release notes';
+							action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action performed on the video: play, pause, or other interactions' };
+						};
+						type ReleaseNotesVideoInteraction = {
+							action: string;
+						};
+						this._telemetryService.publicLog2<ReleaseNotesVideoInteraction, ReleaseNotesVideoInteractionClassification>('releaseNotes.videoInteraction', {
+							action: e.message.value.action
+						});
+					}
 				} else if (e.message.type === 'scrollToTop') {
-					// Log telemetry for scroll to top button
-					type ReleaseNotesScrollToTopClassification = {
-						owner: 'rebornix';
-						comment: 'Track when users click the scroll to top button';
-					};
-					type ReleaseNotesScrollToTop = Record<string, never>;
-					this._telemetryService.publicLog2<ReleaseNotesScrollToTop, ReleaseNotesScrollToTopClassification>('releaseNotes.scrollToTop', {});
+					if (!skipEngagementTelemetry) {
+						// Log telemetry for scroll to top button
+						type ReleaseNotesScrollToTopClassification = {
+							owner: 'rebornix';
+							comment: 'Track when users click the scroll to top button';
+						};
+						type ReleaseNotesScrollToTop = Record<string, never>;
+						this._telemetryService.publicLog2<ReleaseNotesScrollToTop, ReleaseNotesScrollToTopClassification>('releaseNotes.scrollToTop', {});
+					}
+				} else if (e.message.type === 'scroll') {
+					if (!skipEngagementTelemetry) {
+						// Log telemetry for scrolling (engagement indicator)
+						type ReleaseNotesScrollClassification = {
+							owner: 'rebornix';
+							comment: 'Track when users scroll in release notes as an engagement indicator';
+						};
+						type ReleaseNotesScroll = Record<string, never>;
+						this._telemetryService.publicLog2<ReleaseNotesScroll, ReleaseNotesScrollClassification>('releaseNotes.scroll', {});
+					}
 				}
 			}));
 
 			disposables.add(this._currentReleaseNotes.onWillDispose(() => {
+				// Track time spent when release notes are closed (skip for fromFile)
+				if (this._currentSource !== 'fromFile' && this._openTimestamp > 0) {
+					const timeSpentMs = Date.now() - this._openTimestamp;
+					type ReleaseNotesTimeSpentClassification = {
+						owner: 'rebornix';
+						comment: 'Track time spent viewing release notes';
+						durationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Time spent viewing release notes in milliseconds' };
+					};
+					type ReleaseNotesTimeSpent = {
+						durationMs: number;
+					};
+					this._telemetryService.publicLog2<ReleaseNotesTimeSpent, ReleaseNotesTimeSpentClassification>('releaseNotes.timeSpent', {
+						durationMs: timeSpentMs
+					});
+				}
 				disposables.dispose();
 				this._currentReleaseNotes = undefined;
 			}));
@@ -674,6 +717,20 @@ export class ReleaseNotesManager extends Disposable {
 							vscode.postMessage({ type: 'videoInteraction', value: { action: 'pause' }});
 						}
 					}, true);
+					
+					// Track scrolling as an engagement indicator
+					let scrollTimeout;
+					let hasScrolled = false;
+					window.addEventListener('scroll', () => {
+						if (!hasScrolled) {
+							hasScrolled = true;
+							// Debounce scroll events - only send once per session after initial scroll
+							clearTimeout(scrollTimeout);
+							scrollTimeout = setTimeout(() => {
+								vscode.postMessage({ type: 'scroll' });
+							}, 1000);
+						}
+					});
 				</script>
 			</body>
 		</html>`;
