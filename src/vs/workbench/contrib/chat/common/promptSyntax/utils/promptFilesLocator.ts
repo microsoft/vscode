@@ -11,7 +11,7 @@ import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, AGENT_SKILLS_DEFAULT_SOURCE_FOLDER, CLAUDE_SKILLS_LEGACY_SOURCE_FOLDER, SKILLS_GLOB_PATTERN } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, CLAUDE_SKILLS_LEGACY_SOURCE_FOLDER, SKILLS_GLOB_PATTERN } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -393,7 +393,7 @@ export class PromptFilesLocator {
 
 	/**
 	 * Searches for skills in the workspace.
-	 * By default, it searches in `.agent/skills`, `.claude/skills`, and `skills/**\/SKILL.md`.
+	 * By default, it searches in `.claude/skills` and `skills/**\/SKILL.md`.
 	 * Additional locations can be configured via `chat.agentSkillsLocations`.
 	 */
 	public async findAgentSkillsInWorkspace(token: CancellationToken): Promise<URI[]> {
@@ -402,7 +402,6 @@ export class PromptFilesLocator {
 
 		// 1. Default locations in each workspace folder
 		for (const folder of workspace.folders) {
-			promises.push(this.findAgentSkillsInFolder(folder.uri, AGENT_SKILLS_DEFAULT_SOURCE_FOLDER, token));
 			promises.push(this.findAgentSkillsInFolder(folder.uri, CLAUDE_SKILLS_LEGACY_SOURCE_FOLDER, token));
 			promises.push(this.searchFilesInLocation(folder.uri, SKILLS_GLOB_PATTERN, token));
 		}
@@ -437,13 +436,12 @@ export class PromptFilesLocator {
 
 	/**
 	 * Searches for skills in the home folder.
-	 * By default, it searches in `.agent / skills` and `.claude / skills`.
+	 * By default, it searches in `.claude / skills`.
 	 */
 	public async findAgentSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
 		const userHome = await this.pathService.userHome();
 		const promises: Promise<URI[]>[] = [];
 
-		promises.push(this.findAgentSkillsInFolder(userHome, AGENT_SKILLS_DEFAULT_SOURCE_FOLDER, token));
 		promises.push(this.findAgentSkillsInFolder(userHome, CLAUDE_SKILLS_LEGACY_SOURCE_FOLDER, token));
 
 		const results = await Promise.all(promises);

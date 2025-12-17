@@ -708,7 +708,7 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.USE_AGENT_SKILLS]: {
 			type: 'boolean',
 			title: nls.localize('chat.useAgentSkills.title', "Use Agent skills",),
-			markdownDescription: nls.localize('chat.useAgentSkills.description', "Controls whether Agent skills found in the workspace and user home directories are listed in all chat requests. By default, it searches in `.agent/skills`, `.claude/skills`, and `skills/**/SKILL.md`. Additional locations can be configured via `chat.agentSkillsLocations`. The language model can load these skills on-demand if the `read` tool is available.",),
+			markdownDescription: nls.localize('chat.useAgentSkills.description', "Controls whether Agent skills found in the workspace and user home directories are listed in all chat requests. By default, it searches in `.claude/skills` and `skills/**/SKILL.md`. Additional locations can be configured via `chat.agentSkillsLocations`. The language model can load these skills on-demand if the `read` tool is available.",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,

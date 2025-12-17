@@ -1281,7 +1281,7 @@ suite('PromptsService', () => {
 			// Create mock filesystem with skills
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.agent/skills/project-skill-1/SKILL.md`,
+					path: `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`,
 					contents: [
 						'---',
 						'name: "Project Skill 1"',
@@ -1291,7 +1291,7 @@ suite('PromptsService', () => {
 					],
 				},
 				{
-					path: `${rootFolder}/.agent/skills/project-skill-2/SKILL.md`,
+					path: `${rootFolder}/.claude/skills/project-skill-2/SKILL.md`,
 					contents: [
 						'---',
 						'description: "Invalid skill, no name"',
@@ -1300,11 +1300,11 @@ suite('PromptsService', () => {
 					],
 				},
 				{
-					path: `${rootFolder}/.agent/skills/not-a-skill-dir/README.md`,
+					path: `${rootFolder}/.claude/skills/not-a-skill-dir/README.md`,
 					contents: ['This is not a skill'],
 				},
 				{
-					path: '/home/user/.agent/skills/personal-skill-1/SKILL.md',
+					path: '/home/user/.claude/skills/personal-skill-1/SKILL.md',
 					contents: [
 						'---',
 						'name: "Personal Skill 1"',
@@ -1314,7 +1314,7 @@ suite('PromptsService', () => {
 					],
 				},
 				{
-					path: '/home/user/.agent/skills/not-a-skill/other-file.md',
+					path: '/home/user/.claude/skills/not-a-skill/other-file.md',
 					contents: ['Not a skill file'],
 				},
 			]);
@@ -1331,7 +1331,7 @@ suite('PromptsService', () => {
 			const projectSkill1 = projectSkills.find(skill => skill.name === 'Project Skill 1');
 			assert.ok(projectSkill1, 'Should find project skill 1');
 			assert.strictEqual(projectSkill1.description, 'A project skill for testing');
-			assert.strictEqual(projectSkill1.uri.path, `${rootFolder}/.agent/skills/project-skill-1/SKILL.md`);
+			assert.strictEqual(projectSkill1.uri.path, `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`);
 
 			// Check personal skills
 			const personalSkills = result.filter(skill => skill.type === 'personal');
@@ -1340,7 +1340,7 @@ suite('PromptsService', () => {
 			const personalSkill1 = personalSkills[0];
 			assert.strictEqual(personalSkill1.name, 'Personal Skill 1');
 			assert.strictEqual(personalSkill1.description, 'A personal skill for testing');
-			assert.strictEqual(personalSkill1.uri.path, '/home/user/.agent/skills/personal-skill-1/SKILL.md');
+			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/personal-skill-1/SKILL.md');
 		});
 
 		test('should find Agent skills in multiple locations', async () => {
@@ -1359,7 +1359,7 @@ suite('PromptsService', () => {
 			// Create mock filesystem with skills in various locations
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.agent/skills/skill-1/SKILL.md`,
+					path: `${rootFolder}/.claude/skills/skill-1/SKILL.md`,
 					contents: ['---', 'name: "Skill 1"', '---'],
 				},
 				{
@@ -1413,7 +1413,7 @@ suite('PromptsService', () => {
 			// Create mock filesystem with malformed skill file
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.agent/skills/valid-skill/SKILL.md`,
+					path: `${rootFolder}/.claude/skills/valid-skill/SKILL.md`,
 					contents: [
 						'---',
 						'name: "Valid Skill"',
@@ -1423,7 +1423,7 @@ suite('PromptsService', () => {
 					],
 				},
 				{
-					path: `${rootFolder}/.agent/skills/invalid-skill/SKILL.md`,
+					path: `${rootFolder}/.claude/skills/invalid-skill/SKILL.md`,
 					contents: [
 						'---',
 						'invalid yaml: [unclosed',
