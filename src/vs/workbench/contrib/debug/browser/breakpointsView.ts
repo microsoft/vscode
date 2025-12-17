@@ -59,6 +59,7 @@ import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, FunctionBreakpoint, In
 import { DisassemblyViewInput } from '../common/disassemblyViewInput.js';
 import * as icons from './debugIcons.js';
 import { DisassemblyView } from './disassemblyView.js';
+import { equals } from '../../../../base/common/arrays.js';
 
 const $ = dom.$;
 
@@ -126,7 +127,7 @@ export class BreakpointsView extends ViewPane {
 	private breakpointSupportsCondition: IContextKey<boolean>;
 	private _inputBoxData: InputBoxData | undefined;
 	breakpointInputFocused: IContextKey<boolean>;
-	private autoFocusedIndex = -1;
+	private autoFocusedElement: BreakpointItem | undefined;
 	private collapsedState = new Set<string>();
 
 	private hintContainer: IconLabel | undefined;
@@ -238,6 +239,20 @@ export class BreakpointsView extends ViewPane {
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.tree.contextKeyService);
 
 		this._register(this.tree.onContextMenu(this.onTreeContextMenu, this));
+
+		this._register(this.tree.onMouseMiddleClick(async ({ element }) => {
+			if (element instanceof Breakpoint) {
+				await this.debugService.removeBreakpoints(element.getId());
+			} else if (element instanceof FunctionBreakpoint) {
+				await this.debugService.removeFunctionBreakpoints(element.getId());
+			} else if (element instanceof DataBreakpoint) {
+				await this.debugService.removeDataBreakpoints(element.getId());
+			} else if (element instanceof InstructionBreakpoint) {
+				await this.debugService.removeInstructionBreakpoints(element.instructionReference, element.offset);
+			} else if (element instanceof BreakpointsFolderItem) {
+				await this.debugService.removeBreakpoints(element.breakpoints.map(bp => bp.getId()));
+			}
+		}));
 
 		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
@@ -451,18 +466,18 @@ export class BreakpointsView extends ViewPane {
 					this.tree.setFocus([hitElement]);
 					this.tree.setSelection([hitElement]);
 					found = true;
-					this.autoFocusedIndex = elements.indexOf(hitElement);
+					this.autoFocusedElement = hitElement;
 				}
 			}
 			if (!found) {
 				// Deselect breakpoint in breakpoint view when no longer stopped on it #125528
 				const focus = this.tree.getFocus();
 				const selection = this.tree.getSelection();
-				if (this.autoFocusedIndex >= 0 && focus.length > 0 && selection.length > 0 && focus[0] === selection[0]) {
+				if (this.autoFocusedElement && equals(focus, selection) && selection.includes(this.autoFocusedElement)) {
 					this.tree.setFocus([]);
 					this.tree.setSelection([]);
 				}
-				this.autoFocusedIndex = -1;
+				this.autoFocusedElement = undefined;
 			}
 			this.updateBreakpointsHint();
 		} else {
@@ -752,7 +767,7 @@ class BreakpointsFolderRenderer implements ICompressibleTreeRenderer<Breakpoints
 
 		// Add remove action
 		data.actionBar.clear();
-		const removeAction = new Action(
+		const removeAction = data.elementDisposables.add(new Action(
 			'debug.removeBreakpointsInFile',
 			localize('removeBreakpointsInFile', "Remove Breakpoints in File"),
 			ThemeIcon.asClassName(Codicon.close),
@@ -762,7 +777,7 @@ class BreakpointsFolderRenderer implements ICompressibleTreeRenderer<Breakpoints
 					await this.debugService.removeBreakpoints(bp.getId());
 				}
 			}
-		);
+		));
 		data.actionBar.push(removeAction, { icon: true, label: false });
 	}
 
@@ -789,7 +804,7 @@ class BreakpointsFolderRenderer implements ICompressibleTreeRenderer<Breakpoints
 
 		// Add remove action
 		data.actionBar.clear();
-		const removeAction = new Action(
+		const removeAction = data.elementDisposables.add(new Action(
 			'debug.removeBreakpointsInFile',
 			localize('removeBreakpointsInFile', "Remove Breakpoints in File"),
 			ThemeIcon.asClassName(Codicon.close),
@@ -799,7 +814,7 @@ class BreakpointsFolderRenderer implements ICompressibleTreeRenderer<Breakpoints
 					await this.debugService.removeBreakpoints(bp.getId());
 				}
 			}
-		);
+		));
 		data.actionBar.push(removeAction, { icon: true, label: false });
 	}
 
@@ -2317,7 +2332,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		const currentPresentation = configurationService.getValue<'list' | 'tree'>('debug.breakpointsView.showAsTree');
+		const currentPresentation = configurationService.getValue<'list' | 'tree'>('debug.breakpointsView.presentation');
 		const newPresentation = currentPresentation === 'tree' ? 'list' : 'tree';
 		await configurationService.updateValue('debug.breakpointsView.presentation', newPresentation);
 	}
