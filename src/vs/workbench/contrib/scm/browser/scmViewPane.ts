@@ -110,7 +110,6 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import product from '../../../../platform/product/common/product.js';
-import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>;
 
