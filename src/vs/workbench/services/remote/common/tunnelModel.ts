@@ -855,7 +855,13 @@ export class TunnelModel extends Disposable {
 				const localAddress = typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port);
 				// Retrieve port attributes from configuration
 				const attributes = this.configPortsAttributes.getAttributes(tunnel.remoteAddress.port, tunnel.remoteAddress.host, matchingCandidate?.detail);
-				const protocol = (tunnel.protocol === 'https' ? TunnelProtocol.Https : (attributes?.protocol === 'https' ? TunnelProtocol.Https : TunnelProtocol.Http));
+				// Determine protocol: tunnel descriptor takes precedence, then attributes, then default to Http
+				let protocol = TunnelProtocol.Http;
+				if (tunnel.protocol === 'https') {
+					protocol = TunnelProtocol.Https;
+				} else if (attributes?.protocol === 'https') {
+					protocol = TunnelProtocol.Https;
+				}
 				this.detected.set(makeAddress(tunnel.remoteAddress.host, tunnel.remoteAddress.port), {
 					remoteHost: tunnel.remoteAddress.host,
 					remotePort: tunnel.remoteAddress.port,
