@@ -313,7 +313,7 @@ configurationRegistry.registerConfiguration({
 			examples: [
 				{
 					'fetch': false,
-					'runTests': false
+					'runTask': false
 				}
 			],
 			policy: {
@@ -375,13 +375,12 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
-			enum: ['auto', 'stacked', 'sideBySide'],
+			enum: ['stacked', 'sideBySide'],
 			enumDescriptions: [
-				nls.localize('chat.viewSessions.orientation.auto', "Automatically determine the orientation based on available space."),
-				nls.localize('chat.viewSessions.orientation.stacked', "Display sessions vertically stacked unless a chat session is visible."),
-				nls.localize('chat.viewSessions.orientation.sideBySide', "Display sessions side by side if space is sufficient.")
+				nls.localize('chat.viewSessions.orientation.stacked', "Display chat sessions vertically stacked above the chat input unless a chat session is visible."),
+				nls.localize('chat.viewSessions.orientation.sideBySide', "Display chat sessions side by side if space is sufficient, otherwise fallback to stacked above the chat input unless a chat session is visible.")
 			],
-			default: 'auto',
+			default: 'sideBySide',
 			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the chat agent sessions view when it is shown alongside the chat."),
 		},
 		[ChatConfiguration.ChatViewTitleEnabled]: {
@@ -816,7 +815,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.RestoreLastPanelSession]: { // TODO@bpasero review this setting later
 			type: 'boolean',
 			description: nls.localize('chat.restoreLastPanelSession', "Controls whether the last session is restored in panel after restart."),
-			default: true,
+			default: false,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -947,10 +946,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			const treatmentId = this.entitlementService.entitlement === ChatEntitlement.Free ?
 				'chatAgentMaxRequestsFree' :
 				'chatAgentMaxRequestsPro';
-			Promise.all([
-				this.experimentService.getTreatment<number>(treatmentId),
-				this.experimentService.getTreatment<number>('chatAgentMaxRequestsLimit')
-			]).then(([value, maxLimit]) => {
+			this.experimentService.getTreatment<number>(treatmentId).then((value) => {
 				const defaultValue = value ?? (this.entitlementService.entitlement === ChatEntitlement.Free ? 25 : 25);
 				const node: IConfigurationNode = {
 					id: 'chatSidebar',
@@ -961,7 +957,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 							type: 'number',
 							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn when using an agent. When the limit is reached, will ask to confirm to continue."),
 							default: defaultValue,
-							maximum: maxLimit,
 						},
 					}
 				};

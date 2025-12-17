@@ -758,7 +758,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 				end = findFirst(checkpoints, c => c.requestId !== startRequestId, startIndex + 1);
 			} else {
 				end = checkpoints.find(c => c.requestId === stopRequestId)
-					|| findFirst(checkpoints, c => c.requestId !== startRequestId, startIndex)
+					|| findFirst(checkpoints, c => c.requestId !== startRequestId, startIndex + 1)
 					|| checkpoints[checkpoints.length - 1];
 			}
 

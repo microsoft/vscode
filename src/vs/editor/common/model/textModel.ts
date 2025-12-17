@@ -51,6 +51,8 @@ import { PieceTreeTextBuffer } from './pieceTreeTextBuffer/pieceTreeTextBuffer.j
 import { PieceTreeTextBufferBuilder } from './pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { SearchParams, TextModelSearch } from './textModelSearch.js';
 import { AttachedViews } from './tokens/abstractSyntaxTokenBackend.js';
+import { TokenizationFontDecorationProvider } from './tokens/tokenizationFontDecorationsProvider.js';
+import { LineFontChangingDecoration, LineHeightChangingDecoration } from './decorationProvider.js';
 import { TokenizationTextModelPart } from './tokens/tokenizationTextModelPart.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
@@ -292,6 +294,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _decorations: { [decorationId: string]: IntervalNode };
 	private _decorationsTree: DecorationsTrees;
 	private readonly _decorationProvider: ColorizedBracketPairsDecorationProvider;
+	private readonly _fontTokenDecorationsProvider: TokenizationFontDecorationProvider;
 	//#endregion
 
 	private readonly _tokenizationTextModelPart: TokenizationTextModelPart;
@@ -366,6 +369,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			languageId,
 			this._attachedViews
 		);
+		this._fontTokenDecorationsProvider = this._register(new TokenizationFontDecorationProvider(this, this._tokenizationTextModelPart));
 
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
 
@@ -390,6 +394,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._register(this._decorationProvider.onDidChange(() => {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._onDidChangeDecorations.fire();
+			this._onDidChangeDecorations.endDeferredEmit();
+		}));
+		this._register(this._fontTokenDecorationsProvider.onDidChangeLineHeight((affectedLineHeights) => {
+			this._onDidChangeDecorations.beginDeferredEmit();
+			this._onDidChangeDecorations.fire();
+			this._fireOnDidChangeLineHeight(affectedLineHeights);
+			this._onDidChangeDecorations.endDeferredEmit();
+		}));
+		this._register(this._fontTokenDecorationsProvider.onDidChangeFont((affectedFontLines) => {
+			this._onDidChangeDecorations.beginDeferredEmit();
+			this._onDidChangeDecorations.fire();
+			this._fireOnDidChangeFont(affectedFontLines);
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
 
@@ -454,6 +470,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		this._tokenizationTextModelPart.handleDidChangeContent(change);
 		this._bracketPairs.handleDidChangeContent(change);
+		this._fontTokenDecorationsProvider.handleDidChangeContent(change);
 		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
 	}
 
@@ -1630,11 +1647,19 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
 			this._onDidChangeInjectedText.fire(new ModelInjectedTextChangedEvent(lineChangeEvents));
 		}
+		this._fireOnDidChangeLineHeight(affectedLineHeights);
+		this._fireOnDidChangeFont(affectedFontLines);
+	}
+
+	private _fireOnDidChangeLineHeight(affectedLineHeights: Set<LineHeightChangingDecoration> | null): void {
 		if (affectedLineHeights && affectedLineHeights.size > 0) {
 			const affectedLines = Array.from(affectedLineHeights);
 			const lineHeightChangeEvent = affectedLines.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.decorationId, specialLineHeightChange.lineNumber, specialLineHeightChange.lineHeight));
 			this._onDidChangeLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
 		}
+	}
+
+	private _fireOnDidChangeFont(affectedFontLines: Set<LineFontChangingDecoration> | null): void {
 		if (affectedFontLines && affectedFontLines.size > 0) {
 			const affectedLines = Array.from(affectedFontLines);
 			const fontChangeEvent = affectedLines.map(fontChange => new ModelFontChanged(fontChange.ownerId, fontChange.lineNumber));
@@ -1795,6 +1820,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		const decorations = this._getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations, onlyMarginDecorations);
 		pushMany(decorations, this._decorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
+		pushMany(decorations, this._fontTokenDecorationsProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
 		return decorations;
 	}
 
@@ -1803,6 +1829,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		const decorations = this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation, filterFontDecorations, onlyMarginDecorations);
 		pushMany(decorations, this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMinimapDecorations));
+		pushMany(decorations, this._fontTokenDecorationsProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMinimapDecorations));
 		return decorations;
 	}
 
@@ -1835,6 +1862,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false): model.IModelDecoration[] {
 		let result = this._decorationsTree.getAll(this, ownerId, filterOutValidation, filterFontDecorations, false, false);
 		result = result.concat(this._decorationProvider.getAllDecorations(ownerId, filterOutValidation));
+		result = result.concat(this._fontTokenDecorationsProvider.getAllDecorations(ownerId, filterOutValidation));
 		return result;
 	}
 
@@ -2510,32 +2538,6 @@ function _normalizeOptions(options: model.IModelDecorationOptions): ModelDecorat
 	return ModelDecorationOptions.createDynamic(options);
 }
 
-class LineHeightChangingDecoration {
-
-	public static toKey(obj: LineHeightChangingDecoration): string {
-		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
-	}
-
-	constructor(
-		public readonly ownerId: number,
-		public readonly decorationId: string,
-		public readonly lineNumber: number,
-		public readonly lineHeight: number | null
-	) { }
-}
-
-class LineFontChangingDecoration {
-
-	public static toKey(obj: LineFontChangingDecoration): string {
-		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
-	}
-
-	constructor(
-		public readonly ownerId: number,
-		public readonly decorationId: string,
-		public readonly lineNumber: number
-	) { }
-}
 
 class DidChangeDecorationsEmitter extends Disposable {
 
