@@ -24,8 +24,8 @@
 	top: 0;
 }
 
-.quick-input-widget .monaco-custom-toggle {
-	padding: 3px;
+.quick-input-widget .monaco-action-bar .monaco-custom-toggle {
+	margin-left: 0;
 	border-radius: 5px;
 	box-sizing: content-box;
 }
@@ -64,6 +64,10 @@
 }
 
 .quick-input-right-action-bar > .actions-container > .action-item {
+	margin-left: 4px;
+}
+
+.quick-input-inline-action-bar > .actions-container > .action-item {
 	margin-left: 4px;
 }
 

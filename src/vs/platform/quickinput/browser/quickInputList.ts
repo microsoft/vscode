@@ -537,7 +537,12 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			data.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
 				button,
 				`id-${index}`,
-				() => element.fireButtonTriggered({ button, item: element.item })
+				() => {
+					if (button.toggle) {
+						button.toggle.checked = !button.toggle.checked;
+					}
+					element.fireButtonTriggered({ button, item: element.item });
+				}
 			)), { icon: true, label: false });
 			data.entry.classList.add('has-actions');
 		} else {
@@ -634,7 +639,12 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 			data.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
 				button,
 				`id-${index}`,
-				() => element.fireSeparatorButtonTriggered({ button, separator: element.separator })
+				() => {
+					if (button.toggle) {
+						button.toggle.checked = !button.toggle.checked;
+					}
+					element.fireSeparatorButtonTriggered({ button, separator: element.separator });
+				}
 			)), { icon: true, label: false });
 			data.entry.classList.add('has-actions');
 		} else {

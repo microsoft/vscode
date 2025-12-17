@@ -157,7 +157,12 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			templateData.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
 				button,
 				`tree-${index}`,
-				() => this._buttonTriggeredEmitter.fire({ item: quickTreeItem, button })
+				() => {
+					if (button.toggle) {
+						button.toggle.checked = !button.toggle.checked;
+					}
+					this._buttonTriggeredEmitter.fire({ item: quickTreeItem, button });
+				}
 			)), { icon: true, label: false });
 			templateData.entry.classList.add('has-actions');
 		} else {
