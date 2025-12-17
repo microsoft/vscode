@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsInputRequiredPattern, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -132,6 +132,23 @@ suite('OutputMonitor', () => {
 		});
 	});
 
+	test('non-interactive help completes without prompting', async () => {
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => 'press h + enter to show help';
+			instantiationService.stub(
+				ILanguageModelsService,
+				{
+					selectLanguageModels: async () => { throw new Error('language model should not be consulted'); }
+				}
+			);
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+			assert.strictEqual(pollingResult?.output, 'press h + enter to show help');
+		});
+	});
+
 	test('monitor can be disposed twice without error', async () => {
 		return runWithFakedTimers({}, async () => {
 			// Simulate output change after first poll
@@ -246,10 +263,22 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsInputRequiredPattern('Press any key to continue...'), true);
 			assert.strictEqual(detectsInputRequiredPattern('Press a key'), true);
 		});
+
+		test('detects non-interactive help prompts without treating them as input', () => {
+			assert.strictEqual(detectsInputRequiredPattern('press h + enter to show help'), false);
+			assert.strictEqual(detectsInputRequiredPattern('press h to show help'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press h + enter to show help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press h to show help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press h to show commands'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press ? to see commands'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press ? + enter for options'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('type h + enter to show help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('hit ? for help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('type h to see options'), true);
+		});
 	});
 
 });
 function createTestContext(id: string): IToolInvocationContext {
 	return { sessionId: id, sessionResource: LocalChatSessionUri.forSession(id) };
 }
-

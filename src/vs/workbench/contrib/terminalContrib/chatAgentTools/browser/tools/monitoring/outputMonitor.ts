@@ -159,14 +159,27 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				pollDurationMs: Date.now() - pollStartTime,
 				resources
 			};
-			this._promptPart?.hide();
+			const promptPart = this._promptPart;
 			this._promptPart = undefined;
+			if (promptPart) {
+				try {
+					promptPart.hide();
+				} catch (err) {
+					this._logService.error('OutputMonitor: Failed to hide prompt', err);
+				}
+			}
 			this._onDidFinishCommand.fire();
 		}
 	}
 
 
 	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean; output?: string }> {
+		const output = this._execution.getOutput(this._lastPromptMarker);
+
+		if (detectsNonInteractiveHelpPattern(output)) {
+			return { shouldContinuePollling: false, output };
+		}
+
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 
 		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
@@ -204,7 +217,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const custom = await this._pollFn?.(this._execution, token, this._taskService);
 		const resources = custom?.resources;
 		const modelOutputEvalResponse = await this._assessOutputForErrors(this._execution.getOutput(), token);
-		return { resources, modelOutputEvalResponse, shouldContinuePollling: false, output: custom?.output };
+		return { resources, modelOutputEvalResponse, shouldContinuePollling: false, output: custom?.output ?? output };
 	}
 
 	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext | undefined, extended: boolean, token: CancellationToken): Promise<boolean> {
@@ -294,6 +307,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				waited += waitTime;
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
 				const currentOutput = execution.getOutput();
+
+				if (detectsNonInteractiveHelpPattern(currentOutput)) {
+					this._state = OutputMonitorState.Idle;
+					return this._state;
+				}
+
 				const promptResult = detectsInputRequiredPattern(currentOutput);
 				if (promptResult) {
 					this._state = OutputMonitorState.Idle;
@@ -379,6 +398,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return undefined;
 		}
 		const lastLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-15).join('\n');
+
+		if (detectsNonInteractiveHelpPattern(lastLines)) {
+			return undefined;
+		}
+
 		const promptText =
 			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous, return null.
 			Examples:
@@ -791,5 +815,15 @@ export function detectsInputRequiredPattern(cursorLine: string): boolean {
 		/\?\s*(?:\([a-z\s]+\))?$/i,
 		// "Press a key" or "Press any key"
 		/press a(?:ny)? key/i,
+	].some(e => e.test(cursorLine));
+}
+
+export function detectsNonInteractiveHelpPattern(cursorLine: string): boolean {
+	return [
+		/press [h?]\s*(?:\+\s*enter)?\s*to (?:show|open|display|get|see)\s*(?:available )?(?:help|commands|options)/i,
+		/press h\s*(?:or\s*\?)?\s*(?:\+\s*enter)?\s*for (?:help|commands|options)/i,
+		/press \?\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:help|commands|options|list)/i,
+		/type\s*[h?]\s*(?:\+\s*enter)?\s*(?:for|to see|to show)\s*(?:help|commands|options)/i,
+		/hit\s*[h?]\s*(?:\+\s*enter)?\s*(?:for|to see|to show)\s*(?:help|commands|options)/i
 	].some(e => e.test(cursorLine));
 }
