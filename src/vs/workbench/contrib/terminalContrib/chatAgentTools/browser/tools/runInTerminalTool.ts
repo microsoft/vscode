@@ -5,7 +5,7 @@
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -99,7 +99,8 @@ function createPowerShellModelDescription(shell: string): string {
 		'- Prefer PowerShell cmdlets over external commands when available',
 		'- Prefer idiomatic PowerShell like Get-ChildItem instead of dir or ls for file listings',
 		'- Use Test-Path to check file/directory existence',
-		'- Be specific with Select-Object properties to avoid excessive output'
+		'- Be specific with Select-Object properties to avoid excessive output',
+		'- Avoid printing credentials unless absolutely required',
 	].join('\n');
 }
 
@@ -133,7 +134,8 @@ Output Management:
 Best Practices:
 - Quote variables: "$var" instead of $var to handle spaces
 - Use find with -exec or xargs for file operations
-- Be specific with commands to avoid excessive output`;
+- Be specific with commands to avoid excessive output
+- Avoid printing credentials unless absolutely required`;
 
 function createBashModelDescription(): string {
 	return [
@@ -255,6 +257,8 @@ const telemetryIgnoredSequences = [
 	'\x1b[O', // Focus out
 ];
 
+const altBufferMessage = localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
+
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
@@ -335,9 +339,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Listen for chat session disposal to clean up associated terminals
 		this._register(this._chatService.onDidDisposeSession(e => {
-			const localSessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
-			if (localSessionId) {
-				this._cleanupSessionTerminals(localSessionId);
+			for (const resource of e.sessionResource) {
+				const localSessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+				if (localSessionId) {
+					this._cleanupSessionTerminals(localSessionId);
+				}
 			}
 		}));
 	}
@@ -635,6 +641,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			let outputLineCount = -1;
 			let exitCode: number | undefined;
+			let altBufferResult: IToolResult | undefined;
+			const executeCancellation = store.add(new CancellationTokenSource(token));
 			try {
 				let strategy: ITerminalExecuteStrategy;
 				switch (toolTerminal.shellIntegrationQuality) {
@@ -658,39 +666,58 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const executeResult = await strategy.execute(command, token, commandId);
+				const executeResult = await strategy.execute(command, executeCancellation.token, commandId);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
 
-				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
-				{
+				if (executeResult.didEnterAltBuffer) {
 					const state = toolSpecificData.terminalCommandState ?? {};
 					state.timestamp = state.timestamp ?? timingStart;
-					if (executeResult.exitCode !== undefined) {
-						state.exitCode = executeResult.exitCode;
-						if (state.timestamp !== undefined) {
-							state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
-						}
-					}
 					toolSpecificData.terminalCommandState = state;
-				}
+					toolResultMessage = altBufferMessage;
+					outputLineCount = 0;
+					error = executeResult.error ?? 'alternateBuffer';
+					altBufferResult = {
+						toolResultMessage,
+						toolMetadata: {
+							exitCode: undefined
+						},
+						content: [{
+							kind: 'text',
+							value: altBufferMessage,
+						}]
+					};
+				} else {
+					await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+					{
+						const state = toolSpecificData.terminalCommandState ?? {};
+						state.timestamp = state.timestamp ?? timingStart;
+						if (executeResult.exitCode !== undefined) {
+							state.exitCode = executeResult.exitCode;
+							if (state.timestamp !== undefined) {
+								state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
+							}
+						}
+						toolSpecificData.terminalCommandState = state;
+					}
 
-				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
-				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
-				exitCode = executeResult.exitCode;
-				error = executeResult.error;
+					this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
+					outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
+					exitCode = executeResult.exitCode;
+					error = executeResult.error;
 
-				const resultArr: string[] = [];
-				if (executeResult.output !== undefined) {
-					resultArr.push(executeResult.output);
+					const resultArr: string[] = [];
+					if (executeResult.output !== undefined) {
+						resultArr.push(executeResult.output);
+					}
+					if (executeResult.additionalInformation) {
+						resultArr.push(executeResult.additionalInformation);
+					}
+					terminalResult = resultArr.join('\n\n');
 				}
-				if (executeResult.additionalInformation) {
-					resultArr.push(executeResult.additionalInformation);
-				}
-				terminalResult = resultArr.join('\n\n');
 
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
@@ -725,6 +752,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					inputToolFreeFormInputCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolFreeFormInputCount,
 					inputToolFreeFormInputShownCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolFreeFormInputShownCount
 				});
+			}
+
+			if (altBufferResult) {
+				return altBufferResult;
 			}
 
 			const resultText: string[] = [];

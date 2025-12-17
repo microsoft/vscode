@@ -40,7 +40,6 @@ import { IChatWidgetService } from '../chat.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
-import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 
 export const enum ActionLocation {
 	ChatWidget = 'chatWidget',
@@ -60,12 +59,16 @@ export class ContinueChatInSessionAction extends Action2 {
 				ChatContextKeys.enabled,
 				ChatContextKeys.requestInProgress.negate(),
 				ChatContextKeys.remoteJobCreating.negate(),
+				ChatContextKeys.hasCanDelegateProviders,
 			),
 			menu: [{
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 3.4,
-				when: ChatContextKeys.lockedToCodingAgent.negate(),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.hasCanDelegateProviders,
+				),
 			},
 			{
 				id: MenuId.EditorContent,
@@ -75,6 +78,7 @@ export class ContinueChatInSessionAction extends Action2 {
 					ContextKeyExpr.equals(ResourceContextKey.LangId.key, PROMPT_LANGUAGE_ID),
 					ContextKeyExpr.notEquals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
 					ctxHasEditorModification.negate(),
+					ChatContextKeys.hasCanDelegateProviders,
 				),
 			}
 			]
@@ -195,6 +199,8 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		}
 	}
 }
+
+const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
 
 class CreateRemoteAgentJobAction {
 	constructor() { }
