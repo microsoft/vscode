@@ -329,6 +329,10 @@
 	padding: 2px;
 }
 
+.quick-input-list .quick-input-list-entry-action-bar .monaco-custom-toggle.codicon {
+	margin-right: 4px;
+}
+
 .quick-input-list .quick-input-list-entry-action-bar {
 	margin-top: 1px;
 }
@@ -488,6 +492,10 @@
 .quick-input-tree .quick-input-tree-entry-action-bar .action-label.codicon {
 	margin-right: 4px;
 	padding: 2px;
+}
+
+.quick-input-list .quick-input-tree-entry-action-bar .monaco-custom-toggle.codicon {
+	margin-right: 4px;
 }
 
 .quick-input-tree .quick-input-tree-entry-action-bar {
