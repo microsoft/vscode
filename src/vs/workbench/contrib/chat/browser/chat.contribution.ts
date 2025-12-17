@@ -864,6 +864,13 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 		])
 	},
 	{
+		key: 'chat.useClaudeSkills',
+		migrateFn: (value, _accessor) => ([
+			['chat.useClaudeSkills', { value: undefined }],
+			['chat.useAgentSkills', { value }]
+		])
+	},
+	{
 		key: mcpDiscoverySection,
 		migrateFn: (value: unknown) => {
 			if (typeof value === 'boolean') {
