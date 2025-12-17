@@ -11,7 +11,7 @@ import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, CLAUDE_SKILLS_SOURCE_FOLDER, SKILLS_GLOB_PATTERN } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS, DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -392,75 +392,33 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Searches for skills in the workspace.
-	 * - If `chat.useClaudeSkills` is enabled, searches in `.claude/skills`.
-	 * - If `chat.useAgentSkills` is enabled, searches in `skills/**\/SKILL.md` pattern and custom locations from `chat.agentSkillsLocations`.
+	 * Searches for skills in all default directories in the workspace.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
 	 */
 	public async findAgentSkillsInWorkspace(token: CancellationToken): Promise<URI[]> {
 		const workspace = this.workspaceService.getWorkspace();
-		const promises: Promise<URI[]>[] = [];
-
-		const useClaudeSkills = this.configService.getValue<boolean>(PromptsConfig.USE_CLAUDE_SKILLS);
-		const useAgentSkills = this.configService.getValue<boolean>(PromptsConfig.USE_AGENT_SKILLS);
-
-		// 1. Claude skills locations (if enabled)
-		if (useClaudeSkills) {
-			for (const folder of workspace.folders) {
-				promises.push(this.findAgentSkillsInFolder(folder.uri, CLAUDE_SKILLS_SOURCE_FOLDER, token));
+		const allResults: URI[] = [];
+		for (const folder of workspace.folders) {
+			for (const skillsFolder of DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS) {
+				const results = await this.findAgentSkillsInFolder(folder.uri, skillsFolder, token);
+				allResults.push(...results);
 			}
 		}
-
-		// 2. Agent skills pattern and custom locations (if enabled)
-		if (useAgentSkills) {
-			for (const folder of workspace.folders) {
-				promises.push(this.searchFilesInLocation(folder.uri, SKILLS_GLOB_PATTERN, token));
-			}
-
-			// 3. Custom locations from configuration
-			const customLocations = this.configService.getValue<Record<string, boolean>>(PromptsConfig.AGENT_SKILLS_LOCATIONS_KEY);
-			if (customLocations && typeof customLocations === 'object') {
-				for (const [path, enabled] of Object.entries(customLocations)) {
-					if (!enabled) {
-						continue;
-					}
-
-					const cleanPath = path.trim();
-					if (!cleanPath) {
-						continue;
-					}
-
-					if (isAbsolute(cleanPath)) {
-						promises.push(this.findAgentSkillsInFolder(URI.file(cleanPath), '', token));
-					} else {
-						for (const folder of workspace.folders) {
-							promises.push(this.findAgentSkillsInFolder(folder.uri, cleanPath, token));
-						}
-					}
-				}
-			}
-		}
-
-		const results = await Promise.all(promises);
-		const uniqueResults = new ResourceSet(results.flat());
-		return Array.from(uniqueResults);
+		return allResults;
 	}
 
 	/**
-	 * Searches for skills in the home folder.
-	 * If `chat.useClaudeSkills` is enabled, searches in `.claude/skills`.
+	 * Searches for skills in all default directories in the home folder.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
 	 */
 	public async findAgentSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
 		const userHome = await this.pathService.userHome();
-		const promises: Promise<URI[]>[] = [];
-
-		const useClaudeSkills = this.configService.getValue<boolean>(PromptsConfig.USE_CLAUDE_SKILLS);
-		if (useClaudeSkills) {
-			promises.push(this.findAgentSkillsInFolder(userHome, CLAUDE_SKILLS_SOURCE_FOLDER, token));
+		const allResults: URI[] = [];
+		for (const skillsFolder of DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS) {
+			const results = await this.findAgentSkillsInFolder(userHome, skillsFolder, token);
+			allResults.push(...results);
 		}
-
-		const results = await Promise.all(promises);
-		const uniqueResults = new ResourceSet(results.flat());
-		return Array.from(uniqueResults);
+		return allResults;
 	}
 }
 

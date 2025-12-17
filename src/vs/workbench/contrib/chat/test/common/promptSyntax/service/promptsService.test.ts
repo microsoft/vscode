@@ -52,7 +52,6 @@ suite('PromptsService', () => {
 	let workspaceContextService: TestContextService;
 	let testConfigService: TestConfigurationService;
 	let fileService: IFileService;
-	let searchService: ISearchService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -111,8 +110,7 @@ suite('PromptsService', () => {
 		} as IPathService;
 		instaService.stub(IPathService, pathService);
 
-		searchService = { fileSearch: () => Promise.resolve({ results: [], limitHit: false, messages: [] }) } as Partial<ISearchService> as ISearchService;
-		instaService.stub(ISearchService, searchService);
+		instaService.stub(ISearchService, {});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
@@ -1262,16 +1260,15 @@ suite('PromptsService', () => {
 			sinon.restore();
 		});
 
-		test('should return undefined when both flags are disabled', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, false);
+		test('should return undefined when USE_AGENT_SKILLS is disabled', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 			assert.strictEqual(result, undefined);
 		});
 
-		test('should find Claude skills in workspace and user home', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+		test('should find skills in workspace and user home', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 
 			const rootFolderName = 'agent-skills-test';
 			const rootFolder = `/${rootFolderName}`;
@@ -1279,29 +1276,39 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Create mock filesystem with skills
+			// Create mock filesystem with skills in both .github/skills and .claude/skills
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`,
+					path: `${rootFolder}/.github/skills/github-skill-1/SKILL.md`,
 					contents: [
 						'---',
-						'name: "Project Skill 1"',
-						'description: "A project skill for testing"',
+						'name: "GitHub Skill 1"',
+						'description: "A GitHub skill for testing"',
 						'---',
-						'This is project skill 1 content',
+						'This is GitHub skill 1 content',
 					],
 				},
 				{
-					path: `${rootFolder}/.claude/skills/project-skill-2/SKILL.md`,
+					path: `${rootFolder}/.claude/skills/claude-skill-1/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Claude Skill 1"',
+						'description: "A Claude skill for testing"',
+						'---',
+						'This is Claude skill 1 content',
+					],
+				},
+				{
+					path: `${rootFolder}/.claude/skills/invalid-skill/SKILL.md`,
 					contents: [
 						'---',
 						'description: "Invalid skill, no name"',
 						'---',
-						'This is project skill 2 content',
+						'This is invalid skill content',
 					],
 				},
 				{
-					path: `${rootFolder}/.claude/skills/not-a-skill-dir/README.md`,
+					path: `${rootFolder}/.github/skills/not-a-skill-dir/README.md`,
 					contents: ['This is not a skill'],
 				},
 				{
@@ -1322,17 +1329,22 @@ suite('PromptsService', () => {
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results when Agent skills are enabled');
-			assert.strictEqual(result.length, 2, 'Should find 2 skills total');
+			assert.ok(result, 'Should return results when agent skills are enabled');
+			assert.strictEqual(result.length, 3, 'Should find 3 skills total');
 
-			// Check project skills
+			// Check project skills (both from .github/skills and .claude/skills)
 			const projectSkills = result.filter(skill => skill.type === 'project');
-			assert.strictEqual(projectSkills.length, 1, 'Should find 1 project skill');
+			assert.strictEqual(projectSkills.length, 2, 'Should find 2 project skills');
 
-			const projectSkill1 = projectSkills.find(skill => skill.name === 'Project Skill 1');
-			assert.ok(projectSkill1, 'Should find project skill 1');
-			assert.strictEqual(projectSkill1.description, 'A project skill for testing');
-			assert.strictEqual(projectSkill1.uri.path, `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`);
+			const githubSkill1 = projectSkills.find(skill => skill.name === 'GitHub Skill 1');
+			assert.ok(githubSkill1, 'Should find GitHub skill 1');
+			assert.strictEqual(githubSkill1.description, 'A GitHub skill for testing');
+			assert.strictEqual(githubSkill1.uri.path, `${rootFolder}/.github/skills/github-skill-1/SKILL.md`);
+
+			const claudeSkill1 = projectSkills.find(skill => skill.name === 'Claude Skill 1');
+			assert.ok(claudeSkill1, 'Should find Claude skill 1');
+			assert.strictEqual(claudeSkill1.description, 'A Claude skill for testing');
+			assert.strictEqual(claudeSkill1.uri.path, `${rootFolder}/.claude/skills/claude-skill-1/SKILL.md`);
 
 			// Check personal skills
 			const personalSkills = result.filter(skill => skill.type === 'personal');
@@ -1344,78 +1356,19 @@ suite('PromptsService', () => {
 			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/personal-skill-1/SKILL.md');
 		});
 
-		test('should find skills in multiple locations when both flags enabled', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
-			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
-			testConfigService.setUserConfiguration(PromptsConfig.AGENT_SKILLS_LOCATIONS_KEY, {
-				'custom/skills': true,
-				'/absolute/custom/skills': true
-			});
-
-			const rootFolderName = 'agent-skills-multi-test';
-			const rootFolder = `/${rootFolderName}`;
-			const rootFolderUri = URI.file(rootFolder);
-
-			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
-
-			// Create mock filesystem with skills in various locations
-			await mockFiles(fileService, [
-				{
-					path: `${rootFolder}/.claude/skills/skill-1/SKILL.md`,
-					contents: ['---', 'name: "Skill 1"', '---'],
-				},
-				{
-					path: `${rootFolder}/.claude/skills/skill-2/SKILL.md`,
-					contents: ['---', 'name: "Skill 2"', '---'],
-				},
-				{
-					path: `${rootFolder}/skills/some/path/SKILL.md`,
-					contents: ['---', 'name: "Skill 3"', '---'],
-				},
-				{
-					path: `${rootFolder}/custom/skills/skill-4/SKILL.md`,
-					contents: ['---', 'name: "Skill 4"', '---'],
-				},
-				{
-					path: '/absolute/custom/skills/skill-5/SKILL.md',
-					contents: ['---', 'name: "Skill 5"', '---'],
-				},
-			]);
-
-			// Mock search service for skills/**/SKILL.md
-			sinon.stub(searchService, 'fileSearch').callsFake(async (query) => {
-				if (query.filePattern === 'skills/**/SKILL.md') {
-					return {
-						results: [{ resource: URI.file(`${rootFolder}/skills/some/path/SKILL.md`) }],
-						limitHit: false,
-						messages: []
-					};
-				}
-				return { results: [], limitHit: false, messages: [] };
-			});
-
-			const result = await service.findAgentSkills(CancellationToken.None);
-
-			assert.ok(result, 'Should return results');
-			assert.strictEqual(result.length, 5, 'Should find 5 skills total');
-
-			const names = result.map(s => s.name).sort();
-			assert.deepStrictEqual(names, ['Skill 1', 'Skill 2', 'Skill 3', 'Skill 4', 'Skill 5']);
-		});
-
 		test('should handle parsing errors gracefully', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 
-			const rootFolderName = 'agent-skills-error-test';
+			const rootFolderName = 'skills-error-test';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Create mock filesystem with malformed skill file
+			// Create mock filesystem with malformed skill file in .github/skills
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.claude/skills/valid-skill/SKILL.md`,
+					path: `${rootFolder}/.github/skills/valid-skill/SKILL.md`,
 					contents: [
 						'---',
 						'name: "Valid Skill"',

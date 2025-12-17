@@ -578,20 +578,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	// Agent skills
 
 	public async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
-		const useClaudeSkills = this.configurationService.getValue(PromptsConfig.USE_CLAUDE_SKILLS);
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
-		if (useClaudeSkills || useAgentSkills) {
-			const skillsByName = new Map<string, IAgentSkill>();
+		if (useAgentSkills) {
+			const result: IAgentSkill[] = [];
 			const process = async (uri: URI, type: 'personal' | 'project'): Promise<void> => {
 				try {
 					const parsedFile = await this.parseNew(uri, token);
 					const name = parsedFile.header?.name;
 					if (name) {
-						// Project skills override personal skills with the same name
-						const existing = skillsByName.get(name);
-						if (!existing || type === 'project') {
-							skillsByName.set(name, { uri, type, name, description: parsedFile.header?.description } satisfies IAgentSkill);
-						}
+						result.push({ uri, type, name, description: parsedFile.header?.description } satisfies IAgentSkill);
 					} else {
 						this.logger.error(`[findAgentSkills] Agent skill file missing name attribute: ${uri}`);
 					}
@@ -600,12 +595,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 			};
 
-			// Process personal skills first, then project skills (so project overrides personal)
-			const userSkills = await this.fileLocator.findAgentSkillsInUserHome(token);
-			await Promise.all(userSkills.map((uri: URI) => process(uri, 'personal')));
 			const workspaceSkills = await this.fileLocator.findAgentSkillsInWorkspace(token);
-			await Promise.all(workspaceSkills.map((uri: URI) => process(uri, 'project')));
-			return Array.from(skillsByName.values());
+			await Promise.all(workspaceSkills.map(uri => process(uri, 'project')));
+			const userSkills = await this.fileLocator.findAgentSkillsInUserHome(token);
+			await Promise.all(userSkills.map(uri => process(uri, 'personal')));
+			return result;
 		}
 		return undefined;
 	}
