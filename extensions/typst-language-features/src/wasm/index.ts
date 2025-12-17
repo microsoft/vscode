@@ -18,7 +18,10 @@ export {
 	resolveSourceLocation,
 	findDocumentPositions,
 	isRendererReady,
-	disposeRenderer
+	disposeRenderer,
+	// Package cache management (offline-first)
+	getCachedPackagesInfo,
+	clearPackageCache
 } from './typstWasm';
 
 export type {

@@ -30,6 +30,518 @@ let initPromise: Promise<void> | null = null;
 // Memory access model for file system access
 let memoryAccessModel: any = null;
 
+// ============================================================================
+// Package Management for Web Workers (Offline-First)
+// ============================================================================
+// The FetchPackageRegistry uses synchronous XHR which doesn't work in web workers.
+// We implement async package prefetching with persistent caching:
+// 1. Packages are downloaded asynchronously before compilation
+// 2. Downloaded packages are persisted to IndexedDB for offline access
+// 3. The PackageRegistry serves from cache synchronously during compilation
+
+interface PackageSpec {
+	namespace: string;
+	name: string;
+	version: string;
+}
+
+// In-memory cache for package data (tar.gz bytes) - fast access during session
+const packageCache = new Map<string, Uint8Array>();
+
+// Cache for extracted package directories
+const extractedPackages = new Map<string, string>();
+
+// IndexedDB database name and store
+const PACKAGE_DB_NAME = 'typst-packages';
+const PACKAGE_STORE_NAME = 'packages';
+const PACKAGE_DB_VERSION = 1;
+
+// IndexedDB instance (lazily initialized) - using 'any' for browser API compatibility
+let packageDb: any = null;
+
+/**
+ * Get the global indexedDB object if available
+ * Uses indirect eval to access global scope without TypeScript type issues
+ */
+function getIndexedDB(): any {
+	try {
+		// Use Function constructor to get the global object in any environment
+		const globalObj = Function('return this')();
+		if (globalObj && globalObj.indexedDB) {
+			return globalObj.indexedDB;
+		}
+	} catch {
+		// Fallback: try accessing directly
+	}
+	return null;
+}
+
+/**
+ * Initialize IndexedDB for persistent package storage
+ */
+async function initPackageDb(): Promise<any> {
+	if (packageDb) {
+		return packageDb;
+	}
+
+	const idb = getIndexedDB();
+	if (!idb) {
+		console.warn('[Typst Packages] IndexedDB not available - packages will not persist');
+		return null;
+	}
+
+	return new Promise((resolve) => {
+		try {
+			const request = idb.open(PACKAGE_DB_NAME, PACKAGE_DB_VERSION);
+
+			request.onerror = () => {
+				console.warn('[Typst Packages] Failed to open IndexedDB:', request.error);
+				resolve(null);
+			};
+
+			request.onsuccess = () => {
+				packageDb = request.result;
+				console.log('[Typst Packages] IndexedDB initialized for offline package storage');
+				resolve(packageDb);
+			};
+
+			request.onupgradeneeded = (event: any) => {
+				const db = event.target.result;
+				if (!db.objectStoreNames.contains(PACKAGE_STORE_NAME)) {
+					const store = db.createObjectStore(PACKAGE_STORE_NAME, { keyPath: 'key' });
+					store.createIndex('fetchedAt', 'fetchedAt', { unique: false });
+					console.log('[Typst Packages] Created package store in IndexedDB');
+				}
+			};
+		} catch (error) {
+			console.warn('[Typst Packages] IndexedDB initialization error:', error);
+			resolve(null);
+		}
+	});
+}
+
+/**
+ * Save a package to IndexedDB for persistent offline access
+ */
+async function savePackageToDb(key: string, data: Uint8Array): Promise<void> {
+	const db = await initPackageDb();
+	if (!db) {
+		return;
+	}
+
+	return new Promise((resolve) => {
+		try {
+			const transaction = db.transaction([PACKAGE_STORE_NAME], 'readwrite');
+			const store = transaction.objectStore(PACKAGE_STORE_NAME);
+
+			const record = {
+				key,
+				data: Array.from(data), // Convert to array for storage
+				fetchedAt: Date.now(),
+				size: data.length
+			};
+
+			const request = store.put(record);
+
+			request.onsuccess = () => {
+				console.log(`[Typst Packages] Saved to IndexedDB: ${key}`);
+				resolve();
+			};
+
+			request.onerror = () => {
+				console.warn(`[Typst Packages] Failed to save to IndexedDB: ${key}`, request.error);
+				resolve();
+			};
+		} catch (error) {
+			console.warn(`[Typst Packages] Error saving to IndexedDB:`, error);
+			resolve();
+		}
+	});
+}
+
+/**
+ * Load a package from IndexedDB
+ */
+async function loadPackageFromDb(key: string): Promise<Uint8Array | undefined> {
+	const db = await initPackageDb();
+	if (!db) {
+		return undefined;
+	}
+
+	return new Promise((resolve) => {
+		try {
+			const transaction = db.transaction([PACKAGE_STORE_NAME], 'readonly');
+			const store = transaction.objectStore(PACKAGE_STORE_NAME);
+			const request = store.get(key);
+
+			request.onsuccess = () => {
+				if (request.result) {
+					const data = new Uint8Array(request.result.data);
+					console.log(`[Typst Packages] Loaded from IndexedDB: ${key} (${data.length} bytes)`);
+					resolve(data);
+				} else {
+					resolve(undefined);
+				}
+			};
+
+			request.onerror = () => {
+				console.warn(`[Typst Packages] Failed to load from IndexedDB: ${key}`, request.error);
+				resolve(undefined);
+			};
+		} catch (error) {
+			console.warn(`[Typst Packages] Error loading from IndexedDB:`, error);
+			resolve(undefined);
+		}
+	});
+}
+
+/**
+ * Get all cached packages info (for UI/debugging)
+ */
+export async function getCachedPackagesInfo(): Promise<Array<{ key: string; size: number; fetchedAt: number }>> {
+	const db = await initPackageDb();
+	if (!db) {
+		return [];
+	}
+
+	return new Promise((resolve) => {
+		try {
+			const transaction = db.transaction([PACKAGE_STORE_NAME], 'readonly');
+			const store = transaction.objectStore(PACKAGE_STORE_NAME);
+			const request = store.getAll();
+
+			request.onsuccess = () => {
+				const packages = request.result.map((record: any) => ({
+					key: record.key,
+					size: record.size,
+					fetchedAt: record.fetchedAt
+				}));
+				resolve(packages);
+			};
+
+			request.onerror = () => {
+				resolve([]);
+			};
+		} catch {
+			resolve([]);
+		}
+	});
+}
+
+/**
+ * Clear all cached packages (for maintenance)
+ */
+export async function clearPackageCache(): Promise<void> {
+	// Clear in-memory cache
+	packageCache.clear();
+	extractedPackages.clear();
+
+	// Clear IndexedDB
+	const db = await initPackageDb();
+	if (!db) {
+		return;
+	}
+
+	return new Promise((resolve) => {
+		try {
+			const transaction = db.transaction([PACKAGE_STORE_NAME], 'readwrite');
+			const store = transaction.objectStore(PACKAGE_STORE_NAME);
+			const request = store.clear();
+
+			request.onsuccess = () => {
+				console.log('[Typst Packages] Package cache cleared');
+				resolve();
+			};
+
+			request.onerror = () => {
+				resolve();
+			};
+		} catch {
+			resolve();
+		}
+	});
+}
+
+/**
+ * Parse a package import string like "@preview/package-name:0.1.0"
+ */
+function parsePackageSpec(importStr: string): PackageSpec | undefined {
+	// Match @namespace/name:version
+	const match = importStr.match(/@(\w+)\/([^:]+):(.+)/);
+	if (match) {
+		return {
+			namespace: match[1],
+			name: match[2],
+			version: match[3]
+		};
+	}
+	return undefined;
+}
+
+/**
+ * Extract package imports from Typst source code
+ */
+function extractPackageImports(source: string): PackageSpec[] {
+	const packages: PackageSpec[] = [];
+	// Match #import "@namespace/name:version"
+	const importPattern = /#import\s+["'](@\w+\/[^"':]+:[^"']+)["']/g;
+	let match;
+	while ((match = importPattern.exec(source)) !== null) {
+		const spec = parsePackageSpec(match[1]);
+		if (spec) {
+			packages.push(spec);
+		}
+	}
+	return packages;
+}
+
+/**
+ * Get the URL for downloading a package from Typst Universe
+ */
+function getPackageUrl(spec: PackageSpec): string {
+	return `https://packages.typst.org/${spec.namespace}/${spec.name}-${spec.version}.tar.gz`;
+}
+
+/**
+ * Get a unique cache key for a package
+ */
+function getPackageCacheKey(spec: PackageSpec): string {
+	return `@${spec.namespace}/${spec.name}:${spec.version}`;
+}
+
+/**
+ * Pre-fetch a single package asynchronously with offline-first caching
+ */
+async function fetchPackage(spec: PackageSpec): Promise<Uint8Array | undefined> {
+	const cacheKey = getPackageCacheKey(spec);
+
+	// 1. Check in-memory cache first (fastest)
+	if (packageCache.has(cacheKey)) {
+		console.log(`[Typst Packages] Memory cache hit: ${cacheKey}`);
+		return packageCache.get(cacheKey);
+	}
+
+	// 2. Check IndexedDB persistent cache (offline-first)
+	const persistedData = await loadPackageFromDb(cacheKey);
+	if (persistedData) {
+		// Load into memory cache for faster subsequent access
+		packageCache.set(cacheKey, persistedData);
+		console.log(`[Typst Packages] Loaded from offline cache: ${cacheKey}`);
+		return persistedData;
+	}
+
+	// 3. Fetch from network (online fallback)
+	const url = getPackageUrl(spec);
+	console.log(`[Typst Packages] Downloading: ${cacheKey} from ${url}`);
+
+	try {
+		const response = await fetch(url);
+		if (!response.ok) {
+			console.error(`[Typst Packages] Download failed: ${cacheKey} - ${response.status} ${response.statusText}`);
+			return undefined;
+		}
+
+		const data = new Uint8Array(await response.arrayBuffer());
+
+		// Save to both caches
+		packageCache.set(cacheKey, data);
+		await savePackageToDb(cacheKey, data);
+
+		console.log(`[Typst Packages] Downloaded and cached: ${cacheKey} (${data.length} bytes)`);
+		return data;
+	} catch (error) {
+		console.error(`[Typst Packages] Network error for ${cacheKey}:`, error);
+		console.error(`[Typst Packages] Package ${cacheKey} is not available offline and network is unavailable`);
+		return undefined;
+	}
+}
+
+/**
+ * Decompress gzip data using DecompressionStream (available in modern browsers/workers)
+ */
+async function decompressGzip(data: Uint8Array): Promise<Uint8Array> {
+	// Check if DecompressionStream is available
+	if (typeof DecompressionStream === 'undefined') {
+		console.warn('[Typst Packages] DecompressionStream not available, cannot decompress');
+		throw new Error('DecompressionStream not available');
+	}
+
+	const stream = new DecompressionStream('gzip');
+	const writer = stream.writable.getWriter();
+	writer.write(data);
+	writer.close();
+
+	const reader = stream.readable.getReader();
+	const chunks: Uint8Array[] = [];
+
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) { break; }
+		chunks.push(value);
+	}
+
+	// Combine all chunks
+	const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+	const result = new Uint8Array(totalLength);
+	let offset = 0;
+	for (const chunk of chunks) {
+		result.set(chunk, offset);
+		offset += chunk.length;
+	}
+
+	return result;
+}
+
+/**
+ * Extract package imports from a tar.gz package data
+ * This analyzes .typ files inside the package to find transitive dependencies
+ */
+async function extractPackageImportsFromTarGz(data: Uint8Array): Promise<PackageSpec[]> {
+	const packages: PackageSpec[] = [];
+	const seen = new Set<string>();
+
+	try {
+		// Decompress gzip to get tar data
+		const tarData = await decompressGzip(data);
+
+		// Convert decompressed tar to string for pattern matching
+		const decoder = new TextDecoder('utf-8', { fatal: false });
+		const text = decoder.decode(tarData);
+
+		// Find all package imports in the entire tar content
+		const importPattern = /#import\s+["'](@\w+\/[^"':]+:[^"']+)["']/g;
+		let match;
+		while ((match = importPattern.exec(text)) !== null) {
+			const spec = parsePackageSpec(match[1]);
+			if (spec) {
+				const key = getPackageCacheKey(spec);
+				if (!seen.has(key)) {
+					seen.add(key);
+					packages.push(spec);
+				}
+			}
+		}
+	} catch (error) {
+		console.warn('[Typst Packages] Error scanning package for dependencies:', error);
+	}
+
+	return packages;
+}
+
+/**
+ * Pre-fetch all packages referenced in the source code, including transitive dependencies
+ * This recursively downloads packages that depend on other packages
+ */
+async function prefetchPackages(source: string): Promise<void> {
+	const allPackages = extractPackageImports(source);
+	if (allPackages.length === 0) {
+		return;
+	}
+
+	console.log(`[Typst Packages] Found ${allPackages.length} direct package(s) to prefetch`);
+
+	// Track which packages we've already processed to avoid infinite loops
+	const processed = new Set<string>();
+	const queue = [...allPackages];
+	let totalDownloaded = 0;
+	let totalFailed = 0;
+
+	// Process packages in waves, discovering new dependencies as we go
+	while (queue.length > 0) {
+		const batch = queue.splice(0, queue.length);
+		const newDependencies: PackageSpec[] = [];
+
+		for (const spec of batch) {
+			const cacheKey = getPackageCacheKey(spec);
+			if (processed.has(cacheKey)) {
+				continue;
+			}
+			processed.add(cacheKey);
+
+			// Fetch the package
+			const data = await fetchPackage(spec);
+			if (data) {
+				totalDownloaded++;
+
+				// Scan for transitive dependencies
+				const deps = await extractPackageImportsFromTarGz(data);
+				for (const dep of deps) {
+					const depKey = getPackageCacheKey(dep);
+					if (!processed.has(depKey)) {
+						newDependencies.push(dep);
+					}
+				}
+			} else {
+				totalFailed++;
+			}
+		}
+
+		// Add newly discovered dependencies to the queue
+		if (newDependencies.length > 0) {
+			console.log(`[Typst Packages] Found ${newDependencies.length} transitive dependencies`);
+			queue.push(...newDependencies);
+		}
+	}
+
+	// Log summary
+	if (totalFailed > 0) {
+		console.warn(`[Typst Packages] Prefetch complete: ${totalDownloaded} downloaded, ${totalFailed} failed`);
+	} else {
+		console.log(`[Typst Packages] Prefetch complete: ${totalDownloaded} packages ready`);
+	}
+}
+
+/**
+ * Custom PackageRegistry that serves packages from the pre-fetched cache
+ * This works in web workers because it only reads from an in-memory cache
+ */
+function createCachedPackageRegistry(am: any) {
+	return {
+		resolve(spec: PackageSpec, context: any): string | undefined {
+			if (spec.namespace !== 'preview') {
+				return undefined;
+			}
+
+			const cacheKey = getPackageCacheKey(spec);
+
+			// Check if already extracted
+			if (extractedPackages.has(cacheKey)) {
+				return extractedPackages.get(cacheKey);
+			}
+
+			// Get from memory cache (should have been prefetched)
+			const data = packageCache.get(cacheKey);
+			if (!data) {
+				console.error(`[Typst Packages] Package not available: ${cacheKey}`);
+				console.error(`[Typst Packages] This package needs to be downloaded first. Check your internet connection.`);
+				return undefined;
+			}
+
+			// Extract package using the context's untar function
+			const previewDir = `/@memory/fetch/packages/preview/${spec.namespace}/${spec.name}/${spec.version}`;
+			const entries: Array<[string, Uint8Array, Date]> = [];
+
+			try {
+				context.untar(data, (path: string, fileData: Uint8Array, mtime: number) => {
+					entries.push([previewDir + '/' + path, fileData, new Date(mtime)]);
+				});
+
+				// Write files to access model
+				for (const [filePath, fileData, mtime] of entries) {
+					am.insertFile(filePath, fileData, mtime);
+				}
+
+				extractedPackages.set(cacheKey, previewDir);
+				console.log(`[Typst Packages] Extracted: ${cacheKey} -> ${previewDir}`);
+				return previewDir;
+			} catch (error) {
+				console.error(`[Typst Packages] Failed to extract: ${cacheKey}`, error);
+				return undefined;
+			}
+		}
+	};
+}
+
 /**
  * Create a simple in-memory file system model
  * This is a fallback if the typst.ts MemoryAccessModel cannot be imported
@@ -207,6 +719,38 @@ async function doInitialize(options: TypstWasmOptions): Promise<void> {
 			} catch (error) {
 				console.warn('[Typst WASM] Could not configure access model:', error);
 			}
+		}
+
+		// Configure package registry for external packages (@preview/...)
+		// We use a custom cached registry that works in web workers (no sync XHR)
+		// Packages are pre-fetched asynchronously before compilation
+		if (TypstSnippet && typeof TypstSnippet.withPackageRegistry === 'function') {
+			try {
+				const cachedRegistry = createCachedPackageRegistry(memoryAccessModel);
+				$typst.use(TypstSnippet.withPackageRegistry(cachedRegistry));
+				console.log('[Typst WASM] Configured cached package registry for @preview packages');
+			} catch (error) {
+				console.warn('[Typst WASM] Could not configure cached package registry:', error);
+				// Fallback: try the sync-XHR based registry (works in main thread, not web workers)
+				if (typeof TypstSnippet.fetchPackageRegistry === 'function') {
+					try {
+						$typst.use(TypstSnippet.fetchPackageRegistry(memoryAccessModel));
+						console.log('[Typst WASM] Configured sync package registry as fallback');
+					} catch (fallbackError) {
+						console.warn('[Typst WASM] Fallback package registry also failed:', fallbackError);
+					}
+				}
+			}
+		} else if (TypstSnippet && typeof TypstSnippet.fetchPackageRegistry === 'function') {
+			// Fallback to sync-XHR based registry
+			try {
+				$typst.use(TypstSnippet.fetchPackageRegistry(memoryAccessModel));
+				console.log('[Typst WASM] Configured sync package registry (may not work in web workers)');
+			} catch (error) {
+				console.warn('[Typst WASM] Could not configure package registry:', error);
+			}
+		} else {
+			console.warn('[Typst WASM] Package registry not available - @preview packages will not work');
 		}
 
 		const { readWasmFile, wasmBaseUri } = options;
@@ -438,6 +982,9 @@ export async function compileToPdf(source: string, document?: vscode.TextDocumen
 	}
 
 	try {
+		// Pre-fetch any external packages referenced in the source
+		await prefetchPackages(source);
+
 		// Load referenced files using map_shadow/add_source
 		if (document) {
 			await loadReferencedFiles(document);
@@ -487,6 +1034,9 @@ export async function compileToSvg(source: string, document?: vscode.TextDocumen
 	}
 
 	try {
+		// Pre-fetch any external packages referenced in the source
+		await prefetchPackages(source);
+
 		// Load referenced files using map_shadow/add_source
 		if (document) {
 			await loadReferencedFiles(document);
@@ -515,6 +1065,9 @@ export async function validateSource(source: string, document?: vscode.TextDocum
 	}
 
 	try {
+		// Pre-fetch any external packages referenced in the source
+		await prefetchPackages(source);
+
 		// Load referenced files using map_shadow/add_source
 		if (document) {
 			await loadReferencedFiles(document);
