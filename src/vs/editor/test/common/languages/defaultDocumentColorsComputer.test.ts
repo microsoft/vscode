@@ -138,4 +138,25 @@ suite('Default Document Colors Computer', () => {
 		// Alpha is last: 0x80 = 128, 128/255 ≈ 0.502
 		assert.ok(Math.abs(colors[0].color.alpha - 128 / 255) < 0.01, `Alpha should be ~0.502 but was ${colors[0].color.alpha}`);
 	});
+
+	test('hsl 100 percent saturation works with decimals', () => {
+		const model = new TestDocumentModel('const color = hsl(253, 100.00%, 47.10%);');
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 1, 'Should detect one hsl color');
+	});
+
+	test('hsl 100 percent saturation works without decimals', () => {
+		const model = new TestDocumentModel('const color = hsl(253, 100%, 47.10%);');
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 1, 'Should detect one hsl color');
+	});
+
+	test('hsl not 100 percent saturation should also work', () => {
+		const model = new TestDocumentModel('const color = hsl(0, 83.60%, 47.80%);');
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 1, 'Should detect one hsl color');
+	});
 });

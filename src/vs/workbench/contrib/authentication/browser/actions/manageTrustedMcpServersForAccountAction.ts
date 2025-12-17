@@ -173,6 +173,7 @@ class ManageTrustedMcpServersForAccountActionImpl {
 		quickPick.canSelectMany = true;
 		quickPick.customButton = true;
 		quickPick.customLabel = localize('manageTrustedMcpServers.cancel', 'Cancel');
+		quickPick.customButtonSecondary = true;
 		quickPick.title = localize('manageTrustedMcpServers', "Manage Trusted MCP Servers");
 		quickPick.placeholder = localize('manageMcpServers', "Choose which MCP servers can access this account");
 

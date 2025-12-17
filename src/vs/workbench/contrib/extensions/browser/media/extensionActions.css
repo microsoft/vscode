@@ -37,15 +37,17 @@
 
 .monaco-action-bar .action-item .action-label.extension-action.label,
 .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
-	background-color: var(--vscode-extensionButton-background) !important;
+	background-color: var(--vscode-extensionButton-background);
 }
 
+.monaco-list-row.focused .extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label,
+.monaco-list-row.selected .extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label,
 .monaco-action-bar .action-item .action-label.extension-action.label {
-	color: var(--vscode-extensionButton-foreground) !important;
+	color: var(--vscode-extensionButton-foreground);
 }
 
 .monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.label:hover {
-	background-color: var(--vscode-extensionButton-hoverBackground) !important;
+	background-color: var(--vscode-extensionButton-hoverBackground);
 }
 
 .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {

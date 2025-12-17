@@ -35,7 +35,7 @@ import { TokenWithTextArray } from '../../../../../common/tokens/tokenWithTextAr
 import { InlineCompletionViewData } from '../inlineEdits/inlineEditsViewInterface.js';
 import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
 import { equals, sum } from '../../../../../../base/common/arrays.js';
-import { equalsIfDefined, IEquatable, itemEquals } from '../../../../../../base/common/equals.js';
+import { equalsIfDefinedC, IEquatable, thisEqualsC } from '../../../../../../base/common/equals.js';
 
 export interface IGhostTextWidgetData {
 	readonly ghostText: GhostText | GhostTextReplacement;
@@ -103,7 +103,7 @@ export class GhostTextView extends Disposable {
 		this._additionalLinesWidget = this._register(
 			new AdditionalLinesWidget(
 				this._editor,
-				derivedOpts({ owner: this, equalsFn: equalsIfDefined(itemEquals()) }, reader => {
+				derivedOpts({ owner: this, equalsFn: equalsIfDefinedC(thisEqualsC()) }, reader => {
 					/** @description lines */
 					const uiState = this._state.read(reader);
 					return uiState ? new AdditionalLinesData(
@@ -435,7 +435,7 @@ class AdditionalLinesData implements IEquatable<AdditionalLinesData> {
 		if (this.minReservedLineCount !== other.minReservedLineCount) {
 			return false;
 		}
-		return equals(this.additionalLines, other.additionalLines, itemEquals());
+		return equals(this.additionalLines, other.additionalLines, thisEqualsC());
 	}
 }
 

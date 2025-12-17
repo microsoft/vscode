@@ -7683,6 +7683,7 @@ declare namespace monaco.languages {
 
 	export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
 		kind: InlineCompletionEndOfLifeReasonKind.Accepted;
+		alternativeAction: boolean;
 	} | {
 		kind: InlineCompletionEndOfLifeReasonKind.Rejected;
 	} | {
@@ -7726,9 +7727,9 @@ declare namespace monaco.languages {
 		availableProviders: string;
 		skuPlan: string | undefined;
 		skuType: string | undefined;
-		renameCreated: boolean;
+		renameCreated: boolean | undefined;
 		renameDuration: number | undefined;
-		renameTimedOut: boolean;
+		renameTimedOut: boolean | undefined;
 		renameDroppedOtherEdits: number | undefined;
 		renameDroppedRenameEdits: number | undefined;
 		editKind: string | undefined;

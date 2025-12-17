@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
+import { equalsIfDefinedC, arrayEqualsC } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { DebugLocation, IObservable, IObservableWithChange, IReader, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableFromEventOpts, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
@@ -78,12 +78,12 @@ export class ObservableCodeEditor extends Disposable {
 		this._versionId = observableValueOpts<number | null, IModelContentChangedEvent | undefined>({ owner: this, lazy: true }, this.editor.getModel()?.getVersionId() ?? null);
 		this.versionId = this._versionId;
 		this._selections = observableValueOpts<Selection[] | null, ICursorSelectionChangedEvent | undefined>(
-			{ owner: this, equalsFn: equalsIfDefined(itemsEquals(Selection.selectionsEqual)), lazy: true },
+			{ owner: this, equalsFn: equalsIfDefinedC(arrayEqualsC(Selection.selectionsEqual)), lazy: true },
 			this.editor.getSelections() ?? null
 		);
 		this.selections = this._selections;
 		this.positions = derivedOpts<readonly Position[] | null>(
-			{ owner: this, equalsFn: equalsIfDefined(itemsEquals(Position.equals)) },
+			{ owner: this, equalsFn: equalsIfDefinedC(arrayEqualsC(Position.equals)) },
 			reader => this.selections.read(reader)?.map(s => s.getStartPosition()) ?? null
 		);
 		this.isFocused = observableFromEventOpts({ owner: this, getTransaction: () => this._currentTransaction }, e => {
@@ -132,7 +132,7 @@ export class ObservableCodeEditor extends Disposable {
 			}
 		);
 		this.valueIsEmpty = derived(this, reader => { this.versionId.read(reader); return this.editor.getModel()?.getValueLength() === 0; });
-		this.cursorSelection = derivedOpts({ owner: this, equalsFn: equalsIfDefined(Selection.selectionsEqual) }, reader => this.selections.read(reader)?.[0] ?? null);
+		this.cursorSelection = derivedOpts({ owner: this, equalsFn: equalsIfDefinedC(Selection.selectionsEqual) }, reader => this.selections.read(reader)?.[0] ?? null);
 		this.cursorPosition = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.selections.read(reader)?.[0]?.getPosition() ?? null);
 		this.cursorLineNumber = derived<number | null>(this, reader => this.cursorPosition.read(reader)?.lineNumber ?? null);
 		this.onDidType = observableSignal<string>(this);
@@ -402,7 +402,7 @@ export class ObservableCodeEditor extends Disposable {
 
 	public observePosition(position: IObservable<Position | null>, store: DisposableStore): IObservable<Point | null> {
 		let pos = position.get();
-		const result = observableValueOpts<Point | null>({ owner: this, debugName: () => `topLeftOfPosition${pos?.toString()}`, equalsFn: equalsIfDefined(Point.equals) }, new Point(0, 0));
+		const result = observableValueOpts<Point | null>({ owner: this, debugName: () => `topLeftOfPosition${pos?.toString()}`, equalsFn: equalsIfDefinedC(Point.equals) }, new Point(0, 0));
 		const contentWidgetId = `observablePositionWidget` + (this._widgetCounter++);
 		const domNode = document.createElement('div');
 		const w: IContentWidget = {
