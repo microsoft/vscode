@@ -305,7 +305,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsCount = 0;
 	private sessionsViewerLimited = true;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
-	private sessionsViewerOrientationConfiguration: 'auto' | 'stacked' | 'sideBySide' = 'sideBySide';
+	private sessionsViewerOrientationConfiguration: 'stacked' | 'sideBySide' = 'sideBySide';
 	private sessionsViewerOrientationContext: IContextKey<AgentSessionsViewerOrientation>;
 	private sessionsViewerLimitedContext: IContextKey<boolean>;
 	private sessionsViewerVisibilityContext: IContextKey<boolean>;
@@ -406,7 +406,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Deal with orientation configuration
 		this._register(Event.runAndSubscribe(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsOrientation)), e => {
-			const newSessionsViewerOrientationConfiguration = this.configurationService.getValue<'auto' | 'stacked' | 'sideBySide'>(ChatConfiguration.ChatViewSessionsOrientation);
+			const newSessionsViewerOrientationConfiguration = this.configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
 			this.doUpdateConfiguredSessionsViewerOrientation(newSessionsViewerOrientationConfiguration, { updateConfiguration: false, layout: !!e });
 		}));
 
@@ -417,20 +417,27 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return this.sessionsViewerOrientation;
 	}
 
-	updateConfiguredSessionsViewerOrientation(orientation: 'auto' | 'stacked' | 'sideBySide'): void {
+	updateConfiguredSessionsViewerOrientation(orientation: 'stacked' | 'sideBySide' | unknown): void {
 		return this.doUpdateConfiguredSessionsViewerOrientation(orientation, { updateConfiguration: true, layout: true });
 	}
 
-	private doUpdateConfiguredSessionsViewerOrientation(orientation: 'auto' | 'stacked' | 'sideBySide', options: { updateConfiguration: boolean; layout: boolean }): void {
+	private doUpdateConfiguredSessionsViewerOrientation(orientation: 'stacked' | 'sideBySide' | unknown, options: { updateConfiguration: boolean; layout: boolean }): void {
 		const oldSessionsViewerOrientationConfiguration = this.sessionsViewerOrientationConfiguration;
-		this.sessionsViewerOrientationConfiguration = orientation;
+
+		let validatedOrientation: 'stacked' | 'sideBySide';
+		if (orientation === 'stacked' || orientation === 'sideBySide') {
+			validatedOrientation = orientation;
+		} else {
+			validatedOrientation = 'sideBySide'; // default
+		}
+		this.sessionsViewerOrientationConfiguration = validatedOrientation;
 
 		if (oldSessionsViewerOrientationConfiguration === this.sessionsViewerOrientationConfiguration) {
 			return; // no change from our existing config
 		}
 
 		if (options.updateConfiguration) {
-			this.configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, orientation);
+			this.configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, validatedOrientation);
 		}
 
 		if (options.layout && this.lastDimensions) {

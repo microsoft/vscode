@@ -69,27 +69,6 @@ MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	when: ChatContextKeys.inChatEditor.negate()
 });
 
-export class SetAgentSessionsOrientationAutoAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.chat.setAgentSessionsOrientationAuto',
-			title: localize2('chat.sessionsOrientation.auto', "Auto"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'auto'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-			menu: {
-				id: agentSessionsOrientationSubmenu,
-				group: 'navigation',
-				order: 1
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'auto');
-	}
-}
 
 export class SetAgentSessionsOrientationStackedAction extends Action2 {
 
@@ -108,8 +87,9 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked');
+		const commandService = accessor.get(ICommandService);
+
+		await commandService.executeCommand(HideAgentSessionsSidebar.ID);
 	}
 }
 
@@ -119,7 +99,7 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
 			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'sideBySide'),
+			toggled: ContextKeyExpr.notEquals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
 			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
@@ -130,8 +110,9 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
+		const commandService = accessor.get(ICommandService);
+
+		await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
 	}
 }
 
@@ -713,12 +694,19 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			return; // we need the chat view
 		}
 
-		const configuredOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		const configuredOrientation = configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		let validatedConfiguredOrientation: 'stacked' | 'sideBySide';
+		if (configuredOrientation === 'stacked' || configuredOrientation === 'sideBySide') {
+			validatedConfiguredOrientation = configuredOrientation;
+		} else {
+			validatedConfiguredOrientation = 'sideBySide'; // default
+		}
+
 		const newOrientation = this.getOrientation();
 
-		if ((!canResizeView || configuredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
+		if ((!canResizeView || validatedConfiguredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
 			chatView.updateConfiguredSessionsViewerOrientation('stacked');
-		} else if ((!canResizeView || configuredOrientation === 'stacked') && newOrientation === AgentSessionsViewerOrientation.SideBySide) {
+		} else if ((!canResizeView || validatedConfiguredOrientation === 'stacked') && newOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			chatView.updateConfiguredSessionsViewerOrientation('sideBySide');
 		}
 
@@ -728,13 +716,11 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const sideBySideMinWidth = 600 + 1;	// account for possible theme border
 		const stackedMaxWidth = sideBySideMinWidth - 1;
 
-		if (configuredOrientation !== 'auto') {
-			if (
-				(newOrientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||	// already wide enough to show side by side
-				newOrientation === AgentSessionsViewerOrientation.Stacked														// always wide enough to show stacked
-			) {
-				return; // if the orientation is not set to `auto`, we try to avoid resizing if not needed
-			}
+		if (
+			(newOrientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||	// already wide enough to show side by side
+			newOrientation === AgentSessionsViewerOrientation.Stacked														// always wide enough to show stacked
+		) {
+			return; // size suffices
 		}
 
 		if (!canResizeView) {
@@ -873,8 +859,8 @@ export class FocusAgentSessionsAction extends Action2 {
 			return;
 		}
 
-		const configuredSessionsViewerOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
-		if (configuredSessionsViewerOrientation === 'auto' || configuredSessionsViewerOrientation === 'stacked') {
+		const configuredSessionsViewerOrientation = configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		if (configuredSessionsViewerOrientation === 'stacked') {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		} else {
 			await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
