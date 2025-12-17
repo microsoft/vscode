@@ -28,13 +28,6 @@ import { Lazy } from '../../../../../../base/common/lazy.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
-const MAX_NAME_LENGTH = 64;
-const MAX_DESCRIPTION_LENGTH = 1024;
-
-function containsXmlTags(text: string): boolean {
-	return /<[^>]+>/.test(text);
-}
-
 export class PromptValidator {
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -213,12 +206,6 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.nameShouldNotBeEmpty', "The 'name' attribute must not be empty."), nameAttribute.value.range, MarkerSeverity.Error));
 			return;
 		}
-		if (nameAttribute.value.value.length > MAX_NAME_LENGTH) {
-			report(toMarker(localize('promptValidator.nameTooLong', "The 'name' attribute exceeds the maximum length of {0} characters and will be truncated.", MAX_NAME_LENGTH), nameAttribute.value.range, MarkerSeverity.Warning));
-		}
-		if (containsXmlTags(nameAttribute.value.value)) {
-			report(toMarker(localize('promptValidator.nameContainsXmlTags', "The 'name' attribute contains XML tags which will be removed."), nameAttribute.value.range, MarkerSeverity.Warning));
-		}
 	}
 
 	private validateDescription(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
@@ -233,12 +220,6 @@ export class PromptValidator {
 		if (descriptionAttribute.value.value.trim().length === 0) {
 			report(toMarker(localize('promptValidator.descriptionShouldNotBeEmpty', "The 'description' attribute should not be empty."), descriptionAttribute.value.range, MarkerSeverity.Error));
 			return;
-		}
-		if (descriptionAttribute.value.value.length > MAX_DESCRIPTION_LENGTH) {
-			report(toMarker(localize('promptValidator.descriptionTooLong', "The 'description' attribute exceeds the maximum length of {0} characters and will be truncated.", MAX_DESCRIPTION_LENGTH), descriptionAttribute.value.range, MarkerSeverity.Warning));
-		}
-		if (containsXmlTags(descriptionAttribute.value.value)) {
-			report(toMarker(localize('promptValidator.descriptionContainsXmlTags', "The 'description' attribute contains XML tags which will be removed."), descriptionAttribute.value.range, MarkerSeverity.Warning));
 		}
 	}
 
