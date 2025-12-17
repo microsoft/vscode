@@ -397,10 +397,11 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				const displayCommand = firstLine.length > MAX_DETAIL_LENGTH ? firstLine.substring(0, MAX_DETAIL_LENGTH) + '…' : firstLine;
 				detail = lastCommandLocalized(displayCommand);
 				// If the command was truncated or has multiple lines, provide a tooltip with the full command
-				if (lastCommand !== displayCommand) {
+				const wasTruncated = firstLine.length > MAX_DETAIL_LENGTH;
+				const hasMultipleLines = lastCommand.includes('\n');
+				if (wasTruncated || hasMultipleLines) {
 					// Use markdown code block to preserve formatting for multi-line commands
-					const hasNewlines = lastCommand.includes('\n');
-					tooltip = hasNewlines ? { value: '```\n' + lastCommand + '\n```', supportThemeIcons: true } : lastCommandLocalized(lastCommand);
+					tooltip = hasMultipleLines ? { value: '```\n' + lastCommand + '\n```', supportThemeIcons: true } : lastCommandLocalized(lastCommand);
 				}
 			}
 
