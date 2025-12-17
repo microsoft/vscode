@@ -96,11 +96,13 @@ suite('ListWidget', function () {
 
 	test('Page up and down scrolls within tall item that spans multiple pages', async function () {
 		const element = document.createElement('div');
-		element.style.height = '200px';
+		const VIEWPORT_HEIGHT = 200;
+		const TALL_ITEM_HEIGHT = 500; // Item is 2.5x taller than viewport
+		element.style.height = `${VIEWPORT_HEIGHT}px`;
 		element.style.width = '200px';
 
 		const delegate: IListVirtualDelegate<number> = {
-			getHeight() { return 500; }, // Item is 2.5x taller than viewport
+			getHeight() { return TALL_ITEM_HEIGHT; },
 			getTemplateId() { return 'template'; }
 		};
 
@@ -115,7 +117,7 @@ suite('ListWidget', function () {
 
 		const listWidget = store.add(new List<number>('test', element, delegate, [renderer]));
 
-		listWidget.layout(200);
+		listWidget.layout(VIEWPORT_HEIGHT);
 		listWidget.splice(0, 0, range(100));
 		listWidget.focusFirst();
 		assert.strictEqual(listWidget.getFocus()[0], 0, 'initial focus is first element');
@@ -124,12 +126,12 @@ suite('ListWidget', function () {
 		// First page down should scroll within the same tall item
 		listWidget.focusNextPage();
 		assert.strictEqual(listWidget.getFocus()[0], 0, 'focus should remain on first element');
-		assert.strictEqual(listWidget.scrollTop, 200, 'should scroll down by viewport height');
+		assert.strictEqual(listWidget.scrollTop, VIEWPORT_HEIGHT, 'should scroll down by viewport height');
 
 		// Second page down should scroll within the same tall item again
 		listWidget.focusNextPage();
 		assert.strictEqual(listWidget.getFocus()[0], 0, 'focus should remain on first element');
-		assert.strictEqual(listWidget.scrollTop, 400, 'should scroll down by viewport height again');
+		assert.strictEqual(listWidget.scrollTop, VIEWPORT_HEIGHT * 2, 'should scroll down by viewport height again');
 
 		// Third page down should scroll to next item since we reached the end of the tall item
 		listWidget.focusNextPage();
@@ -139,7 +141,7 @@ suite('ListWidget', function () {
 		// Page up should scroll within the same tall item (item 1 starts at 500px)
 		listWidget.focusPreviousPage();
 		assert.strictEqual(listWidget.getFocus()[0], 1, 'focus should remain on second element');
-		assert.strictEqual(listWidget.scrollTop, 500, 'should scroll up by viewport height');
+		assert.strictEqual(listWidget.scrollTop, TALL_ITEM_HEIGHT, 'should scroll up by viewport height');
 
 		// Continue paging up to scroll back to previous item
 		listWidget.focusPreviousPage();

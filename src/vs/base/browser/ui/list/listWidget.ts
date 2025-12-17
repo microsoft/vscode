@@ -1838,7 +1838,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 				// If the element extends above the viewport, just scroll by a page
 				if (elementTop < viewportTop) {
-					this.view.setScrollTop(Math.max(0, scrollTop - this.view.renderHeight - paddingTop));
+					this.view.setScrollTop(Math.max(0, this.view.getScrollTop() - this.view.renderHeight));
 					return;
 				}
 			}
