@@ -8,7 +8,7 @@ import { $ } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { HoverStyle, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IDelayedHoverOptions, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -319,7 +319,12 @@ function createTerminalCommandElements(
 		clickHandler();
 	}));
 
-	disposable.add(hoverService.setupDelayedHover(element, () => {
+	disposable.add(hoverService.setupDelayedHover(element, () => getHoverContent(ariaLabel, attachment), commonHoverLifecycleOptions));
+	return disposable;
+}
+
+function getHoverContent(ariaLabel: string, attachment: ITerminalVariableEntry): IDelayedHoverOptions {
+	{
 		const hoverElement = dom.$('div.chat-attached-context-hover');
 		hoverElement.setAttribute('aria-label', ariaLabel);
 
@@ -359,9 +364,7 @@ function createTerminalCommandElements(
 			...commonHoverOptions,
 			content: hoverElement,
 		};
-	}, commonHoverLifecycleOptions));
-
-	return disposable;
+	}
 }
 
 export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
