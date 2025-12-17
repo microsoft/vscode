@@ -54,6 +54,21 @@ export const LEGACY_MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
 export const AGENTS_SOURCE_FOLDER = '.github/agents';
 
 /**
+ * Default agent skills workspace source folders.
+ */
+export const DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS = [
+	'.github/skills',
+	'.claude/skills'
+] as const;
+
+/**
+ * Default agent skills user home source folders.
+ */
+export const DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS = [
+	'.claude/skills'
+] as const;
+
+/**
  * Helper function to check if a file is directly in the .github/agents/ folder (not in subfolders).
  */
 function isInAgentsFolder(fileUri: URI): boolean {
