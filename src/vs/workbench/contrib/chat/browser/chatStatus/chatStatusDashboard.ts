@@ -241,6 +241,12 @@ export class ChatStatusDashboard extends DomWidget {
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
 
+			// Show SKU below "Copilot Usage" title
+			const skuDisplayName = getSkuDisplayName(this.chatEntitlementService.sku, this.chatEntitlementService.entitlement);
+			if (skuDisplayName) {
+				this.element.appendChild($('div.sku-display', undefined, skuDisplayName));
+			}
+
 			this.createQuotaIndicator(this.element, this._store, localize('quotaLimited', "Limited"), localize('completionsLabel', "Inline Suggestions"), false);
 			this.createQuotaIndicator(this.element, this._store, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"), false);
 		}
