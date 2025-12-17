@@ -8,7 +8,7 @@ import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAg
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditorOptions } from '../chatEditor.js';
@@ -37,6 +37,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 //#region Chat View
 
 export class ToggleChatViewSessionsAction extends Action2 {
+
 	constructor() {
 		super({
 			id: 'workbench.action.chat.toggleChatViewSessions',
@@ -135,6 +136,7 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 }
 
 export class PickAgentSessionAction extends Action2 {
+
 	constructor() {
 		super({
 			id: `workbench.action.chat.history`,
@@ -182,8 +184,8 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.chat.clearHistory',
-			title: localize2('chat.clear.label', "Archive All Workspace Agent Sessions"),
+			id: 'workbench.action.chat.archiveAllAgentSessions',
+			title: localize2('archiveAll.label', "Archive All Workspace Agent Sessions"),
 			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			f1: true,
@@ -263,7 +265,7 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 
 abstract class BaseAgentSessionAction extends Action2 {
 
-	run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): void {
+	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const viewsService = accessor.get(IViewsService);
 
@@ -280,7 +282,7 @@ abstract class BaseAgentSessionAction extends Action2 {
 		}
 
 		if (session) {
-			this.runWithSession(session, accessor);
+			await this.runWithSession(session, accessor);
 		}
 	}
 
@@ -421,9 +423,8 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 
 	constructor() {
 		super({
-			id: 'agentSession.rename',
+			id: AGENT_SESSION_RENAME_ACTION_ID,
 			title: localize2('rename', "Rename..."),
-			icon: Codicon.edit,
 			keybinding: {
 				primary: KeyCode.F2,
 				mac: {
@@ -452,6 +453,79 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 		if (title) {
 			chatService.setChatSessionTitle(session.resource, title);
 		}
+	}
+}
+
+export class DeleteAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: AGENT_SESSION_DELETE_ACTION_ID,
+			title: localize2('delete', "Delete..."),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				group: 'edit',
+				order: 4,
+				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
+			}
+		});
+	}
+
+	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
+		const chatService = accessor.get(IChatService);
+		const dialogService = accessor.get(IDialogService);
+		const widgetService = accessor.get(IChatWidgetService);
+
+		const confirmed = await dialogService.confirm({
+			message: localize('deleteSession.confirm', "Are you sure you want to delete this chat session?"),
+			detail: localize('deleteSession.detail', "This action cannot be undone."),
+			primaryButton: localize('deleteSession.delete', "Delete")
+		});
+
+		if (!confirmed.confirmed) {
+			return;
+		}
+
+		// Clear chat widget
+		await widgetService.getWidgetBySessionResource(session.resource)?.clear();
+
+		// Remove from storage
+		await chatService.removeHistoryEntry(session.resource);
+	}
+}
+
+export class DeleteAllLocalSessionsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.chat.clearHistory',
+			title: localize2('agentSessions.deleteAll', "Delete All Local Workspace Chat Sessions"),
+			precondition: ChatContextKeys.enabled,
+			category: CHAT_CATEGORY,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const chatService = accessor.get(IChatService);
+		const widgetService = accessor.get(IChatWidgetService);
+		const dialogService = accessor.get(IDialogService);
+
+		const confirmed = await dialogService.confirm({
+			message: localize('deleteAllChats.confirm', "Are you sure you want to delete all local workspace chat sessions?"),
+			detail: localize('deleteAllChats.detail', "This action cannot be undone."),
+			primaryButton: localize('deleteAllChats.button', "Delete All")
+		});
+
+		if (!confirmed.confirmed) {
+			return;
+		}
+
+		// Clear all chat widgets
+		await Promise.all(widgetService.getAllWidgets().map(widget => widget.clear()));
+
+		// Remove from storage
+		await chatService.clearAllHistoryEntries();
 	}
 }
 
