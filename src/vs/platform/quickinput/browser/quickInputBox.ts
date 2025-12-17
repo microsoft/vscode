@@ -6,7 +6,7 @@
 import * as dom from '../../../base/browser/dom.js';
 import { FindInput } from '../../../base/browser/ui/findinput/findInput.js';
 import { IInputBoxStyles, IRange, MessageType } from '../../../base/browser/ui/inputbox/inputBox.js';
-import { createToggleActionViewItemProvider, IToggleStyles, Toggle, unthemedToggleStyles } from '../../../base/browser/ui/toggle/toggle.js';
+import { createToggleActionViewItemProvider, IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
 import { IAction } from '../../../base/common/actions.js';
 import { IActionViewItemProvider } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
@@ -34,7 +34,7 @@ export class QuickInputBox extends Disposable {
 				label: '',
 				inputBoxStyles,
 				toggleStyles,
-				actionViewItemProvider: createToggleActionViewItemProvider(unthemedToggleStyles)
+				actionViewItemProvider: createToggleActionViewItemProvider(toggleStyles)
 			}));
 		const input = this.findInput.inputBox.inputElement;
 		input.role = 'textbox';

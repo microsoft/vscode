@@ -34,7 +34,7 @@ import { Platform, platform, setTimeout0 } from '../../../base/common/platform.j
 import { getWindowControlsStyle, WindowControlsStyle } from '../../window/common/window.js';
 import { getZoomFactor } from '../../../base/browser/browser.js';
 import { TriStateCheckbox, createToggleActionViewItemProvider } from '../../../base/browser/ui/toggle/toggle.js';
-import { defaultCheckboxStyles, defaultToggleStyles } from '../../theme/browser/defaultStyles.js';
+import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
 
@@ -148,7 +148,7 @@ export class QuickInputController extends Disposable {
 
 		const leftActionBar = this._register(new ActionBar(titleBar, {
 			hoverDelegate: this.options.hoverDelegate,
-			actionViewItemProvider: createToggleActionViewItemProvider(defaultToggleStyles)
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
 		}));
 		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
 
@@ -156,7 +156,7 @@ export class QuickInputController extends Disposable {
 
 		const rightActionBar = this._register(new ActionBar(titleBar, {
 			hoverDelegate: this.options.hoverDelegate,
-			actionViewItemProvider: createToggleActionViewItemProvider(defaultToggleStyles)
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
 		}));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
@@ -192,7 +192,7 @@ export class QuickInputController extends Disposable {
 
 		const inlineActionBar = this._register(new ActionBar(headerContainer, {
 			hoverDelegate: this.options.hoverDelegate,
-			actionViewItemProvider: createToggleActionViewItemProvider(defaultToggleStyles)
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
 		}));
 		inlineActionBar.domNode.classList.add('quick-input-inline-action-bar');
 
@@ -222,7 +222,7 @@ export class QuickInputController extends Disposable {
 
 		// List
 		const listId = this.idPrefix + 'list';
-		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
+		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId, this.styles));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
@@ -265,7 +265,8 @@ export class QuickInputController extends Disposable {
 		const tree = this._register(this.instantiationService.createInstance(
 			QuickInputTreeController,
 			container,
-			this.options.hoverDelegate
+			this.options.hoverDelegate,
+			this.styles
 		));
 		this._register(tree.tree.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
