@@ -797,9 +797,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-.interactive-session .chat-editing-session .monaco-list-row:hover .chat-collapsible-list-action-bar,
-.interactive-session .chat-editing-session .monaco-list-row.focused .chat-collapsible-list-action-bar,
-.interactive-session .chat-editing-session .monaco-list-row.selected .chat-collapsible-list-action-bar {
+.interactive-session .chat-editing-session .monaco-list-row:hover .chat-collapsible-list-action-bar:not(.has-no-actions),
+.interactive-session .chat-editing-session .monaco-list-row.focused .chat-collapsible-list-action-bar:not(.has-no-actions),
+.interactive-session .chat-editing-session .monaco-list-row.selected .chat-collapsible-list-action-bar:not(.has-no-actions) {
 	display: inherit;
 }
 
