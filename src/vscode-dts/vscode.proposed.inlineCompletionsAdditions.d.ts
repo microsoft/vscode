@@ -47,7 +47,7 @@ declare module 'vscode' {
 		showInlineEditMenu?: boolean;
 
 		/**
-		 * If set, specifies where insertText, filterText and range apply to.
+		 * If set, specifies where insertText, filterText, range, jumpToPosition apply to.
 		*/
 		uri?: Uri;
 
@@ -66,6 +66,10 @@ declare module 'vscode' {
 		completeBracketPairs?: boolean;
 
 		warning?: InlineCompletionWarning;
+
+		supportsRename?: boolean;
+
+		jumpToPosition?: Position;
 	}
 
 
@@ -133,6 +137,12 @@ declare module 'vscode' {
 
 		readonly onDidChange?: Event<void>;
 
+		readonly modelInfo?: InlineCompletionModelInfo;
+		readonly onDidChangeModelInfo?: Event<void>;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		setCurrentModelId?(modelId: string): Thenable<void>;
+
+
 		// #region Deprecated methods
 
 		/**
@@ -151,6 +161,16 @@ declare module 'vscode' {
 		handleDidRejectCompletionItem?(completionItem: InlineCompletionItem): void;
 
 		// #endregion
+	}
+
+	export interface InlineCompletionModelInfo {
+		readonly models: InlineCompletionModel[];
+		readonly currentModelId: string;
+	}
+
+	export interface InlineCompletionModel {
+		readonly id: string;
+		readonly name: string;
 	}
 
 	export enum InlineCompletionEndOfLifeReasonKind {

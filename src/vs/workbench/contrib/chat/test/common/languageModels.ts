@@ -50,6 +50,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return [];
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		throw new Error('Method not implemented.');
 	}

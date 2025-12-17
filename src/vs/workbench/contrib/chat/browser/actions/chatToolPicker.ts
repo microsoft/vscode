@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { assertNever } from '../../../../../base/common/assert.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { markdownCommandLink } from '../../../../../base/common/htmlContent.js';
+import { createMarkdownCommandLink } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -183,14 +184,15 @@ function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService
  * @param placeHolder - Placeholder text shown in the picker
  * @param description - Optional description text shown in the picker
  * @param toolsEntries - Optional initial selection state for tools and toolsets
- * @param onUpdate - Optional callback fired when the selection changes
+ * @param token - Optional cancellation token to close the picker when cancelled
  * @returns Promise resolving to the final selection map, or undefined if cancelled
  */
 export async function showToolsPicker(
 	accessor: ServicesAccessor,
 	placeHolder: string,
 	description?: string,
-	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>
+	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>,
+	token?: CancellationToken
 ): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
@@ -492,7 +494,7 @@ export async function showToolsPicker(
 			traverse(treePicker.itemTree);
 			if (count > toolLimit) {
 				treePicker.severity = Severity.Warning;
-				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, markdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
+				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, createMarkdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
 			} else {
 				treePicker.severity = Severity.Ignore;
 				treePicker.validationMessage = undefined;
@@ -583,6 +585,13 @@ export async function showToolsPicker(
 		}
 		treePicker.hide();
 	}));
+
+	// Close picker when cancelled (e.g., when mode changes)
+	if (token) {
+		store.add(token.onCancellationRequested(() => {
+			treePicker.hide();
+		}));
+	}
 
 	treePicker.show();
 

@@ -85,6 +85,7 @@ abstract class ChatCodeBlockAction extends Action2 {
 		return this.runWithContext(accessor, context);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	abstract runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext): any;
 }
 
@@ -277,7 +278,7 @@ export function registerChatCodeBlockActions() {
 				id: APPLY_IN_EDITOR_ID,
 				title: localize2('interactive.applyInEditor.label', "Apply in Editor"),
 				precondition: ChatContextKeys.enabled,
-				f1: true,
+				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.gitPullRequestGoToChanges,
 
@@ -621,6 +622,7 @@ export function registerChatCodeCompareBlockActions() {
 			return this.runWithContext(accessor, context);
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		abstract runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): any;
 	}
 
@@ -641,6 +643,7 @@ export function registerChatCodeCompareBlockActions() {
 			});
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 
 			const instaService = accessor.get(IInstantiationService);
@@ -693,6 +696,7 @@ export function registerChatCodeCompareBlockActions() {
 			});
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 			const instaService = accessor.get(IInstantiationService);
 			const editor = instaService.createInstance(DefaultChatTextEditor);

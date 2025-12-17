@@ -290,7 +290,6 @@ export abstract class ExtensionAction extends Action implements IExtensionContai
 	static readonly EXTENSION_ACTION_CLASS = 'extension-action';
 	static readonly TEXT_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} text`;
 	static readonly LABEL_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} label`;
-	static readonly PROMINENT_LABEL_ACTION_CLASS = `${ExtensionAction.LABEL_ACTION_CLASS} prominent`;
 	static readonly ICON_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} icon`;
 
 	private _extension: IExtension | null = null;

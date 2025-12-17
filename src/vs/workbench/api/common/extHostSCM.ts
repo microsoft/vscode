@@ -8,7 +8,7 @@
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { debounce } from '../../../base/common/decorators.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { asPromise } from '../../../base/common/async.js';
 import { ExtHostCommands } from './extHostCommands.js';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto, SCMActionButtonDto, SCMArtifactGroupDto, SCMArtifactDto } from './extHost.protocol.js';
@@ -75,7 +75,9 @@ function getHistoryItemIconDto(icon: vscode.Uri | { light: vscode.Uri; dark: vsc
 
 function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMHistoryItemDto {
 	const authorIcon = getHistoryItemIconDto(historyItem.authorIcon);
-	const tooltip = MarkdownString.fromStrict(historyItem.tooltip);
+	const tooltip = Array.isArray(historyItem.tooltip)
+		? MarkdownString.fromMany(historyItem.tooltip)
+		: historyItem.tooltip ? MarkdownString.from(historyItem.tooltip) : undefined;
 
 	const references = historyItem.references?.map(r => ({
 		...r, icon: getHistoryItemIconDto(r.icon)
@@ -804,6 +806,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
+	private readonly _artifactCommandsDisposables = new DisposableMap<string /* artifact group */, DisposableStore>();
+
 	readonly handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(
@@ -908,12 +912,28 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._onDidChangeSelection.fire(selected);
 	}
 
+	async provideArtifacts(group: string, token: CancellationToken): Promise<SCMArtifactDto[] | undefined> {
+		const commandsDisposables = new DisposableStore();
+		const artifacts = await this.artifactProvider?.provideArtifacts(group, token);
+		const artifactsDto = artifacts?.map(artifact => ({
+			...artifact,
+			icon: getHistoryItemIconDto(artifact.icon),
+			command: artifact.command ? this._commands.converter.toInternal(artifact.command, commandsDisposables) : undefined
+		}));
+
+		this._artifactCommandsDisposables.get(group)?.dispose();
+		this._artifactCommandsDisposables.set(group, commandsDisposables);
+
+		return artifactsDto;
+	}
+
 	dispose(): void {
 		this._acceptInputDisposables.dispose();
 		this._actionButtonDisposables.dispose();
 		this._statusBarDisposables.dispose();
 		this._historyProviderDisposable.dispose();
 		this._artifactProviderDisposable.dispose();
+		this._artifactCommandsDisposables.dispose();
 
 		this._groups.forEach(group => group.dispose());
 		this.#proxy.$unregisterSourceControl(this.handle);
@@ -1226,13 +1246,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	async $provideArtifacts(sourceControlHandle: number, group: string, token: CancellationToken): Promise<SCMArtifactDto[] | undefined> {
 		try {
-			const artifactProvider = this._sourceControls.get(sourceControlHandle)?.artifactProvider;
-			const artifacts = await artifactProvider?.provideArtifacts(group, token);
-
-			return artifacts?.map(artifact => ({
-				...artifact,
-				icon: getHistoryItemIconDto(artifact.icon)
-			}));
+			const sourceControl = this._sourceControls.get(sourceControlHandle);
+			return sourceControl?.provideArtifacts(group, token);
 		}
 		catch (err) {
 			this.logService.error('ExtHostSCM#$provideArtifacts', err);

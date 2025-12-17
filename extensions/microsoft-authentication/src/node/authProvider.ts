@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AccountInfo, AuthenticationResult, ClientAuthError, ClientAuthErrorCodes, ServerError, SilentFlowRequest } from '@azure/msal-node';
+import { AccountInfo, AuthenticationResult, AuthError, ClientAuthError, ClientAuthErrorCodes, ServerError } from '@azure/msal-node';
 import { AuthenticationChallenge, AuthenticationConstraint, AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
@@ -522,7 +522,11 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				} catch (e) {
 					// If we can't get a token silently, the account is probably in a bad state so we should skip it
 					// MSAL will log this already, so we don't need to log it again
-					this._telemetryReporter.sendTelemetryErrorEvent(e);
+					if (e instanceof AuthError) {
+						this._telemetryReporter.sendTelemetryClientAuthErrorEvent(e);
+					} else {
+						this._telemetryReporter.sendTelemetryErrorEvent(e);
+					}
 					this._logger.info(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.username}] failed to acquire token silently, skipping account`, JSON.stringify(e));
 					continue;
 				}

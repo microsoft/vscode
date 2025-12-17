@@ -419,7 +419,7 @@ CommandsRegistry.registerCommand({
 						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
 					});
 				} else {
-					await extensionsWorkbenchService.install(arg, {
+					await extensionsWorkbenchService.install(id, {
 						version,
 						installPreReleaseVersion: options?.installPreReleaseVersion,
 						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
@@ -2024,6 +2024,7 @@ class ExtensionToolsContribution extends Disposable implements IWorkbenchContrib
 		super();
 		const searchExtensionsTool = instantiationService.createInstance(SearchExtensionsTool);
 		this._register(toolsService.registerTool(SearchExtensionsToolData, searchExtensionsTool));
+		this._register(toolsService.vscodeToolSet.addTool(SearchExtensionsToolData));
 	}
 }
 

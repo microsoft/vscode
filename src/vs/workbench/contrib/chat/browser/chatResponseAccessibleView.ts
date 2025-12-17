@@ -16,7 +16,7 @@ import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../common/chatService.js';
 import { isResponseVM } from '../common/chatViewModel.js';
-import { toolContentToA11yString } from '../common/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../common/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
@@ -70,7 +70,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			responseContent = item.errorDetails.message;
 		}
 		if (isResponseVM(item)) {
-			item.response.value.filter(item => item.kind === 'elicitation').forEach(elicitation => {
+			item.response.value.filter(item => item.kind === 'elicitation2' || item.kind === 'elicitationSerialized').forEach(elicitation => {
 				const title = elicitation.title;
 				if (typeof title === 'string') {
 					responseContent += `${title}\n`;
@@ -111,7 +111,12 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					}
 					responseContent += `\n${message}\n`;
 				} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-					responseContent += localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", toolInvocation.toolId) + toolContentToA11yString(state.contentForModel) + '\n';
+					const postApprovalDetails = isToolResultInputOutputDetails(state.resultDetails)
+						? state.resultDetails.input
+						: isToolResultOutputDetails(state.resultDetails)
+							? undefined
+							: toolContentToA11yString(state.contentForModel);
+					responseContent += localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", toolInvocation.toolId) + (postApprovalDetails ?? '') + '\n';
 				} else {
 					const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 					if (resultDetails && 'input' in resultDetails) {

@@ -115,7 +115,6 @@ import './services/authentication/browser/authenticationMcpAccessService.js';
 import './services/authentication/browser/authenticationMcpService.js';
 import './services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
 import './services/authentication/browser/authenticationQueryService.js';
-import './services/accounts/common/defaultAccount.js';
 import '../platform/hover/browser/hoverService.js';
 import './services/assignment/common/assignmentService.js';
 import './services/outline/browser/outlineService.js';
@@ -127,6 +126,7 @@ import './services/textMate/browser/textMateTokenizationFeature.contribution.js'
 import './services/treeSitter/browser/treeSitter.contribution.js';
 import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
+import './services/userAttention/browser/userAttentionBrowser.js';
 import './services/editor/browser/editorPaneService.js';
 import './services/editor/common/customEditorLabelService.js';
 import './services/dataChannel/browser/dataChannelService.js';
@@ -183,6 +183,9 @@ registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, Instantia
 
 
 //#region --- workbench contributions
+
+// Default Account
+import './services/accounts/common/defaultAccount.js';
 
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';

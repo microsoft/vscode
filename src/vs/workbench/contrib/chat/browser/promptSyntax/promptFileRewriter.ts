@@ -48,7 +48,7 @@ export class PromptFileRewriter {
 	}
 
 	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap, range: Range): void {
-		const newToolNames = this._languageModelToolsService.toQualifiedToolNames(newTools);
+		const newToolNames = this._languageModelToolsService.toFullReferenceNames(newTools);
 		const newValue = `[${newToolNames.map(s => `'${s}'`).join(', ')}]`;
 		this.rewriteAttribute(model, newValue, range);
 	}

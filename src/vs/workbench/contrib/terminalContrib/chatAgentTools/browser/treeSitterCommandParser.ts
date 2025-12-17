@@ -34,10 +34,8 @@ export class TreeSitterCommandParser extends Disposable {
 	async extractPwshDoubleAmpersandChainOperators(commandLine: string): Promise<QueryCapture[]> {
 		const captures = await this._queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
 			'(',
-			'  (command',
-			'    (command_elements',
-			'      (generic_token) @double.ampersand',
-			'        (#eq? @double.ampersand "&&")))',
+			'  (pipeline',
+			'    (pipeline_chain_tail) @double.ampersand)',
 			')',
 		].join('\n'));
 		return captures;

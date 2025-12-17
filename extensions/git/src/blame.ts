@@ -15,7 +15,7 @@ import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } 
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { AvatarQuery, AvatarQueryCommit } from './api/git';
 import { LRUCache } from './cache';
-import { AVATAR_SIZE, getHistoryItemHover, getHistoryItemHoverCommitHashCommands, processHistoryItemRemoteHoverCommands } from './historyProvider';
+import { AVATAR_SIZE, getCommitHover, getHoverCommitHashCommands, processHoverRemoteCommands } from './hover';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -251,8 +251,8 @@ export class GitBlameController {
 
 		// Commands
 		const commands: Command[][] = [
-			getHistoryItemHoverCommitHashCommands(documentUri, hash),
-			processHistoryItemRemoteHoverCommands(remoteHoverCommands, hash)
+			getHoverCommitHashCommands(documentUri, hash),
+			processHoverRemoteCommands(remoteHoverCommands, hash)
 		];
 
 		commands.push([{
@@ -262,7 +262,7 @@ export class GitBlameController {
 			arguments: ['git.blame']
 		}] satisfies Command[]);
 
-		return getHistoryItemHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands);
+		return getCommitHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands);
 	}
 
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
@@ -578,7 +578,8 @@ class GitBlameEditorDecoration implements HoverProvider {
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
 		if (e &&
 			!e.affectsConfiguration('git.commitShortHashLength') &&
-			!e.affectsConfiguration('git.blame.editorDecoration.template')) {
+			!e.affectsConfiguration('git.blame.editorDecoration.template') &&
+			!e.affectsConfiguration('git.blame.editorDecoration.disableHover')) {
 			return;
 		}
 
@@ -642,7 +643,9 @@ class GitBlameEditorDecoration implements HoverProvider {
 	private _registerHoverProvider(): void {
 		this._hoverDisposable?.dispose();
 
-		if (window.activeTextEditor && isResourceSchemeSupported(window.activeTextEditor.document.uri)) {
+		const config = workspace.getConfiguration('git');
+		const disableHover = config.get<boolean>('blame.editorDecoration.disableHover', false);
+		if (!disableHover && window.activeTextEditor && isResourceSchemeSupported(window.activeTextEditor.document.uri)) {
 			this._hoverDisposable = languages.registerHoverProvider({
 				pattern: window.activeTextEditor.document.uri.fsPath
 			}, this);

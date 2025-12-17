@@ -147,6 +147,18 @@ suite('PromptBodyAutocompletion', () => {
 				const actual = (await getCompletions(content, 5, 11, PromptsType.prompt));
 				assert.deepEqual(actual, [
 					{
+						label: 'vscode',
+						result: 'Use #tool:vscode to reference a tool.'
+					},
+					{
+						label: 'execute',
+						result: 'Use #tool:execute to reference a tool.'
+					},
+					{
+						label: 'read',
+						result: 'Use #tool:read to reference a tool.'
+					},
+					{
 						label: 'tool1',
 						result: 'Use #tool:tool1 to reference a tool.'
 					},
