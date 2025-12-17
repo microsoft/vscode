@@ -33,6 +33,10 @@ export function getMarkdownViewerHtml(
 	const highlightJsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'vendors', 'highlight', 'highlight.min.js'));
 	const highlightCssUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'vendors', 'highlight', 'github-dark.min.css'));
 
+	// KaTeX for math rendering (offline-first)
+	const katexJsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'vendors', 'katex', 'katex.min.js'));
+	const katexCssUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'vendors', 'katex', 'katex.min.css'));
+
 	// Calculate base URI for resolving relative paths (document directory)
 	const documentDir = vscode.Uri.joinPath(markdownUri, '..');
 	const baseUri = settings.baseUri || webview.asWebviewUri(documentDir).toString();
@@ -48,8 +52,9 @@ export function getMarkdownViewerHtml(
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource} https: http:; script-src 'nonce-${nonce}' ${cspSource}; style-src ${cspSource} 'unsafe-inline'; connect-src data: ${cspSource};">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource} https: http:; script-src 'nonce-${nonce}' ${cspSource}; style-src ${cspSource} 'unsafe-inline'; font-src ${cspSource}; connect-src data: ${cspSource};">
 	<link rel="stylesheet" href="${highlightCssUri}">
+	<link rel="stylesheet" href="${katexCssUri}">
 	<link rel="stylesheet" href="${previewCssUri}">
 	<meta id="markdown-preview-settings" data-settings="${escapeAttribute(JSON.stringify(viewerSettings))}">
 	<title>Markdown Preview</title>
@@ -142,6 +147,7 @@ export function getMarkdownViewerHtml(
 
 	<script nonce="${nonce}" src="${markedUri}"></script>
 	<script nonce="${nonce}" src="${highlightJsUri}"></script>
+	<script nonce="${nonce}" src="${katexJsUri}"></script>
 	<script nonce="${nonce}" src="${sharedJsUri}"></script>
 	<script nonce="${nonce}" src="${previewJsUri}"></script>
 </body>

@@ -120,6 +120,8 @@
 		"@tiptap/extension-task-item": "^2.27.1",
 		"@tiptap/extension-task-list": "^2.27.1",
 		"@tiptap/pm": "^2.1.0",
-		"@tiptap/starter-kit": "^2.1.0"
+		"@tiptap/starter-kit": "^2.1.0",
+		"@types/katex": "^0.16.7",
+		"katex": "^0.16.27"
 	}
 }

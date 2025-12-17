@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
  * Messages from webview to extension
  */
 export interface WebviewMessage {
-	type: 'ready' | 'update' | 'save' | 'requestLink' | 'openLink' | 'editLink' | 'requestImage' | 'requestTable';
+	type: 'ready' | 'update' | 'save' | 'requestLink' | 'openLink' | 'editLink' | 'requestImage' | 'requestTable' | 'requestMathInline' | 'requestMathBlock';
 	content?: string;
 	url?: string;
 }
@@ -18,7 +18,7 @@ export interface WebviewMessage {
  * Messages from extension to webview
  */
 export interface ExtensionMessage {
-	type: 'load' | 'setTheme' | 'setLink' | 'setImage' | 'insertTable';
+	type: 'load' | 'setTheme' | 'setLink' | 'setImage' | 'insertTable' | 'setMathInline' | 'setMathBlock';
 	content?: string;
 	format?: 'markdown' | 'typst';
 	theme?: 'light' | 'dark';
@@ -340,6 +340,56 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 						}
 						break;
 					}
+
+					case 'requestMathInline': {
+						// Show input box for inline math
+						const formatHint = this.format === 'typst' ? 'Typst math' : 'LaTeX';
+						const placeholder = this.format === 'typst' ? 'x^2 + y^2 = z^2' : 'x^2 + y^2 = z^2';
+						const mathContent = await vscode.window.showInputBox({
+							prompt: `Enter ${formatHint} equation (inline)`,
+							placeHolder: placeholder,
+							validateInput: (value) => {
+								if (!value) {
+									return 'Math content is required';
+								}
+								return null;
+							}
+						});
+						if (mathContent) {
+							const mathMessage: ExtensionMessage = {
+								type: 'setMathInline',
+								content: mathContent
+							};
+							webviewPanel.webview.postMessage(mathMessage);
+						}
+						break;
+					}
+
+					case 'requestMathBlock': {
+						// Show input box for block math
+						const formatHint = this.format === 'typst' ? 'Typst math' : 'LaTeX';
+						const placeholder = this.format === 'typst'
+							? 'integral(0, infinity, e^(-x^2), x)'
+							: '\\int_0^\\infty e^{-x^2} dx';
+						const mathContent = await vscode.window.showInputBox({
+							prompt: `Enter ${formatHint} equation (display/block)`,
+							placeHolder: placeholder,
+							validateInput: (value) => {
+								if (!value) {
+									return 'Math content is required';
+								}
+								return null;
+							}
+						});
+						if (mathContent) {
+							const mathMessage: ExtensionMessage = {
+								type: 'setMathBlock',
+								content: mathContent
+							};
+							webviewPanel.webview.postMessage(mathMessage);
+						}
+						break;
+					}
 				}
 			},
 			undefined,
@@ -395,6 +445,11 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'editor.js')
 		);
 
+		// KaTeX CSS for offline-first math rendering
+		const katexCssUri = webview.asWebviewUri(
+			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'katex', 'katex.min.css')
+		);
+
 		const nonce = this.getNonce();
 
 		return `<!DOCTYPE html>
@@ -410,6 +465,8 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 		font-src ${webview.cspSource};
 	">
 	<title>Rich Editor</title>
+	<!-- KaTeX CSS for math rendering (offline-first, bundled locally) -->
+	<link rel="stylesheet" href="${katexCssUri}">
 	<style>
 		* {
 			box-sizing: border-box;
@@ -678,6 +735,151 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			height: 0;
 		}
 
+		/* Math styles - KaTeX rendered (Markdown) */
+		.math-inline.math-rendered {
+			display: inline-block;
+			padding: 0 2px;
+			cursor: pointer;
+		}
+
+		.math-inline.math-rendered:hover {
+			background: var(--vscode-editor-selectionBackground, rgba(0,120,215,0.15));
+			border-radius: 3px;
+		}
+
+		.math-block.math-rendered {
+			display: block;
+			text-align: center;
+			padding: 16px;
+			margin: 16px 0;
+			cursor: pointer;
+		}
+
+		.math-block.math-rendered:hover {
+			background: var(--vscode-editor-selectionBackground, rgba(0,120,215,0.1));
+			border-radius: 4px;
+		}
+
+		/* Math styles - raw text (Typst) */
+		.math-inline.math-raw {
+			display: inline;
+			font-family: "Times New Roman", "Cambria Math", Georgia, serif;
+			font-style: italic;
+			padding: 0 4px;
+			background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.05));
+			border-radius: 3px;
+			cursor: pointer;
+		}
+
+		.math-inline.math-raw::before {
+			content: "$";
+			font-style: normal;
+			opacity: 0.5;
+		}
+
+		.math-inline.math-raw::after {
+			content: "$";
+			font-style: normal;
+			opacity: 0.5;
+		}
+
+		.math-inline.math-raw:hover {
+			background: var(--vscode-editor-selectionBackground, rgba(0,120,215,0.2));
+		}
+
+		.math-block.math-raw {
+			display: block;
+			font-family: "Times New Roman", "Cambria Math", Georgia, serif;
+			font-style: italic;
+			font-size: 1.2em;
+			text-align: center;
+			padding: 16px;
+			margin: 16px 0;
+			background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.03));
+			border-radius: 4px;
+			cursor: pointer;
+			white-space: pre-wrap;
+		}
+
+		.math-block.math-raw::before {
+			content: "$";
+			display: block;
+			font-style: normal;
+			font-size: 0.8em;
+			opacity: 0.5;
+			margin-bottom: 4px;
+		}
+
+		.math-block.math-raw::after {
+			content: "$";
+			display: block;
+			font-style: normal;
+			font-size: 0.8em;
+			opacity: 0.5;
+			margin-top: 4px;
+		}
+
+		.math-block.math-raw:hover {
+			background: var(--vscode-editor-selectionBackground, rgba(0,120,215,0.1));
+		}
+
+		/* Math error */
+		.math-error {
+			color: var(--vscode-errorForeground, #f44336);
+			font-family: monospace;
+			background: var(--vscode-inputValidation-errorBackground, rgba(244,67,54,0.1));
+			padding: 2px 4px;
+			border-radius: 3px;
+		}
+
+		/* KaTeX fallback styles (in case CDN CSS doesn't load) */
+		.math-rendered .katex {
+			font-size: 1.1em;
+			font-family: KaTeX_Main, "Times New Roman", serif;
+			line-height: 1.2;
+			white-space: nowrap;
+			text-indent: 0;
+		}
+
+		.math-rendered .katex .mord,
+		.math-rendered .katex .mop,
+		.math-rendered .katex .mbin,
+		.math-rendered .katex .mrel,
+		.math-rendered .katex .mopen,
+		.math-rendered .katex .mclose,
+		.math-rendered .katex .mpunct,
+		.math-rendered .katex .minner {
+			display: inline-block;
+		}
+
+		.math-rendered .katex .mfrac {
+			display: inline-block;
+			vertical-align: middle;
+			text-align: center;
+		}
+
+		.math-rendered .katex .mfrac .frac-line {
+			border-bottom: 1px solid currentColor;
+			display: block;
+			margin: 0.1em 0;
+		}
+
+		.math-rendered .katex sup,
+		.math-rendered .katex .msupsub .vlist-t {
+			font-size: 0.75em;
+			vertical-align: super;
+		}
+
+		.math-rendered .katex sub,
+		.math-rendered .katex .msupsub .vlist-t2 {
+			font-size: 0.75em;
+			vertical-align: sub;
+		}
+
+		.math-block.math-rendered .katex {
+			font-size: 1.3em;
+		}
+
 		.statusbar {
 			display: flex;
 			justify-content: space-between;
@@ -718,6 +920,9 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			<button class="toolbar-button" data-command="image" title="Insert Image"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/><path fill="currentColor" d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/></svg></button>
 			<button class="toolbar-button" data-command="insertTable" title="Insert Table"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm1 3v2h4V5H1zm0 3v2h4V8H1zm0 3v1a1 1 0 0 0 1 1h3v-2H1zm5-6v2h4V5H6zm0 3v2h4V8H6zm0 3v2h4v-2H6zm5-6v2h3V5h-3zm0 3v2h3V8h-3zm0 3v1a1 1 0 0 0 1 1h2v-2h-3z"/></svg></button>
 			<button class="toolbar-button" data-command="horizontalRule" title="Horizontal Rule"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M1 8a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 0 1h-13A.5.5 0 0 1 1 8z"/></svg></button>
+			<div class="toolbar-separator"></div>
+			<button class="toolbar-button" data-command="mathInline" title="Inline Math ($...$)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><text x="2" y="12" font-size="10" font-style="italic" fill="currentColor">&#8721;</text></svg></button>
+			<button class="toolbar-button" data-command="mathBlock" title="Block Math ($$...$$)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><text x="1" y="12" font-size="9" font-style="italic" fill="currentColor">&#8747;dx</text></svg></button>
 			<div class="toolbar-separator"></div>
 			<button class="toolbar-button" data-command="undo" title="Undo (Cmd+Z)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/><path fill="currentColor" d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/></svg></button>
 			<button class="toolbar-button" data-command="redo" title="Redo (Cmd+Shift+Z)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path fill="currentColor" d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg></button>

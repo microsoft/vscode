@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Editor } from '@tiptap/core';
+import { Editor, Node, mergeAttributes } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
@@ -14,6 +14,156 @@ import Table from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
+import katex from 'katex';
+
+/**
+ * Render math content - uses KaTeX for Markdown, raw text for Typst
+ */
+function renderMathContent(content: string, displayMode: boolean, format: 'markdown' | 'typst'): string {
+	if (format === 'markdown') {
+		try {
+			return katex.renderToString(content, {
+				throwOnError: false,
+				displayMode: displayMode,
+			});
+		} catch (e) {
+			return `<span class="math-error">${content}</span>`;
+		}
+	}
+	// For Typst, return escaped content (will be displayed as styled text)
+	return content.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * MathInline extension for inline math ($...$)
+ * Renders with KaTeX for Markdown, styled text for Typst
+ */
+const MathInline = Node.create({
+	name: 'mathInline',
+	group: 'inline',
+	inline: true,
+	atom: true,
+
+	addAttributes() {
+		return {
+			content: {
+				default: '',
+			},
+		};
+	},
+
+	parseHTML() {
+		return [
+			{
+				tag: 'span[data-math-inline]',
+				getAttrs: (node) => {
+					const element = node as HTMLElement;
+					return { content: element.getAttribute('data-content') || element.textContent || '' };
+				},
+			},
+		];
+	},
+
+	renderHTML({ node }) {
+		const content = node.attrs.content || '';
+		return [
+			'span',
+			mergeAttributes({
+				'data-math-inline': 'true',
+				'data-content': content,
+				class: 'math-inline',
+				contenteditable: 'false',
+			}),
+			content,
+		];
+	},
+
+	addNodeView() {
+		return ({ node }) => {
+			const span = document.createElement('span');
+			span.setAttribute('data-math-inline', 'true');
+			span.setAttribute('data-content', node.attrs.content || '');
+			span.className = currentFormat === 'markdown' ? 'math-inline math-rendered' : 'math-inline math-raw';
+			span.contentEditable = 'false';
+
+			const content = node.attrs.content || '';
+			if (currentFormat === 'markdown') {
+				// Render with KaTeX for Markdown
+				span.innerHTML = renderMathContent(content, false, 'markdown');
+			} else {
+				// Show raw for Typst
+				span.textContent = content;
+			}
+
+			return { dom: span };
+		};
+	},
+});
+
+/**
+ * MathBlock extension for display math ($$...$$)
+ * Renders with KaTeX for Markdown, styled text for Typst
+ */
+const MathBlock = Node.create({
+	name: 'mathBlock',
+	group: 'block',
+	atom: true,
+
+	addAttributes() {
+		return {
+			content: {
+				default: '',
+			},
+		};
+	},
+
+	parseHTML() {
+		return [
+			{
+				tag: 'div[data-math-block]',
+				getAttrs: (node) => {
+					const element = node as HTMLElement;
+					return { content: element.getAttribute('data-content') || element.textContent || '' };
+				},
+			},
+		];
+	},
+
+	renderHTML({ node }) {
+		const content = node.attrs.content || '';
+		return [
+			'div',
+			mergeAttributes({
+				'data-math-block': 'true',
+				'data-content': content,
+				class: 'math-block',
+				contenteditable: 'false',
+			}),
+			content,
+		];
+	},
+
+	addNodeView() {
+		return ({ node }) => {
+			const div = document.createElement('div');
+			div.setAttribute('data-math-block', 'true');
+			div.setAttribute('data-content', node.attrs.content || '');
+			div.className = currentFormat === 'markdown' ? 'math-block math-rendered' : 'math-block math-raw';
+			div.contentEditable = 'false';
+
+			const content = node.attrs.content || '';
+			if (currentFormat === 'markdown') {
+				// Render with KaTeX for Markdown
+				div.innerHTML = renderMathContent(content, true, 'markdown');
+			} else {
+				// Show raw for Typst
+				div.textContent = content;
+			}
+
+			return { dom: div };
+		};
+	},
+});
 
 // Declare VS Code API
 declare const acquireVsCodeApi: () => {
@@ -126,7 +276,9 @@ function initEditor(): void {
 			TableHeader,
 			Placeholder.configure({
 				placeholder: 'Start writing...'
-			})
+			}),
+			MathInline,
+			MathBlock
 		],
 		content: '',
 		autofocus: true,
@@ -330,6 +482,11 @@ function nodeToMarkdown(node: Record<string, unknown>): string {
 		case 'horizontalRule':
 			return '---';
 
+		case 'mathBlock': {
+			const mathContent = (attrs?.content as string) || '';
+			return `$$\n${mathContent}\n$$`;
+		}
+
 		case 'image': {
 			const src = (attrs?.src as string) || '';
 			const alt = (attrs?.alt as string) || '';
@@ -449,6 +606,11 @@ function inlineToMarkdown(node: Record<string, unknown>): string {
 		return '\n';
 	}
 
+	if (node.type === 'mathInline') {
+		const mathContent = (node.attrs as Record<string, unknown>)?.content as string || '';
+		return `$${mathContent}$`;
+	}
+
 	return '';
 }
 
@@ -501,6 +663,12 @@ function nodeToTypst(node: Record<string, unknown>): string {
 
 		case 'horizontalRule':
 			return '#line(length: 100%)';
+
+		case 'mathBlock': {
+			const mathContent = (attrs?.content as string) || '';
+			// Typst display math: $ content $ with spaces
+			return `$ ${mathContent} $`;
+		}
 
 		case 'image': {
 			const src = (attrs?.src as string) || '';
@@ -593,6 +761,12 @@ function inlineToTypst(node: Record<string, unknown>): string {
 
 	if (node.type === 'hardBreak') {
 		return '\n';
+	}
+
+	if (node.type === 'mathInline') {
+		const mathContent = (node.attrs as Record<string, unknown>)?.content as string || '';
+		// Typst inline math: $content$ without spaces
+		return `$${mathContent}$`;
 	}
 
 	return '';
@@ -700,6 +874,20 @@ function convertTableLinesToHtml(lines: string[]): string {
  */
 function markdownToHtml(markdown: string): string {
 	let html = markdown;
+
+	// Math blocks ($$...$$) - must be before other processing
+	// Handle multiline math blocks
+	html = html.replace(/\$\$([\s\S]*?)\$\$/g, (_match, content) => {
+		const escaped = content.trim().replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		return `<div data-math-block="true" data-content="${escaped}" class="math-block">${escaped}</div>`;
+	});
+
+	// Inline math ($...$) - single $ delimiters, not $$
+	// Use negative lookbehind/lookahead to avoid matching $$
+	html = html.replace(/(?<!\$)\$(?!\$)([^\$\n]+?)\$(?!\$)/g, (_match, content) => {
+		const escaped = content.trim().replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		return `<span data-math-inline="true" data-content="${escaped}" class="math-inline">${escaped}</span>`;
+	});
 
 	// Headers
 	html = html.replace(/^###### (.+)$/gm, '<h6>$1</h6>');
@@ -836,6 +1024,25 @@ function typstToHtml(typst: string): string {
 
 	// Tables - parse #table(...) syntax FIRST before other processing
 	html = parseTypstTables(html);
+
+	// Math blocks in Typst: $ content $ on its own line (display mode has spaces)
+	// or multiline math blocks
+	html = html.replace(/^\$\s+([\s\S]*?)\s+\$$/gm, (_match, content) => {
+		const escaped = content.trim().replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		return `<div data-math-block="true" data-content="${escaped}" class="math-block">${escaped}</div>`;
+	});
+
+	// Inline math in Typst: $content$ (no spaces around content)
+	html = html.replace(/\$([^\s$][^$]*?[^\s$])\$/g, (_match, content) => {
+		const escaped = content.trim().replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		return `<span data-math-inline="true" data-content="${escaped}" class="math-inline">${escaped}</span>`;
+	});
+
+	// Also handle single-character math like $x$
+	html = html.replace(/\$([^\s$])\$/g, (_match, content) => {
+		const escaped = content.trim().replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		return `<span data-math-inline="true" data-content="${escaped}" class="math-inline">${escaped}</span>`;
+	});
 
 	// Headers (= Heading)
 	html = html.replace(/^====== (.+)$/gm, '<h6>$1</h6>');
@@ -1001,6 +1208,14 @@ function executeCommand(command: string): void {
 			break;
 		case 'toggleHeaderRow':
 			editor.chain().focus().toggleHeaderRow().run();
+			break;
+		case 'mathInline':
+			// Request math input from extension
+			vscode.postMessage({ type: 'requestMathInline' });
+			break;
+		case 'mathBlock':
+			// Request math input from extension
+			vscode.postMessage({ type: 'requestMathBlock' });
 			break;
 	}
 
@@ -1193,6 +1408,26 @@ window.addEventListener('message', (event) => {
 					rows: message.rows,
 					cols: message.cols,
 					withHeaderRow: true
+				}).run();
+			}
+			break;
+
+		case 'setMathInline':
+			// Insert inline math
+			if (editor && message.content) {
+				editor.chain().focus().insertContent({
+					type: 'mathInline',
+					attrs: { content: message.content }
+				}).run();
+			}
+			break;
+
+		case 'setMathBlock':
+			// Insert block math
+			if (editor && message.content) {
+				editor.chain().focus().insertContent({
+					type: 'mathBlock',
+					attrs: { content: message.content }
 				}).run();
 			}
 			break;

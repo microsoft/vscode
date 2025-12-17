@@ -39,7 +39,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
 
-	'!**/*.{dll,exe,png,bmp,jpg,scpt,cur,ttf,woff,eot,template,ico,icns,opus,wasm}',
+	'!**/*.{dll,exe,png,bmp,jpg,scpt,cur,ttf,woff,woff2,eot,template,ico,icns,opus,wasm}',
 	'!**/test/**',
 	'!**/*.test.ts',
 	'!**/*.{d.ts,json,md}',
@@ -62,6 +62,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/**/snippets/**',
 	'!extensions/**/colorize-fixtures/**',
 	'!extensions/**/vendors/**',
+	'!extensions/**/media/katex/**',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 
 	'!src/vs/base/browser/dompurify/**',
@@ -127,12 +128,13 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/**/themes/**',
 	'!extensions/**/colorize-fixtures/**',
 	'!extensions/**/vendors/**',
+	'!extensions/**/media/katex/**',
 
 	// except specific file types
 	'!src/vs/*/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
-	'!**/*.{svg,exe,png,bmp,jpg,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,psm1,template,yaml,yml,d.ts.recipe,ico,icns,plist,opus,admx,adml,wasm}',
+	'!**/*.{svg,exe,png,bmp,jpg,scpt,bat,cmd,cur,ttf,woff,woff2,eot,md,ps1,psm1,template,yaml,yml,d.ts.recipe,ico,icns,plist,opus,admx,adml,wasm}',
 	'!build/{lib,download,linux,darwin}/**/*.js',
 	'!build/**/*.sh',
 	'!build/azure-pipelines/**/*.js',
@@ -195,6 +197,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!extensions/**/vendors/**',
+	'!extensions/**/media/katex/**',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 ]);
 

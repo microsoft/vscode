@@ -28,7 +28,7 @@ export interface ToolbarOptions {
 /**
  * Default zoom options for preview toolbars
  */
-export const DEFAULT_ZOOM_OPTIONS = [
+export const DEFAULT_ZOOM_OPTIONS: Array<{ value: string; label: string; selected?: boolean }> = [
 	{ value: '0.5', label: '50%' },
 	{ value: '0.75', label: '75%' },
 	{ value: '1', label: '100%' },

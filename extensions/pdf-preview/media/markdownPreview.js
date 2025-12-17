@@ -141,6 +141,93 @@
 		return `${base}/${cleanPath}`;
 	}
 
+	/**
+	 * Pre-process markdown to protect math from marked.js parsing
+	 * Uses safe alphanumeric placeholders to ensure they survive markdown processing
+	 * @param {string} markdown - Raw markdown text  
+	 * @returns {{ text: string, mathMap: Map<string, {content: string, display: boolean}> }}
+	 */
+	function protectMathExpressions(markdown) {
+		const mathMap = new Map();
+		let result = markdown;
+		let counter = 0;
+
+		// Protect code blocks first (using safe alphanumeric placeholder)
+		const codeBlocks = [];
+		result = result.replace(/```[\s\S]*?```|`[^`]+`/g, (match) => {
+			codeBlocks.push(match);
+			return `DSPACE_CODEBLOCK_${codeBlocks.length - 1}_END`;
+		});
+
+		// Process display math ($$...$$) - must be before inline
+		result = result.replace(/\$\$([\s\S]*?)\$\$/g, (match, content) => {
+			const id = `MATHBLOCK${counter++}`;
+			mathMap.set(id, { content: content.trim(), display: true });
+			return `DSPACE_${id}_END`;
+		});
+
+		// Process inline math ($...$)
+		result = result.replace(/(?<!\$)\$(?!\$)([^\$\n]+?)\$(?!\$)/g, (match, content) => {
+			const id = `MATHINLINE${counter++}`;
+			mathMap.set(id, { content: content.trim(), display: false });
+			return `DSPACE_${id}_END`;
+		});
+
+		// Restore code blocks
+		result = result.replace(/DSPACE_CODEBLOCK_(\d+)_END/g, (match, index) => {
+			return codeBlocks[parseInt(index, 10)];
+		});
+
+		return { text: result, mathMap };
+	}
+
+	/**
+	 * Restore math expressions in HTML after markdown parsing
+	 * @param {string} html - HTML after markdown parsing
+	 * @param {Map<string, {content: string, display: boolean}>} mathMap
+	 * @returns {string}
+	 */
+	function restoreMathExpressions(html, mathMap) {
+		let result = html;
+
+		// @ts-ignore
+		const hasKatex = !!window.katex;
+
+		for (const [id, { content, display }] of mathMap) {
+			// The placeholder uses safe alphanumeric format: DSPACE_${id}_END
+			// It might be wrapped in <p> tags for block math
+			const blockPattern = new RegExp(`<p>\\s*DSPACE_${id}_END\\s*</p>`, 'g');
+			const inlinePattern = new RegExp(`DSPACE_${id}_END`, 'g');
+
+			let replacement;
+			if (hasKatex) {
+				try {
+					// @ts-ignore
+					replacement = window.katex.renderToString(content, {
+						displayMode: display,
+						throwOnError: false
+					});
+				} catch (e) {
+					replacement = display 
+						? `<div class="math-error">$$${content}$$</div>`
+						: `<span class="math-error">$${content}$</span>`;
+				}
+			} else {
+				replacement = display 
+					? `<div class="math-raw">$$${content}$$</div>`
+					: `<span class="math-raw">$${content}$</span>`;
+			}
+
+			// Try both patterns (block wrapped in <p> and inline/raw)
+			if (display) {
+				result = result.replace(blockPattern, replacement);
+			}
+			result = result.replace(inlinePattern, replacement);
+		}
+
+		return result;
+	}
+
 	// Render markdown
 	async function renderMarkdown() {
 		try {
@@ -200,8 +287,15 @@
 				}
 			});
 
+			// Protect math expressions BEFORE markdown parsing
+			const { text: protectedMarkdown, mathMap } = protectMathExpressions(settings.markdownContent || '');
+
+			// Parse markdown (math is now safely replaced with placeholders)
 			// @ts-ignore
-			const html = window.marked.parse(settings.markdownContent || '');
+			let html = window.marked.parse(protectedMarkdown);
+
+			// Restore math expressions with KaTeX rendering
+			html = restoreMathExpressions(html, mathMap);
 
 			if (loading) {
 				loading.style.display = 'none';
