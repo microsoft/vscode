@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { FocusMode } from '../../../../platform/native/common/native.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { AccessibilityVoiceSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { ElicitationState, IChatElicitationRequest } from '../common/chatService.js';
+import { ElicitationState, IChatElicitationRequest, IChatService } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { IChatAccessibilityService, IChatWidgetService } from './chat.js';
@@ -39,8 +39,21 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHostService private readonly _hostService: IHostService,
 		@IChatWidgetService private readonly _widgetService: IChatWidgetService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
+		this._register(this._widgetService.onDidBackgroundSession(e => {
+			const session = this._chatService.getSession(e);
+			if (!session) {
+				return;
+			}
+			const requestInProgress = session?.requestInProgress.get();
+			if (!requestInProgress) {
+				return;
+			}
+			alert(localize('chat.backgroundRequest', "Chat session will continue in the background."));
+			this.disposeRequest();
+		}));
 	}
 
 	override dispose(): void {
@@ -58,7 +71,15 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		return this._requestId;
 	}
 
-	disposeRequest(requestId: number): void {
+	disposeRequest(requestId?: number): void {
+		if (!requestId) {
+			// Dispose last
+			const lastKey = Array.from(this._pendingSignalMap.keys()).pop();
+			if (lastKey !== undefined) {
+				this._pendingSignalMap.deleteAndDispose(lastKey);
+			}
+			return;
+		}
 		this._pendingSignalMap.deleteAndDispose(requestId);
 	}
 
