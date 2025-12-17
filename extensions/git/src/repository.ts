@@ -1002,14 +1002,8 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.similarityThreshold', root)
 		)(() => this.updateModelState(), this, this.disposables);
 
-		const updateInputBoxVisibility = () => {
-			const config = workspace.getConfiguration('git', root);
-			this._sourceControl.inputBox.visible = config.get<boolean>('showCommitInput', true);
-		};
-
-		const onConfigListenerForInputBoxVisibility = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.showCommitInput', root));
-		onConfigListenerForInputBoxVisibility(updateInputBoxVisibility, this, this.disposables);
-		updateInputBoxVisibility();
+		// Input box visibility is now controlled by action button state
+		// See actionButton.onDidChange below
 
 		this.mergeGroup.hideWhenEmpty = true;
 		this.untrackedGroup.hideWhenEmpty = true;
@@ -1055,8 +1049,17 @@ export class Repository implements Disposable {
 
 		const actionButton = new ActionButton(this, this.commitCommandCenter, this.logger);
 		this.disposables.push(actionButton);
-		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button, this, this.disposables);
-		this._sourceControl.actionButton = actionButton.button;
+
+		const updateActionButtonAndInputBox = () => {
+			this._sourceControl.actionButton = actionButton.button;
+			// Only show input box when the action button is commit (git.commit)
+			// Hide input box when button is sync (git.sync) or publish (git.publish)
+			const command = actionButton.button?.command.command;
+			this._sourceControl.inputBox.visible = command === 'git.commit';
+		};
+
+		actionButton.onDidChange(updateActionButtonAndInputBox, this, this.disposables);
+		updateActionButtonAndInputBox();
 
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
