@@ -75,6 +75,13 @@ export function quickInputButtonToAction(button: IQuickInputButton, id: string, 
 		cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
 	}
 
+	const handler = () => {
+		if (button.toggle) {
+			button.toggle.checked = !button.toggle.checked;
+		}
+		return run();
+	};
+
 	const action = button.toggle
 		? new QuickInputToggleButtonAction(
 			id,
@@ -83,7 +90,7 @@ export function quickInputButtonToAction(button: IQuickInputButton, id: string, 
 			cssClasses,
 			true,
 			button.toggle.checked,
-			run
+			handler
 		)
 		: {
 			id,
@@ -91,7 +98,7 @@ export function quickInputButtonToAction(button: IQuickInputButton, id: string, 
 			tooltip: button.tooltip || '',
 			class: cssClasses,
 			enabled: true,
-			run,
+			run: handler,
 		};
 
 	return action;
