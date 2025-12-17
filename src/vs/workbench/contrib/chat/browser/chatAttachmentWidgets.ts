@@ -319,44 +319,46 @@ function createTerminalCommandElements(
 		clickHandler();
 	}));
 
-	const hoverElement = dom.$('div.chat-attached-context-hover');
-	hoverElement.setAttribute('aria-label', ariaLabel);
+	disposable.add(hoverService.setupDelayedHover(element, () => {
+		const hoverElement = dom.$('div.chat-attached-context-hover');
+		hoverElement.setAttribute('aria-label', ariaLabel);
 
-	const commandTitle = dom.$('div', {}, typeof attachment.exitCode === 'number'
-		? localize('chat.terminalCommandHoverCommandTitleExit', "Command: {0}, exit code: {1}", attachment.command, attachment.exitCode)
-		: localize('chat.terminalCommandHoverCommandTitle', "Command"));
-	commandTitle.classList.add('attachment-additional-info');
-	const commandBlock = dom.$('pre.chat-terminal-command-block');
-	hoverElement.append(commandTitle, commandBlock);
+		const commandTitle = dom.$('div', {}, typeof attachment.exitCode === 'number'
+			? localize('chat.terminalCommandHoverCommandTitleExit', "Command: {0}, exit code: {1}", attachment.command, attachment.exitCode)
+			: localize('chat.terminalCommandHoverCommandTitle', "Command"));
+		commandTitle.classList.add('attachment-additional-info');
+		const commandBlock = dom.$('pre.chat-terminal-command-block');
+		hoverElement.append(commandTitle, commandBlock);
 
-	if (attachment.output && attachment.output.trim().length > 0) {
-		const outputTitle = dom.$('div', {}, localize('chat.terminalCommandHoverOutputTitle', "Output:"));
-		outputTitle.classList.add('attachment-additional-info');
-		const outputBlock = dom.$('pre.chat-terminal-command-output');
-		const fullOutputLines = attachment.output.split('\n');
-		const hoverOutputLines = [];
-		for (const line of fullOutputLines) {
-			if (hoverOutputLines.length >= TerminalConstants.MaxAttachmentOutputLineCount) {
-				hoverOutputLines.push('...');
-				break;
+		if (attachment.output && attachment.output.trim().length > 0) {
+			const outputTitle = dom.$('div', {}, localize('chat.terminalCommandHoverOutputTitle', "Output:"));
+			outputTitle.classList.add('attachment-additional-info');
+			const outputBlock = dom.$('pre.chat-terminal-command-output');
+			const fullOutputLines = attachment.output.split('\n');
+			const hoverOutputLines = [];
+			for (const line of fullOutputLines) {
+				if (hoverOutputLines.length >= TerminalConstants.MaxAttachmentOutputLineCount) {
+					hoverOutputLines.push('...');
+					break;
+				}
+				const trimmed = line.trim();
+				if (trimmed.length === 0) {
+					continue;
+				}
+				if (trimmed.length > TerminalConstants.MaxAttachmentOutputLineLength) {
+					hoverOutputLines.push(`${trimmed.slice(0, TerminalConstants.MaxAttachmentOutputLineLength)}...`);
+				} else {
+					hoverOutputLines.push(trimmed);
+				}
 			}
-			const trimmed = line.trim();
-			if (trimmed.length === 0) {
-				continue;
-			}
-			if (trimmed.length > TerminalConstants.MaxAttachmentOutputLineLength) {
-				hoverOutputLines.push(`${trimmed.slice(0, TerminalConstants.MaxAttachmentOutputLineLength)}...`);
-			} else {
-				hoverOutputLines.push(trimmed);
-			}
+			outputBlock.textContent = hoverOutputLines.join('\n');
+			hoverElement.append(outputTitle, outputBlock);
 		}
-		outputBlock.textContent = hoverOutputLines.join('\n');
-		hoverElement.append(outputTitle, outputBlock);
-	}
 
-	disposable.add(hoverService.setupDelayedHover(element, {
-		...commonHoverOptions,
-		content: hoverElement,
+		return {
+			...commonHoverOptions,
+			content: hoverElement,
+		};
 	}, commonHoverLifecycleOptions));
 
 	return disposable;
