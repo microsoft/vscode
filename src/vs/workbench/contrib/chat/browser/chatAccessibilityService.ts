@@ -9,6 +9,7 @@ import { alert, status } from '../../../../base/browser/ui/aria/aria.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { AccessibilityProgressSignalScheduler } from '../../../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
@@ -27,9 +28,7 @@ const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
 	declare readonly _serviceBrand: undefined;
 
-	private _pendingSignalMap: DisposableMap<number, AccessibilityProgressSignalScheduler> = this._register(new DisposableMap());
-
-	private _requestId: number = 0;
+	private _pendingSignalMap: DisposableMap<URI, AccessibilityProgressSignalScheduler> = this._register(new DisposableMap());
 
 	private readonly notifications: Set<DisposableStore> = new Set();
 
@@ -47,12 +46,12 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			if (!session) {
 				return;
 			}
-			const requestInProgress = session?.requestInProgress.get();
+			const requestInProgress = session.requestInProgress.get();
 			if (!requestInProgress) {
 				return;
 			}
 			alert(localize('chat.backgroundRequest', "Chat session will continue in the background."));
-			this.disposeRequest();
+			this.disposeRequest(e);
 		}));
 	}
 
@@ -64,26 +63,16 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		super.dispose();
 	}
 
-	acceptRequest(): number {
-		this._requestId++;
+	acceptRequest(uri: URI): void {
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatRequestSent, { allowManyInParallel: true });
-		this._pendingSignalMap.set(this._requestId, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
-		return this._requestId;
+		this._pendingSignalMap.set(uri, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
 	}
 
-	disposeRequest(requestId?: number): void {
-		if (!requestId) {
-			// Dispose last
-			const lastKey = Array.from(this._pendingSignalMap.keys()).pop();
-			if (lastKey !== undefined) {
-				this._pendingSignalMap.deleteAndDispose(lastKey);
-			}
-			return;
-		}
+	disposeRequest(requestId: URI): void {
 		this._pendingSignalMap.deleteAndDispose(requestId);
 	}
 
-	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void {
+	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: URI, isVoiceInput?: boolean): void {
 		this._pendingSignalMap.deleteAndDispose(requestId);
 		const isPanelChat = typeof response !== 'string';
 		const responseContent = typeof response === 'string' ? response : response?.response.toString();
