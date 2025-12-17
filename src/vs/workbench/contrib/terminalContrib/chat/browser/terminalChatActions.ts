@@ -403,7 +403,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				if (wasTruncated || hasMultipleLines) {
 					// Use markdown code block to preserve formatting for multi-line commands
 					if (hasMultipleLines) {
-						tooltip = { value: '```\n' + lastCommand + '\n```', supportThemeIcons: true };
+						tooltip = { value: `\`\`\`\n${lastCommand}\n\`\`\``, supportThemeIcons: true };
 					} else {
 						tooltip = lastCommandLocalized(lastCommand);
 					}
