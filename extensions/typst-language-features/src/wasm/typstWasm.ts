@@ -829,13 +829,25 @@ export function isWasmLoaded(): boolean {
 }
 
 /**
+ * Result of loading referenced files - includes any errors for missing files
+ */
+interface LoadReferencedFilesResult {
+	/** Errors for files that could not be loaded */
+	errors: DiagnosticInfo[];
+}
+
+/**
  * Load referenced files into the compiler using MemoryAccessModel.insertFile
  * This is the preferred method for multi-file compilation
+ *
+ * @returns Result with any errors for missing files (with correct line/column)
  */
-async function loadReferencedFiles(document: vscode.TextDocument): Promise<void> {
+async function loadReferencedFiles(document: vscode.TextDocument): Promise<LoadReferencedFilesResult> {
+	const result: LoadReferencedFilesResult = { errors: [] };
+
 	if (!memoryAccessModel) {
 		console.warn('[Typst WASM] No memory access model available, file references will not work');
-		return;
+		return result;
 	}
 
 	// Reset previous files
@@ -869,120 +881,187 @@ async function loadReferencedFiles(document: vscode.TextDocument): Promise<void>
 				fileUri = vscode.Uri.joinPath(documentDir, cleanPath);
 			}
 
-			// Read the file
-			const stat = await vscode.workspace.fs.stat(fileUri);
-			const data = await vscode.workspace.fs.readFile(fileUri);
+			// Check if file exists first
+			try {
+				const stat = await vscode.workspace.fs.stat(fileUri);
 
-			// Insert file into memory access model
-			// The compiler uses /tmp/ as default directory when mainFilePath is not specified
-			// We need to resolve paths relative to /tmp/ so the compiler can find them
-			// For "../foo" from /tmp/, the resolved path is "/foo"
-			let virtualPath: string;
-			if (cleanPath.startsWith('/')) {
-				// Absolute paths stay as-is
-				virtualPath = cleanPath;
-			} else {
-				// Resolve relative path from /tmp/
-				// Split the path and resolve . and ..
-				const baseParts = ['', 'tmp']; // represents /tmp
-				const pathParts = cleanPath.split(/[/\\]/);
-				const resolvedParts = [...baseParts];
-
-				for (const part of pathParts) {
-					if (part === '..') {
-						if (resolvedParts.length > 1) {
-							resolvedParts.pop();
+				// Check if it's a directory instead of a file
+				if (stat.type === vscode.FileType.Directory) {
+					const typeLabel = ref.type === 'bibliography' ? 'Bibliography' : ref.type === 'image' ? 'Image' : 'Include';
+					result.errors.push({
+						message: `${typeLabel} path "${ref.path}" is a directory, not a file`,
+						severity: 'error',
+						range: {
+							start: { line: ref.line, character: ref.column },
+							end: { line: ref.line, character: ref.column + ref.path.length + 20 }
 						}
-					} else if (part !== '.' && part !== '') {
-						resolvedParts.push(part);
+					});
+					continue;
+				}
+
+				// Read the file
+				const data = await vscode.workspace.fs.readFile(fileUri);
+
+				// Insert file into memory access model
+				// The compiler uses /tmp/ as default directory when mainFilePath is not specified
+				// We need to resolve paths relative to /tmp/ so the compiler can find them
+				// For "../foo" from /tmp/, the resolved path is "/foo"
+				let virtualPath: string;
+				if (cleanPath.startsWith('/')) {
+					// Absolute paths stay as-is
+					virtualPath = cleanPath;
+				} else {
+					// Resolve relative path from /tmp/
+					// Split the path and resolve . and ..
+					const baseParts = ['', 'tmp']; // represents /tmp
+					const pathParts = cleanPath.split(/[/\\]/);
+					const resolvedParts = [...baseParts];
+
+					for (const part of pathParts) {
+						if (part === '..') {
+							if (resolvedParts.length > 1) {
+								resolvedParts.pop();
+							}
+						} else if (part !== '.' && part !== '') {
+							resolvedParts.push(part);
+						}
+					}
+					virtualPath = resolvedParts.join('/') || '/';
+				}
+				memoryAccessModel.insertFile(virtualPath, data, new Date(stat.mtime));
+			} catch (statError: any) {
+				// File does not exist or cannot be accessed
+				const typeLabel = ref.type === 'bibliography' ? 'Bibliography' : ref.type === 'image' ? 'Image' : 'Include';
+				let errorMessage = `${typeLabel} file not found: "${ref.path}"`;
+
+				// Check if error indicates file not found
+				if (statError?.code === 'FileNotFound' || statError?.code === 'ENOENT') {
+					errorMessage = `${typeLabel} file not found: "${ref.path}"`;
+				} else if (statError?.message) {
+					// Include original error but make it clearer
+					const originalMsg = String(statError.message);
+					// Replace confusing "is a directory" message for non-existent files
+					if (originalMsg.includes('is a directory')) {
+						errorMessage = `${typeLabel} file not found: "${ref.path}"`;
+					} else {
+						errorMessage = `Cannot load ${typeLabel.toLowerCase()} file "${ref.path}": ${originalMsg}`;
 					}
 				}
-				virtualPath = resolvedParts.join('/') || '/';
+
+				result.errors.push({
+					message: errorMessage,
+					severity: 'error',
+					range: {
+						start: { line: ref.line, character: ref.column },
+						end: { line: ref.line, character: ref.column + ref.path.length + 20 }
+					}
+				});
+				console.warn(`[Typst WASM] Failed to load file ${ref.path}:`, statError);
 			}
-			memoryAccessModel.insertFile(virtualPath, data, new Date(stat.mtime));
 		} catch (error) {
-			console.warn(`[Typst WASM] Failed to load file ${ref.path}:`, error);
+			console.warn(`[Typst WASM] Error processing file reference ${ref.path}:`, error);
 		}
 	}
+
+	return result;
 }
 
 /**
- * Extract file references from Typst source code
+ * File reference with position information
  */
-function extractFileReferences(source: string): Array<{ path: string; type: 'image' | 'include' | 'bibliography' }> {
-	const references: Array<{ path: string; type: 'image' | 'include' | 'bibliography' }> = [];
+interface FileReference {
+	path: string;
+	type: 'image' | 'include' | 'bibliography';
+	line: number;  // 0-based line number
+	column: number;  // 0-based column number
+}
 
-	// Remove comments before extracting references
-	const withoutComments = removeComments(source);
+/**
+ * Extract file references from Typst source code with position information
+ */
+function extractFileReferences(source: string): FileReference[] {
+	const references: FileReference[] = [];
+	const lines = source.split('\n');
 
-	// Match image("path") - with or without # prefix (inside figures uses image without #)
-	const imagePattern = /#?image\s*\(\s*["']([^"']+)["']/g;
-	let match;
-	while ((match = imagePattern.exec(withoutComments)) !== null) {
-		references.push({ path: match[1], type: 'image' });
-	}
+	// Process each line to track accurate positions
+	for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+		const line = lines[lineNum];
 
-	// Match include("path") - with or without # prefix
-	const includePattern = /#?include\s*\(\s*["']([^"']+)["']/g;
-	while ((match = includePattern.exec(withoutComments)) !== null) {
-		references.push({ path: match[1], type: 'include' });
-	}
+		// Skip comment lines
+		if (line.trim().startsWith('//')) {
+			continue;
+		}
 
-	// Match bibliography("path") - with or without # prefix
-	const bibPattern = /#?bibliography\s*\(\s*["']([^"']+)["']/g;
-	while ((match = bibPattern.exec(withoutComments)) !== null) {
-		references.push({ path: match[1], type: 'bibliography' });
+		// Remove inline comments for pattern matching
+		const lineWithoutComments = removeInlineComment(line);
+
+		// Match image("path") - with or without # prefix (inside figures uses image without #)
+		const imagePattern = /#?image\s*\(\s*["']([^"']+)["']/g;
+		let match;
+		while ((match = imagePattern.exec(lineWithoutComments)) !== null) {
+			references.push({
+				path: match[1],
+				type: 'image',
+				line: lineNum,
+				column: match.index
+			});
+		}
+
+		// Match include("path") - with or without # prefix
+		const includePattern = /#?include\s*\(\s*["']([^"']+)["']/g;
+		while ((match = includePattern.exec(lineWithoutComments)) !== null) {
+			references.push({
+				path: match[1],
+				type: 'include',
+				line: lineNum,
+				column: match.index
+			});
+		}
+
+		// Match bibliography("path") - with or without # prefix
+		const bibPattern = /#?bibliography\s*\(\s*["']([^"']+)["']/g;
+		while ((match = bibPattern.exec(lineWithoutComments)) !== null) {
+			references.push({
+				path: match[1],
+				type: 'bibliography',
+				line: lineNum,
+				column: match.index
+			});
+		}
 	}
 
 	return references;
 }
 
 /**
- * Remove comments from Typst source code
+ * Remove inline comments from a line while preserving string contents
  */
-function removeComments(source: string): string {
-	const lines = source.split('\n');
-	const result: string[] = [];
+function removeInlineComment(line: string): string {
+	let inString = false;
+	let stringChar = '';
 
-	for (const line of lines) {
-		// Check if line starts with // (line comment)
-		const trimmed = line.trim();
-		if (trimmed.startsWith('//')) {
-			continue;
+	for (let i = 0; i < line.length; i++) {
+		const char = line[i];
+		const prevChar = i > 0 ? line[i - 1] : '';
+
+		// Handle string delimiters (double quote = 34, single quote = 39, backslash = 92)
+		if ((char.charCodeAt(0) === 34 || char.charCodeAt(0) === 39) && prevChar.charCodeAt(0) !== 92) {
+			if (!inString) {
+				inString = true;
+				stringChar = char;
+			} else if (char === stringChar) {
+				inString = false;
+				stringChar = '';
+			}
 		}
 
-		// Remove // comments from the end of the line
-		let inString = false;
-		let stringChar = '';
-		let processed = '';
-
-		for (let i = 0; i < line.length; i++) {
-			const char = line[i];
-			const prevChar = i > 0 ? line[i - 1] : '';
-
-			// Handle string delimiters (double quote = 34, single quote = 39, backslash = 92)
-			if ((char.charCodeAt(0) === 34 || char.charCodeAt(0) === 39) && prevChar.charCodeAt(0) !== 92) {
-				if (!inString) {
-					inString = true;
-					stringChar = char;
-				} else if (char === stringChar) {
-					inString = false;
-					stringChar = '';
-				}
-			}
-
-			// Check for // comment (only if not in string)
-			if (!inString && char === '/' && i + 1 < line.length && line[i + 1] === '/') {
-				break;
-			}
-
-			processed += char;
+		// Check for // comment (only if not in string)
+		if (!inString && char === '/' && i + 1 < line.length && line[i + 1] === '/') {
+			return line.substring(0, i);
 		}
-
-		result.push(processed);
 	}
 
-	return result.join('\n');
+	return line;
 }
 
 /**
@@ -1009,8 +1088,20 @@ export async function compileToPdf(source: string, document?: vscode.TextDocumen
 		await prefetchPackages(source);
 
 		// Load referenced files using map_shadow/add_source
+		// Collect any file loading errors (missing files, etc.)
+		let fileErrors: DiagnosticInfo[] = [];
 		if (document) {
-			await loadReferencedFiles(document);
+			const loadResult = await loadReferencedFiles(document);
+			fileErrors = loadResult.errors;
+		}
+
+		// If there are file loading errors, return them immediately
+		// This provides clearer error messages with correct line numbers
+		if (fileErrors.length > 0) {
+			return {
+				success: false,
+				errors: fileErrors
+			};
 		}
 
 		const pdf = await typstInstance.pdf({
@@ -1061,8 +1152,20 @@ export async function compileToSvg(source: string, document?: vscode.TextDocumen
 		await prefetchPackages(source);
 
 		// Load referenced files using map_shadow/add_source
+		// Collect any file loading errors (missing files, etc.)
+		let fileErrors: DiagnosticInfo[] = [];
 		if (document) {
-			await loadReferencedFiles(document);
+			const loadResult = await loadReferencedFiles(document);
+			fileErrors = loadResult.errors;
+		}
+
+		// If there are file loading errors, return them immediately
+		// This provides clearer error messages with correct line numbers
+		if (fileErrors.length > 0) {
+			return {
+				success: false,
+				errors: fileErrors
+			};
 		}
 
 		const svg = await typstInstance.svg({
@@ -1075,6 +1178,248 @@ export async function compileToSvg(source: string, document?: vscode.TextDocumen
 		console.error('[Typst WASM] Compilation error:', error);
 		return parseCompilationError(error, source);
 	}
+}
+
+/**
+ * Helper function to find error location in source code based on error message patterns.
+ * This is used when the compiler doesn't provide accurate line/column information.
+ *
+ * @param message The error message from the compiler
+ * @param source The Typst source code
+ * @returns Location { line, column } (0-based) or undefined if not found
+ */
+function findErrorLocationInSource(message: string, source: string): { line: number; column: number } | undefined {
+	const lines = source.split('\n');
+
+	// Pattern 1: "label `<labelname>` does not exist in the document"
+	// Used for bibliography citations (@labelname) that reference non-existent entries
+	const labelNotExistMatch = message.match(/label\s+`<([^>]+)>`\s+does not exist/i);
+	if (labelNotExistMatch) {
+		const labelName = labelNotExistMatch[1];
+		const citationPattern = '@' + labelName;
+		for (let i = 0; i < lines.length; i++) {
+			const colIndex = lines[i].indexOf(citationPattern);
+			if (colIndex !== -1 && !lines[i].trim().startsWith('//')) {
+				return { line: i, column: colIndex };
+			}
+		}
+	}
+
+	// Pattern 2: "label `<labelname>` occurs multiple times" / "duplicate label"
+	// Find the second occurrence of the label definition
+	const duplicateLabelMatch = message.match(/label\s+`<([^>]+)>`\s+(?:occurs|already|duplicate)/i);
+	if (duplicateLabelMatch) {
+		const labelName = duplicateLabelMatch[1];
+		const labelPattern = '<' + labelName + '>';
+		let firstFound = false;
+		for (let i = 0; i < lines.length; i++) {
+			const colIndex = lines[i].indexOf(labelPattern);
+			if (colIndex !== -1 && !lines[i].trim().startsWith('//')) {
+				if (firstFound) {
+					return { line: i, column: colIndex };
+				}
+				firstFound = true;
+			}
+		}
+	}
+
+	// Pattern 3: "unknown variable: varname" or "unknown variable `varname`"
+	const unknownVarMatch = message.match(/unknown\s+variable[:\s]+`?(\w+)`?/i);
+	if (unknownVarMatch) {
+		const varName = unknownVarMatch[1];
+		for (let i = 0; i < lines.length; i++) {
+			if (lines[i].includes(varName) && !lines[i].trim().startsWith('//')) {
+				const colIndex = lines[i].indexOf(varName);
+				return { line: i, column: colIndex >= 0 ? colIndex : 0 };
+			}
+		}
+	}
+
+	// Pattern 4: "unknown function: funcname" or "unknown function `funcname`"
+	const unknownFuncMatch = message.match(/unknown\s+function[:\s]+`?(\w+)`?/i);
+	if (unknownFuncMatch) {
+		const funcName = unknownFuncMatch[1];
+		// Functions are called with # prefix or as method calls
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			if (line.trim().startsWith('//')) {
+				continue;
+			}
+			// Try #funcname( pattern
+			const funcCallPattern = new RegExp('#' + funcName + '\\s*\\(');
+			const funcMatch = line.match(funcCallPattern);
+			if (funcMatch && funcMatch.index !== undefined) {
+				return { line: i, column: funcMatch.index };
+			}
+			// Try .funcname( pattern (method call)
+			const methodPattern = new RegExp('\\.' + funcName + '\\s*\\(');
+			const methodMatch = line.match(methodPattern);
+			if (methodMatch && methodMatch.index !== undefined) {
+				return { line: i, column: methodMatch.index };
+			}
+			// Try funcname( without # (inside code blocks)
+			if (line.includes(funcName + '(')) {
+				const colIndex = line.indexOf(funcName + '(');
+				return { line: i, column: colIndex };
+			}
+		}
+	}
+
+	// Pattern 5: "unknown field: fieldname" or "unknown key: keyname"
+	const unknownFieldMatch = message.match(/unknown\s+(?:field|key)[:\s]+`?(\w+)`?/i);
+	if (unknownFieldMatch) {
+		const fieldName = unknownFieldMatch[1];
+		// Fields are used as fieldname: value
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			if (line.trim().startsWith('//')) {
+				continue;
+			}
+			const fieldPattern = new RegExp(fieldName + '\\s*:');
+			const fieldMatch = line.match(fieldPattern);
+			if (fieldMatch && fieldMatch.index !== undefined) {
+				return { line: i, column: fieldMatch.index };
+			}
+		}
+	}
+
+	// Pattern 6: "file not found" or "failed to open" for specific files
+	const fileNotFoundMatch = message.match(/(?:file\s+not\s+found|failed\s+to\s+(?:load|open))[:\s]*["']?([^"'\n]+)["']?/i);
+	if (fileNotFoundMatch) {
+		const fileName = fileNotFoundMatch[1].trim();
+		// Look for image(), include(), or bibliography() calls with this file
+		for (let i = 0; i < lines.length; i++) {
+			if (lines[i].includes(fileName) && !lines[i].trim().startsWith('//')) {
+				const colIndex = lines[i].indexOf(fileName);
+				return { line: i, column: colIndex >= 0 ? colIndex : 0 };
+			}
+		}
+	}
+
+	// Pattern 7: "unknown font family: fontname"
+	const unknownFontMatch = message.match(/unknown\s+font(?:\s+family)?[:\s]+`?([^`\n]+)`?/i);
+	if (unknownFontMatch) {
+		const fontName = unknownFontMatch[1].trim();
+		for (let i = 0; i < lines.length; i++) {
+			if (lines[i].includes(fontName) && !lines[i].trim().startsWith('//')) {
+				const colIndex = lines[i].indexOf(fontName);
+				return { line: i, column: colIndex >= 0 ? colIndex : 0 };
+			}
+		}
+	}
+
+	// Pattern 8: "package not found" or "cannot find package"
+	const packageNotFoundMatch = message.match(/(?:package\s+not\s+found|cannot\s+find\s+package)[:\s]*["']?(@[^"'\s\n]+)["']?/i);
+	if (packageNotFoundMatch) {
+		const packageName = packageNotFoundMatch[1];
+		for (let i = 0; i < lines.length; i++) {
+			if (lines[i].includes(packageName) && !lines[i].trim().startsWith('//')) {
+				const colIndex = lines[i].indexOf(packageName);
+				return { line: i, column: colIndex >= 0 ? colIndex : 0 };
+			}
+		}
+	}
+
+	// Pattern 9: "missing argument: argname" or "argument `argname` is missing"
+	const missingArgMatch = message.match(/(?:missing\s+argument|argument\s+`([^`]+)`\s+is\s+missing)[:\s]*`?([^`\n]*)`?/i);
+	if (missingArgMatch) {
+		const argName = missingArgMatch[1] || missingArgMatch[2];
+		if (argName) {
+			// Look for function calls that might be missing this argument
+			// This is harder to pinpoint, so we look for the function name if mentioned
+			const funcInMessage = message.match(/(?:in|for|of)\s+`?(\w+)`?/i);
+			if (funcInMessage) {
+				const funcName = funcInMessage[1];
+				for (let i = 0; i < lines.length; i++) {
+					if (lines[i].includes(funcName) && !lines[i].trim().startsWith('//')) {
+						const colIndex = lines[i].indexOf(funcName);
+						return { line: i, column: colIndex >= 0 ? colIndex : 0 };
+					}
+				}
+			}
+		}
+	}
+
+	// Pattern 10: "cannot apply X to Y" - type mismatch errors
+	const typeErrorMatch = message.match(/cannot\s+(?:apply|convert|use)\s+`?(\w+)`?\s+(?:to|as|on)\s+`?(\w+)`?/i);
+	if (typeErrorMatch) {
+		// Look for the first term which is usually the value being used incorrectly
+		const term = typeErrorMatch[1];
+		for (let i = 0; i < lines.length; i++) {
+			if (lines[i].includes(term) && !lines[i].trim().startsWith('//')) {
+				const colIndex = lines[i].indexOf(term);
+				return { line: i, column: colIndex >= 0 ? colIndex : 0 };
+			}
+		}
+	}
+
+	// Pattern 11: "can only be used when context is known" - context-dependent functions
+	if (message.includes('can only be used when context is known')) {
+		for (let i = 0; i < lines.length; i++) {
+			if (lines[i].includes('.display()') || lines[i].includes('counter(') || lines[i].includes('state(')) {
+				return { line: i, column: 0 };
+			}
+		}
+	}
+
+	// Pattern 12: "expected X, found Y" - syntax errors with expected tokens
+	const expectedMatch = message.match(/expected\s+([^,\n]+)(?:,\s+found)?/i);
+	if (expectedMatch) {
+		const expected = expectedMatch[1].trim();
+		// Common patterns
+		if (expected.includes(')') || expected.includes(']') || expected.includes('}')) {
+			// Look for unmatched opening brackets
+			const bracketStack: Array<{ char: string; line: number; col: number }> = [];
+			for (let i = 0; i < lines.length; i++) {
+				const line = lines[i];
+				for (let j = 0; j < line.length; j++) {
+					const char = line[j];
+					if (char === '(' || char === '[' || char === '{') {
+						bracketStack.push({ char, line: i, col: j });
+					} else if (char === ')' || char === ']' || char === '}') {
+						bracketStack.pop();
+					}
+				}
+			}
+			if (bracketStack.length > 0) {
+				const last = bracketStack[bracketStack.length - 1];
+				return { line: last.line, column: last.col };
+			}
+		}
+	}
+
+	// Pattern 13: "content or array expected, found X" - common type mismatch
+	const contentExpectedMatch = message.match(/(?:content|array|string|integer|float)\s+expected/i);
+	if (contentExpectedMatch) {
+		// Look for #set or #show statements which often cause these errors
+		for (let i = 0; i < lines.length; i++) {
+			if ((lines[i].includes('#set') || lines[i].includes('#show')) && !lines[i].trim().startsWith('//')) {
+				return { line: i, column: 0 };
+			}
+		}
+	}
+
+	// Pattern 14: "assertion failed" - for #assert statements
+	if (message.includes('assertion failed')) {
+		for (let i = 0; i < lines.length; i++) {
+			if (lines[i].includes('#assert') && !lines[i].trim().startsWith('//')) {
+				const colIndex = lines[i].indexOf('#assert');
+				return { line: i, column: colIndex >= 0 ? colIndex : 0 };
+			}
+		}
+	}
+
+	// Pattern 15: "division by zero" - math errors
+	if (message.includes('division by zero') || message.includes('divide by zero')) {
+		for (let i = 0; i < lines.length; i++) {
+			if (lines[i].includes('/') && !lines[i].trim().startsWith('//')) {
+				const colIndex = lines[i].indexOf('/');
+				return { line: i, column: colIndex >= 0 ? colIndex : 0 };
+			}
+		}
+	}
+
+	return undefined;
 }
 
 /**
@@ -1092,8 +1437,17 @@ export async function validateSource(source: string, document?: vscode.TextDocum
 		await prefetchPackages(source);
 
 		// Load referenced files using map_shadow/add_source
+		// Collect any file loading errors (missing files, etc.)
+		let fileErrors: DiagnosticInfo[] = [];
 		if (document) {
-			await loadReferencedFiles(document);
+			const loadResult = await loadReferencedFiles(document);
+			fileErrors = loadResult.errors;
+		}
+
+		// If there are file loading errors, return them immediately
+		// This provides clearer error messages with correct line numbers
+		if (fileErrors.length > 0) {
+			return fileErrors;
 		}
 
 		// Check if getDiagnostics method is available (proper API)
@@ -1144,6 +1498,17 @@ export async function validateSource(source: string, document?: vscode.TextDocum
 						}
 					}
 
+					const message = diag.message || diag.msg || String(diag);
+
+					// If location is still unknown, try to find it in source code
+					if (lineNum === 0) {
+						const location = findErrorLocationInSource(message, source);
+						if (location) {
+							lineNum = location.line;
+							colNum = location.column;
+						}
+					}
+
 					const severity =
 						(diag.severity || 'error').toLowerCase() === 'error'
 							? 'error'
@@ -1152,7 +1517,7 @@ export async function validateSource(source: string, document?: vscode.TextDocum
 								: 'info';
 
 					return {
-						message: diag.message || diag.msg || String(diag),
+						message: message,
 						severity: severity,
 						range: {
 							start: { line: lineNum, character: colNum },
@@ -1249,6 +1614,15 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 						typeof diag.range.start?.column === 'number'
 					) {
 						colNum = Math.max(0, diag.range.start.character || diag.range.start.column || 0);
+					}
+				}
+
+				// If location is still unknown, try to find it in source code
+				if (lineNum === 0 && source) {
+					const location = findErrorLocationInSource(message, source);
+					if (location) {
+						lineNum = location.line;
+						colNum = location.column;
 					}
 				}
 
@@ -1360,37 +1734,18 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 		// Method 4: If we have source code, try to find the error location by searching for context
 		// This is a heuristic approach when span decoding isn't available
 		if (lineNum === 0 && source) {
+			const location = findErrorLocationInSource(message, source);
+			if (location) {
+				lineNum = location.line;
+				colNum = location.column;
+			}
+
+			// Additional complex patterns that may modify the error message
 			const lines = source.split('\n');
 
-			// Try to extract keywords from the error message that might appear in the source
-			// Common patterns: "unknown variable: X" -> search for "X"
-			const varMatch = message.match(/unknown variable:\s*(\w+)/i);
-			if (varMatch) {
-				const varName = varMatch[1];
-				for (let i = 0; i < lines.length; i++) {
-					// Look for the variable name in a context that suggests it's being used incorrectly
-					if (lines[i].includes(varName) && !lines[i].trim().startsWith('//')) {
-						lineNum = i;
-						const colIndex = lines[i].indexOf(varName);
-						colNum = colIndex >= 0 ? colIndex : 0;
-						break;
-					}
-				}
-			}
-
-			// For "can only be used when context is known" - often related to counter.display()
-			if (lineNum === 0 && message.includes('can only be used when context is known')) {
-				for (let i = 0; i < lines.length; i++) {
-					if (lines[i].includes('.display()') || lines[i].includes('counter(')) {
-						lineNum = i;
-						break;
-					}
-				}
-			}
-
 			// For "unclosed delimiter" - try to find unmatched brackets by parsing
+			// This also enhances the error message with specific bracket info
 			if (lineNum === 0 && message.includes('unclosed delimiter')) {
-				// Simple bracket matching to find likely unclosed delimiters
 				const bracketStack: Array<{ char: string; line: number; col: number }> = [];
 				let inString = false;
 				let inCodeBlock = false;
@@ -1432,7 +1787,7 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 
 						// Handle comments
 						if (char === '/' && j + 1 < line.length && line[j + 1] === '/') {
-							break; // Rest of line is comment
+							break;
 						}
 
 						// Track brackets
@@ -1440,7 +1795,6 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 							bracketStack.push({ char, line: i, col: j });
 						} else if (char === ')' || char === ']' || char === '}') {
 							if (bracketStack.length === 0) {
-								// Unmatched closing bracket - likely error location
 								lineNum = i;
 								colNum = j;
 								unclosedBracket = { char, line: i, col: j };
@@ -1449,7 +1803,6 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 							const last = bracketStack.pop();
 							const pairs: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
 							if (last && pairs[last.char] !== char) {
-								// Mismatched bracket - likely error location
 								lineNum = i;
 								colNum = j;
 								unclosedBracket = { char: last.char, line: last.line, col: last.col };
@@ -1462,14 +1815,12 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 					}
 				}
 
-				// If we found unclosed brackets at the end, use the last one
 				if (lineNum === 0 && bracketStack.length > 0) {
 					unclosedBracket = bracketStack[bracketStack.length - 1];
 					lineNum = unclosedBracket.line;
 					colNum = unclosedBracket.col;
 				}
 
-				// Enhance error message with context if we found the location
 				if (unclosedBracket) {
 					const bracketNames: Record<string, string> = {
 						'(': 'parenthesis',
@@ -1481,144 +1832,15 @@ function parseCompilationError(error: unknown, source?: string): CompileResult {
 				}
 			}
 
-			// For "expected comma" - search for function calls or lists that might be missing commas
-			if (lineNum === 0 && message.includes('expected comma')) {
-				// Look for patterns like "value value" or "value )" which suggest missing comma
-				for (let i = 0; i < lines.length; i++) {
-					const line = lines[i];
-					// Pattern: word followed by word or closing bracket without comma
-					const commaPattern = /\w+\s+\w+|\w+\s*[)\]}]/;
-					if (commaPattern.test(line) && !line.trim().startsWith('//')) {
-						lineNum = i;
-						// Find the position where comma might be missing
-						const match = line.match(/(\w+)\s+(\w+|[)\]}])/);
-						if (match && match.index !== undefined) {
-							colNum = match.index + match[1].length;
-						}
-						break;
-					}
-				}
-			}
-
-			// For "the character `#` is not valid in code" - find lines with # outside of code blocks or comments
-			if (lineNum === 0 && message.includes('character') && message.includes('not valid in code')) {
-				// Extract the character from the message (e.g., `#` or `:`)
-				const charMatch = message.match(/character\s+`([^`]+)`/);
-				if (charMatch) {
-					const invalidChar = charMatch[1];
-					let inCodeBlock = false;
-					for (let i = 0; i < lines.length; i++) {
-						const line = lines[i];
-						// Skip comments
-						if (line.trim().startsWith('//')) {
-							continue;
-						}
-						// Check for code blocks
-						if (line.includes('```')) {
-							inCodeBlock = !inCodeBlock;
-							continue;
-						}
-						if (inCodeBlock) {
-							continue;
-						}
-						// Look for the invalid character in text (not in code expressions)
-						// Check if it's in backticks (code) or in regular text
-						const charIndex = line.indexOf(invalidChar);
-						if (charIndex >= 0) {
-							// Check if it's inside backticks (which is valid) or outside
-							const beforeChar = line.substring(0, charIndex);
-							const backtickCount = (beforeChar.match(/`/g) || []).length;
-							// If even number of backticks before, we're outside a code block
-							if (backtickCount % 2 === 0 && !line.trim().startsWith('#')) {
-								lineNum = i;
-								colNum = charIndex;
-								break;
-							}
-						}
-					}
-				}
-			}
-
-			// For "expected semicolon or line break" - be very conservative
-			// This error often appears as a cascading error from other issues, so we should
-			// only try to locate it if we're very confident, otherwise leave it at the compiler's location
-			// Don't try to guess - let the compiler's location stand unless we have strong evidence
-			// (This heuristic is intentionally minimal to avoid false positives)
-
-			// For "unexpected colon" - find lines with colons in wrong places
-			// Note: Colons are valid in Typst for named arguments (e.g., title: "value")
-			// So we need to be very careful - only flag if we're confident it's invalid
-			// If we can't find a clearly invalid colon, don't override the compiler's location
-			if (lineNum === 0 && message.includes('unexpected colon')) {
-				for (let i = 0; i < lines.length; i++) {
-					const line = lines[i];
-					// Skip comments
-					if (line.trim().startsWith('//')) {
-						continue;
-					}
-
-					// Look for colons that are clearly invalid
-					// Valid colons appear in: function(args: value), #set page(margin: 2cm), etc.
-					// Invalid colons: standalone :, : after operators like + :, etc.
-
-					// Check each colon in the line
-					let colonIndex = -1;
-					while ((colonIndex = line.indexOf(':', colonIndex + 1)) >= 0) {
-						const beforeColon = line.substring(0, colonIndex);
-						const afterColon = line.substring(colonIndex + 1);
-
-						// Skip if in quotes or code blocks
-						const quoteCount = (beforeColon.match(/["']/g) || []).length;
-						const backtickCount = (beforeColon.match(/`/g) || []).length;
-						if (quoteCount % 2 !== 0 || backtickCount % 2 !== 0) {
-							continue;
-						}
-
-						// Check if colon is clearly invalid (after operator, at start, etc.)
-						const beforeTrimmed = beforeColon.trim();
-						const afterTrimmed = afterColon.trim();
-
-						// Invalid patterns:
-						// - Colon at start of line (after whitespace/comments)
-						// - Colon immediately after operators: + :, = :, etc.
-						// - Colon with nothing meaningful after it
-						if (
-							beforeTrimmed === '' ||
-							beforeTrimmed.endsWith('+') ||
-							beforeTrimmed.endsWith('-') ||
-							beforeTrimmed.endsWith('*') ||
-							beforeTrimmed.endsWith('/') ||
-							beforeTrimmed.endsWith('=') ||
-							beforeTrimmed.endsWith('<') ||
-							beforeTrimmed.endsWith('>') ||
-							afterTrimmed === '' ||
-							afterTrimmed.startsWith(')') ||
-							afterTrimmed.startsWith(']') ||
-							afterTrimmed.startsWith('}')
-						) {
-							// This looks like an invalid colon
-							lineNum = i;
-							colNum = colonIndex;
-							break;
-						}
-					}
-					if (lineNum > 0) {
-						break;
-					}
-				}
-			}
-
 			// For "unclosed label" - find labels missing closing >
 			if (lineNum === 0 && message.includes('unclosed label')) {
 				for (let i = 0; i < lines.length; i++) {
 					const line = lines[i];
-					// Look for < that doesn't have a matching >
 					const openLabelIndex = line.indexOf('<');
 					if (openLabelIndex >= 0) {
 						const afterOpen = line.substring(openLabelIndex + 1);
 						const closeLabelIndex = afterOpen.indexOf('>');
 						if (closeLabelIndex === -1) {
-							// Found unclosed label
 							lineNum = i;
 							colNum = openLabelIndex;
 							break;
@@ -1938,3 +2160,4 @@ export function disposeRenderer(): void {
 	currentSourceCode = '';
 	currentSourceLines = [];
 }
+
