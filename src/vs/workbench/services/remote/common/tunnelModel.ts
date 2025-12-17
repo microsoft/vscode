@@ -853,23 +853,27 @@ export class TunnelModel extends Disposable {
 			for (const tunnel of tunnels) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.remoteAddress.host, tunnel.remoteAddress.port);
 				const localAddress = typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port);
+				// Retrieve port attributes from configuration
+				const attributes = this.configPortsAttributes.getAttributes(tunnel.remoteAddress.port, tunnel.remoteAddress.host, matchingCandidate?.detail);
+				const protocol = (tunnel.protocol === 'https' ? TunnelProtocol.Https : (attributes?.protocol === 'https' ? TunnelProtocol.Https : TunnelProtocol.Http));
 				this.detected.set(makeAddress(tunnel.remoteAddress.host, tunnel.remoteAddress.port), {
 					remoteHost: tunnel.remoteAddress.host,
 					remotePort: tunnel.remoteAddress.port,
 					localAddress: localAddress,
-					protocol: TunnelProtocol.Http,
+					protocol: protocol,
 					localUri: this.makeLocalUri(localAddress),
 					closeable: false,
 					runningProcess: matchingCandidate?.detail,
 					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
 					privacy: TunnelPrivacyId.ConstantPrivate,
+					name: attributes?.label,
 					source: {
 						source: TunnelSource.Extension,
 						description: nls.localize('tunnel.staticallyForwarded', "Statically Forwarded")
 					}
 				});
-				this.tunnelService.setEnvironmentTunnel(tunnel.remoteAddress.host, tunnel.remoteAddress.port, localAddress, TunnelPrivacyId.ConstantPrivate, TunnelProtocol.Http);
+				this.tunnelService.setEnvironmentTunnel(tunnel.remoteAddress.host, tunnel.remoteAddress.port, localAddress, TunnelPrivacyId.ConstantPrivate, protocol);
 			}
 		}
 		this._environmentTunnelsSet = true;
