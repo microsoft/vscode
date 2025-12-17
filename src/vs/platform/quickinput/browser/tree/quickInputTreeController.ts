@@ -19,7 +19,7 @@ import { QuickTreeAccessibilityProvider } from './quickInputTreeAccessibilityPro
 import { QuickInputTreeFilter } from './quickInputTreeFilter.js';
 import { QuickInputCheckboxStateHandler, QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
 import { QuickInputTreeSorter } from './quickInputTreeSorter.js';
-import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Checkbox, IToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 
 const $ = dom.$;
 const flatHierarchyClass = 'quick-input-tree-flat';
@@ -78,6 +78,7 @@ export class QuickInputTreeController extends Disposable {
 	constructor(
 		container: HTMLElement,
 		hoverDelegate: IHoverDelegate | undefined,
+		toggleStyles: IToggleStyles,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -89,6 +90,7 @@ export class QuickInputTreeController extends Disposable {
 			this._onDidTriggerButton,
 			this.onDidChangeCheckboxState,
 			this._checkboxStateHandler,
+			toggleStyles,
 		));
 		this._filter = this.instantiationService.createInstance(QuickInputTreeFilter);
 		this._sorter = this._register(new QuickInputTreeSorter());
