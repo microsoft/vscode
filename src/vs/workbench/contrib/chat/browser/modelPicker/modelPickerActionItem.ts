@@ -8,8 +8,8 @@ import { Event } from '../../../../../base/common/event.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
 import { localize } from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
-import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
@@ -23,6 +23,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -138,6 +139,8 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
  * Action view item for selecting a language model in the chat interface.
  */
 export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
+	private readonly tooltipDisposable = this._register(new MutableDisposable());
+
 	constructor(
 		action: IAction,
 		protected currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
@@ -150,6 +153,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProductService productService: IProductService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
@@ -176,11 +180,18 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		const { name, statusIcon, tooltip } = this.currentModel?.metadata || {};
 		const domChildren = [];
-		if (this.currentModel?.metadata.statusIcon) {
-			domChildren.push(...renderLabelWithIcons(`\$(${this.currentModel.metadata.statusIcon.id})`));
+
+		if (statusIcon) {
+			const iconElement = renderIcon(statusIcon);
+			domChildren.push(iconElement);
+			if (tooltip) {
+				this.tooltipDisposable.value = this.hoverService.setupDelayedHoverAtMouse(iconElement, () => ({ content: tooltip }));
+			}
 		}
-		domChildren.push(dom.$('span.chat-model-label', undefined, this.currentModel?.metadata.name ?? localize('chat.modelPicker.auto', "Auto")));
+
+		domChildren.push(dom.$('span.chat-model-label', undefined, name ?? localize('chat.modelPicker.auto', "Auto")));
 		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...domChildren);

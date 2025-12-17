@@ -9,7 +9,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append, EventHelper } from '../../../../../base/browser/dom.js';
-import { IAgentSession, IAgentSessionsModel, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
+import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
 import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter, IAgentSessionsSorterOptions } from './agentSessionsViewer.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -26,7 +26,7 @@ import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IAgentSessionsControl, IMarshalledChatSessionContext } from './agentSessions.js';
+import { IAgentSessionsControl } from './agentSessions.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { openSession } from './agentSessionsOpener.js';
@@ -177,7 +177,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		contextOverlay.push([ChatContextKeys.agentSessionType.key, element.providerType]);
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
-		const marshalledSession: IMarshalledChatSessionContext = { session: element, $mid: MarshalledId.ChatSessionContext };
+		const marshalledSession: IMarshalledAgentSessionContext = { session: element, $mid: MarshalledId.AgentSessionContext };
 		this.contextMenuService.showContextMenu({
 			getActions: () => Separator.join(...menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,

@@ -1817,7 +1817,7 @@ suite('Agent Sessions', () => {
 
 		test('should return correct icon for Background provider', () => {
 			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Background);
-			assert.strictEqual(icon.id, Codicon.collection.id);
+			assert.strictEqual(icon.id, Codicon.worktree.id);
 		});
 
 		test('should return correct icon for Cloud provider', () => {
@@ -1874,7 +1874,7 @@ suite('Agent Sessions', () => {
 
 				const session = viewModel.sessions[0];
 				assert.strictEqual(session.providerType, AgentSessionProviders.Background);
-				assert.strictEqual(session.icon.id, Codicon.collection.id);
+				assert.strictEqual(session.icon.id, Codicon.worktree.id);
 				assert.strictEqual(session.providerLabel, getAgentSessionProviderName(AgentSessionProviders.Background));
 			});
 		});

@@ -46,6 +46,11 @@ export interface IChatWidgetService {
 	readonly onDidAddWidget: Event<IChatWidget>;
 
 	/**
+	 * Fires when a chat session is no longer open in any chat widget.
+	 */
+	readonly onDidBackgroundSession: Event<URI>;
+
+	/**
 	 * Reveals the widget, focusing its input unless `preserveFocus` is true.
 	 */
 	reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean>;
@@ -106,9 +111,9 @@ export interface IQuickChatOpenOptions {
 export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
-	acceptRequest(): number;
-	disposeRequest(requestId: number): void;
-	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
+	acceptRequest(uri: URI): void;
+	disposeRequest(requestId: URI): void;
+	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: URI | undefined, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;
 }
 
@@ -209,9 +214,14 @@ export interface IChatAcceptInputOptions {
 	storeToHistory?: boolean;
 }
 
+export interface IChatWidgetViewModelChangeEvent {
+	readonly previousSessionResource: URI | undefined;
+	readonly currentSessionResource: URI | undefined;
+}
+
 export interface IChatWidget {
 	readonly domNode: HTMLElement;
-	readonly onDidChangeViewModel: Event<void>;
+	readonly onDidChangeViewModel: Event<IChatWidgetViewModelChangeEvent>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidHide: Event<void>;
 	readonly onDidShow: Event<void>;

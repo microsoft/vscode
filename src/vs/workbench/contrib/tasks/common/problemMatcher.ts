@@ -502,6 +502,9 @@ class SingleLineMatcher extends AbstractLineMatcher {
 		const matches = this.pattern.regexp.exec(lines[start]);
 		if (matches) {
 			this.fillProblemData(data, this.pattern, matches);
+			if (data.kind === ProblemLocationKind.Location && !data.location && !data.line && data.file) {
+				data.kind = ProblemLocationKind.File;
+			}
 			const match = this.getMarkerMatch(data);
 			if (match) {
 				return { match: match, continue: false };
@@ -1501,13 +1504,13 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
 	private fillDefaults(): void {
 		this.add('msCompile', {
-			regexp: /^(?:\s*\d+>)?(\S.*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+((?:fatal +)?error|warning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
+			regexp: /^\s*(?:\s*\d+>)?(\S.*?)(?:\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\))?\s*:\s+(?:(\S+)\s+)?((?:fatal +)?error|warning|info)\s+(\w+\d+)?\s*:\s*(.*)$/,
 			kind: ProblemLocationKind.Location,
 			file: 1,
 			location: 2,
-			severity: 3,
-			code: 4,
-			message: 5
+			severity: 4,
+			code: 5,
+			message: 6
 		});
 		this.add('gulp-tsc', {
 			regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(\d+)\s+(.*)$/,

@@ -87,10 +87,13 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 			return [];
 		}
 
+		//remove query strings
+		const urlsWithoutQuery = urls.map(u => u.split('?')[0]);
+
 		const actions: ILanguageModelToolConfirmationActions[] = [];
 
 		// Get unique URLs (may have duplicates)
-		const uniqueUrls = Array.from(new Set(urls)).map(u => URI.parse(u));
+		const uniqueUrls = Array.from(new Set(urlsWithoutQuery)).map(u => URI.parse(u));
 
 		// For each URL, get its patterns
 		const urlPatterns = new ResourceMap<string[]>(uniqueUrls.map(u => [u, extractUrlPatterns(u)] as const));
@@ -153,9 +156,14 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 
 			const treeItems: IPatternTreeItem[] = [];
 			const approvedUrls = this._getApprovedUrls();
+			const dedupedPatterns = new Set<string>();
 
 			for (const { uri, patterns } of urls) {
 				for (const pattern of patterns.slice().sort((a, b) => b.length - a.length)) {
+					if (dedupedPatterns.has(pattern)) {
+						continue;
+					}
+					dedupedPatterns.add(pattern);
 					const settings = approvedUrls[pattern];
 					const requestChecked = typeof settings === 'boolean' ? settings : (settings?.approveRequest ?? false);
 					const responseChecked = typeof settings === 'boolean' ? settings : (settings?.approveResponse ?? false);

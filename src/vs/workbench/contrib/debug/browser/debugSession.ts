@@ -1498,6 +1498,10 @@ export class DebugSession implements IDebugSession {
 		this.passFocusScheduler.cancel();
 		this.passFocusScheduler.dispose();
 		this.model.clearThreads(this.getId(), true);
+		this.sources.clear();
+		this.threads.clear();
+		this.threadIds = [];
+		this.stoppedDetails = [];
 		this._onDidChangeState.fire();
 	}
 
@@ -1505,6 +1509,7 @@ export class DebugSession implements IDebugSession {
 		this.cancelAllRequests();
 		this.rawListeners.dispose();
 		this.globalDisposables.dispose();
+		this._waitToResume = undefined;
 	}
 
 	//---- sources
