@@ -386,7 +386,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	setContainerWithOverflow(container: HTMLElement): void {
+		const containerChanged = this._container !== container;
+		const parentChanged = this._suggestWidget?.element.domNode.parentElement !== container;
+		if (!containerChanged && !parentChanged) {
+			return;
+		}
 		this._container = container;
+		if (this._suggestWidget && (containerChanged || parentChanged)) {
+			container.appendChild(this._suggestWidget.element.domNode);
+		}
 	}
 
 	setScreen(screen: HTMLElement): void {
@@ -1080,4 +1088,3 @@ export function normalizePathSeparator(path: string, sep: string): string {
 	}
 	return path.replaceAll('/', '\\');
 }
-
