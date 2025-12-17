@@ -1168,6 +1168,6 @@ export class FocusChatInstanceAction extends Action implements IAction {
 	}
 
 	private _updateTooltip(): void {
-		this.tooltip = this._keybindingService.appendKeybinding(this.label, TerminalContribCommandId.FocusChatInstanceAction);
+		this.tooltip = this._keybindingService.appendKeybinding(this.label, TerminalContribCommandId.FocusMostRecentChatTerminal);
 	}
 }
