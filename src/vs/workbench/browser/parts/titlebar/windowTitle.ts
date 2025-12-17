@@ -435,7 +435,7 @@ export class WindowTitle extends Disposable {
 		const hasExecutingCells = executions.some(exe => exe.state === NotebookCellExecutionState.Executing);
 
 		if (hasExecutingCells) {
-			return localize('notebookExecuting', "Notebook Executing");
+			return localize('notebookExecuting', "Notebook Cells Executing");
 		}
 
 		return undefined;
