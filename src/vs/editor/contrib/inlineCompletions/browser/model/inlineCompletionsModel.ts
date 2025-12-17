@@ -210,8 +210,11 @@ export class InlineCompletionsModel extends Disposable {
 		}));
 
 		// TODO: should use getAvailableProviders and update on _suppressedInlineCompletionGroupIds change
-		const inlineCompletionProviders = observableFromEvent(this._languageFeaturesService.inlineCompletionsProvider.onDidChange, () => this._languageFeaturesService.inlineCompletionsProvider.all(textModel));
-		mapObservableArrayCached(this, inlineCompletionProviders, (provider, store) => {
+		this.inlineCompletionsProviders = observableFromEvent(
+			this._languageFeaturesService.inlineCompletionsProvider.onDidChange,
+			() => this._languageFeaturesService.inlineCompletionsProvider.all(textModel)
+		);
+		mapObservableArrayCached(this, this.inlineCompletionsProviders, (provider, store) => {
 			if (!provider.onDidChangeInlineCompletions) {
 				return;
 			}
@@ -250,6 +253,8 @@ export class InlineCompletionsModel extends Disposable {
 
 		this._didUndoInlineEdits.recomputeInitiallyAndOnChange(this._store);
 	}
+
+	public readonly inlineCompletionsProviders: IObservable<readonly InlineCompletionsProvider[]>;
 
 	private _lastShownInlineCompletionInfo: { alternateTextModelVersionId: number; /* already freed! */ inlineCompletion: InlineSuggestionItem } | undefined = undefined;
 	private _lastAcceptedInlineCompletionInfo: { textModelVersionIdAfter: number; /* already freed! */ inlineCompletion: InlineSuggestionItem } | undefined = undefined;
