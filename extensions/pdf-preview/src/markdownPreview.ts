@@ -4,26 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Disposable } from './util/dispose';
-import { Scale, ZoomStatusBarEntry } from './statusBar/zoomStatusBarEntry';
+import { BasePreview, BaseWebviewMessage, PreviewState } from './basePreview';
+import { ZoomStatusBarEntry } from './statusBar/zoomStatusBarEntry';
 import { getMarkdownViewerHtml } from './markdownViewerHtml';
 
-export const enum PreviewState {
-	Disposed,
-	Visible,
-	Active,
-}
-
-interface WebviewMessage {
-	type: string;
-	scale?: Scale;
-	mode?: string;
-	percent?: number;
-	html?: string;
-	error?: string;
-	text?: string;
-}
-
+/**
+ * Options for showing a Markdown preview programmatically
+ */
 export interface ShowMarkdownOptions {
 	markdownContent?: string;
 	markdownUri?: vscode.Uri;
@@ -34,39 +21,40 @@ export interface ShowMarkdownOptions {
 	preserveFocus?: boolean;
 }
 
-export class MarkdownPreview extends Disposable {
+/**
+ * Markdown-specific webview message interface
+ */
+interface MarkdownWebviewMessage extends BaseWebviewMessage {
+	html?: string;
+	text?: string;
+	content?: string;
+}
 
-	private _previewState = PreviewState.Visible;
-	private _currentScale: Scale = 1;
+/**
+ * Markdown Preview implementation
+ * Extends BasePreview with Markdown-specific functionality
+ */
+export class MarkdownPreview extends BasePreview {
+
 	private _markdownContent: string | undefined;
 	private _onSyncClick: string | undefined;
 	private _sourceUri: vscode.Uri | undefined;
-
-	// Event emitter for scroll sync (preview → editor)
-	private readonly _onDidScrollPreview = this._register(new vscode.EventEmitter<number>());
-	public readonly onDidScrollPreview = this._onDidScrollPreview.event;
 
 	// Event emitter for click sync (preview → editor)
 	private readonly _onDidClickPreview = this._register(new vscode.EventEmitter<{ percent: number; text: string }>());
 	public readonly onDidClickPreview = this._onDidClickPreview.event;
 
-	// Sync mode state: 'off' | 'click' | 'scroll'
-	private _syncMode: 'off' | 'click' | 'scroll' = 'scroll';
-	public get syncMode(): string { return this._syncMode; }
-	public get isSyncEnabled(): boolean { return this._syncMode !== 'off'; }
-
-	// Event emitter for sync mode change
-	private readonly _onDidChangeSyncMode = this._register(new vscode.EventEmitter<string>());
-	public readonly onDidChangeSyncMode = this._onDidChangeSyncMode.event;
-
 	constructor(
-		private readonly extensionUri: vscode.Uri,
-		private readonly resource: vscode.Uri,
-		private readonly webviewPanel: vscode.WebviewPanel,
-		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
+		extensionUri: vscode.Uri,
+		resource: vscode.Uri,
+		webviewPanel: vscode.WebviewPanel,
+		zoomStatusBarEntry: ZoomStatusBarEntry,
 		options?: ShowMarkdownOptions
 	) {
-		super();
+		super(extensionUri, resource, webviewPanel, zoomStatusBarEntry);
+
+		// Set default sync mode for markdown
+		this._syncMode = 'scroll';
 
 		this._markdownContent = options?.markdownContent;
 		this._onSyncClick = options?.onSyncClick;
@@ -81,25 +69,6 @@ export class MarkdownPreview extends Disposable {
 			]
 		};
 
-		this._register(webviewPanel.webview.onDidReceiveMessage((message: WebviewMessage) => {
-			this.handleMessage(message);
-		}));
-
-		this._register(zoomStatusBarEntry.onDidChangeScale((e: { scale: Scale }) => {
-			if (this._previewState === PreviewState.Active) {
-				this.webviewPanel.webview.postMessage({ type: 'setScale', scale: e.scale });
-			}
-		}));
-
-		this._register(webviewPanel.onDidChangeViewState(() => {
-			this.updateState();
-		}));
-
-		this._register(webviewPanel.onDidDispose(() => {
-			this._previewState = PreviewState.Disposed;
-			this.dispose();
-		}));
-
 		// Watch for file changes if we're loading from a file
 		if (!options?.markdownContent) {
 			const watcher = this._register(vscode.workspace.createFileSystemWatcher(
@@ -112,24 +81,21 @@ export class MarkdownPreview extends Disposable {
 			}));
 		}
 
-		// Initialize render
 		this.initializeRender();
 		this.updateState();
 	}
 
-	public override get isDisposed(): boolean {
-		return this._previewState === PreviewState.Disposed;
+	public get isSyncEnabled(): boolean {
+		return this._syncMode !== 'off';
 	}
 
-	public override dispose(): void {
-		super.dispose();
-		this.zoomStatusBarEntry.hide(this);
+	public get sourceUri(): vscode.Uri | undefined {
+		return this._sourceUri;
 	}
 
-	public reveal(): void {
-		this.webviewPanel.reveal();
-	}
-
+	/**
+	 * Update the markdown content
+	 */
 	public async updateMarkdown(options: ShowMarkdownOptions): Promise<void> {
 		this._markdownContent = options.markdownContent;
 		this._onSyncClick = options.onSyncClick;
@@ -144,54 +110,28 @@ export class MarkdownPreview extends Disposable {
 		}
 	}
 
-	public zoomIn(): void {
-		if (this._previewState === PreviewState.Active) {
-			this.webviewPanel.webview.postMessage({ type: 'zoomIn' });
-		}
-	}
-
-	public zoomOut(): void {
-		if (this._previewState === PreviewState.Active) {
-			this.webviewPanel.webview.postMessage({ type: 'zoomOut' });
-		}
-	}
-
-	public openFind(): void {
-		if (this._previewState === PreviewState.Active) {
-			this.webviewPanel.webview.postMessage({ type: 'openFind' });
-		}
-	}
-
+	/**
+	 * Export to PDF
+	 */
 	public exportPdf(): void {
 		if (this._previewState === PreviewState.Active) {
 			this.webviewPanel.webview.postMessage({ type: 'exportPdf' });
 		}
 	}
 
-	public scrollToPercent(percent: number, source?: 'click' | 'scroll'): void {
-		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewPanel.webview.postMessage({ type: 'scrollToPercent', percent, source });
-		}
-	}
-
+	/**
+	 * Scroll to a specific line
+	 */
 	public scrollToLine(line: number, source?: 'click' | 'scroll'): void {
 		if (this._previewState !== PreviewState.Disposed) {
 			this.webviewPanel.webview.postMessage({ type: 'scrollToLine', line, source });
 		}
 	}
 
-	private handleMessage(message: WebviewMessage): void {
+	// Protected overrides
+
+	protected override handleSpecificMessage(message: MarkdownWebviewMessage): void {
 		switch (message.type) {
-			case 'scaleChanged':
-				this._currentScale = message.scale ?? 1;
-				this.updateState();
-				break;
-			case 'scrollChanged':
-				// Emit scroll event for bidirectional sync (preview → editor)
-				if (message.percent !== undefined && this._syncMode === 'scroll') {
-					this._onDidScrollPreview.fire(message.percent);
-				}
-				break;
 			case 'syncClick':
 				// Emit click event for click-based sync (preview → editor)
 				if (this._syncMode === 'click') {
@@ -201,21 +141,72 @@ export class MarkdownPreview extends Disposable {
 					});
 				}
 				break;
-			case 'syncModeChanged':
-				// Update sync mode state
-				this._syncMode = (message.mode as 'off' | 'click' | 'scroll') ?? 'scroll';
-				this._onDidChangeSyncMode.fire(this._syncMode);
-				break;
 			case 'exportPdf':
-				// Handle PDF export
 				this.handleExportPdf(message.html);
 				break;
 			case 'ready':
 				// Markdown rendered successfully
 				break;
-			case 'error':
-				vscode.window.showErrorMessage(vscode.l10n.t('Failed to render Markdown: {0}', message.error ?? 'Unknown error'));
-				break;
+		}
+	}
+
+	protected override getErrorMessage(error?: string): string {
+		return vscode.l10n.t('Failed to render Markdown: {0}', error ?? 'Unknown error');
+	}
+
+	protected async render(): Promise<void> {
+		if (this._previewState === PreviewState.Disposed) {
+			return;
+		}
+
+		const html = getMarkdownViewerHtml(
+			this.webviewPanel.webview,
+			this.extensionUri,
+			this.resource,
+			{
+				content: this._markdownContent || '',
+				enableSyncClick: !!this._onSyncClick
+			}
+		);
+
+		this.webviewPanel.webview.html = html;
+	}
+
+	protected async initializeRender(): Promise<void> {
+		if (this._previewState === PreviewState.Disposed) {
+			return;
+		}
+
+		// If we don't have content, load from filesystem
+		if (!this._markdownContent) {
+			try {
+				const data = await vscode.workspace.fs.readFile(this.resource);
+				this._markdownContent = new TextDecoder().decode(data);
+			} catch (error) {
+				console.error('Failed to read Markdown file:', error);
+			}
+		}
+
+		await this.render();
+	}
+
+	// Private methods
+
+	private async reloadFromFilesystem(): Promise<void> {
+		if (this._previewState === PreviewState.Disposed) {
+			return;
+		}
+
+		try {
+			const data = await vscode.workspace.fs.readFile(this.resource);
+			this._markdownContent = new TextDecoder().decode(data);
+			this.webviewPanel.webview.postMessage({
+				type: 'updateContent',
+				content: this._markdownContent
+			});
+		} catch (error) {
+			console.error('Failed to reload Markdown file:', error);
+			await this.render();
 		}
 	}
 
@@ -284,7 +275,6 @@ export class MarkdownPreview extends Disposable {
 				const encoder = new TextEncoder();
 				await vscode.workspace.fs.writeFile(saveUri, encoder.encode(fullHtml));
 
-				// Ask if user wants to open in browser to print as PDF
 				const openInBrowser = await vscode.window.showInformationMessage(
 					'HTML exported successfully. Open in browser to print as PDF?',
 					'Open in Browser',
@@ -299,77 +289,7 @@ export class MarkdownPreview extends Disposable {
 			}
 		}
 	}
-
-	public get sourceUri(): vscode.Uri | undefined {
-		return this._sourceUri;
-	}
-
-	private async render(): Promise<void> {
-		if (this._previewState === PreviewState.Disposed) {
-			return;
-		}
-
-		const html = getMarkdownViewerHtml(
-			this.webviewPanel.webview,
-			this.extensionUri,
-			this.resource,
-			{
-				content: this._markdownContent || '',
-				enableSyncClick: !!this._onSyncClick
-			}
-		);
-
-		this.webviewPanel.webview.html = html;
-	}
-
-	private async initializeRender(): Promise<void> {
-		if (this._previewState === PreviewState.Disposed) {
-			return;
-		}
-
-		// If we don't have content, load from filesystem
-		if (!this._markdownContent) {
-			try {
-				const data = await vscode.workspace.fs.readFile(this.resource);
-				this._markdownContent = new TextDecoder().decode(data);
-			} catch (error) {
-				console.error('Failed to read Markdown file:', error);
-			}
-		}
-
-		await this.render();
-	}
-
-	private async reloadFromFilesystem(): Promise<void> {
-		if (this._previewState === PreviewState.Disposed) {
-			return;
-		}
-
-		try {
-			const data = await vscode.workspace.fs.readFile(this.resource);
-			this._markdownContent = new TextDecoder().decode(data);
-			this.webviewPanel.webview.postMessage({
-				type: 'updateContent',
-				content: this._markdownContent
-			});
-		} catch (error) {
-			console.error('Failed to reload Markdown file:', error);
-			await this.render();
-		}
-	}
-
-	private updateState(): void {
-		if (this._previewState === PreviewState.Disposed) {
-			return;
-		}
-
-		if (this.webviewPanel.active) {
-			this._previewState = PreviewState.Active;
-			this.zoomStatusBarEntry.show(this, this._currentScale);
-		} else {
-			this._previewState = PreviewState.Visible;
-			this.zoomStatusBarEntry.hide(this);
-		}
-	}
 }
 
+// Re-export PreviewState for backwards compatibility
+export { PreviewState };

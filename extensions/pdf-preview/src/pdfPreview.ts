@@ -4,65 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Disposable } from './util/dispose';
+import { BasePreview, BaseWebviewMessage, PreviewState } from './basePreview';
 import { BinarySizeStatusBarEntry } from './statusBar/binarySizeStatusBarEntry';
 import { PageStatusBarEntry } from './statusBar/pageStatusBarEntry';
-import { Scale, ZoomStatusBarEntry } from './statusBar/zoomStatusBarEntry';
+import { ZoomStatusBarEntry } from './statusBar/zoomStatusBarEntry';
 import { getPdfViewerHtml } from './pdfViewerHtml';
 import { ShowPdfOptions } from './pdfPreviewManager';
 
-export const enum PreviewState {
-	Disposed,
-	Visible,
-	Active,
-}
-
-interface WebviewMessage {
-	type: string;
+/**
+ * PDF-specific webview message interface
+ */
+interface PdfWebviewMessage extends BaseWebviewMessage {
 	page?: number;
 	totalPages?: number;
-	scale?: Scale;
 	x?: number;
 	y?: number;
-	error?: string;
 	text?: string;
-	mode?: string;
-	percent?: number;
 }
 
-export class PdfPreview extends Disposable {
+/**
+ * PDF Preview implementation
+ * Extends BasePreview with PDF-specific functionality like page navigation, rotation, and SyncTeX support
+ */
+export class PdfPreview extends BasePreview {
 
-	private _previewState = PreviewState.Visible;
 	private _currentPage = 1;
 	private _totalPages = 1;
-	private _currentScale: Scale = 'fitWidth';
 	private _rotation = 0;
 	private _binarySize: number | undefined;
 	private _pdfData: Uint8Array | undefined;
 	private _onSyncClick: string | undefined;
 	private _onSyncScroll: string | undefined;
-	private _syncMode: 'off' | 'click' | 'scroll' = 'click';
-
-	// Event emitter for scroll sync (preview → editor)
-	private readonly _onDidScrollPreview = this._register(new vscode.EventEmitter<number>());
-	public readonly onDidScrollPreview = this._onDidScrollPreview.event;
-
-	// Event emitter for sync mode change
-	private readonly _onDidChangeSyncMode = this._register(new vscode.EventEmitter<string>());
-	public readonly onDidChangeSyncMode = this._onDidChangeSyncMode.event;
-
-	public get syncMode(): string { return this._syncMode; }
 
 	constructor(
-		private readonly extensionUri: vscode.Uri,
-		private readonly resource: vscode.Uri,
-		private readonly webviewPanel: vscode.WebviewPanel,
+		extensionUri: vscode.Uri,
+		resource: vscode.Uri,
+		webviewPanel: vscode.WebviewPanel,
 		private readonly binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
 		private readonly pageStatusBarEntry: PageStatusBarEntry,
-		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
+		zoomStatusBarEntry: ZoomStatusBarEntry,
 		options?: ShowPdfOptions
 	) {
-		super();
+		super(extensionUri, resource, webviewPanel, zoomStatusBarEntry);
+
+		// Set default scale for PDF
+		this._currentScale = 'fitWidth';
 
 		this._pdfData = options?.pdfData;
 		this._onSyncClick = options?.onSyncClick;
@@ -76,25 +62,6 @@ export class PdfPreview extends Disposable {
 				vscode.Uri.joinPath(resource, '..')
 			]
 		};
-
-		this._register(webviewPanel.webview.onDidReceiveMessage((message: WebviewMessage) => {
-			this.handleMessage(message);
-		}));
-
-		this._register(zoomStatusBarEntry.onDidChangeScale((e: { scale: Scale }) => {
-			if (this._previewState === PreviewState.Active) {
-				this.webviewPanel.webview.postMessage({ type: 'setScale', scale: e.scale });
-			}
-		}));
-
-		this._register(webviewPanel.onDidChangeViewState(() => {
-			this.updateState();
-		}));
-
-		this._register(webviewPanel.onDidDispose(() => {
-			this._previewState = PreviewState.Disposed;
-			this.dispose();
-		}));
 
 		// Watch for file changes
 		if (!options?.pdfData) {
@@ -110,32 +77,24 @@ export class PdfPreview extends Disposable {
 		}
 
 		this.updateBinarySize();
-		// Initialize: if no pdfData provided, load from filesystem to avoid vscode-resource auth issues in web
 		this.initializeRender(options?.syncPosition);
 		this.updateState();
-	}
-
-	public override get isDisposed(): boolean {
-		return this._previewState === PreviewState.Disposed;
 	}
 
 	public override dispose(): void {
 		super.dispose();
 		this.binarySizeStatusBarEntry.hide(this);
 		this.pageStatusBarEntry.hide(this);
-		this.zoomStatusBarEntry.hide(this);
 	}
 
-	public reveal(): void {
-		this.webviewPanel.reveal();
-	}
-
+	/**
+	 * Update the PDF with new data
+	 */
 	public async updatePdf(options: ShowPdfOptions): Promise<void> {
 		this._pdfData = options.pdfData;
 		this._onSyncClick = options.onSyncClick;
 		this._onSyncScroll = options.onSyncScroll;
 
-		// If we have PDF data, send it to the webview to update without losing state
 		if (this._pdfData && this._previewState !== PreviewState.Disposed) {
 			const base64 = this.uint8ArrayToBase64(this._pdfData);
 			this.webviewPanel.webview.postMessage({
@@ -144,40 +103,11 @@ export class PdfPreview extends Disposable {
 			});
 			this.updateBinarySize();
 		} else {
-			// Fallback to full re-render if no data
 			await this.render(options.syncPosition);
 		}
 	}
 
-	private uint8ArrayToBase64(bytes: Uint8Array): string {
-		// Convert Uint8Array to base64 string
-		// This approach works in both Node.js and browser environments
-		let binary = '';
-		const len = bytes.byteLength;
-		const chunkSize = 0x8000; // Process in chunks to avoid call stack issues
-
-		for (let i = 0; i < len; i += chunkSize) {
-			const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
-			binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
-		}
-
-		// btoa is available in both browser and Node.js 16+
-		// Use type assertion for cross-environment compatibility
-		const btoaFn = (globalThis as unknown as { btoa: (s: string) => string }).btoa;
-		return btoaFn(binary);
-	}
-
-	public zoomIn(): void {
-		if (this._previewState === PreviewState.Active) {
-			this.webviewPanel.webview.postMessage({ type: 'zoomIn' });
-		}
-	}
-
-	public zoomOut(): void {
-		if (this._previewState === PreviewState.Active) {
-			this.webviewPanel.webview.postMessage({ type: 'zoomOut' });
-		}
-	}
+	// PDF-specific public methods
 
 	public fitWidth(): void {
 		if (this._previewState === PreviewState.Active) {
@@ -210,33 +140,19 @@ export class PdfPreview extends Disposable {
 		}
 	}
 
-	public openFind(): void {
-		if (this._previewState === PreviewState.Active) {
-			this.webviewPanel.webview.postMessage({ type: 'openFind' });
-		}
-	}
-
-	public scrollToPercent(percent: number, source?: 'click' | 'scroll'): void {
-		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewPanel.webview.postMessage({ type: 'scrollToPercent', percent, source });
-		}
-	}
-
 	public scrollToText(text: string, source?: 'click' | 'scroll'): void {
 		if (this._previewState !== PreviewState.Disposed) {
 			this.webviewPanel.webview.postMessage({ type: 'scrollToText', text, source });
 		}
 	}
 
-	private handleMessage(message: WebviewMessage): void {
+	// Protected overrides
+
+	protected override handleSpecificMessage(message: PdfWebviewMessage): void {
 		switch (message.type) {
 			case 'pageChanged':
 				this._currentPage = message.page ?? 1;
 				this._totalPages = message.totalPages ?? 1;
-				this.updateState();
-				break;
-			case 'scaleChanged':
-				this._currentScale = message.scale ?? 1.5;
 				this.updateState();
 				break;
 			case 'syncClick':
@@ -249,27 +165,79 @@ export class PdfPreview extends Disposable {
 					});
 				}
 				break;
-			case 'syncModeChanged':
-				this._syncMode = (message.mode as 'off' | 'click' | 'scroll') ?? 'click';
-				this._onDidChangeSyncMode.fire(this._syncMode);
-				break;
 			case 'scrollChanged':
-				// Handle scroll sync (preview → editor) in scroll mode
-				if (message.percent !== undefined && this._syncMode === 'scroll') {
-					// Fire event for direct listeners
-					this._onDidScrollPreview.fire(message.percent);
-					// Call command callback if provided (for LaTeX/Typst integration)
-					if (this._onSyncScroll) {
-						vscode.commands.executeCommand(this._onSyncScroll, {
-							percent: message.percent
-						});
-					}
+				// Parent class handles scroll sync, but we also support the onSyncScroll callback
+				if (message.percent !== undefined && this._syncMode === 'scroll' && this._onSyncScroll) {
+					vscode.commands.executeCommand(this._onSyncScroll, {
+						percent: message.percent
+					});
 				}
 				break;
-			case 'error':
-				vscode.window.showErrorMessage(vscode.l10n.t('Failed to load PDF: {0}', message.error ?? 'Unknown error'));
-				break;
 		}
+	}
+
+	protected override getErrorMessage(error?: string): string {
+		return vscode.l10n.t('Failed to load PDF: {0}', error ?? 'Unknown error');
+	}
+
+	protected override onBecameActive(): void {
+		this.binarySizeStatusBarEntry.show(this, this._binarySize);
+		this.pageStatusBarEntry.show(this, this._currentPage, this._totalPages);
+	}
+
+	protected override onBecameInactive(): void {
+		this.binarySizeStatusBarEntry.hide(this);
+		this.pageStatusBarEntry.hide(this);
+	}
+
+	protected async render(syncPosition?: { page: number; x?: number; y?: number }): Promise<void> {
+		if (this._previewState === PreviewState.Disposed) {
+			return;
+		}
+
+		const html = getPdfViewerHtml(
+			this.webviewPanel.webview,
+			this.extensionUri,
+			this.resource,
+			this._pdfData,
+			syncPosition,
+			!!this._onSyncClick
+		);
+
+		this.webviewPanel.webview.html = html;
+	}
+
+	protected async initializeRender(syncPosition?: { page: number; x?: number; y?: number }): Promise<void> {
+		if (this._previewState === PreviewState.Disposed) {
+			return;
+		}
+
+		// If we don't have pdfData, load from filesystem to use base64 data URL
+		if (!this._pdfData) {
+			try {
+				this._pdfData = await vscode.workspace.fs.readFile(this.resource);
+			} catch (error) {
+				console.error('Failed to read PDF file, falling back to URL loading:', error);
+			}
+		}
+
+		await this.render(syncPosition);
+	}
+
+	// Private methods
+
+	private uint8ArrayToBase64(bytes: Uint8Array): string {
+		let binary = '';
+		const len = bytes.byteLength;
+		const chunkSize = 0x8000;
+
+		for (let i = 0; i < len; i += chunkSize) {
+			const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+			binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+		}
+
+		const btoaFn = (globalThis as unknown as { btoa: (s: string) => string }).btoa;
+		return btoaFn(binary);
 	}
 
 	private updateBinarySize(): void {
@@ -289,49 +257,6 @@ export class PdfPreview extends Disposable {
 		}
 	}
 
-	private async render(syncPosition?: { page: number; x?: number; y?: number }): Promise<void> {
-		if (this._previewState === PreviewState.Disposed) {
-			return;
-		}
-
-		const html = getPdfViewerHtml(
-			this.webviewPanel.webview,
-			this.extensionUri,
-			this.resource,
-			this._pdfData,
-			syncPosition,
-			!!this._onSyncClick
-		);
-
-		this.webviewPanel.webview.html = html;
-	}
-
-	/**
-	 * Initialize render - loads PDF from filesystem if no pdfData provided.
-	 * This avoids vscode-resource authentication issues in web environments.
-	 */
-	private async initializeRender(syncPosition?: { page: number; x?: number; y?: number }): Promise<void> {
-		if (this._previewState === PreviewState.Disposed) {
-			return;
-		}
-
-		// If we don't have pdfData, load from filesystem to use base64 data URL
-		// This avoids 401 authentication errors with vscode-resource in web production
-		if (!this._pdfData) {
-			try {
-				this._pdfData = await vscode.workspace.fs.readFile(this.resource);
-			} catch (error) {
-				// If reading fails, fall back to URL-based loading (original behavior)
-				console.error('Failed to read PDF file, falling back to URL loading:', error);
-			}
-		}
-
-		await this.render(syncPosition);
-	}
-
-	/**
-	 * Reload PDF from filesystem when file changes
-	 */
 	private async reloadFromFilesystem(): Promise<void> {
 		if (this._previewState === PreviewState.Disposed) {
 			return;
@@ -339,7 +264,6 @@ export class PdfPreview extends Disposable {
 
 		try {
 			this._pdfData = await vscode.workspace.fs.readFile(this.resource);
-			// Send updated data to webview without full re-render to preserve state
 			const base64 = this.uint8ArrayToBase64(this._pdfData);
 			this.webviewPanel.webview.postMessage({
 				type: 'updatePdf',
@@ -347,27 +271,10 @@ export class PdfPreview extends Disposable {
 			});
 		} catch (error) {
 			console.error('Failed to reload PDF file:', error);
-			// Fall back to full re-render
 			await this.render();
-		}
-	}
-
-	private updateState(): void {
-		if (this._previewState === PreviewState.Disposed) {
-			return;
-		}
-
-		if (this.webviewPanel.active) {
-			this._previewState = PreviewState.Active;
-			this.binarySizeStatusBarEntry.show(this, this._binarySize);
-			this.pageStatusBarEntry.show(this, this._currentPage, this._totalPages);
-			this.zoomStatusBarEntry.show(this, this._currentScale);
-		} else {
-			this._previewState = PreviewState.Visible;
-			this.binarySizeStatusBarEntry.hide(this);
-			this.pageStatusBarEntry.hide(this);
-			this.zoomStatusBarEntry.hide(this);
 		}
 	}
 }
 
+// Re-export PreviewState for backwards compatibility
+export { PreviewState };

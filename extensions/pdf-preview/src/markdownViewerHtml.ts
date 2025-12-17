@@ -22,6 +22,7 @@ export function getMarkdownViewerHtml(
 
 	// Get CSS URIs - use local files
 	const previewCssUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'markdownPreview.css'));
+	const sharedJsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'sharedPreview.js'));
 	const previewJsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'markdownPreview.js'));
 
 	// Local marked.js for markdown parsing
@@ -135,6 +136,7 @@ export function getMarkdownViewerHtml(
 
 	<script nonce="${nonce}" src="${markedUri}"></script>
 	<script nonce="${nonce}" src="${highlightJsUri}"></script>
+	<script nonce="${nonce}" src="${sharedJsUri}"></script>
 	<script nonce="${nonce}" src="${previewJsUri}"></script>
 </body>
 </html>`;

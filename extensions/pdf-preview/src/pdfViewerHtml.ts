@@ -33,6 +33,7 @@ export function getPdfViewerHtml(
 	const pdfjsWorkerUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'vendors', 'pdfjs', 'pdf.worker.min.mjs'));
 	const pdfjsViewerCssUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'vendors', 'pdfjs', 'pdf_viewer.css'));
 	const previewCssUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'pdfPreview.css'));
+	const sharedJsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'sharedPreview.js'));
 	const previewJsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'pdfPreview.js'));
 
 	// Convert PDF data to base64 if provided
@@ -176,6 +177,7 @@ export function getPdfViewerHtml(
 			document.getElementById('error-message').textContent = 'Failed to load PDF.js: ' + err.message;
 		});
 	</script>
+	<script nonce="${nonce}" src="${sharedJsUri}"></script>
 	<script nonce="${nonce}" src="${previewJsUri}"></script>
 </body>
 </html>`;

@@ -5,146 +5,93 @@
 
 import * as vscode from 'vscode';
 import { MarkdownPreview, ShowMarkdownOptions } from './markdownPreview';
+import { BasePreviewManager, BaseShowPreviewOptions } from './basePreviewManager';
 import { ZoomStatusBarEntry } from './statusBar/zoomStatusBarEntry';
 
-export class MarkdownPreviewManager implements vscode.CustomReadonlyEditorProvider {
+/**
+ * Extended options for showing Markdown preview (extends base options)
+ */
+interface ShowMarkdownManagerOptions extends BaseShowPreviewOptions, ShowMarkdownOptions { }
+
+/**
+ * Markdown Preview Manager
+ * Manages Markdown preview instances and provides the custom editor provider interface
+ */
+export class MarkdownPreviewManager extends BasePreviewManager<MarkdownPreview, ShowMarkdownManagerOptions> {
 
 	public static readonly viewType = 'markdownPreview.editor';
 
-	private readonly _previews = new Set<MarkdownPreview>();
-	private _activePreview: MarkdownPreview | undefined;
-
-	// Map to track programmatic previews
-	private readonly _programmaticPreviews = new Map<string, MarkdownPreview>();
-
 	constructor(
-		private readonly extensionUri: vscode.Uri,
-		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
-	) { }
-
-	public async openCustomDocument(uri: vscode.Uri): Promise<vscode.CustomDocument> {
-		return { uri, dispose: () => { } };
-	}
-
-	public async resolveCustomEditor(
-		document: vscode.CustomDocument,
-		webviewPanel: vscode.WebviewPanel,
-	): Promise<void> {
-		const preview = new MarkdownPreview(
-			this.extensionUri,
-			document.uri,
-			webviewPanel,
-			this.zoomStatusBarEntry
-		);
-
-		this._previews.add(preview);
-		this.setActivePreview(preview);
-
-		webviewPanel.onDidDispose(() => {
-			this._previews.delete(preview);
-			if (this._activePreview === preview) {
-				this.setActivePreview(undefined);
-			}
-		});
-
-		webviewPanel.onDidChangeViewState(() => {
-			if (webviewPanel.active) {
-				this.setActivePreview(preview);
-			} else if (this._activePreview === preview && !webviewPanel.active) {
-				this.setActivePreview(undefined);
-			}
-		});
-	}
-
-	public get activePreview(): MarkdownPreview | undefined {
-		return this._activePreview;
-	}
-
-	private setActivePreview(value: MarkdownPreview | undefined): void {
-		this._activePreview = value;
+		extensionUri: vscode.Uri,
+		zoomStatusBarEntry: ZoomStatusBarEntry,
+	) {
+		super(extensionUri, zoomStatusBarEntry);
 	}
 
 	/**
 	 * Public API for showing Markdown previews programmatically
 	 */
 	public async showMarkdownPreview(options: ShowMarkdownOptions): Promise<MarkdownPreview> {
-		const key = options.sourceUri?.toString() || options.markdownUri?.toString() || 'temp';
-
-		// Check if we already have a preview for this source
-		const existingPreview = this._programmaticPreviews.get(key);
-		if (existingPreview && !existingPreview.isDisposed) {
-			await existingPreview.updateMarkdown(options);
-			if (!options.preserveFocus) {
-				existingPreview.reveal();
-			}
-			return existingPreview;
-		}
-
-		// Create new webview panel
-		const title = options.sourceUri
-			? `Markdown Preview: ${this.getFileName(options.sourceUri)}`
-			: options.markdownUri
-				? this.getFileName(options.markdownUri)
-				: 'Markdown Preview';
-
-		const panel = vscode.window.createWebviewPanel(
-			'markdownPreview.programmatic',
-			title,
-			options.viewColumn || vscode.ViewColumn.Beside,
-			{
-				enableScripts: true,
-				retainContextWhenHidden: true,
-				localResourceRoots: [
-					vscode.Uri.joinPath(this.extensionUri, 'media'),
-					...(options.markdownUri ? [vscode.Uri.joinPath(options.markdownUri, '..')] : [])
-				]
-			}
+		return this.showPreviewBase(
+			options,
+			() => options.sourceUri?.toString() || options.markdownUri?.toString() || 'temp',
+			() => this.getPreviewTitle(options)
 		);
-
-		const preview = new MarkdownPreview(
-			this.extensionUri,
-			options.markdownUri || options.sourceUri || vscode.Uri.parse('untitled:preview'),
-			panel,
-			this.zoomStatusBarEntry,
-			options
-		);
-
-		this._previews.add(preview);
-		this._programmaticPreviews.set(key, preview);
-		this.setActivePreview(preview);
-
-		panel.onDidDispose(() => {
-			this._previews.delete(preview);
-			this._programmaticPreviews.delete(key);
-			if (this._activePreview === preview) {
-				this.setActivePreview(undefined);
-			}
-		});
-
-		panel.onDidChangeViewState(() => {
-			if (panel.active) {
-				this.setActivePreview(preview);
-			}
-		});
-
-		return preview;
 	}
 
 	/**
 	 * Get Markdown preview by source URI
 	 */
 	public getMarkdownPreviewBySource(sourceUri: string): MarkdownPreview | undefined {
-		const preview = this._programmaticPreviews.get(sourceUri);
-		if (preview && !preview.isDisposed) {
-			return preview;
-		}
-		return undefined;
+		return this.getPreviewBySource(sourceUri);
 	}
 
-	private getFileName(uri: vscode.Uri): string {
-		const path = uri.path;
-		const lastSlash = path.lastIndexOf('/');
-		return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
+	// Protected overrides
+
+	protected override getViewType(): string {
+		return MarkdownPreviewManager.viewType;
+	}
+
+	protected override getLocalResourceRoots(options: ShowMarkdownManagerOptions): vscode.Uri[] {
+		return [
+			vscode.Uri.joinPath(this.extensionUri, 'media'),
+			vscode.Uri.joinPath(this.extensionUri, 'vendors'),
+			...(options.markdownUri ? [vscode.Uri.joinPath(options.markdownUri, '..')] : [])
+		];
+	}
+
+	protected override createPreviewForEditor(document: vscode.CustomDocument, webviewPanel: vscode.WebviewPanel): MarkdownPreview {
+		return new MarkdownPreview(
+			this.extensionUri,
+			document.uri,
+			webviewPanel,
+			this.zoomStatusBarEntry
+		);
+	}
+
+	protected override createPreviewForProgrammatic(panel: vscode.WebviewPanel, options: ShowMarkdownManagerOptions): MarkdownPreview {
+		return new MarkdownPreview(
+			this.extensionUri,
+			options.markdownUri || options.sourceUri || vscode.Uri.parse('untitled:preview'),
+			panel,
+			this.zoomStatusBarEntry,
+			options
+		);
+	}
+
+	protected override async updateExistingPreview(preview: MarkdownPreview, options: ShowMarkdownManagerOptions): Promise<void> {
+		await preview.updateMarkdown(options);
+	}
+
+	// Private methods
+
+	private getPreviewTitle(options: ShowMarkdownOptions): string {
+		if (options.sourceUri) {
+			return `Markdown Preview: ${this.getFileName(options.sourceUri)}`;
+		}
+		if (options.markdownUri) {
+			return this.getFileName(options.markdownUri);
+		}
+		return 'Markdown Preview';
 	}
 }
-
