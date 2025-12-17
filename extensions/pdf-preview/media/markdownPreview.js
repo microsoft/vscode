@@ -77,6 +77,8 @@
 	// Sync mode state: 'off', 'click', 'scroll'
 	// Default to 'scroll' for markdown (its original behavior)
 	let syncMode = state.syncMode !== undefined ? state.syncMode : 'scroll';
+	// Track if preview initiated the last sync - ignore incoming commands while true
+	let previewInitiatedSync = false;
 
 	// Show error
 	function showError(message) {
@@ -683,6 +685,8 @@
 		// Only process if sync is enabled and source matches mode
 		if (!container || syncMode === 'off') { return; }
 		if (source && source !== syncMode) { return; }
+		// Ignore if preview just initiated a sync (prevents feedback loop in click mode)
+		if (previewInitiatedSync) { return; }
 
 		const maxScroll = container.scrollHeight - container.clientHeight;
 		if (maxScroll > 0) {
@@ -707,6 +711,8 @@
 		// Only process if sync is enabled and source matches mode
 		if (!container || !content || syncMode === 'off') { return; }
 		if (source && source !== syncMode) { return; }
+		// Ignore if preview just initiated a sync (prevents feedback loop in click mode)
+		if (previewInitiatedSync) { return; }
 
 		// Try to find element with data-line attribute
 		const lineElement = content.querySelector(`[data-line="${line}"]`);
@@ -767,6 +773,10 @@
 			const clickY = e.clientY - contentRect.top + container.scrollTop;
 			const totalHeight = content.scrollHeight;
 			const percent = totalHeight > 0 ? clickY / totalHeight : 0;
+
+			// Mark that preview initiated this sync - ignore incoming scroll commands
+			previewInitiatedSync = true;
+			setTimeout(() => { previewInitiatedSync = false; }, 500);
 
 			vscode.postMessage({
 				type: 'syncClick',

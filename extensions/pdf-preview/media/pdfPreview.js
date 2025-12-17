@@ -88,6 +88,8 @@
 	// Uses stored state if available, otherwise defaults to 'click' when available
 	let syncMode = state.syncMode !== undefined ? state.syncMode :
 		(settings.enableSyncClick ? 'click' : 'off');
+	// Track if preview initiated the last sync - ignore incoming commands while true
+	let previewInitiatedSync = false;
 
 	// Initialize dark mode from saved state
 	function initDarkMode() {
@@ -415,6 +417,10 @@
 							}
 						}
 					}
+
+					// Mark that preview initiated this sync - ignore incoming scroll commands
+					previewInitiatedSync = true;
+					setTimeout(() => { previewInitiatedSync = false; }, 500);
 
 					vscode.postMessage({
 						type: 'syncClick',
@@ -1132,6 +1138,8 @@
 		// If no source specified, accept any (backwards compatibility)
 		if (!container || syncMode === 'off') { return; }
 		if (source && source !== syncMode) { return; }
+		// Ignore if preview just initiated a sync (prevents feedback loop in click mode)
+		if (previewInitiatedSync) { return; }
 
 		const maxScroll = container.scrollHeight - container.clientHeight;
 		if (maxScroll > 0) {
@@ -1161,6 +1169,8 @@
 		// Only process if sync is enabled and source matches mode
 		if (!container || !searchText || syncMode === 'off') { return; }
 		if (source && source !== syncMode) { return; }
+		// Ignore if preview just initiated a sync (prevents feedback loop in click mode)
+		if (previewInitiatedSync) { return; }
 
 		// Normalize the search text
 		const normalizedSearch = searchText.trim().toLowerCase();
