@@ -584,6 +584,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
 	private _customButtonHover: string | undefined;
+	private _customButtonSecondary = false;
 	private _quickNavigate: IQuickNavigateConfiguration | undefined;
 	private _hideInput: boolean | undefined;
 	private _hideCountBadge: boolean | undefined;
@@ -833,6 +834,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set customHover(hover: string | undefined) {
 		this._customButtonHover = hover;
+		this.update();
+	}
+
+	get customButtonSecondary() {
+		return this._customButtonSecondary;
+	}
+
+	set customButtonSecondary(secondary: boolean | undefined) {
+		this._customButtonSecondary = secondary ?? false;
 		this.update();
 	}
 
@@ -1154,6 +1164,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		this.ui.ok.label = this.okLabel || '';
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
+		this.ui.customButton.secondary = this.customButtonSecondary || false;
 		if (!visibilities.inputBox) {
 			// we need to move focus into the tree to detect keybindings
 			// properly when the input box is not visible (quick nav)

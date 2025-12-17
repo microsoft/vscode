@@ -305,7 +305,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsCount = 0;
 	private sessionsViewerLimited = true;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
-	private sessionsViewerOrientationConfiguration: 'auto' | 'stacked' | 'sideBySide' = 'auto';
+	private sessionsViewerOrientationConfiguration: 'auto' | 'stacked' | 'sideBySide' = 'sideBySide';
 	private sessionsViewerOrientationContext: IContextKey<AgentSessionsViewerOrientation>;
 	private sessionsViewerLimitedContext: IContextKey<boolean>;
 	private sessionsViewerVisibilityContext: IContextKey<boolean>;
@@ -817,10 +817,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// Stacked
 			case 'stacked':
 				newSessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
-				break;
-			// Side by side
-			case 'sideBySide':
-				newSessionsViewerOrientation = AgentSessionsViewerOrientation.SideBySide;
 				break;
 			// Update orientation based on available width
 			default:
