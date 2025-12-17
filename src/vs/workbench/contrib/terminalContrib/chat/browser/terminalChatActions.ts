@@ -31,6 +31,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../services/preferences/common/preferences.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
@@ -362,7 +363,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			label: string;
 			description: string | undefined;
 			detail: string | undefined;
-			tooltip: string | undefined;
+			tooltip: string | IMarkdownString | undefined;
 			id: string;
 		}
 		const lastCommandLocalized = (command: string) => localize2('chatTerminal.lastCommand', 'Last: {0}', command).value;
@@ -389,16 +390,17 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			}
 
 			let detail: string | undefined;
-			let tooltip: string | undefined;
+			let tooltip: string | IMarkdownString | undefined;
 			if (lastCommand) {
-				const fullDetail = lastCommandLocalized(lastCommand);
 				// Take only the first line if the command spans multiple lines
 				const firstLine = lastCommand.split('\n')[0];
 				const displayCommand = firstLine.length > MAX_DETAIL_LENGTH ? firstLine.substring(0, MAX_DETAIL_LENGTH) + '…' : firstLine;
 				detail = lastCommandLocalized(displayCommand);
 				// If the command was truncated or has multiple lines, provide a tooltip with the full command
 				if (lastCommand !== displayCommand) {
-					tooltip = fullDetail;
+					// Use markdown code block to preserve formatting for multi-line commands
+					const hasNewlines = lastCommand.includes('\n');
+					tooltip = hasNewlines ? { value: '```\n' + lastCommand + '\n```', supportThemeIcons: true } : lastCommandLocalized(lastCommand);
 				}
 			}
 
