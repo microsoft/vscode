@@ -5,7 +5,7 @@
 
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, disposableWindowInterval, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, disposableWindowInterval, EventType, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -26,7 +26,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { IBrowserOverlayManager } from './overlayManager.js';
+import { BrowserOverlayManager } from './overlayManager.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -153,6 +153,7 @@ export class BrowserEditor extends EditorPane {
 
 	private _model: IBrowserViewModel | undefined;
 	private readonly _inputDisposables = this._register(new DisposableStore());
+	private overlayManager: BrowserOverlayManager | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -160,7 +161,6 @@ export class BrowserEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IBrowserOverlayManager private readonly overlayManager: IBrowserOverlayManager,
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -172,6 +172,9 @@ export class BrowserEditor extends EditorPane {
 	protected override createEditor(parent: HTMLElement): void {
 		// Create scoped context key service for this editor instance
 		const contextKeyService = this._register(this.contextKeyService.createScoped(parent));
+
+		// Create window-specific overlay manager for this editor
+		this.overlayManager = this._register(new BrowserOverlayManager(this.window));
 
 		// Bind navigation capability context keys
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
@@ -312,10 +315,10 @@ export class BrowserEditor extends EditorPane {
 					pinned: true,
 					inactive: background
 				}
-			});
+			}, this.group);
 		}));
 
-		this._inputDisposables.add(this.overlayManager.onDidChangeOverlayState(() => {
+		this._inputDisposables.add(this.overlayManager!.onDidChangeOverlayState(() => {
 			this.checkOverlays();
 		}));
 
@@ -334,7 +337,10 @@ export class BrowserEditor extends EditorPane {
 
 		this.updateErrorDisplay();
 		this.layout();
-		await this._model!.setVisible(this.shouldShowView);
+		await this._model.setVisible(this.shouldShowView);
+
+		// Sometimes the element has not been inserted into the DOM yet. Ensure layout after next animation frame.
+		scheduleAtNextAnimationFrame(this.window, () => this.layout());
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -355,6 +361,9 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	private checkOverlays(): void {
+		if (!this.overlayManager) {
+			return;
+		}
 		const hasOverlappingOverlay = this.overlayManager.isOverlappingWithOverlays(this._browserContainer);
 		if (hasOverlappingOverlay !== this._overlayVisible) {
 			this._overlayVisible = hasOverlappingOverlay;

@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { getDomNodePagePosition, IDomNodePagePosition } from '../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../base/browser/window.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
 
 const OVERLAY_CLASSES: string[] = [
 	'monaco-menu-container',
@@ -42,7 +42,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		onWillAddFirstListener: () => {
 			// Start observing the document for structural changes
 			this._observerIsConnected = true;
-			this._structuralObserver.observe(mainWindow.document.body, {
+			this._structuralObserver.observe(this.targetWindow.document.body, {
 				childList: true,
 				subtree: true
 			});
@@ -63,14 +63,16 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	private _structuralObserver: MutationObserver;
 	private _observerIsConnected: boolean = false;
 
-	constructor() {
+	constructor(
+		private readonly targetWindow: CodeWindow
+	) {
 		super();
 
 		// Initialize live collections for each overlay selector
 		for (const className of OVERLAY_CLASSES) {
 			// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
 			// eslint-disable-next-line no-restricted-syntax
-			this._overlayCollections.set(className, mainWindow.document.getElementsByClassName(className));
+			this._overlayCollections.set(className, this.targetWindow.document.getElementsByClassName(className));
 		}
 
 		// Setup structural observer to watch for element additions/removals

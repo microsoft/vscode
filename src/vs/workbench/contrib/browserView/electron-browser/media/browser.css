@@ -48,7 +48,8 @@
 		overflow: hidden;
 		position: relative;
 		background-image: none;
-		background-size: cover;
+		background-size: contain;
+		background-repeat: no-repeat;
 		filter: blur(0px);
 		transition: opacity 300ms ease-out, filter 300ms ease-out;
 		outline: none !important;
