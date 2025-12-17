@@ -97,7 +97,7 @@ jobs:
 
       - script: |
           set -e
-          npm exec -- npm-run-all2 core-ci
+          npm exec -- npm-run-all2 -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Compile & Hygiene
