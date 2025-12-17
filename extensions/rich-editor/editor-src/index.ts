@@ -222,13 +222,37 @@ function jsonToMarkdown(doc: Record<string, unknown>): string {
 	if (!content) { return ''; }
 
 	const results: string[] = [];
+
 	for (const node of content) {
+		const nodeType = node.type as string;
 		const md = nodeToMarkdown(node);
-		if (md.trim() !== '') {
-			results.push(md);
+
+		// Empty paragraph represents a blank line in the original document
+		if (nodeType === 'paragraph' && md.trim() === '') {
+			// Only add blank line if we have previous content (avoid leading blank lines)
+			if (results.length > 0) {
+				results.push('');
+			}
+			continue;
 		}
+
+		// Skip truly empty nodes (no content at all)
+		if (md === '') {
+			continue;
+		}
+
+		// Add separator before this node
+		if (results.length > 0) {
+			// If last was a blank line (empty string in results), don't add another separator
+			if (results[results.length - 1] !== '') {
+				results.push(''); // This creates a blank line between blocks
+			}
+		}
+
+		results.push(md);
 	}
-	return results.join('\n\n');
+
+	return results.join('\n');
 }
 
 /**
@@ -552,24 +576,39 @@ function markdownToHtml(markdown: string): string {
 	html = html.replace(/^> (.+)$/gm, '<blockquote><p>$1</p></blockquote>');
 
 	// Task lists (must be before regular unordered lists)
-	html = html.replace(/^- \[x\] (.+)$/gm, '<li data-type="taskItem" data-checked="true">$1</li>');
-	html = html.replace(/^- \[ \] (.+)$/gm, '<li data-type="taskItem" data-checked="false">$1</li>');
+	// Use .* instead of .+ to allow empty task items like "- [ ]"
+	// TipTap expects list items to contain a <p> element
+	html = html.replace(/^- \[x\] ?(.*)$/gm, '<li data-type="taskItem" data-checked="true"><p>$1</p></li>');
+	html = html.replace(/^- \[ \] ?(.*)$/gm, '<li data-type="taskItem" data-checked="false"><p>$1</p></li>');
 	html = html.replace(/(<li data-type="taskItem"[^>]*>.*<\/li>\n?)+/g, '<ul data-type="taskList">$&</ul>');
 
+	// Ordered lists (1. item, 2. item, etc.) - must be before unordered lists
+	// TipTap expects list items to contain a <p> element
+	html = html.replace(/^(\d+)\. (.*)$/gm, '<li data-type="orderedItem"><p>$2</p></li>');
+	html = html.replace(/(<li data-type="orderedItem">.*<\/li>\n?)+/g, '<ol>$&</ol>');
+	// Clean up the data-type attribute after wrapping
+	html = html.replace(/data-type="orderedItem"/g, '');
+
 	// Unordered lists (items not already matched as tasks)
-	html = html.replace(/^- ([^\[].*)$/gm, '<li>$1</li>');
+	// Match lines starting with "- " that weren't already converted to task items
+	// TipTap expects list items to contain a <p> element
+	html = html.replace(/^- (.*)$/gm, (match, content) => {
+		// Skip if this line was already processed (contains li tags)
+		if (match.includes('<li')) { return match; }
+		return `<li><p>${content}</p></li>`;
+	});
 	html = html.replace(/(<li>(?!.*data-type).*<\/li>\n?)+/g, '<ul>$&</ul>');
 
 	// Paragraphs (lines not already wrapped)
 	const lines = html.split('\n');
 	html = lines.map(line => {
-		// Skip empty lines entirely
-		if (line.trim() === '') { return null; }
-		// Skip lines that already have HTML tags
-		if (line.match(/^<[a-z]/i)) { return line; }
+		// Preserve empty lines as empty paragraphs (blank lines in original markdown)
+		if (line.trim() === '') { return '<p></p>'; }
+		// Skip lines that already have HTML tags (both opening and closing tags)
+		if (line.match(/^<\/?[a-z]/i)) { return line; }
 		// Wrap plain text in paragraph
 		return `<p>${line}</p>`;
-	}).filter(line => line !== null).join('');
+	}).join('');
 
 	return html;
 }

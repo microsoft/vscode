@@ -102,6 +102,46 @@
 
 	// ==================== MARKDOWN RENDERING ====================
 
+	// Resolve relative URL to absolute using baseUri
+	function resolveUrl(url) {
+		// Ensure url is a string
+		if (typeof url !== 'string') {
+			return url;
+		}
+
+		// If it's already an absolute URL, return as-is
+		if (!url || url.startsWith('http://') || url.startsWith('https://') ||
+			url.startsWith('data:') || url.startsWith('vscode-resource://') ||
+			url.startsWith('vscode-webview://')) {
+			return url;
+		}
+
+		// Use baseUri from settings to resolve relative paths
+		const baseUri = settings.baseUri;
+		if (!baseUri) {
+			return url;
+		}
+
+		// Remove trailing slash from base if present
+		let base = baseUri;
+		while (base.endsWith('/')) {
+			base = base.slice(0, -1);
+		}
+
+		// Clean the path
+		let cleanPath = url;
+		if (cleanPath.startsWith('./')) {
+			cleanPath = cleanPath.slice(2);
+		}
+		// Remove leading slashes for joining
+		while (cleanPath.startsWith('/')) {
+			cleanPath = cleanPath.slice(1);
+		}
+
+		return `${base}/${cleanPath}`;
+	}
+
+	// Render markdown
 	async function renderMarkdown() {
 		try {
 			// @ts-ignore
@@ -109,10 +149,43 @@
 				throw new Error('Marked.js not loaded');
 			}
 
+			// Create custom renderer to handle image URLs
+			// Note: marked.js API varies by version - handle both old and new signatures
+			const renderer = new window.marked.Renderer();
+
+			renderer.image = function(hrefOrToken, title, text) {
+				// Handle both old API (href, title, text) and new API (token object)
+				let href, imgTitle, imgText;
+				if (typeof hrefOrToken === 'object' && hrefOrToken !== null) {
+					// New marked.js API - receives a token object
+					href = hrefOrToken.href;
+					imgTitle = hrefOrToken.title || '';
+					imgText = hrefOrToken.text || '';
+				} else {
+					// Old marked.js API - receives individual parameters
+					href = hrefOrToken;
+					imgTitle = title || '';
+					imgText = text || '';
+				}
+
+				// Resolve relative image paths
+				const resolvedHref = resolveUrl(href);
+
+				// Build the img tag
+				let out = `<img src="${resolvedHref}" alt="${imgText}"`;
+				if (imgTitle) {
+					out += ` title="${imgTitle}"`;
+				}
+				out += '>';
+				return out;
+			};
+
+			// Configure marked with custom renderer
 			// @ts-ignore
 			window.marked.setOptions({
 				gfm: true,
 				breaks: false,
+				renderer: renderer,
 				highlight: function (code, lang) {
 					// @ts-ignore
 					if (window.hljs && lang && window.hljs.getLanguage(lang)) {

@@ -9,12 +9,13 @@ import { generateUuid } from './util/uuid';
 export interface MarkdownViewerSettings {
 	content: string;
 	enableSyncClick?: boolean;
+	baseUri?: string; // Base URI for resolving relative paths (images, etc.)
 }
 
 export function getMarkdownViewerHtml(
 	webview: vscode.Webview,
 	extensionUri: vscode.Uri,
-	_markdownUri: vscode.Uri,
+	markdownUri: vscode.Uri,
 	settings: MarkdownViewerSettings
 ): string {
 	const nonce = generateUuid();
@@ -32,9 +33,14 @@ export function getMarkdownViewerHtml(
 	const highlightJsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'vendors', 'highlight', 'highlight.min.js'));
 	const highlightCssUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'vendors', 'highlight', 'github-dark.min.css'));
 
+	// Calculate base URI for resolving relative paths (document directory)
+	const documentDir = vscode.Uri.joinPath(markdownUri, '..');
+	const baseUri = settings.baseUri || webview.asWebviewUri(documentDir).toString();
+
 	const viewerSettings = {
 		markdownContent: settings.content,
-		enableSyncClick: settings.enableSyncClick || false
+		enableSyncClick: settings.enableSyncClick || false,
+		baseUri: baseUri
 	};
 
 	return `<!DOCTYPE html>

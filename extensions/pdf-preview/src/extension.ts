@@ -161,7 +161,9 @@ export function activate(context: vscode.ExtensionContext) {
 		return markdownPreviewManager.showMarkdownPreview(options);
 	}));
 
-	// Override the built-in markdown preview command to use our preview
+	// DSpace markdown preview command (with PDF export capability)
+	// Note: The built-in markdown-language-features command registration is disabled
+	// in commands/index.ts to allow this extension to handle markdown preview
 	disposables.push(vscode.commands.registerCommand('markdown.showPreviewToSide', async () => {
 		const editor = vscode.window.activeTextEditor;
 		if (!editor || editor.document.languageId !== 'markdown') {

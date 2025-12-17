@@ -60,13 +60,24 @@ export class MarkdownPreview extends BasePreview {
 		this._onSyncClick = options?.onSyncClick;
 		this._sourceUri = options?.sourceUri;
 
+		// Build localResourceRoots: extension dirs + document dir + all workspace folders
+		const localResourceRoots: vscode.Uri[] = [
+			vscode.Uri.joinPath(extensionUri, 'media'),
+			vscode.Uri.joinPath(extensionUri, 'vendors'),
+			vscode.Uri.joinPath(resource, '..')
+		];
+
+		// Add all workspace folders (to allow loading images from anywhere in workspace)
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (workspaceFolders) {
+			for (const folder of workspaceFolders) {
+				localResourceRoots.push(folder.uri);
+			}
+		}
+
 		webviewPanel.webview.options = {
 			enableScripts: true,
-			localResourceRoots: [
-				vscode.Uri.joinPath(extensionUri, 'media'),
-				vscode.Uri.joinPath(extensionUri, 'vendors'),
-				vscode.Uri.joinPath(resource, '..')
-			]
+			localResourceRoots
 		};
 
 		// Watch for file changes if we're loading from a file
