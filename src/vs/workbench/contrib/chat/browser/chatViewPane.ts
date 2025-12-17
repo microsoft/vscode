@@ -818,10 +818,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			case 'stacked':
 				newSessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 				break;
-			// Side by side
-			case 'sideBySide':
-				newSessionsViewerOrientation = AgentSessionsViewerOrientation.SideBySide;
-				break;
 			// Update orientation based on available width
 			default:
 				newSessionsViewerOrientation = width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH ? AgentSessionsViewerOrientation.SideBySide : AgentSessionsViewerOrientation.Stacked;
