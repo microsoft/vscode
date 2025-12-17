@@ -136,23 +136,12 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID);
 	}
 
-	private readonly _delegate: IObservable<InlineChatController1 | InlineChatController2>;
+	private readonly _delegate: InlineChatController2;
 
 	constructor(
 		editor: ICodeEditor,
-		@IConfigurationService configurationService: IConfigurationService,
-		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService
 	) {
-		const notebookAgent = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
-
-		this._delegate = derived(r => {
-			const isNotebookCell = !!this._notebookEditorService.getNotebookForPossibleCell(editor);
-			if (!isNotebookCell || notebookAgent.read(r)) {
-				return InlineChatController2.get(editor)!;
-			} else {
-				return InlineChatController1.get(editor)!;
-			}
-		});
+		this._delegate = InlineChatController2.get(editor)!;
 	}
 
 	dispose(): void {
@@ -160,27 +149,27 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	get isActive(): boolean {
-		return this._delegate.get().isActive;
+		return this._delegate.isActive;
 	}
 
 	async run(arg?: InlineChatRunOptions): Promise<boolean> {
-		return this._delegate.get().run(arg);
+		return this._delegate.run(arg);
 	}
 
 	focus() {
-		return this._delegate.get().focus();
+		return this._delegate.focus();
 	}
 
 	get widget(): EditorBasedInlineChatWidget {
-		return this._delegate.get().widget;
+		return this._delegate.widget;
 	}
 
 	getWidgetPosition() {
-		return this._delegate.get().getWidgetPosition();
+		return this._delegate.getWidgetPosition();
 	}
 
 	acceptSession() {
-		return this._delegate.get().acceptSession();
+		return this._delegate.acceptSession();
 	}
 }
 
@@ -1283,6 +1272,7 @@ export class InlineChatController2 implements IEditorContribution {
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
@@ -1293,6 +1283,7 @@ export class InlineChatController2 implements IEditorContribution {
 	) {
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
+		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
@@ -1328,14 +1319,16 @@ export class InlineChatController2 implements IEditorContribution {
 			const notebookEditor = this._notebookEditorService.getNotebookForPossibleCell(this._editor);
 			if (!!notebookEditor) {
 				location.location = ChatAgentLocation.Notebook;
-				location.resolveData = () => {
-					assertType(this._editor.hasModel());
+				if (notebookAgentConfig.get()) {
+					location.resolveData = () => {
+						assertType(this._editor.hasModel());
 
-					return {
-						type: ChatAgentLocation.Notebook,
-						sessionInputUri: this._editor.getModel().uri,
+						return {
+							type: ChatAgentLocation.Notebook,
+							sessionInputUri: this._editor.getModel().uri,
+						};
 					};
-				};
+				}
 			}
 
 			const result = this._instaService.createInstance(InlineChatZoneWidget,
