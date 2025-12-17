@@ -1072,7 +1072,7 @@ export class ToggleChatTerminalOutputAction extends Action implements IAction {
 	}
 
 	private _updateTooltip(): void {
-		this.tooltip = this._keybindingService.appendKeybinding(this.label, TerminalContribCommandId.ToggleChatTerminalOutput);
+		this.tooltip = this._keybindingService.appendKeybinding(this.label, TerminalContribCommandId.FocusMostRecentChatTerminalOutput);
 	}
 }
 
