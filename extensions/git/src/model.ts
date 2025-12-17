@@ -468,15 +468,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			const possibleRepositoryFolders = added
 				.filter(folder => !this.getOpenRepository(folder.uri));
 
-			const activeRepositoriesList = window.visibleTextEditors
-				.map(editor => this.getRepository(editor.document.uri))
-				.filter(repository => !!repository) as Repository[];
-
-			const activeRepositories = new Set<Repository>(activeRepositoriesList);
 			const openRepositoriesToDispose = removed
 				.map(folder => this.getOpenRepository(folder.uri))
 				.filter(r => !!r)
-				.filter(r => !activeRepositories.has(r!.repository))
 				.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
 
 			openRepositoriesToDispose.forEach(r => r.dispose());
