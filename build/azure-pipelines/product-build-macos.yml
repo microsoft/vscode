@@ -28,6 +28,8 @@ variables:
     value: ${{ parameters.VSCODE_QUALITY }}
   - name: VSCODE_CIBUILD
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
+  - name: VSCODE_STEP_ON_IT
+    value: false
   - name: skipComponentGovernanceDetection
     value: true
   - name: ComponentDetection.Timeout

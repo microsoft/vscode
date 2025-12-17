@@ -13,6 +13,7 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 import { ACTIVE_GROUP, IEditorService, type PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IChatService } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from './chat.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
@@ -29,12 +30,16 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	private readonly _onDidAddWidget = this._register(new Emitter<IChatWidget>());
 	readonly onDidAddWidget = this._onDidAddWidget.event;
 
+	private readonly _onDidBackgroundSession = this._register(new Emitter<URI>());
+	readonly onDidBackgroundSession = this._onDidBackgroundSession.event;
+
 	constructor(
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IQuickChatService private readonly quickChatService: IQuickChatService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 	}
@@ -228,6 +233,18 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 		return combinedDisposable(
 			newWidget.onDidFocus(() => this.setLastFocusedWidget(newWidget)),
+			newWidget.onDidChangeViewModel(({ previousSessionResource, currentSessionResource }) => {
+				if (!previousSessionResource || (currentSessionResource && isEqual(previousSessionResource, currentSessionResource))) {
+					return;
+				}
+
+				// Timeout to ensure it wasn't just moving somewhere else
+				void timeout(200).then(() => {
+					if (!this.getWidgetBySessionResource(previousSessionResource) && this.chatService.getSession(previousSessionResource)) {
+						this._onDidBackgroundSession.fire(previousSessionResource);
+					}
+				});
+			}),
 			toDisposable(() => this._widgets.splice(this._widgets.indexOf(newWidget), 1))
 		);
 	}

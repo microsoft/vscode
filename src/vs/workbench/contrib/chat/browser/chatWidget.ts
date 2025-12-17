@@ -75,7 +75,7 @@ import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { IHandOff, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
-import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
+import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
@@ -184,7 +184,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
-	private _onDidChangeViewModel = this._register(new Emitter<void>());
+	private _onDidChangeViewModel = this._register(new Emitter<IChatWidgetViewModelChangeEvent>());
 	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
 
 	private _onDidScroll = this._register(new Emitter<void>());
@@ -292,6 +292,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		const previousSessionResource = this._viewModel?.sessionResource;
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
@@ -302,7 +303,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.logService.debug('ChatWidget#setViewModel: no viewModel');
 		}
 
-		this._onDidChangeViewModel.fire();
+		this._onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: this._viewModel?.sessionResource });
 	}
 
 	get viewModel() {

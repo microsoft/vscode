@@ -345,15 +345,12 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	updatePreviewIndicator(element: SettingsTreeSettingElement) {
 		const isPreviewSetting = element.tags?.has('preview');
 		const isExperimentalSetting = element.tags?.has('experimental');
-		const isAdvancedSetting = element.tags?.has('advanced');
-		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting || isAdvancedSetting) ? 'inline' : 'none';
+		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting) ? 'inline' : 'none';
 		this.previewIndicator.label.text = isPreviewSetting ?
 			localize('previewLabel', "Preview") :
-			isExperimentalSetting ?
-				localize('experimentalLabel', "Experimental") :
-				localize('advancedLabel', "Advanced");
+			localize('experimentalLabel', "Experimental");
 
-		const content = isPreviewSetting ? PREVIEW_INDICATOR_DESCRIPTION : isExperimentalSetting ? EXPERIMENTAL_INDICATOR_DESCRIPTION : ADVANCED_INDICATOR_DESCRIPTION;
+		const content = isPreviewSetting ? PREVIEW_INDICATOR_DESCRIPTION : EXPERIMENTAL_INDICATOR_DESCRIPTION;
 		const showHover = (focus: boolean) => {
 			return this.hoverService.showInstantHover({
 				...this.defaultHoverOptions,

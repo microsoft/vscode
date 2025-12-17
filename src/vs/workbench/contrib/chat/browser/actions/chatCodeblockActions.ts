@@ -278,7 +278,7 @@ export function registerChatCodeBlockActions() {
 				id: APPLY_IN_EDITOR_ID,
 				title: localize2('interactive.applyInEditor.label', "Apply in Editor"),
 				precondition: ChatContextKeys.enabled,
-				f1: true,
+				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.gitPullRequestGoToChanges,
 
