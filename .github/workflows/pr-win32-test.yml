@@ -38,7 +38,7 @@ jobs:
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
@@ -98,7 +98,7 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           enableCrossOsArchive: true
           path: .build/builtInExtensions
@@ -249,7 +249,7 @@ jobs:
         if: always()
 
       - name: Publish Crash Reports
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: failure()
         continue-on-error: true
         with:
@@ -260,7 +260,7 @@ jobs:
       # In order to properly symbolify above crash reports
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: failure()
         continue-on-error: true
         with:
@@ -269,7 +269,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish Log Files
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: always()
         continue-on-error: true
         with:

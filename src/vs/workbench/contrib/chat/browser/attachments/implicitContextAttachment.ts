@@ -65,21 +65,12 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.renderDisposables.clear();
 
 		this.domNode.classList.toggle('disabled', !this.attachment.enabled);
-		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
 		const file: URI | undefined = this.attachment.uri;
 		const attachmentTypeName = file?.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
 
-		let title: string;
-		if (isStringImplicitContextValue(this.attachment.value)) {
-			title = this.renderString(label);
-		} else {
-			title = this.renderResource(this.attachment.value, label);
-		}
-
 		const isSuggestedEnabled = this.configService.getValue('chat.implicitContext.suggestedContext');
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.domNode, title));
 
-
+		// Create toggle button BEFORE the label so it appears on the left
 		if (isSuggestedEnabled) {
 			if (!this.attachment.isSelection) {
 				const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : '';
@@ -124,6 +115,17 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				this.attachment.enabled = !this.attachment.enabled;
 			}));
 		}
+
+		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
+
+		let title: string;
+		if (isStringImplicitContextValue(this.attachment.value)) {
+			title = this.renderString(label);
+		} else {
+			title = this.renderResource(this.attachment.value, label);
+		}
+
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.domNode, title));
 
 		// Context menu
 		const scopedContextKeyService = this.renderDisposables.add(this.contextKeyService.createScoped(this.domNode));

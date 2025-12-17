@@ -25,7 +25,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { FileAccess } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -53,7 +53,9 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../common/chatService.js';
+import { localChatSessionType } from '../common/chatSessionsService.js';
+import { getChatSessionType } from '../common/chatUri.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
@@ -289,14 +291,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.viewModel = viewModel;
 		this._announcedToolProgressKeys.clear();
 
-		for (const templateData of this.templateDataByRequestId.values()) {
-			if (templateData.renderedParts) {
-				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-				if (lastThinking?.getIsActive()) {
-					lastThinking.markAsInactive();
-				}
-			}
-		}
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
@@ -773,19 +767,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
-		const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 
-		if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
-			const hasActiveThinking = !!this.getLastThinkingPart(templateData.renderedParts);
-			if (hasActiveThinking) {
-				return lastPart?.kind !== 'thinking' && lastPart?.kind !== 'toolInvocation' && lastPart?.kind !== 'prepareToolInvocation' && lastPart?.kind !== 'textEditGroup' && lastPart?.kind !== 'notebookEditGroup';
+		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+
+		if (lastThinking &&
+			(collapsedToolsMode === CollapsedToolsDisplayMode.Always ||
+				collapsedToolsMode === CollapsedToolsDisplayMode.WithThinking)) {
+			if (!lastPart || lastPart.kind === 'thinking' || lastPart.kind === 'toolInvocation' || lastPart.kind === 'prepareToolInvocation' || lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') {
+				return false;
 			}
 		}
 
 		if (
 			!lastPart ||
-			lastPart.kind === 'references' || (lastPart.kind === 'thinking' && thinkingStyle !== ThinkingDisplayMode.FixedScrolling) ||
+			lastPart.kind === 'references' ||
 			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (IChatToolInvocation.isComplete(lastPart) || lastPart.presentation === 'hidden')) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
@@ -802,23 +798,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!this.shouldShowFileChangesSummary(element)) {
 			return undefined;
 		}
-		const consideredFiles: Set<string> = new Set();
-		const fileChanges: IChatChangesSummary[] = [];
-		for (const part of element.model.entireResponse.value) {
-			if ((part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup') && !consideredFiles.has(part.uri.toString(true))) {
-				fileChanges.push({
-					kind: 'changesSummary',
-					reference: part.uri,
-					sessionId: element.sessionId,
-					requestId: element.requestId,
-				});
-				consideredFiles.add(part.uri.toString(true));
-			}
-		}
-		if (!fileChanges.length) {
+		if (!element.model.entireResponse.value.some(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup')) {
 			return undefined;
 		}
-		return { kind: 'changesSummary', fileChanges };
+
+		return { kind: 'changesSummary', requestId: element.requestId, sessionResource: element.sessionResource };
 	}
 
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
@@ -1173,7 +1157,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {
-		return element.isComplete && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
+		// Only show file changes summary for local sessions - background sessions already have their own file changes part
+		const isLocalSession = getChatSessionType(element.sessionResource) === localChatSessionType;
+		return element.isComplete && isLocalSession && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
 	}
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
@@ -1243,7 +1229,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Don't pin terminal tools
 		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
-		if (isTerminalTool) {
+		const isContributedTerminalToolInvocation = element
+			&& (element.sessionResource.scheme !== Schemas.vscodeChatInput && element.sessionResource.scheme !== Schemas.vscodeLocalChatSession) // contributed sessions
+			&& part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'terminal'; // contributed serialized terminal tool invocations data
+		if (isTerminalTool && !isContributedTerminalToolInvocation) {
 			return false;
 		}
 
@@ -1652,6 +1641,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderMarkdown(markdown: IChatMarkdownContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
+		this.finalizeCurrentThinkingPart(context, templateData);
 		const element = context.element;
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;
@@ -1692,7 +1682,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					e.stopPropagation();
 					this._onDidClickRequest.fire(templateData);
 				}));
-				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
+				markdownPart.addDisposable(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
 			}
 			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.FOCUS, () => {
 				this.hoverVisible(templateData.requestHover);

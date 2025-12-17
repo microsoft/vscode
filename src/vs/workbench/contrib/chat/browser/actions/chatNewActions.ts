@@ -7,7 +7,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
-import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -68,10 +67,6 @@ export function registerNewChatActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
-			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
-
-			accessibilitySignalService.playSignal(AccessibilitySignal.clear);
-
 			await clearChatEditor(accessor);
 		}
 	});
@@ -125,15 +120,12 @@ export function registerNewChatActions() {
 				return;
 			}
 
-			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const dialogService = accessor.get(IDialogService);
 
 			const model = widget.viewModel?.model;
 			if (model && !(await handleCurrentEditingSession(model, undefined, dialogService))) {
 				return;
 			}
-
-			accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 
 			await editingSession?.stop();
 			await widget.clear();
@@ -160,20 +152,21 @@ export function registerNewChatActions() {
 	});
 	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
 
-	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
+	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleNavigationToolbar, {
 		command: {
 			id: ACTION_ID_NEW_CHAT,
 			title: localize2('chat.goBack', "Go Back"),
 			icon: Codicon.arrowLeft,
 		},
-		group: 'navigation'
+		group: 'navigation',
+		order: 1
 	});
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.undoEdit',
-				title: localize2('chat.undoEdit.label', "Undo Last Request"),
+				title: localize2('chat.undoEdit.label', "Undo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.discard,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanUndo, ChatContextKeys.enabled),
@@ -197,7 +190,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
-				title: localize2('chat.redoEdit.label', "Redo Last Request"),
+				title: localize2('chat.redoEdit.label', "Redo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled),

@@ -941,19 +941,22 @@ export async function createAuthMetadata(
 	let scopesChallenge = scopesChallengeFromHeader;
 
 	try {
-		const resourceMetadata = await fetchResourceMetadata(mcpUrl, resourceMetadataChallenge, {
+		const { metadata, errors } = await fetchResourceMetadata(mcpUrl, resourceMetadataChallenge, {
 			sameOriginHeaders: {
 				...Object.fromEntries(launchHeaders),
 				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
 			},
 			fetch: (url, init) => fetch(url, init as MinimalRequestInit)
 		});
+		for (const err of errors) {
+			log(LogLevel.Warning, `Error fetching resource metadata: ${err}`);
+		}
 		// TODO:@TylerLeonhardt support multiple authorization servers
 		// Consider using one that has an auth provider first, over the dynamic flow
-		serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
+		serverMetadataUrl = metadata.authorization_servers?.[0];
 		log(LogLevel.Debug, `Using auth server metadata url: ${serverMetadataUrl}`);
-		scopesChallenge ??= resourceMetadata.scopes_supported;
-		resource = resourceMetadata;
+		scopesChallenge ??= metadata.scopes_supported;
+		resource = metadata;
 	} catch (e) {
 		log(LogLevel.Warning, `Could not fetch resource metadata: ${String(e)}`);
 	}

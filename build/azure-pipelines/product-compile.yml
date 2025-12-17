@@ -1,9 +1,6 @@
 jobs:
   - job: Compile
     timeoutInMinutes: 60
-    pool:
-      name: AcesShared
-      os: macOS
     templateContext:
       outputs:
         - output: pipelineArtifact
