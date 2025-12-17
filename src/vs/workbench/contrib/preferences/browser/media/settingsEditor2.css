@@ -609,7 +609,7 @@
 	background-color: var(--vscode-textPreformat-background);
 	padding: 1px 3px;
 	border-radius: 4px;
-	border: 1px solid var(--vscode-textPreformat-border);
+	/* border: 1px solid var(--vscode-textPreformat-border); */
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown .monaco-tokenized-source {
