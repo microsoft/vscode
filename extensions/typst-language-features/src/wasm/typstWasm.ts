@@ -1296,6 +1296,21 @@ function findErrorLocationInSource(message: string, source: string): { line: num
 		}
 	}
 
+	// Pattern 6b: "unknown bibliography format" - find the bibliography() call
+	if (message.includes('unknown bibliography format') || message.includes('bibliography format')) {
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			if (line.trim().startsWith('//')) {
+				continue;
+			}
+			// Look for bibliography( or #bibliography(
+			const bibMatch = line.match(/#?bibliography\s*\(/);
+			if (bibMatch && bibMatch.index !== undefined) {
+				return { line: i, column: bibMatch.index };
+			}
+		}
+	}
+
 	// Pattern 7: "unknown font family: fontname"
 	const unknownFontMatch = message.match(/unknown\s+font(?:\s+family)?[:\s]+`?([^`\n]+)`?/i);
 	if (unknownFontMatch) {

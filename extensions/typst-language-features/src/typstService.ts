@@ -155,6 +155,59 @@ export class TypstService implements vscode.Disposable {
 				this._diagnosticCollection.delete(doc.uri);
 			})
 		);
+
+		// Use FileSystemWatcher to detect file changes in the workspace
+		// This handles cases like creating a missing bibliography or image file
+		// FileSystemWatcher detects changes from any source (VS Code, terminal, file explorer)
+		this.setupFileSystemWatcher();
+	}
+
+	/**
+	 * Set up a FileSystemWatcher to detect file creation/deletion in the workspace
+	 * This is needed because onDidCreateFiles/onDidDeleteFiles only fire for VS Code API operations,
+	 * but not for files created via file explorer, terminal, or other external tools
+	 */
+	private setupFileSystemWatcher(): void {
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (!workspaceFolders) {
+			return;
+		}
+
+		// Watch all files in the workspace for creation/deletion
+		// Typst documents can reference any file type (bibliography, images, includes)
+		// Using '**/*' pattern to catch all file types
+		// ignoreChangeEvents: true to avoid excessive revalidation on content changes
+		// (content changes in Typst files are handled by onDidChangeTextDocument)
+		const watcher = vscode.workspace.createFileSystemWatcher(
+			'**/*',
+			false,  // ignoreCreateEvents: false - we want to know when files are created
+			true,   // ignoreChangeEvents: true - content changes are handled elsewhere
+			false   // ignoreDeleteEvents: false - we want to know when files are deleted
+		);
+
+		watcher.onDidCreate((uri) => {
+			this._logger.appendLine(`[FileWatcher] File created: ${uri.fsPath}, revalidating Typst documents`);
+			this.revalidateOpenTypstDocuments();
+		});
+
+		watcher.onDidDelete((uri) => {
+			this._logger.appendLine(`[FileWatcher] File deleted: ${uri.fsPath}, revalidating Typst documents`);
+			this.revalidateOpenTypstDocuments();
+		});
+
+		this._disposables.push(watcher);
+	}
+
+	/**
+	 * Revalidate all open Typst documents
+	 * Called when files are created/deleted/renamed as they may affect diagnostics
+	 */
+	private revalidateOpenTypstDocuments(): void {
+		for (const doc of vscode.workspace.textDocuments) {
+			if (doc.languageId === 'typst') {
+				this.scheduleValidation(doc);
+			}
+		}
 	}
 
 	/**
