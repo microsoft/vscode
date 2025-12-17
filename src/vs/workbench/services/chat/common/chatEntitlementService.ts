@@ -1293,7 +1293,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.untrustedContext.set(!!state.untrusted);
 		this.registeredContext.set(!!state.registered);
 
-		this.logService.info(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
+		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
 		logChatEntitlements(state, this.configurationService, this.telemetryService);
 
 		this._onDidChange.fire();
