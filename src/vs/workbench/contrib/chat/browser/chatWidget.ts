@@ -350,6 +350,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this._location.resolveData?.();
 	}
 
+	private _currentChatProgressDisposable: IDisposable | undefined;
+
 	constructor(
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
 		viewContext: IChatWidgetViewContext | undefined,
@@ -379,7 +381,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 
@@ -693,6 +696,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}).filter(isDefined);
 
 		this._register(this.chatWidgetService.register(this));
+		this._register(this.chatWidgetService.onDidBackgroundSession(e => {
+			const session = this._chatService.getSession(e);
+			if (!session) {
+				return;
+			}
+			const requestInProgress = session?.requestInProgress.get();
+			if (!requestInProgress) {
+				return;
+			}
+			alert(localize('chat.backgroundRequest', "Chat session will continue in the background."));
+			this._currentChatProgressDisposable?.dispose();
+		}));
 
 		const parsedInput = observableFromEvent(this.onDidChangeParsedInput, () => this.parsedInput);
 		this._register(autorun(r => {
@@ -2250,7 +2265,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.scrollLock = this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll);
 
 		const editorValue = this.getInput();
-		const requestId = this.chatAccessibilityService.acceptRequest();
+		const acceptRequestDisposable = this.chatAccessibilityService.acceptRequest();
+		this._currentChatProgressDisposable = acceptRequestDisposable;
 		const requestInputs: IChatRequestInputOptions = {
 			input: !query ? editorValue : query.query,
 			attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext(this.viewModel.sessionResource) : this.input.getAttachedAndImplicitContext(this.viewModel.sessionResource),
@@ -2331,7 +2347,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 
 		if (!result) {
-			this.chatAccessibilityService.disposeRequest(requestId);
+			acceptRequestDisposable.dispose();
 			return;
 		}
 
@@ -2344,7 +2360,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.currentRequest = result.responseCompletePromise.then(() => {
 			const responses = this.viewModel?.getItems().filter(isResponseVM);
 			const lastResponse = responses?.[responses.length - 1];
-			this.chatAccessibilityService.acceptResponse(this, this.container, lastResponse, requestId, options?.isVoiceInput);
+			acceptRequestDisposable.dispose();
+			this.chatAccessibilityService.acceptResponse(this, this.container, lastResponse, options?.isVoiceInput);
 			if (lastResponse?.result?.nextQuestion) {
 				const { prompt, participant, command } = lastResponse.result.nextQuestion;
 				const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);

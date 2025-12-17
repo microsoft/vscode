@@ -8,7 +8,7 @@ import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js'
 import { alert, status } from '../../../../base/browser/ui/aria/aria.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { AccessibilityProgressSignalScheduler } from '../../../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
@@ -27,7 +27,6 @@ const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
 	declare readonly _serviceBrand: undefined;
 
-	private _pendingSignalMap: DisposableMap<number, AccessibilityProgressSignalScheduler> = this._register(new DisposableMap());
 
 	private _requestId: number = 0;
 
@@ -51,19 +50,13 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		super.dispose();
 	}
 
-	acceptRequest(): number {
+	acceptRequest(): IDisposable {
 		this._requestId++;
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatRequestSent, { allowManyInParallel: true });
-		this._pendingSignalMap.set(this._requestId, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
-		return this._requestId;
+		return this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined);
 	}
 
-	disposeRequest(requestId: number): void {
-		this._pendingSignalMap.deleteAndDispose(requestId);
-	}
-
-	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void {
-		this._pendingSignalMap.deleteAndDispose(requestId);
+	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, isVoiceInput?: boolean): void {
 		const isPanelChat = typeof response !== 'string';
 		const responseContent = typeof response === 'string' ? response : response?.response.toString();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatResponseReceived, { allowManyInParallel: true });
