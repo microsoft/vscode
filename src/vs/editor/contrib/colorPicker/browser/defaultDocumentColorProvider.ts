@@ -20,7 +20,7 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 	) { }
 
 	async provideDocumentColors(model: ITextModel, _token: CancellationToken): Promise<IColorInformation[] | null> {
-		const colorFormat = this._configurationService.getValue<'rgba' | 'argb'>('editor.colorDecoratorsHexFormat') ?? 'rgba';
+		const colorFormat = this._configurationService.getValue<'rgba' | 'argb'>('editor.colorDecoratorsHexFormat', { resource: model.uri }) ?? 'rgba';
 		return this._editorWorkerService.computeDefaultDocumentColors(model.uri, colorFormat);
 	}
 
