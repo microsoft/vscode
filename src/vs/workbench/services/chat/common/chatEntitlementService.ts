@@ -1246,10 +1246,10 @@ export class ChatEntitlementContext extends Disposable {
 			} else if (this._state.entitlement === ChatEntitlement.Available) {
 				this._state.registered = false; // only reset when signed-in user can sign-up for free
 			}
+		}
 
-			if (isAnonymous(this.configurationService, this._state.entitlement, this._state)) {
-				this._state.sku = 'no_auth_limited_copilot'; // no-auth users have a fixed SKU
-			}
+		if (isAnonymous(this.configurationService, this._state.entitlement, this._state)) {
+			this._state.sku = 'no_auth_limited_copilot'; // no-auth users have a fixed SKU
 		}
 
 		if (oldState === JSON.stringify(this._state)) {
@@ -1293,7 +1293,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.untrustedContext.set(!!state.untrusted);
 		this.registeredContext.set(!!state.registered);
 
-		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
+		this.logService.info(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
 		logChatEntitlements(state, this.configurationService, this.telemetryService);
 
 		this._onDidChange.fire();
