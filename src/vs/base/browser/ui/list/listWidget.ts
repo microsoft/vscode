@@ -1777,6 +1777,19 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 				this.setFocus([lastPageIndex], browserEvent);
 			}
 		} else {
+			// Check if the focused element extends below the viewport (tall item case)
+			if (typeof currentlyFocusedElementIndex === 'number') {
+				const elementTop = this.view.elementTop(currentlyFocusedElementIndex);
+				const elementBottom = elementTop + this.view.elementHeight(currentlyFocusedElementIndex);
+				const viewportBottom = this.view.getScrollTop() + this.view.renderHeight;
+
+				// If the element extends beyond the viewport, just scroll by a page
+				if (elementBottom > viewportBottom) {
+					this.view.setScrollTop(this.view.getScrollTop() + this.view.renderHeight);
+					return;
+				}
+			}
+
 			const previousScrollTop = this.view.getScrollTop();
 			let nextpageScrollTop = previousScrollTop + this.view.renderHeight;
 			if (lastPageIndex > currentlyFocusedElementIndex) {
@@ -1818,6 +1831,18 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 				this.setFocus([firstPageIndex], browserEvent);
 			}
 		} else {
+			// Check if the focused element extends above the viewport (tall item case)
+			if (typeof currentlyFocusedElementIndex === 'number') {
+				const elementTop = this.view.elementTop(currentlyFocusedElementIndex);
+				const viewportTop = scrollTop;
+
+				// If the element extends above the viewport, just scroll by a page
+				if (elementTop < viewportTop) {
+					this.view.setScrollTop(Math.max(0, scrollTop - this.view.renderHeight - paddingTop));
+					return;
+				}
+			}
+
 			const previousScrollTop = scrollTop;
 			this.view.setScrollTop(scrollTop - this.view.renderHeight - paddingTop);
 

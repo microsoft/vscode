@@ -93,4 +93,57 @@ suite('ListWidget', function () {
 		await timeout(0);
 		assert.strictEqual(listWidget.getFocus()[0], 0, 'page up to next page');
 	});
+
+	test('Page up and down scrolls within tall item that spans multiple pages', async function () {
+		const element = document.createElement('div');
+		element.style.height = '200px';
+		element.style.width = '200px';
+
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight() { return 500; }, // Item is 2.5x taller than viewport
+			getTemplateId() { return 'template'; }
+		};
+
+		let templatesCount = 0;
+
+		const renderer: IListRenderer<number, void> = {
+			templateId: 'template',
+			renderTemplate() { templatesCount++; },
+			renderElement() { },
+			disposeTemplate() { templatesCount--; }
+		};
+
+		const listWidget = store.add(new List<number>('test', element, delegate, [renderer]));
+
+		listWidget.layout(200);
+		listWidget.splice(0, 0, range(100));
+		listWidget.focusFirst();
+		assert.strictEqual(listWidget.getFocus()[0], 0, 'initial focus is first element');
+		assert.strictEqual(listWidget.scrollTop, 0, 'initial scroll position is 0');
+
+		// First page down should scroll within the same tall item
+		listWidget.focusNextPage();
+		assert.strictEqual(listWidget.getFocus()[0], 0, 'focus should remain on first element');
+		assert.strictEqual(listWidget.scrollTop, 200, 'should scroll down by viewport height');
+
+		// Second page down should scroll within the same tall item again
+		listWidget.focusNextPage();
+		assert.strictEqual(listWidget.getFocus()[0], 0, 'focus should remain on first element');
+		assert.strictEqual(listWidget.scrollTop, 400, 'should scroll down by viewport height again');
+
+		// Third page down should scroll to next item since we reached the end of the tall item
+		listWidget.focusNextPage();
+		await timeout(0);
+		assert.strictEqual(listWidget.getFocus()[0], 1, 'focus should move to next element');
+
+		// Page up should scroll within the same tall item (item 1 starts at 500px)
+		listWidget.focusPreviousPage();
+		assert.strictEqual(listWidget.getFocus()[0], 1, 'focus should remain on second element');
+		assert.strictEqual(listWidget.scrollTop, 500, 'should scroll up by viewport height');
+
+		// Continue paging up to scroll back to previous item
+		listWidget.focusPreviousPage();
+		await timeout(0);
+		assert.strictEqual(listWidget.getFocus()[0], 0, 'focus should move back to first element');
+	});
 });
