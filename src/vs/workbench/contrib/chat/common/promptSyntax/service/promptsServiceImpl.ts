@@ -16,7 +16,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -26,11 +26,12 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -93,7 +94,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IFileService private readonly fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService
 	) {
 		super();
 
@@ -387,7 +389,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		let agentFiles = await this.listPromptFiles(PromptsType.agent, token);
 		const disabledAgents = this.getDisabledPromptFiles(PromptsType.agent);
 		agentFiles = agentFiles.filter(promptPath => !disabledAgents.has(promptPath.uri));
-		const customAgents = await Promise.all(
+		const customAgentsResults = await Promise.allSettled(
 			agentFiles.map(async (promptPath): Promise<ICustomAgent> => {
 				const uri = promptPath.uri;
 				const ast = await this.parseNew(uri, token);
@@ -432,6 +434,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return { uri, name, description, model, tools, handOffs, argumentHint, target, infer, agentInstructions, source };
 			})
 		);
+
+		const customAgents: ICustomAgent[] = [];
+		for (let i = 0; i < customAgentsResults.length; i++) {
+			const result = customAgentsResults[i];
+			if (result.status === 'fulfilled') {
+				customAgents.push(result.value);
+			} else {
+				const uri = agentFiles[i].uri;
+				const error = result.reason;
+				if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+					this.logger.warn(`[computeCustomAgents] Skipping agent file that does not exist: ${uri}`, error.message);
+				} else {
+					this.logger.error(`[computeCustomAgents] Failed to parse agent file: ${uri}`, error);
+				}
+			}
+		}
+
 		return customAgents;
 	}
 
@@ -448,7 +467,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return new PromptFileParser().parse(uri, fileContent.value.toString());
 	}
 
-	public registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription) {
+	public registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name?: string, description?: string) {
 		const bucket = this.contributedFiles[type];
 		if (bucket.has(uri)) {
 			// keep first registration per extension (handler filters duplicates per extension already)
@@ -558,29 +577,31 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 	}
 
-	// Claude skills
+	// Agent skills
 
-	public async findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined> {
-		const useClaudeSkills = this.configurationService.getValue(PromptsConfig.USE_CLAUDE_SKILLS);
-		if (useClaudeSkills) {
-			const result: IClaudeSkill[] = [];
+	public async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
+		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
+		const defaultAccount = await this.defaultAccountService.getDefaultAccount();
+		const previewFeaturesEnabled = defaultAccount?.chat_preview_features_enabled ?? true;
+		if (useAgentSkills && previewFeaturesEnabled) {
+			const result: IAgentSkill[] = [];
 			const process = async (uri: URI, type: 'personal' | 'project'): Promise<void> => {
 				try {
 					const parsedFile = await this.parseNew(uri, token);
 					const name = parsedFile.header?.name;
 					if (name) {
-						result.push({ uri, type, name, description: parsedFile.header?.description } satisfies IClaudeSkill);
+						result.push({ uri, type, name, description: parsedFile.header?.description } satisfies IAgentSkill);
 					} else {
-						this.logger.error(`[findClaudeSkills] Claude skill file missing name attribute: ${uri}`);
+						this.logger.error(`[findAgentSkills] Agent skill file missing name attribute: ${uri}`);
 					}
 				} catch (e) {
-					this.logger.error(`[findClaudeSkills] Failed to parse Claude skill file: ${uri}`, e instanceof Error ? e.message : String(e));
+					this.logger.error(`[findAgentSkills] Failed to parse Agent skill file: ${uri}`, e instanceof Error ? e.message : String(e));
 				}
 			};
 
-			const workspaceSkills = await this.fileLocator.findClaudeSkillsInWorkspace(token);
+			const workspaceSkills = await this.fileLocator.findAgentSkillsInWorkspace(token);
 			await Promise.all(workspaceSkills.map(uri => process(uri, 'project')));
-			const userSkills = await this.fileLocator.findClaudeSkillsInUserHome(token);
+			const userSkills = await this.fileLocator.findAgentSkillsInUserHome(token);
 			await Promise.all(userSkills.map(uri => process(uri, 'personal')));
 			return result;
 		}

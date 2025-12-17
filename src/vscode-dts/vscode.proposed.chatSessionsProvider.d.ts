@@ -96,6 +96,11 @@ declare module 'vscode' {
 		description?: string | MarkdownString;
 
 		/**
+		 * An optional badge that provides additional context about the chat session.
+		 */
+		badge?: string | MarkdownString;
+
+		/**
 		 * An optional status indicating the current state of the session.
 		 */
 		status?: ChatSessionStatus;
@@ -122,7 +127,7 @@ declare module 'vscode' {
 		/**
 		 * Statistics about the chat session.
 		 */
-		statistics?: {
+		changes?: readonly ChatSessionChangedFile[] | {
 			/**
 			 * Number of files edited during the session.
 			 */
@@ -138,6 +143,30 @@ declare module 'vscode' {
 			 */
 			deletions: number;
 		};
+	}
+
+	export class ChatSessionChangedFile {
+		/**
+		 * URI of the file.
+		 */
+		modifiedUri: Uri;
+
+		/**
+		 * File opened when the user takes the 'compare' action.
+		 */
+		originalUri?: Uri;
+
+		/**
+		 * Number of insertions made during the session.
+		 */
+		insertions: number;
+
+		/**
+		 * Number of deletions made during the session.
+		 */
+		deletions: number;
+
+		constructor(modifiedUri: Uri, insertions: number, deletions: number, originalUri?: Uri);
 	}
 
 	export interface ChatSession {
@@ -199,7 +228,7 @@ declare module 'vscode' {
 			/**
 			 * The new value assigned to the option. When `undefined`, the option is cleared.
 			 */
-			readonly value: string;
+			readonly value: string | ChatSessionProviderOptionItem;
 		}>;
 	}
 

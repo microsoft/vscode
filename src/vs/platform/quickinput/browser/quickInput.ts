@@ -468,7 +468,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			// Adjust count badge position based on number of toggles (each toggle is ~22px wide)
 			const toggleOffset = concreteToggles.length * 22;
 			this.ui.countContainer.style.right = toggleOffset > 0 ? `${4 + toggleOffset}px` : '4px';
-			this.ui.visibleCountContainer.style.right = toggleOffset > 0 ? `${4 + toggleOffset}px` : '4px';
 		}
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
@@ -585,6 +584,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
 	private _customButtonHover: string | undefined;
+	private _customButtonSecondary = false;
 	private _quickNavigate: IQuickNavigateConfiguration | undefined;
 	private _hideInput: boolean | undefined;
 	private _hideCountBadge: boolean | undefined;
@@ -834,6 +834,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set customHover(hover: string | undefined) {
 		this._customButtonHover = hover;
+		this.update();
+	}
+
+	get customButtonSecondary() {
+		return this._customButtonSecondary;
+	}
+
+	set customButtonSecondary(secondary: boolean | undefined) {
+		this._customButtonSecondary = secondary ?? false;
 		this.update();
 	}
 
@@ -1155,6 +1164,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		this.ui.ok.label = this.okLabel || '';
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
+		this.ui.customButton.secondary = this.customButtonSecondary || false;
 		if (!visibilities.inputBox) {
 			// we need to move focus into the tree to detect keybindings
 			// properly when the input box is not visible (quick nav)

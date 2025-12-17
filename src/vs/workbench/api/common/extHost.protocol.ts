@@ -1031,10 +1031,10 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$postMessage(handle: WebviewHandle, value: string, ...buffers: VSBuffer[]): Promise<boolean>;
 }
 
-export interface IWebviewIconPath {
+export type IWebviewIconPath = ThemeIcon | {
 	readonly light: UriComponents;
 	readonly dark: UriComponents;
-}
+};
 
 export interface IWebviewInitData {
 	readonly title: string;
@@ -3275,12 +3275,12 @@ export type IChatSessionHistoryItemDto = {
 
 export interface ChatSessionOptionUpdateDto {
 	readonly optionId: string;
-	readonly value: string | undefined;
+	readonly value: string | IChatSessionProviderOptionItem | undefined;
 }
 
 export interface ChatSessionOptionUpdateDto2 {
 	readonly optionId: string;
-	readonly value: string;
+	readonly value: string | IChatSessionProviderOptionItem;
 }
 
 export interface ChatSessionDto {

@@ -23,13 +23,13 @@ import { InlineDecoration, InlineDecorationType } from '../../../../../../common
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
 import { GhostTextView, IGhostTextWidgetData } from '../../ghostText/ghostTextView.js';
 import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getModifiedBorderColor, modifiedBackgroundColor } from '../theme.js';
+import { getModifiedBorderColor, INLINE_EDITS_BORDER_RADIUS, modifiedBackgroundColor } from '../theme.js';
 import { getPrefixTrim, mapOutFalsy } from '../utils/utils.js';
 
 const BORDER_WIDTH = 1;
 const WIDGET_SEPARATOR_WIDTH = 1;
 const WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH = 3;
-const BORDER_RADIUS = 4;
+const BORDER_RADIUS = INLINE_EDITS_BORDER_RADIUS;
 
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
 	private readonly _editorObs: ObservableCodeEditor;

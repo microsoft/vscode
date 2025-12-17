@@ -285,6 +285,24 @@ suite('Strings', () => {
 		assert.strictEqual(strings.isEmojiImprecise(codePoint), true);
 	});
 
+	test('isFullWidthCharacter', () => {
+		// Fullwidth ASCII (FF01-FF5E)
+		assert.strictEqual(strings.isFullWidthCharacter('Ａ'.charCodeAt(0)), true, 'Ａ U+FF21 fullwidth A');
+		assert.strictEqual(strings.isFullWidthCharacter('？'.charCodeAt(0)), true, '？ U+FF1F fullwidth question mark');
+		assert.strictEqual(strings.isFullWidthCharacter('＃'.charCodeAt(0)), true, '＃ U+FF03 fullwidth number sign');
+		assert.strictEqual(strings.isFullWidthCharacter('＝'.charCodeAt(0)), true, '＝ U+FF1D fullwidth equals sign');
+
+		// Hiragana (3040-309F)
+		assert.strictEqual(strings.isFullWidthCharacter('あ'.charCodeAt(0)), true, 'あ U+3042 hiragana');
+
+		// Fullwidth symbols (FFE0-FFE6)
+		assert.strictEqual(strings.isFullWidthCharacter('￥'.charCodeAt(0)), true, '￥ U+FFE5 fullwidth yen sign');
+
+		// Regular ASCII should not be full width
+		assert.strictEqual(strings.isFullWidthCharacter('A'.charCodeAt(0)), false, 'A regular ASCII');
+		assert.strictEqual(strings.isFullWidthCharacter('?'.charCodeAt(0)), false, '? regular ASCII');
+	});
+
 	test('isBasicASCII', () => {
 		function assertIsBasicASCII(str: string, expected: boolean): void {
 			assert.strictEqual(strings.isBasicASCII(str), expected, str + ` (${str.charCodeAt(0)})`);

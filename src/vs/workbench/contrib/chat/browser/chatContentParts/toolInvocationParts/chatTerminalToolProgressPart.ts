@@ -19,7 +19,7 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
-import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, type IDetachedTerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -39,16 +39,13 @@ import { AccessibilityVerbositySettingId } from '../../../../accessibility/brows
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { DetachedTerminalCommandMirror } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
-import { DetachedProcessInfo } from '../../../../terminal/browser/detachedTerminal.js';
+import { DetachedTerminalCommandMirror, DetachedTerminalSnapshotMirror } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { TerminalContribCommandId } from '../../../../terminal/terminalContribExports.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
-import { Color } from '../../../../../../base/common/color.js';
-import { TERMINAL_BACKGROUND_COLOR } from '../../../../terminal/common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../../../common/theme.js';
 import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -911,11 +908,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _showEmptyMessage(message: string): void {
 		this._emptyElement.textContent = message;
 		this._terminalContainer.classList.add('chat-terminal-output-terminal-no-output');
+		this.domNode.classList.add('chat-terminal-output-container-no-output');
 	}
 
 	private _hideEmptyMessage(): void {
 		this._emptyElement.textContent = '';
 		this._terminalContainer.classList.remove('chat-terminal-output-terminal-no-output');
+		this.domNode.classList.remove('chat-terminal-output-container-no-output');
 	}
 
 	private _disposeLiveMirror(): void {
@@ -1019,129 +1018,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 }
 
-class DetachedTerminalSnapshotMirror extends Disposable {
-	private _detachedTerminal: Promise<IDetachedTerminalInstance> | undefined;
-	private _output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined;
-	private _attachedContainer: HTMLElement | undefined;
-	private _container: HTMLElement | undefined;
-	private _dirty = true;
-	private _lastRenderedLineCount: number | undefined;
-
-	constructor(
-		output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
-		private readonly _getTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-	) {
-		super();
-		this._output = output;
-	}
-
-	public setOutput(output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined): void {
-		this._output = output;
-		this._dirty = true;
-	}
-
-	public async attach(container: HTMLElement): Promise<void> {
-		const terminal = await this._getTerminal();
-		container.classList.add('chat-terminal-output-terminal');
-		if (this._attachedContainer !== container || container.firstChild === null) {
-			terminal.attachToElement(container);
-			this._attachedContainer = container;
-		}
-		this._container = container;
-		this._applyTheme(container);
-	}
-
-	public async render(): Promise<{ lineCount?: number } | undefined> {
-		const output = this._output;
-		if (!output) {
-			return undefined;
-		}
-		if (!this._dirty) {
-			return { lineCount: this._lastRenderedLineCount ?? output.lineCount };
-		}
-		const terminal = await this._getTerminal();
-		terminal.xterm.clearBuffer();
-		terminal.xterm.clearSearchDecorations?.();
-		if (this._container) {
-			this._applyTheme(this._container);
-		}
-		const text = output.text ?? '';
-		const lineCount = output.lineCount ?? this._estimateLineCount(text);
-		if (!text) {
-			this._dirty = false;
-			this._lastRenderedLineCount = lineCount;
-			return { lineCount: 0 };
-		}
-		await new Promise<void>(resolve => terminal.xterm.write(text, resolve));
-		this._dirty = false;
-		this._lastRenderedLineCount = lineCount;
-		return { lineCount };
-	}
-
-	private _estimateLineCount(text: string): number {
-		if (!text) {
-			return 0;
-		}
-		const sanitized = text.replace(/\r/g, '');
-		const segments = sanitized.split('\n');
-		const count = sanitized.endsWith('\n') ? segments.length - 1 : segments.length;
-		return Math.max(count, 1);
-	}
-
-	private _applyTheme(container: HTMLElement): void {
-		const theme = this._getTheme();
-		if (!theme) {
-			container.style.removeProperty('background-color');
-			container.style.removeProperty('color');
-			return;
-		}
-		if (theme.background) {
-			container.style.backgroundColor = theme.background;
-		}
-		if (theme.foreground) {
-			container.style.color = theme.foreground;
-		}
-	}
-
-	private async _getTerminal(): Promise<IDetachedTerminalInstance> {
-		if (!this._detachedTerminal) {
-			this._detachedTerminal = this._createTerminal();
-		}
-		return this._detachedTerminal;
-	}
-
-	private async _createTerminal(): Promise<IDetachedTerminalInstance> {
-		const terminal = await this._terminalService.createDetachedTerminal({
-			cols: 80,
-			rows: 10,
-			readonly: true,
-			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
-			disableOverviewRuler: true,
-			colorProvider: {
-				getBackgroundColor: theme => {
-					const storedBackground = this._getTheme()?.background;
-					if (storedBackground) {
-						const color = Color.fromHex(storedBackground);
-						if (color) {
-							return color;
-						}
-					}
-					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
-					if (terminalBackground) {
-						return terminalBackground;
-					}
-					// Use editor background when in chat editor, panel background otherwise
-					const isInEditor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService);
-					return theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
-				}
-			}
-		});
-		return this._register(terminal);
-	}
-}
-
 export class ToggleChatTerminalOutputAction extends Action implements IAction {
 	private _expanded = false;
 
@@ -1225,7 +1101,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 	}
 
 	public override async run() {
-		this.label = localize('focusTerminal', 'Focus Terminal');
+		this.label = this._instance?.shellLaunchConfig.hideFromUser ? localize('showAndFocusTerminal', 'Show and Focus Terminal') : localize('focusTerminal', 'Focus Terminal');
 		this._updateTooltip();
 
 		let target: FocusChatInstanceTelemetryEvent['target'] = 'none';

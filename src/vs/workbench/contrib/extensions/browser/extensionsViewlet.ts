@@ -69,6 +69,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/common/defaultAccount.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
 export const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -562,6 +563,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService logService: ILogService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, logService);
 
@@ -784,8 +786,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 					'tabindex': '0',
 					'role': 'button',
 					'aria-label': localize('dismiss', "Dismiss"),
-					'title': localize('dismiss', "Dismiss")
 				}));
+			this.notificationDisposables.value.add(this.hoverService.setupDelayedHover(dismissAction, { content: localize('dismiss hover', "Dismiss") }));
 			this.notificationDisposables.value.add(addDisposableListener(dismissAction, EventType.CLICK, () => status.dismiss()));
 			this.notificationDisposables.value.add(addDisposableListener(dismissAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 				const standardKeyboardEvent = new StandardKeyboardEvent(e);

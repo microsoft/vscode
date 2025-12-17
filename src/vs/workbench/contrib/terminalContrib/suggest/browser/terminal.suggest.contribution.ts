@@ -113,6 +113,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
 		let lspTerminalObj = undefined;
+		// TODO: Change to always load after settings update for terminal suggest provider
 		if (!this._ctx.instance.shellType || !(lspTerminalObj = getTerminalLspSupportedLanguageObj(this._ctx.instance.shellType))) {
 			this._lspAddons.clearAndDisposeAll();
 			return;
@@ -154,19 +155,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		xterm.loadAddon(addon);
 		this._loadLspCompletionAddon(xterm);
 
-		let container: HTMLElement | null = null;
-		if (this._ctx.instance.target === TerminalLocation.Editor) {
-			container = xterm.element!;
-		} else {
-			container = dom.findParentWithClass(xterm.element!, 'panel');
-			if (!container) {
-				// Fallback for sidebar or unknown location
-				container = xterm.element!;
-			}
-		}
-		addon.setContainerWithOverflow(container);
-		// eslint-disable-next-line no-restricted-syntax
-		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
+		this._prepareAddonLayout(xterm);
 
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {
 			const focusedElement = e.relatedTarget as HTMLElement;
@@ -215,20 +204,53 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 
-		const xtermElement = this._ctx.instance.xterm.raw.element;
-		if (!xtermElement) {
+		this._prepareAddonLayout(this._ctx.instance.xterm.raw);
+	}
+
+
+	private async _prepareAddonLayout(xterm: RawXtermTerminal): Promise<void> {
+		const addon = this._addon.value;
+		if (!addon || this.isDisposed) {
 			return;
 		}
 
-		// Update the container based on the new target location
-		if (target === TerminalLocation.Editor) {
-			addon.setContainerWithOverflow(xtermElement);
-		} else {
-			const panelContainer = dom.findParentWithClass(xtermElement, 'panel');
-			if (panelContainer) {
-				addon.setContainerWithOverflow(panelContainer);
-			}
+		const xtermElement = xterm.element ?? await this._waitForXtermElement(xterm);
+		if (!xtermElement || this.isDisposed || addon !== this._addon.value) {
+			return;
 		}
+
+		const container = this._resolveAddonContainer(xtermElement);
+		addon.setContainerWithOverflow(container);
+		// eslint-disable-next-line no-restricted-syntax
+		const screenElement = xtermElement.querySelector('.xterm-screen');
+		if (dom.isHTMLElement(screenElement)) {
+			addon.setScreen(screenElement);
+		}
+	}
+
+	private async _waitForXtermElement(xterm: RawXtermTerminal): Promise<HTMLElement | undefined> {
+		if (xterm.element) {
+			return xterm.element;
+		}
+
+		await Promise.race([
+			Event.toPromise(Event.filter(this._ctx.instance.onDidChangeVisibility, visible => visible)),
+			Event.toPromise(this._ctx.instance.onDisposed)
+		]);
+
+		if (this.isDisposed || this._ctx.instance.isDisposed) {
+			return undefined;
+		}
+
+		return xterm.element ?? undefined;
+	}
+
+	private _resolveAddonContainer(xtermElement: HTMLElement): HTMLElement {
+		if (this._ctx.instance.target === TerminalLocation.Editor) {
+			return xtermElement;
+		}
+
+		return dom.findParentWithClass(xtermElement, 'panel') ?? xtermElement;
 	}
 }
 
