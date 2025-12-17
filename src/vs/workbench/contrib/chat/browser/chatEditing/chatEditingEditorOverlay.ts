@@ -280,11 +280,7 @@ class ChatEditorOverlayWidget extends Disposable {
 							if (!value) {
 								return value;
 							}
-							const kb = that._keybindingService.lookupKeybinding(this.action.id);
-							if (!kb) {
-								return value;
-							}
-							return localize('tooltip', "{0} ({1})", value, kb.getLabel());
+							return that._keybindingService.appendKeybinding(value, action.id);
 						}
 					};
 				}

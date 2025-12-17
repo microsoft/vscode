@@ -56,7 +56,6 @@ import { Memento } from '../../../common/memento.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { NotebookEditor } from '../../notebook/browser/notebookEditor.js';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from './patternInputWidget.js';
-import { appendKeyBindingLabel } from './searchActionsBase.js';
 import { IFindInFilesArgs } from './searchActionsFind.js';
 import { searchDetailsIcon } from './searchIcons.js';
 import { renderSearchMessage } from './searchMessage.js';
@@ -1727,9 +1726,9 @@ export class SearchView extends ViewPane {
 	}
 
 	private appendSearchWithAIButton(messageEl: HTMLElement) {
-		const searchWithAIButtonTooltip = appendKeyBindingLabel(
+		const searchWithAIButtonTooltip = this.keybindingService.appendKeybinding(
 			nls.localize('triggerAISearch.tooltip', "Search with AI."),
-			this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId)
+			Constants.SearchCommandIds.SearchWithAIActionId
 		);
 		const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with AI");
 		const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
@@ -2029,9 +2028,9 @@ export class SearchView extends ViewPane {
 
 			dom.append(messageEl, ' - ');
 
-			const openInEditorTooltip = appendKeyBindingLabel(
+			const openInEditorTooltip = this.keybindingService.appendKeybinding(
 				nls.localize('openInEditor.tooltip', "Copy current search results to an editor"),
-				this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.OpenInEditorCommandId));
+				Constants.SearchCommandIds.OpenInEditorCommandId);
 			const openInEditorButton = this.messageDisposables.add(new SearchLinkButton(
 				nls.localize('openInEditor.message', "Open in editor"),
 				() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()), this.hoverService,
