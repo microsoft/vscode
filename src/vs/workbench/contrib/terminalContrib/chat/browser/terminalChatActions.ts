@@ -393,15 +393,20 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			let tooltip: string | IMarkdownString | undefined;
 			if (lastCommand) {
 				// Take only the first line if the command spans multiple lines
-				const firstLine = lastCommand.split('\n')[0];
+				const commandLines = lastCommand.split('\n');
+				const firstLine = commandLines[0];
 				const displayCommand = firstLine.length > MAX_DETAIL_LENGTH ? firstLine.substring(0, MAX_DETAIL_LENGTH) + '…' : firstLine;
 				detail = lastCommandLocalized(displayCommand);
 				// If the command was truncated or has multiple lines, provide a tooltip with the full command
 				const wasTruncated = firstLine.length > MAX_DETAIL_LENGTH;
-				const hasMultipleLines = lastCommand.includes('\n');
+				const hasMultipleLines = commandLines.length > 1;
 				if (wasTruncated || hasMultipleLines) {
 					// Use markdown code block to preserve formatting for multi-line commands
-					tooltip = hasMultipleLines ? { value: '```\n' + lastCommand + '\n```', supportThemeIcons: true } : lastCommandLocalized(lastCommand);
+					if (hasMultipleLines) {
+						tooltip = { value: '```\n' + lastCommand + '\n```', supportThemeIcons: true };
+					} else {
+						tooltip = lastCommandLocalized(lastCommand);
+					}
 				}
 			}
 
