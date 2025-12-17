@@ -362,9 +362,11 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			label: string;
 			description: string | undefined;
 			detail: string | undefined;
+			tooltip: string | undefined;
 			id: string;
 		}
 		const lastCommandLocalized = (command: string) => localize2('chatTerminal.lastCommand', 'Last: {0}', command).value;
+		const MAX_DETAIL_LENGTH = 80;
 
 		const metas: IItemMeta[] = [];
 		for (const instance of all.values()) {
@@ -386,10 +388,25 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				description = `${chatSessionTitle}`;
 			}
 
+			let detail: string | undefined;
+			let tooltip: string | undefined;
+			if (lastCommand) {
+				const fullDetail = lastCommandLocalized(lastCommand);
+				// Take only the first line if the command spans multiple lines
+				const firstLine = lastCommand.split('\n')[0];
+				const displayCommand = firstLine.length > MAX_DETAIL_LENGTH ? firstLine.substring(0, MAX_DETAIL_LENGTH) + '…' : firstLine;
+				detail = lastCommandLocalized(displayCommand);
+				// If the command was truncated or has multiple lines, provide a tooltip with the full command
+				if (lastCommand !== displayCommand) {
+					tooltip = fullDetail;
+				}
+			}
+
 			metas.push({
 				label,
 				description,
-				detail: lastCommand ? lastCommandLocalized(lastCommand) : undefined,
+				detail,
+				tooltip,
 				id: String(instance.instanceId),
 			});
 		}
@@ -399,6 +416,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				label: m.label,
 				description: m.description,
 				detail: m.detail,
+				tooltip: m.tooltip,
 				id: m.id
 			});
 		}
