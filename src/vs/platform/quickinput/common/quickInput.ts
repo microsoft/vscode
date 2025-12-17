@@ -583,6 +583,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	customHover: string | undefined;
 
 	/**
+	 * Whether the custom button should be rendered as a secondary button.
+	 */
+	customButtonSecondary?: boolean;
+
+	/**
 	 * An event that is fired when an item button is triggered.
 	 */
 	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
@@ -841,6 +846,12 @@ export interface IQuickInputButton {
 	 * @note This property is ignored if the button was added to a QuickPickItem.
 	 */
 	location?: QuickInputButtonLocation;
+	/**
+	 * When present, indicates that the button is a toggle button that can be checked or unchecked.
+	 * The `checked` property indicates the current state of the toggle and will be updated
+	 * when the button is clicked.
+	 */
+	readonly toggle?: { checked: boolean };
 }
 
 /**

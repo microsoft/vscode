@@ -36,7 +36,7 @@ import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.j
 import { computeEditorAriaLabel } from '../../../browser/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LogLevel } from '../../../../platform/log/common/log.js';
 import { IEditorContributionDescription, EditorExtensionsRegistry, EditorContributionInstantiation, EditorContributionCtor } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -154,15 +154,28 @@ export class OutputViewPane extends FilterViewPane {
 				this.editor.revealLastLine();
 			}
 		}));
-		this._register(codeEditor.onDidChangeCursorPosition((e) => {
+
+		const scrollListenerDisposables = this._register(new DisposableStore());
+		if (this.configurationService.getValue<boolean>('output.smartScroll.enabled')) {
+			scrollListenerDisposables.add(this.registerScrollListener(codeEditor));
+		}
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('output.smartScroll.enabled')) {
+				scrollListenerDisposables.clear();
+				if (this.configurationService.getValue<boolean>('output.smartScroll.enabled')) {
+					scrollListenerDisposables.add(this.registerScrollListener(codeEditor));
+				}
+			}
+		}));
+	}
+
+	private registerScrollListener(codeEditor: ICodeEditor): IDisposable {
+		const disposables = new DisposableStore();
+		disposables.add(codeEditor.onDidChangeCursorPosition((e) => {
 			if (e.reason !== CursorChangeReason.Explicit) {
 				return;
 			}
-
-			if (!this.configurationService.getValue('output.smartScroll.enabled')) {
-				return;
-			}
-
 			const model = codeEditor.getModel();
 			if (model) {
 				const newPositionLine = e.position.lineNumber;
@@ -170,6 +183,16 @@ export class OutputViewPane extends FilterViewPane {
 				this.scrollLock = lastLine !== newPositionLine;
 			}
 		}));
+		disposables.add(codeEditor.onDidScrollChange((e) => {
+			if (!e.scrollTopChanged) {
+				return;
+			}
+			// Smart scroll also unlocks when scrolled to the bottom
+			const layoutInfo = codeEditor.getLayoutInfo();
+			const isAtBottom = e.scrollTop + layoutInfo.height >= e.scrollHeight;
+			this.scrollLock = !isAtBottom;
+		}));
+		return disposables;
 	}
 
 	protected layoutBodyContent(height: number, width: number): void {

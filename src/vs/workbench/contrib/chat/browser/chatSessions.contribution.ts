@@ -265,6 +265,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public get onDidChangeContentProviderSchemes() { return this._onDidChangeContentProviderSchemes.event; }
 	private readonly _onDidChangeSessionOptions = this._register(new Emitter<URI>());
 	public get onDidChangeSessionOptions() { return this._onDidChangeSessionOptions.event; }
+	private readonly _onDidChangeOptionGroups = this._register(new Emitter<string>());
+	public get onDidChangeOptionGroups() { return this._onDidChangeOptionGroups.event; }
 
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
@@ -1002,6 +1004,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		} else {
 			this._sessionTypeOptions.delete(chatSessionType);
 		}
+		this._onDidChangeOptionGroups.fire(chatSessionType);
 	}
 
 	/**

@@ -569,11 +569,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
 						const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
 						if (
-							// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
-							// with git branches in particular
-							this._isFilteringDirectories && char.match(/[\\\/]$/) ||
-							// Check if the character is a trigger character from providers
-							this._checkProviderTriggerCharacters(char)
+							char && (
+								// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
+								// with git branches in particular
+								this._isFilteringDirectories && char.match(/[\\\/]$/) ||
+								// Check if the character is a trigger character from providers
+								this._checkProviderTriggerCharacters(char)
+							)
 						) {
 							sent = this._requestTriggerCharQuickSuggestCompletions();
 						}
