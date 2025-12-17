@@ -92,7 +92,7 @@ export class OutputViewPane extends FilterViewPane {
 		super({
 			...options,
 			filterOptions: {
-				placeholder: localize('outputView.filter.placeholder', "Filter (e.g. text, !exclude, error,warning)"),
+				placeholder: localize('outputView.filter.placeholder', "Filter (e.g. text, !excludeText, text1,text2)"),
 				focusContextKey: OUTPUT_FILTER_FOCUS_CONTEXT.key,
 				text: viewState.filter || '',
 				history: []
@@ -443,36 +443,16 @@ export class FilterController extends Disposable implements IEditorContribution 
 		}
 	}
 
-	private parseFilters(filterText: string): { positive: string[]; negative: string[] } {
-		const positive: string[] = [];
-		const negative: string[] = [];
-
-		// Split by comma and trim each pattern
-		const patterns = filterText.split(',').map(p => p.trim()).filter(p => p.length > 0);
-
-		for (const pattern of patterns) {
-			if (pattern.startsWith('!')) {
-				// Negative filter - remove the ! prefix
-				const negativePattern = pattern.substring(1).trim();
-				if (negativePattern.length > 0) {
-					negative.push(negativePattern);
-				}
-			} else {
-				positive.push(pattern);
-			}
-		}
-
-		return { positive, negative };
-	}
-
 	private shouldShowLine(model: ITextModel, range: Range, positive: string[], negative: string[]): { show: boolean; matches: IModelDeltaDecoration[] } {
 		const matches: IModelDeltaDecoration[] = [];
 
 		// Check negative filters first - if any match, hide the line
-		for (const pattern of negative) {
-			const negativeMatches = model.findMatches(pattern, range, false, false, null, false);
-			if (negativeMatches.length > 0) {
-				return { show: false, matches: [] };
+		if (negative.length > 0) {
+			for (const pattern of negative) {
+				const negativeMatches = model.findMatches(pattern, range, false, false, null, false);
+				if (negativeMatches.length > 0) {
+					return { show: false, matches: [] };
+				}
 			}
 		}
 
@@ -511,8 +491,6 @@ export class FilterController extends Disposable implements IEditorContribution 
 				return { findMatches, hiddenAreas, categories };
 			}
 
-			const { positive, negative } = filters.text ? this.parseFilters(filters.text) : { positive: [], negative: [] };
-
 			for (let i = fromLogLevelEntryIndex; i < logEntries.length; i++) {
 				const entry = logEntries[i];
 				if (entry.category) {
@@ -526,8 +504,8 @@ export class FilterController extends Disposable implements IEditorContribution 
 					hiddenAreas.push(entry.range);
 					continue;
 				}
-				if (filters.text) {
-					const result = this.shouldShowLine(model, entry.range, positive, negative);
+				if (filters.includePatterns.length > 0 || filters.excludePatterns.length > 0) {
+					const result = this.shouldShowLine(model, entry.range, filters.includePatterns, filters.excludePatterns);
 					if (result.show) {
 						findMatches.push(...result.matches);
 					} else {
@@ -538,16 +516,14 @@ export class FilterController extends Disposable implements IEditorContribution 
 			return { findMatches, hiddenAreas, categories };
 		}
 
-		if (!filters.text) {
+		if (filters.includePatterns.length === 0 && filters.excludePatterns.length === 0) {
 			return { findMatches, hiddenAreas, categories };
 		}
-
-		const { positive, negative } = this.parseFilters(filters.text);
 
 		const lineCount = model.getLineCount();
 		for (let lineNumber = fromLineNumber; lineNumber <= lineCount; lineNumber++) {
 			const lineRange = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
-			const result = this.shouldShowLine(model, lineRange, positive, negative);
+			const result = this.shouldShowLine(model, lineRange, filters.includePatterns, filters.excludePatterns);
 			if (result.show) {
 				findMatches.push(...result.matches);
 			} else {
