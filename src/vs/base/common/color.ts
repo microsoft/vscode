@@ -857,7 +857,7 @@ export namespace Color {
 			/**
 			 * Converts an Hex color value to a Color.
 			 * returns r, g, and b are contained in the set [0, 255]
-			 * @param hex string (#RGB, #RGBA, #RRGGBB or #RRGGBBAA).
+			 * @param hex string (#RGB, #RGBA (or #ARGB), #RRGGBB or #RRGGBBAA (or #AARRGGBB)).
 			 * @param format 'rgba' (default) or 'argb' - controls how to interpret 8-char hex colors
 			 */
 			export function parseHex(hex: string, format: 'rgba' | 'argb' = 'rgba'): Color | null {
