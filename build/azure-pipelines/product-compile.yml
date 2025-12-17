@@ -97,7 +97,7 @@ jobs:
 
       - script: |
           set -e
-          npm exec -- npm-run-all -lp core-ci extensions-ci hygiene
+          npm exec -- core-ci
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Compile & Hygiene
