@@ -1447,6 +1447,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
 				: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
 					: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored ? 'ignored' : undefined,
+			acceptedAlternativeAction: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted && reason.alternativeAction,
 			noSuggestionReason: undefined,
 			notShownReason: lifetimeSummary.notShownReason,
 			renameCreated: lifetimeSummary.renameCreated,

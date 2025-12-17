@@ -573,6 +573,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	customHover: string | undefined;
 
 	/**
+	 * Whether the custom button should be rendered as a secondary button.
+	 */
+	customButtonSecondary?: boolean;
+
+	/**
 	 * An event that is fired when an item button is triggered.
 	 */
 	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;

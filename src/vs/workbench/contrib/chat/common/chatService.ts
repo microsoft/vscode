@@ -127,13 +127,6 @@ export interface IChatContentReference {
 	kind: 'reference';
 }
 
-export interface IChatChangesSummary {
-	readonly reference: URI;
-	readonly sessionId: string;
-	readonly requestId: string;
-	readonly kind: 'changesSummary';
-}
-
 export interface IChatCodeCitation {
 	value: URI;
 	license: string;
@@ -316,8 +309,6 @@ export interface IChatConfirmation {
 	message: string | IMarkdownString;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	data: any;
-	/** Indicates whether this came from a current chat session (true/undefined) or a restored historic session (false) */
-	isLive?: boolean;
 	buttons?: string[];
 	isUsed?: boolean;
 	kind: 'confirmation';
@@ -925,7 +916,8 @@ export const enum ResponseModelState {
 	Pending,
 	Complete,
 	Cancelled,
-	Failed
+	Failed,
+	NeedsInput,
 }
 
 export interface IChatDetail {

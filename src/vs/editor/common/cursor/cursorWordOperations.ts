@@ -484,7 +484,7 @@ export class WordOperations {
 		return new Range(lineNumber, column, position.lineNumber, position.column);
 	}
 
-	public static deleteInsideWord(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range {
+	public static deleteInsideWord(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection, onlyWord: boolean = false): Range {
 		if (!selection.isEmpty()) {
 			return selection;
 		}
@@ -496,7 +496,7 @@ export class WordOperations {
 			return r;
 		}
 
-		return this._deleteInsideWordDetermineDeleteRange(wordSeparators, model, position);
+		return this._deleteInsideWordDetermineDeleteRange(wordSeparators, model, position, onlyWord);
 	}
 
 	private static _charAtIsWhitespace(str: string, index: number): boolean {
@@ -538,7 +538,7 @@ export class WordOperations {
 		return new Range(position.lineNumber, leftIndex + 1, position.lineNumber, rightIndex + 2);
 	}
 
-	private static _deleteInsideWordDetermineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Range {
+	private static _deleteInsideWordDetermineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, onlyWord: boolean): Range {
 		const lineContent = model.getLineContent(position.lineNumber);
 		const lineLength = lineContent.length;
 		if (lineLength === 0) {
@@ -566,6 +566,9 @@ export class WordOperations {
 		const deleteWordAndAdjacentWhitespace = (word: IFindWordResult) => {
 			let startColumn = word.start + 1;
 			let endColumn = word.end + 1;
+			if (onlyWord) {
+				return createRangeWithPosition(startColumn, endColumn);
+			}
 			let expandedToTheRight = false;
 			while (endColumn - 1 < lineLength && this._charAtIsWhitespace(lineContent, endColumn - 1)) {
 				expandedToTheRight = true;

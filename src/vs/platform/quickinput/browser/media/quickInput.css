@@ -387,6 +387,10 @@
 	display: none !important;
 }
 
+.quick-input-tree.quick-input-tree-flat .monaco-checkbox {
+	margin-left: 6px;
+}
+
 .quick-input-tree .quick-input-tree-entry {
 	box-sizing: border-box;
 	overflow: hidden;

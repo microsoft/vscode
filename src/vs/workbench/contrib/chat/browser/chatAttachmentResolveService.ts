@@ -30,7 +30,7 @@ import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '.
 import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, ISCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { imageToHash } from './chatPasteProviders.js';
-import { resizeImage } from './imageUtils.js';
+import { resizeImage } from './chatImageUtils.js';
 
 export const IChatAttachmentResolveService = createDecorator<IChatAttachmentResolveService>('IChatAttachmentResolveService');
 
