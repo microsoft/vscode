@@ -7,5 +7,4 @@
 	box-sizing: border-box;
 	background-color: var(--vscode-editorBracketMatch-background);
 	border: 1px solid var(--vscode-editorBracketMatch-border);
-	color: var(--vscode-editorBracketMatch-foreground);
 }
