@@ -833,10 +833,8 @@ export interface IQuickInputButton {
 	location?: QuickInputButtonLocation;
 	/**
 	 * When present, indicates that the button is a toggle button that can be checked or unchecked.
-	 *
-	 * @note This property is currently only applicable to buttons with {@link QuickInputButtonLocation.Input} location.
-	 * It must be set for such buttons, and the state will be updated when the button is toggled.
-	 * It cannot be set for buttons with other location values.
+	 * The `checked` property indicates the current state of the toggle and will be updated
+	 * when the button is clicked.
 	 */
 	readonly toggle?: { checked: boolean };
 }
