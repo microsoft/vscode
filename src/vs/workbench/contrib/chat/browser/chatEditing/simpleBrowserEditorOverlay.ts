@@ -25,7 +25,7 @@ import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/butto
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { cleanupOldImages, createFileForMedia } from '../imageUtils.js';
+import { cleanupOldImages, createFileForMedia } from '../chatImageUtils.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { URI } from '../../../../../base/common/uri.js';

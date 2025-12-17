@@ -164,6 +164,10 @@ export class BrowserEditorInput extends EditorInput {
 		return this._model ? this._model.url : this._initialData.url;
 	}
 
+	override canReopen(): boolean {
+		return false;
+	}
+
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;

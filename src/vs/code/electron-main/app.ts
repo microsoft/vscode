@@ -413,16 +413,15 @@ export class CodeApplication extends Disposable {
 				this.auxiliaryWindowsMainService?.registerWindow(contents);
 			}
 
-			// Block any in-page navigation
+			// Handle any in-page navigation
 			contents.on('will-navigate', event => {
-				// Allow navigation in integrated browser views
 				if (BrowserViewMainService.isBrowserViewWebContents(contents)) {
-					return;
+					return; // Allow navigation in integrated browser views
 				}
 
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 
-				event.preventDefault();
+				event.preventDefault(); // Prevent any in-page navigation
 			});
 
 			// All Windows: only allow about:blank auxiliary windows to open
