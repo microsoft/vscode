@@ -275,6 +275,14 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsNonInteractiveHelpPattern('type h + enter to show help'), true);
 			assert.strictEqual(detectsNonInteractiveHelpPattern('hit ? for help'), true);
 			assert.strictEqual(detectsNonInteractiveHelpPattern('type h to see options'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press o to open the app'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press o to open the app'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press r to restart the server'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press r to restart the server'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press q to quit'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press q to quit'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press u to show server url'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press u to show server url'), true);
 		});
 	});
 
