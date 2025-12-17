@@ -167,6 +167,7 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	private _leftButtons: IQuickInputButton[] = [];
 	private _rightButtons: IQuickInputButton[] = [];
 	private _inlineButtons: IQuickInputButton[] = [];
+	private _inputButtons: IQuickInputButton[] = [];
 	private buttonsUpdated = false;
 	private _toggles: IQuickInputToggle[] = [];
 	private togglesUpdated = false;
@@ -296,14 +297,17 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		return [
 			...this._leftButtons,
 			...this._rightButtons,
-			...this._inlineButtons
+			...this._inlineButtons,
+			...this._inputButtons
 		];
 	}
 
 	set buttons(buttons: IQuickInputButton[]) {
+		// TODO: use a switch
 		this._leftButtons = buttons.filter(b => b === backButton);
-		this._rightButtons = buttons.filter(b => b !== backButton && b.location !== QuickInputButtonLocation.Inline);
+		this._rightButtons = buttons.filter(b => b !== backButton && b.location !== QuickInputButtonLocation.Inline && b.location !== QuickInputButtonLocation.Input);
 		this._inlineButtons = buttons.filter(b => b.location === QuickInputButtonLocation.Inline);
+		this._inputButtons = buttons.filter(b => b.location === QuickInputButtonLocation.Input);
 		this.buttonsUpdated = true;
 		this.update();
 	}
@@ -438,7 +442,12 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 				.map((button, index) => quickInputButtonToAction(
 					button,
 					`id-${index}`,
-					async () => this.onDidTriggerButtonEmitter.fire(button)
+					async () => {
+						if (button.toggle) {
+							button.toggle.checked = !button.toggle.checked;
+						}
+						this.onDidTriggerButtonEmitter.fire(button);
+					}
 				));
 			this.ui.leftActionBar.push(leftButtons, { icon: true, label: false });
 			this.ui.rightActionBar.clear();
@@ -446,7 +455,12 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 				.map((button, index) => quickInputButtonToAction(
 					button,
 					`id-${index}`,
-					async () => this.onDidTriggerButtonEmitter.fire(button)
+					async () => {
+						if (button.toggle) {
+							button.toggle.checked = !button.toggle.checked;
+						}
+						this.onDidTriggerButtonEmitter.fire(button);
+					}
 				));
 			this.ui.rightActionBar.push(rightButtons, { icon: true, label: false });
 			this.ui.inlineActionBar.clear();
@@ -454,9 +468,25 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 				.map((button, index) => quickInputButtonToAction(
 					button,
 					`id-${index}`,
-					async () => this.onDidTriggerButtonEmitter.fire(button)
+					async () => {
+						if (button.toggle) {
+							button.toggle.checked = !button.toggle.checked;
+						}
+						this.onDidTriggerButtonEmitter.fire(button);
+					}
 				));
 			this.ui.inlineActionBar.push(inlineButtons, { icon: true, label: false });
+			this.ui.inputBox.actions = this._inputButtons
+				.map((button, index) => quickInputButtonToAction(
+					button,
+					`id-${index}`,
+					async () => {
+						if (button.toggle) {
+							button.toggle.checked = !button.toggle.checked;
+						}
+						this.onDidTriggerButtonEmitter.fire(button);
+					}
+				));
 		}
 		if (this.togglesUpdated) {
 			this.togglesUpdated = false;

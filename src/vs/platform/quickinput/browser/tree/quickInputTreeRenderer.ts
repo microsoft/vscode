@@ -9,7 +9,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { createToggleActionViewItemProvider, TriStateCheckbox, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { ITreeElementRenderDetails, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -76,7 +76,10 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			supportIcons: true,
 			hoverDelegate: this._hoverDelegate
 		}));
-		const actionBar = store.add(new ActionBar(entry, this._hoverDelegate ? { hoverDelegate: this._hoverDelegate } : undefined));
+		const actionBar = store.add(new ActionBar(entry, {
+			actionViewItemProvider: createToggleActionViewItemProvider(unthemedToggleStyles),
+			hoverDelegate: this._hoverDelegate
+		}));
 		actionBar.domNode.classList.add('quick-input-tree-entry-action-bar');
 		return {
 			toDisposeTemplate: store,

@@ -515,4 +515,3 @@ export function createToggleActionViewItemProvider(toggleStyles?: IToggleStyles)
 		return undefined;
 	};
 }
-
