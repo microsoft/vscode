@@ -159,6 +159,9 @@ suite('PromptFilesLocator', () => {
 			getConfigBasedSourceFolders(type: PromptsType): readonly URI[] {
 				return locator.getConfigBasedSourceFolders(type);
 			},
+			async findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
+				return locator.findAgentMDsInWorkspace(token);
+			},
 			async disposeAsync(): Promise<void> {
 				await mockFs.delete();
 			}
