@@ -54,7 +54,7 @@ export const LEGACY_MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
 export const AGENTS_SOURCE_FOLDER = '.github/agents';
 
 /**
- * Legacy Claude skills source folder.
+ * Claude skills source folder.
  */
 export const CLAUDE_SKILLS_SOURCE_FOLDER = '.claude/skills';
 

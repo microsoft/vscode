@@ -447,7 +447,7 @@ export class PromptFilesLocator {
 
 	/**
 	 * Searches for skills in the home folder.
-	 * If `chat.useClaudeSkills` is enabled, searches in `.claude / skills`.
+	 * If `chat.useClaudeSkills` is enabled, searches in `.claude/skills`.
 	 */
 	public async findAgentSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
 		const userHome = await this.pathService.userHome();
@@ -536,18 +536,17 @@ export function isValidGlob(pattern: string): boolean {
 }
 
 /**
- * Finds the first parent of the provided location that does not contain a glob pattern.
+ * Finds the first parent of the provided location that does not contain a `glob pattern`.
  *
  * Asumes that the location that is provided has a valid path (is abstract)
  *
  * ## Examples
  *
  * ```typescript
-	* assert.strictDeepEqual(
- * firstNonGlobParentAndPattern(URI.file('/home/user/{folder1,folder2}/file.md')).path,
- * { parent: URI.file('/home/user'), filePattern: '{folder1,folder2}/file.md' },
- * 'Must find correct non-glob parent dirname.',
- * );
+ * assert.strictDeepEqual(
+ *     firstNonGlobParentAndPattern(URI.file('/home/user/{folder1,folder2}/file.md')).path,
+ *     { parent: URI.file('/home/user'), filePattern: '{folder1,folder2}/file.md' },
+ *     'Must find correct non-glob parent dirname.',
  * ```
  */
 function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern?: string } {
@@ -562,7 +561,7 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
 		return { parent: location };
 	}
 	const parent = location.with({ path: segments.slice(0, i).join('/') });
-	if (i === segments.length - 1 && segments[i] === '*' || segments[i] === '') {
+	if (i === segments.length - 1 && segments[i] === '*' || segments[i] === ``) {
 		return { parent };
 	}
 
