@@ -1596,6 +1596,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const terminalDisposables = new DisposableStore();
 		const terminalData = { terminal: terminal, lastTask: taskKey, group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce, disposables: terminalDisposables };
 		terminalDisposables.add(terminal.onDisposed(() => {
+			const event: ITaskEvent = {
+				kind: TaskEventKind.Terminated,
+				task
+			};
+			this._fireTaskEvent(event);
 			this._deleteTaskAndTerminal(terminal, terminalData);
 		}));
 		this._terminals[terminalKey] = terminalData;
