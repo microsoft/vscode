@@ -110,14 +110,8 @@
 }
 
 .debug-pane .debug-call-stack .thread,
-.debug-pane .debug-call-stack .session,
-.debug-pane .debug-call-stack .stack-frame {
-	display: flex;
-	padding-right: 12px;
-}
-
-.debug-pane .debug-call-stack .thread,
 .debug-pane .debug-call-stack .session {
+	display: flex;
 	align-items: center;
 }
 
@@ -149,6 +143,7 @@
 .debug-pane .monaco-list-row .monaco-action-bar {
 	display: none;
 	flex-shrink: 0;
+	margin-right: 6px;
 }
 
 .debug-pane .monaco-list-row:hover .monaco-action-bar,
@@ -168,6 +163,8 @@
 .debug-pane .debug-call-stack .stack-frame {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	padding-right: 0.8em;
+	display: flex;
 }
 
 .debug-pane .debug-call-stack .stack-frame.label {
@@ -188,6 +185,7 @@
 .debug-pane .debug-call-stack .stack-frame > .file {
 	display: flex;
 	overflow: hidden;
+	flex-wrap: wrap;
 	justify-content: flex-end;
 }
 
