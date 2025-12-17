@@ -856,11 +856,13 @@ export class TunnelModel extends Disposable {
 				// Retrieve port attributes from configuration
 				const attributes = this.configPortsAttributes.getAttributes(tunnel.remoteAddress.port, tunnel.remoteAddress.host, matchingCandidate?.detail);
 				// Determine protocol: tunnel descriptor takes precedence, then attributes, then default to Http
-				let protocol = TunnelProtocol.Http;
-				if (tunnel.protocol === 'https') {
-					protocol = TunnelProtocol.Https;
-				} else if (attributes?.protocol === 'https') {
-					protocol = TunnelProtocol.Https;
+				let protocol: TunnelProtocol;
+				if (tunnel.protocol) {
+					protocol = tunnel.protocol === 'https' ? TunnelProtocol.Https : TunnelProtocol.Http;
+				} else if (attributes?.protocol) {
+					protocol = attributes.protocol === 'https' ? TunnelProtocol.Https : TunnelProtocol.Http;
+				} else {
+					protocol = TunnelProtocol.Http;
 				}
 				this.detected.set(makeAddress(tunnel.remoteAddress.host, tunnel.remoteAddress.port), {
 					remoteHost: tunnel.remoteAddress.host,
