@@ -198,7 +198,10 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 2),
 			],
 			true,
-			'line2\nline3\n'
+			[
+				'line2\n',
+				'line3\n'
+			]
 		);
 	});
 
@@ -239,7 +242,7 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 2),
 			],
 			true,
-			['ine2', 'line3']
+			['ine2', 'line3\n']
 		);
 	});
 
@@ -276,7 +279,10 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 2),
 			],
 			true,
-			'line2\nline3\n'
+			[
+				'line2\n',
+				'line3\n'
+			]
 		);
 	});
 
