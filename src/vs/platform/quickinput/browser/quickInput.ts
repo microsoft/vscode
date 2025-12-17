@@ -841,8 +841,8 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		return this._customButtonSecondary;
 	}
 
-	set customButtonSecondary(secondary: boolean) {
-		this._customButtonSecondary = secondary;
+	set customButtonSecondary(secondary: boolean | undefined) {
+		this._customButtonSecondary = secondary ?? false;
 		this.update();
 	}
 
