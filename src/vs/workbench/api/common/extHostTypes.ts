@@ -1854,7 +1854,7 @@ export class ThemeIcon {
 		this.color = color;
 	}
 
-	static isThemeIcon(thing: any) {
+	static isThemeIcon(thing: any): thing is vscode.ThemeIcon {
 		if (typeof thing.id !== 'string') {
 			console.log('INVALID ThemeIcon, invalid id', thing.id);
 			return false;

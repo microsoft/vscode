@@ -9,7 +9,7 @@ import { debounce } from '../../../base/common/decorators.js';
 import { Emitter } from '../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { IRange } from '../../../editor/common/core/range.js';
 import * as languages from '../../../editor/common/languages.js';
 import { ExtensionIdentifierMap, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -762,6 +762,23 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 	}
 
+	function icon(iconPath: vscode.ThemeIcon | UriComponents | { light: UriComponents; dark: UriComponents } | string | undefined): { userIconPath?: UriComponents; userIconPathDark?: UriComponents; userThemeIcon?: vscode.ThemeIcon } {
+		let userIconPath: UriComponents | undefined = undefined;
+		let userIconPathDark: UriComponents | undefined = undefined;
+		let userThemeIcon: vscode.ThemeIcon | undefined = undefined;
+		if (typeof iconPath === 'string') {
+			userIconPath = extHostTypeConverter.pathOrURIToURI(iconPath);
+		} else if (isUriComponents(iconPath)) {
+			userIconPath = iconPath;
+		} else if (types.ThemeIcon.isThemeIcon(iconPath)) {
+			userThemeIcon = iconPath;
+		} else if (iconPath) {
+			userIconPath = iconPath.light;
+			userIconPathDark = iconPath.dark;
+		}
+		return { userIconPath, userIconPathDark, userThemeIcon };
+	}
+
 	function convertToDTOComment(thread: ExtHostCommentThread, vscodeComment: vscode.Comment, commentsMap: Map<vscode.Comment, number>, extension: IExtensionDescription): CommentChanges {
 		let commentUniqueId = commentsMap.get(vscodeComment)!;
 		if (!commentUniqueId) {
@@ -776,6 +793,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		if (vscodeComment.reactions?.some(reaction => reaction.reactors !== undefined)) {
 			checkProposedApiEnabled(extension, 'commentReactor');
 		}
+		const { userIconPath, userIconPathDark, userThemeIcon } = icon(vscodeComment.author.iconPath);
 
 		return {
 			mode: vscodeComment.mode,
@@ -783,7 +801,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			uniqueIdInThread: commentUniqueId,
 			body: (typeof vscodeComment.body === 'string') ? vscodeComment.body : extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 			userName: vscodeComment.author.name,
-			userIconPath: vscodeComment.author.iconPath,
+			userIconPath,
+			userIconPathDark,
+			userThemeIcon,
 			label: vscodeComment.label,
 			commentReactions: vscodeComment.reactions ? vscodeComment.reactions.map(reaction => convertToReaction(reaction)) : undefined,
 			state: vscodeComment.state,
@@ -792,9 +812,13 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 	}
 
 	function convertToReaction(reaction: vscode.CommentReaction): languages.CommentReaction {
+		const { userIconPath, userIconPathDark, userThemeIcon } = icon(reaction.iconPath);
+
 		return {
 			label: reaction.label,
-			iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,
+			icon: userIconPath,
+			iconDark: userIconPathDark,
+			themeIcon: userThemeIcon,
 			count: reaction.count,
 			hasReacted: reaction.authorHasReacted,
 			reactors: ((reaction.reactors && (reaction.reactors.length > 0) && (typeof reaction.reactors[0] !== 'string')) ? (reaction.reactors as languages.CommentAuthorInformation[]).map(reactor => reactor.name) : reaction.reactors) as string[]
@@ -805,7 +829,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		return {
 			label: reaction.label || '',
 			count: reaction.count || 0,
-			iconPath: reaction.iconPath ? URI.revive(reaction.iconPath) : '',
+			iconPath: reaction.icon ? URI.revive(reaction.icon) : '',
 			authorHasReacted: reaction.hasReacted || false,
 			reactors: reaction.reactors?.map(reactor => ({ name: reactor }))
 		};

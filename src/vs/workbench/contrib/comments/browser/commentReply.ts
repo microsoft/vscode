@@ -10,7 +10,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
+import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -209,10 +209,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 	private updateAuthorInfo() {
 		this.avatar.textContent = '';
-		if (typeof this._commentThread.canReply !== 'boolean' && this._commentThread.canReply.iconPath) {
+		if (typeof this._commentThread.canReply !== 'boolean') {
+			if (isUriComponents(this._commentThread.canReply.icon)) {
 			this.avatar.style.display = 'block';
 			const img = dom.append(this.avatar, dom.$('img.avatar')) as HTMLImageElement;
-			img.src = FileAccess.uriToBrowserUri(URI.revive(this._commentThread.canReply.iconPath)).toString(true);
+				img.src = FileAccess.uriToBrowserUri(URI.revive(this._commentThread.canReply.icon)).toString(true);
+			} else if ()
 		} else {
 			this.avatar.style.display = 'none';
 		}

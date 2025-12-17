@@ -131,7 +131,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._domNode.tabIndex = -1;
 		this._avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
-		this.updateCommentUserIcon(this.comment.userIconPath);
+		this.updateCommentUserIcon(this.comment.userIconPath, this.comment.userIconPathDark, this.comment.userThemeIconPath);
 
 		this._commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
 
@@ -216,7 +216,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 	}
 
-	private updateCommentUserIcon(userIconPath: UriComponents | undefined) {
+	private updateCommentUserIcon(userIconPath: UriComponents | undefined, userIconPathDark: UriComponents | undefined, userThemeIconPath: ThemeIcon | undefined) {
 		this._avatar.textContent = '';
 		if (userIconPath) {
 			const img = dom.append(this._avatar, dom.$('img.avatar')) as HTMLImageElement;
@@ -451,7 +451,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 					}
 					this.notificationService.error(error);
 				}
-			}, reaction.reactors, reaction.iconPath, reaction.count));
+			}, reaction.reactors, reaction.icon, reaction.count));
 
 			this._reactionsActionBar.value?.push(action, { label: true, icon: true });
 		});

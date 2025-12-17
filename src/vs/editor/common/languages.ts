@@ -2271,8 +2271,9 @@ export interface CommentingRanges {
 
 export interface CommentAuthorInformation {
 	name: string;
-	iconPath?: UriComponents;
-
+	icon?: UriComponents;
+	iconDark?: UriComponents;
+	themeIcon?: ThemeIcon;
 }
 
 /**
@@ -2280,7 +2281,9 @@ export interface CommentAuthorInformation {
  */
 export interface CommentReaction {
 	readonly label?: string;
-	readonly iconPath?: UriComponents;
+	readonly icon?: UriComponents;
+	readonly iconDark?: UriComponents;
+	readonly themeIcon?: ThemeIcon;
 	readonly count?: number;
 	readonly hasReacted?: boolean;
 	readonly canEdit?: boolean;
@@ -2326,6 +2329,8 @@ export interface Comment {
 	readonly body: string | IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: UriComponents;
+	readonly userIconPathDark?: UriComponents;
+	readonly userThemeIconPath?: ThemeIcon;
 	readonly contextValue?: string;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
