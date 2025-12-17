@@ -26,6 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
@@ -93,7 +94,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IFileService private readonly fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService
 	) {
 		super();
 
@@ -579,7 +581,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
-		if (useAgentSkills) {
+		const defaultAccount = await this.defaultAccountService.getDefaultAccount();
+		const previewFeaturesEnabled = defaultAccount?.chat_preview_features_enabled ?? true;
+		if (useAgentSkills && previewFeaturesEnabled) {
 			const result: IAgentSkill[] = [];
 			const process = async (uri: URI, type: 'personal' | 'project'): Promise<void> => {
 				try {

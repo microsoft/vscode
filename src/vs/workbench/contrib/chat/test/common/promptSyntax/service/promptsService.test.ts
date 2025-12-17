@@ -43,6 +43,8 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../pl
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
+import { IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount } from '../../../../../../../base/common/defaultAccount.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,6 +78,10 @@ suite('PromptsService', () => {
 		instaService.stub(IExtensionService, {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
 			activateByEvent: () => Promise.resolve()
+		});
+
+		instaService.stub(IDefaultAccountService, {
+			getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
 		});
 
 		fileService = disposables.add(instaService.createInstance(FileService));
@@ -1265,6 +1271,42 @@ suite('PromptsService', () => {
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 			assert.strictEqual(result, undefined);
+		});
+
+		test('should return undefined when chat_preview_features_enabled is false', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
+			});
+
+			// Recreate service with new stub
+			service = disposables.add(instaService.createInstance(PromptsService));
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.strictEqual(result, undefined);
+
+			// Restore default stub for other tests
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
+			});
+		});
+
+		test('should return undefined when USE_AGENT_SKILLS is enabled but chat_preview_features_enabled is false', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
+			});
+
+			// Recreate service with new stub
+			service = disposables.add(instaService.createInstance(PromptsService));
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.strictEqual(result, undefined);
+
+			// Restore default stub for other tests
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
+			});
 		});
 
 		test('should find skills in workspace and user home', async () => {
