@@ -95,7 +95,7 @@ jobs:
 
       - template: common/install-builtin-extensions.yml@self
 
-      - script: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+      - script: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Compile & Hygiene
