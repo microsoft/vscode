@@ -38,6 +38,20 @@
 .monaco-action-bar .action-item .action-label.extension-action.label,
 .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
 	background-color: var(--vscode-extensionButton-background);
+	border: 1px solid var(--vscode-button-border, transparent);
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-label.extension-action.label {
+	border-right-width: 0;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown .action-label.extension-action.label {
+	border-left-width: 0;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	border-left-width: 0;
+	border-right-width: 0;
 }
 
 .monaco-list-row.focused .extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label,
@@ -65,15 +79,6 @@
 
 .monaco-action-bar .action-item.action-item:not(.disabled) .action-label.extension-action.label.prominent:hover {
 	background-color: var(--vscode-extensionButton-prominentHoverBackground);
-}
-
-.monaco-action-bar .action-item .action-label.extension-action:not(.disabled) {
-	border: 1px solid var(--vscode-contrastBorder);
-}
-
-.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
-	border-top: 1px solid var(--vscode-contrastBorder);
-	border-bottom: 1px solid var(--vscode-contrastBorder);
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.extension-status-error::before {
