@@ -155,7 +155,7 @@
 	color: var(--vscode-textPreformat-foreground);
 	background-color: var(--vscode-textPreformat-background);
 	border-radius: 3px;
-	/* border: 1px solid var(--vscode-textPreformat-border); */
+	border: 1px solid var(--vscode-textPreformat-border);
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor {

@@ -870,6 +870,7 @@
 		"--vscode-textLink-foreground",
 		"--vscode-textPreformat-background",
 		"--vscode-textPreformat-foreground",
+		"--vscode-textPreformat-border",
 		"--vscode-textSeparator-foreground",
 		"--vscode-titleBar-activeBackground",
 		"--vscode-titleBar-activeForeground",
