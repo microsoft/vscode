@@ -87,8 +87,9 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked');
+		const commandService = accessor.get(ICommandService);
+
+		await commandService.executeCommand(HideAgentSessionsSidebar.ID);
 	}
 }
 
@@ -109,8 +110,9 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
+		const commandService = accessor.get(ICommandService);
+
+		await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
 	}
 }
 
