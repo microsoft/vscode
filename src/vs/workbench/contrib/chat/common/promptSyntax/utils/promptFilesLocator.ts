@@ -547,6 +547,7 @@ export function isValidGlob(pattern: string): boolean {
  *     firstNonGlobParentAndPattern(URI.file('/home/user/{folder1,folder2}/file.md')).path,
  *     { parent: URI.file('/home/user'), filePattern: '{folder1,folder2}/file.md' },
  *     'Must find correct non-glob parent dirname.',
+ * );
  * ```
  */
 function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern?: string } {
