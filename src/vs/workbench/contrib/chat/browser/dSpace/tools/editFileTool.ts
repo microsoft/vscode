@@ -33,7 +33,7 @@ export class EditFileTool implements IToolImpl {
 			id: EditFileTool.TOOL_ID,
 			displayName: localize('dSpaceTool.editFile.displayName', 'Edit File'),
 			modelDescription:
-				'Edit existing file with search/replace. PREFERRED method for modifying files. Include enough context (3-5 lines) in oldText to make it unique.',
+				'Edit existing file with search/replace. PREFERRED method for modifying files. Include enough context (3-5 lines) in oldText to make it unique. TIP: Use oldText: "" (empty string) to INSERT content at the BEGINNING of the file - works for both empty and non-empty files.',
 			userDescription: 'Edit an existing file with search/replace',
 			source: ToolDataSource.Internal,
 			inputSchema: {
@@ -121,7 +121,22 @@ export class EditFileTool implements IToolImpl {
 								let editsApplied = 0;
 								const failedEdits: string[] = [];
 
+								// Check if file is empty - special handling for empty files
+								const fileContent = textModel.getValue();
+								const isFileEmpty = fileContent.length === 0;
+
 								for (const edit of args.edits) {
+									// Special case: empty oldText = insert at beginning of file
+									// Works for both empty files and files with existing content
+									if (edit.oldText === '') {
+										textEdits.push({
+											range: new Range(1, 1, 1, 1),
+											text: edit.newText,
+										});
+										editsApplied++;
+										continue;
+									}
+
 									let matches: Array<{ range: Range }> = [];
 
 									// If there's a selected range, prioritize matches within that range
@@ -231,17 +246,21 @@ export class EditFileTool implements IToolImpl {
 										done: true,
 									});
 
+									// Provide guidance when edits fail
+									const errorMessage = `No edits were applied. The specified text was not found in the file. TIP: Use oldText: "" to insert at the beginning.`;
+
 									return {
 										content: [
 											{
 												kind: 'text',
 												value: JSON.stringify({
 													success: false,
-													error: `No edits were applied. The specified text was not found in the file.`,
+													error: errorMessage,
 													path: uri.fsPath,
 													editsApplied: 0,
 													totalEdits: args.edits.length,
 													failedEdits: failedEdits,
+													isFileEmpty: isFileEmpty,
 												}),
 											},
 										],
@@ -260,6 +279,7 @@ export class EditFileTool implements IToolImpl {
 			let text = content.value.toString();
 			let editsApplied = 0;
 			const failedEdits: string[] = [];
+			const isFileEmpty = text.length === 0;
 
 			// If there's a selected range, prioritize edits within that range
 			if (selectedRange) {
@@ -274,6 +294,13 @@ export class EditFileTool implements IToolImpl {
 
 				// Try to apply edits to selected text first
 				for (const edit of args.edits) {
+					// Special case: empty oldText = insert at beginning of file
+					if (edit.oldText === '') {
+						text = edit.newText + text;
+						editsApplied++;
+						continue;
+					}
+
 					if (selectedText.includes(edit.oldText)) {
 						const beforeText = text;
 						// Find the position in the full text
@@ -311,6 +338,13 @@ export class EditFileTool implements IToolImpl {
 			} else {
 				// No selection, apply edits to full text
 				for (const edit of args.edits) {
+					// Special case: empty oldText = insert at beginning of file
+					if (edit.oldText === '') {
+						text = edit.newText + text;
+						editsApplied++;
+						continue;
+					}
+
 					const beforeText = text;
 					text = text.replace(edit.oldText, edit.newText);
 					if (text !== beforeText) {
@@ -327,17 +361,21 @@ export class EditFileTool implements IToolImpl {
 			}
 
 			if (editsApplied === 0) {
+				// Provide guidance when edits fail
+				const errorMessage = `No edits were applied. The specified text was not found in the file. TIP: Use oldText: "" to insert at the beginning.`;
+
 				return {
 					content: [
 						{
 							kind: 'text',
 							value: JSON.stringify({
 								success: false,
-								error: `No edits were applied. The specified text was not found in the file.`,
+								error: errorMessage,
 								path: uri.fsPath,
 								editsApplied: 0,
 								totalEdits: args.edits.length,
 								failedEdits: failedEdits,
+								isFileEmpty: isFileEmpty,
 							}),
 						},
 					],

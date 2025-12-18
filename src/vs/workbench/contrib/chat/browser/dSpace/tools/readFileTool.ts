@@ -43,13 +43,20 @@ export class ReadFileTool implements IToolImpl {
 
 		try {
 			const content = await this.fileService.readFile(uri, undefined, token);
+			const fileContent = content.value.toString();
+			const isEmpty = fileContent.length === 0;
+
 			return {
 				content: [{
 					kind: 'text',
 					value: JSON.stringify({
 						success: true,
-						content: content.value.toString(),
-						path: uri.fsPath
+						content: fileContent,
+						path: uri.fsPath,
+						isEmpty: isEmpty,
+						...(isEmpty && {
+							hint: 'This file is empty. To add content, use dSpace_editFile with oldText: "" (empty string) and newText containing the content you want to add.'
+						})
 					})
 				}]
 			};
