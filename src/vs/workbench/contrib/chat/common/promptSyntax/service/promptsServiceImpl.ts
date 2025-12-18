@@ -688,7 +688,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				skippedDuplicateName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to duplicate names.' };
 				skippedMissingName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing name attribute.' };
 				skippedParseFailed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to parse failures.' };
-				owner: 'pawang';
+				owner: 'pwang347';
 				comment: 'Tracks agent skill usage, discovery, and skipped files.';
 			};
 
