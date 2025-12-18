@@ -157,6 +157,9 @@ class ChatEditorOverlayWidget extends Disposable {
 			}
 
 			this._navigationBearings.set({ changeCount: totalChangesCount, activeIdx, entriesCount: entries.length }, undefined);
+
+			// DSpace: Add class to hide navigation elements (including separators) when only 1 file
+			this._domNode.classList.toggle('single-file', entries.length <= 1);
 		}));
 
 
@@ -189,14 +192,24 @@ class ChatEditorOverlayWidget extends Disposable {
 							this._store.add(autorun(r => {
 								assertType(this.label);
 
-								const { changeCount, activeIdx } = that._navigationBearings.read(r);
+								const { changeCount, activeIdx, entriesCount } = that._navigationBearings.read(r);
 
-								if (changeCount > 0) {
+								// DSpace: Hide navigation when only 1 file (no need to navigate)
+								if (entriesCount <= 1) {
+									container.style.display = 'none';
+									this.label.innerText = '';
+								} else if (entriesCount > 1) {
+									container.style.display = '';
+									// Calculate current file index based on activeIdx
+									const currentFileIdx = Math.min(entriesCount, activeIdx === -1 ? 1 : Math.floor(activeIdx / Math.max(1, changeCount / entriesCount)) + 1);
+									this.label.innerText = localize('nOfMFiles', "{0} of {1} Files", currentFileIdx, entriesCount);
+								} else if (changeCount > 0) {
+									container.style.display = '';
 									const n = activeIdx === -1 ? '1' : `${activeIdx + 1}`;
 									this.label.innerText = localize('nOfM', "{0} of {1}", n, changeCount);
 								} else {
-									// allow-any-unicode-next-line
-									this.label.innerText = localize('0Of0', "—");
+									container.style.display = 'none';
+									this.label.innerText = '';
 								}
 
 								this.updateTooltip();
@@ -289,6 +302,25 @@ class ChatEditorOverlayWidget extends Disposable {
 					};
 				}
 
+				// DSpace: Hide navigation arrows when only 1 file
+				if (action.id === 'chatEditor.action.navigateNext' || action.id === 'chatEditor.action.navigatePrevious') {
+					return new class extends ActionViewItem {
+						constructor() {
+							super(undefined, action, options);
+						}
+
+						override render(container: HTMLElement): void {
+							super.render(container);
+
+							this._store.add(autorun(r => {
+								const { entriesCount } = that._navigationBearings.read(r);
+								// Hide navigation arrows when only 1 file
+								container.style.display = entriesCount <= 1 ? 'none' : '';
+							}));
+						}
+					};
+				}
+
 				return undefined;
 			}
 		}));
@@ -321,27 +353,45 @@ class ChatEditingOverlayController {
 	) {
 
 		this._domNode.classList.add('chat-editing-editor-overlay');
+		// DSpace: Position absolutely within the title container, constrained to parent height
 		this._domNode.style.position = 'absolute';
-		this._domNode.style.bottom = `24px`;
-		this._domNode.style.right = `24px`;
-		this._domNode.style.zIndex = `100`;
+		this._domNode.style.right = '0';
+		this._domNode.style.top = '0';
+		this._domNode.style.bottom = '0';
+		this._domNode.style.zIndex = '10';
+		this._domNode.style.display = 'flex';
+		this._domNode.style.alignItems = 'center';
 
 		const widget = instaService.createInstance(ChatEditorOverlayWidget, group);
 		this._domNode.appendChild(widget.getDomNode());
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		this._store.add(widget);
 
+		// DSpace: Find containers - prefer label-container (single-tab) or breadcrumbs-below-tabs (multi-tab)
 		const show = () => {
-			if (!container.contains(this._domNode)) {
-				container.appendChild(this._domNode);
+			// Try different containers in order of preference
+			// We need querySelector here because we're finding existing VS Code DOM elements, not creating new ones
+			/* eslint-disable no-restricted-syntax */
+			const labelContainer = container.querySelector('.label-container') as HTMLElement | null;
+			const breadcrumbsBelow = container.querySelector('.breadcrumbs-below-tabs') as HTMLElement | null;
+			const titleContainer = container.querySelector('.title') as HTMLElement | null;
+			/* eslint-enable no-restricted-syntax */
+
+			// Use the first available container
+			const target = labelContainer ?? breadcrumbsBelow ?? titleContainer ?? container;
+
+			if (!target.contains(this._domNode)) {
+				// Ensure parent has position relative for absolute positioning
+				if (target.style.position !== 'relative' && target !== container) {
+					target.style.position = 'relative';
+				}
+				target.appendChild(this._domNode);
 			}
 		};
 
 		const hide = () => {
-			if (container.contains(this._domNode)) {
-				widget.hide();
-				this._domNode.remove();
-			}
+			widget.hide();
+			this._domNode.remove();
 		};
 
 		const activeEditorSignal = observableSignalFromEvent(this, Event.any(group.onDidActiveEditorChange, group.onDidModelChange));
@@ -390,11 +440,9 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
-			if (!session.isGlobalEditingSession) {
-				// inline chat - no chat overlay unless hideOnRequest is on
-				hide();
-				return;
-			}
+			// DSpace: REMOVED the check that hides overlay for inline chat
+			// We want to show the navigation overlay for inline chat sessions too
+			// Original code hid the overlay with: if (!session.isGlobalEditingSession) { hide(); return; }
 
 			if (
 				entry?.state.read(r) === ModifiedFileEntryState.Modified // any entry changing
@@ -452,7 +500,7 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 			const toDelete = new Set(overlayWidgets.keys());
 			const groups = editorGroups.read(r);
 
-
+			// DSpace: Show overlay in ALL groups (panels), positioned to the right of breadcrumb
 			for (const group of groups) {
 
 				if (!(group instanceof EditorGroupView)) {

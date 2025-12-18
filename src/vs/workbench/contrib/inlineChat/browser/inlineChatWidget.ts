@@ -89,6 +89,8 @@ export class InlineChatWidget {
 		[
 			h('div.chat-widget@chatWidget'),
 			h('div.accessibleViewer@accessibleViewer'),
+			// DSpace: Added modifiedFiles section to show list of changed files with accept/reject
+			h('div.modified-files.hidden@modifiedFiles'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
 				h('div.actions.hidden@toolbar1'),
@@ -469,10 +471,121 @@ export class InlineChatWidget {
 		this._chatWidget.setModel(chatModel);
 	}
 
-	updateInfo(message: string): void {
-		this._elements.infoLabel.classList.toggle('hidden', !message);
+	updateInfo(message: string, ops: { classes?: string[]; elements?: HTMLElement[] } = {}): void {
+		this._elements.infoLabel.classList.toggle('hidden', !message && !ops.elements?.length);
+		// DSpace: Support adding custom classes to info label (e.g., 'success' for green completion message)
+		this._elements.infoLabel.className = `label info ${(ops.classes ?? []).join(' ')}`;
+		this._elements.infoLabel.classList.toggle('hidden', !message && !ops.elements?.length);
 		const renderedMessage = renderLabelWithIcons(message);
-		reset(this._elements.infoLabel, ...renderedMessage);
+		// DSpace: Support additional HTML elements (like clickable links)
+		if (ops.elements?.length) {
+			reset(this._elements.infoLabel, ...renderedMessage, ...ops.elements);
+		} else {
+			reset(this._elements.infoLabel, ...renderedMessage);
+		}
+		this._onDidChangeHeight.fire();
+	}
+
+	/**
+	 * DSpace: Update the modified files section to show list of changed files
+	 * @param files Array of file info with URI, originalUri, name, and state
+	 * @param onFileClick Callback when user clicks a file link (receives uri and optionally originalUri for diff)
+	 * @param onAccept Callback when user clicks accept for a file
+	 * @param onReject Callback when user clicks reject for a file
+	 */
+	updateModifiedFiles(
+		files: Array<{ uri: string; originalUri?: string; name: string; state: 'modified' | 'created' | 'accepted' | 'rejected' }>,
+		onFileClick?: (uri: string, originalUri?: string) => void,
+		onAccept?: (uri: string) => void,
+		onReject?: (uri: string) => void
+	): void {
+		const hasFiles = files.length > 0;
+		this._elements.modifiedFiles.classList.toggle('hidden', !hasFiles);
+
+		// Clear existing content
+		reset(this._elements.modifiedFiles);
+
+		if (!hasFiles) {
+			this._onDidChangeHeight.fire();
+			return;
+		}
+
+		// Add header
+		const header = $('div.modified-files-header');
+		header.textContent = localize('otherModifiedFiles', "Other modified files");
+		this._elements.modifiedFiles.appendChild(header);
+
+		// Add file list
+		const fileList = $('div.modified-files-list');
+		for (const file of files) {
+			const fileRow = $('div.modified-file-row');
+
+			// File icon based on state
+			let icon = '$(diff)';
+			if (file.state === 'created') {
+				icon = '$(file-add)';
+			} else if (file.state === 'accepted') {
+				icon = '$(pass-filled)';
+			} else if (file.state === 'rejected') {
+				icon = '$(close)';
+			}
+
+			// File link
+			const fileLink = $('a.modified-file-link');
+			const iconSpan = $('span');
+			reset(iconSpan, ...renderLabelWithIcons(icon));
+			fileLink.appendChild(iconSpan);
+			fileLink.appendChild(document.createTextNode(` ${file.name}`));
+			fileLink.title = localize('openDiff', "Click to open diff view");
+			if (onFileClick) {
+				fileLink.onclick = (e) => {
+					e.preventDefault();
+					onFileClick(file.uri, file.originalUri);
+				};
+			}
+			fileRow.appendChild(fileLink);
+
+			// Accept/Reject buttons for modified state
+			if (file.state === 'modified') {
+				const actions = $('span.modified-file-actions');
+
+				if (onAccept) {
+					const acceptBtn = $('button.modified-file-accept');
+					reset(acceptBtn, ...renderLabelWithIcons('$(check)'));
+					acceptBtn.title = localize('acceptChanges', "Accept changes");
+					acceptBtn.onclick = (e) => {
+						e.stopPropagation();
+						onAccept(file.uri);
+					};
+					actions.appendChild(acceptBtn);
+				}
+
+				if (onReject) {
+					const rejectBtn = $('button.modified-file-reject');
+					reset(rejectBtn, ...renderLabelWithIcons('$(close)'));
+					rejectBtn.title = localize('rejectChanges', "Reject changes");
+					rejectBtn.onclick = (e) => {
+						e.stopPropagation();
+						onReject(file.uri);
+					};
+					actions.appendChild(rejectBtn);
+				}
+
+				fileRow.appendChild(actions);
+			} else if (file.state === 'accepted') {
+				const statusSpan = $('span.modified-file-status.accepted');
+				reset(statusSpan, ...renderLabelWithIcons('$(pass-filled)'));
+				fileRow.appendChild(statusSpan);
+			} else if (file.state === 'rejected') {
+				const statusSpan = $('span.modified-file-status.rejected');
+				reset(statusSpan, ...renderLabelWithIcons('$(close)'));
+				fileRow.appendChild(statusSpan);
+			}
+
+			fileList.appendChild(fileRow);
+		}
+
+		this._elements.modifiedFiles.appendChild(fileList);
 		this._onDidChangeHeight.fire();
 	}
 
@@ -513,6 +626,9 @@ export class InlineChatWidget {
 		this._elements.toolbar1.classList.add('hidden');
 		this._elements.toolbar2.classList.add('hidden');
 		this.updateInfo('');
+
+		// DSpace: Also reset the modified files section
+		this.updateModifiedFiles([]);
 
 		this._elements.accessibleViewer.classList.toggle('hidden', true);
 		this._onDidChangeHeight.fire();

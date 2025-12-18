@@ -45,10 +45,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	get minimumWidth(): number {
 		// Hide sidebar completely when no workspace and no editors, unless user explicitly requested to open it
 		if (this.isBare && !this.hasOpenEditors && !this.userRequestedOpen) {
-			console.log('[Sidebar] minimumWidth - returning 0 (isBare && !hasOpenEditors && !userRequestedOpen)');
+			// console.log('[Sidebar] minimumWidth - returning 0 (isBare && !hasOpenEditors && !userRequestedOpen)');
 			return 0;
 		}
-		console.log('[Sidebar] minimumWidth - returning 170, isBare:', this.isBare, 'hasOpenEditors:', this.hasOpenEditors, 'userRequestedOpen:', this.userRequestedOpen);
+		// console.log('[Sidebar] minimumWidth - returning 170, isBare:', this.isBare, 'hasOpenEditors:', this.hasOpenEditors, 'userRequestedOpen:', this.userRequestedOpen);
 		return 170;
 	}
 
