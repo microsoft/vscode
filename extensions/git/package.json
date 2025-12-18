@@ -3908,6 +3908,36 @@
           "default": false,
           "markdownDescription": "%config.blameIgnoreWhitespace%"
         },
+        "git.blame.dateFormat": {
+          "type": "string",
+          "default": "date-long",
+          "markdownDescription": "%config.blameDateFormat%",
+          "enum": [
+            "date-long",
+            "date-short",
+            "locale"
+          ],
+          "enumDescriptions": [
+            "%config.blameDateFormat.date-long%",
+            "%config.blameDateFormat.date-short%",
+            "%config.blameDateFormat.locale%"
+          ]
+        },
+        "git.blame.timeFormat": {
+          "type": "string",
+          "default": "locale",
+          "markdownDescription": "%config.blameTimeFormat%",
+          "enum": [
+            "locale",
+            "12hour",
+            "24hour"
+          ],
+          "enumDescriptions": [
+            "%config.blameTimeFormat.locale%",
+            "%config.blameTimeFormat.12hour%",
+            "%config.blameTimeFormat.24hour%"
+          ]
+        },
         "git.commitShortHashLength": {
           "type": "number",
           "default": 7,

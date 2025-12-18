@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, l10n, MarkdownString, Uri } from 'vscode';
+import { Command, l10n, MarkdownString, Uri, workspace } from 'vscode';
 import { fromNow, getCommitShortHash } from './util';
 import { emojify } from './emoji';
 import { CommitShortStat } from './git';
@@ -90,9 +90,35 @@ function appendContent(markdownString: MarkdownString, authorAvatar: string | un
 
 		// Date
 		if (authorDate && !isNaN(new Date(authorDate).getTime())) {
-			const dateString = new Date(authorDate).toLocaleString(undefined, {
-				year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric'
-			});
+			const config = workspace.getConfiguration('git');
+			let options: Intl.DateTimeFormatOptions = {};
+			switch (config.get<string>('blame.dateFormat')) {
+				case 'date-short':
+					options = { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' };
+					break;
+				case 'date-long':
+					options = { year: 'numeric', month: 'long', day: '2-digit', hour: '2-digit', minute: '2-digit' };
+					break;
+				case 'locale':
+					// leave empty to use locale default
+					break;
+				default:
+					break;
+			}
+			switch (config.get<string>('blame.timeFormat')) {
+				case 'locale':
+					// Use system's default time format (hour12 not set)
+					break;
+				case '12hour':
+					options.hour12 = true;
+					break;
+				case '24hour':
+					options.hour12 = false;
+					break;
+				default:
+					break;
+			}
+			const dateString = new Date(authorDate).toLocaleString(undefined, options);
 
 			markdownString.appendMarkdown(', $(history)');
 			markdownString.appendText(` ${fromNow(authorDate, true, true)} (${dateString})`);
