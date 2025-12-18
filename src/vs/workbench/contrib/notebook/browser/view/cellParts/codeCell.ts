@@ -429,7 +429,7 @@ export class CodeCell extends Disposable {
 
 	private registerMouseListener() {
 		// Pointer-state handling in notebook cell editors has a couple of easy-to-regress edge cases:
-		// 1) Holding the left mouse button and wheel/trackpad scrolling should scroll as usual.
+		// 1) Holding the left mouse button while wheel/trackpad scrolling should scroll as usual.
 		//    We therefore only treat the interaction as an "active drag selection" after actual pointer movement.
 		// 2) "Stuck selection mode" can occur if we miss the corresponding mouseup (e.g. releasing outside the window,
 		//    focus loss, or ESC cancelling Monaco selection/drag). When this happens, leaving any of our drag/pointer
