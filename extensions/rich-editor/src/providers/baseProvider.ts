@@ -9,16 +9,19 @@ import * as vscode from 'vscode';
  * Messages from webview to extension
  */
 export interface WebviewMessage {
-	type: 'ready' | 'update' | 'save' | 'requestLink' | 'openLink' | 'editLink' | 'requestImage' | 'requestTable' | 'requestMathInline' | 'requestMathBlock';
+	type: 'ready' | 'update' | 'save' | 'requestLink' | 'openLink' | 'editLink' | 'requestImage' | 'requestTable' | 'requestMathInline' | 'requestMathBlock' | 'pasteImage' | 'dropImage' | 'requestCodeBlock';
 	content?: string;
 	url?: string;
+	imageData?: string; // Base64 image data
+	imageName?: string; // Suggested filename
+	mimeType?: string; // Image MIME type
 }
 
 /**
  * Messages from extension to webview
  */
 export interface ExtensionMessage {
-	type: 'load' | 'setTheme' | 'setLink' | 'setImage' | 'insertTable' | 'setMathInline' | 'setMathBlock';
+	type: 'load' | 'setTheme' | 'setLink' | 'setImage' | 'insertTable' | 'setMathInline' | 'setMathBlock' | 'setCodeBlock';
 	content?: string;
 	format?: 'markdown' | 'typst';
 	theme?: 'light' | 'dark';
@@ -27,8 +30,12 @@ export interface ExtensionMessage {
 	alt?: string;
 	resourceBaseUri?: string; // Base URI for resolving relative paths (document dir)
 	workspaceRootUri?: string; // Base URI for absolute paths (workspace root)
+	documentDirPath?: string; // Workspace-relative path to document directory (for better path resolution)
+	documentDirUri?: string; // Full URI of document directory (for resolving images)
 	rows?: number; // Table rows
 	cols?: number; // Table columns
+	language?: string; // Code block language
+	resolvedImages?: Record<string, string>; // Map of relative paths to resolved data URLs
 }
 
 /**
@@ -41,20 +48,136 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 	constructor(protected readonly context: vscode.ExtensionContext) { }
 
 	/**
+	 * Extract image paths from document content and resolve them to webview URIs
+	 * Returns a map of relative paths to resolved URIs
+	 */
+	private async resolveImagesInContent(
+		content: string,
+		documentDir: vscode.Uri,
+		format: 'markdown' | 'typst'
+	): Promise<Record<string, string>> {
+		const resolvedImages: Record<string, string> = {};
+
+		// Extract image paths based on format
+		const imagePaths: string[] = [];
+
+		console.log('[Rich Editor] Searching for images in content, format:', format, 'content length:', content.length);
+
+		if (format === 'typst') {
+			// Match #image("path") or #image("path", ...) in Typst
+			// The path is the first quoted string after #image(
+			const typstImageRegex = /#image\(\s*"([^"]+)"/g;
+			let match;
+			while ((match = typstImageRegex.exec(content)) !== null) {
+				console.log('[Rich Editor] Found Typst image:', match[1]);
+				imagePaths.push(match[1]);
+			}
+		} else {
+			// Match ![alt](path) in Markdown
+			const mdImageRegex = /!\[[^\]]*\]\(([^)\s]+)/g;
+			let match;
+			while ((match = mdImageRegex.exec(content)) !== null) {
+				console.log('[Rich Editor] Found Markdown image:', match[1]);
+				imagePaths.push(match[1]);
+			}
+		}
+
+		console.log('[Rich Editor] Total image paths found:', imagePaths.length);
+
+		// Resolve each image path
+		for (const imagePath of imagePaths) {
+			// Skip already absolute URLs
+			if (imagePath.startsWith('http://') || imagePath.startsWith('https://') ||
+				imagePath.startsWith('data:')) {
+				continue;
+			}
+
+			try {
+				// Resolve the path relative to document directory
+				const imageUri = vscode.Uri.joinPath(documentDir, imagePath);
+				console.log(`[Rich Editor] Resolving image: ${imagePath} -> ${imageUri.toString()}`);
+
+				// Check if file exists
+				try {
+					await vscode.workspace.fs.stat(imageUri);
+
+					// Read the file and convert to base64 data URL
+					const fileData = await vscode.workspace.fs.readFile(imageUri);
+
+					// Determine MIME type
+					const ext = imagePath.toLowerCase().split('.').pop() || '';
+					const mimeTypes: Record<string, string> = {
+						'png': 'image/png',
+						'jpg': 'image/jpeg',
+						'jpeg': 'image/jpeg',
+						'gif': 'image/gif',
+						'svg': 'image/svg+xml',
+						'webp': 'image/webp',
+						'bmp': 'image/bmp'
+					};
+					const mimeType = mimeTypes[ext] || 'image/png';
+
+					// Convert to base64
+					const base64 = Buffer.from(fileData).toString('base64');
+					const dataUrl = `data:${mimeType};base64,${base64}`;
+
+					resolvedImages[imagePath] = dataUrl;
+					console.log(`[Rich Editor] Resolved image ${imagePath} to data URL (${fileData.length} bytes)`);
+				} catch (err) {
+					console.log(`[Rich Editor] Image not found: ${imageUri.toString()}`);
+				}
+			} catch (err) {
+				console.error(`[Rich Editor] Error resolving image ${imagePath}:`, err);
+			}
+		}
+
+		return resolvedImages;
+	}
+
+	/**
 	 * Calculate relative path from document directory to target file
+	 * Uses workspace-relative paths for correct resolution in webview
 	 */
 	private calculateRelativePath(fromDir: vscode.Uri, toFile: vscode.Uri): string {
-		const imageDir = vscode.Uri.joinPath(toFile, '..');
-		const fileName = toFile.path.split('/').pop() || '';
+		// Get workspace-relative paths (this is what the webview sees)
+		const fromRelative = vscode.workspace.asRelativePath(fromDir, false);
+		const toRelative = vscode.workspace.asRelativePath(toFile, false);
+
+		// Normalize paths - remove trailing slashes
+		const normalizePath = (p: string) => {
+			while (p.endsWith('/')) {
+				p = p.slice(0, -1);
+			}
+			return p;
+		};
+
+		const fromPath = normalizePath(fromRelative);
+		const toPath = normalizePath(toRelative);
+
+		// Get the directory containing the target file and the filename
+		const lastSlash = toPath.lastIndexOf('/');
+		const toDir = lastSlash > 0 ? toPath.substring(0, lastSlash) : '';
+		const fileName = lastSlash >= 0 ? toPath.substring(lastSlash + 1) : toPath;
 
 		// If same directory, just return filename
-		if (fromDir.path === imageDir.path) {
+		if (fromPath === toDir) {
 			return fileName;
 		}
 
-		// Calculate relative path
-		const fromParts = fromDir.path.split('/').filter(p => p);
-		const toParts = imageDir.path.split('/').filter(p => p);
+		// If target is in a subdirectory of fromDir
+		if (toDir.startsWith(fromPath + '/')) {
+			const subPath = toDir.substring(fromPath.length + 1);
+			return subPath + '/' + fileName;
+		}
+
+		// If fromDir is empty (root), just return the full relative path
+		if (!fromPath || fromPath === '.') {
+			return toPath;
+		}
+
+		// Calculate relative path by finding common ancestor
+		const fromParts = fromPath.split('/').filter(p => p);
+		const toParts = toDir ? toDir.split('/').filter(p => p) : [];
 
 		// Find common ancestor
 		let commonLength = 0;
@@ -67,17 +190,23 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			}
 		}
 
-		// Go up from fromDir to common ancestor, then down to imageDir
+		// Go up from fromDir to common ancestor, then down to target dir
 		const upCount = fromParts.length - commonLength;
 		const downParts = toParts.slice(commonLength);
 
 		let relativePath = '';
+
+		// Add ../ for each level we need to go up
 		if (upCount > 0) {
 			relativePath = '../'.repeat(upCount);
 		}
+
+		// Add the path down to the target directory
 		if (downParts.length > 0) {
 			relativePath += downParts.join('/') + '/';
 		}
+
+		// Add the filename
 		relativePath += fileName;
 
 		return relativePath;
@@ -95,11 +224,19 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 		// Include document directory and ALL workspace folders for loading images
 		const documentDir = vscode.Uri.joinPath(document.uri, '..');
 
-		// Build localResourceRoots: extension media + document dir + all workspace folders
+		// Build localResourceRoots: extension media + document dir + parent dirs + all workspace folders
 		const localResourceRoots: vscode.Uri[] = [
 			vscode.Uri.joinPath(this.context.extensionUri, 'media'),
 			documentDir
 		];
+
+		// Add parent directories (up to 3 levels) to support ../ paths in images
+		// This is important for remote environments where workspace structure may differ
+		let parentDir = documentDir;
+		for (let i = 0; i < 3; i++) {
+			parentDir = vscode.Uri.joinPath(parentDir, '..');
+			localResourceRoots.push(parentDir);
+		}
 
 		// Add all workspace folders (like markdown preview does)
 		const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -131,17 +268,79 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			workspaceRootUri = webviewPanel.webview.asWebviewUri(workspaceFolders[0].uri).toString();
 		}
 
+		// Get workspace-relative path for better path resolution
+		// This helps with resolving ../ paths correctly in remote environments
+		let documentDirPath = vscode.workspace.asRelativePath(documentDir, false);
+
+		// If asRelativePath returns an absolute path (starts with /), it means the document
+		// is not within a workspace folder. In this case, extract just the directory name.
+		if (documentDirPath.startsWith('/')) {
+			// Get path segments and use the last one as the relative path
+			const segments = documentDirPath.split('/').filter(s => s);
+			documentDirPath = segments.length > 0 ? segments.join('/') : '';
+		}
+
+		// Debug logging for remote environments
+		console.log('[Rich Editor] Document URI:', document.uri.toString());
+		console.log('[Rich Editor] Document Dir:', documentDir.toString());
+		console.log('[Rich Editor] Resource Base URI:', resourceBaseUri);
+		console.log('[Rich Editor] Workspace Root URI:', workspaceRootUri);
+		console.log('[Rich Editor] Document Dir Path (processed):', documentDirPath);
+		console.log('[Rich Editor] Local Resource Roots:', localResourceRoots.map(r => r.toString()));
+
 		// Send content to webview when ready
-		const updateWebview = () => {
+		const updateWebview = async (isInitialLoad = false) => {
+			const content = document.getText();
+
+			// Log content info for debugging (first 200 chars to see if image is there)
+			console.log('[Rich Editor] updateWebview called, content length:', content.length, 'format:', this.format);
+			console.log('[Rich Editor] Content preview:', content.substring(0, 200).replace(/\n/g, '\\n'));
+
+			// Pre-resolve images to avoid 401 errors in remote environments
+			const resolvedImages = await this.resolveImagesInContent(content, documentDir, this.format);
+
+			console.log('[Rich Editor] Resolved images count:', Object.keys(resolvedImages).length);
+
 			const message: ExtensionMessage = {
 				type: 'load',
-				content: document.getText(),
+				content: content,
 				format: this.format,
 				resourceBaseUri: resourceBaseUri,
-				workspaceRootUri: workspaceRootUri
+				workspaceRootUri: workspaceRootUri,
+				documentDirPath: documentDirPath,
+				documentDirUri: documentDir.toString(),
+				resolvedImages: resolvedImages
 			};
 			webviewPanel.webview.postMessage(message);
 			lastKnownVersion = document.version;
+
+			// Always send a delayed refresh on initial load to handle race conditions
+			// where document content might not be fully synchronized yet
+			if (isInitialLoad) {
+				setTimeout(async () => {
+					// Re-read the document content in case it changed
+					const refreshedContent = document.getText();
+					console.log('[Rich Editor] Delayed refresh, content length:', refreshedContent.length);
+
+					// Only send refresh if content is different or if we have images to resolve
+					if (refreshedContent !== content || refreshedContent.includes('#image') || refreshedContent.includes('![')) {
+						const refreshedImages = await this.resolveImagesInContent(refreshedContent, documentDir, this.format);
+						console.log('[Rich Editor] Delayed refresh found images:', Object.keys(refreshedImages).length);
+
+						const refreshMessage: ExtensionMessage = {
+							type: 'load',
+							content: refreshedContent,
+							format: this.format,
+							resourceBaseUri: resourceBaseUri,
+							workspaceRootUri: workspaceRootUri,
+							documentDirPath: documentDirPath,
+							documentDirUri: documentDir.toString(),
+							resolvedImages: refreshedImages
+						};
+						webviewPanel.webview.postMessage(refreshMessage);
+					}
+				}, 200);
+			}
 		};
 
 		// Handle messages from webview
@@ -150,7 +349,11 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 				switch (message.type) {
 					case 'ready':
 						// Webview is ready, send content
-						updateWebview();
+						// Delay to ensure document content is fully synchronized
+						// This is important for remote environments where document loading may be async
+						setTimeout(async () => {
+							await updateWebview(true); // true = initial load
+						}, 100);
 						// Send theme
 						this.sendTheme(webviewPanel.webview);
 						break;
@@ -390,6 +593,114 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 						}
 						break;
 					}
+
+					case 'requestCodeBlock': {
+						// Show language picker for code block
+						const languages = [
+							{ label: 'Plain Text', value: 'plaintext' },
+							{ label: 'JavaScript', value: 'javascript' },
+							{ label: 'TypeScript', value: 'typescript' },
+							{ label: 'Python', value: 'python' },
+							{ label: 'Java', value: 'java' },
+							{ label: 'C', value: 'c' },
+							{ label: 'C++', value: 'cpp' },
+							{ label: 'C#', value: 'csharp' },
+							{ label: 'Go', value: 'go' },
+							{ label: 'Rust', value: 'rust' },
+							{ label: 'Ruby', value: 'ruby' },
+							{ label: 'PHP', value: 'php' },
+							{ label: 'Swift', value: 'swift' },
+							{ label: 'Kotlin', value: 'kotlin' },
+							{ label: 'HTML', value: 'html' },
+							{ label: 'CSS', value: 'css' },
+							{ label: 'SCSS', value: 'scss' },
+							{ label: 'JSON', value: 'json' },
+							{ label: 'XML', value: 'xml' },
+							{ label: 'YAML', value: 'yaml' },
+							{ label: 'Markdown', value: 'markdown' },
+							{ label: 'LaTeX', value: 'latex' },
+							{ label: 'SQL', value: 'sql' },
+							{ label: 'Shell/Bash', value: 'bash' },
+							{ label: 'PowerShell', value: 'powershell' },
+							{ label: 'Dockerfile', value: 'dockerfile' },
+							{ label: 'Makefile', value: 'makefile' }
+						];
+
+						const selected = await vscode.window.showQuickPick(
+							languages.map(l => ({ label: l.label, description: l.value })),
+							{ placeHolder: 'Select language for code block' }
+						);
+
+						if (selected) {
+							const language = languages.find(l => l.label === selected.label)?.value || 'plaintext';
+							const codeMessage: ExtensionMessage = {
+								type: 'setCodeBlock',
+								language
+							};
+							webviewPanel.webview.postMessage(codeMessage);
+						}
+						break;
+					}
+
+					case 'pasteImage':
+					case 'dropImage': {
+						// Handle pasted/dropped image data
+						if (message.imageData && message.mimeType) {
+							try {
+								// Determine file extension from MIME type
+								const extMap: Record<string, string> = {
+									'image/png': 'png',
+									'image/jpeg': 'jpg',
+									'image/gif': 'gif',
+									'image/webp': 'webp',
+									'image/svg+xml': 'svg'
+								};
+								const ext = extMap[message.mimeType] || 'png';
+
+								// Generate filename
+								const timestamp = Date.now();
+								const suggestedName = message.imageName || `image-${timestamp}.${ext}`;
+								const fileName = suggestedName.includes('.') ? suggestedName : `${suggestedName}.${ext}`;
+
+								// Ask user for save location (default to document directory)
+								const saveUri = await vscode.window.showSaveDialog({
+									defaultUri: vscode.Uri.joinPath(documentDir, fileName),
+									filters: {
+										'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']
+									},
+									title: 'Save Image'
+								});
+
+								if (saveUri) {
+									// Decode base64 to Uint8Array (works in both Node.js and browser)
+									const binaryString = atob(message.imageData);
+									const bytes = new Uint8Array(binaryString.length);
+									for (let i = 0; i < binaryString.length; i++) {
+										bytes[i] = binaryString.charCodeAt(i);
+									}
+									await vscode.workspace.fs.writeFile(saveUri, bytes);
+
+									// Refresh the file explorer to show the new file
+									await vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
+
+									// Calculate relative path from document to saved image
+									const relativePath = this.calculateRelativePath(documentDir, saveUri);
+									const webviewUri = webviewPanel.webview.asWebviewUri(saveUri);
+
+									// Send back to webview
+									const imageMessage: ExtensionMessage = {
+										type: 'setImage',
+										src: webviewUri.toString(),
+										alt: relativePath
+									};
+									webviewPanel.webview.postMessage(imageMessage);
+								}
+							} catch (error) {
+								vscode.window.showErrorMessage(`Failed to save image: ${error}`);
+							}
+						}
+						break;
+					}
 				}
 			},
 			undefined,
@@ -539,12 +850,6 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			margin: 0 4px;
 		}
 
-		.editor-content {
-			flex: 1;
-			overflow-y: auto;
-			padding: 20px 40px;
-		}
-
 		/* TipTap editor styles */
 		.ProseMirror {
 			outline: none;
@@ -643,11 +948,92 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			border-radius: 4px;
 			overflow-x: auto;
 			margin: 0.5em 0;
+			position: relative;
 		}
 
 		.ProseMirror pre code {
 			background: none;
 			padding: 0;
+		}
+
+		/* Code block language label */
+		.ProseMirror pre[data-language]::before {
+			content: attr(data-language);
+			position: absolute;
+			top: 4px;
+			right: 8px;
+			font-size: 10px;
+			font-family: var(--vscode-font-family, sans-serif);
+			color: var(--vscode-descriptionForeground, #666);
+			text-transform: uppercase;
+			opacity: 0.7;
+		}
+
+		/* Syntax highlighting styles (compatible with lowlight/highlight.js) */
+		.hljs-comment,
+		.hljs-quote {
+			color: var(--vscode-editorLineNumber-foreground, #6a9955);
+			font-style: italic;
+		}
+
+		.hljs-keyword,
+		.hljs-selector-tag,
+		.hljs-addition {
+			color: var(--vscode-symbolIcon-keywordForeground, #569cd6);
+		}
+
+		.hljs-number,
+		.hljs-string,
+		.hljs-meta .hljs-meta-string,
+		.hljs-literal,
+		.hljs-doctag,
+		.hljs-regexp {
+			color: var(--vscode-debugTokenExpression-string, #ce9178);
+		}
+
+		.hljs-title,
+		.hljs-section,
+		.hljs-name,
+		.hljs-selector-id,
+		.hljs-selector-class {
+			color: var(--vscode-symbolIcon-functionForeground, #dcdcaa);
+		}
+
+		.hljs-attribute,
+		.hljs-attr,
+		.hljs-variable,
+		.hljs-template-variable,
+		.hljs-class .hljs-title,
+		.hljs-type {
+			color: var(--vscode-symbolIcon-variableForeground, #9cdcfe);
+		}
+
+		.hljs-symbol,
+		.hljs-bullet,
+		.hljs-subst,
+		.hljs-meta,
+		.hljs-meta .hljs-keyword,
+		.hljs-selector-attr,
+		.hljs-selector-pseudo,
+		.hljs-link {
+			color: var(--vscode-symbolIcon-constantForeground, #4ec9b0);
+		}
+
+		.hljs-built_in,
+		.hljs-deletion {
+			color: var(--vscode-symbolIcon-classForeground, #c586c0);
+		}
+
+		.hljs-formula {
+			background: var(--vscode-editor-selectionBackground, rgba(0,120,215,0.1));
+		}
+
+		.hljs-emphasis {
+			font-style: italic;
+		}
+
+		.hljs-strong {
+			font-weight: bold;
 		}
 
 		.ProseMirror a {
@@ -883,11 +1269,154 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 		.statusbar {
 			display: flex;
 			justify-content: space-between;
+			align-items: center;
 			padding: 4px 12px;
 			background: var(--vscode-statusBar-background, #f5f5f5);
 			border-top: 1px solid var(--vscode-panel-border, #e0e0e0);
 			font-size: 12px;
 			color: var(--vscode-statusBar-foreground, #666);
+		}
+
+		.statusbar-left {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+		}
+
+		.statusbar-right {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+
+		/* View mode buttons */
+		.mode-buttons {
+			display: flex;
+			align-items: center;
+			gap: 2px;
+			background: var(--vscode-input-background, #f0f0f0);
+			border-radius: 4px;
+			padding: 2px;
+		}
+
+		.mode-button {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 3px 8px;
+			border: none;
+			background: transparent;
+			border-radius: 3px;
+			cursor: pointer;
+			color: var(--vscode-foreground, #333);
+			font-size: 11px;
+			font-weight: 500;
+			transition: background-color 0.15s, color 0.15s;
+		}
+
+		.mode-button:hover {
+			background: var(--vscode-toolbar-hoverBackground, rgba(0,0,0,0.1));
+		}
+
+		.mode-button.active {
+			background: var(--vscode-button-background, #007acc);
+			color: var(--vscode-button-foreground, #fff);
+		}
+
+		.mode-button svg {
+			width: 14px;
+			height: 14px;
+			margin-right: 4px;
+		}
+
+		/* Editor panes container */
+		.editors-container {
+			display: flex;
+			flex: 1;
+			overflow: hidden;
+		}
+
+		.editor-content {
+			flex: 1;
+			overflow-y: auto;
+			padding: 20px 40px;
+			position: relative;
+		}
+
+		/* Source editor */
+		.source-editor {
+			flex: 1;
+			overflow: hidden;
+			display: none;
+		}
+
+		.source-editor textarea {
+			width: 100%;
+			height: 100%;
+			border: none;
+			outline: none;
+			resize: none;
+			padding: 20px 40px;
+			font-family: var(--vscode-editor-font-family, 'Consolas', 'Courier New', monospace);
+			font-size: var(--vscode-editor-font-size, 14px);
+			line-height: 1.5;
+			background: var(--vscode-editor-background, #fff);
+			color: var(--vscode-editor-foreground, #333);
+			tab-size: 4;
+		}
+
+		/* Split view divider */
+		.split-divider {
+			width: 4px;
+			background: var(--vscode-panel-border, #e0e0e0);
+			cursor: col-resize;
+			display: none;
+		}
+
+		.split-divider:hover {
+			background: var(--vscode-focusBorder, #007acc);
+		}
+
+		/* View modes */
+		.editor-container[data-mode="wysiwyg"] .editor-content {
+			display: block;
+		}
+		.editor-container[data-mode="wysiwyg"] .source-editor {
+			display: none;
+		}
+		.editor-container[data-mode="wysiwyg"] .split-divider {
+			display: none;
+		}
+		.editor-container[data-mode="wysiwyg"] .toolbar {
+			display: flex;
+		}
+
+		.editor-container[data-mode="source"] .editor-content {
+			display: none;
+		}
+		.editor-container[data-mode="source"] .source-editor {
+			display: block;
+		}
+		.editor-container[data-mode="source"] .split-divider {
+			display: none;
+		}
+		.editor-container[data-mode="source"] .toolbar {
+			display: none;
+		}
+
+		.editor-container[data-mode="split"] .editor-content {
+			display: block;
+			flex: 1;
+		}
+		.editor-container[data-mode="split"] .source-editor {
+			display: block;
+			flex: 1;
+		}
+		.editor-container[data-mode="split"] .split-divider {
+			display: block;
+		}
+		.editor-container[data-mode="split"] .toolbar {
+			display: flex;
 		}
 
 		.loading {
@@ -897,10 +1426,29 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			height: 100%;
 			color: var(--vscode-descriptionForeground, #666);
 		}
+
+		/* Drag & drop overlay */
+		.editor-content.drag-over {
+			background: var(--vscode-editor-selectionBackground, rgba(0, 120, 215, 0.1));
+			outline: 2px dashed var(--vscode-focusBorder, #007acc);
+			outline-offset: -4px;
+		}
+
+		.editor-content.drag-over::after {
+			content: 'Drop image here';
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			font-size: 16px;
+			color: var(--vscode-focusBorder, #007acc);
+			pointer-events: none;
+		}
+
 	</style>
 </head>
 <body>
-	<div class="editor-container">
+	<div class="editor-container" data-mode="wysiwyg">
 		<div class="toolbar" id="toolbar">
 			<button class="toolbar-button" data-command="bold" title="Bold (Cmd+B)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M4 2.5A.5.5 0 0 1 4.5 2h5.25a2.75 2.75 0 0 1 1.85 4.787A3.001 3.001 0 0 1 10.5 14H4.5a.5.5 0 0 1-.5-.5v-11zM6 8v4h4.5a1.5 1.5 0 0 0 0-3H6zm0-2h3.75a1.25 1.25 0 0 0 0-2.5H6V6z"/></svg></button>
 			<button class="toolbar-button" data-command="italic" title="Italic (Cmd+I)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M6 2.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1h-2.5l-3 10H9.5a.5.5 0 0 1 0 1h-6a.5.5 0 0 1 0-1H6L9 3H6.5a.5.5 0 0 1-.5-.5z"/></svg></button>
@@ -915,6 +1463,7 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			<button class="toolbar-button" data-command="orderedList" title="Numbered List">1.</button>
 			<button class="toolbar-button" data-command="taskList" title="Task List"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M11.354 5.646a.5.5 0 0 1 0 .708l-3.5 3.5a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 8.793l3.146-3.147a.5.5 0 0 1 .708 0z"/><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
 			<button class="toolbar-button" data-command="blockquote" title="Quote"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M3.5 4A1.5 1.5 0 0 0 2 5.5v3A1.5 1.5 0 0 0 3.5 10H4v1.5a.5.5 0 0 0 .82.384l2.048-1.703.158-.131H7.5A1.5 1.5 0 0 0 9 8.5v-3A1.5 1.5 0 0 0 7.5 4h-4zm6 0a1.5 1.5 0 0 0-1.5 1.5v3A1.5 1.5 0 0 0 9.5 10h.5v1.5a.5.5 0 0 0 .82.384l2.048-1.703.158-.131h.474a1.5 1.5 0 0 0 1.5-1.5v-3A1.5 1.5 0 0 0 13.5 4h-4z"/></svg></button>
+			<button class="toolbar-button" data-command="codeBlock" title="Code Block"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M14 1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/><path fill="currentColor" d="M6.854 4.646a.5.5 0 0 1 0 .708L4.207 8l2.647 2.646a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 0 1 .708 0zm2.292 0a.5.5 0 0 0 0 .708L11.793 8l-2.647 2.646a.5.5 0 0 0 .708.708l3-3a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708 0z"/></svg></button>
 			<div class="toolbar-separator"></div>
 			<button class="toolbar-button" data-command="link" title="Link (Cmd+K)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M4.715 6.542L3.343 7.914a3 3 0 1 0 4.243 4.243l1.828-1.829A3 3 0 0 0 8.586 5.5L8 6.086a1 1 0 0 0-.154.199 2 2 0 0 1 .861 3.337L6.88 11.45a2 2 0 1 1-2.83-2.83l.793-.792a4.018 4.018 0 0 1-.128-1.287z"/><path fill="currentColor" d="M6.586 4.672A3 3 0 0 0 7.414 9.5l.586-.586a1 1 0 0 0 .154-.199 2 2 0 0 1-.861-3.337L9.12 3.55a2 2 0 1 1 2.83 2.83l-.793.792c.112.42.155.855.128 1.287l1.372-1.372a3 3 0 0 0-4.243-4.243L6.586 4.672z"/></svg></button>
 			<button class="toolbar-button" data-command="image" title="Insert Image"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/><path fill="currentColor" d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/></svg></button>
@@ -927,12 +1476,36 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			<button class="toolbar-button" data-command="undo" title="Undo (Cmd+Z)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/><path fill="currentColor" d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/></svg></button>
 			<button class="toolbar-button" data-command="redo" title="Redo (Cmd+Shift+Z)"><svg viewBox="0 0 16 16" fill="none" stroke="none"><path fill="currentColor" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path fill="currentColor" d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg></button>
 		</div>
-		<div class="editor-content" id="editor">
-			<div class="loading">Loading editor...</div>
+		<div class="editors-container">
+			<div class="editor-content" id="editor">
+				<div class="loading">Loading editor...</div>
+			</div>
+			<div class="split-divider" id="split-divider"></div>
+			<div class="source-editor" id="source-editor">
+				<textarea id="source-textarea" spellcheck="false"></textarea>
+			</div>
 		</div>
 		<div class="statusbar">
-			<span id="status-left">Ready</span>
-			<span id="status-right"></span>
+			<div class="statusbar-left">
+				<span id="status-left">Ready</span>
+			</div>
+			<div class="statusbar-right">
+				<span id="status-right"></span>
+				<div class="mode-buttons">
+					<button class="mode-button active" data-mode="wysiwyg" title="Rich Text Editor">
+						<svg viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 2h12v12H2V2zm1 1v10h10V3H3zm1 1h8v1H4V4zm0 2h8v1H4V6zm0 2h5v1H4V8z"/></svg>
+						Rich
+					</button>
+					<button class="mode-button" data-mode="source" title="Source Code">
+						<svg viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M5.854 4.146a.5.5 0 0 1 0 .708L2.707 8l3.147 3.146a.5.5 0 0 1-.708.708l-3.5-3.5a.5.5 0 0 1 0-.708l3.5-3.5a.5.5 0 0 1 .708 0zm4.292 0a.5.5 0 0 0 0 .708L13.293 8l-3.147 3.146a.5.5 0 0 0 .708.708l3.5-3.5a.5.5 0 0 0 0-.708l-3.5-3.5a.5.5 0 0 0-.708 0z"/></svg>
+						Source
+					</button>
+					<button class="mode-button" data-mode="split" title="Split View">
+						<svg viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 2h12v12H2V2zm1 1v10h4V3H3zm5 0v10h5V3H8z"/></svg>
+						Split
+					</button>
+				</div>
+			</div>
 		</div>
 	</div>
 	<script nonce="${nonce}" src="${scriptUri}"></script>

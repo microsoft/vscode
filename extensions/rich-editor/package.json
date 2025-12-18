@@ -110,6 +110,7 @@
 	},
 	"dependencies": {
 		"@tiptap/core": "^2.1.0",
+		"@tiptap/extension-code-block-lowlight": "^2.27.1",
 		"@tiptap/extension-image": "^2.1.0",
 		"@tiptap/extension-link": "^2.1.0",
 		"@tiptap/extension-placeholder": "^2.1.0",
@@ -122,6 +123,7 @@
 		"@tiptap/pm": "^2.1.0",
 		"@tiptap/starter-kit": "^2.1.0",
 		"@types/katex": "^0.16.7",
-		"katex": "^0.16.27"
+		"katex": "^0.16.27",
+		"lowlight": "^3.3.0"
 	}
 }
