@@ -271,7 +271,7 @@ export class InlineCompletionsSource extends Disposable {
 				providerSuggestions.forEach(s => s.addPerformanceMarker('providersResolved'));
 
 				const suggestions: InlineSuggestionItem[] = await Promise.all(providerSuggestions.map(async s => {
-					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s);
+					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s, context);
 				}));
 
 				suggestions.forEach(s => s.addPerformanceMarker('renameProcessed'));

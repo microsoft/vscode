@@ -273,7 +273,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Fallback to state label
 		else {
-			if (isSessionInProgressStatus(session.element.status)) {
+			if (session.element.status === AgentSessionStatus.InProgress) {
 				template.description.textContent = localize('chat.session.status.inProgress', "Working...");
 			} else if (session.element.status === AgentSessionStatus.NeedsInput) {
 				template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
@@ -310,7 +310,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		const getStatus = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
-			if (isSessionInProgressStatus(session.status) && session.timing.inProgressTime) {
+			if (session.status === AgentSessionStatus.InProgress && session.timing.inProgressTime) {
 				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now());
 			}
 
@@ -323,22 +323,91 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		template.status.textContent = getStatus(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), isSessionInProgressStatus(session.element.status) ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
-		const tooltip = session.element.tooltip;
-		if (tooltip) {
-			template.elementDisposable.add(
-				this.hoverService.setupDelayedHover(template.element, () => ({
-					content: tooltip,
-					style: HoverStyle.Pointer,
-					position: {
-						hoverPosition: this.options.getHoverPosition()
-					}
-				}), { groupId: 'agent.sessions' })
-			);
+		template.elementDisposable.add(
+			this.hoverService.setupDelayedHover(template.element, () => ({
+				content: this.buildTooltip(session.element),
+				style: HoverStyle.Pointer,
+				position: {
+					hoverPosition: this.options.getHoverPosition()
+				}
+			}), { groupId: 'agent.sessions' })
+		);
+	}
+
+	private buildTooltip(session: IAgentSession): IMarkdownString {
+		const lines: string[] = [];
+
+		// Title
+		lines.push(`**${session.label}**`);
+
+		// Tooltip (from provider)
+		if (session.tooltip) {
+			const tooltip = typeof session.tooltip === 'string' ? session.tooltip : session.tooltip.value;
+			lines.push(tooltip);
+		} else {
+
+			// Description
+			if (session.description) {
+				const description = typeof session.description === 'string' ? session.description : session.description.value;
+				lines.push(description);
+			}
+
+			// Badge
+			if (session.badge) {
+				const badge = typeof session.badge === 'string' ? session.badge : session.badge.value;
+				lines.push(badge);
+			}
 		}
+
+		// Details line: Status • Provider • Duration/Time
+		const details: string[] = [];
+
+		// Status
+		details.push(toStatusLabel(session.status));
+
+		// Provider
+		details.push(session.providerLabel);
+
+		// Duration or start time
+		if (session.timing.finishedOrFailedTime && session.timing.inProgressTime) {
+			const duration = this.toDuration(session.timing.inProgressTime, session.timing.finishedOrFailedTime);
+			if (duration) {
+				details.push(duration);
+			}
+		} else {
+			details.push(fromNow(session.timing.startTime));
+		}
+
+		lines.push(details.join(' • '));
+
+		// Diff information
+		const diff = getAgentChangesSummary(session.changes);
+		if (diff && hasValidDiff(session.changes)) {
+			const diffParts: string[] = [];
+			if (diff.files > 0) {
+				diffParts.push(diff.files === 1 ? localize('tooltip.file', "1 file") : localize('tooltip.files', "{0} files", diff.files));
+			}
+			if (diff.insertions > 0) {
+				diffParts.push(`+${diff.insertions}`);
+			}
+			if (diff.deletions > 0) {
+				diffParts.push(`-${diff.deletions}`);
+			}
+			if (diffParts.length > 0) {
+				lines.push(`$(diff) ${diffParts.join(', ')}`);
+			}
+		}
+
+		// Archived status
+		if (session.isArchived()) {
+			lines.push(`$(archive) ${localize('tooltip.archived', "Archived")}`);
+		}
+
+		return new MarkdownString(lines.join('\n\n'), { supportThemeIcons: true });
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSession>, FuzzyScore>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
@@ -352,6 +421,25 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	disposeTemplate(templateData: IAgentSessionItemTemplate): void {
 		templateData.disposables.dispose();
 	}
+}
+
+function toStatusLabel(status: AgentSessionStatus): string {
+	let statusLabel: string;
+	switch (status) {
+		case AgentSessionStatus.NeedsInput:
+			statusLabel = localize('agentSessionNeedsInput', "Needs Input");
+			break;
+		case AgentSessionStatus.InProgress:
+			statusLabel = localize('agentSessionInProgress', "In Progress");
+			break;
+		case AgentSessionStatus.Failed:
+			statusLabel = localize('agentSessionFailed', "Failed");
+			break;
+		default:
+			statusLabel = localize('agentSessionCompleted', "Completed");
+	}
+
+	return statusLabel;
 }
 
 //#endregion
@@ -463,22 +551,7 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 			return localize('agentSessionSectionAriaLabel', "{0} sessions section", element.label);
 		}
 
-		let statusLabel: string;
-		switch (element.status) {
-			case AgentSessionStatus.NeedsInput:
-				statusLabel = localize('agentSessionNeedsInput', "needs input");
-				break;
-			case AgentSessionStatus.InProgress:
-				statusLabel = localize('agentSessionInProgress', "in progress");
-				break;
-			case AgentSessionStatus.Failed:
-				statusLabel = localize('agentSessionFailed', "failed");
-				break;
-			default:
-				statusLabel = localize('agentSessionCompleted', "completed");
-		}
-
-		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, statusLabel, new Date(element.timing.startTime).toLocaleString());
+		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.startTime).toLocaleString());
 	}
 }
 
