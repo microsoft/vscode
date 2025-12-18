@@ -243,7 +243,7 @@ gulp.task(compileAllExtensionsBuildTask);
 
 // This task is run in the compilation stage of the CI pipeline. We only compile the non-native extensions since those can be fully built regardless of platform.
 // This defers the native extensions to the platform specific stage of the CI pipeline.
-gulp.task(task.define('extensions-ci', task.series(compileNonNativeExtensionsBuildTask, compileExtensionMediaBuildTask)));
+gulp.task(task.define('extensions-ci', task.series(compileNonNativeExtensionsBuildTask, compileExtensionMediaBuildTask), { memoryTracking: true }));
 
 const compileExtensionsBuildPullRequestTask = task.define('compile-extensions-build-pr', task.series(
 	cleanExtensionsBuildTask,

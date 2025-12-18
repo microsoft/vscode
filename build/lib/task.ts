@@ -5,11 +5,17 @@
 
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
+import * as util from './util.ts';
+
+export interface TaskOptions {
+	memoryTracking?: boolean;
+}
 
 export interface BaseTask {
 	displayName?: string;
 	taskName?: string;
 	_tasks?: Task[];
+	_options?: TaskOptions;
 }
 export interface PromiseTask extends BaseTask {
 	(): Promise<void>;
@@ -40,6 +46,10 @@ async function _execute(task: Task): Promise<void> {
 	await _doExecute(task);
 	const elapsedArr = process.hrtime(startTime);
 	const elapsedNanoseconds = (elapsedArr[0] * 1e9 + elapsedArr[1]);
+	if (task._options?.memoryTracking) {
+		util.printMemoryStats(name);
+	}
+
 	if (!task._tasks) {
 		fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.magenta(_renderTime(elapsedNanoseconds / 1e6)));
 	}
@@ -97,7 +107,7 @@ export function parallel(...tasks: Task[]): PromiseTask {
 	return result;
 }
 
-export function define(name: string, task: Task): Task {
+export function define(name: string, task: Task, options?: TaskOptions): Task {
 	if (task._tasks) {
 		// This is a composite task
 		const lastTask = task._tasks[task._tasks.length - 1];
@@ -105,16 +115,25 @@ export function define(name: string, task: Task): Task {
 		if (lastTask._tasks || lastTask.taskName) {
 			// This is a composite task without a real task function
 			// => generate a fake task function
-			return define(name, series(task, () => Promise.resolve()));
+			return define(name, series(task, () => Promise.resolve()), options);
 		}
 
 		lastTask.taskName = name;
 		task.displayName = name;
+		task._options = options;
+
+		if (options?.memoryTracking) {
+			for (const subtask of task._tasks) {
+				subtask._options = { ...subtask._options, memoryTracking: true };
+			}
+		}
+
 		return task;
 	}
 
 	// This is a simple task
 	task.taskName = name;
 	task.displayName = name;
+	task._options = options;
 	return task;
 }

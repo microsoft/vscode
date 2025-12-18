@@ -7,6 +7,7 @@ import ts from 'typescript';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname, join } from 'path';
 import minimatch from 'minimatch';
+import * as util from '../lib/util.ts';
 
 //
 // #############################################################################################
@@ -160,6 +161,8 @@ for (const sourceFile of program.getSourceFiles()) {
 		}
 	}
 }
+
+util.printMemoryStats('layersChecker');
 
 if (hasErrors) {
 	process.exit(1);

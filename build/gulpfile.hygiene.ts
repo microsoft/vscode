@@ -46,5 +46,5 @@ const checkPackageJSONTask = task.define('check-package-json', () => {
 });
 gulp.task(checkPackageJSONTask);
 
-const hygieneTask = task.define('hygiene', task.series(checkPackageJSONTask, () => hygiene(undefined, false)));
+const hygieneTask = task.define('hygiene', task.series(checkPackageJSONTask, () => hygiene(undefined, false)), { memoryTracking: true });
 gulp.task(hygieneTask);

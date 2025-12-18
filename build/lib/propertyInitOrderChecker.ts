@@ -7,6 +7,7 @@
 import * as ts from 'typescript';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as util from '../lib/util.ts';
 
 const TS_CONFIG_PATH = path.join(import.meta.dirname, '../../', 'src', 'tsconfig.json');
 
@@ -63,6 +64,8 @@ for (const file of program.getSourceFiles()) {
 	}
 	visit(file);
 }
+
+util.printMemoryStats('propertyInitOrderChecker');
 
 if (seenFiles.size) {
 	console.log();

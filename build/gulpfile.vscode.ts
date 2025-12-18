@@ -165,7 +165,7 @@ const coreCI = task.define('core-ci', task.series(
 		gulp.task('minify-vscode-reh') as task.Task,
 		gulp.task('minify-vscode-reh-web') as task.Task,
 	)
-));
+), { memoryTracking: true });
 gulp.task(coreCI);
 
 const coreCIPR = task.define('core-ci-pr', task.series(
