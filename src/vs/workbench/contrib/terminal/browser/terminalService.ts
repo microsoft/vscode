@@ -396,10 +396,17 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	async focusInstance(instance: ITerminalInstance): Promise<void> {
-		if (instance.target === TerminalLocation.Editor) {
-			return this._terminalEditorService.focusInstance(instance);
+		if (!instance) {
+			return;
 		}
-		return this._terminalGroupService.focusInstance(instance);
+		if (this._activeInstance !== instance) {
+			this.setActiveInstance(instance);
+		}
+		if (instance.target === TerminalLocation.Editor) {
+			await this._terminalEditorService.focusInstance(instance);
+			return;
+		}
+		await this._terminalGroupService.focusInstance(instance);
 	}
 
 	async focusActiveInstance(): Promise<void> {
