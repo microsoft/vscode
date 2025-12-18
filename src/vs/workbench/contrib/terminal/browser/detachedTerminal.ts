@@ -39,7 +39,9 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this.capabilities = this._register(new TerminalCapabilityStore());
+		const capabilities = options.capabilities ?? new TerminalCapabilityStore();
+		this._register(capabilities);
+		this.capabilities = capabilities;
 		this._register(_xterm);
 
 		// Initialize contributions
