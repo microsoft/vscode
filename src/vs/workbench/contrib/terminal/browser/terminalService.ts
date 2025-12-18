@@ -396,9 +396,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	async focusInstance(instance: ITerminalInstance): Promise<void> {
-		if (!instance) {
-			return;
-		}
 		if (this._activeInstance !== instance) {
 			this.setActiveInstance(instance);
 		}
