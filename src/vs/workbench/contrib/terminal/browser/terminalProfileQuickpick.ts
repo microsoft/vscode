@@ -46,8 +46,20 @@ export class TerminalProfileQuickpick {
 			const userDefault = configInspect.userValue;
 			const workspaceDefault = configInspect.workspaceValue;
 
+			// Check if the selected profile is workspace-only
+			const profilesInspect = this._configurationService.inspect(profilesKey);
+			const workspaceProfileNames = profilesInspect.workspaceValue && typeof profilesInspect.workspaceValue === 'object'
+				? Object.keys(profilesInspect.workspaceValue as { [key: string]: unknown })
+				: [];
+			const userProfileNames = profilesInspect.userValue && typeof profilesInspect.userValue === 'object'
+				? Object.keys(profilesInspect.userValue as { [key: string]: unknown })
+				: [];
+			const workspaceOnlyProfileNames = workspaceProfileNames.filter(name => !userProfileNames.includes(name));
+			const isWorkspaceOnlyProfile = workspaceOnlyProfileNames.includes(result.profileName);
+
 			// If workspace and user defaults differ, ask where to apply the change
-			let targets: ConfigurationTarget[] = [ConfigurationTarget.USER];
+			// For workspace-only profiles, default to workspace target
+			let targets: ConfigurationTarget[] = isWorkspaceOnlyProfile ? [ConfigurationTarget.WORKSPACE] : [ConfigurationTarget.USER];
 			if (workspaceDefault !== undefined && (workspaceDefault !== userDefault || workspaceDefault !== result.profileName)) {
 				const targetChoice = await this._showTargetPicker();
 				if (!targetChoice) {
@@ -62,25 +74,35 @@ export class TerminalProfileQuickpick {
 					// extension contributed profile
 					await this._configurationService.updateValue(defaultProfileKey, result.profile.title, target);
 				} else {
-					// Add the profile to settings if necessary
-					if (hasKey(result.profile, { profileName: true })) {
-						// Get the appropriate configuration based on target
-						const profilesInspect = this._configurationService.inspect(profilesKey);
-						let profilesConfig: { [key: string]: ITerminalProfileObject };
-						if (target === ConfigurationTarget.WORKSPACE) {
-							profilesConfig = profilesInspect.workspaceValue || {};
-						} else {
-							profilesConfig = profilesInspect.userValue || {};
-						}
+					// For workspace-only profiles, don't copy the profile definition to user settings
+					// Only set it as the default in workspace settings
+					if (isWorkspaceOnlyProfile && target === ConfigurationTarget.USER) {
+						// Skip adding workspace-only profile to user settings
+						// Just set the default to reference the workspace profile
+						await this._configurationService.updateValue(defaultProfileKey, result.profileName, target);
+					} else {
+						// Add the profile to settings if necessary
+						if (hasKey(result.profile, { profileName: true })) {
+							// Get the appropriate configuration based on target
+							let profilesConfig: { [key: string]: ITerminalProfileObject };
+							if (target === ConfigurationTarget.WORKSPACE) {
+								profilesConfig = profilesInspect.workspaceValue || {};
+							} else {
+								profilesConfig = profilesInspect.userValue || {};
+							}
 
-						if (typeof profilesConfig === 'object') {
-							const newProfilesConfig = { ...profilesConfig };
-							newProfilesConfig[result.profile.profileName] = this._createNewProfileConfig(result.profile);
-							await this._configurationService.updateValue(profilesKey, newProfilesConfig, target);
+							if (typeof profilesConfig === 'object') {
+								// Only add profile definition if it doesn't already exist in the target
+								if (!profilesConfig[result.profile.profileName]) {
+									const newProfilesConfig = { ...profilesConfig };
+									newProfilesConfig[result.profile.profileName] = this._createNewProfileConfig(result.profile);
+									await this._configurationService.updateValue(profilesKey, newProfilesConfig, target);
+								}
+							}
 						}
+						// Set the default profile
+						await this._configurationService.updateValue(defaultProfileKey, result.profileName, target);
 					}
-					// Set the default profile
-					await this._configurationService.updateValue(defaultProfileKey, result.profileName, target);
 				}
 			}
 
