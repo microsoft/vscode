@@ -129,7 +129,11 @@ export class WindowTitle extends Disposable {
 			}
 		}));
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.titleUpdater.schedule()));
-		this._register(this.notebookExecutionStateService.onDidChangeExecution(() => this.titleUpdater.schedule()));
+		this._register(this.notebookExecutionStateService.onDidChangeExecution(() => {
+			if (this.accessibilityService.isScreenReaderOptimized()) {
+				this.titleUpdater.schedule();
+			}
+		}));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
