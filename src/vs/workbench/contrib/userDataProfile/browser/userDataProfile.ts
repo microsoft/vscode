@@ -134,6 +134,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 		this.registerCreateFromCurrentProfileAction();
 		this.registerNewProfileAction();
+		this.registerImportProfileAction();
 		this.registerDeleteProfileAction();
 
 		this.registerHelpAction();
@@ -434,6 +435,31 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			async run(accessor: ServicesAccessor) {
 				const editor = await that.openProfilesEditor();
 				return editor?.createNewProfile();
+			}
+		}));
+	}
+
+	private registerImportProfileAction(): void {
+		const that = this;
+		this._register(registerAction2(class ImportProfileAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.profiles.actions.importProfile',
+					title: localize2('import profile', "Import Profile..."),
+					category: PROFILES_CATEGORY,
+					f1: true
+				});
+			}
+
+			async run(accessor: ServicesAccessor, profileUri?: URI) {
+				const editor = await that.openProfilesEditor();
+				if (editor) {
+					if (profileUri) {
+						return editor.createNewProfile(profileUri);
+					} else {
+						return editor.importProfile();
+					}
+				}
 			}
 		}));
 	}
