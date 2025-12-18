@@ -10,8 +10,9 @@ import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 
 /**
- * Custom Image extension that ensures proper HTML parsing
- * and handles webview resource URLs correctly
+ * Custom Image extension that uses addNodeView to control image rendering.
+ * This allows us to resolve the src URL BEFORE the browser attempts to load it,
+ * avoiding 401 errors in webview environments.
  */
 const CustomImage = Image.extend({
 	addAttributes() {
@@ -69,7 +70,113 @@ const CustomImage = Image.extend({
 	renderHTML({ HTMLAttributes }) {
 		return ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)];
 	},
+
+	/**
+	 * Custom NodeView that resolves the image src before assigning it to the DOM element.
+	 * This is the key to avoiding 401 errors - we control when and what src is set.
+	 */
+	addNodeView() {
+		return ({ node, HTMLAttributes }) => {
+			const img = document.createElement('img');
+
+			// Get the original src and alt
+			const originalSrc = node.attrs.src || HTMLAttributes.src || '';
+			const alt = node.attrs.alt || HTMLAttributes.alt || '';
+			const title = node.attrs.title || HTMLAttributes.title || '';
+
+			// Set alt and title immediately
+			if (alt) {
+				img.setAttribute('alt', alt);
+			}
+			if (title) {
+				img.setAttribute('title', title);
+			}
+
+			// Apply any additional HTML attributes from options
+			const mergedAttrs = mergeAttributes(this.options.HTMLAttributes || {}, HTMLAttributes);
+			Object.entries(mergedAttrs).forEach(([key, value]) => {
+				if (key !== 'src' && key !== 'alt' && key !== 'title' && value !== null && value !== undefined) {
+					img.setAttribute(key, String(value));
+				}
+			});
+
+			// Resolve the src using our custom resolver
+			// This happens BEFORE we set the src attribute, so the browser
+			// never tries to load the unresolved URL
+			const resolvedSrc = resolveImageSrc(originalSrc, alt);
+			if (resolvedSrc) {
+				img.setAttribute('src', resolvedSrc);
+			}
+
+			return {
+				dom: img,
+				update: (updatedNode) => {
+					if (updatedNode.type.name !== 'image') {
+						return false;
+					}
+
+					// Update src if changed
+					const newSrc = updatedNode.attrs.src || '';
+					const newAlt = updatedNode.attrs.alt || '';
+					const newResolvedSrc = resolveImageSrc(newSrc, newAlt);
+
+					if (newResolvedSrc && img.getAttribute('src') !== newResolvedSrc) {
+						img.setAttribute('src', newResolvedSrc);
+					}
+
+					// Update alt if changed
+					if (newAlt !== img.getAttribute('alt')) {
+						img.setAttribute('alt', newAlt);
+					}
+
+					// Update title if changed
+					const newTitle = updatedNode.attrs.title || '';
+					if (newTitle !== img.getAttribute('title')) {
+						if (newTitle) {
+							img.setAttribute('title', newTitle);
+						} else {
+							img.removeAttribute('title');
+						}
+					}
+
+					return true;
+				},
+			};
+		};
+	},
 });
+
+/**
+ * Resolve image src - called from the NodeView before setting the src attribute.
+ * This is the proper place to do URL resolution as it happens BEFORE the browser
+ * attempts to load the image.
+ */
+function resolveImageSrc(src: string, alt: string): string {
+	// If src is empty, try alt (which may contain the original path)
+	const pathToResolve = src || alt;
+
+	if (!pathToResolve) {
+		return '';
+	}
+
+	// If it's already a data URL, use it directly
+	if (pathToResolve.startsWith('data:')) {
+		return pathToResolve;
+	}
+
+	// If it's already an absolute URL that looks resolved, use it
+	if (pathToResolve.startsWith('http://') ||
+		pathToResolve.startsWith('https://') ||
+		pathToResolve.startsWith('vscode-resource') ||
+		pathToResolve.startsWith('vscode-webview') ||
+		pathToResolve.startsWith('file+.vscode-resource')) {
+		return pathToResolve;
+	}
+
+	// Resolve using our resource path resolver
+	// This will return a data URL if available, or resolve the path appropriately
+	return resolveResourcePath(pathToResolve);
+}
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Table from '@tiptap/extension-table';
@@ -591,45 +698,22 @@ function initViewModes(): void {
  * Uses pre-resolved images (data URLs) when available to avoid 401 errors
  */
 function resolveResourcePath(path: string): string {
-	console.log('[resolveResourcePath] Input path:', path);
-
 	// First, check if we have a pre-resolved image for this path
 	if (resolvedImages[path]) {
-		console.log('[resolveResourcePath] Using pre-resolved data URL for:', path);
 		return resolvedImages[path];
 	}
 
 	// Also try without leading ./ if present
 	const cleanPath = path.startsWith('./') ? path.slice(2) : path;
 	if (cleanPath !== path && resolvedImages[cleanPath]) {
-		console.log('[resolveResourcePath] Using pre-resolved data URL for cleaned path:', cleanPath);
 		return resolvedImages[cleanPath];
 	}
-
-	// If we don't have a pre-resolved data URL and this looks like a local image path,
-	// return a transparent placeholder to avoid 401 errors. The image will be loaded
-	// on the delayed refresh when the data URL becomes available.
-	const looksLikeLocalPath = !path.startsWith('http://') && !path.startsWith('https://') &&
-		!path.startsWith('data:') && !path.startsWith('vscode-resource') &&
-		!path.startsWith('vscode-webview') && !path.startsWith('file+.vscode-resource');
-
-	if (looksLikeLocalPath && Object.keys(resolvedImages).length === 0) {
-		console.log('[resolveResourcePath] No pre-resolved images available, using placeholder for:', path);
-		// Return a transparent 1x1 pixel as placeholder (will be replaced on refresh)
-		return 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-	}
-
-	console.log('[resolveResourcePath] No pre-resolved image, using URI resolution');
-	console.log('[resolveResourcePath] resourceBaseUri:', resourceBaseUri);
-	console.log('[resolveResourcePath] workspaceRootUri:', workspaceRootUri);
-	console.log('[resolveResourcePath] documentDirPath:', documentDirPath);
 
 	// If it's already an absolute URL or data URL, return as-is
 	if (path.startsWith('http://') || path.startsWith('https://') ||
 		path.startsWith('data:') ||
 		path.startsWith('vscode-resource://') || path.startsWith('vscode-webview://') ||
 		path.startsWith('file+.vscode-resource') || path.startsWith('vscode-local+')) {
-		console.log('[resolveResourcePath] Already absolute, returning as-is');
 		return path;
 	}
 
@@ -695,9 +779,7 @@ function resolveResourcePath(path: string): string {
 					wsPath = wsPath.slice(0, -1);
 				}
 				wsUrl.pathname = wsPath + '/' + resolvedDirSegments.join('/');
-				const result = wsUrl.toString();
-				console.log('[resolveResourcePath] Resolved via documentDirPath:', result);
-				return result;
+				return wsUrl.toString();
 			}
 		}
 
@@ -725,9 +807,7 @@ function resolveResourcePath(path: string): string {
 					wsPath = wsPath.slice(0, -1);
 				}
 				wsUrl.pathname = wsPath + '/' + nonUpParts.join('/');
-				const result = wsUrl.toString();
-				console.log('[resolveResourcePath] Resolved via workspace root (too many ../):', result);
-				return result;
+				return wsUrl.toString();
 			}
 			// Last resort: just append filename to base
 			const result = baseUrl.origin + basePath + '/' + nonUpParts.join('/');
@@ -902,9 +982,6 @@ function refreshImageNodes(): void {
 
 	let hasChanges = false;
 
-	// Placeholder data URL used when images aren't resolved yet
-	const placeholderDataUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-
 	// Recursively find and fix image nodes
 	function processNodes(nodes: Array<Record<string, unknown>>): void {
 		for (const node of nodes) {
@@ -914,20 +991,8 @@ function refreshImageNodes(): void {
 					const currentSrc = attrs.src as string || '';
 					const alt = attrs.alt as string || '';
 
-					// Check if current src is a placeholder that needs updating
-					const isPlaceholder = currentSrc === placeholderDataUrl;
-
-					// If src is a placeholder, try to resolve from alt (which has the original path)
-					if (isPlaceholder && alt) {
-						const resolvedFromAlt = resolveResourcePath(alt);
-						// Only update if we got a real data URL (not the placeholder again)
-						if (resolvedFromAlt !== placeholderDataUrl && resolvedFromAlt !== alt) {
-							attrs.src = resolvedFromAlt;
-							hasChanges = true;
-						}
-					}
 					// If src is a relative path, resolve it
-					else if (currentSrc && !currentSrc.startsWith('http') &&
+					if (currentSrc && !currentSrc.startsWith('http') &&
 						!currentSrc.startsWith('vscode-resource') &&
 						!currentSrc.startsWith('vscode-webview') &&
 						!currentSrc.startsWith('file+.vscode-resource') &&
@@ -942,10 +1007,10 @@ function refreshImageNodes(): void {
 							hasChanges = true;
 						}
 					}
-					// Also try resolving from alt if src looks wrong
+					// Also try resolving from alt if src needs updating
 					else if (alt && !alt.startsWith('http') && !alt.startsWith('vscode') && !alt.startsWith('data:')) {
 						const resolvedFromAlt = resolveResourcePath(alt);
-						if (resolvedFromAlt !== currentSrc && resolvedFromAlt !== alt && resolvedFromAlt !== placeholderDataUrl) {
+						if (resolvedFromAlt !== currentSrc && resolvedFromAlt !== alt) {
 							attrs.src = resolvedFromAlt;
 							hasChanges = true;
 						}
@@ -2441,21 +2506,17 @@ window.addEventListener('message', (event) => {
 			// Store resource base URIs for resolving paths
 			if (message.resourceBaseUri) {
 				resourceBaseUri = message.resourceBaseUri;
-				console.log('[Rich Editor Webview] Received resourceBaseUri:', resourceBaseUri);
 			}
 			if (message.workspaceRootUri) {
 				workspaceRootUri = message.workspaceRootUri;
-				console.log('[Rich Editor Webview] Received workspaceRootUri:', workspaceRootUri);
 			}
 			// Store document directory path for accurate relative path resolution
 			if (message.documentDirPath) {
 				documentDirPath = message.documentDirPath;
-				console.log('[Rich Editor Webview] Received documentDirPath:', documentDirPath);
 			}
 			// Store pre-resolved images (avoids 401 errors in remote environments)
 			if (message.resolvedImages) {
 				resolvedImages = message.resolvedImages;
-				console.log('[Rich Editor Webview] Received resolvedImages:', Object.keys(resolvedImages).length, 'images');
 			}
 			if (editor && message.content !== undefined) {
 				// Skip if this is just our own content echoing back

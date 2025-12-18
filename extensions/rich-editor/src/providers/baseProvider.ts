@@ -61,15 +61,12 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 		// Extract image paths based on format
 		const imagePaths: string[] = [];
 
-		console.log('[Rich Editor] Searching for images in content, format:', format, 'content length:', content.length);
-
 		if (format === 'typst') {
 			// Match #image("path") or #image("path", ...) in Typst
 			// The path is the first quoted string after #image(
 			const typstImageRegex = /#image\(\s*"([^"]+)"/g;
 			let match;
 			while ((match = typstImageRegex.exec(content)) !== null) {
-				console.log('[Rich Editor] Found Typst image:', match[1]);
 				imagePaths.push(match[1]);
 			}
 		} else {
@@ -77,12 +74,9 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			const mdImageRegex = /!\[[^\]]*\]\(([^)\s]+)/g;
 			let match;
 			while ((match = mdImageRegex.exec(content)) !== null) {
-				console.log('[Rich Editor] Found Markdown image:', match[1]);
 				imagePaths.push(match[1]);
 			}
 		}
-
-		console.log('[Rich Editor] Total image paths found:', imagePaths.length);
 
 		// Resolve each image path
 		for (const imagePath of imagePaths) {
@@ -95,13 +89,10 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			try {
 				// Resolve the path relative to document directory
 				const imageUri = vscode.Uri.joinPath(documentDir, imagePath);
-				console.log(`[Rich Editor] Resolving image: ${imagePath} -> ${imageUri.toString()}`);
 
-				// Check if file exists
+				// Check if file exists and read it
 				try {
 					await vscode.workspace.fs.stat(imageUri);
-
-					// Read the file and convert to base64 data URL
 					const fileData = await vscode.workspace.fs.readFile(imageUri);
 
 					// Determine MIME type
@@ -119,15 +110,12 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 
 					// Convert to base64
 					const base64 = Buffer.from(fileData).toString('base64');
-					const dataUrl = `data:${mimeType};base64,${base64}`;
-
-					resolvedImages[imagePath] = dataUrl;
-					console.log(`[Rich Editor] Resolved image ${imagePath} to data URL (${fileData.length} bytes)`);
-				} catch (err) {
-					console.log(`[Rich Editor] Image not found: ${imageUri.toString()}`);
+					resolvedImages[imagePath] = `data:${mimeType};base64,${base64}`;
+				} catch {
+					// Image not found - silently ignore
 				}
-			} catch (err) {
-				console.error(`[Rich Editor] Error resolving image ${imagePath}:`, err);
+			} catch {
+				// Error resolving image - silently ignore
 			}
 		}
 
@@ -279,27 +267,12 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			const segments = documentDirPath.split('/').filter(s => s);
 			documentDirPath = segments.length > 0 ? segments.join('/') : '';
 		}
-
-		// Debug logging for remote environments
-		console.log('[Rich Editor] Document URI:', document.uri.toString());
-		console.log('[Rich Editor] Document Dir:', documentDir.toString());
-		console.log('[Rich Editor] Resource Base URI:', resourceBaseUri);
-		console.log('[Rich Editor] Workspace Root URI:', workspaceRootUri);
-		console.log('[Rich Editor] Document Dir Path (processed):', documentDirPath);
-		console.log('[Rich Editor] Local Resource Roots:', localResourceRoots.map(r => r.toString()));
-
 		// Send content to webview when ready
 		const updateWebview = async (isInitialLoad = false) => {
 			const content = document.getText();
 
-			// Log content info for debugging (first 200 chars to see if image is there)
-			console.log('[Rich Editor] updateWebview called, content length:', content.length, 'format:', this.format);
-			console.log('[Rich Editor] Content preview:', content.substring(0, 200).replace(/\n/g, '\\n'));
-
 			// Pre-resolve images to avoid 401 errors in remote environments
 			const resolvedImages = await this.resolveImagesInContent(content, documentDir, this.format);
-
-			console.log('[Rich Editor] Resolved images count:', Object.keys(resolvedImages).length);
 
 			const message: ExtensionMessage = {
 				type: 'load',
@@ -320,12 +293,10 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 				setTimeout(async () => {
 					// Re-read the document content in case it changed
 					const refreshedContent = document.getText();
-					console.log('[Rich Editor] Delayed refresh, content length:', refreshedContent.length);
 
 					// Only send refresh if content is different or if we have images to resolve
 					if (refreshedContent !== content || refreshedContent.includes('#image') || refreshedContent.includes('![')) {
 						const refreshedImages = await this.resolveImagesInContent(refreshedContent, documentDir, this.format);
-						console.log('[Rich Editor] Delayed refresh found images:', Object.keys(refreshedImages).length);
 
 						const refreshMessage: ExtensionMessage = {
 							type: 'load',
