@@ -87,8 +87,8 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 			};
 		}
 
-		const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os));
-		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(options.commandLine);
+		const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os, options.chatSessionId));
+		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(options.commandLine, options.chatSessionId);
 		const autoApproveReasons: string[] = [
 			...subCommandResults.map(e => e.reason),
 			commandLineResult.reason,

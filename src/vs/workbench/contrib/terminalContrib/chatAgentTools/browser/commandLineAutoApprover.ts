@@ -85,7 +85,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): ICommandApprovalResultWithReason {
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem, chatSessionId?: string): ICommandApprovalResultWithReason {
 		// Check if the command has a transient environment variable assignment prefix which we
 		// always deny for now as it can easily lead to execute other commands
 		if (transientEnvVarRegex.test(command)) {
@@ -107,7 +107,7 @@ export class CommandLineAutoApprover extends Disposable {
 		}
 
 		// Check session allow rules (session deny rules can't exist)
-		for (const rule of this._getSessionRules().allowListRules) {
+		for (const rule of this._getSessionRules(chatSessionId).allowListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
 				return {
 					result: 'approved',
@@ -137,7 +137,7 @@ export class CommandLineAutoApprover extends Disposable {
 		};
 	}
 
-	isCommandLineAutoApproved(commandLine: string): ICommandApprovalResultWithReason {
+	isCommandLineAutoApproved(commandLine: string, chatSessionId?: string): ICommandApprovalResultWithReason {
 		// Check the config deny list first to see if this command line requires explicit approval
 		for (const rule of this._denyListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
@@ -150,7 +150,7 @@ export class CommandLineAutoApprover extends Disposable {
 		}
 
 		// Check session allow list (session deny rules can't exist)
-		for (const rule of this._getSessionRules().allowListCommandLineRules) {
+		for (const rule of this._getSessionRules(chatSessionId).allowListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
 				return {
 					result: 'approved',
@@ -176,7 +176,7 @@ export class CommandLineAutoApprover extends Disposable {
 		};
 	}
 
-	private _getSessionRules(): {
+	private _getSessionRules(chatSessionId?: string): {
 		denyListRules: IAutoApproveRule[];
 		allowListRules: IAutoApproveRule[];
 		allowListCommandLineRules: IAutoApproveRule[];
@@ -187,7 +187,11 @@ export class CommandLineAutoApprover extends Disposable {
 		const allowListCommandLineRules: IAutoApproveRule[] = [];
 		const denyListCommandLineRules: IAutoApproveRule[] = [];
 
-		const sessionRulesConfig = this._terminalChatService.getSessionAutoApproveRules();
+		if (!chatSessionId) {
+			return { denyListRules, allowListRules, allowListCommandLineRules, denyListCommandLineRules };
+		}
+
+		const sessionRulesConfig = this._terminalChatService.getSessionAutoApproveRules(chatSessionId);
 		for (const [key, value] of Object.entries(sessionRulesConfig)) {
 			if (typeof value === 'boolean') {
 				const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);

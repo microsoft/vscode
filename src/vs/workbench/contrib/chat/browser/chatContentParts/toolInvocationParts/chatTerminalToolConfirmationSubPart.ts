@@ -266,8 +266,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						const userRules = newRules.filter(r => r.scope === 'user');
 
 						// Handle session-scoped rules (temporary, in-memory only)
+						const chatSessionId = this.context.element.sessionId;
 						for (const rule of sessionRules) {
-							this.terminalChatService.addSessionAutoApproveRule(rule.key, rule.value);
+							this.terminalChatService.addSessionAutoApproveRule(chatSessionId, rule.key, rule.value);
 						}
 
 						// Handle workspace-scoped rules

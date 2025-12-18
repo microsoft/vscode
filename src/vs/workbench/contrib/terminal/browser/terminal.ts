@@ -220,16 +220,18 @@ export interface ITerminalChatService {
 
 	/**
 	 * Add a session-scoped auto-approve rule.
+	 * @param chatSessionId The chat session ID to associate the rule with
 	 * @param key The rule key (command or regex pattern)
 	 * @param value The rule value (approval boolean or object with approve and matchCommandLine)
 	 */
-	addSessionAutoApproveRule(key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void;
+	addSessionAutoApproveRule(chatSessionId: string, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void;
 
 	/**
-	 * Get all session-scoped auto-approve rules.
-	 * @returns A record of all session-scoped auto-approve rules
+	 * Get all session-scoped auto-approve rules for a specific chat session.
+	 * @param chatSessionId The chat session ID to get rules for
+	 * @returns A record of all session-scoped auto-approve rules for the session
 	 */
-	getSessionAutoApproveRules(): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
+	getSessionAutoApproveRules(chatSessionId: string): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
 }
 
 /**
