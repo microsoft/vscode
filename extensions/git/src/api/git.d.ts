@@ -76,6 +76,14 @@ export interface Remote {
 	readonly isReadOnly: boolean;
 }
 
+export interface Worktree {
+	readonly name: string;
+	readonly path: string;
+	readonly ref: string;
+	readonly detached: boolean;
+	readonly commitDetails?: Commit;
+}
+
 export const enum Status {
 	INDEX_MODIFIED,
 	INDEX_ADDED,
