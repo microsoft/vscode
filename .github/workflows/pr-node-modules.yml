@@ -1,9 +1,11 @@
 name: Code OSS (node_modules)
 
-on:
-  push:
-    branches:
-      - main
+# DISABLED: Automatic triggers disabled for DSpace fork
+# on:
+#   push:
+#     branches:
+#       - main
+on: workflow_dispatch
 
 permissions: {}
 

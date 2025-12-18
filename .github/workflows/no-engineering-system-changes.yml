@@ -1,6 +1,8 @@
 name: Prevent engineering system changes in PRs
 
-on: pull_request
+# DISABLED: Automatic triggers disabled for DSpace fork
+# on: pull_request
+on: workflow_dispatch
 permissions: {}
 
 jobs:

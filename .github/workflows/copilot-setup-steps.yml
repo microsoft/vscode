@@ -1,15 +1,17 @@
 name: "Copilot Setup Steps"
 
+# DISABLED: Automatic triggers disabled for DSpace fork
 # Automatically run the setup steps when they are changed to allow for easy validation, and
 # allow manual testing through the repository's "Actions" tab
-on:
-  workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/copilot-setup-steps.yml
-  pull_request:
-    paths:
-      - .github/workflows/copilot-setup-steps.yml
+# on:
+#   workflow_dispatch:
+#   push:
+#     paths:
+#       - .github/workflows/copilot-setup-steps.yml
+#   pull_request:
+#     paths:
+#       - .github/workflows/copilot-setup-steps.yml
+on: workflow_dispatch
 
 jobs:
   # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.

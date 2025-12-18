@@ -1,5 +1,7 @@
 name: 'Telemetry'
-on: pull_request
+# DISABLED: Automatic triggers disabled for DSpace fork
+# on: pull_request
+on: workflow_dispatch
 permissions: {}
 jobs:
   check-metadata:

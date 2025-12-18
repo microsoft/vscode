@@ -1,10 +1,12 @@
 name: Code OSS
 
-on:
-  pull_request:
-    branches:
-      - main
-      - 'release/*'
+# DISABLED: Automatic triggers disabled for DSpace fork
+# on:
+#   pull_request:
+#     branches:
+#       - main
+#       - 'release/*'
+on: workflow_dispatch
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

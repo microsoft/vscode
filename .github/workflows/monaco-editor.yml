@@ -1,14 +1,16 @@
 name: Monaco Editor checks
 
-on:
-  push:
-    branches:
-      - main
-      - release/*
-  pull_request:
-    branches:
-      - main
-      - release/*
+# DISABLED: Automatic triggers disabled for DSpace fork
+# on:
+#   push:
+#     branches:
+#       - main
+#       - release/*
+#   pull_request:
+#     branches:
+#       - main
+#       - release/*
+on: workflow_dispatch
 permissions: {}
 
 jobs:
