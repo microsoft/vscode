@@ -869,6 +869,7 @@
 		"--vscode-textLink-activeForeground",
 		"--vscode-textLink-foreground",
 		"--vscode-textPreformat-background",
+		"--vscode-textPreformat-border",
 		"--vscode-textPreformat-foreground",
 		"--vscode-textSeparator-foreground",
 		"--vscode-titleBar-activeBackground",
@@ -995,5 +996,18 @@
 		"--comment-thread-state-color",
 		"--comment-thread-state-background-color",
 		"--inline-edit-border-radius"
+	],
+	"sizes": [
+		"--vscode-bodyFontSize",
+		"--vscode-bodyFontSize-small",
+		"--vscode-bodyFontSize-xSmall",
+		"--vscode-codiconFontSize",
+		"--vscode-cornerRadius-circle",
+		"--vscode-cornerRadius-large",
+		"--vscode-cornerRadius-medium",
+		"--vscode-cornerRadius-small",
+		"--vscode-cornerRadius-xLarge",
+		"--vscode-cornerRadius-xSmall",
+		"--vscode-strokeThickness"
 	]
 }

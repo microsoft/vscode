@@ -33,7 +33,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { Platform, platform, setTimeout0 } from '../../../base/common/platform.js';
 import { getWindowControlsStyle, WindowControlsStyle } from '../../window/common/window.js';
 import { getZoomFactor } from '../../../base/browser/browser.js';
-import { TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
+import { TriStateCheckbox, createToggleActionViewItemProvider } from '../../../base/browser/ui/toggle/toggle.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
@@ -146,12 +146,18 @@ export class QuickInputController extends Disposable {
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 
-		const leftActionBar = this._register(new ActionBar(titleBar, { hoverDelegate: this.options.hoverDelegate }));
+		const leftActionBar = this._register(new ActionBar(titleBar, {
+			hoverDelegate: this.options.hoverDelegate,
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
+		}));
 		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
 
 		const title = dom.append(titleBar, $('.quick-input-title'));
 
-		const rightActionBar = this._register(new ActionBar(titleBar, { hoverDelegate: this.options.hoverDelegate }));
+		const rightActionBar = this._register(new ActionBar(titleBar, {
+			hoverDelegate: this.options.hoverDelegate,
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
+		}));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
@@ -184,7 +190,10 @@ export class QuickInputController extends Disposable {
 		countContainer.setAttribute('aria-live', 'polite');
 		const count = this._register(new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge));
 
-		const inlineActionBar = this._register(new ActionBar(headerContainer, { hoverDelegate: this.options.hoverDelegate }));
+		const inlineActionBar = this._register(new ActionBar(headerContainer, {
+			hoverDelegate: this.options.hoverDelegate,
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
+		}));
 		inlineActionBar.domNode.classList.add('quick-input-inline-action-bar');
 
 		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
@@ -213,7 +222,7 @@ export class QuickInputController extends Disposable {
 
 		// List
 		const listId = this.idPrefix + 'list';
-		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
+		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId, this.styles));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
@@ -256,7 +265,8 @@ export class QuickInputController extends Disposable {
 		const tree = this._register(this.instantiationService.createInstance(
 			QuickInputTreeController,
 			container,
-			this.options.hoverDelegate
+			this.options.hoverDelegate,
+			this.styles
 		));
 		this._register(tree.tree.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
@@ -679,6 +689,7 @@ export class QuickInputController extends Disposable {
 		ui.tree.sortByLabel = true;
 		ui.ignoreFocusOut = false;
 		ui.inputBox.toggles = undefined;
+		ui.inputBox.actions = undefined;
 
 		const backKeybindingLabel = this.options.backKeybindingLabel();
 		backButton.tooltip = backKeybindingLabel ? localize('quickInput.backWithKeybinding', "Back ({0})", backKeybindingLabel) : localize('quickInput.back', "Back");
