@@ -577,15 +577,18 @@ export class SuggestController implements IEditorContribution {
 		if (toggleMode) {
 			replace = !replace;
 		}
-		const overwriteBefore = item.position.column - item.editStart.column;
-		const overwriteAfter = (replace ? item.editReplaceEnd.column : item.editInsertEnd.column) - item.position.column;
-		const columnDelta = this.editor.getPosition().column - item.position.column;
-		const suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(this.editor.getPosition()) : 0;
 
-		return {
-			overwriteBefore: overwriteBefore + columnDelta,
-			overwriteAfter: overwriteAfter + suffixDelta
-		};
+		const currentPosition = this.editor.getPosition();
+		// itemPosition is item.position, which is the cursor position when the item was generated.
+		// item.editStart is the start of the word being completed.
+		// overwriteBefore is the text from the start of the word (item.editStart) up to the current cursor position.
+		const overwriteBefore = Math.max(0, currentPosition.column - item.editStart.column);
+		const overwriteAfter = (replace ?
+			// In replace mode, overwrite text from the current cursor up to where the original suggestion's replace range ended.
+			Math.max(0, item.editReplaceEnd.column - currentPosition.column) :
+			// In insert mode, overwrite text from the current cursor up to where the original suggestion's insert range ended.
+			Math.max(0, item.editInsertEnd.column - currentPosition.column));
+		return { overwriteBefore, overwriteAfter };
 	}
 
 	private _alertCompletionItem(item: CompletionItem): void {
