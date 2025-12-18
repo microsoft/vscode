@@ -1282,4 +1282,17 @@ registerAction2(OpenChatSessionInSidebarAction);
 registerAction2(ToggleChatSessionsDescriptionDisplayAction);
 registerAction2(ToggleAgentSessionsViewLocationAction);
 
+class EagerLanguageModelResolverContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.eagerLanguageModelResolver';
+
+	constructor(
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+	) {
+		super();
+		this.languageModelsService.selectLanguageModels({});
+	}
+}
+registerWorkbenchContribution2(EagerLanguageModelResolverContribution.ID, EagerLanguageModelResolverContribution, WorkbenchPhase.BlockStartup);
+
+
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

@@ -887,16 +887,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
+		console.log('[ChatInputPart DEBUG] getModels() called');
 		const cachedModels = this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>('chat.cachedLanguageModels', StorageScope.APPLICATION, []);
 		let models = this.languageModelsService.getLanguageModelIds()
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
+		console.log(`[ChatInputPart DEBUG] Got ${models.length} models from service`);
 		if (models.length === 0 || models.some(m => m.metadata.isDefault) === false) {
+			console.log(`[ChatInputPart DEBUG] Using cached models instead (${cachedModels.length} cached)`);
 			models = cachedModels;
 		} else {
 			this.storageService.store('chat.cachedLanguageModels', models, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-		return models.filter(entry => entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry) && this.modelSupportedForInlineChat(entry));
+		console.log(`[ChatInputPart DEBUG] Before filtering: ${models.length} models`);
+		const filtered = models.filter(entry => {
+			const isUserSelectable = entry.metadata?.isUserSelectable;
+			const supportedForAgent = this.modelSupportedForDefaultAgent(entry);
+			const supportedForInlineChat = this.modelSupportedForInlineChat(entry);
+			const passes = isUserSelectable && supportedForAgent && supportedForInlineChat;
+			console.log(`[ChatInputPart DEBUG] Model ${entry.identifier}: isUserSelectable=${isUserSelectable}, supportedForAgent=${supportedForAgent}, supportedForInlineChat=${supportedForInlineChat}, passes=${passes}, capabilities=`, entry.metadata?.capabilities);
+			return passes;
+		});
+		console.log(`[ChatInputPart DEBUG] After filtering: ${filtered.length} models`);
+		return filtered;
 	}
 
 	private setCurrentLanguageModelToDefault() {

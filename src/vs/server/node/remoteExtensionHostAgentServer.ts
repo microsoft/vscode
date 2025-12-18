@@ -96,7 +96,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		this._allReconnectionTokens = new Set<string>();
 		this._webClientServer = (
 			hasWebClient
-				? this._instantiationService.createInstance(WebClientServer, this._connectionToken, serverBasePath ?? '/', this._serverProductPath)
+				// eslint-disable-next-line local/code-no-any-casts
+				? this._instantiationService.createInstance(WebClientServer as any, this._connectionToken, serverBasePath ?? '/', this._serverProductPath)
 				: null
 		);
 		this._logService.info(`Extension host agent started.`);
@@ -106,11 +107,6 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	}
 
 	public async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-		// Only serve GET requests
-		if (req.method !== 'GET') {
-			return serveError(req, res, 405, `Unsupported method ${req.method}`);
-		}
-
 		if (!req.url) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
@@ -129,6 +125,32 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		// for now accept all paths, with or without server product path
 		if (pathname.startsWith(this._serverProductPath) && pathname.charCodeAt(this._serverProductPath.length) === CharCode.Slash) {
 			pathname = pathname.substring(this._serverProductPath.length);
+		}
+
+		// Allow POST and OPTIONS requests for /api/chat endpoint (LLM chat API)
+		if (pathname === '/api/chat') {
+			if (req.method === 'OPTIONS') {
+				// Handle CORS preflight request
+				res.writeHead(200, {
+					'Access-Control-Allow-Origin': '*',
+					'Access-Control-Allow-Methods': 'POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type',
+					'Access-Control-Max-Age': '86400' // 24 hours
+				});
+				return void res.end();
+			}
+			if (req.method === 'POST') {
+				// Route POST /api/chat to webClientServer
+				if (this._webClientServer) {
+					return this._webClientServer.handle(req, res, parsedUrl, pathname);
+				}
+				return serveError(req, res, 404, `Not found.`);
+			}
+		}
+
+		// Only serve GET requests for other endpoints
+		if (req.method !== 'GET') {
+			return serveError(req, res, 405, `Unsupported method ${req.method}`);
 		}
 
 		// Version

@@ -9,6 +9,14 @@
   "main": "./out/main.js",
   "type": "module",
   "private": true,
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "id": "local",
+        "label": "Local Models"
+      }
+    ]
+  },
   "scripts": {
     "test": "echo Please run any of the test scripts from the scripts folder.",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
@@ -73,6 +81,7 @@
     "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "parcel-bundler/watcher#1ca032aa8339260a8a3bcf825c3a1a71e3e43542",
@@ -110,6 +119,7 @@
     "native-keymap": "^3.3.5",
     "native-watchdog": "^1.4.1",
     "node-pty": "1.1.0-beta35",
+    "onnxruntime-web": "^1.23.2",
     "open": "^10.1.2",
     "tas-client": "0.3.1",
     "undici": "^7.9.0",
@@ -161,6 +171,7 @@
     "css-loader": "^6.9.1",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
+    "dotenv": "^17.2.3",
     "electron": "39.2.3",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",

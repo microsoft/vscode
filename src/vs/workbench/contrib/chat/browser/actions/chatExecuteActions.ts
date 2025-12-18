@@ -415,7 +415,7 @@ class OpenModelPickerAction extends Action2 {
 			id: OpenModelPickerAction.ID,
 			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
 			category: CHAT_CATEGORY,
-			f1: false,
+			f1: true, // Enable in command palette
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -427,14 +427,11 @@ class OpenModelPickerAction extends Action2 {
 				order: 3,
 				group: 'navigation',
 				when:
-					ContextKeyExpr.and(
-						ChatContextKeys.lockedToCodingAgent.negate(),
-						ContextKeyExpr.or(
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal))
-					)
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal))
 			}
 		});
 	}
@@ -826,7 +823,7 @@ export function registerChatExecuteActions() {
 	// registerAction2(ContinueChatInSessionAction);
 	// registerAction2(ToggleChatModeAction);
 	// registerAction2(SwitchToNextModelAction);
-	// registerAction2(OpenModelPickerAction);
+	registerAction2(OpenModelPickerAction);
 	// registerAction2(OpenModePickerAction);
 	registerAction2(ChatSessionPrimaryPickerAction);
 	// registerAction2(ChangeChatModelAction);

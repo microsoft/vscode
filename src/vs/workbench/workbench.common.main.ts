@@ -78,6 +78,8 @@ import './services/untitled/common/untitledTextEditorService.js';
 import './services/textresourceProperties/common/textResourcePropertiesService.js';
 import './services/textfile/common/textEditorService.js';
 import './services/language/common/languageService.js';
+import './contrib/localAI/browser/localAI.contribution.js';
+import './contrib/llm/browser/llm.contribution.js';
 import './services/model/common/modelService.js';
 import './services/notebook/common/notebookDocumentService.js';
 import './services/commands/common/commandService.js';

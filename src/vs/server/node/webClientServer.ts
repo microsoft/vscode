@@ -29,6 +29,7 @@ import { CharCode } from '../../base/common/charCode.js';
 import { IExtensionManifest } from '../../platform/extensions/common/extensions.js';
 import { ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { pathToFileURL } from 'url';
+import { ILLMService } from './llmService.js';
 
 const textMimeType: { [ext: string]: string | undefined } = {
 	'.html': 'text/html',
@@ -96,6 +97,7 @@ const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
 const STATIC_PATH = `/static`;
 const CALLBACK_PATH = `/callback`;
 const WEB_EXTENSION_PATH = `/web-extension-resource`;
+const API_CHAT_PATH = `/api/chat`;
 
 export class WebClientServer {
 
@@ -109,7 +111,8 @@ export class WebClientServer {
 		@ILogService private readonly _logService: ILogService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@IProductService private readonly _productService: IProductService,
-		@ICSSDevelopmentService private readonly _cssDevService: ICSSDevelopmentService
+		@ICSSDevelopmentService private readonly _cssDevService: ICSSDevelopmentService,
+		@ILLMService private readonly _llmService: ILLMService
 	) {
 		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
 	}
@@ -136,6 +139,10 @@ export class WebClientServer {
 			if (pathname.startsWith(WEB_EXTENSION_PATH) && pathname.charCodeAt(WEB_EXTENSION_PATH.length) === CharCode.Slash) {
 				// extension resource support
 				return this._handleWebExtensionResource(req, res, pathname.substring(WEB_EXTENSION_PATH.length));
+			}
+			if (pathname === API_CHAT_PATH && req.method === 'POST') {
+				// LLM chat API support
+				return this._handleChatAPI(req, res);
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -599,5 +606,44 @@ export class WebClientServer {
 			'Content-Security-Policy': cspDirectives
 		});
 		return void res.end(data);
+	}
+
+	/**
+	 * Handle HTTP requests for /api/chat
+	 */
+	private async _handleChatAPI(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		try {
+			// Read request body
+			const chunks: Buffer[] = [];
+			for await (const chunk of req) {
+				chunks.push(Buffer.from(chunk));
+			}
+			const body = Buffer.concat(chunks).toString();
+			const request = JSON.parse(body);
+
+			this._logService.info(`[ChatAPI] Received ${request.provider} request`);
+
+			// Set up SSE headers for streaming
+			res.writeHead(200, {
+				'Content-Type': 'text/event-stream',
+				'Cache-Control': 'no-cache',
+				'Connection': 'keep-alive',
+				'Access-Control-Allow-Origin': '*'
+			});
+
+			// Stream response
+			for await (const chunk of this._llmService.sendChatRequest(request)) {
+				const data = JSON.stringify(chunk);
+				res.write(`data: ${data}\n\n`);
+			}
+
+			res.end();
+		} catch (error) {
+			this._logService.error(`[ChatAPI] Error: ${error}`);
+			if (!res.headersSent) {
+				res.writeHead(500, { 'Content-Type': 'application/json' });
+			}
+			res.end(JSON.stringify({ error: String(error) }));
+		}
 	}
 }

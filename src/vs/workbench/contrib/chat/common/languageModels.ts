@@ -448,11 +448,23 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	getLanguageModelIds(): string[] {
-		return Array.from(this._modelCache.keys());
+		const ids = Array.from(this._modelCache.keys());
+		const userSelectableCount = Array.from(this._modelCache.values()).filter(m => m.isUserSelectable).length;
+		console.log(`[LM DEBUG] getLanguageModelIds called - returning ${ids.length} models (${userSelectableCount} user-selectable):`, ids);
+		console.log(`[LM DEBUG] Model details:`, Array.from(this._modelCache.entries()).map(([id, m]) => ({
+			id,
+			name: m.name,
+			vendor: m.vendor,
+			isUserSelectable: m.isUserSelectable,
+			isDefault: m.isDefault,
+			capabilities: m.capabilities
+		})));
+		return ids;
 	}
 
 	lookupLanguageModel(modelIdentifier: string): ILanguageModelChatMetadata | undefined {
 		const model = this._modelCache.get(modelIdentifier);
+		console.log(`[LM DEBUG] lookupLanguageModel called - modelId: ${modelIdentifier}, found: ${!!model}`);
 		if (model && this._configurationService.getValue('chat.experimentalShowAllModels')) {
 			return { ...model, isUserSelectable: true };
 		}
@@ -471,21 +483,39 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	private async _resolveLanguageModels(vendor: string, silent: boolean): Promise<void> {
+		console.log(`[LM DEBUG] _resolveLanguageModels called - vendor: ${vendor}, silent: ${silent}, timestamp: ${Date.now()}`);
 		// Activate extensions before requesting to resolve the models
 		await this._extensionService.activateByEvent(`onLanguageModelChatProvider:${vendor}`);
 		const provider = this._providers.get(vendor);
 		if (!provider) {
 			this._logService.warn(`[LM] No provider registered for vendor ${vendor}`);
+			console.log(`[LM DEBUG] No provider found for vendor ${vendor}`);
 			return;
 		}
+		console.log(`[LM DEBUG] Queuing resolution for vendor ${vendor} in sequencer`);
 		return this._resolveLMSequencer.queue(vendor, async () => {
+			console.log(`[LM DEBUG] Starting resolution task for vendor ${vendor} (sequencer executing)`);
 			try {
 				let modelsAndIdentifiers = await provider.provideLanguageModelChatInfo({ silent }, CancellationToken.None);
+				console.log(`[LM DEBUG] Provider returned ${modelsAndIdentifiers.length} models for vendor ${vendor}:`, modelsAndIdentifiers.map(m => ({
+					id: m.identifier,
+					name: m.metadata.name,
+					vendor: m.metadata.vendor,
+					isUserSelectable: m.metadata.isUserSelectable,
+					isDefault: m.metadata.isDefault
+				})));
+
 				// This is a bit of a hack, when prompting user if the provider returns any models that are user selectable then we only want to show those and not the entire model list
 				if (!silent && modelsAndIdentifiers.some(m => m.metadata.isUserSelectable)) {
+					const beforeFilter = modelsAndIdentifiers.length;
 					modelsAndIdentifiers = modelsAndIdentifiers.filter(m => m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true);
+					console.log(`[LM DEBUG] Filtered models (!silent): ${beforeFilter} -> ${modelsAndIdentifiers.length} models`);
 				}
+
+				console.log(`[LM DEBUG] Clearing cache for vendor ${vendor}, current cache size: ${this._modelCache.size}`);
 				this._clearModelCache(vendor);
+				console.log(`[LM DEBUG] Cache cleared for vendor ${vendor}, new cache size: ${this._modelCache.size}`);
+
 				for (const modelAndIdentifier of modelsAndIdentifiers) {
 					if (this._modelCache.has(modelAndIdentifier.identifier)) {
 						this._logService.warn(`[LM] Model ${modelAndIdentifier.identifier} is already registered. Skipping.`);
@@ -493,20 +523,26 @@ export class LanguageModelsService implements ILanguageModelsService {
 					}
 					this._modelCache.set(modelAndIdentifier.identifier, modelAndIdentifier.metadata);
 				}
+				console.log(`[LM DEBUG] Added ${modelsAndIdentifiers.length} models to cache for vendor ${vendor}, final cache size: ${this._modelCache.size}`);
+				console.log(`[LM DEBUG] Final model IDs in cache:`, Array.from(this._modelCache.keys()));
 				this._logService.trace(`[LM] Resolved language models for vendor ${vendor}`, modelsAndIdentifiers);
 			} catch (error) {
 				this._logService.error(`[LM] Error resolving language models for vendor ${vendor}:`, error);
+				console.error(`[LM DEBUG] Error in resolution:`, error);
 			}
+			console.log(`[LM DEBUG] Firing onLanguageModelChange event for vendor ${vendor}`);
 			this._onLanguageModelChange.fire(vendor);
 		});
 	}
 
 	async selectLanguageModels(selector: ILanguageModelChatSelector, allowPromptingUser?: boolean): Promise<string[]> {
+		console.log(`[LM DEBUG] selectLanguageModels called - selector:`, selector, `allowPromptingUser: ${allowPromptingUser}`);
 
 		if (selector.vendor) {
 			await this._resolveLanguageModels(selector.vendor, !allowPromptingUser);
 		} else {
 			const allVendors = Array.from(this._vendors.keys());
+			console.log(`[LM DEBUG] Resolving models for all vendors:`, allVendors);
 			await Promise.all(allVendors.map(vendor => this._resolveLanguageModels(vendor, !allowPromptingUser)));
 		}
 
@@ -521,6 +557,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 		}
 
+		console.log(`[LM DEBUG] selectLanguageModels returning ${result.length} models:`, result);
 		this._logService.trace('[LM] selected language models', selector, result);
 
 		return result;
@@ -528,9 +565,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable {
 		this._logService.trace('[LM] registering language model provider', vendor, provider);
+		console.log(`[LM DEBUG] registerLanguageModelProvider called - vendor: ${vendor}`);
 
+		// Auto-register vendor if it doesn't exist yet (for built-in providers)
 		if (!this._vendors.has(vendor)) {
-			throw new Error(`Chat model provider uses UNKNOWN vendor ${vendor}.`);
+			this._logService.info(`[LM] Auto-registering vendor: ${vendor}`);
+			console.log(`[LM DEBUG] Auto-registering vendor: ${vendor}`);
+			this._vendors.set(vendor, { vendor, displayName: vendor, managementCommand: undefined, when: undefined });
 		}
 		if (this._providers.has(vendor)) {
 			throw new Error(`Chat model provider for vendor ${vendor} is already registered.`);
@@ -538,16 +579,19 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		this._providers.set(vendor, provider);
 
-		if (this._hasStoredModelForVendor(vendor)) {
-			this._resolveLanguageModels(vendor, true);
-		}
+		// Always resolve models when a provider registers, not just when there are stored preferences
+		// This ensures models are available even on first use
+		console.log(`[LM DEBUG] Provider registered for vendor ${vendor}, resolving models`);
+		this._resolveLanguageModels(vendor, true);
 
 		const modelChangeListener = provider.onDidChange(async () => {
+			console.log(`[LM DEBUG] Provider onDidChange fired for vendor ${vendor}`);
 			await this._resolveLanguageModels(vendor, true);
 		});
 
 		return toDisposable(() => {
 			this._logService.trace('[LM] UNregistered language model provider', vendor);
+			console.log(`[LM DEBUG] Unregistering provider for vendor ${vendor}`);
 			this._clearModelCache(vendor);
 			this._providers.delete(vendor);
 			modelChangeListener.dispose();
