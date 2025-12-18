@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>手势控制 AR 圣诞树</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        video { position: absolute; top: 0; left: 0; z-index: 0; object-fit: cover; transform: scaleX(-1); /* 镜像翻转 */ }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-family: sans-serif; z-index: 10; font-size: 24px;}
+    </style>
+    <!-- 引入 Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- 引入 MediaPipe Hands -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+</head>
+<body>
+
+<div id="loading">正在加载模型和摄像头... Please wait.</div>
+<video id="input_video"></video>
+
+<script>
+    // --- 1. 初始化 Three.js 场景 ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true }); // alpha: true 让背景透明
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // 灯光
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(5, 10, 7);
+    scene.add(dirLight);
+
+    // --- 2. 创建程序化圣诞树 (不依赖外部模型加载，保证立刻能跑) ---
+    const treeGroup = new THREE.Group();
+
+    // 树叶 (三个圆锥体堆叠)
+    const leafMaterial = new THREE.MeshStandardMaterial({ color: 0x0f5f0f, roughness: 0.8 });
+    const cone1 = new THREE.Mesh(new THREE.ConeGeometry(1, 2, 32), leafMaterial);
+    cone1.position.y = 1;
+    const cone2 = new THREE.Mesh(new THREE.ConeGeometry(1.4, 2, 32), leafMaterial);
+    cone2.position.y = 0;
+    const cone3 = new THREE.Mesh(new THREE.ConeGeometry(1.8, 2, 32), leafMaterial);
+    cone3.position.y = -1;
+
+    // 树干
+    const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.4, 0.4, 1.5), 
+        new THREE.MeshStandardMaterial({ color: 0x5c3a21 })
+    );
+    trunk.position.y = -2.2;
+
+    // 装饰球 (简单的红色球体)
+    const ornamentGeo = new THREE.SphereGeometry(0.15, 16, 16);
+    const ornamentMat = new THREE.MeshStandardMaterial({ color: 0xff0000, metalness: 0.5, roughness: 0.2 });
+    
+    const positions = [
+        {x: 0.6, y: -0.5, z: 0.6}, {x: -0.6, y: -0.5, z: 0.6}, {x: 0, y: -0.5, z: -0.8},
+        {x: 0.4, y: 0.5, z: 0.4}, {x: -0.4, y: 0.5, z: 0.4}, {x: 0, y: 1.5, z: 0.3}
+    ];
+
+    positions.forEach(pos => {
+        const ball = new THREE.Mesh(ornamentGeo, ornamentMat);
+        ball.position.set(pos.x, pos.y, pos.z);
+        treeGroup.add(ball);
+    });
+
+    // 星星
+    const starGeo = new THREE.IcosahedronGeometry(0.3, 0);
+    const starMat = new THREE.MeshBasicMaterial({ color: 0xffd700 });
+    const star = new THREE.Mesh(starGeo, starMat);
+    star.position.y = 2.2;
+    
+    treeGroup.add(cone1, cone2, cone3, trunk, star);
+    scene.add(treeGroup);
+
+    camera.position.z = 5;
+    camera.position.y = 0;
+
+    // --- 3. MediaPipe 手势识别逻辑 ---
+    const videoElement = document.getElementById('input_video');
+    
+    function onResults(results) {
+        document.getElementById('loading').style.display = 'none';
+
+        // 如果检测到了手
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const landmarks = results.multiHandLandmarks,[object Object],;
+            
+            // 获取手掌中心大概位置 (使用索引 9: MIDDLE_FINGER_MCP)
+            // MediaPipe 的 x 坐标范围是 0.0 - 1.0
+            const handX = landmarks,[object Object],x;
+            
+            // 核心控制逻辑：
+            // 将手的位置 (0-1) 映射到 旋转角度 (-PI 到 PI)
+            // 因为视频是镜像的，逻辑可能需要反转
+            const targetRotation = (handX - 0.5) * Math.PI * 4; 
+            
+            // 平滑插值旋转，避免抖动
+            treeGroup.rotation.y += (targetRotation - treeGroup.rotation.y) * 0.1;
+        }
+    }
+
+    const hands = new Hands({locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    }});
+
+    hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+    });
+
+    hands.onResults(onResults);
+
+    // 启动摄像头
+    const cameraUtils = new Camera(videoElement, {
+        onFrame: async () => {
+            await hands.send({image: videoElement});
+        },
+        width: 1280,
+        height: 720
+    });
+    cameraUtils.start();
+
+    // --- 4. 渲染循环 ---
+    // 调整视频和Canvas大小以匹配窗口
+    function resize() {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        
+        videoElement.style.width = window.innerWidth + 'px';
+        videoElement.style.height = window.innerHeight + 'px';
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        // 即使没有手，也让星星自转一下增加动感
+        star.rotation.y += 0.02;
+        renderer.render(scene, camera);
+    }
+    animate();
+
+</script>
+</body>
+</html>
