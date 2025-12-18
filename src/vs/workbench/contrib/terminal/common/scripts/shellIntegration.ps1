@@ -199,9 +199,9 @@ if (Get-Module -Name PSReadLine) {
 
 		# Command line
 		# OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST
-		# Disabled on Windows 10 due to rendering issues with long commands that cause
-		# escaped command text to appear in the terminal (e.g., \x5c for backslashes).
-		# See: https://github.com/microsoft/vscode/issues/...
+		# Disabled on Windows 10 due to a rendering race condition with long commands that causes
+		# escaped command text to appear in the terminal output (e.g., \x5c for backslashes).
+		# Windows 11 and other platforms do not have this issue and continue to send this sequence.
 		$Result = ""
 		if ($Global:__VSCodeState.IsWindows10 -eq $false) {
 			$Result = "$([char]0x1b)]633;E;"
