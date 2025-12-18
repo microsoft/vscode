@@ -136,10 +136,9 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		if (subCommandsToSuggest.length > 0) {
 			let subCommandLabel: string;
 			if (subCommandsToSuggest.length === 1) {
-				subCommandLabel = localize('autoApprove.baseCommandSingle', '"{0} ..."', subCommandsToSuggest[0]);
+				subCommandLabel = `\`${subCommandsToSuggest[0]} \u2026\``;
 			} else {
-				const commandSeparated = subCommandsToSuggest.join(', ');
-				subCommandLabel = localize('autoApprove.baseCommand', '"{0} ..."', commandSeparated);
+				subCommandLabel = `Commands ${subCommandsToSuggest.map(e => `\`${e} \u2026\``).join(', ')}`;
 			}
 
 			actions.push({

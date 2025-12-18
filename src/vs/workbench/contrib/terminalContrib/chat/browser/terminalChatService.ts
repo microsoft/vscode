@@ -53,6 +53,12 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	 */
 	private readonly _sessionAutoApprovalEnabled = new Set<string>();
 
+	/**
+	 * Tracks session-scoped auto-approve rules. These are temporary rules that last only for the
+	 * duration of the VS Code session (not persisted to disk).
+	 */
+	private readonly _sessionAutoApproveRules: Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }> = {};
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -312,5 +318,13 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	hasChatSessionAutoApproval(chatSessionId: string): boolean {
 		return this._sessionAutoApprovalEnabled.has(chatSessionId);
+	}
+
+	addSessionAutoApproveRule(key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void {
+		this._sessionAutoApproveRules[key] = value;
+	}
+
+	getSessionAutoApproveRules(): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>> {
+		return this._sessionAutoApproveRules;
 	}
 }
