@@ -441,6 +441,7 @@
 .extension-editor > .body > .content > .details.narrow > .content-container {
 	margin: inherit;
 	max-width: inherit;
+	min-width: 0;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container {
@@ -573,6 +574,7 @@
 	font-size: 120%;
 	padding: 6px;
 	line-height: 22px;
+	min-width: 150px;
 }
 
 .extension-editor > .body > .content > .details > .content-container > .extension-pack-readme > .extension-pack > .extension-pack-content {
