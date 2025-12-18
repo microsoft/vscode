@@ -35,7 +35,7 @@ import { ILanguageModelToolsConfirmationService } from '../common/languageModelT
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../common/tools/tools.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
-import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
+import { ConversationModeToggleAction, HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopConversationModeAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { FetchWebPageTool, FetchWebPageToolData, IFetchWebPageToolParams } from './tools/fetchPageTool.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
@@ -223,6 +223,9 @@ registerAction2(InlineVoiceChatAction);
 
 registerAction2(StopListeningAction);
 registerAction2(StopListeningAndSubmitAction);
+
+registerAction2(ConversationModeToggleAction);
+registerAction2(StopConversationModeAction);
 
 registerAction2(ReadChatResponseAloud);
 registerAction2(StopReadChatItemAloud);
