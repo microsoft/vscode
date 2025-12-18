@@ -61,7 +61,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
+import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
 import { HunkInformation, Session, StashedSession } from './inlineChatSession.js';
@@ -1452,7 +1452,17 @@ export class InlineChatController2 implements IEditorContribution {
 			const session = visibleSessionObs.read(r);
 			if (session) {
 				const entries = session.editingSession.entries.read(r);
-				const otherEntries = entries.filter(entry => !isEqual(entry.modifiedURI, session.uri));
+				const sessionCellUri = CellUri.parse(session.uri);
+				const otherEntries = entries.filter(entry => {
+					if (isEqual(entry.modifiedURI, session.uri)) {
+						return false;
+					}
+					// Don't count notebooks that include the session's cell
+					if (!!sessionCellUri && isEqual(sessionCellUri.notebook, entry.modifiedURI)) {
+						return false;
+					}
+					return true;
+				});
 				for (const entry of otherEntries) {
 					// OPEN other modified files in side group. This is a workaround, temp-solution until we have no more backend
 					// that modifies other files
