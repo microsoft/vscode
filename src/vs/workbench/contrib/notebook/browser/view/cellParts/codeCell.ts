@@ -869,7 +869,8 @@ export class CodeCellLayout {
 		const gotContentHeight = editor.getContentHeight();
 		// If we've already calculated the editor content height once before and the contents haven't changed, use that.
 		const previouslyCalculatedHeight = this._initialized && reason !== 'onDidContentSizeChange' ? this._initialEditorDimension.height : undefined;
-		const editorContentHeight = previouslyCalculatedHeight ?? Math.max((gotContentHeight === -1 ? editor.getLayoutInfo().height : gotContentHeight), gotContentHeight === -1 ? this._initialEditorDimension.height : gotContentHeight); // || this.calculatedEditorHeight || 0;
+		const fallbackEditorContentHeight = gotContentHeight === -1 ? Math.max(editor.getLayoutInfo().height, this._initialEditorDimension.height) : gotContentHeight;
+		const editorContentHeight = previouslyCalculatedHeight ?? fallbackEditorContentHeight; // || this.calculatedEditorHeight || 0;
 		const editorBottom = elementTop + this.viewCell.layoutInfo.outputContainerOffset;
 		const scrollBottom = this.notebookEditor.scrollBottom;
 		// When loading, scrollBottom -scrollTop === 0;
