@@ -851,11 +851,13 @@ export function registerChatActions() {
 			const editorService = accessor.get(IEditorService);
 
 			// Detect project type based on active editor
+			// Default to Typst if no active editor or unknown file type
 			const activeEditor = editorService.activeEditor;
-			const isTypstProject = activeEditor?.resource?.path.toLowerCase().endsWith('.typ') ?? false;
+			const path = activeEditor?.resource?.path.toLowerCase() ?? '';
+			const isLatexProject = path.endsWith('.tex') || path.endsWith('.bib') || path.endsWith('.sty') || path.endsWith('.cls') || path.endsWith('.ltx');
 
-			// Use chat command to open and send the query
-			const query = isTypstProject ? this._getTypstInstructionsQuery() : this._getLatexInstructionsQuery();
+			// Use chat command to open and send the query (default to Typst)
+			const query = isLatexProject ? this._getLatexInstructionsQuery() : this._getTypstInstructionsQuery();
 
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
