@@ -136,6 +136,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
+				type: ['boolean', 'string'],
 				enum: [true, 'onlyEnabledExtensions', false,],
 				enumItemLabels: [
 					localize('all', "All Extensions"),
@@ -154,7 +155,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				policy: {
 					name: 'ExtensionsAutoUpdate',
 					category: PolicyCategory.Extensions,
-					minimumVersion: '1.99',
+					minimumVersion: '1.108',
 					localization: {
 						description: {
 							key: 'extensions.autoUpdate',
