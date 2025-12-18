@@ -909,9 +909,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(templateData.value), () => {
 				// Have to recompute the height here because codeblock rendering is currently async and it may have changed.
 				// If it becomes properly sync, then this could be removed.
-				element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
+				if (templateData.rowContainer.isConnected) {
+					element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
+					this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
+				}
 				disposable.dispose();
-				this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
 			}));
 		}
 	}
@@ -921,9 +923,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		const newHeight = Math.max(templateData.rowContainer.offsetHeight, 1);
-		templateData.currentElement.currentRenderedHeight = newHeight;
-		this._onDidChangeItemHeight.fire({ element: templateData.currentElement, height: newHeight });
+		if (templateData.rowContainer.isConnected) {
+			const newHeight = templateData.rowContainer.offsetHeight;
+			templateData.currentElement.currentRenderedHeight = newHeight;
+			this._onDidChangeItemHeight.fire({ element: templateData.currentElement, height: newHeight });
+		}
 	}
 
 	/**
