@@ -1,0 +1,170 @@
+name: Build vscode-reh-web-win32-x64
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build REH Web (win32-x64)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      NPM_ARCH: x64
+      VSCODE_ARCH: x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Prepare node_modules cache key
+        shell: pwsh
+        run: |
+          mkdir .build -ea 0
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache/restore@v4
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: 7z.exe x .build/node_modules_cache/cache.7z -aoa
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+
+          for ($i = 1; $i -le 5; $i++) {
+            try {
+              exec { npm ci }
+              break
+            }
+            catch {
+              if ($i -eq 5) {
+                Write-Error "npm ci failed after 5 attempts"
+                throw
+              }
+              Write-Host "npm ci failed attempt $i, retrying..."
+              Start-Sleep -Seconds 2
+            }
+          }
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          npm_config_foreground_scripts: "true"
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
+          exec { mkdir -Force .build/node_modules_cache }
+          exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
+
+      - name: Save node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Create .build folder
+        shell: pwsh
+        run: mkdir .build -ea 0
+
+      - name: Prepare built-in extensions cache key
+        shell: pwsh
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@v4
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Save built-in extensions cache
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Compile source code
+        shell: pwsh
+        run: npm run gulp compile-build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build vscode-reh-web-win32-x64
+        shell: pwsh
+        run: npm run gulp vscode-reh-web-win32-${{ env.VSCODE_ARCH }}-min-ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rename output directory
+        shell: pwsh
+        run: |
+          Set-Location ..
+          Rename-Item -Path "vscode-reh-web-win32-${{ env.VSCODE_ARCH }}" -NewName "vscode-server-win32-${{ env.VSCODE_ARCH }}-web"
+
+      - name: Patch product.json for Open VSX marketplace
+        shell: pwsh
+        run: |
+          $productPath = "../vscode-server-win32-${{ env.VSCODE_ARCH }}-web/product.json"
+          $product = Get-Content $productPath | ConvertFrom-Json
+          $product | Add-Member -MemberType NoteProperty -Name "extensionsGallery" -Value @{
+            serviceUrl = "https://open-vsx.org/vscode/gallery"
+            itemUrl = "https://open-vsx.org/vscode/item"
+            resourceUrlTemplate = "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}"
+            controlUrl = ""
+            nlsBaseUrl = ""
+            publisherUrl = ""
+          } -Force
+          $product | ConvertTo-Json -Depth 10 | Set-Content $productPath
+          Write-Host "Patched product.json for Open VSX marketplace"
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          Set-Location ..
+          Compress-Archive -Path "vscode-server-win32-${{ env.VSCODE_ARCH }}-web" -DestinationPath "vscode-server-win32-${{ env.VSCODE_ARCH }}-web.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-server-win32-x64-web
+          path: ../vscode-server-win32-${{ env.VSCODE_ARCH }}-web.zip
+          if-no-files-found: error
