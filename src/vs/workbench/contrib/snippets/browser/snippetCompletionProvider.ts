@@ -105,7 +105,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		const languageConfig = this._languageConfigurationService.getLanguageConfiguration(languageId);
-		const snippets = new Set(await this._snippets.getSnippets(languageId));
+		const snippets = new Set(await this._snippets.getSnippets(languageId, undefined, model.uri));
 		const suggestions: SnippetCompletion[] = [];
 
 		for (const snippet of snippets) {

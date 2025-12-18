@@ -102,4 +102,90 @@ suite('Snippets', function () {
 		assertIsTrivial('${1:foo}', false);
 	});
 
+	test('SnippetFile#select - include pattern', function () {
+
+		const file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
+			new Snippet(false, ['typescript'], 'TestSnippet', 'test', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['**/*.test.ts']),
+			new Snippet(false, ['typescript'], 'SpecSnippet', 'spec', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['**/*.spec.ts']),
+			new Snippet(false, ['typescript'], 'AllSnippet', 'all', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+		]);
+
+		// Test file should only get TestSnippet and AllSnippet
+		let bucket: Snippet[] = [];
+		file.select('typescript', bucket, URI.file('/project/src/foo.test.ts'));
+		assert.strictEqual(bucket.length, 2);
+		assert.ok(bucket.some(s => s.name === 'TestSnippet'));
+		assert.ok(bucket.some(s => s.name === 'AllSnippet'));
+
+		// Spec file should only get SpecSnippet and AllSnippet
+		bucket = [];
+		file.select('typescript', bucket, URI.file('/project/src/foo.spec.ts'));
+		assert.strictEqual(bucket.length, 2);
+		assert.ok(bucket.some(s => s.name === 'SpecSnippet'));
+		assert.ok(bucket.some(s => s.name === 'AllSnippet'));
+
+		// Regular file should only get AllSnippet
+		bucket = [];
+		file.select('typescript', bucket, URI.file('/project/src/foo.ts'));
+		assert.strictEqual(bucket.length, 1);
+		assert.strictEqual(bucket[0].name, 'AllSnippet');
+
+		// Without URI, all snippets should be selected (backward compatibility)
+		bucket = [];
+		file.select('typescript', bucket);
+		assert.strictEqual(bucket.length, 3);
+	});
+
+	test('SnippetFile#select - exclude pattern', function () {
+
+		const file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
+			new Snippet(false, ['javascript'], 'ProdSnippet', 'prod', '', 'snippet', 'test', SnippetSource.User, generateUuid(), undefined, ['**/*.min.js', '**/dist/**']),
+			new Snippet(false, ['javascript'], 'AllSnippet', 'all', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+		]);
+
+		// Regular .js file should get both snippets
+		let bucket: Snippet[] = [];
+		file.select('javascript', bucket, URI.file('/project/src/foo.js'));
+		assert.strictEqual(bucket.length, 2);
+
+		// Minified file should only get AllSnippet (ProdSnippet is excluded)
+		bucket = [];
+		file.select('javascript', bucket, URI.file('/project/src/foo.min.js'));
+		assert.strictEqual(bucket.length, 1);
+		assert.strictEqual(bucket[0].name, 'AllSnippet');
+
+		// File in dist folder should only get AllSnippet
+		bucket = [];
+		file.select('javascript', bucket, URI.file('/project/dist/bundle.js'));
+		assert.strictEqual(bucket.length, 1);
+		assert.strictEqual(bucket[0].name, 'AllSnippet');
+	});
+
+	test('SnippetFile#select - include and exclude patterns together', function () {
+
+		const file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
+			new Snippet(false, ['typescript'], 'TestSnippet', 'test', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['**/*.test.ts', '**/*.spec.ts'], ['**/*.perf.test.ts']),
+		]);
+
+		// Regular test file should get the snippet
+		let bucket: Snippet[] = [];
+		file.select('typescript', bucket, URI.file('/project/src/foo.test.ts'));
+		assert.strictEqual(bucket.length, 1);
+
+		// Spec file should get the snippet
+		bucket = [];
+		file.select('typescript', bucket, URI.file('/project/src/foo.spec.ts'));
+		assert.strictEqual(bucket.length, 1);
+
+		// Performance test file should NOT get the snippet (excluded)
+		bucket = [];
+		file.select('typescript', bucket, URI.file('/project/src/foo.perf.test.ts'));
+		assert.strictEqual(bucket.length, 0);
+
+		// Regular file should NOT get the snippet (not included)
+		bucket = [];
+		file.select('typescript', bucket, URI.file('/project/src/foo.ts'));
+		assert.strictEqual(bucket.length, 0);
+	});
+
 });

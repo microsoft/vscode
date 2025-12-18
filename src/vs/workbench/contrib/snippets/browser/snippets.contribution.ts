@@ -75,6 +75,20 @@ const snippetSchemaProperties: IJSONSchemaMap = {
 	description: {
 		description: nls.localize('snippetSchema.json.description', 'The snippet description.'),
 		type: ['string', 'array']
+	},
+	include: {
+		markdownDescription: nls.localize('snippetSchema.json.include', 'A list of glob patterns to include the snippet for specific files, e.g. `["**/*.test.ts", "**/*.spec.ts"]` or `"**/travis.yml"`.'),
+		type: ['string', 'array'],
+		items: {
+			type: 'string'
+		}
+	},
+	exclude: {
+		markdownDescription: nls.localize('snippetSchema.json.exclude', 'A list of glob patterns to exclude the snippet from specific files, e.g. `["**/*.min.js"]`.'),
+		type: ['string', 'array'],
+		items: {
+			type: 'string'
+		}
 	}
 };
 
