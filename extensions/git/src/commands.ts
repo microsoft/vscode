@@ -4424,18 +4424,159 @@ export class CommandCenter {
 			message = repository.inputBox.value;
 		}
 
-		message = await window.showInputBox({
-			value: message,
-			prompt: l10n.t('Optionally provide a stash message'),
-			placeHolder: l10n.t('Stash message')
+		// Check if there's an active chat widget
+		let hasChatWidget = false;
+		try {
+			// Try to export the current chat session to check if one exists
+			const chatSessionFileUri = Uri.file(path.join(repository.root, '.stashed-chat-session-temp'));
+			await commands.executeCommand('workbench.action.chat.export', chatSessionFileUri);
+			// If we got here, there was a chat session to export
+			hasChatWidget = true;
+			// Clean up the temp file
+			try {
+				await workspace.fs.delete(chatSessionFileUri);
+			} catch {
+				// Ignore cleanup errors
+			}
+		} catch {
+			// No active chat session or chat extension not available
+		}
+
+		// Show quick pick with input and checkbox for chat session and layout
+		const quickPick = window.createQuickPick();
+		quickPick.placeholder = l10n.t('Stash message');
+		quickPick.value = message || '';
+		quickPick.ignoreFocusOut = false;
+
+		const chatSessionItem: QuickPickItem = {
+			label: l10n.t('$(comment-discussion) Include current chat session'),
+			alwaysShow: true,
+			picked: false
+		};
+
+		const layoutFileItem: QuickPickItem = {
+			label: l10n.t('$(files) Include opened files layout'),
+			alwaysShow: true,
+			picked: false
+		};
+
+		const items: QuickPickItem[] = [];
+		if (hasChatWidget) {
+			items.push(chatSessionItem);
+		}
+		items.push(layoutFileItem);
+
+		if (items.length > 0) {
+			quickPick.items = items;
+			quickPick.canSelectMany = true;
+		} else {
+			quickPick.items = [];
+			quickPick.canSelectMany = false;
+		}
+
+		const disposables: Disposable[] = [];
+
+		quickPick.show();
+
+		const result = await new Promise<{ message: string; includeChatSession: boolean; includeLayout: boolean } | undefined>(resolve => {
+			disposables.push(quickPick.onDidAccept(() => {
+				const includeChatSession = hasChatWidget && quickPick.selectedItems.includes(chatSessionItem);
+				const includeLayout = quickPick.selectedItems.includes(layoutFileItem);
+				resolve({ message: quickPick.value, includeChatSession, includeLayout });
+				quickPick.hide();
+			}));
+			disposables.push(quickPick.onDidHide(() => {
+				resolve(undefined);
+			}));
 		});
 
-		if (typeof message === 'undefined') {
+		dispose(disposables);
+		quickPick.dispose();
+
+		if (!result) {
 			return false;
+		}
+
+		message = result.message;
+		const includeChatSession = result.includeChatSession;
+		const includeLayout = result.includeLayout;
+
+		// If include chat session, export it to .stashed-chat-session file
+		if (includeChatSession) {
+			try {
+				const chatSessionFileUri = Uri.file(path.join(repository.root, '.stashed-chat-session'));
+				await commands.executeCommand('workbench.action.chat.export', chatSessionFileUri);
+
+				// Stage the file so it's included in the stash
+				await repository.add([chatSessionFileUri]);
+			} catch (err) {
+				this.logger.error('Failed to save chat session', err);
+				window.showWarningMessage(l10n.t('Failed to include chat session in stash'));
+			}
+		}
+
+		// If include layout, save opened files to .vscode-layout file
+		if (includeLayout) {
+			try {
+				const layoutFileUri = Uri.file(path.join(repository.root, '.vscode-layout'));
+				const tabGroups = window.tabGroups.all;
+				const layout = {
+					groups: tabGroups.map(group => ({
+						viewColumn: group.viewColumn,
+						isActive: group.isActive,
+						tabs: group.tabs.map(tab => {
+							if (tab.input instanceof TabInputText) {
+								return {
+									type: 'text',
+									uri: tab.input.uri.toString(),
+									isActive: tab.isActive
+								};
+							} else if (tab.input instanceof TabInputNotebook) {
+								return {
+									type: 'notebook',
+									uri: tab.input.uri.toString(),
+									isActive: tab.isActive
+								};
+							}
+							return null;
+						}).filter(tab => tab !== null)
+					}))
+				};
+
+				const content = JSON.stringify(layout, undefined, 2);
+				await workspace.fs.writeFile(layoutFileUri, Buffer.from(content, 'utf8'));
+
+				// Stage the file so it's included in the stash
+				await repository.add([layoutFileUri]);
+			} catch (err) {
+				this.logger.error('Failed to save layout', err);
+				window.showWarningMessage(l10n.t('Failed to include layout in stash'));
+			}
 		}
 
 		try {
 			await repository.createStash(message, includeUntracked, staged);
+
+			// Clean up the chat session file after stashing
+			if (includeChatSession) {
+				try {
+					const chatSessionFileUri = Uri.file(path.join(repository.root, '.stashed-chat-session'));
+					await workspace.fs.delete(chatSessionFileUri);
+				} catch {
+					// Ignore cleanup errors
+				}
+			}
+
+			// Clean up the layout file after stashing
+			if (includeLayout) {
+				try {
+					const layoutFileUri = Uri.file(path.join(repository.root, '.vscode-layout'));
+					await workspace.fs.delete(layoutFileUri);
+				} catch {
+					// Ignore cleanup errors
+				}
+			}
+
 			return true;
 		} catch (err) {
 			if (/You do not have the initial commit yet/.test(err.stderr || '')) {
@@ -4475,6 +4616,7 @@ export class CommandCenter {
 		}
 
 		await repository.popStash(stash.index);
+		await this._restoreChatSessionIfExists(repository);
 	}
 
 	@command('git.stashPopLatest', { repository: true })
@@ -4487,6 +4629,7 @@ export class CommandCenter {
 		}
 
 		await repository.popStash();
+		await this._restoreChatSessionIfExists(repository);
 	}
 
 	@command('git.stashPopEditor')
@@ -4498,6 +4641,7 @@ export class CommandCenter {
 
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await result.repository.popStash(result.stash.index);
+		await this._restoreChatSessionIfExists(result.repository);
 	}
 
 	@command('git.stashApply', { repository: true })
@@ -4510,6 +4654,7 @@ export class CommandCenter {
 		}
 
 		await repository.applyStash(stash.index);
+		await this._restoreChatSessionIfExists(repository);
 	}
 
 	@command('git.stashApplyLatest', { repository: true })
@@ -4522,6 +4667,7 @@ export class CommandCenter {
 		}
 
 		await repository.applyStash();
+		await this._restoreChatSessionIfExists(repository);
 	}
 
 	@command('git.stashApplyEditor')
@@ -4533,6 +4679,7 @@ export class CommandCenter {
 
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await result.repository.applyStash(result.stash.index);
+		await this._restoreChatSessionIfExists(result.repository);
 	}
 
 	@command('git.stashDrop', { repository: true })
@@ -4619,6 +4766,79 @@ export class CommandCenter {
 
 		const result = await window.showQuickPick<StashItem | QuickPickItem>(getStashQuickPickItems(), { placeHolder });
 		return result instanceof StashItem ? result.stash : undefined;
+	}
+
+	private async _restoreChatSessionIfExists(repository: Repository): Promise<void> {
+		const chatSessionFileUri = Uri.file(path.join(repository.root, '.stashed-chat-session'));
+
+		try {
+			// Check if the file exists
+			await workspace.fs.stat(chatSessionFileUri);
+
+			// File exists, import the chat session using the import command with the file path
+			try {
+				await commands.executeCommand('workbench.action.chat.import', chatSessionFileUri);
+			} catch (error) {
+				this.logger.error('Failed to import chat session', error);
+				window.showWarningMessage(l10n.t('Failed to restore chat session from stash'));
+			}
+
+			// Unstage the file before deleting it
+			try {
+				await repository.revert([chatSessionFileUri]);
+			} catch {
+				// Ignore errors if file is not staged
+			}
+
+			// Delete the file after import
+			await workspace.fs.delete(chatSessionFileUri);
+		} catch {
+			// File doesn't exist, which is fine
+		}
+
+		// Restore layout if .vscode-layout exists
+		const layoutFileUri = Uri.file(path.join(repository.root, '.vscode-layout'));
+		try {
+			// Check if the file exists
+			await workspace.fs.stat(layoutFileUri);
+
+			// File exists, read and restore layout
+			const content = await workspace.fs.readFile(layoutFileUri);
+			const layout = JSON.parse(content.toString());
+
+			// Restore opened files
+			if (layout.groups && Array.isArray(layout.groups)) {
+				for (const group of layout.groups) {
+					if (group.tabs && Array.isArray(group.tabs)) {
+						for (const tab of group.tabs) {
+							if (tab.uri) {
+								try {
+									const uri = Uri.parse(tab.uri);
+									await window.showTextDocument(uri, {
+										viewColumn: group.viewColumn,
+										preserveFocus: !tab.isActive
+									});
+								} catch (err) {
+									this.logger.error('Failed to open file from layout', err);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// Unstage the file before deleting it
+			try {
+				await repository.revert([layoutFileUri]);
+			} catch {
+				// Ignore errors if file is not staged
+			}
+
+			// Delete the file after restoration
+			await workspace.fs.delete(layoutFileUri);
+		} catch {
+			// File doesn't exist, which is fine
+		}
 	}
 
 	private async getStashFromUri(uri: Uri | undefined): Promise<{ repository: Repository; stash: Stash } | undefined> {
