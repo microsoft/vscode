@@ -55,6 +55,7 @@ export interface ITerminalNewAutoApproveRule {
 		approve: boolean;
 		matchCommandLine?: boolean;
 	};
+	scope: 'session' | 'workspace' | 'user';
 }
 
 export type TerminalNewAutoApproveButtonData = (
