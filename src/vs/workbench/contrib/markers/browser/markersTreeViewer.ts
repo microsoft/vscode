@@ -52,6 +52,12 @@ import Severity from '../../../../base/common/severity.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
+import { SHOW_OR_FOCUS_HOVER_ACTION_ID } from '../../../../editor/contrib/hover/browser/hoverActionIds.js';
 
 interface IResourceMarkersTemplateData {
 	readonly resourceLabel: IResourceLabel;
@@ -70,7 +76,12 @@ interface IRelatedInformationTemplateData {
 
 export class MarkersWidgetAccessibilityProvider implements IListAccessibilityProvider<MarkerElement | MarkerTableItem> {
 
-	constructor(@ILabelService private readonly labelService: ILabelService) { }
+	constructor(
+		@ILabelService private readonly labelService: ILabelService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
+	) { }
 
 	getWidgetAriaLabel(): string {
 		return localize('problemsView', "Problems View");
@@ -82,7 +93,21 @@ export class MarkersWidgetAccessibilityProvider implements IListAccessibilityPro
 			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length, element.name, paths.dirname(path));
 		}
 		if (element instanceof Marker || element instanceof MarkerTableItem) {
-			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element);
+						const markerLabel = Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element);
+			const verbosityEnabled = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Problems) === true;
+
+			if (!verbosityEnabled || !this.accessibilityService.isScreenReaderOptimized()) {
+				return markerLabel;
+			}
+
+			const hoverKb = this.keybindingService.lookupKeybinding(SHOW_OR_FOCUS_HOVER_ACTION_ID)?.getLabel();
+			const accessibleViewKb = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibleView)?.getLabel();
+
+			if (hoverKb && accessibleViewKb) {
+				return localize('problems.ariaLabel.withHint', "{0} Use {1} to open the hover and then {2} to open the Accessible View.", markerLabel, hoverKb, accessibleViewKb);
+			}
+
+			return markerLabel;
 		}
 		if (element instanceof RelatedInformation) {
 			return Messages.MARKERS_TREE_ARIA_LABEL_RELATED_INFORMATION(element.raw);

@@ -1,0 +1,147 @@
+name: Build Windows VS Code
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_arch:
+        description: 'Target Architecture'
+        required: true
+        default: 'x64'
+        type: choice
+        options:
+          - x64
+          - arm64
+      build_type:
+        description: 'Build Type'
+        required: true
+        default: 'normal'
+        type: choice
+        options:
+          - normal
+          - insiders
+      create_setup:
+        description: 'Create Setup Installer'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  build:
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        node-version: [20.x]
+        architecture: [x64]
+
+    env:
+      VSCODE_BUILD_TYPE: ${{ github.event.inputs.build_type == 'insiders' && 'vscode-insiders' || 'vscode' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        architecture: ${{ matrix.architecture }}
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    # Install Visual Studio Build Tools with required components for building native modules
+    - name: Install Visual Studio Build Tools
+      run: |
+        # Download and install Visual Studio Build Tools
+        $url = "https://download.visualstudio.microsoft.com/download/pr/1d6cfecd-6d5a-4cde-a9d9-ae8aafab68ca/bb8a8da5953a5a751e0d19f8bc59148c/vs_BuildTools.exe"
+        $output = "$env:TEMP\vs_buildtools.exe"
+
+        # Download the installer
+        Invoke-WebRequest -Uri $url -OutFile $output
+
+        # Run the installer silently with required components
+        Start-Process -Wait -FilePath $output -ArgumentList @(
+            '--add', 'Microsoft.VisualStudio.Workload.VCTools',
+            '--add', 'Microsoft.VisualStudio.Component.Windows11SDK.22000',
+            '--add', 'Microsoft.VisualStudio.Component.VC.Tools.ARM64',
+            '--add', 'Microsoft.VisualStudio.Component.VC.CMake.Project',
+            '--quiet', '--norestart', '--nocache'
+        )
+      shell: pwsh
+
+    - name: Cache Node modules
+      id: cache-node-modules
+      uses: actions/cache@v3
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-modules-
+
+    - name: Install dependencies
+      run: |
+        npm ci
+      shell: pwsh
+
+    # The compile step is included in the gulp task, so we don't need to run it separately
+    - name: Install gulp globally
+      run: npm install -g gulp-cli
+      shell: pwsh
+
+    - name: Build VS Code for Windows
+      run: |
+        gulp vscode-win32-${{ github.event.inputs.target_arch }}-min-ci
+      shell: pwsh
+      if: ${{ !inputs.create_setup }}
+
+    - name: Create installer
+      run: |
+        # First build the minified version
+        gulp vscode-win32-${{ github.event.inputs.target_arch }}-min-ci
+
+        # Modify product.json for the build type if needed
+        $productJsonPath = ".build/electron/resources/app/product.json"
+        if (Test-Path $productJsonPath) {
+            $productJson = Get-Content $productJsonPath | ConvertFrom-Json
+            if ("${{ github.event.inputs.build_type }}" -eq "insiders") {
+                $productJson.quality = "insider"
+            } else {
+                $productJson.quality = "stable"
+            }
+            $productJson | ConvertTo-Json -Depth 10 | Out-File -FilePath $productJsonPath -Encoding utf8
+        }
+
+        # Build the installer
+        gulp vscode-win32-${{ github.event.inputs.target_arch }}-system-setup
+      shell: pwsh
+      if: ${{ inputs.create_setup }}
+
+    - name: Prepare artifacts for upload
+      run: |
+        # Create directory for artifacts
+        mkdir -p artifacts
+
+        # Copy built electron app
+        if (Test-Path ".build/electron") {
+            Copy-Item -Path ".build/electron" -Destination "artifacts/electron" -Recurse
+        }
+
+        # Copy installer if it was created
+        if ("${{ github.event.inputs.create_setup }}" -eq "true") {
+            $setupPath = ".build/win32-${{ github.event.inputs.target_arch }}/system/"
+            if (Test-Path $setupPath) {
+                Copy-Item -Path $setupPath"*" -Destination "artifacts/installer" -Recurse
+            }
+        }
+      shell: pwsh
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: VSCode-Windows-${{ github.event.inputs.target_arch }}-${{ github.event.inputs.build_type }}-${{ github.event.inputs.create_setup && 'installer' || 'portable' }}
+        path: artifacts/
+        retention-days: 30
