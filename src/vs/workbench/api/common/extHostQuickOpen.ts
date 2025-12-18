@@ -66,10 +66,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 			const instance = ++this._instances;
 
-			if (options?.prompt) {
-				checkProposedApiEnabled(extension, 'quickPickPrompt');
-			}
-
 			const quickPickWidget = proxy.$show(instance, {
 				title: options?.title,
 				placeHolder: options?.placeHolder,
@@ -100,10 +96,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						} else {
 							if (item.tooltip) {
 								checkProposedApiEnabled(extension, 'quickPickItemTooltip');
-							}
-
-							if (item.resourceUri) {
-								checkProposedApiEnabled(extension, 'quickPickItemResource');
 							}
 
 							pickItems.push({
@@ -576,10 +568,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						checkProposedApiEnabled(this._extension, 'quickPickItemTooltip');
 					}
 
-					if (item.resourceUri) {
-						checkProposedApiEnabled(this._extension, 'quickPickItemResource');
-					}
-
 					pickItems.push({
 						handle,
 						label: item.label,
@@ -656,7 +644,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set prompt(prompt: string | undefined) {
-			checkProposedApiEnabled(this._extension, 'quickPickPrompt');
 			this._prompt = prompt;
 			this.update({ prompt });
 		}

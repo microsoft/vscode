@@ -10,7 +10,6 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { localize } from '../../../../../nls.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -72,10 +71,10 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		}));
 
 		this._register(autorun(r => {
-			const value = this._isExpanded.read(r);
-			collapseButton.icon = value ? Codicon.chevronDown : Codicon.chevronRight;
-			this._domNode?.classList.toggle('chat-used-context-collapsed', !value);
-			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, this.isExpanded());
+			const expanded = this._isExpanded.read(r);
+			collapseButton.icon = expanded ? Codicon.chevronDown : Codicon.chevronRight;
+			this._domNode?.classList.toggle('chat-used-context-collapsed', !expanded);
+			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, expanded);
 
 			if (this._domNode?.isConnected) {
 				queueMicrotask(() => {
@@ -94,7 +93,8 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	abstract hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean;
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
-		element.ariaLabel = expanded ? localize('usedReferencesExpanded', "{0}, expanded", label) : localize('usedReferencesCollapsed', "{0}, collapsed", label);
+		element.ariaLabel = label;
+		element.ariaExpanded = String(expanded);
 	}
 
 	addDisposable(disposable: IDisposable): void {

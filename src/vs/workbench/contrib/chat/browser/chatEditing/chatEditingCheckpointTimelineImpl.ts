@@ -326,7 +326,8 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 
 	public hasFileBaseline(uri: URI, requestId: string): boolean {
 		const key = this._getBaselineKey(uri, requestId);
-		return this._fileBaselines.has(key);
+		return this._fileBaselines.has(key) || this._operations.get().some(op =>
+			op.type === FileOperationType.Create && op.requestId === requestId && isEqual(uri, op.uri));
 	}
 
 	public async getContentAtStop(requestId: string, contentURI: URI, stopId: string | undefined) {
@@ -757,7 +758,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 				end = findFirst(checkpoints, c => c.requestId !== startRequestId, startIndex + 1);
 			} else {
 				end = checkpoints.find(c => c.requestId === stopRequestId)
-					|| findFirst(checkpoints, c => c.requestId !== startRequestId, startIndex)
+					|| findFirst(checkpoints, c => c.requestId !== startRequestId, startIndex + 1)
 					|| checkpoints[checkpoints.length - 1];
 			}
 

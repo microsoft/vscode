@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -257,7 +257,7 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 	const dialogService = accessor.get(IDialogService);
 
 	// Ask for confirmation if there are any edits
-	const entries = currentEditingSession.entries.get();
+	const entries = currentEditingSession.entries.get().filter(e => e.state.get() === ModifiedFileEntryState.Modified);
 	if (entries.length > 0) {
 		const confirmation = await dialogService.confirm({
 			title: localize('chat.editing.discardAll.confirmation.title', "Undo all edits?"),
@@ -326,18 +326,14 @@ export class ViewAllSessionChangesAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const chatWidgetService = accessor.get(IChatWidgetService);
+	override async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const commandService = accessor.get(ICommandService);
-
-		const chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).find(w => w.supportsChangingModes);
-		if (!chatWidget?.viewModel) {
+		if (!URI.isUri(sessionResource)) {
 			return;
 		}
 
-		const sessionResource = chatWidget.viewModel.model.sessionResource;
-		const session = agentSessionsService.model.sessions.find(s => isEqual(s.resource, sessionResource));
+		const session = agentSessionsService.getSession(sessionResource);
 		const changes = session?.changes;
 		if (!(changes instanceof Array)) {
 			return;
@@ -349,6 +345,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 
 		if (resources.length > 0) {
 			await commandService.executeCommand('_workbench.openMultiDiffEditor', {
+				multiDiffSourceUri: sessionResource.with({ scheme: sessionResource.scheme + '-worktree-changes' }),
 				title: localize('chatEditing.allChanges.title', 'All Session Changes'),
 				resources,
 			});

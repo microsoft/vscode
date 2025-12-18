@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions } from './api/git';
+import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions, Worktree } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -865,12 +865,6 @@ export class GitStatusParser {
 
 		return lastIndex + 1;
 	}
-}
-
-export interface Worktree {
-	readonly name: string;
-	readonly path: string;
-	readonly ref: string;
 }
 
 export interface Submodule {
@@ -2826,14 +2820,6 @@ export class Repository {
 	}
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
-		const config = workspace.getConfiguration('git', Uri.file(this.repositoryRoot));
-		const shouldDetectWorktrees = config.get<boolean>('detectWorktrees') === true;
-
-		if (!shouldDetectWorktrees) {
-			this.logger.info('[Git][getWorktreesFS] Worktree detection is disabled, skipping worktree detection');
-			return [];
-		}
-
 		try {
 			// List all worktree folder names
 			const worktreesPath = path.join(this.dotGit.commonPath ?? this.dotGit.path, 'worktrees');
@@ -2858,6 +2844,8 @@ export class Repository {
 						path: gitdirContent.replace(/\/.git.*$/, ''),
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
+						// Detached if HEAD does not start with 'ref: '
+						detached: !headContent.startsWith('ref: ')
 					});
 				} catch (err) {
 					if (/ENOENT/.test(err.message)) {

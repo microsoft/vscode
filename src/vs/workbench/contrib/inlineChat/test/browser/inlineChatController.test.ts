@@ -199,8 +199,8 @@ suite('InlineChatController', function () {
 				}
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
-				override acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: number): void { }
-				override acceptRequest(): number { return -1; }
+				override acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: URI | undefined): void { }
+				override acceptRequest(): URI | undefined { return undefined; }
 				override acceptElicitation(): void { }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
@@ -245,7 +245,8 @@ suite('InlineChatController', function () {
 						onDidResolve: Event.None,
 						onDidChangeSessions: Event.None,
 						sessions: [],
-						resolve: async () => { }
+						resolve: async () => { },
+						getSession: (resource: URI) => undefined,
 					} as IAgentSessionsModel;
 				}
 			}],
