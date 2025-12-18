@@ -417,6 +417,20 @@ export class WindowTitle extends Disposable {
 		});
 	}
 
+	/**
+	 * Computes the notebook execution status text that can be shown in the window title.
+	 *
+	 * This only returns a localized string when:
+	 * - the screen reader optimized mode is enabled, and
+	 * - the active editor is a notebook, and
+	 * - at least one cell in the active notebook is currently executing.
+	 *
+	 * In all other cases, this method returns `undefined` so that no additional
+	 * notebook status is rendered in the window title.
+	 *
+	 * @returns A localized status string indicating that notebook cells are executing,
+	 * or `undefined` if no status should be shown.
+	 */
 	private getNotebookStatus(): string | undefined {
 		// Only show notebook status for screen reader users
 		if (!this.accessibilityService.isScreenReaderOptimized()) {
