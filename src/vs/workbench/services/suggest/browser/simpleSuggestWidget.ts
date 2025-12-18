@@ -426,6 +426,15 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._persistedSize.reset();
 	}
 
+	relayout(cursorPosition: { top: number; left: number; height: number }): void {
+		if (this._state === State.Hidden) {
+			return;
+		}
+		this._cursorPosition = cursorPosition;
+		this._layout(this.element.size);
+		this._afterRender();
+	}
+
 	showTriggered(explicitlyInvoked: boolean, cursorPosition: { top: number; left: number; height: number }) {
 		if (this._state !== State.Hidden) {
 			return;

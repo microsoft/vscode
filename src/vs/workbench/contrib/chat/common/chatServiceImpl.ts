@@ -704,8 +704,6 @@ export class ChatService extends Disposable implements IChatService {
 					for (const part of message.parts) {
 						model.acceptResponseProgress(lastRequest, part);
 					}
-
-					lastRequest.response?.complete();
 				}
 			}
 		}
@@ -954,8 +952,6 @@ export class ChatService extends Disposable implements IChatService {
 			try {
 				let rawResult: IChatAgentResult | null | undefined;
 				let agentOrCommandFollowups: Promise<IChatFollowup[] | undefined> | undefined = undefined;
-				let chatTitlePromise: Promise<string | undefined> | undefined;
-
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
@@ -1049,6 +1045,7 @@ export class ChatService extends Disposable implements IChatService {
 					// Recompute history in case the agent or command changed
 					const history = this.getHistoryEntriesFromModel(requests, location, agent.id);
 					const requestProps = prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
+					this.generateInitialChatTitleIfNeeded(model, requestProps, defaultAgent, token);
 					const pendingRequest = this._pendingRequests.get(sessionResource);
 					if (pendingRequest && !pendingRequest.requestId) {
 						pendingRequest.requestId = requestProps.requestId;
@@ -1067,23 +1064,6 @@ export class ChatService extends Disposable implements IChatService {
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
-
-					// Use LLM to generate the chat title
-					if (model.getRequests().length === 1 && !model.customTitle) {
-						const chatHistory = this.getHistoryEntriesFromModel(model.getRequests(), location, agent.id);
-						chatTitlePromise = this.chatAgentService.getChatTitle(agent.id, chatHistory, CancellationToken.None).then(
-							(title) => {
-								// Since not every chat agent implements title generation, we can fallback to the default agent
-								// which supports it
-								if (title === undefined) {
-									const defaultAgentForTitle = this.chatAgentService.getDefaultAgent(location);
-									if (defaultAgentForTitle) {
-										return this.chatAgentService.getChatTitle(defaultAgentForTitle.id, chatHistory, CancellationToken.None);
-									}
-								}
-								return title;
-							});
-					}
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					if (commandPart.slashCommand.silent !== true) {
 						request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);
@@ -1144,11 +1124,6 @@ export class ChatService extends Disposable implements IChatService {
 							this._chatServiceTelemetry.retrievedFollowups(agentPart?.agent.id ?? '', commandForTelemetry, followups?.length ?? 0);
 						});
 					}
-					chatTitlePromise?.then(title => {
-						if (title) {
-							model.setCustomTitle(title);
-						}
-					});
 				}
 			} catch (err) {
 				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
@@ -1181,6 +1156,27 @@ export class ChatService extends Disposable implements IChatService {
 			responseCreatedPromise: responseCreated.p,
 			responseCompletePromise: rawResponsePromise,
 		};
+	}
+
+	private generateInitialChatTitleIfNeeded(model: ChatModel, request: IChatAgentRequest, defaultAgent: IChatAgentData, token: CancellationToken): void {
+		// Generate a title only for the first request, and only via the default agent.
+		// Use a single-entry history based on the current request (no full chat history).
+		if (model.getRequests().length !== 1 || model.customTitle) {
+			return;
+		}
+
+		const singleEntryHistory: IChatAgentHistoryEntry[] = [{
+			request,
+			response: [],
+			result: {}
+		}];
+		const generate = async () => {
+			const title = await this.chatAgentService.getChatTitle(defaultAgent.id, singleEntryHistory, token);
+			if (title && !model.customTitle) {
+				model.setCustomTitle(title);
+			}
+		};
+		void generate();
 	}
 
 	private prepareContext(attachedContextVariables: IChatRequestVariableEntry[] | undefined): IChatRequestVariableEntry[] {
