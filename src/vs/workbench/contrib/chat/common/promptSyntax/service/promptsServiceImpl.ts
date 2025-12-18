@@ -579,6 +579,40 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	// Agent skills
 
+	private sanitizeAgentSkillText(text: string): string {
+		// Remove XML tags
+		return text.replace(/<[^>]+>/g, '');
+	}
+
+	private truncateAgentSkillName(name: string, uri: URI): string {
+		const MAX_NAME_LENGTH = 64;
+		const sanitized = this.sanitizeAgentSkillText(name);
+		if (sanitized !== name) {
+			this.logger.warn(`[findAgentSkills] Agent skill name contains XML tags, removed: ${uri}`);
+		}
+		if (sanitized.length > MAX_NAME_LENGTH) {
+			this.logger.warn(`[findAgentSkills] Agent skill name exceeds ${MAX_NAME_LENGTH} characters, truncated: ${uri}`);
+			return sanitized.substring(0, MAX_NAME_LENGTH);
+		}
+		return sanitized;
+	}
+
+	private truncateAgentSkillDescription(description: string | undefined, uri: URI): string | undefined {
+		if (!description) {
+			return undefined;
+		}
+		const MAX_DESCRIPTION_LENGTH = 1024;
+		const sanitized = this.sanitizeAgentSkillText(description);
+		if (sanitized !== description) {
+			this.logger.warn(`[findAgentSkills] Agent skill description contains XML tags, removed: ${uri}`);
+		}
+		if (sanitized.length > MAX_DESCRIPTION_LENGTH) {
+			this.logger.warn(`[findAgentSkills] Agent skill description exceeds ${MAX_DESCRIPTION_LENGTH} characters, truncated: ${uri}`);
+			return sanitized.substring(0, MAX_DESCRIPTION_LENGTH);
+		}
+		return sanitized;
+	}
+
 	public async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		const defaultAccount = await this.defaultAccountService.getDefaultAccount();
@@ -590,7 +624,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 					const parsedFile = await this.parseNew(uri, token);
 					const name = parsedFile.header?.name;
 					if (name) {
-						result.push({ uri, type, name, description: parsedFile.header?.description } satisfies IAgentSkill);
+						const sanitizedName = this.truncateAgentSkillName(name, uri);
+						const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
+						result.push({ uri, type, name: sanitizedName, description: sanitizedDescription } satisfies IAgentSkill);
 					} else {
 						this.logger.error(`[findAgentSkills] Agent skill file missing name attribute: ${uri}`);
 					}

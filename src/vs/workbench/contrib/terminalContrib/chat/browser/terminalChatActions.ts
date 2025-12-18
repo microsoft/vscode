@@ -31,6 +31,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../services/preferences/common/preferences.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
@@ -362,9 +363,11 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			label: string;
 			description: string | undefined;
 			detail: string | undefined;
+			tooltip: string | IMarkdownString | undefined;
 			id: string;
 		}
 		const lastCommandLocalized = (command: string) => localize2('chatTerminal.lastCommand', 'Last: {0}', command).value;
+		const MAX_DETAIL_LENGTH = 80;
 
 		const metas: IItemMeta[] = [];
 		for (const instance of all.values()) {
@@ -386,10 +389,32 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				description = `${chatSessionTitle}`;
 			}
 
+			let detail: string | undefined;
+			let tooltip: string | IMarkdownString | undefined;
+			if (lastCommand) {
+				// Take only the first line if the command spans multiple lines
+				const commandLines = lastCommand.split('\n');
+				const firstLine = commandLines[0];
+				const displayCommand = firstLine.length > MAX_DETAIL_LENGTH ? firstLine.substring(0, MAX_DETAIL_LENGTH) + '…' : firstLine;
+				detail = lastCommandLocalized(displayCommand);
+				// If the command was truncated or has multiple lines, provide a tooltip with the full command
+				const wasTruncated = firstLine.length > MAX_DETAIL_LENGTH;
+				const hasMultipleLines = commandLines.length > 1;
+				if (wasTruncated || hasMultipleLines) {
+					// Use markdown code block to preserve formatting for multi-line commands
+					if (hasMultipleLines) {
+						tooltip = { value: `\`\`\`\n${lastCommand}\n\`\`\``, supportThemeIcons: true };
+					} else {
+						tooltip = lastCommandLocalized(lastCommand);
+					}
+				}
+			}
+
 			metas.push({
 				label,
 				description,
-				detail: lastCommand ? lastCommandLocalized(lastCommand) : undefined,
+				detail,
+				tooltip,
 				id: String(instance.instanceId),
 			});
 		}
@@ -399,6 +424,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				label: m.label,
 				description: m.description,
 				detail: m.detail,
+				tooltip: m.tooltip,
 				id: m.id
 			});
 		}

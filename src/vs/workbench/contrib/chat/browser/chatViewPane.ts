@@ -892,7 +892,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerLimited) {
 				sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
 			} else {
-				sessionsHeight = (ChatViewPane.SESSIONS_LIMIT + 2 /* expand a bit to indicate more items */) * AgentSessionsListDelegate.ITEM_HEIGHT;
+				sessionsHeight = (ChatViewPane.SESSIONS_LIMIT * 2 /* expand a bit to indicate more items */) * AgentSessionsListDelegate.ITEM_HEIGHT;
 			}
 
 			sessionsHeight = Math.min(availableSessionsHeight, sessionsHeight);

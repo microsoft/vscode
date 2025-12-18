@@ -257,6 +257,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserDataTimestamp = Date.now();
 		}));
 		this._register(xterm.onScroll(() => this.hideSuggestWidget(true)));
+		this._register(xterm.onResize(() => this._relayoutOnResize()));
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
@@ -386,7 +387,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	setContainerWithOverflow(container: HTMLElement): void {
+		const containerChanged = this._container !== container;
+		const parentChanged = this._suggestWidget?.element.domNode.parentElement !== container;
+		if (!containerChanged && !parentChanged) {
+			return;
+		}
 		this._container = container;
+		if (this._suggestWidget) {
+			container.appendChild(this._suggestWidget.element.domNode);
+		}
 	}
 
 	setScreen(screen: HTMLElement): void {
@@ -1041,6 +1050,18 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._focusedItem = undefined;
 		this._suggestWidget?.hide();
 	}
+
+	private _relayoutOnResize(): void {
+		if (!this._terminalSuggestWidgetVisibleContextKey.get() || !this._terminal) {
+			return;
+		}
+		const cursorPosition = this._getCursorPosition(this._terminal);
+		if (!cursorPosition) {
+			this.hideSuggestWidget(true);
+			return;
+		}
+		this._suggestWidget?.relayout(cursorPosition);
+	}
 }
 
 class PersistedWidgetSize {
@@ -1080,4 +1101,3 @@ export function normalizePathSeparator(path: string, sep: string): string {
 	}
 	return path.replaceAll('/', '\\');
 }
-

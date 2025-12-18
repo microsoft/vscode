@@ -76,6 +76,14 @@ export interface Remote {
 	readonly isReadOnly: boolean;
 }
 
+export interface Worktree {
+	readonly name: string;
+	readonly path: string;
+	readonly ref: string;
+	readonly detached: boolean;
+	readonly commitDetails?: Commit;
+}
+
 export const enum Status {
 	INDEX_MODIFIED,
 	INDEX_ADDED,
@@ -286,6 +294,7 @@ export interface Repository {
 	merge(ref: string): Promise<void>;
 	mergeAbort(): Promise<void>;
 
+	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void>;
 	applyStash(index?: number): Promise<void>;
 	popStash(index?: number): Promise<void>;
 	dropStash(index?: number): Promise<void>;
