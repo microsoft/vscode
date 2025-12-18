@@ -1867,13 +1867,10 @@ export class Repository implements Disposable {
 	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
 		await this.run(Operation.Worktree(false), async () => {
 			const worktree = this.repositoryResolver.getRepository(path);
-			if (!worktree || worktree.kind !== 'worktree') {
-				return;
-			}
 
 			const deleteWorktree = async (options?: { force?: boolean }): Promise<void> => {
 				await this.repository.deleteWorktree(path, options);
-				worktree.dispose();
+				worktree?.dispose();
 			};
 
 			try {

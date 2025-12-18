@@ -174,7 +174,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 					const description = getArtifactDescription(w.commitDetails?.hash, w.commitDetails, shortCommitLength);
 
 					return {
-						id: `worktree:${w.path}`,
+						id: w.path,
 						name: w.name,
 						description: w.detached
 							? `${l10n.t('detached')} \u2022 ${description}`

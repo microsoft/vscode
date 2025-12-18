@@ -5306,6 +5306,35 @@ export class CommandCenter {
 		await this._stashDrop(repository, parseInt(match[1]), artifact.name);
 	}
 
+	@command('git.repositories.openWorktree', { repository: true })
+	async artifactOpenWorktree(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const uri = Uri.file(artifact.id);
+		await commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
+	}
+
+	@command('git.repositories.openWorktreeInNewWindow', { repository: true })
+	async artifactOpenWorktreeInNewWindow(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const uri = Uri.file(artifact.id);
+		await commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+	}
+
+	@command('git.repositories.deleteWorktree', { repository: true })
+	async artifactDeleteWorktree(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await repository.deleteWorktree(artifact.id);
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
