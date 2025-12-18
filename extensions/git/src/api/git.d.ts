@@ -294,6 +294,7 @@ export interface Repository {
 	merge(ref: string): Promise<void>;
 	mergeAbort(): Promise<void>;
 
+	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void>;
 	applyStash(index?: number): Promise<void>;
 	popStash(index?: number): Promise<void>;
 	dropStash(index?: number): Promise<void>;
