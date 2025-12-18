@@ -130,7 +130,7 @@ jobs:
 
       - name: Build vscode-reh-web-win32-x64
         shell: pwsh
-        run: npm run gulp vscode-reh-web-win32-${{ env.VSCODE_ARCH }}-min-ci
+        run: npm run gulp vscode-reh-web-win32-${{ env.VSCODE_ARCH }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
