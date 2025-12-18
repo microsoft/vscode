@@ -199,14 +199,16 @@ if (Get-Module -Name PSReadLine) {
 
 		# Command line
 		# OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST
-		$Result = "$([char]0x1b)]633;E;"
-		$Result += $(__VSCode-Escape-Value $CommandLine)
-		# Only send the nonce if the OS is not Windows 10 as it seems to echo to the terminal
-		# sometimes
+		# Disabled on Windows 10 due to rendering issues with long commands that cause
+		# escaped command text to appear in the terminal (e.g., \x5c for backslashes).
+		# See: https://github.com/microsoft/vscode/issues/...
+		$Result = ""
 		if ($Global:__VSCodeState.IsWindows10 -eq $false) {
+			$Result = "$([char]0x1b)]633;E;"
+			$Result += $(__VSCode-Escape-Value $CommandLine)
 			$Result += ";$($Global:__VSCodeState.Nonce)"
+			$Result += "`a"
 		}
-		$Result += "`a"
 
 		# Command executed
 		# OSC 633 ; C ST
