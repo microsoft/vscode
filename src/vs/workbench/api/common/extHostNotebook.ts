@@ -405,7 +405,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	 *
 	 * @param handle used to get notebook serializer
 	 * @param textQuery the text query to search using
-	 * @param viewTypeFileTargets the globs (and associated ranks) that are targetting for opening this type of notebook
+	 * @param viewTypeFileTargets the globs (and associated ranks) that are targeting for opening this type of notebook
 	 * @param otherViewTypeFileTargets ranked globs for other editors that we should consider when deciding whether it will open as this notebook
 	 * @param token cancellation token
 	 * @returns `IRawClosedNotebookFileMatch` for every file. Files without matches will just have a `IRawClosedNotebookFileMatch`
