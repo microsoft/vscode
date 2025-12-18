@@ -1,0 +1,166 @@
+name: Build vscode-reh-web-darwin-arm64
+
+on:
+  workflow_dispatch:
+    inputs:
+      vm_size:
+        description: "Cirrus Runner Size"
+        required: false
+        default: "xl"
+        type: choice
+        options:
+          - large
+          - xl
+          - 2xl
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build REH Web (darwin-arm64)
+    runs-on: ghcr.io/cirruslabs/macos-runner:sequoia${{ inputs.vm_size && inputs.vm_size != 'large' && format('-{0}', inputs.vm_size) || '-xl' }}
+    timeout-minutes: 90
+    env:
+      NPM_ARCH: arm64
+      VSCODE_ARCH: arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Prepare node_modules cache key
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache/restore@v4
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          c++ --version
+          xcode-select -print-path
+          python3 -m pip install --break-system-packages setuptools
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GYP_DEFINES: "kerberos_use_rtld=false"
+
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+
+      - name: Save node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Create .build folder
+        run: mkdir -p .build
+
+      - name: Prepare built-in extensions cache key
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@v4
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Save built-in extensions cache
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Compile source code
+        run: npm run gulp compile-build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build vscode-reh-web-darwin-arm64
+        run: |
+          set -e
+          npm run gulp vscode-reh-web-darwin-${{ env.VSCODE_ARCH }}-min-ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rename output directory
+        run: |
+          cd ..
+          mv vscode-reh-web-darwin-${{ env.VSCODE_ARCH }} vscode-server-darwin-${{ env.VSCODE_ARCH }}-web
+
+      - name: Patch product.json for Open VSX marketplace
+        run: |
+          node -e "
+          const fs = require('fs');
+          const path = '../vscode-server-darwin-${{ env.VSCODE_ARCH }}-web/product.json';
+          const product = JSON.parse(fs.readFileSync(path, 'utf8'));
+          product.extensionsGallery = {
+            serviceUrl: 'https://open-vsx.org/vscode/gallery',
+            itemUrl: 'https://open-vsx.org/vscode/item',
+            resourceUrlTemplate: 'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',
+            controlUrl: '',
+            nlsBaseUrl: '',
+            publisherUrl: ''
+          };
+          fs.writeFileSync(path, JSON.stringify(product, null, 2));
+          console.log('Patched product.json for Open VSX marketplace');
+          "
+
+      - name: Package artifact
+        run: |
+          cd ..
+          zip -Xry vscode-server-darwin-${{ env.VSCODE_ARCH }}-web.zip vscode-server-darwin-${{ env.VSCODE_ARCH }}-web
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-server-darwin-arm64-web
+          path: ../vscode-server-darwin-${{ env.VSCODE_ARCH }}-web.zip
+          if-no-files-found: error
