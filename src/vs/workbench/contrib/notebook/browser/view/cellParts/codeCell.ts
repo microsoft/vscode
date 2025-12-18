@@ -49,6 +49,7 @@ export class CodeCell extends Disposable {
 	private _cellEditorOptions: CellEditorOptions;
 	private _useNewApproachForEditorLayout = true;
 	private _pointerDownInEditor = false;
+	private _pointerDraggingInEditor = false;
 	private readonly _cellLayout: CodeCellLayout;
 	private readonly _debug: (output: string) => void;
 	constructor(
@@ -344,7 +345,7 @@ export class CodeCell extends Disposable {
 		if (this._useNewApproachForEditorLayout) {
 			this._register(this.templateData.editor.onDidScrollChange(e => {
 				// Option 4: Gate scroll-driven reactions during active drag-selection
-				if (this._pointerDownInEditor) {
+				if (this._pointerDownInEditor || this._pointerDraggingInEditor) {
 					return;
 				}
 				if (this._cellLayout.editorVisibility === 'Invisible' || !this.templateData.editor.hasTextFocus()) {
@@ -385,7 +386,7 @@ export class CodeCell extends Disposable {
 			}
 
 			// Option 3: Avoid relayouts during active pointer drag to prevent stuck selection mode
-			if (this._pointerDownInEditor && this._useNewApproachForEditorLayout) {
+			if ((this._pointerDownInEditor || this._pointerDraggingInEditor) && this._useNewApproachForEditorLayout) {
 				return;
 			}
 
@@ -427,6 +428,19 @@ export class CodeCell extends Disposable {
 	}
 
 	private registerMouseListener() {
+		// Pointer-state handling in notebook cell editors has a couple of easy-to-regress edge cases:
+		// 1) Holding the left mouse button and wheel/trackpad scrolling should scroll as usual.
+		//    We therefore only treat the interaction as an "active drag selection" after actual pointer movement.
+		// 2) "Stuck selection mode" can occur if we miss the corresponding mouseup (e.g. releasing outside the window,
+		//    focus loss, or ESC cancelling Monaco selection/drag). When this happens, leaving any of our drag/pointer
+		//    flags set will incorrectly gate scroll/layout syncing and make the editor feel stuck.
+		//    To avoid that, we reset state on multiple cancellation paths and also self-heal on mousemove.
+		const resetPointerState = () => {
+			this._pointerDownInEditor = false;
+			this._pointerDraggingInEditor = false;
+			this._cellLayout.setPointerDown(false);
+		};
+
 		this._register(this.templateData.editor.onMouseDown(e => {
 			// prevent default on right mouse click, otherwise it will trigger unexpected focus changes
 			// the catch is, it means we don't allow customization of right button mouse down handlers other than the built in ones.
@@ -435,18 +449,47 @@ export class CodeCell extends Disposable {
 			}
 
 			if (this._useNewApproachForEditorLayout) {
-				// Track pointer-down to gate layout behavior (options 3 & 4)
-				this._pointerDownInEditor = true;
-				this._cellLayout.setPointerDown(true);
+				// Track pointer-down and pointer-drag separately.
+				// Holding the left button while wheel/trackpad scrolling should behave like normal scrolling.
+				if (e.event.leftButton) {
+					this._pointerDownInEditor = true;
+					this._pointerDraggingInEditor = false;
+					this._cellLayout.setPointerDown(false);
+				}
 			}
 		}));
 
 		if (this._useNewApproachForEditorLayout) {
+			this._register(this.templateData.editor.onMouseMove(e => {
+				if (!this._pointerDownInEditor) {
+					return;
+				}
+
+				// Self-heal: if we missed a mouseup (e.g. focus loss), clear the drag state as soon as we can observe it.
+				if (!e.event.leftButton) {
+					resetPointerState();
+					return;
+				}
+
+				if (!this._pointerDraggingInEditor) {
+					// Only consider it a drag-selection once the pointer actually moves with the left button down.
+					this._pointerDraggingInEditor = true;
+					this._cellLayout.setPointerDown(true);
+				}
+			}));
+		}
+
+		if (this._useNewApproachForEditorLayout) {
 			// Ensure we reset pointer-down even if mouseup lands outside the editor
 			const win = DOM.getWindow(this.notebookEditor.getDomNode());
-			this._register(DOM.addDisposableListener(win, 'mouseup', () => {
-				this._pointerDownInEditor = false;
-				this._cellLayout.setPointerDown(false);
+			this._register(DOM.addDisposableListener(win, 'mouseup', resetPointerState));
+			this._register(DOM.addDisposableListener(win, 'pointerup', resetPointerState));
+			this._register(DOM.addDisposableListener(win, 'pointercancel', resetPointerState));
+			this._register(DOM.addDisposableListener(win, 'blur', resetPointerState));
+			this._register(DOM.addDisposableListener(win, 'keydown', e => {
+				if (e.key === 'Escape' && (this._pointerDownInEditor || this._pointerDraggingInEditor)) {
+					resetPointerState();
+				}
 			}));
 		}
 	}
