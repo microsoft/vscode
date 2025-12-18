@@ -139,7 +139,7 @@ export class WindowTitle extends Disposable {
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
 		const affectsTitleConfiguration = event.affectsConfiguration(WindowSettingNames.title);
 		const affectsAccessibilityTitleOptimization = event.affectsConfiguration('accessibility.windowTitleOptimized');
-		
+
 		if (affectsTitleConfiguration || affectsAccessibilityTitleOptimization) {
 			this.checkTitleVariables();
 		}
@@ -156,7 +156,7 @@ export class WindowTitle extends Disposable {
 			this.titleIncludesEditorState = titleTemplate.includes('${activeEditorState}');
 		}
 		// Notebook status is added dynamically for screen reader users, check if it would be included
-		this.titleIncludesNotebookStatus = this.accessibilityService.isScreenReaderOptimized() && 
+		this.titleIncludesNotebookStatus = this.accessibilityService.isScreenReaderOptimized() &&
 			this.configurationService.getValue('accessibility.windowTitleOptimized');
 	}
 
@@ -444,7 +444,7 @@ export class WindowTitle extends Disposable {
 
 		// Check if the active editor is a notebook using the editor ID from activeEditor
 		const activeEditor = this.editorService.activeEditor;
-		if (!activeEditor || activeEditor.editorId?.value !== 'workbench.editor.notebook') {
+		if (!activeEditor || activeEditor.editorId !== 'workbench.editor.notebook') {
 			return undefined;
 		}
 
