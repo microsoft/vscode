@@ -130,16 +130,21 @@ export class WindowTitle extends Disposable {
 				this.titleUpdater.schedule();
 			}
 		}));
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.titleUpdater.schedule()));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			this.checkTitleVariables();
+			this.titleUpdater.schedule();
+		}));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
 		const affectsTitleConfiguration = event.affectsConfiguration(WindowSettingNames.title);
-		if (affectsTitleConfiguration) {
+		const affectsAccessibilityTitleOptimization = event.affectsConfiguration('accessibility.windowTitleOptimized');
+		
+		if (affectsTitleConfiguration || affectsAccessibilityTitleOptimization) {
 			this.checkTitleVariables();
 		}
 
-		if (affectsTitleConfiguration || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
+		if (affectsTitleConfiguration || affectsAccessibilityTitleOptimization || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
 			this.titleUpdater.schedule();
 		}
 	}
