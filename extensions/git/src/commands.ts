@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
+import { coalesce, DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -56,19 +56,6 @@ class RefItemSeparator implements QuickPickItem {
 	}
 
 	constructor(private readonly refType: RefType) { }
-}
-
-class WorktreeItem implements QuickPickItem {
-
-	get label(): string {
-		return `$(list-tree) ${this.worktree.name}`;
-	}
-
-	get description(): string {
-		return this.worktree.path;
-	}
-
-	constructor(readonly worktree: Worktree) { }
 }
 
 class RefItem implements QuickPickItem {
@@ -240,7 +227,40 @@ class RemoteTagDeleteItem extends RefItem {
 	}
 }
 
+class WorktreeItem implements QuickPickItem {
+
+	get label(): string {
+		return `$(list-tree) ${this.worktree.name}`;
+	}
+
+	get description(): string | undefined {
+		return this.worktree.path;
+	}
+
+	constructor(readonly worktree: Worktree) { }
+}
+
 class WorktreeDeleteItem extends WorktreeItem {
+	override get description(): string | undefined {
+		if (!this.worktree.commitDetails) {
+			return undefined;
+		}
+
+		return coalesce([
+			this.worktree.detached ? l10n.t('detached') : this.worktree.ref.substring(11),
+			this.worktree.commitDetails.hash.substring(0, this.shortCommitLength),
+			this.worktree.commitDetails.message.split('\n')[0]
+		]).join(' \u2022 ');
+	}
+
+	get detail(): string {
+		return this.worktree.path;
+	}
+
+	constructor(worktree: Worktree, private readonly shortCommitLength: number) {
+		super(worktree);
+	}
+
 	async run(mainRepository: Repository): Promise<void> {
 		if (!this.worktree.path) {
 			return;
@@ -3666,11 +3686,14 @@ export class CommandCenter {
 
 	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
 	async deleteWorktreeFromPalette(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
+
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
-			const worktrees = await repository.getWorktrees();
+			const worktrees = await repository.getWorktreeDetails();
 			return worktrees.length === 0
 				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
-				: worktrees.map(worktree => new WorktreeDeleteItem(worktree));
+				: worktrees.map(worktree => new WorktreeDeleteItem(worktree, commitShortHashLength));
 		};
 
 		const placeHolder = l10n.t('Select a worktree to delete');

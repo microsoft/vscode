@@ -141,6 +141,9 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 	}, Object.create(null));
 }
 
+export function coalesce<T>(array: ReadonlyArray<T | undefined>): T[] {
+	return array.filter((e): e is T => !!e);
+}
 
 export async function mkdirp(path: string, mode?: number): Promise<boolean> {
 	const mkdir = async () => {
