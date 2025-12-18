@@ -12,7 +12,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { IUserDataProfile, IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_TITLE, isProfileURL } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_TITLE, PROFILE_EXTENSION, isProfileURL } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -32,6 +32,9 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
 import { IURLService } from '../../../../platform/url/common/url.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
+import { IDropRegistryService, IDropResourceHandler } from '../../../services/dropRegistry/common/dropRegistryService.js';
+import { endsWithIgnoreCase } from '../../../../base/common/strings.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
 const ProfilesMenu = new MenuId('Profiles');
@@ -57,6 +60,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IURLService private readonly urlService: IURLService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@IDropRegistryService private readonly dropRegistryService: IDropRegistryService,
 	) {
 		super();
 
@@ -88,6 +92,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		if (environmentService.options?.profileToPreview) {
 			lifecycleService.when(LifecyclePhase.Restored).then(() => this.handleURL(URI.revive(environmentService.options!.profileToPreview!)));
 		}
+
+		this.registerDropHandler();
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {
@@ -118,6 +124,18 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			]
 		);
 		Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(UserDataProfilesEditorInput.ID, UserDataProfilesEditorInputSerializer);
+	}
+
+	private registerDropHandler(): void {
+		this._register(this.dropRegistryService.registerHandler(new class UserDataProfileDropHandler implements IDropResourceHandler {
+			async tryHandleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
+				if (endsWithIgnoreCase(resource.path, `.${PROFILE_EXTENSION}`)) {
+					await accessor.get(ICommandService).executeCommand('workbench.profiles.actions.importProfile', resource);
+					return true;
+				}
+				return false;
+			}
+		}));
 	}
 
 	private registerActions(): void {
@@ -451,7 +469,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, profileUri?: URI) {
+			async run(_accessor: ServicesAccessor, profileUri?: URI) {
 				const editor = await that.openProfilesEditor();
 				if (editor) {
 					if (profileUri) {

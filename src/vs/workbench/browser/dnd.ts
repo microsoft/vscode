@@ -22,7 +22,6 @@ import { URI } from '../../base/common/uri.js';
 import { CodeDataTransfers, Extensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat, LocalSelectionTransfer, createDraggedEditorInputFromRawResourcesData, extractEditorsAndFilesDropData } from '../../platform/dnd/browser/dnd.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
-import { ICommandService } from '../../platform/commands/common/commands.js';
 import { ILabelService } from '../../platform/label/common/label.js';
 import { extractSelection, withSelection } from '../../platform/opener/common/opener.js';
 import { Registry } from '../../platform/registry/common/platform.js';
@@ -38,8 +37,7 @@ import { IWorkspaceEditingService } from '../services/workspaces/common/workspac
 import { IEditorOptions } from '../../platform/editor/common/editor.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { BroadcastDataChannel } from '../../base/browser/broadcast.js';
-import { PROFILE_EXTENSION } from '../services/userDataProfile/common/userDataProfile.js';
-import { endsWithIgnoreCase } from '../../base/common/strings.js';
+import { IDropRegistryService } from '../services/dropRegistry/common/dropRegistryService.js';
 
 //#region Editor / Resources DND
 
@@ -97,7 +95,7 @@ export class ResourcesDropHandler {
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ICommandService private readonly commandService: ICommandService
+		@IDropRegistryService private readonly dropRegistryService: IDropRegistryService
 	) {
 	}
 
@@ -110,11 +108,13 @@ export class ResourcesDropHandler {
 		// Make the window active to handle the drop properly within
 		await this.hostService.focus(targetWindow);
 
-		// Check for profile file being dropped
+		// Check for registered drop handlers
 		for (const { resource } of editors) {
-			if (resource && endsWithIgnoreCase(resource.path, `.${PROFILE_EXTENSION}`)) {
-				await this.commandService.executeCommand('workbench.profiles.actions.importProfile', resource);
-				return;
+			if (resource) {
+				const handled = await this.instantiationService.invokeFunction(accessor => this.dropRegistryService.tryHandleDrop(resource, accessor));
+				if (handled) {
+					return;
+				}
 			}
 		}
 
