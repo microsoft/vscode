@@ -1031,10 +1031,10 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$postMessage(handle: WebviewHandle, value: string, ...buffers: VSBuffer[]): Promise<boolean>;
 }
 
-export interface IWebviewIconPath {
+export type IWebviewIconPath = ThemeIcon | {
 	readonly light: UriComponents;
 	readonly dark: UriComponents;
-}
+};
 
 export interface IWebviewInitData {
 	readonly title: string;
@@ -2635,7 +2635,7 @@ export class TerminalCompletionListDto<T extends ITerminalCompletionItemDto = IT
 
 export interface TerminalCompletionResourceOptionsDto {
 	showFiles?: boolean;
-	showFolders?: boolean;
+	showDirectories?: boolean;
 	globPattern?: string | IRelativePattern;
 	cwd: UriComponents;
 	pathSeparator: string;

@@ -167,6 +167,7 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	private _leftButtons: IQuickInputButton[] = [];
 	private _rightButtons: IQuickInputButton[] = [];
 	private _inlineButtons: IQuickInputButton[] = [];
+	private _inputButtons: IQuickInputButton[] = [];
 	private buttonsUpdated = false;
 	private _toggles: IQuickInputToggle[] = [];
 	private togglesUpdated = false;
@@ -296,14 +297,39 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		return [
 			...this._leftButtons,
 			...this._rightButtons,
-			...this._inlineButtons
+			...this._inlineButtons,
+			...this._inputButtons
 		];
 	}
 
 	set buttons(buttons: IQuickInputButton[]) {
-		this._leftButtons = buttons.filter(b => b === backButton);
-		this._rightButtons = buttons.filter(b => b !== backButton && b.location !== QuickInputButtonLocation.Inline);
-		this._inlineButtons = buttons.filter(b => b.location === QuickInputButtonLocation.Inline);
+		const leftButtons: IQuickInputButton[] = [];
+		const rightButtons: IQuickInputButton[] = [];
+		const inlineButtons: IQuickInputButton[] = [];
+		const inputButtons: IQuickInputButton[] = [];
+
+		for (const button of buttons) {
+			if (button === backButton) {
+				leftButtons.push(button);
+			} else {
+				switch (button.location) {
+					case QuickInputButtonLocation.Inline:
+						inlineButtons.push(button);
+						break;
+					case QuickInputButtonLocation.Input:
+						inputButtons.push(button);
+						break;
+					default:
+						rightButtons.push(button);
+						break;
+				}
+			}
+		}
+
+		this._leftButtons = leftButtons;
+		this._rightButtons = rightButtons;
+		this._inlineButtons = inlineButtons;
+		this._inputButtons = inputButtons;
 		this.buttonsUpdated = true;
 		this.update();
 	}
@@ -457,6 +483,12 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 					async () => this.onDidTriggerButtonEmitter.fire(button)
 				));
 			this.ui.inlineActionBar.push(inlineButtons, { icon: true, label: false });
+			this.ui.inputBox.actions = this._inputButtons
+				.map((button, index) => quickInputButtonToAction(
+					button,
+					`id-${index}`,
+					async () => this.onDidTriggerButtonEmitter.fire(button)
+				));
 		}
 		if (this.togglesUpdated) {
 			this.togglesUpdated = false;
@@ -584,6 +616,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
 	private _customButtonHover: string | undefined;
+	private _customButtonSecondary = false;
 	private _quickNavigate: IQuickNavigateConfiguration | undefined;
 	private _hideInput: boolean | undefined;
 	private _hideCountBadge: boolean | undefined;
@@ -833,6 +866,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set customHover(hover: string | undefined) {
 		this._customButtonHover = hover;
+		this.update();
+	}
+
+	get customButtonSecondary() {
+		return this._customButtonSecondary;
+	}
+
+	set customButtonSecondary(secondary: boolean | undefined) {
+		this._customButtonSecondary = secondary ?? false;
 		this.update();
 	}
 
@@ -1154,6 +1196,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		this.ui.ok.label = this.okLabel || '';
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
+		this.ui.customButton.secondary = this.customButtonSecondary || false;
 		if (!visibilities.inputBox) {
 			// we need to move focus into the tree to detect keybindings
 			// properly when the input box is not visible (quick nav)

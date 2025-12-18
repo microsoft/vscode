@@ -131,6 +131,7 @@ import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { ChatWidgetService } from './chatWidgetService.js';
+import { ChatWindowNotifier } from './chatWindowNotifier.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -312,7 +313,7 @@ configurationRegistry.registerConfiguration({
 			examples: [
 				{
 					'fetch': false,
-					'runTests': false
+					'runTask': false
 				}
 			],
 			policy: {
@@ -372,20 +373,15 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
 		},
-		[ChatConfiguration.ChatViewSessionsOrientation]: { // TODO@bpasero move off preview
+		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
-			enum: ['auto', 'stacked', 'sideBySide'],
+			enum: ['stacked', 'sideBySide'],
 			enumDescriptions: [
-				nls.localize('chat.viewSessions.orientation.auto', "Automatically determine the orientation based on available space."),
-				nls.localize('chat.viewSessions.orientation.stacked', "Display sessions vertically stacked unless a chat session is visible."),
-				nls.localize('chat.viewSessions.orientation.sideBySide', "Display sessions side by side if space is sufficient.")
+				nls.localize('chat.viewSessions.orientation.stacked', "Display chat sessions vertically stacked above the chat input unless a chat session is visible."),
+				nls.localize('chat.viewSessions.orientation.sideBySide', "Display chat sessions side by side if space is sufficient, otherwise fallback to stacked above the chat input unless a chat session is visible.")
 			],
-			default: 'auto',
+			default: 'sideBySide',
 			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the chat agent sessions view when it is shown alongside the chat."),
-			tags: ['preview', 'experimental'],
-			experiment: {
-				mode: 'auto'
-			}
 		},
 		[ChatConfiguration.ChatViewTitleEnabled]: {
 			type: 'boolean',
@@ -528,7 +524,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."),
+			description: nls.localize('chat.agent.enabled.description', "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."),
 			default: true,
 			policy: {
 				name: 'ChatAgentMode',
@@ -538,7 +534,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.agent.enabled.description',
-						value: nls.localize('chat.agent.enabled.description', "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."),
+						value: nls.localize('chat.agent.enabled.description', "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."),
 					}
 				}
 			}
@@ -564,7 +560,7 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('chat.statusWidget.enabled.description', "Controls which user type should see the status widget in new chat sessions when quota is exceeded."),
 			default: undefined,
-			tags: ['experimental'],
+			tags: ['experimental', 'advanced'],
 			experiment: {
 				mode: 'auto'
 			}
@@ -708,10 +704,10 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
-		[PromptsConfig.USE_CLAUDE_SKILLS]: {
+		[PromptsConfig.USE_AGENT_SKILLS]: {
 			type: 'boolean',
-			title: nls.localize('chat.useClaudeSkills.title', "Use Claude skills",),
-			markdownDescription: nls.localize('chat.useClaudeSkills.description', "Controls whether Claude skills found in the workspace and user home directories under `.claude/skills` are listed in all chat requests. The language model can load these skills on-demand if the `read` tool is available.",),
+			title: nls.localize('chat.useAgentSkills.title', "Use Agent skills",),
+			markdownDescription: nls.localize('chat.useAgentSkills.description', "Controls whether skills are provided as specialized capabilities to the chat requests. Skills are loaded from `.github/skills`, `.claude/skills`, and `~/.claude/skills`. The language model can load these skills on-demand if the `read` tool is available. Learn more about [Agent Skills](https://aka.ms/vscode-agent-skills).",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,
@@ -819,7 +815,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.RestoreLastPanelSession]: { // TODO@bpasero review this setting later
 			type: 'boolean',
 			description: nls.localize('chat.restoreLastPanelSession', "Controls whether the last session is restored in panel after restart."),
-			default: true,
+			default: false,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -864,6 +860,13 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 		migrateFn: (value, _accessor) => ([
 			['chat.experimental.detectParticipant.enabled', { value: undefined }],
 			['chat.detectParticipant.enabled', { value: value !== false }]
+		])
+	},
+	{
+		key: 'chat.useClaudeSkills',
+		migrateFn: (value, _accessor) => ([
+			['chat.useClaudeSkills', { value: undefined }],
+			['chat.useAgentSkills', { value }]
 		])
 	},
 	{
@@ -950,10 +953,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			const treatmentId = this.entitlementService.entitlement === ChatEntitlement.Free ?
 				'chatAgentMaxRequestsFree' :
 				'chatAgentMaxRequestsPro';
-			Promise.all([
-				this.experimentService.getTreatment<number>(treatmentId),
-				this.experimentService.getTreatment<number>('chatAgentMaxRequestsLimit')
-			]).then(([value, maxLimit]) => {
+			this.experimentService.getTreatment<number>(treatmentId).then((value) => {
 				const defaultValue = value ?? (this.entitlementService.entitlement === ChatEntitlement.Free ? 25 : 25);
 				const node: IConfigurationNode = {
 					id: 'chatSidebar',
@@ -964,7 +964,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 							type: 'number',
 							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn when using an agent. When the limit is reached, will ask to confirm to continue."),
 							default: defaultValue,
-							maximum: maxLimit,
 						},
 					}
 				};
@@ -1197,6 +1196,7 @@ registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchP
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguageFeaturesProvider, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatAccessibilityActions();

@@ -43,20 +43,65 @@ function getIconClass(iconPath: { dark: URI; light?: URI } | undefined): string 
 	return iconClass;
 }
 
+class QuickInputToggleButtonAction implements IAction {
+	class: string | undefined;
+
+	constructor(
+		public readonly id: string,
+		public label: string,
+		public tooltip: string,
+		className: string | undefined,
+		public enabled: boolean,
+		private _checked: boolean,
+		public run: () => unknown
+	) {
+		this.class = className;
+	}
+
+	get checked(): boolean {
+		return this._checked;
+	}
+
+	set checked(value: boolean) {
+		this._checked = value;
+		// Toggles behave like buttons. When clicked, they run... the only difference is that their checked state also changes.
+		this.run();
+	}
+}
+
 export function quickInputButtonToAction(button: IQuickInputButton, id: string, run: () => unknown): IAction {
 	let cssClasses = button.iconClass || getIconClass(button.iconPath);
 	if (button.alwaysVisible) {
 		cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
 	}
 
-	return {
-		id,
-		label: '',
-		tooltip: button.tooltip || '',
-		class: cssClasses,
-		enabled: true,
-		run
+	const handler = () => {
+		if (button.toggle) {
+			button.toggle.checked = !button.toggle.checked;
+		}
+		return run();
 	};
+
+	const action = button.toggle
+		? new QuickInputToggleButtonAction(
+			id,
+			'',
+			button.tooltip || '',
+			cssClasses,
+			true,
+			button.toggle.checked,
+			handler
+		)
+		: {
+			id,
+			label: '',
+			tooltip: button.tooltip || '',
+			class: cssClasses,
+			enabled: true,
+			run: handler,
+		};
+
+	return action;
 }
 
 export function renderQuickInputDescription(description: string, container: HTMLElement, actionHandler: { callback: (content: string) => void; disposables: DisposableStore }) {
