@@ -1474,7 +1474,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
 				}
 			}
-			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
+			// Allow symbol codicons to show their colors in custom tree views
+			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon codicon-colored ${iconClass}` : '';
 			templateData.icon.style.backgroundImage = '';
 		}
 
