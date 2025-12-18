@@ -30,8 +30,6 @@ import { getWindowById } from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { INotebookExecutionStateService } from '../../../contrib/notebook/common/notebookExecutionStateService.js';
-import { NOTEBOOK_EDITOR_ID, NotebookCellExecutionState } from '../../../contrib/notebook/common/notebookCommon.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -83,6 +81,7 @@ export class WindowTitle extends Disposable {
 
 	private titleIncludesFocusedView: boolean = false;
 	private titleIncludesEditorState: boolean = false;
+	private titleIncludesNotebookStatus: boolean = false;
 
 	private readonly windowId: number;
 
@@ -98,8 +97,7 @@ export class WindowTitle extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -127,13 +125,12 @@ export class WindowTitle extends Disposable {
 			if (e.affectsSome(this.variables)) {
 				this.titleUpdater.schedule();
 			}
-		}));
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.titleUpdater.schedule()));
-		this._register(this.notebookExecutionStateService.onDidChangeExecution(() => {
-			if (this.accessibilityService.isScreenReaderOptimized()) {
+			// Update title when notebook execution state changes (notebookHasSomethingRunning context key)
+			if (this.titleIncludesNotebookStatus && e.affectsSome(new Set(['notebookHasSomethingRunning']))) {
 				this.titleUpdater.schedule();
 			}
 		}));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
@@ -153,6 +150,9 @@ export class WindowTitle extends Disposable {
 			this.titleIncludesFocusedView = titleTemplate.includes('${focusedView}');
 			this.titleIncludesEditorState = titleTemplate.includes('${activeEditorState}');
 		}
+		// Notebook status is added dynamically for screen reader users, check if it would be included
+		this.titleIncludesNotebookStatus = this.accessibilityService.isScreenReaderOptimized() && 
+			this.configurationService.getValue('accessibility.windowTitleOptimized');
 	}
 
 	private onActiveEditorChange(): void {
@@ -437,21 +437,14 @@ export class WindowTitle extends Disposable {
 			return undefined;
 		}
 
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (!activeEditorPane || activeEditorPane.getId() !== NOTEBOOK_EDITOR_ID) {
+		// Check if the active editor is a notebook using the editor ID from activeEditor
+		const activeEditor = this.editorService.activeEditor;
+		if (!activeEditor || activeEditor.editorId?.value !== 'workbench.editor.notebook') {
 			return undefined;
 		}
 
-		// Get the notebook URI
-		const notebookUri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
-		if (!notebookUri) {
-			return undefined;
-		}
-
-		// Check if any cells are executing
-		const executions = this.notebookExecutionStateService.getCellExecutionsForNotebook(notebookUri);
-		const hasExecutingCells = executions.some(exe => exe.state === NotebookCellExecutionState.Executing);
-
+		// Check if any cells are executing using the context key
+		const hasExecutingCells = this.contextKeyService.getContextKeyValue<boolean>('notebookHasSomethingRunning');
 		if (hasExecutingCells) {
 			return localize('notebookExecuting', "Notebook Cells Executing");
 		}
