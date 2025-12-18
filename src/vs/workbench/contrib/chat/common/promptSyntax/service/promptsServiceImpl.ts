@@ -23,6 +23,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
@@ -95,7 +96,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -619,26 +621,90 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const previewFeaturesEnabled = defaultAccount?.chat_preview_features_enabled ?? true;
 		if (useAgentSkills && previewFeaturesEnabled) {
 			const result: IAgentSkill[] = [];
-			const process = async (uri: URI, type: 'personal' | 'project'): Promise<void> => {
+			const seenNames = new Set<string>();
+			const skillTypes = new Map<string, number>();
+			let skippedMissingName = 0;
+			let skippedDuplicateName = 0;
+			let skippedParseFailed = 0;
+
+			const process = async (uri: URI, skillType: string, scopeType: 'personal' | 'project'): Promise<void> => {
 				try {
 					const parsedFile = await this.parseNew(uri, token);
 					const name = parsedFile.header?.name;
-					if (name) {
-						const sanitizedName = this.truncateAgentSkillName(name, uri);
-						const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
-						result.push({ uri, type, name: sanitizedName, description: sanitizedDescription } satisfies IAgentSkill);
-					} else {
+					if (!name) {
+						skippedMissingName++;
 						this.logger.error(`[findAgentSkills] Agent skill file missing name attribute: ${uri}`);
+						return;
 					}
+
+					const sanitizedName = this.truncateAgentSkillName(name, uri);
+
+					// Check for duplicate names
+					if (seenNames.has(sanitizedName)) {
+						skippedDuplicateName++;
+						this.logger.warn(`[findAgentSkills] Skipping duplicate agent skill name: ${sanitizedName} at ${uri}`);
+						return;
+					}
+
+					seenNames.add(sanitizedName);
+					const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
+					result.push({ uri, type: scopeType, name: sanitizedName, description: sanitizedDescription } satisfies IAgentSkill);
+
+					// Track skill type
+					skillTypes.set(skillType, (skillTypes.get(skillType) || 0) + 1);
 				} catch (e) {
+					skippedParseFailed++;
 					this.logger.error(`[findAgentSkills] Failed to parse Agent skill file: ${uri}`, e instanceof Error ? e.message : String(e));
 				}
 			};
 
 			const workspaceSkills = await this.fileLocator.findAgentSkillsInWorkspace(token);
-			await Promise.all(workspaceSkills.map(uri => process(uri, 'project')));
+			await Promise.all(workspaceSkills.map(({ uri, type }) => process(uri, type, 'project')));
 			const userSkills = await this.fileLocator.findAgentSkillsInUserHome(token);
-			await Promise.all(userSkills.map(uri => process(uri, 'personal')));
+			await Promise.all(userSkills.map(({ uri, type }) => process(uri, type, 'personal')));
+
+			// Send telemetry about skill usage
+			type AgentSkillsFoundEvent = {
+				totalSkillsFound: number;
+				claudePersonal: number;
+				claudeWorkspace: number;
+				copilotPersonal: number;
+				githubWorkspace: number;
+				customPersonal: number;
+				customWorkspace: number;
+				skippedDuplicateName: number;
+				skippedMissingName: number;
+				skippedParseFailed: number;
+			};
+
+			type AgentSkillsFoundClassification = {
+				totalSkillsFound: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of agent skills found.' };
+				claudePersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Claude personal skills.' };
+				claudeWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Claude workspace skills.' };
+				copilotPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Copilot personal skills.' };
+				githubWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of GitHub workspace skills.' };
+				customPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom personal skills.' };
+				customWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom workspace skills.' };
+				skippedDuplicateName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to duplicate names.' };
+				skippedMissingName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing name attribute.' };
+				skippedParseFailed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to parse failures.' };
+				owner: 'pawang';
+				comment: 'Tracks agent skill usage, discovery, and skipped files.';
+			};
+
+			this.telemetryService.publicLog2<AgentSkillsFoundEvent, AgentSkillsFoundClassification>('agentSkillsFound', {
+				totalSkillsFound: result.length,
+				claudePersonal: skillTypes.get('claude-personal') ?? 0,
+				claudeWorkspace: skillTypes.get('claude-workspace') ?? 0,
+				copilotPersonal: skillTypes.get('copilot-personal') ?? 0,
+				githubWorkspace: skillTypes.get('github-workspace') ?? 0,
+				customPersonal: skillTypes.get('custom-personal') ?? 0,
+				customWorkspace: skillTypes.get('custom-workspace') ?? 0,
+				skippedDuplicateName,
+				skippedMissingName,
+				skippedParseFailed
+			});
+
 			return result;
 		}
 		return undefined;
