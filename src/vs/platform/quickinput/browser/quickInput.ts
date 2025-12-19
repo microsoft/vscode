@@ -483,9 +483,9 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 					async () => this.onDidTriggerButtonEmitter.fire(button)
 				));
 			this.ui.inlineActionBar.push(inlineButtons, { icon: true, label: false });
-			// Adjust count badge position based on inline buttons (each button/toggle is ~22px wide)
-			const inlineButtonOffset = this._inlineButtons.length * 22;
-			this.ui.countContainer.style.right = inlineButtonOffset > 0 ? `${4 + inlineButtonOffset}px` : '4px';
+			// Adjust count badge position based on input buttons (each button/toggle is ~22px wide)
+			const inputButtonOffset = this._inputButtons.length * 22;
+			this.ui.countContainer.style.right = inputButtonOffset > 0 ? `${4 + inputButtonOffset}px` : '4px';
 			this.ui.inputBox.actions = this._inputButtons
 				.map((button, index) => quickInputButtonToAction(
 					button,
