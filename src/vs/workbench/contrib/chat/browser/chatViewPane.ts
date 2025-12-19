@@ -367,6 +367,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const { position } = this.getViewPositionAndLocation();
 				return position === Position.RIGHT ? HoverPosition.LEFT : HoverPosition.RIGHT;
 			},
+			trackActiveEditorSession: () => {
+				return !this._widget || this._widget?.isEmpty(); // only track and reveal unless we show a chat in the this pane
+			},
 			overrideCompare(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined {
 
 				// When limited where only few sessions show, sort unread sessions to the top
