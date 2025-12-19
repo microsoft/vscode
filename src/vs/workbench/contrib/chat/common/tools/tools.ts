@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ILanguageModelToolsService, ToolDataSource, VSCodeToolReference } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, SpecedToolAliases, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { ConfirmationTool, ConfirmationToolData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool, TodoListToolDescriptionFieldSettingId, TodoListToolWriteOnlySettingId } from './manageTodoListTool.js';
@@ -42,14 +42,30 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
 
 		const runSubagentTool = this._register(instantiationService.createInstance(RunSubagentTool));
-		const runSubagentToolData = runSubagentTool.getToolData();
-		this._register(toolsService.registerTool(runSubagentToolData, runSubagentTool));
-
-		const customAgentToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'custom-agent', VSCodeToolReference.agent, {
+		const customAgentToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'custom-agent', SpecedToolAliases.agent, {
 			icon: ThemeIcon.fromId(Codicon.agent.id),
 			description: localize('toolset.custom-agent', 'Delegate tasks to other agents'),
 		}));
-		this._register(customAgentToolSet.addTool(runSubagentToolData));
+
+		let runSubagentRegistration: IDisposable | undefined;
+		let toolSetRegistration: IDisposable | undefined;
+		const registerRunSubagentTool = () => {
+			runSubagentRegistration?.dispose();
+			toolSetRegistration?.dispose();
+			const runSubagentToolData = runSubagentTool.getToolData();
+			runSubagentRegistration = toolsService.registerTool(runSubagentToolData, runSubagentTool);
+			toolSetRegistration = customAgentToolSet.addTool(runSubagentToolData);
+		};
+		registerRunSubagentTool();
+		this._register(runSubagentTool.onDidUpdateToolData(registerRunSubagentTool));
+		this._register({
+			dispose: () => {
+				runSubagentRegistration?.dispose();
+				toolSetRegistration?.dispose();
+			}
+		});
+
+
 	}
 }
 

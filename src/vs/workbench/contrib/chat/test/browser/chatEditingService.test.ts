@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -108,6 +107,7 @@ suite('ChatEditingService', function () {
 
 		store.add(insta.get(IChatSessionsService) as ChatSessionsService); // Needs to be disposed in between test runs to clear extensionPoint contribution
 		store.add(chatService as ChatService);
+		chatService.setSaveModelsEnabled(false);
 
 		const chatAgentService = insta.get(IChatAgentService);
 
@@ -132,7 +132,6 @@ suite('ChatEditingService', function () {
 
 	teardown(async () => {
 		store.clear();
-		await chatService.waitForModelDisposals();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -140,7 +139,7 @@ suite('ChatEditingService', function () {
 	test('create session', async function () {
 		assert.ok(editingService);
 
-		const modelRef = chatService.startSession(ChatAgentLocation.EditorInline, CancellationToken.None);
+		const modelRef = chatService.startSession(ChatAgentLocation.EditorInline);
 		const model = modelRef.object as ChatModel;
 		const session = editingService.createEditingSession(model, true);
 
@@ -161,7 +160,7 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
-		const modelRef = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
+		const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
 		const model = modelRef.object as ChatModel;
 		const session = model.editingSession;
 		if (!session) {
@@ -188,8 +187,6 @@ suite('ChatEditingService', function () {
 		await unset;
 
 		await entry.reject();
-
-		modelRef.dispose();
 	});
 
 	async function idleAfterEdit(session: IChatEditingSession, model: ChatModel, uri: URI, edits: TextEdit[]) {
@@ -220,7 +217,7 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');
@@ -254,7 +251,7 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');
@@ -288,7 +285,7 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');
@@ -324,7 +321,7 @@ suite('ChatEditingService', function () {
 
 			const modified = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');

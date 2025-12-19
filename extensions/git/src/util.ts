@@ -8,6 +8,7 @@ import { dirname, normalize, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
+import { Stash } from './git';
 
 export const isMacintosh = process.platform === 'darwin';
 export const isWindows = process.platform === 'win32';
@@ -140,6 +141,9 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 	}, Object.create(null));
 }
 
+export function coalesce<T>(array: ReadonlyArray<T | undefined>): T[] {
+	return array.filter((e): e is T => !!e);
+}
 
 export async function mkdirp(path: string, mode?: number): Promise<boolean> {
 	const mkdir = async () => {
@@ -845,4 +849,20 @@ export function extractFilePathFromArgs(argv: string[], startIndex: number): str
 	// If no closing quote was found, remove
 	// leading quote and return the path as-is
 	return path.slice(1);
+}
+
+export function getStashDescription(stash: Stash): string | undefined {
+	if (!stash.commitDate && !stash.branchName) {
+		return undefined;
+	}
+
+	const descriptionSegments: string[] = [];
+	if (stash.commitDate) {
+		descriptionSegments.push(fromNow(stash.commitDate));
+	}
+	if (stash.branchName) {
+		descriptionSegments.push(stash.branchName);
+	}
+
+	return descriptionSegments.join(' \u2022 ');
 }

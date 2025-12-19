@@ -48,6 +48,8 @@ export class CodeCell extends Disposable {
 	private _collapsedExecutionIcon: CollapsedCodeCellExecutionIcon;
 	private _cellEditorOptions: CellEditorOptions;
 	private _useNewApproachForEditorLayout = true;
+	private _pointerDownInEditor = false;
+	private _pointerDraggingInEditor = false;
 	private readonly _cellLayout: CodeCellLayout;
 	private readonly _debug: (output: string) => void;
 	constructor(
@@ -342,6 +344,10 @@ export class CodeCell extends Disposable {
 
 		if (this._useNewApproachForEditorLayout) {
 			this._register(this.templateData.editor.onDidScrollChange(e => {
+				// Option 4: Gate scroll-driven reactions during active drag-selection
+				if (this._pointerDownInEditor || this._pointerDraggingInEditor) {
+					return;
+				}
 				if (this._cellLayout.editorVisibility === 'Invisible' || !this.templateData.editor.hasTextFocus()) {
 					return;
 				}
@@ -376,6 +382,11 @@ export class CodeCell extends Disposable {
 				// nor if the text editor is not actually focused (e.g. inline chat is focused and modifying the cell content)
 				|| !this.templateData.editor.hasTextFocus()
 			) {
+				return;
+			}
+
+			// Option 3: Avoid relayouts during active pointer drag to prevent stuck selection mode
+			if ((this._pointerDownInEditor || this._pointerDraggingInEditor) && this._useNewApproachForEditorLayout) {
 				return;
 			}
 
@@ -417,13 +428,70 @@ export class CodeCell extends Disposable {
 	}
 
 	private registerMouseListener() {
+		// Pointer-state handling in notebook cell editors has a couple of easy-to-regress edge cases:
+		// 1) Holding the left mouse button while wheel/trackpad scrolling should scroll as usual.
+		//    We therefore only treat the interaction as an "active drag selection" after actual pointer movement.
+		// 2) "Stuck selection mode" can occur if we miss the corresponding mouseup (e.g. releasing outside the window,
+		//    focus loss, or ESC cancelling Monaco selection/drag). When this happens, leaving any of our drag/pointer
+		//    flags set will incorrectly gate scroll/layout syncing and make the editor feel stuck.
+		//    To avoid that, we reset state on multiple cancellation paths and also self-heal on mousemove.
+		const resetPointerState = () => {
+			this._pointerDownInEditor = false;
+			this._pointerDraggingInEditor = false;
+			this._cellLayout.setPointerDown(false);
+		};
+
 		this._register(this.templateData.editor.onMouseDown(e => {
 			// prevent default on right mouse click, otherwise it will trigger unexpected focus changes
 			// the catch is, it means we don't allow customization of right button mouse down handlers other than the built in ones.
 			if (e.event.rightButton) {
 				e.event.preventDefault();
 			}
+
+			if (this._useNewApproachForEditorLayout) {
+				// Track pointer-down and pointer-drag separately.
+				// Holding the left button while wheel/trackpad scrolling should behave like normal scrolling.
+				if (e.event.leftButton) {
+					this._pointerDownInEditor = true;
+					this._pointerDraggingInEditor = false;
+					this._cellLayout.setPointerDown(false);
+				}
+			}
 		}));
+
+		if (this._useNewApproachForEditorLayout) {
+			this._register(this.templateData.editor.onMouseMove(e => {
+				if (!this._pointerDownInEditor) {
+					return;
+				}
+
+				// Self-heal: if we missed a mouseup (e.g. focus loss), clear the drag state as soon as we can observe it.
+				if (!e.event.leftButton) {
+					resetPointerState();
+					return;
+				}
+
+				if (!this._pointerDraggingInEditor) {
+					// Only consider it a drag-selection once the pointer actually moves with the left button down.
+					this._pointerDraggingInEditor = true;
+					this._cellLayout.setPointerDown(true);
+				}
+			}));
+		}
+
+		if (this._useNewApproachForEditorLayout) {
+			// Ensure we reset pointer-down even if mouseup lands outside the editor
+			const win = DOM.getWindow(this.notebookEditor.getDomNode());
+			this._register(DOM.addDisposableListener(win, 'mouseup', resetPointerState));
+			this._register(DOM.addDisposableListener(win, 'pointerup', resetPointerState));
+			this._register(DOM.addDisposableListener(win, 'pointercancel', resetPointerState));
+			this._register(DOM.addDisposableListener(win, 'blur', resetPointerState));
+			this._register(DOM.addDisposableListener(win, 'keydown', e => {
+				if (e.key === 'Escape' && (this._pointerDownInEditor || this._pointerDraggingInEditor)) {
+					resetPointerState();
+				}
+			}));
+		}
 	}
 
 	private shouldPreserveEditor() {
@@ -675,6 +743,7 @@ export class CodeCellLayout {
 	public _previousScrollBottom?: number;
 	public _lastChangedEditorScrolltop?: number;
 	private _initialized: boolean = false;
+	private _pointerDown: boolean = false;
 	constructor(
 		private readonly _enabled: boolean,
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -684,6 +753,10 @@ export class CodeCellLayout {
 		private readonly _initialEditorDimension: IDimension
 	) {
 	}
+
+	public setPointerDown(isDown: boolean) {
+		this._pointerDown = isDown;
+	}
 	/**
 	 * Dynamically lays out the code cell's Monaco editor to simulate a "sticky" run/exec area while
 	 * constraining the visible editor height to the notebook viewport. It adjusts two things:
@@ -692,6 +765,16 @@ export class CodeCellLayout {
 	 *  - The editor's layout height plus the editor's internal scroll position (`editorScrollTop`) to
 	 *    crop content when the cell is partially visible (top or bottom clipped) or when content is
 	 *    taller than the viewport.
+	 *
+	 * Additional invariants:
+	 *  - Content height stability: once the layout has been initialized, scroll-driven re-layouts can
+	 *    observe transient Monaco content heights that reflect the current clipped layout (rather than
+	 *    the full input height). To keep the notebook list layout stable (avoiding overlapping cells
+	 *    while navigating/scrolling), we reuse the previously established content height for all reasons
+	 *    except `onDidContentSizeChange`.
+	 *  - Pointer-drag gating: while the user is holding the mouse button down in the editor (drag
+	 *    selection or potential drag selection), we avoid programmatic `editor.setScrollTop(...)` updates
+	 *    to prevent selection/scroll feedback loops and "stuck selection" behavior.
 	 *
 	 * ---------------------------------------------------------------------------
 	 * SECTION 1. OVERALL NOTEBOOK VIEW (EACH CELL HAS AN 18px GAP ABOVE IT)
@@ -784,7 +867,10 @@ export class CodeCellLayout {
 		const elementBottom = this.notebookEditor.getAbsoluteBottomOfElement(this.viewCell);
 		const elementHeight = this.notebookEditor.getHeightOfElement(this.viewCell);
 		const gotContentHeight = editor.getContentHeight();
-		const editorContentHeight = Math.max((gotContentHeight === -1 ? editor.getLayoutInfo().height : gotContentHeight), gotContentHeight === -1 ? this._initialEditorDimension.height : gotContentHeight); // || this.calculatedEditorHeight || 0;
+		// If we've already calculated the editor content height once before and the contents haven't changed, use that.
+		const previouslyCalculatedHeight = this._initialized && reason !== 'onDidContentSizeChange' ? this._initialEditorDimension.height : undefined;
+		const fallbackEditorContentHeight = gotContentHeight === -1 ? Math.max(editor.getLayoutInfo().height, this._initialEditorDimension.height) : gotContentHeight;
+		const editorContentHeight = previouslyCalculatedHeight ?? fallbackEditorContentHeight; // || this.calculatedEditorHeight || 0;
 		const editorBottom = elementTop + this.viewCell.layoutInfo.outputContainerOffset;
 		const scrollBottom = this.notebookEditor.scrollBottom;
 		// When loading, scrollBottom -scrollTop === 0;
@@ -830,7 +916,7 @@ export class CodeCellLayout {
 			}
 		}
 
-		this._logService.debug(`${reason} (${this._editorVisibility})`);
+		this._logService.debug(`${reason} (${this._editorVisibility}, ${this._initialized})`);
 		this._logService.debug(`=> Editor Top = ${top}px (editHeight = ${editorHeight}, editContentHeight: ${editorContentHeight})`);
 		this._logService.debug(`=> eleTop = ${elementTop}, eleBottom = ${elementBottom}, eleHeight = ${elementHeight}`);
 		this._logService.debug(`=> scrollTop = ${scrollTop}, top = ${top}`);
@@ -845,7 +931,8 @@ export class CodeCellLayout {
 				width: this._initialized ? editorWidth : this._initialEditorDimension.width,
 				height
 			}, true);
-			if (editorScrollTop >= 0) {
+			// Option 3: Avoid programmatic scrollTop changes while user is actively dragging selection
+			if (!this._pointerDown && editorScrollTop >= 0) {
 				this._lastChangedEditorScrolltop = editorScrollTop;
 				editor.setScrollTop(editorScrollTop);
 			}

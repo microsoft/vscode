@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IDisposable, IReference, ReferenceCollection } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable, IReference, ReferenceCollection } from '../../../../base/common/lifecycle.js';
 import { ObservableMap } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatEditingSession } from './chatEditingService.js';
-import { ChatModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { ChatModel, IExportableChatData, ISerializableChatData, ISerializableChatModelInputState } from './chatModel.js';
 import { ChatAgentLocation } from './constants.js';
 
 export interface IStartSessionProps {
 	readonly initialData?: IExportableChatData | ISerializableChatData;
 	readonly location: ChatAgentLocation;
-	readonly token: CancellationToken;
 	readonly sessionResource: URI;
 	readonly sessionId?: string;
 	readonly canUseTools: boolean;
 	readonly transferEditingSession?: IChatEditingSession;
+	readonly disableBackgroundKeepAlive?: boolean;
+	readonly inputState?: ISerializableChatModelInputState;
 }
 
 export interface ChatModelStoreDelegate {
@@ -28,9 +29,14 @@ export interface ChatModelStoreDelegate {
 }
 
 export class ChatModelStore extends ReferenceCollection<ChatModel> implements IDisposable {
+	private readonly _store = new DisposableStore();
+
 	private readonly _models = new ObservableMap<string, ChatModel>();
 	private readonly _modelsToDispose = new Set<string>();
 	private readonly _pendingDisposals = new Set<Promise<void>>();
+
+	private readonly _onDidDisposeModel = this._store.add(new Emitter<ChatModel>());
+	public readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
 	constructor(
 		private readonly delegate: ChatModelStoreDelegate,
@@ -108,6 +114,7 @@ export class ChatModelStore extends ReferenceCollection<ChatModel> implements ID
 			if (this._modelsToDispose.has(key)) {
 				this.logService.trace(`Disposing chat session ${key}`);
 				this._models.delete(key);
+				this._onDidDisposeModel.fire(object);
 				object.dispose();
 			}
 			this._modelsToDispose.delete(key);
@@ -126,6 +133,7 @@ export class ChatModelStore extends ReferenceCollection<ChatModel> implements ID
 	}
 
 	dispose(): void {
+		this._store.dispose();
 		this._models.forEach(model => model.dispose());
 	}
 }

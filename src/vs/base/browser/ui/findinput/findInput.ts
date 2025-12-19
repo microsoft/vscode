@@ -13,6 +13,8 @@ import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBox
 import { Widget } from '../widget.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode } from '../../../common/keyCodes.js';
+import { IAction } from '../../../common/actions.js';
+import type { IActionViewItemProvider } from '../actionbar/actionbar.js';
 import './findInput.css';
 import * as nls from '../../../../nls.js';
 import { DisposableStore, MutableDisposable } from '../../../common/lifecycle.js';
@@ -34,6 +36,8 @@ export interface IFindInputOptions {
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
 	readonly additionalToggles?: Toggle[];
+	readonly actions?: ReadonlyArray<IAction>;
+	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly showHistoryHint?: () => boolean;
 	readonly toggleStyles: IToggleStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
@@ -112,7 +116,9 @@ export class FindInput extends Widget {
 			flexibleWidth,
 			flexibleMaxHeight,
 			inputBoxStyles: options.inputBoxStyles,
-			history: options.history
+			history: options.history,
+			actions: options.actions,
+			actionViewItemProvider: options.actionViewItemProvider
 		}));
 
 		if (this.showCommonFindToggles) {
@@ -305,6 +311,10 @@ export class FindInput extends Widget {
 		}
 
 		this.updateInputBoxPadding();
+	}
+
+	public setActions(actions: ReadonlyArray<IAction> | undefined, actionViewItemProvider?: IActionViewItemProvider): void {
+		this.inputBox.setActions(actions, actionViewItemProvider);
 	}
 
 	private updateInputBoxPadding(controlsHidden = false) {

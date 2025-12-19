@@ -30,28 +30,28 @@ import { LanguageModelPartAudience } from './languageModels.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 
 export interface IToolData {
-	id: string;
-	source: ToolDataSource;
-	toolReferenceName?: string;
-	legacyToolReferenceFullNames?: string[];
-	icon?: { dark: URI; light?: URI } | ThemeIcon;
-	when?: ContextKeyExpression;
-	tags?: string[];
-	displayName: string;
-	userDescription?: string;
-	modelDescription: string;
-	inputSchema?: IJSONSchema;
-	canBeReferencedInPrompt?: boolean;
+	readonly id: string;
+	readonly source: ToolDataSource;
+	readonly toolReferenceName?: string;
+	readonly legacyToolReferenceFullNames?: readonly string[];
+	readonly icon?: { dark: URI; light?: URI } | ThemeIcon;
+	readonly when?: ContextKeyExpression;
+	readonly tags?: readonly string[];
+	readonly displayName: string;
+	readonly userDescription?: string;
+	readonly modelDescription: string;
+	readonly inputSchema?: IJSONSchema;
+	readonly canBeReferencedInPrompt?: boolean;
 	/**
 	 * True if the tool runs in the (possibly remote) workspace, false if it runs
 	 * on the host, undefined if known.
 	 */
-	runsInWorkspace?: boolean;
-	alwaysDisplayInputOutput?: boolean;
+	readonly runsInWorkspace?: boolean;
+	readonly alwaysDisplayInputOutput?: boolean;
 	/** True if this tool might ask for pre-approval */
-	canRequestPreApproval?: boolean;
+	readonly canRequestPreApproval?: boolean;
 	/** True if this tool might ask for post-approval */
-	canRequestPostApproval?: boolean;
+	readonly canRequestPostApproval?: boolean;
 }
 
 export interface IToolProgressStep {
@@ -126,6 +126,7 @@ export namespace ToolDataSource {
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: Record<string, any>;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
@@ -146,11 +147,13 @@ export interface IToolInvocationContext {
 	readonly sessionResource: URI;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
 	return typeof obj === 'object' && typeof obj.sessionId === 'string' && URI.isUri(obj.sessionResource);
 }
 
 export interface IToolInvocationPreparationContext {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: any;
 	chatRequestId?: string;
 	chatSessionId?: string;
@@ -187,10 +190,12 @@ export interface IToolResultOutputDetails {
 	readonly output: { type: 'data'; mimeType: string; value: VSBuffer };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInputOutputDetails {
 	return typeof obj === 'object' && typeof obj?.input === 'string' && (typeof obj?.output === 'string' || Array.isArray(obj?.output));
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isToolResultOutputDetails(obj: any): obj is IToolResultOutputDetails {
 	return typeof obj === 'object' && typeof obj?.output === 'object' && typeof obj?.output?.mimeType === 'string' && obj?.output?.type === 'data';
 }
@@ -235,6 +240,7 @@ export interface IToolResultTextPart {
 	kind: 'text';
 	value: string;
 	audience?: LanguageModelPartAudience[];
+	title?: string;
 }
 
 export interface IToolResultDataPart {
@@ -244,6 +250,7 @@ export interface IToolResultDataPart {
 		data: VSBuffer;
 	};
 	audience?: LanguageModelPartAudience[];
+	title?: string;
 }
 
 export interface IToolConfirmationMessages {
@@ -262,6 +269,7 @@ export interface IToolConfirmationAction {
 	label: string;
 	disabled?: boolean;
 	tooltip?: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	data: any;
 }
 
@@ -354,7 +362,8 @@ export interface ILanguageModelToolsService {
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
-	getTools(): Iterable<Readonly<IToolData>>;
+	getTools(): Iterable<IToolData>;
+	readonly toolsObservable: IObservable<readonly IToolData[]>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
@@ -367,15 +376,14 @@ export interface ILanguageModelToolsService {
 	getToolSetByName(name: string): ToolSet | undefined;
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyFullNames?: string[] }): ToolSet & IDisposable;
 
-	// tool names in prompt files handling ('qualified names')
+	// tool names in prompt and agent files ('full reference names')
+	getFullReferenceNames(): Iterable<string>;
+	getFullReferenceName(tool: IToolData, toolSet?: ToolSet): string;
+	getToolByFullReferenceName(fullReferenceName: string): IToolData | ToolSet | undefined;
+	getDeprecatedFullReferenceNames(): Map<string, Set<string>>;
 
-	getQualifiedToolNames(): Iterable<string>;
-	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
-	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
-	getDeprecatedQualifiedToolNames(): Map<string, Set<string>>;
-
-	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
-	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
+	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
+	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 
@@ -390,17 +398,18 @@ export function createToolSchemaUri(toolOrId: IToolData | string): URI {
 	return URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolOrId}` });
 }
 
-export namespace GithubCopilotToolReference {
-	export const shell = 'shell';
+export namespace SpecedToolAliases {
+	export const execute = 'execute';
 	export const edit = 'edit';
 	export const search = 'search';
-	export const customAgent = 'custom-agent';
+	export const agent = 'agent';
+	export const read = 'read';
+	export const web = 'web';
+	export const todo = 'todo';
 }
 
 export namespace VSCodeToolReference {
-	export const agent = 'agent';
-	export const execute = 'execute';
 	export const runSubagent = 'runSubagent';
 	export const vscode = 'vscode';
-	export const read = 'read';
+
 }

@@ -55,9 +55,9 @@ import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../common/constants.js';
 import { ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
+import { ChatSubmitAction, IChatExecuteActionContext } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { resizeImage } from '../imageUtils.js';
+import { resizeImage } from '../chatImageUtils.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
@@ -115,7 +115,7 @@ class SlashCommandCompletions extends Disposable {
 							range,
 							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
 						};
 					})
 				};
@@ -160,7 +160,7 @@ class SlashCommandCompletions extends Disposable {
 							filterText: `${chatAgentLeader}${c.command}`,
 							sortText: c.sortText ?? 'z'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
 						};
 					})
 				};
@@ -1207,6 +1207,7 @@ class ToolCompletions extends Disposable {
 					}
 
 					let detail: string | undefined;
+					let documentation: string | undefined;
 
 					let name: string;
 					if (item instanceof ToolSet) {
@@ -1217,6 +1218,7 @@ class ToolCompletions extends Disposable {
 						const source = item.source;
 						detail = localize('tool_source_completion', "{0}: {1}", source.label, item.displayName);
 						name = item.toolReferenceName ?? item.displayName;
+						documentation = item.userDescription ?? item.modelDescription;
 					}
 
 					if (usedNames.has(name)) {
@@ -1228,6 +1230,7 @@ class ToolCompletions extends Disposable {
 						label: withLeader,
 						range,
 						detail,
+						documentation,
 						insertText: withLeader + ' ',
 						kind: CompletionItemKind.Tool,
 						sortText: 'z',

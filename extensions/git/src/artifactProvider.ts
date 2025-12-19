@@ -3,25 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable } from 'vscode';
-import { dispose, fromNow, IDisposable } from './util';
+import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable, Command } from 'vscode';
+import { coalesce, dispose, filterEvent, IDisposable } from './util';
 import { Repository } from './repository';
-import { Ref, RefType } from './api/git';
-
-function getArtifactDescription(ref: Ref, shortCommitLength: number): string {
-	const segments: string[] = [];
-	if (ref.commitDetails?.commitDate) {
-		segments.push(fromNow(ref.commitDetails.commitDate));
-	}
-	if (ref.commit) {
-		segments.push(ref.commit.substring(0, shortCommitLength));
-	}
-	if (ref.commitDetails?.message) {
-		segments.push(ref.commitDetails.message.split('\n')[0]);
-	}
-
-	return segments.join(' \u2022 ');
-}
+import { Commit, Ref, RefType } from './api/git';
+import { OperationKind } from './operation';
 
 /**
  * Sorts refs like a directory tree: refs with more path segments (directories) appear first
@@ -69,6 +55,13 @@ function sortRefByName(refA: Ref, refB: Ref): number {
 	return 0;
 }
 
+function sortByCommitDateDesc(a: { commitDetails?: Commit }, b: { commitDetails?: Commit }): number {
+	const aCommitDate = a.commitDetails?.commitDate?.getTime() ?? 0;
+	const bCommitDate = b.commitDetails?.commitDate?.getTime() ?? 0;
+
+	return bCommitDate - aCommitDate;
+}
+
 export class GitArtifactProvider implements SourceControlArtifactProvider, IDisposable {
 	private readonly _onDidChangeArtifacts = new EventEmitter<string[]>();
 	readonly onDidChangeArtifacts: Event<string[]> = this._onDidChangeArtifacts.event;
@@ -81,8 +74,10 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		private readonly logger: LogOutputChannel
 	) {
 		this._groups = [
-			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch') },
-			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag') }
+			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch'), supportsFolders: true },
+			{ id: 'stashes', name: l10n.t('Stashes'), icon: new ThemeIcon('git-stash'), supportsFolders: false },
+			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag'), supportsFolders: true },
+			{ id: 'worktrees', name: l10n.t('Worktrees'), icon: new ThemeIcon('worktree'), supportsFolders: false }
 		];
 
 		this._disposables.push(this._onDidChangeArtifacts);
@@ -98,6 +93,17 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 
 			this._onDidChangeArtifacts.fire(Array.from(groups));
 		}));
+
+		const onDidRunWriteOperation = filterEvent(
+			repository.onDidRunOperation, e => !e.operation.readOnly);
+
+		this._disposables.push(onDidRunWriteOperation(result => {
+			if (result.operation.kind === OperationKind.Stash) {
+				this._onDidChangeArtifacts.fire(['stashes']);
+			} else if (result.operation.kind === OperationKind.Worktree) {
+				this._onDidChangeArtifacts.fire(['worktrees']);
+			}
+		}));
 	}
 
 	provideArtifactGroups(): SourceControlArtifactGroup[] {
@@ -111,27 +117,65 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		try {
 			if (group === 'branches') {
 				const refs = await this.repository
-					.getRefs({ pattern: 'refs/heads', includeCommitDetails: true });
+					.getRefs({ pattern: 'refs/heads', includeCommitDetails: true, sort: 'creatordate' });
 
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/heads/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: getArtifactDescription(r, shortCommitLength),
+					description: coalesce([
+						r.commit?.substring(0, shortCommitLength),
+						r.commitDetails?.message.split('\n')[0]
+					]).join(' \u2022 '),
 					icon: this.repository.HEAD?.type === RefType.Head && r.name === this.repository.HEAD?.name
 						? new ThemeIcon('target')
-						: new ThemeIcon('git-branch')
+						: new ThemeIcon('git-branch'),
+					timestamp: r.commitDetails?.commitDate?.getTime()
 				}));
 			} else if (group === 'tags') {
 				const refs = await this.repository
-					.getRefs({ pattern: 'refs/tags', includeCommitDetails: true });
+					.getRefs({ pattern: 'refs/tags', includeCommitDetails: true, sort: 'creatordate' });
 
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/tags/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: getArtifactDescription(r, shortCommitLength),
+					description: coalesce([
+						r.commit?.substring(0, shortCommitLength),
+						r.commitDetails?.message.split('\n')[0]
+					]).join(' \u2022 '),
 					icon: this.repository.HEAD?.type === RefType.Tag && r.name === this.repository.HEAD?.name
 						? new ThemeIcon('target')
-						: new ThemeIcon('tag')
+						: new ThemeIcon('tag'),
+					timestamp: r.commitDetails?.commitDate?.getTime()
+				}));
+			} else if (group === 'stashes') {
+				const stashes = await this.repository.getStashes();
+
+				return stashes.map(s => ({
+					id: `stash@{${s.index}}`,
+					name: s.description,
+					description: s.branchName,
+					icon: new ThemeIcon('git-stash'),
+					timestamp: s.commitDate?.getTime(),
+					command: {
+						title: l10n.t('View Stash'),
+						command: 'git.repositories.stashView'
+					} satisfies Command
+				}));
+			} else if (group === 'worktrees') {
+				const worktrees = await this.repository.getWorktreeDetails();
+
+				return worktrees.sort(sortByCommitDateDesc).map(w => ({
+					id: w.path,
+					name: w.name,
+					description: coalesce([
+						w.detached ? l10n.t('detached') : w.ref.substring(11),
+						w.commitDetails?.hash.substring(0, shortCommitLength),
+						w.commitDetails?.message.split('\n')[0]
+					]).join(' \u2022 '),
+					icon: w.name.startsWith('copilot-worktree')
+						? new ThemeIcon('chat-sparkle')
+						: new ThemeIcon('worktree'),
+					timestamp: w.commitDetails?.commitDate?.getTime(),
 				}));
 			}
 		} catch (err) {

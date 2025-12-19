@@ -26,6 +26,7 @@ import { WordDistance } from './wordDistance.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 
 class SuggestInlineCompletion implements InlineCompletion {
+	readonly doNotLog = true;
 
 	constructor(
 		readonly range: IRange,
