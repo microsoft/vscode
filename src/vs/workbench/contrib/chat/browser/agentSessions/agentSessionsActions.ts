@@ -767,7 +767,6 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -791,7 +790,6 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -812,10 +810,7 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
-			),
+			precondition: ChatContextKeys.enabled,
 			f1: true,
 			category: CHAT_CATEGORY,
 		});
