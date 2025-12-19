@@ -14,6 +14,7 @@ on:
 jobs:
   # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
   copilot-setup-steps:
+    if: false
     runs-on: vscode-large-runners
 
     # Set the permissions to the lowest permissions possible needed for your steps.

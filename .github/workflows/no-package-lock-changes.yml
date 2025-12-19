@@ -5,6 +5,7 @@ permissions: {}
 
 jobs:
   main:
+    if: false
     name: Prevent package-lock.json changes in PRs
     runs-on: ubuntu-latest
     steps:

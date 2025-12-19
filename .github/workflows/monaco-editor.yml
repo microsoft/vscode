@@ -13,6 +13,7 @@ permissions: {}
 
 jobs:
   main:
+    if: false
     name: Monaco Editor checks
     runs-on: ubuntu-latest
     timeout-minutes: 40

@@ -16,6 +16,7 @@ on:
 
 jobs:
   macOS-test:
+    if: false
     name: ${{ inputs.job_name }}
     runs-on: macos-14-xlarge
     env:

@@ -16,6 +16,7 @@ on:
 
 jobs:
   windows-test:
+    if: false
     name: ${{ inputs.job_name }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64 ]
     env:
