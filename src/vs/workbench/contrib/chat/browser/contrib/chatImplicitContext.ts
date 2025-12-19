@@ -19,7 +19,6 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
-import { INTERACTIVE_WINDOW_EDITOR_ID, REPL_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { WebviewEditor } from '../../../webviewPanel/browser/webviewEditor.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
@@ -163,12 +162,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 	}
 
 	private findActiveNotebookEditor(): INotebookEditor | undefined {
-		const notebookEditor = getNotebookEditorFromEditorPane(this.editorService.activeEditorPane);
-		// Exclude interactive windows from implicit context
-		if (notebookEditor?.isReplHistory) {
-			return undefined;
-		}
-		return notebookEditor;
+		return getNotebookEditorFromEditorPane(this.editorService.activeEditorPane);
 	}
 
 	private async updateImplicitContext(updateWidget?: IChatWidget): Promise<void> {
@@ -206,7 +200,10 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		}
 
 		const notebookEditor = this.findActiveNotebookEditor();
-		if (notebookEditor) {
+		if (notebookEditor?.isReplHistory) {
+			// The chat APIs don't work well with Interactive Windows
+			newValue = undefined;
+		} else if (notebookEditor) {
 			const activeCell = notebookEditor.getActiveCell();
 			if (activeCell) {
 				const codeEditor = this.codeEditorService.getActiveCodeEditor();
