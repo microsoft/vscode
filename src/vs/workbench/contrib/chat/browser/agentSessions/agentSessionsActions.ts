@@ -278,7 +278,7 @@ export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 			title: localize2('markUnread', "Mark as Unread"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isReadAgentSession,
@@ -301,7 +301,7 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 			title: localize2('markRead', "Mark as Read"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isReadAgentSession.negate(),
@@ -339,7 +339,7 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 				when: ChatContextKeys.isArchivedAgentSession.negate(),
 			}, {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession.negate()
 			}]
@@ -388,7 +388,7 @@ export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
 				when: ChatContextKeys.isArchivedAgentSession,
 			}, {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession,
 			}]
@@ -419,7 +419,7 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 3,
 				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
 			}
@@ -445,7 +445,7 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 			title: localize2('delete', "Delete..."),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 4,
 				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
 			}
