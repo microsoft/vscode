@@ -19,6 +19,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
+import { INTERACTIVE_WINDOW_EDITOR_ID, REPL_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { WebviewEditor } from '../../../webviewPanel/browser/webviewEditor.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
@@ -162,7 +163,12 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 	}
 
 	private findActiveNotebookEditor(): INotebookEditor | undefined {
-		return getNotebookEditorFromEditorPane(this.editorService.activeEditorPane);
+		const notebookEditor = getNotebookEditorFromEditorPane(this.editorService.activeEditorPane);
+		// Exclude interactive windows from implicit context
+		if (notebookEditor?.isReplHistory) {
+			return undefined;
+		}
+		return notebookEditor;
 	}
 
 	private async updateImplicitContext(updateWidget?: IChatWidget): Promise<void> {
