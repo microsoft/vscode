@@ -947,7 +947,7 @@ export class Repository implements Disposable {
 		const icon = repository.kind === 'submodule'
 			? new ThemeIcon('archive')
 			: repository.kind === 'worktree'
-				? new ThemeIcon('list-tree')
+				? new ThemeIcon('worktree')
 				: new ThemeIcon('repo');
 
 		const root = Uri.file(repository.root);
