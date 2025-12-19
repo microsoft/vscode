@@ -141,6 +141,8 @@ export class QuickInputController extends Disposable {
 		const container = dom.append(this._container, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';
+		container.setAttribute('role', 'dialog');
+		container.setAttribute('aria-labelledby', 'quick-input-title');
 
 		const styleSheet = domStylesheetsJs.createStyleSheet(container);
 
@@ -153,6 +155,7 @@ export class QuickInputController extends Disposable {
 		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
 
 		const title = dom.append(titleBar, $('.quick-input-title'));
+		title.setAttribute('id', 'quick-input-title');
 
 		const rightActionBar = this._register(new ActionBar(titleBar, {
 			hoverDelegate: this.options.hoverDelegate,
