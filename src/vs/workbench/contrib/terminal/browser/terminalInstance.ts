@@ -208,7 +208,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _resizeDebouncer?: TerminalResizeDebouncer;
 	private _resizeOverlay: HTMLElement | undefined;
 	private _resizeOverlayHideTimeout: IDisposable | undefined;
-	private _isManuallyResizing: boolean = false;
+	private _preventResizeOverlay: boolean = true;
 
 	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
@@ -617,15 +617,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Register dimension change handler for resize overlay
 		this._register(this.onDimensionsChanged(() => this._handleDimensionsChanged()));
 
-		// Register window resize listeners for manual resize detection
-		this._register(dom.addDisposableListener(dom.getWindow(this._wrapperElement), 'resize', () => {
-			this._isManuallyResizing = true;
-			// Reset the flag after a delay to detect when resizing stops
-			this._resizeOverlayHideTimeout?.dispose();
-			this._resizeOverlayHideTimeout = disposableTimeout(() => {
-				this._isManuallyResizing = false;
-			}, OverlayConstants.ResizeOverlayHideDelay);
-		}));
+		this._preventResizeOverlay = true;
+		this.processReady.then(() => {
+			timeout(1000).then(() => {
+				this._preventResizeOverlay = false;
+			});
+		});
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
@@ -2025,7 +2022,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		if (!this._isManuallyResizing) {
+		if (this._preventResizeOverlay) {
 			return;
 		}
 
