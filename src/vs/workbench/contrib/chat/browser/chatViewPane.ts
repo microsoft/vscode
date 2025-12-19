@@ -60,6 +60,7 @@ import { IAgentSession } from './agentSessions/agentSessionsModel.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
+	sessionsViewerLimited?: boolean;
 }
 
 type ChatViewPaneOpenedClassification = {
@@ -117,6 +118,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		) {
 			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
+		this.sessionsViewerLimited = this.viewState.sessionsViewerLimited ?? true;
 
 		// Contextkeys
 		this.chatViewLocationContext = ChatContextKeys.panelLocation.bindTo(contextKeyService);
@@ -304,7 +306,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsLink: Link | undefined;
 	private sessionsCount = 0;
 	private sessionsViewerLimited = true;
-	private sessionsViewerLimitedConfiguration = true;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationConfiguration: 'stacked' | 'sideBySide' = 'sideBySide';
 	private sessionsViewerOrientationContext: IContextKey<AgentSessionsViewerOrientation>;
@@ -369,7 +370,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				return position === Position.RIGHT ? HoverPosition.LEFT : HoverPosition.RIGHT;
 			},
 			trackActiveEditorSession: () => {
-				return !this._widget || this._widget?.isEmpty(); // only track and reveal unless we show a chat in the this pane
+				return !this._widget || this._widget.isEmpty(); // only track and reveal if chat widget is empty
 			},
 			overrideCompare(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined {
 
@@ -401,9 +402,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}, {
 			opener: () => {
 				this.sessionsViewerLimited = !this.sessionsViewerLimited;
-
-				this.sessionsViewerLimitedConfiguration = this.sessionsViewerLimited;
-				this.configurationService.updateValue(ChatConfiguration.ChatViewSessionsStackedShowAll, !this.sessionsViewerLimited);
+				this.viewState.sessionsViewerLimited = this.sessionsViewerLimited;
 
 				this.notifySessionsControlLimitedChanged(true /* layout */, true /* update */);
 
@@ -415,15 +414,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.runAndSubscribe(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsOrientation)), e => {
 			const newSessionsViewerOrientationConfiguration = this.configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
 			this.doUpdateConfiguredSessionsViewerOrientation(newSessionsViewerOrientationConfiguration, { updateConfiguration: false, layout: !!e });
-		}));
-
-		// Deal with limited configuration
-		this._register(Event.runAndSubscribe(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsStackedShowAll)), e => {
-			this.sessionsViewerLimitedConfiguration = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsStackedShowAll) === false;
-			if (this.sessionsViewerLimitedConfiguration !== this.sessionsViewerLimited && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-				this.sessionsViewerLimited = this.sessionsViewerLimitedConfiguration; // only accept when we show stacked, side by side is always showing all
-				this.notifySessionsControlLimitedChanged(!!e /* layout */, !!e /* update */);
-			}
 		}));
 
 		return sessionsControl;
@@ -860,7 +850,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
 				this.sessionsViewerLimited = false; // side by side always shows all
 			} else {
-				this.sessionsViewerLimited = this.sessionsViewerLimitedConfiguration;
+				this.sessionsViewerLimited = this.viewState.sessionsViewerLimited ?? true;
 			}
 
 			let updatePromise: Promise<void>;
