@@ -16,7 +16,7 @@
 	z-index: 0;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-resize-overlay {
+.monaco-workbench .terminal-resize-overlay {
 	position: absolute;
 	left: 50%;
 	top: 50%;
@@ -31,17 +31,16 @@
 	opacity: 0;
 	transition: opacity 80ms ease-out;
 	z-index: 35;
-	font-family: var(--vscode-editor-font-family);
 	font-size: 11px;
 }
 
-.monaco-workbench.hc-black .pane-body.integrated-terminal .terminal-resize-overlay,
-.monaco-workbench.hc-light .pane-body.integrated-terminal .terminal-resize-overlay {
+.monaco-workbench.hc-black .terminal-resize-overlay,
+.monaco-workbench.hc-light .terminal-resize-overlay {
 	box-shadow: none;
 	border-color: var(--vscode-contrastBorder);
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-resize-overlay.visible {
+.monaco-workbench .terminal-resize-overlay.visible {
 	opacity: 1;
 }
 
@@ -173,8 +172,8 @@
 	position: relative;
 }
 
-.monaco-workbench .terminal-editor .terminal-wrapper > div,
-.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > div {
+.monaco-workbench .terminal-editor .terminal-wrapper > .terminal-xterm-host,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > .terminal-xterm-host {
 	height: 100%;
 }
 

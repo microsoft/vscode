@@ -1023,18 +1023,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('A container element needs to be set with `attachToElement` and be part of the DOM before calling `_open`');
 		}
 
-		const xtermElement = document.createElement('div');
-		this._wrapperElement.appendChild(xtermElement);
+		const xtermHost = document.createElement('div');
+		xtermHost.classList.add('terminal-xterm-host');
+		this._wrapperElement.appendChild(xtermHost);
 
 		this._container.appendChild(this._wrapperElement);
 
 		const xterm = this.xterm;
-		const container = this._container;
 
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
 		this._wrapperElement.xterm = xterm.raw;
 
-		const screenElement = xterm.attachToElement(xtermElement);
+		const screenElement = xterm.attachToElement(xtermHost);
 
 		// Fire xtermOpen on all contributions
 		for (const contribution of this._contributions.values()) {
@@ -1183,20 +1183,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this.updateConfig();
 
+		// Initialize resize dimensions overlay
+		this.processReady.then(() => {
+			// Wait a second to avoid resize events during startup like when opening a terminal or
+			// when a terminal reconnects. Ideally we'd have an actual event to listen to here.
+			timeout(1000).then(() => {
+				if (!this._store.isDisposed) {
+					this._terminalResizeDimensionsOverlay.value = new TerminalResizeDimensionsOverlay(this._wrapperElement, xterm);
+				}
+			});
+		});
+
 		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
 		// panel was initialized.
 		if (xterm.raw.options.disableStdin) {
 			this._attachPressAnyKeyToCloseListener(xterm.raw);
 		}
-
-		// Initialize resize dimensions overlay
-		this.processReady.then(() => {
-			timeout(1000).then(() => {
-				if (!this._store.isDisposed) {
-					this._terminalResizeDimensionsOverlay.value = new TerminalResizeDimensionsOverlay(container, xterm);
-				}
-			});
-		});
 	}
 
 	private _setFocus(focused?: boolean): void {

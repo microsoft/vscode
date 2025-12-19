@@ -31,30 +31,30 @@ export class TerminalResizeDimensionsOverlay extends Disposable {
 		}));
 	}
 
-	private _ensureResizeOverlay(): HTMLElement {
-		if (!this._resizeOverlay) {
-			this._resizeOverlay = $('.terminal-resize-overlay');
-			this._resizeOverlay.setAttribute('role', 'status');
-			this._resizeOverlay.setAttribute('aria-live', 'polite');
-			this._container.appendChild(this._resizeOverlay);
-		} else if (this._container && !this._container.contains(this._resizeOverlay)) {
-			// If container changed, move overlay to new container
-			this._container.appendChild(this._resizeOverlay);
-		}
-		return this._resizeOverlay;
-	}
-
 	private _handleDimensionsChanged(dims: { cols: number; rows: number }): void {
-		if (!this._container || !this._container.isConnected) {
+		const container = this._container;
+		if (!container || !container.isConnected) {
 			return;
 		}
 
-		const overlay = this._ensureResizeOverlay();
+		const overlay = this._ensureResizeOverlay(container);
 		overlay.textContent = `${dims.cols} x ${dims.rows}`;
 		overlay.classList.add(Constants.VisibleClass);
 
 		this._resizeOverlayHideTimeout.value = disposableTimeout(() => {
 			this._resizeOverlay?.classList.remove(Constants.VisibleClass);
 		}, Constants.ResizeOverlayHideDelay);
+	}
+
+	private _ensureResizeOverlay(container: HTMLElement): HTMLElement {
+		if (!this._resizeOverlay) {
+			this._resizeOverlay = $('.terminal-resize-overlay');
+			this._resizeOverlay.setAttribute('role', 'status');
+			this._resizeOverlay.setAttribute('aria-live', 'polite');
+			container.appendChild(this._resizeOverlay);
+		} else if (!container.contains(this._resizeOverlay)) {
+			container.appendChild(this._resizeOverlay);
+		}
+		return this._resizeOverlay;
 	}
 }
