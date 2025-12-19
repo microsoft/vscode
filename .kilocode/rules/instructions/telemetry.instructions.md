@@ -1,0 +1,1 @@
+../../../.github/instructions/telemetry.instructions.md

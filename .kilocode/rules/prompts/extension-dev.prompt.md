@@ -1,0 +1,1 @@
+../../../.github/prompts/extension-dev.prompt.md
