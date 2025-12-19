@@ -77,7 +77,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch'), supportsFolders: true },
 			{ id: 'stashes', name: l10n.t('Stashes'), icon: new ThemeIcon('git-stash'), supportsFolders: false },
 			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag'), supportsFolders: true },
-			{ id: 'worktrees', name: l10n.t('Worktrees'), icon: new ThemeIcon('list-tree'), supportsFolders: false }
+			{ id: 'worktrees', name: l10n.t('Worktrees'), icon: new ThemeIcon('worktree'), supportsFolders: false }
 		];
 
 		this._disposables.push(this._onDidChangeArtifacts);
