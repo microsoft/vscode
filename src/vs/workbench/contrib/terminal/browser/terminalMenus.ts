@@ -31,6 +31,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 // @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { HasSpeechProvider } from '../../speech/common/speechService.js';
 import { hasKey } from '../../../../base/common/types.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
 export const enum TerminalContextMenuGroup {
