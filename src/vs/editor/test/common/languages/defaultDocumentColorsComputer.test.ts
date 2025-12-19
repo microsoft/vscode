@@ -168,4 +168,24 @@ suite('Default Document Colors Computer', () => {
 			assert.strictEqual(colors.length, 1, `Should detect hsl color with ${testCase.name}: ${testCase.content}`);
 		});
 	});
+
+	test('rgb and rgba with CSS Level 4 space-separated syntax should work', () => {
+		// CSS Level 4 allows space-separated values for RGB/RGBA
+		const testCases = [
+			{ content: 'rgb(255 0 0)', name: 'rgb space-separated' },
+			{ content: 'rgb(128 128 128)', name: 'rgb space-separated gray' },
+			{ content: 'rgba(255 0 0 / 0.5)', name: 'rgba with slash separator for alpha' },
+			{ content: 'rgba(128 128 128 / 0.8)', name: 'rgba gray with slash separator' },
+			{ content: 'rgba(255 0 0 / 1)', name: 'rgba with slash and alpha 1' },
+			// Traditional comma syntax should still work
+			{ content: 'rgb(255, 0, 0)', name: 'rgb comma-separated (traditional)' },
+			{ content: 'rgba(255, 0, 0, 0.5)', name: 'rgba comma-separated (traditional)' }
+		];
+
+		testCases.forEach(testCase => {
+			const model = new TestDocumentModel(`const color = ${testCase.content};`);
+			const colors = computeDefaultDocumentColors(model);
+			assert.strictEqual(colors.length, 1, `Should detect rgb/rgba color with ${testCase.name}: ${testCase.content}`);
+		});
+	});
 });
