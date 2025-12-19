@@ -52,6 +52,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -155,7 +156,7 @@ export class InlineCompletionsModel extends Disposable {
 		}));
 
 		{ // Determine editor type
-			const isNotebook = this.textModel.uri.scheme === 'vscode-notebook-cell';
+			const isNotebook = this.textModel.uri.scheme === Schemas.vscodeNotebookCell;
 			const [diffEditor] = this._codeEditorService.listDiffEditors()
 				.filter(d =>
 					d.getOriginalEditor().getId() === this._editor.getId() ||

@@ -8,7 +8,7 @@ import { $ } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { HoverStyle, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IDelayedHoverOptions, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -319,47 +319,52 @@ function createTerminalCommandElements(
 		clickHandler();
 	}));
 
-	const hoverElement = dom.$('div.chat-attached-context-hover');
-	hoverElement.setAttribute('aria-label', ariaLabel);
-
-	const commandTitle = dom.$('div', {}, typeof attachment.exitCode === 'number'
-		? localize('chat.terminalCommandHoverCommandTitleExit', "Command: {0}, exit code: {1}", attachment.command, attachment.exitCode)
-		: localize('chat.terminalCommandHoverCommandTitle', "Command"));
-	commandTitle.classList.add('attachment-additional-info');
-	const commandBlock = dom.$('pre.chat-terminal-command-block');
-	hoverElement.append(commandTitle, commandBlock);
-
-	if (attachment.output && attachment.output.trim().length > 0) {
-		const outputTitle = dom.$('div', {}, localize('chat.terminalCommandHoverOutputTitle', "Output:"));
-		outputTitle.classList.add('attachment-additional-info');
-		const outputBlock = dom.$('pre.chat-terminal-command-output');
-		const fullOutputLines = attachment.output.split('\n');
-		const hoverOutputLines = [];
-		for (const line of fullOutputLines) {
-			if (hoverOutputLines.length >= TerminalConstants.MaxAttachmentOutputLineCount) {
-				hoverOutputLines.push('...');
-				break;
-			}
-			const trimmed = line.trim();
-			if (trimmed.length === 0) {
-				continue;
-			}
-			if (trimmed.length > TerminalConstants.MaxAttachmentOutputLineLength) {
-				hoverOutputLines.push(`${trimmed.slice(0, TerminalConstants.MaxAttachmentOutputLineLength)}...`);
-			} else {
-				hoverOutputLines.push(trimmed);
-			}
-		}
-		outputBlock.textContent = hoverOutputLines.join('\n');
-		hoverElement.append(outputTitle, outputBlock);
-	}
-
-	disposable.add(hoverService.setupDelayedHover(element, {
-		...commonHoverOptions,
-		content: hoverElement,
-	}, commonHoverLifecycleOptions));
-
+	disposable.add(hoverService.setupDelayedHover(element, () => getHoverContent(ariaLabel, attachment), commonHoverLifecycleOptions));
 	return disposable;
+}
+
+function getHoverContent(ariaLabel: string, attachment: ITerminalVariableEntry): IDelayedHoverOptions {
+	{
+		const hoverElement = dom.$('div.chat-attached-context-hover');
+		hoverElement.setAttribute('aria-label', ariaLabel);
+
+		const commandTitle = dom.$('div', {}, typeof attachment.exitCode === 'number'
+			? localize('chat.terminalCommandHoverCommandTitleExit', "Command: {0}, exit code: {1}", attachment.command, attachment.exitCode)
+			: localize('chat.terminalCommandHoverCommandTitle', "Command"));
+		commandTitle.classList.add('attachment-additional-info');
+		const commandBlock = dom.$('pre.chat-terminal-command-block');
+		hoverElement.append(commandTitle, commandBlock);
+
+		if (attachment.output && attachment.output.trim().length > 0) {
+			const outputTitle = dom.$('div', {}, localize('chat.terminalCommandHoverOutputTitle', "Output:"));
+			outputTitle.classList.add('attachment-additional-info');
+			const outputBlock = dom.$('pre.chat-terminal-command-output');
+			const fullOutputLines = attachment.output.split('\n');
+			const hoverOutputLines = [];
+			for (const line of fullOutputLines) {
+				if (hoverOutputLines.length >= TerminalConstants.MaxAttachmentOutputLineCount) {
+					hoverOutputLines.push('...');
+					break;
+				}
+				const trimmed = line.trim();
+				if (trimmed.length === 0) {
+					continue;
+				}
+				if (trimmed.length > TerminalConstants.MaxAttachmentOutputLineLength) {
+					hoverOutputLines.push(`${trimmed.slice(0, TerminalConstants.MaxAttachmentOutputLineLength)}...`);
+				} else {
+					hoverOutputLines.push(trimmed);
+				}
+			}
+			outputBlock.textContent = hoverOutputLines.join('\n');
+			hoverElement.append(outputTitle, outputBlock);
+		}
+
+		return {
+			...commonHoverOptions,
+			content: hoverElement,
+		};
+	}
 }
 
 export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
