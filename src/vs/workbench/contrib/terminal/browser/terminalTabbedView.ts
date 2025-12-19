@@ -83,6 +83,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _resizeOverlay: HTMLElement | undefined;
 	private _resizeOverlayHideTimeout: IDisposable | undefined;
+	private _isManuallyResizing: boolean = false;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -245,6 +246,10 @@ export class TerminalTabbedView extends Disposable {
 			return;
 		}
 
+		if (!this._isManuallyResizing) {
+			return;
+		}
+
 		if (instance.target !== TerminalLocation.Panel) {
 			return;
 		}
@@ -254,7 +259,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 
 		const overlay = this._ensureResizeOverlay();
-		overlay.textContent = `${instance.cols}c \u00D7 ${instance.rows}r`;
+		overlay.textContent = `${instance.cols} x ${instance.rows}`;
 		overlay.classList.add('visible');
 
 		this._resizeOverlayHideTimeout?.dispose();
@@ -370,11 +375,13 @@ export class TerminalTabbedView extends Disposable {
 		let interval: IDisposable;
 		this._sashDisposables = [
 			this._splitView.sashes[0].onDidStart(e => {
+				this._isManuallyResizing = true;
 				interval = dom.disposableWindowInterval(dom.getWindow(this._splitView.el), () => {
 					this.rerenderTabs();
 				}, 100);
 			}),
 			this._splitView.sashes[0].onDidEnd(e => {
+				this._isManuallyResizing = false;
 				interval.dispose();
 			})
 		];
