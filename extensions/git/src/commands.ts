@@ -3198,7 +3198,7 @@ export class CommandCenter {
 		}
 
 		try {
-			const changes = await repository.diffBetween2(ref1.id, ref2.id);
+			const changes = await repository.diffBetweenWithStats(ref1.id, ref2.id);
 
 			if (changes.length === 0) {
 				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1.displayId ?? ref1.id, ref2.displayId ?? ref2.id));
@@ -4785,7 +4785,7 @@ export class CommandCenter {
 
 		const commit = await repository.getCommit(item.ref);
 		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
-		const changes = await repository.diffBetween2(commitParentId, commit.hash);
+		const changes = await repository.diffBetweenWithStats(commitParentId, commit.hash);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, commitParentId, commit.hash));
 
 		const title = `${item.shortRef} - ${subject(commit.message)}`;
@@ -5059,7 +5059,7 @@ export class CommandCenter {
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
 
-		const changes = await repository.diffBetween2(historyItemParentId, historyItemId);
+		const changes = await repository.diffBetweenWithStats(historyItemParentId, historyItemId);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
 		const reveal = revealUri ? { modifiedUri: toGitUri(revealUri, historyItemId) } : undefined;
 
