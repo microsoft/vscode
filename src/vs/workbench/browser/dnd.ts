@@ -37,7 +37,6 @@ import { IWorkspaceEditingService } from '../services/workspaces/common/workspac
 import { IEditorOptions } from '../../platform/editor/common/editor.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { BroadcastDataChannel } from '../../base/browser/broadcast.js';
-import { IDropRegistryService } from '../services/dropRegistry/common/dropRegistryService.js';
 
 //#region Editor / Resources DND
 
@@ -94,8 +93,7 @@ export class ResourcesDropHandler {
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IDropRegistryService private readonly dropRegistryService: IDropRegistryService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
@@ -109,9 +107,10 @@ export class ResourcesDropHandler {
 		await this.hostService.focus(targetWindow);
 
 		// Check for registered drop handlers
+		const dndRegistry = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution);
 		for (const { resource } of editors) {
 			if (resource) {
-				const handled = await this.instantiationService.invokeFunction(accessor => this.dropRegistryService.tryHandleDrop(resource, accessor));
+				const handled = await this.instantiationService.invokeFunction(accessor => dndRegistry.tryHandleResourceDrop(resource, accessor));
 				if (handled) {
 					return;
 				}

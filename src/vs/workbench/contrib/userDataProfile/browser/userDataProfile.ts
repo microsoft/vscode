@@ -32,9 +32,9 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
 import { IURLService } from '../../../../platform/url/common/url.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
-import { IDropRegistryService, IDropResourceHandler } from '../../../services/dropRegistry/common/dropRegistryService.js';
 import { endsWithIgnoreCase } from '../../../../base/common/strings.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { Extensions as DndExtensions, IDragAndDropContributionRegistry, IResourceDropHandler } from '../../../../platform/dnd/browser/dnd.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
 const ProfilesMenu = new MenuId('Profiles');
@@ -59,8 +59,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IURLService private readonly urlService: IURLService,
-		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
-		@IDropRegistryService private readonly dropRegistryService: IDropRegistryService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -127,7 +126,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private registerDropHandler(): void {
-		this._register(this.dropRegistryService.registerHandler(new class UserDataProfileDropHandler implements IDropResourceHandler {
+		const dndRegistry = Registry.as<IDragAndDropContributionRegistry>(DndExtensions.DragAndDropContribution);
+		this._register(dndRegistry.registerDropHandler(new class UserDataProfileDropHandler implements IResourceDropHandler {
 			async tryHandleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
 				if (endsWithIgnoreCase(resource.path, `.${PROFILE_EXTENSION}`)) {
 					await accessor.get(ICommandService).executeCommand('workbench.profiles.actions.importProfile', resource);
