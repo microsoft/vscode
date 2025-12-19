@@ -249,8 +249,8 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
 		this._knownThemes.set(HC_LIGHT_THEME_NAME, newBuiltInTheme(HC_LIGHT_THEME_NAME));
-
-		const iconsStyleSheet = this._register(getIconsStyleSheet(this));
+		this._environment.isBuilt = false;
+		const iconsStyleSheet = this._register(getIconsStyleSheet(this, this._environment));
 
 		this._codiconCSS = iconsStyleSheet.getCSS();
 		this._themeCSS = '';
