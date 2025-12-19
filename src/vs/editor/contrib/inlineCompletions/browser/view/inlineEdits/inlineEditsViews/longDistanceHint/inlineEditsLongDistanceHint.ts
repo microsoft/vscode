@@ -26,19 +26,28 @@ import { debugLogHorizontalOffsetRanges, debugLogRects, debugView } from '../deb
 import { distributeFlexBoxLayout } from '../../utils/flexBoxLayout.js';
 import { Point } from '../../../../../../../common/core/2d/point.js';
 import { Size2D } from '../../../../../../../common/core/2d/size.js';
-import { getMaxTowerHeightInAvailableArea } from '../../utils/towersLayout.js';
 import { IThemeService } from '../../../../../../../../platform/theme/common/themeService.js';
 import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
-import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground, observeColor } from '../../theme.js';
-import { asCssVariable, descriptionForeground, editorBackground, editorWidgetBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
+import { getEditorBackgroundColor, getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground, observeColor } from '../../theme.js';
+import { asCssVariable, descriptionForeground, editorWidgetBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
 import { editorWidgetBorder } from '../../../../../../../../platform/theme/common/colors/editorColors.js';
 import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
 import { jumpToNextInlineEditId } from '../../../../controller/commandIds.js';
+import { splitIntoContinuousLineRanges, WidgetLayoutConstants, WidgetOutline, WidgetPlacementContext } from './longDistnaceWidgetPlacement.js';
+import { InlineCompletionEditorType } from '../../../../model/provideInlineCompletions.js';
 
 const BORDER_RADIUS = 6;
 const MAX_WIDGET_WIDTH = { EMPTY_SPACE: 425, OVERLAY: 375 };
 const MIN_WIDGET_WIDTH = 250;
+
+const DEFAULT_WIDGET_LAYOUT_CONSTANTS: WidgetLayoutConstants = {
+	previewEditorMargin: 2,
+	widgetPadding: 2,
+	widgetBorder: 1,
+	lowerBarHeight: 20,
+	minWidgetWidth: MIN_WIDGET_WIDTH,
+};
 
 export class InlineEditsLongDistanceHint extends Disposable implements IInlineEditsView {
 
@@ -85,7 +94,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 			return {
 				border: borderColor.toString(),
-				background: asCssVariable(editorBackground)
+				background: getEditorBackgroundColor(this._viewState.map(s => s?.editorType ?? InlineCompletionEditorType.TextEditor).read(reader)),
 			};
 		});
 
@@ -146,27 +155,23 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		const viewState = this._viewState.read(reader);
 		const p = this._hintTextPosition.read(reader);
 		if (!viewState || !p) {
-			return undefined;
+			return [];
 		}
 
 		const model = this._editorObs.model.read(reader);
 		if (!model) {
-			return undefined;
+			return [];
 		}
 		const range = LineRange.ofLength(p.lineNumber, 1).addMargin(5, 5).intersect(LineRange.ofLength(1, model.getLineCount()));
 
 		if (!range) {
-			return undefined;
+			return [];
 		}
 
 		const sizes = getContentSizeOfLines(this._editorObs, range, reader);
 		const top = this._editorObs.observeTopForLineNumber(range.startLineNumber).read(reader);
 
-		return {
-			lineRange: range,
-			top: top,
-			sizes: sizes,
-		};
+		return splitIntoContinuousLineRanges(range, sizes, top, this._editorObs, reader);
 	});
 
 	private readonly _isVisibleDelayed = debouncedObservable2(
@@ -181,8 +186,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			return undefined;
 		}
 
-		const lineSizes = this._lineSizesAroundHintPosition.read(reader);
-		if (!lineSizes) {
+		const continousLineRanges = this._lineSizesAroundHintPosition.read(reader);
+		if (continousLineRanges.length === 0) {
 			return undefined;
 		}
 
@@ -209,57 +214,66 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			return undefined;
 		}
 
-		const availableSpaceSizes = lineSizes.sizes.map((s, idx) => {
-			const lineNumber = lineSizes.lineRange.startLineNumber + idx;
-			let linePaddingLeft = 20;
-			if (lineNumber === viewState.hint.lineNumber) {
-				linePaddingLeft = 40;
-			}
-			return new Size2D(Math.max(0, editorTrueContentWidth - s.width - linePaddingLeft), s.height);
-		});
-
-		const showRects = false;
-		if (showRects) {
-			const rects2 = stackSizesDown(new Point(editorTrueContentRight, lineSizes.top - editorScrollTop), availableSpaceSizes, 'right');
-			debugView(debugLogRects({ ...rects2 }, this._editor.getDomNode()!), reader);
-		}
-
-		const availableSpaceHeightPrefixSums = getSums(availableSpaceSizes, s => s.height);
-		const availableSpaceSizesTransposed = availableSpaceSizes.map(s => s.transpose());
-
-		const previewEditorMargin = 2;
-		const widgetPadding = 2;
-		const lowerBarHeight = 20;
-		const widgetBorder = 1;
-
+		const layoutConstants = DEFAULT_WIDGET_LAYOUT_CONSTANTS;
 		const extraGutterMarginToAvoidScrollBar = 2;
-		const previewEditorHeight = previewContentHeight! + extraGutterMarginToAvoidScrollBar;
+		const previewEditorHeight = previewContentHeight + extraGutterMarginToAvoidScrollBar;
 
-		function getWidgetVerticalOutline(lineNumber: number): OffsetRange {
-			const sizeIdx = lineNumber - lineSizes!.lineRange.startLineNumber;
-			const top = lineSizes!.top + availableSpaceHeightPrefixSums[sizeIdx];
-			const editorRange = OffsetRange.ofStartAndLength(top, previewEditorHeight);
-			const verticalWidgetRange = editorRange.withMargin(previewEditorMargin + widgetPadding + widgetBorder).withMargin(0, lowerBarHeight);
-			return verticalWidgetRange;
+		// Try to find widget placement in available empty space
+		let possibleWidgetOutline: WidgetOutline | undefined;
+		let lastPlacementContext: WidgetPlacementContext | undefined;
+
+		const endOfLinePadding = (lineNumber: number) => lineNumber === viewState.hint.lineNumber ? 40 : 20;
+
+		for (const continousLineRange of continousLineRanges) {
+			const placementContext = new WidgetPlacementContext(
+				continousLineRange,
+				editorTrueContentWidth,
+				endOfLinePadding
+			);
+			lastPlacementContext = placementContext;
+
+			const showRects = false;
+			if (showRects) {
+				const rects2 = stackSizesDown(
+					new Point(editorTrueContentRight, continousLineRange.top - editorScrollTop),
+					placementContext.availableSpaceSizes as Size2D[],
+					'right'
+				);
+				debugView(debugLogRects({ ...rects2 }, this._editor.getDomNode()!), reader);
+			}
+
+			possibleWidgetOutline = placementContext.tryFindWidgetOutline(
+				viewState.hint.lineNumber,
+				previewEditorHeight,
+				editorTrueContentRight,
+				layoutConstants
+			);
+
+			if (possibleWidgetOutline) {
+				break;
+			}
 		}
 
-		let possibleWidgetOutline = findFirstMinimzeDistance(lineSizes.lineRange.addMargin(-1, -1), viewState.hint.lineNumber, lineNumber => {
-			const verticalWidgetRange = getWidgetVerticalOutline(lineNumber);
-			const maxWidth = getMaxTowerHeightInAvailableArea(verticalWidgetRange.delta(-lineSizes.top), availableSpaceSizesTransposed);
-			if (maxWidth < MIN_WIDGET_WIDTH) {
-				return undefined;
-			}
-			const horizontalWidgetRange = OffsetRange.ofStartAndLength(editorTrueContentRight - maxWidth, maxWidth);
-			return { horizontalWidgetRange, verticalWidgetRange };
-		});
-
+		// Fallback to overlay position if no empty space was found
 		let position: 'overlay' | 'empty-space' = 'empty-space';
 		if (!possibleWidgetOutline) {
 			position = 'overlay';
 			const maxAvailableWidth = Math.min(editorLayout.width - editorLayout.contentLeft, MAX_WIDGET_WIDTH.OVERLAY);
+
+			// Create a fallback placement context for computing overlay vertical position
+			const fallbackPlacementContext = lastPlacementContext ?? new WidgetPlacementContext(
+				continousLineRanges[0],
+				editorTrueContentWidth,
+				endOfLinePadding,
+			);
+
 			possibleWidgetOutline = {
 				horizontalWidgetRange: OffsetRange.ofStartAndLength(editorTrueContentRight - maxAvailableWidth, maxAvailableWidth),
-				verticalWidgetRange: getWidgetVerticalOutline(viewState.hint.lineNumber + 2).delta(10),
+				verticalWidgetRange: fallbackPlacementContext.getWidgetVerticalOutline(
+					viewState.hint.lineNumber + 2,
+					previewEditorHeight,
+					layoutConstants
+				).delta(10),
 			};
 		}
 
@@ -277,6 +291,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			debugView(debugLogRects({ rectAvailableSpace }, this._editor.getDomNode()!), reader);
 		}
 
+		const { previewEditorMargin, widgetPadding, widgetBorder, lowerBarHeight } = layoutConstants;
 		const maxWidgetWidth = Math.min(position === 'overlay' ? MAX_WIDGET_WIDTH.OVERLAY : MAX_WIDGET_WIDTH.EMPTY_SPACE, previewEditorContentLayout.maxEditorWidth + previewEditorMargin + widgetPadding);
 
 		const layout = distributeFlexBoxLayout(rectAvailableSpace.width, {
@@ -374,7 +389,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 				style: {
 					overflow: 'hidden',
 					padding: this._previewEditorLayoutInfo.map(i => i?.previewEditorMargin),
-					background: asCssVariable(editorBackground),
+					background: this._styles.map(s => s.background),
 					pointerEvents: 'none',
 				},
 			}, [
@@ -467,6 +482,7 @@ export interface ILongDistanceViewState {
 	edit: InlineEditWithChanges;
 	diff: DetailedLineRangeMapping[];
 	nextCursorPosition: Position | null;
+	editorType: InlineCompletionEditorType;
 
 	model: SimpleInlineSuggestModel;
 	inlineSuggestInfo: InlineSuggestionGutterMenuData;
@@ -499,37 +515,7 @@ function stackSizesDown(at: Point, sizes: Size2D[], alignment: 'left' | 'right' 
 	return rects;
 }
 
-function findFirstMinimzeDistance<T>(range: LineRange, targetLine: number, predicate: (lineNumber: number) => T | undefined): T | undefined {
-	for (let offset = 0; ; offset++) {
-		const down = targetLine + offset;
-		if (down <= range.endLineNumberExclusive) {
-			const result = predicate(down);
-			if (result !== undefined) {
-				return result;
-			}
-		}
-		const up = targetLine - offset;
-		if (up >= range.startLineNumber) {
-			const result = predicate(up);
-			if (result !== undefined) {
-				return result;
-			}
-		}
-		if (up < range.startLineNumber && down > range.endLineNumberExclusive) {
-			return undefined;
-		}
-	}
-}
 
-function getSums<T>(array: T[], fn: (item: T) => number): number[] {
-	const result: number[] = [0];
-	let sum = 0;
-	for (const item of array) {
-		sum += fn(item);
-		result.push(sum);
-	}
-	return result;
-}
 
 export function drawEditorWidths(e: ICodeEditor, reader: IReader) {
 	const layoutInfo = e.getLayoutInfo();

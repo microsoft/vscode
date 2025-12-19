@@ -127,13 +127,6 @@ export interface IChatContentReference {
 	kind: 'reference';
 }
 
-export interface IChatChangesSummary {
-	readonly reference: URI;
-	readonly sessionId: string;
-	readonly requestId: string;
-	readonly kind: 'changesSummary';
-}
-
 export interface IChatCodeCitation {
 	value: URI;
 	license: string;

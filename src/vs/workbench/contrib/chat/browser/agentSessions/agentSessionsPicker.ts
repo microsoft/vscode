@@ -9,13 +9,14 @@ import { fromNow } from '../../../../../base/common/date.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IChatService } from '../../common/chatService.js';
 import { openSession } from './agentSessionsOpener.js';
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsSorter, groupAgentSessions } from './agentSessionsViewer.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
 
 interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
@@ -36,6 +37,11 @@ const renameButton: IQuickInputButton = {
 	tooltip: localize('renameSession', "Rename")
 };
 
+const deleteButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.trash),
+	tooltip: localize('deleteSession', "Delete")
+};
+
 export class AgentSessionsPicker {
 
 	private readonly sorter = new AgentSessionsSorter();
@@ -44,7 +50,7 @@ export class AgentSessionsPicker {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IChatService private readonly chatService: IChatService,
+		@ICommandService private readonly commandService: ICommandService,
 	) { }
 
 	async pickAgentSession(): Promise<void> {
@@ -75,17 +81,24 @@ export class AgentSessionsPicker {
 		disposables.add(picker.onDidTriggerItemButton(async e => {
 			const session = e.item.session;
 
+			let reopenResolved: boolean = false;
 			if (e.button === renameButton) {
-				const title = await this.quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
-				if (title) {
-					this.chatService.setChatSessionTitle(session.resource, title);
-				}
+				reopenResolved = true;
+				await this.commandService.executeCommand(AGENT_SESSION_RENAME_ACTION_ID, session);
+			} else if (e.button === deleteButton) {
+				reopenResolved = true;
+				await this.commandService.executeCommand(AGENT_SESSION_DELETE_ACTION_ID, session);
 			} else {
 				const newArchivedState = !session.isArchived();
 				session.setArchived(newArchivedState);
 			}
 
-			picker.items = this.createPickerItems();
+			if (reopenResolved) {
+				await this.agentSessionsService.model.resolve(session.providerType);
+				this.pickAgentSession();
+			} else {
+				picker.items = this.createPickerItems();
+			}
 		}));
 
 		disposables.add(picker.onDidHide(() => disposables.dispose()));
@@ -117,6 +130,7 @@ export class AgentSessionsPicker {
 		const buttons: IQuickInputButton[] = [];
 		if (isLocalAgentSessionItem(session)) {
 			buttons.push(renameButton);
+			buttons.push(deleteButton);
 		}
 		buttons.push(session.isArchived() ? unarchiveButton : archiveButton);
 

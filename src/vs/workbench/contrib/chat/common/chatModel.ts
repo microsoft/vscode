@@ -973,27 +973,28 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		const signal = observableSignalFromEvent(this, this.onDidChange);
 
-		const _pendingInfo = signal.map((_value, r): { detail?: string } | undefined => {
+		const _pendingInfo = signal.map((_value, r): string | undefined => {
 			signal.read(r);
 
 			for (const part of this._response.value) {
 				if (part.kind === 'toolInvocation' && part.state.read(r).type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 					const title = part.confirmationMessages?.title;
-					return { detail: title ? (isMarkdownString(title) ? title.value : title) : undefined };
+					return title ? (isMarkdownString(title) ? title.value : title) : undefined;
 				}
 				if (part.kind === 'confirmation' && !part.isUsed) {
-					return { detail: part.title };
+					return part.title;
 				}
 				if (part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending) {
 					const title = part.title;
-					return { detail: isMarkdownString(title) ? title.value : title };
+					return isMarkdownString(title) ? title.value : title;
 				}
 			}
+
 			return undefined;
 		});
 
 		const _startedWaitingAt = _pendingInfo.map(p => !!p).map(p => p ? Date.now() : undefined);
-		this.isPendingConfirmation = _startedWaitingAt.map((waiting, r) => waiting ? { startedWaitingAt: waiting, detail: _pendingInfo.read(r)?.detail } : undefined);
+		this.isPendingConfirmation = _startedWaitingAt.map((waiting, r) => waiting ? { startedWaitingAt: waiting, detail: _pendingInfo.read(r) } : undefined);
 
 		this.isInProgress = signal.map((_value, r) => {
 

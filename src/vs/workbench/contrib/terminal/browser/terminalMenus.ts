@@ -20,6 +20,7 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/ed
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { HasSpeechProvider } from '../../speech/common/speechService.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
 export const enum TerminalContextMenuGroup {
 	Chat = '0_chat',
@@ -410,7 +411,7 @@ export function setupTerminalMenus(): void {
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
-						ContextKeyExpr.not('hasHiddenChatTerminals'),
+						ContextKeyExpr.not(TerminalContribContextKeyStrings.ChatHasHiddenTerminals),
 						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.has(`config.${TerminalSettingId.TabsEnabled}`),
 						ContextKeyExpr.or(

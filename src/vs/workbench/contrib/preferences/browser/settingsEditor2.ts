@@ -55,7 +55,7 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
+import { ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING, IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { SettingsEditor2Input } from '../../../services/preferences/common/preferencesEditorInput.js';
 import { nullRange, Settings2EditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
@@ -299,6 +299,9 @@ export class SettingsEditor2 extends EditorPane {
 				|| e.affectedKeys.has(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch)) {
 				this.updateAiSearchToggleVisibility();
 			}
+			if (e.affectsConfiguration(ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING)) {
+				this.onConfigUpdate(undefined, true, true);
+			}
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
 			}
@@ -352,6 +355,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private canShowAdvancedSettings(): boolean {
+		if (this.configurationService.getValue<boolean>(ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING) ?? false) {
+			return true;
+		}
 		return this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) ?? false;
 	}
 
@@ -744,7 +750,7 @@ export class SettingsEditor2 extends EditorPane {
 						return `@${EXTENSION_SETTING_TAG}${extensionId} `;
 					}).sort();
 					return installedExtensionsTags.filter(extFilter => !query.includes(extFilter));
-				} else if (queryParts[queryParts.length - 1].startsWith('@')) {
+				} else if (query === '' || queryParts[queryParts.length - 1].startsWith('@')) {
 					return SettingsEditor2.SUGGESTIONS.filter(tag => !query.includes(tag)).map(tag => tag.endsWith(':') ? tag : tag + ' ');
 				}
 				return [];
@@ -1420,7 +1426,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsOrderByTocIndex = this.createSettingsOrderByTocIndex(resolvedSettingsRoot);
 	}
 
-	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, schemaChange = false): Promise<void> {
+	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, triggerSearch = false): Promise<void> {
 		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
 		}
@@ -1576,7 +1582,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.settingsTreeModel.value) {
 			this.refreshModels(resolvedSettingsRoot);
 
-			if (schemaChange && this.searchResultModel) {
+			if (triggerSearch && this.searchResultModel) {
 				// If an extension's settings were just loaded and a search is active, retrigger the search so it shows up
 				return await this.onSearchInputChanged(false);
 			}
