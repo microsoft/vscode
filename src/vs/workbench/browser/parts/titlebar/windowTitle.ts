@@ -360,20 +360,7 @@ export class WindowTitle extends Disposable {
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
 		const activeEditorState = editorResource ? this.decorationsService.getDecoration(editorResource, false)?.tooltip : undefined;
-
-		// Compute active editor language ID
-		let activeEditorLanguageId = '';
-		const activeTextEditorControl = this.editorService.activeTextEditorControl;
-		if (activeTextEditorControl) {
-			const model = isCodeEditor(activeTextEditorControl)
-				? activeTextEditorControl.getModel()
-				: isDiffEditor(activeTextEditorControl)
-					? activeTextEditorControl.getModifiedEditor().getModel()
-					: null;
-			if (model) {
-				activeEditorLanguageId = model.getLanguageId();
-			}
-		}
+		const activeEditorLanguageId = this.editorService.activeTextEditorLanguageId;
 
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
