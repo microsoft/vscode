@@ -360,11 +360,6 @@ export interface IQuickInput extends IDisposable {
 	ignoreFocusOut: boolean;
 
 	/**
-	 * The toggle buttons to be added to the input box.
-	 */
-	toggles: IQuickInputToggle[] | undefined;
-
-	/**
 	 * Shows the quick input.
 	 */
 	show(): void;
@@ -715,17 +710,6 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	 * @param inBackground Whether you are accepting an item in the background and keeping the picker open.
 	 */
 	accept(inBackground?: boolean): void;
-}
-
-/**
- * Represents a toggle for quick input.
- */
-export interface IQuickInputToggle {
-	/**
-	 * Event that is fired when the toggle value changes.
-	 * The boolean value indicates whether the change was triggered via keyboard.
-	 */
-	readonly onChange: Event<boolean>;
 }
 
 /**
