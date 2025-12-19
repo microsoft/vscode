@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentSessionSection, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -491,9 +491,17 @@ export class DeleteAllLocalSessionsAction extends Action2 {
 		const chatService = accessor.get(IChatService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const dialogService = accessor.get(IDialogService);
+		const agentSessionsService = accessor.get(IAgentSessionsService);
+
+		const localSessionsCount = agentSessionsService.model.sessions.filter(session => isLocalAgentSessionItem(session)).length;
+		if (localSessionsCount === 0) {
+			return;
+		}
 
 		const confirmed = await dialogService.confirm({
-			message: localize('deleteAllChats.confirm', "Are you sure you want to delete all local workspace chat sessions?"),
+			message: localSessionsCount === 1
+				? localize('deleteAllChats.confirmSingle', "Are you sure you want to delete 1 local workspace chat session?")
+				: localize('deleteAllChats.confirm', "Are you sure you want to delete {0} local workspace chat sessions?", localSessionsCount),
 			detail: localize('deleteAllChats.detail', "This action cannot be undone."),
 			primaryButton: localize('deleteAllChats.button', "Delete All")
 		});
