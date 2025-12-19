@@ -694,6 +694,11 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const canResizeView = chatLocation !== ViewContainerLocation.Panel || (panelPosition === Position.LEFT || panelPosition === Position.RIGHT);
 
 		// Update configuration if needed
+		const chatViewSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled);
+		if (!chatViewSessionsEnabled) {
+			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
+		}
+
 		let chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
 		if (!chatView) {
 			chatView = await viewsService.openView<ChatViewPane>(ChatViewId, false);
@@ -770,7 +775,6 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -794,7 +798,6 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -815,10 +818,7 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
-			),
+			precondition: ChatContextKeys.enabled,
 			f1: true,
 			category: CHAT_CATEGORY,
 		});
