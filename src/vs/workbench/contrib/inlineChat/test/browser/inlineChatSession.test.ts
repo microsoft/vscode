@@ -71,6 +71,7 @@ import { IInlineChatSessionService } from '../../browser/inlineChatSessionServic
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { TestWorkerService } from './testWorkerService.js';
 import { ChatWidgetService } from '../../../chat/browser/chatWidgetService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 suite('InlineChatSession', function () {
 
@@ -122,8 +123,8 @@ suite('InlineChatSession', function () {
 				override editingSessionsObs: IObservable<readonly IChatEditingSession[]> = constObservable([]);
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
-				override acceptResponse(chatWidget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: number): void { }
-				override acceptRequest(): number { return -1; }
+				override acceptResponse(chatWidget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: URI | undefined): void { }
+				override acceptRequest(): URI | undefined { return undefined; }
 				override acceptElicitation(): void { }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {

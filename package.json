@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.108.0",
-  "distro": "ac62b183885af851634b215f084a75e84d439948",
+  "distro": "1133c0369c2db6f38f7f0e99737dc4770d393748",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -108,14 +108,14 @@
     "native-is-elevated": "0.8.0",
     "native-keymap": "^3.3.5",
     "native-watchdog": "^1.4.1",
-    "node-pty": "1.1.0-beta35",
+    "node-pty": "^1.1.0-beta42",
     "open": "^10.1.2",
     "tas-client": "0.3.1",
     "undici": "^7.9.0",
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
-    "vscode-textmate": "^9.2.1",
+    "vscode-textmate": "^9.3.0",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
@@ -160,7 +160,7 @@
     "css-loader": "^6.9.1",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "39.2.3",
+    "electron": "39.2.7",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

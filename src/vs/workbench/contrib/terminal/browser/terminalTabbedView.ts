@@ -27,6 +27,7 @@ import { TerminalTabsChatEntry } from './terminalTabsChatEntry.js';
 import { containsDragType } from '../../../../platform/dnd/browser/dnd.js';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from './terminalUri.js';
 import type { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
+import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
 const $ = dom.$;
 
@@ -143,7 +144,7 @@ export class TerminalTabbedView extends Disposable {
 		}));
 
 		this._register(contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set(['hasHiddenChatTerminals']))) {
+			if (e.affectsSome(new Set([TerminalContribContextKeyStrings.ChatHasHiddenTerminals]))) {
 				this._refreshShowTabs();
 				this._updateChatTerminalsEntry();
 			}
