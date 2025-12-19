@@ -10,6 +10,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IWebContentExtractorOptions, IWebContentExtractorService, WebContentExtractResult } from '../common/webContentExtractor.js';
 import { WebContentCache } from './webContentCache.js';
 import { WebPageLoader } from './webPageLoader.js';
+//import { ITrustedDomainService } from '../../../workbench/contrib/url/browser/trustedDomainService.js';
 
 export class NativeWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
@@ -19,7 +20,10 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 	private _limiter = new Limiter<WebContentExtractResult>(3);
 	private _webContentsCache = new WebContentCache();
 
-	constructor(@ILogService private readonly _logger: ILogService) { }
+	constructor(
+		@ILogService private readonly _logger: ILogService,
+		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService) {
+	}
 
 	extract(uris: URI[], options?: IWebContentExtractorOptions): Promise<WebContentExtractResult[]> {
 		if (uris.length === 0) {
@@ -37,7 +41,13 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 			return cached;
 		}
 
-		const loader = new WebPageLoader((options) => new BrowserWindow(options), this._logger, uri, options);
+		const loader = new WebPageLoader(
+			(options) => new BrowserWindow(options),
+			this._logger,
+			uri,
+			options,
+			(uri) => this._trustedDomainService.isValid(uri));
+
 		try {
 			const result = await loader.load();
 			this._webContentsCache.add(uri, options, result);
