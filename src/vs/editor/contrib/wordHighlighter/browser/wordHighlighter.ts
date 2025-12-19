@@ -286,49 +286,28 @@ class WordHighlighter {
 		}));
 
 		this.toUnhook.add(editor.onDidChangeModelContent((e) => {
-    // detect delete operation (text removed)
-    const isDeleteOperation = e.changes.some(change =>
-        change.text === '' && change.rangeLength > 0
-    );
 
-    if (isDeleteOperation) {
-        // refresh highlights after deletion
-        this.runDelayer.cancel();
-        this._run();
-        return;
-    }
+			// detect delete operation (text removed)
+			const isDeleteOperation = e.changes.some(change =>
+				change.text === '' && change.rangeLength > 0
+			);
 
-    // fallback to original behavior
-    if (!matchesScheme(this.model.uri, 'output')) {
-        this._stopAll();
-    }
-}));
+			if (isDeleteOperation) {
+				// refresh highlights after deletion
+				this.runDelayer.cancel();
+				this._run();
+				return;
+			}
 
-this.toUnhook.add(editor.onDidChangeModelContent((e) => {
-    // detect delete operation (text removed)
-    const isDeleteOperation = e.changes.some(change =>
-        change.text === '' && change.rangeLength > 0
-    );
-
-    if (isDeleteOperation) {
-        // refresh highlights after deletion
-        this.runDelayer.cancel();
-        this._run();
-        return;
-    }
-
-    // fallback to original behavior
-    if (!matchesScheme(this.model.uri, 'output')) {
-        this._stopAll();
-    }
-}));
+			// fallback to original behavior
+			if (!matchesScheme(this.model.uri, 'output')) {
+				this._stopAll();
+			}
+		}));
 
 
-		//this.toUnhook.add(editor.onDidChangeModelContent((e) => {
-		//	if (!matchesScheme(this.model.uri, 'output')) {
-		//		this._stopAll();
-		//	}
-	//	}));
+
+
 		this.toUnhook.add(editor.onDidChangeModel((e) => {
 			if (!e.newModelUrl && e.oldModelUrl) {
 				this._stopSingular();
