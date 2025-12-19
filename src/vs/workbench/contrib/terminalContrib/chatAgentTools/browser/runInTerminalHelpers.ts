@@ -99,7 +99,7 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		]);
 
 		// Commands where we want to suggest the sub-command (eg. `foo bar` instead of `foo`)
-		const commandsWithSubcommands = new Set(['git', 'npm', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
+		const commandsWithSubcommands = new Set(['git', 'npm', 'npx', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
 
 		// Commands where we want to suggest the sub-command of a sub-command (eg. `foo bar baz`
 		// instead of `foo`)

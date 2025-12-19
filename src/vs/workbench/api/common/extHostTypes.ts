@@ -990,7 +990,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 
 export interface TerminalCompletionResourceOptions {
 	showFiles?: boolean;
-	showFolders?: boolean;
+	showDirectories?: boolean;
 	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }
@@ -3370,6 +3370,7 @@ export class ChatToolInvocationPart {
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
 	fromSubAgent?: boolean;
+	presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 	constructor(toolName: string,
 		toolCallId: string,

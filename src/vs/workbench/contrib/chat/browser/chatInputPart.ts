@@ -63,6 +63,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -109,7 +110,7 @@ import { ChatSelectedTools } from './chatSelectedTools.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from './chatSessions/chatSessionPickerActionItem.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
-import { resizeImage } from './imageUtils.js';
+import { resizeImage } from './chatImageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
 
@@ -144,6 +145,13 @@ export interface IChatInputPartOptions {
 export interface IWorkingSetEntry {
 	uri: URI;
 }
+
+const emptyInputState = observableMemento<IChatModelInputState | undefined>({
+	defaultValue: undefined,
+	key: 'chat.untitledInputState',
+	toStorage: JSON.stringify,
+	fromStorage: JSON.parse,
+});
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	private static _counter = 0;
@@ -402,6 +410,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private _generating?: { rc: number; defer: DeferredPromise<void> };
 
+	private _emptyInputState: ObservableMemento<IChatModelInputState | undefined>;
+	private _chatSessionIsEmpty = false;
+
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
 		private readonly location: ChatAgentLocation,
@@ -437,6 +448,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Initialize debounced text sync scheduler
 		this._syncTextDebounced = this._register(new RunOnceScheduler(() => this._syncInputStateToModel(), 150));
+		this._emptyInputState = this._register(emptyInputState(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
@@ -451,6 +463,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (sessionResource && isEqual(sessionResource, e)) {
 				// Options changed for our current session - refresh pickers
 				this.refreshChatSessionPickers();
+			}
+		}));
+
+		this._register(this.chatSessionsService.onDidChangeOptionGroups(chatSessionType => {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource) {
+				const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
+				if (ctx?.chatSessionType === chatSessionType) {
+					this.refreshChatSessionPickers();
+				}
 			}
 		}));
 
@@ -739,19 +761,53 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Set the input model reference for syncing input state
 	 */
-	setInputModel(model: IInputModel | undefined): void {
+	setInputModel(model: IInputModel, chatSessionIsEmpty: boolean): void {
 		this._inputModel = model;
 		this._modelSyncDisposables.clear();
+		this.selectedToolsModel.resetSessionEnablementState();
+		this._chatSessionIsEmpty = chatSessionIsEmpty;
 
-		if (!model) {
-			return;
+		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
+		if (chatSessionIsEmpty) {
+			this._setEmptyModelState();
 		}
 
 		// Observe changes from model and sync to view
 		this._modelSyncDisposables.add(autorun(reader => {
-			const state = model.state.read(reader);
+			let state = model.state.read(reader);
+			if (!state && this._chatSessionIsEmpty) {
+				state = this._emptyInputState.read(undefined);
+			}
+
 			this._syncFromModel(state);
 		}));
+	}
+
+	private _setEmptyModelState() {
+		const storageKey = this.getDefaultModeExperimentStorageKey();
+		const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
+		if (!hasSetDefaultMode) {
+			const isAnonymous = this.entitlementService.anonymous;
+			this.experimentService.getTreatment('chat.defaultMode')
+				.then((defaultModeTreatment => {
+					if (isAnonymous) {
+						// be deterministic for anonymous users
+						// to support agentic flows with default
+						// model.
+						defaultModeTreatment = ChatModeKind.Agent;
+					}
+
+					if (typeof defaultModeTreatment === 'string') {
+						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+						const defaultMode = validateChatMode(defaultModeTreatment);
+						if (defaultMode) {
+							this.logService.trace(`Applying default mode from experiment: ${defaultMode}`);
+							this.setChatMode(defaultMode, false);
+							this.checkModelSupported();
+						}
+					}
+				}));
+		}
 	}
 
 	/**
@@ -811,12 +867,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Sync current input state to the input model
 	 */
 	private _syncInputStateToModel(): void {
-		if (!this._inputModel || this._isSyncingToOrFromInputModel) {
+		if (this._isSyncingToOrFromInputModel) {
 			return;
 		}
 
+
 		this._isSyncingToOrFromInputModel = true;
-		this._inputModel.setState(this.getCurrentInputState());
+		const state = this.getCurrentInputState();
+		if (this._chatSessionIsEmpty) {
+			this._emptyInputState.set(state, undefined);
+		}
+		this._inputModel?.setState(state);
 		this._isSyncingToOrFromInputModel = false;
 	}
 
@@ -984,38 +1045,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	initForNewChatModel(state: IChatModelInputState | undefined, chatSessionIsEmpty: boolean): void {
-		this.selectedToolsModel.resetSessionEnablementState();
-
-		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
-		if (chatSessionIsEmpty) {
-			const storageKey = this.getDefaultModeExperimentStorageKey();
-			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
-			if (!hasSetDefaultMode) {
-				const isAnonymous = this.entitlementService.anonymous;
-				this.experimentService.getTreatment('chat.defaultMode')
-					.then((defaultModeTreatment => {
-						if (isAnonymous) {
-							// be deterministic for anonymous users
-							// to support agentic flows with default
-							// model.
-							defaultModeTreatment = ChatModeKind.Agent;
-						}
-
-						if (typeof defaultModeTreatment === 'string') {
-							this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-							const defaultMode = validateChatMode(defaultModeTreatment);
-							if (defaultMode) {
-								this.logService.trace(`Applying default mode from experiment: ${defaultMode}`);
-								this.setChatMode(defaultMode, false);
-								this.checkModelSupported();
-							}
-						}
-					}));
-			}
-		}
-	}
-
 	private getDefaultModeExperimentStorageKey(): string {
 		const tag = this.options.widgetViewKindTag;
 		return `chat.${tag}.hasSetDefaultModeByExperiment`;
@@ -1159,6 +1188,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (isUserQuery) {
 			const userQuery = this.getCurrentInputState();
 			this.history.append(this._getFilteredEntry(userQuery));
+		}
+
+		if (this._chatSessionIsEmpty) {
+			this._chatSessionIsEmpty = false;
+			this._emptyInputState.set(undefined, undefined);
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor

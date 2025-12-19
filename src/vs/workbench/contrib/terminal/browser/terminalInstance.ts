@@ -960,10 +960,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			await this._processManager.setNextCommandId(commandLine, commandId);
 		}
 
-		// Determine whether to send ETX (ctrl+c) before running the command. This should always
-		// happen unless command detection can reliably say that a command is being entered and
-		// there is no content in the prompt
-		if (!commandDetection || commandDetection.promptInputModel.value.length > 0) {
+		// Determine whether to send ETX (ctrl+c) before running the command. Only do this when the
+		// command will be executed immediately or when command detection shows the prompt contains text.
+		if (shouldExecute && (!commandDetection || commandDetection.promptInputModel.value.length > 0)) {
 			await this.sendText('\x03', false);
 			// Wait a little before running the command to avoid the sequences being echoed while the ^C
 			// is being evaluated

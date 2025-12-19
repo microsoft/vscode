@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
-import { itemsEquals } from '../../../../../base/common/equals.js';
+import { arrayEqualsC } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, constObservable, derived, derivedHandleChanges, derivedOpts, mapObservableArrayCached, observableFromEvent, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -52,6 +52,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -143,7 +144,7 @@ export class InlineCompletionsModel extends Disposable {
 		const snippetController = SnippetController2.get(this._editor);
 		this._isInSnippetMode = snippetController?.isInSnippetObservable ?? constObservable(false);
 
-		defaultAccountService.getDefaultAccount().then(account => this.sku.set(skuFromAccount(account), undefined));
+		defaultAccountService.getDefaultAccount().then(createDisposableCb(account => this.sku.set(skuFromAccount(account), undefined), this._store));
 		this._register(defaultAccountService.onDidChangeDefaultAccount(account => this.sku.set(skuFromAccount(account), undefined)));
 
 		this._typing = this._register(new TypingInterval(this.textModel));
@@ -155,7 +156,7 @@ export class InlineCompletionsModel extends Disposable {
 		}));
 
 		{ // Determine editor type
-			const isNotebook = this.textModel.uri.scheme === 'vscode-notebook-cell';
+			const isNotebook = this.textModel.uri.scheme === Schemas.vscodeNotebookCell;
 			const [diffEditor] = this._codeEditorService.listDiffEditors()
 				.filter(d =>
 					d.getOriginalEditor().getId() === this._editor.getId() ||
@@ -539,7 +540,7 @@ export class InlineCompletionsModel extends Disposable {
 		};
 	});
 
-	private readonly _filteredInlineCompletionItems = derivedOpts({ owner: this, equalsFn: itemsEquals() }, reader => {
+	private readonly _filteredInlineCompletionItems = derivedOpts({ owner: this, equalsFn: arrayEqualsC() }, reader => {
 		const c = this._inlineCompletionItems.read(reader);
 		return c?.inlineCompletions ?? [];
 	});
@@ -563,7 +564,7 @@ export class InlineCompletionsModel extends Disposable {
 		return filteredCompletions[idx];
 	});
 
-	public readonly activeCommands = derivedOpts<InlineCompletionCommand[]>({ owner: this, equalsFn: itemsEquals() },
+	public readonly activeCommands = derivedOpts<InlineCompletionCommand[]>({ owner: this, equalsFn: arrayEqualsC() },
 		r => this.selectedInlineCompletion.read(r)?.source.inlineSuggestions.commands ?? []
 	);
 
@@ -986,7 +987,7 @@ export class InlineCompletionsModel extends Disposable {
 				this.trigger(undefined);
 			}
 
-			completion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });
+			completion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted, alternativeAction });
 		} finally {
 			completion.removeRef();
 			this._inAcceptFlow.set(true, undefined);
@@ -1140,7 +1141,7 @@ export class InlineCompletionsModel extends Disposable {
 			transaction(tx => {
 				if (suggestion.action?.kind === 'jumpTo') {
 					this.stop(undefined, tx);
-					suggestion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });
+					suggestion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted, alternativeAction: false });
 				}
 
 				this._jumpedToId.set(s.inlineSuggestion.semanticId, tx);
@@ -1279,4 +1280,26 @@ function skuFromAccount(account: IDefaultAccount | null): InlineSuggestSku | und
 		return { type: account.access_type_sku, plan: account.copilot_plan };
 	}
 	return undefined;
+}
+
+class DisposableCallback<T> {
+	private _cb: ((e: T) => void) | undefined;
+
+	constructor(cb: (e: T) => void) {
+		this._cb = cb;
+	}
+
+	dispose(): void {
+		this._cb = undefined;
+	}
+
+	readonly handler = (val: T) => {
+		return this._cb?.(val);
+	};
+}
+
+function createDisposableCb<T>(cb: (e: T) => void, store: DisposableStore): (e: T) => void {
+	const dcb = new DisposableCallback(cb);
+	store.add(dcb);
+	return dcb.handler;
 }

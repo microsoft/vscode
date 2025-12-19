@@ -43,6 +43,8 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../pl
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
+import { IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount } from '../../../../../../../base/common/defaultAccount.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,6 +78,10 @@ suite('PromptsService', () => {
 		instaService.stub(IExtensionService, {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
 			activateByEvent: () => Promise.resolve()
+		});
+
+		instaService.stub(IDefaultAccountService, {
+			getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
 		});
 
 		fileService = disposables.add(instaService.createInstance(FileService));
@@ -1060,10 +1066,10 @@ suite('PromptsService', () => {
 			const uri = URI.parse('file://extensions/my-extension/textMate.instructions.md');
 			const extension = {} as IExtensionDescription;
 			const registered = service.registerContributedFile(PromptsType.instructions,
+				uri,
+				extension,
 				'TextMate Instructions',
 				'Instructions to follow when authoring TextMate grammars',
-				uri,
-				extension
 			);
 
 			const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
@@ -1227,18 +1233,18 @@ suite('PromptsService', () => {
 			// Register both agents (one exists, one doesn't)
 			const registered1 = service.registerContributedFile(
 				PromptsType.agent,
+				nonExistentUri,
+				extension,
 				'NonExistent Agent',
 				'An agent that does not exist',
-				nonExistentUri,
-				extension
 			);
 
 			const registered2 = service.registerContributedFile(
 				PromptsType.agent,
+				existingUri,
+				extension,
 				'Existing Agent',
 				'An agent that exists',
-				existingUri,
-				extension
 			);
 
 			// Verify that getCustomAgents doesn't crash and returns only the valid agent
@@ -1255,50 +1261,96 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('findClaudeSkills', () => {
+	suite('findAgentSkills', () => {
 		teardown(() => {
 			sinon.restore();
 		});
 
-		test('should return undefined when USE_CLAUDE_SKILLS is disabled', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, false);
+		test('should return undefined when USE_AGENT_SKILLS is disabled', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 			assert.strictEqual(result, undefined);
 		});
 
-		test('should find Claude skills in workspace and user home', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+		test('should return undefined when chat_preview_features_enabled is false', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
+			});
 
-			const rootFolderName = 'claude-skills-test';
+			// Recreate service with new stub
+			service = disposables.add(instaService.createInstance(PromptsService));
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.strictEqual(result, undefined);
+
+			// Restore default stub for other tests
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
+			});
+		});
+
+		test('should return undefined when USE_AGENT_SKILLS is enabled but chat_preview_features_enabled is false', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
+			});
+
+			// Recreate service with new stub
+			service = disposables.add(instaService.createInstance(PromptsService));
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.strictEqual(result, undefined);
+
+			// Restore default stub for other tests
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
+			});
+		});
+
+		test('should find skills in workspace and user home', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'agent-skills-test';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Create mock filesystem with skills
+			// Create mock filesystem with skills in both .github/skills and .claude/skills
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`,
+					path: `${rootFolder}/.github/skills/github-skill-1/SKILL.md`,
 					contents: [
 						'---',
-						'name: "Project Skill 1"',
-						'description: "A project skill for testing"',
+						'name: "GitHub Skill 1"',
+						'description: "A GitHub skill for testing"',
 						'---',
-						'This is project skill 1 content',
+						'This is GitHub skill 1 content',
 					],
 				},
 				{
-					path: `${rootFolder}/.claude/skills/project-skill-2/SKILL.md`,
+					path: `${rootFolder}/.claude/skills/claude-skill-1/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Claude Skill 1"',
+						'description: "A Claude skill for testing"',
+						'---',
+						'This is Claude skill 1 content',
+					],
+				},
+				{
+					path: `${rootFolder}/.claude/skills/invalid-skill/SKILL.md`,
 					contents: [
 						'---',
 						'description: "Invalid skill, no name"',
 						'---',
-						'This is project skill 2 content',
+						'This is invalid skill content',
 					],
 				},
 				{
-					path: `${rootFolder}/.claude/skills/not-a-skill-dir/README.md`,
+					path: `${rootFolder}/.github/skills/not-a-skill-dir/README.md`,
 					contents: ['This is not a skill'],
 				},
 				{
@@ -1315,45 +1367,65 @@ suite('PromptsService', () => {
 					path: '/home/user/.claude/skills/not-a-skill/other-file.md',
 					contents: ['Not a skill file'],
 				},
+				{
+					path: '/home/user/.copilot/skills/copilot-skill-1/SKILL.md',
+					contents: [
+						'---',
+						'name: "Copilot Skill 1"',
+						'description: "A Copilot skill for testing"',
+						'---',
+						'This is Copilot skill 1 content',
+					],
+				},
 			]);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results when Claude skills are enabled');
-			assert.strictEqual(result.length, 2, 'Should find 2 skills total');
+			assert.ok(result, 'Should return results when agent skills are enabled');
+			assert.strictEqual(result.length, 4, 'Should find 4 skills total');
 
-			// Check project skills
+			// Check project skills (both from .github/skills and .claude/skills)
 			const projectSkills = result.filter(skill => skill.type === 'project');
-			assert.strictEqual(projectSkills.length, 1, 'Should find 1 project skill');
+			assert.strictEqual(projectSkills.length, 2, 'Should find 2 project skills');
 
-			const projectSkill1 = projectSkills.find(skill => skill.name === 'Project Skill 1');
-			assert.ok(projectSkill1, 'Should find project skill 1');
-			assert.strictEqual(projectSkill1.description, 'A project skill for testing');
-			assert.strictEqual(projectSkill1.uri.path, `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`);
+			const githubSkill1 = projectSkills.find(skill => skill.name === 'GitHub Skill 1');
+			assert.ok(githubSkill1, 'Should find GitHub skill 1');
+			assert.strictEqual(githubSkill1.description, 'A GitHub skill for testing');
+			assert.strictEqual(githubSkill1.uri.path, `${rootFolder}/.github/skills/github-skill-1/SKILL.md`);
+
+			const claudeSkill1 = projectSkills.find(skill => skill.name === 'Claude Skill 1');
+			assert.ok(claudeSkill1, 'Should find Claude skill 1');
+			assert.strictEqual(claudeSkill1.description, 'A Claude skill for testing');
+			assert.strictEqual(claudeSkill1.uri.path, `${rootFolder}/.claude/skills/claude-skill-1/SKILL.md`);
 
 			// Check personal skills
 			const personalSkills = result.filter(skill => skill.type === 'personal');
-			assert.strictEqual(personalSkills.length, 1, 'Should find 1 personal skill');
+			assert.strictEqual(personalSkills.length, 2, 'Should find 2 personal skills');
 
-			const personalSkill1 = personalSkills[0];
-			assert.strictEqual(personalSkill1.name, 'Personal Skill 1');
+			const personalSkill1 = personalSkills.find(skill => skill.name === 'Personal Skill 1');
+			assert.ok(personalSkill1, 'Should find Personal Skill 1');
 			assert.strictEqual(personalSkill1.description, 'A personal skill for testing');
 			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/personal-skill-1/SKILL.md');
+
+			const copilotSkill1 = personalSkills.find(skill => skill.name === 'Copilot Skill 1');
+			assert.ok(copilotSkill1, 'Should find Copilot Skill 1');
+			assert.strictEqual(copilotSkill1.description, 'A Copilot skill for testing');
+			assert.strictEqual(copilotSkill1.uri.path, '/home/user/.copilot/skills/copilot-skill-1/SKILL.md');
 		});
 
 		test('should handle parsing errors gracefully', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 
-			const rootFolderName = 'claude-skills-error-test';
+			const rootFolderName = 'skills-error-test';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Create mock filesystem with malformed skill file
+			// Create mock filesystem with malformed skill file in .github/skills
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.claude/skills/valid-skill/SKILL.md`,
+					path: `${rootFolder}/.github/skills/valid-skill/SKILL.md`,
 					contents: [
 						'---',
 						'name: "Valid Skill"',
@@ -1373,7 +1445,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 
 			// Should still return the valid skill, even if one has parsing errors
 			assert.ok(result, 'Should return results even with parsing errors');
@@ -1383,7 +1455,7 @@ suite('PromptsService', () => {
 		});
 
 		test('should return empty array when no skills found', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 
 			const rootFolderName = 'empty-workspace';
 			const rootFolder = `/${rootFolderName}`;
@@ -1394,10 +1466,111 @@ suite('PromptsService', () => {
 			// Create empty mock filesystem
 			await mockFiles(fileService, []);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(result, 'Should return results array');
 			assert.strictEqual(result.length, 0, 'Should find no skills');
+		});
+
+		test('should truncate long names and descriptions', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'truncation-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const longName = 'A'.repeat(100); // Exceeds 64 characters
+			const longDescription = 'B'.repeat(1500); // Exceeds 1024 characters
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/long-skill/SKILL.md`,
+					contents: [
+						'---',
+						`name: "${longName}"`,
+						`description: "${longDescription}"`,
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find 1 skill');
+			assert.strictEqual(result[0].name.length, 64, 'Name should be truncated to 64 characters');
+			assert.strictEqual(result[0].description?.length, 1024, 'Description should be truncated to 1024 characters');
+		});
+
+		test('should remove XML tags from name and description', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'xml-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/xml-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Skill <b>with</b> <em>XML</em> tags"',
+						'description: "Description with <strong>HTML</strong> and <span>other</span> tags"',
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find 1 skill');
+			assert.strictEqual(result[0].name, 'Skill with XML tags', 'XML tags should be removed from name');
+			assert.strictEqual(result[0].description, 'Description with HTML and other tags', 'XML tags should be removed from description');
+		});
+
+		test('should handle both truncation and XML removal', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'combined-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const longNameWithXml = '<p>' + 'A'.repeat(100) + '</p>'; // Exceeds 64 chars and has XML
+			const longDescWithXml = '<div>' + 'B'.repeat(1500) + '</div>'; // Exceeds 1024 chars and has XML
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/combined-skill/SKILL.md`,
+					contents: [
+						'---',
+						`name: "${longNameWithXml}"`,
+						`description: "${longDescWithXml}"`,
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find 1 skill');
+			// XML tags are removed first, then truncation happens
+			assert.ok(!result[0].name.includes('<'), 'Name should not contain XML tags');
+			assert.ok(!result[0].name.includes('>'), 'Name should not contain XML tags');
+			assert.strictEqual(result[0].name.length, 64, 'Name should be truncated to 64 characters');
+			assert.ok(!result[0].description?.includes('<'), 'Description should not contain XML tags');
+			assert.ok(!result[0].description?.includes('>'), 'Description should not contain XML tags');
+			assert.strictEqual(result[0].description?.length, 1024, 'Description should be truncated to 1024 characters');
 		});
 	});
 });

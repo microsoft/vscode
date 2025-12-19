@@ -7,8 +7,10 @@ import { AsyncIterableProducer, raceCancellationError, Sequencer } from '../../.
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import * as json from '../../../../base/common/json.js';
+import { normalizeDriveLetter } from '../../../../base/common/labels.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { mapValues } from '../../../../base/common/objects.js';
 import { autorun, autorunSelfDisposable, derived, disposableObservableValue, IDerivedReader, IObservable, IReader, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -452,10 +454,14 @@ export class McpServer extends Disposable implements IMcpServer {
 
 			cnx.roots = workspaces.read(reader)
 				.filter(w => w.uri.authority === (initialCollection.remoteAuthority || ''))
-				.map(w => ({
-					name: w.name,
-					uri: URI.from(uriTransformer?.transformIncoming(w.uri) ?? w.uri).toString()
-				}));
+				.map(w => {
+					let uri = URI.from(uriTransformer?.transformIncoming(w.uri) ?? w.uri);
+					if (uri.scheme === Schemas.file) { // #271812
+						uri = URI.file(normalizeDriveLetter(uri.fsPath, true));
+					}
+
+					return { name: w.name, uri: uri.toString() };
+				});
 		}));
 
 		// 2. Populate this.tools when we connect to a server.
