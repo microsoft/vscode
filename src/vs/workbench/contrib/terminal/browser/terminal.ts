@@ -329,7 +329,7 @@ export interface IDetachedXTermOptions {
 	cols: number;
 	rows: number;
 	colorProvider: IXtermColorProvider;
-	capabilities?: ITerminalCapabilityStore;
+	capabilities?: ITerminalCapabilityStore & IDisposable;
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
 	disableOverviewRuler?: boolean;
@@ -727,7 +727,7 @@ export interface ITerminalInstanceHost {
 	/**
 	 * Reveal and focus the instance, regardless of its location.
 	 */
-	focusInstance(instance: ITerminalInstance): void;
+	focusInstance(instance: ITerminalInstance): Promise<void>;
 	/**
 	 * Reveal and focus the active instance, regardless of its location.
 	 */
