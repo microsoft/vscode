@@ -8,7 +8,6 @@ import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
-import { TerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../common/theme.js';
@@ -151,14 +150,12 @@ export class DetachedTerminalCommandMirror extends DetachedTerminalMirror implem
 	) {
 		super();
 		const processInfo = this._register(new DetachedProcessInfo({ initialCwd: '' }));
-		const capabilities = this._register(new TerminalCapabilityStore());
 		this._setDetachedTerminal(this._terminalService.createDetachedTerminal({
 			cols: this._xtermTerminal.raw!.cols,
 			rows: 10,
 			readonly: true,
 			processInfo,
 			disableOverviewRuler: true,
-			capabilities,
 			colorProvider: {
 				getBackgroundColor: theme => getChatTerminalBackgroundColor(theme, this._contextKeyService),
 			},
@@ -178,8 +175,6 @@ export class DetachedTerminalCommandMirror extends DetachedTerminalMirror implem
 			return { lineCount: 0 };
 		}
 		const detached = await this._getTerminal();
-		detached.xterm.clearBuffer();
-		detached.xterm.clearSearchDecorations?.();
 		await new Promise<void>(resolve => {
 			detached.xterm.write(vt.text, () => resolve());
 		});
@@ -241,8 +236,6 @@ export class DetachedTerminalSnapshotMirror extends DetachedTerminalMirror {
 			return { lineCount: this._lastRenderedLineCount ?? output.lineCount };
 		}
 		const terminal = await this._getTerminal();
-		terminal.xterm.clearBuffer();
-		terminal.xterm.clearSearchDecorations?.();
 		if (this._container) {
 			this._applyTheme(this._container);
 		}

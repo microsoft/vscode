@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -46,14 +47,17 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 }
 
 class ChatResponseAccessibleProvider extends Disposable implements IAccessibleViewContentProvider {
-	private _focusedItem: ChatTreeItem;
+	private _focusedItem!: ChatTreeItem;
+	private readonly _focusedItemDisposables = this._register(new DisposableStore());
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	constructor(
 		private readonly _widget: IChatWidget,
 		item: ChatTreeItem,
 		private readonly _wasOpenedFromInput: boolean
 	) {
 		super();
-		this._focusedItem = item;
+		this._setFocusedItem(item);
 	}
 
 	readonly id = AccessibleViewProviderId.PanelChat;
@@ -62,6 +66,14 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 
 	provideContent(): string {
 		return this._getContent(this._focusedItem);
+	}
+
+	private _setFocusedItem(item: ChatTreeItem): void {
+		this._focusedItem = item;
+		this._focusedItemDisposables.clear();
+		if (isResponseVM(item)) {
+			this._focusedItemDisposables.add(item.model.onDidChange(() => this._onDidChangeContent.fire()));
+		}
 	}
 
 	private _getContent(item: ChatTreeItem): string {
@@ -135,7 +147,20 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 				}
 			}
 		}
-		return renderAsPlaintext(new MarkdownString(responseContent), { includeCodeBlocksFences: true });
+		const plainText = renderAsPlaintext(new MarkdownString(responseContent), { includeCodeBlocksFences: true });
+		return this._normalizeWhitespace(plainText);
+	}
+
+	private _normalizeWhitespace(content: string): string {
+		const lines = content.split(/\r?\n/);
+		const normalized: string[] = [];
+		for (const line of lines) {
+			if (line.trim().length === 0) {
+				continue;
+			}
+			normalized.push(line);
+		}
+		return normalized.join('\n');
 	}
 
 	onClose(): void {
@@ -150,7 +175,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 	provideNextContent(): string | undefined {
 		const next = this._widget.getSibling(this._focusedItem, 'next');
 		if (next) {
-			this._focusedItem = next;
+			this._setFocusedItem(next);
 			return this._getContent(next);
 		}
 		return;
@@ -159,7 +184,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 	providePreviousContent(): string | undefined {
 		const previous = this._widget.getSibling(this._focusedItem, 'previous');
 		if (previous) {
-			this._focusedItem = previous;
+			this._setFocusedItem(previous);
 			return this._getContent(previous);
 		}
 		return;

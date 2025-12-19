@@ -844,6 +844,10 @@ export interface IQuickInputButton {
 	readonly toggle?: { checked: boolean };
 }
 
+export interface IQuickInputButtonWithToggle extends IQuickInputButton {
+	readonly toggle: { checked: boolean };
+}
+
 /**
  * Represents an event that occurs when a button associated with a quick pick item is clicked.
  * @template T - The type of the quick pick item.
