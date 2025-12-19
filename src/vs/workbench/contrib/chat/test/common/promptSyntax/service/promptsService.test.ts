@@ -1367,12 +1367,22 @@ suite('PromptsService', () => {
 					path: '/home/user/.claude/skills/not-a-skill/other-file.md',
 					contents: ['Not a skill file'],
 				},
+				{
+					path: '/home/user/.copilot/skills/copilot-skill-1/SKILL.md',
+					contents: [
+						'---',
+						'name: "Copilot Skill 1"',
+						'description: "A Copilot skill for testing"',
+						'---',
+						'This is Copilot skill 1 content',
+					],
+				},
 			]);
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(result, 'Should return results when agent skills are enabled');
-			assert.strictEqual(result.length, 3, 'Should find 3 skills total');
+			assert.strictEqual(result.length, 4, 'Should find 4 skills total');
 
 			// Check project skills (both from .github/skills and .claude/skills)
 			const projectSkills = result.filter(skill => skill.type === 'project');
@@ -1390,12 +1400,17 @@ suite('PromptsService', () => {
 
 			// Check personal skills
 			const personalSkills = result.filter(skill => skill.type === 'personal');
-			assert.strictEqual(personalSkills.length, 1, 'Should find 1 personal skill');
+			assert.strictEqual(personalSkills.length, 2, 'Should find 2 personal skills');
 
-			const personalSkill1 = personalSkills[0];
-			assert.strictEqual(personalSkill1.name, 'Personal Skill 1');
+			const personalSkill1 = personalSkills.find(skill => skill.name === 'Personal Skill 1');
+			assert.ok(personalSkill1, 'Should find Personal Skill 1');
 			assert.strictEqual(personalSkill1.description, 'A personal skill for testing');
 			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/personal-skill-1/SKILL.md');
+
+			const copilotSkill1 = personalSkills.find(skill => skill.name === 'Copilot Skill 1');
+			assert.ok(copilotSkill1, 'Should find Copilot Skill 1');
+			assert.strictEqual(copilotSkill1.description, 'A Copilot skill for testing');
+			assert.strictEqual(copilotSkill1.uri.path, '/home/user/.copilot/skills/copilot-skill-1/SKILL.md');
 		});
 
 		test('should handle parsing errors gracefully', async () => {
@@ -1455,6 +1470,107 @@ suite('PromptsService', () => {
 
 			assert.ok(result, 'Should return results array');
 			assert.strictEqual(result.length, 0, 'Should find no skills');
+		});
+
+		test('should truncate long names and descriptions', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'truncation-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const longName = 'A'.repeat(100); // Exceeds 64 characters
+			const longDescription = 'B'.repeat(1500); // Exceeds 1024 characters
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/long-skill/SKILL.md`,
+					contents: [
+						'---',
+						`name: "${longName}"`,
+						`description: "${longDescription}"`,
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find 1 skill');
+			assert.strictEqual(result[0].name.length, 64, 'Name should be truncated to 64 characters');
+			assert.strictEqual(result[0].description?.length, 1024, 'Description should be truncated to 1024 characters');
+		});
+
+		test('should remove XML tags from name and description', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'xml-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/xml-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Skill <b>with</b> <em>XML</em> tags"',
+						'description: "Description with <strong>HTML</strong> and <span>other</span> tags"',
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find 1 skill');
+			assert.strictEqual(result[0].name, 'Skill with XML tags', 'XML tags should be removed from name');
+			assert.strictEqual(result[0].description, 'Description with HTML and other tags', 'XML tags should be removed from description');
+		});
+
+		test('should handle both truncation and XML removal', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'combined-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const longNameWithXml = '<p>' + 'A'.repeat(100) + '</p>'; // Exceeds 64 chars and has XML
+			const longDescWithXml = '<div>' + 'B'.repeat(1500) + '</div>'; // Exceeds 1024 chars and has XML
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/combined-skill/SKILL.md`,
+					contents: [
+						'---',
+						`name: "${longNameWithXml}"`,
+						`description: "${longDescWithXml}"`,
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find 1 skill');
+			// XML tags are removed first, then truncation happens
+			assert.ok(!result[0].name.includes('<'), 'Name should not contain XML tags');
+			assert.ok(!result[0].name.includes('>'), 'Name should not contain XML tags');
+			assert.strictEqual(result[0].name.length, 64, 'Name should be truncated to 64 characters');
+			assert.ok(!result[0].description?.includes('<'), 'Description should not contain XML tags');
+			assert.ok(!result[0].description?.includes('>'), 'Description should not contain XML tags');
+			assert.strictEqual(result[0].description?.length, 1024, 'Description should be truncated to 1024 characters');
 		});
 	});
 });

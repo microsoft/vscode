@@ -678,7 +678,7 @@ export interface TransferQuickPickItem {
 export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
 	handle: number;
 	iconPathDto: IconPathDto;
-	checked?: boolean;
+	toggle?: { checked: boolean };
 
 	// TODO: These properties are not used for transfer (iconPathDto is used instead) but they cannot be removed
 	// because this type is used as IQuickInputButton on the main thread. Ideally IQuickInputButton should also use IconPath.
@@ -2635,7 +2635,7 @@ export class TerminalCompletionListDto<T extends ITerminalCompletionItemDto = IT
 
 export interface TerminalCompletionResourceOptionsDto {
 	showFiles?: boolean;
-	showFolders?: boolean;
+	showDirectories?: boolean;
 	globPattern?: string | IRelativePattern;
 	cwd: UriComponents;
 	pathSeparator: string;
