@@ -116,6 +116,10 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override get resource(): URI {
+		if (this._resourceBeforeDisposal) {
+			return this._resourceBeforeDisposal;
+		}
+
 		const url = this._model?.url ?? this._initialData.url ?? '';
 		return BrowserViewUri.forUrl(url, this._id);
 	}
@@ -165,7 +169,7 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override canReopen(): boolean {
-		return false;
+		return true;
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
@@ -197,8 +201,12 @@ export class BrowserEditorInput extends EditorInput {
 		};
 	}
 
+	// When closing the editor, toUntyped() is called after dispose().
+	// So we save a snapshot of the resource so we can still use it after the model is disposed.
+	private _resourceBeforeDisposal: URI | undefined;
 	override dispose(): void {
 		if (this._model) {
+			this._resourceBeforeDisposal = this.resource;
 			this._model.dispose();
 			this._model = undefined;
 		}
