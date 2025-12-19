@@ -57,13 +57,13 @@ function code-wsl()
 	export DISPLAY="$HOST_IP:0"
 
 	# in a wsl shell
-	ELECTRON="$ROOT/.build/electron/Code - OSS.exe"
+	ELECTRON="$ROOT/.build/electron/ArchiCode.exe"
 	if [ -f "$ELECTRON"  ]; then
 		local CWD=$(pwd)
 		cd $ROOT
 		export WSLENV=ELECTRON_RUN_AS_NODE/w:VSCODE_DEV/w:$WSLENV
 		local WSL_EXT_ID="ms-vscode-remote.remote-wsl"
-		local WSL_EXT_WLOC=$(echo "" | VSCODE_DEV=1 ELECTRON_RUN_AS_NODE=1 "$ROOT/.build/electron/Code - OSS.exe" "out/cli.js" --locate-extension $WSL_EXT_ID)
+		local WSL_EXT_WLOC=$(echo "" | VSCODE_DEV=1 ELECTRON_RUN_AS_NODE=1 "$ROOT/.build/electron/ArchiCode.exe" "out/cli.js" --locate-extension $WSL_EXT_ID)
 		cd $CWD
 		if [ -n "$WSL_EXT_WLOC" ]; then
 			# replace \r\n with \n in WSL_EXT_WLOC

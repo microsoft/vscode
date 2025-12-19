@@ -1,8 +1,8 @@
-# Code - OSS Development Container
+# ArchiCode Development Container
 
 [![Open in Dev Containers](https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode)
 
-This repository includes configuration for a development container for working with Code - OSS in a local container or using [GitHub Codespaces](https://github.com/features/codespaces).
+This repository includes configuration for a development container for working with ArchiCode in a local container or using [GitHub Codespaces](https://github.com/features/codespaces).
 
 > **Tip:** The default VNC password is `vscode`. The VNC server runs on port `5901` and a web client is available on port `6080`.
 
@@ -20,7 +20,7 @@ If you already have VS Code and Docker installed, you can click the badge above 
 
    ![Image of Dev Containers extension](https://microsoft.github.io/vscode-remote-release/images/dev-containers-extn.png)
 
-   > **Note:** The Dev Containers extension requires the Visual Studio Code distribution of Code - OSS. See the [FAQ](https://aka.ms/vscode-remote/faq/license) for details.
+   > **Note:** The Dev Containers extension requires the Visual Studio Code distribution of ArchiCode. See the [FAQ](https://aka.ms/vscode-remote/faq/license) for details.
 
 4. Press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> or <kbd>F1</kbd> and select **Dev Containers: Clone Repository in Container Volume...**.
 
@@ -58,7 +58,7 @@ You may see improved VNC responsiveness when accessing a codespace from VS Code 
 
 1. Install [Visual Studio Code Stable](https://code.visualstudio.com/) or [Insiders](https://code.visualstudio.com/insiders/) and the [GitHub Codespaces extension](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces).
 
-    > **Note:** The GitHub Codespaces extension requires the Visual Studio Code distribution of Code - OSS.
+    > **Note:** The GitHub Codespaces extension requires the Visual Studio Code distribution of ArchiCode.
 
 2. After the VS Code is up and running, press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> or <kbd>F1</kbd>, choose **Codespaces: Create New Codespace**, and use the following settings:
 
@@ -80,7 +80,7 @@ This container uses the [Fluxbox](http://fluxbox.org/) window manager to keep th
 
    > **Note:** You can also set the resolution from the command line by typing `set-resolution`.
 
-To start working with Code - OSS, follow these steps:
+To start working with ArchiCode, follow these steps:
 
 1. In your local VS Code client, open a terminal (<kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>\`</kbd>) and type the following commands:
 
@@ -91,17 +91,17 @@ To start working with Code - OSS, follow these steps:
 
 2. After the build is complete, open a web browser or a [VNC Viewer][def] to connect to the desktop environment as described in the quick start and enter `vscode` as the password.
 
-3. You should now see Code - OSS!
+3. You should now see ArchiCode!
 
 Next, let's try debugging.
 
-1. Shut down Code - OSS by clicking the box in the upper right corner of the Code - OSS window through your browser or VNC viewer.
+1. Shut down ArchiCode by clicking the box in the upper right corner of the ArchiCode window through your browser or VNC viewer.
 
 2. Go to your local VS Code client, and use the **Run / Debug** view to launch the **VS Code** configuration. (Typically the default, so you can likely just press <kbd>F5</kbd>).
 
    > **Note:** If launching times out, you can increase the value of `timeout` in the "VS Code", "Attach Main Process", "Attach Extension Host", and "Attach to Shared Process" configurations in [launch.json](../.vscode/launch.json). However, running `./scripts/code.sh` first will set up Electron which will usually solve timeout issues.
 
-3. After a bit, Code - OSS will appear with the debugger attached!
+3. After a bit, ArchiCode will appear with the debugger attached!
 
 Enjoy!
 

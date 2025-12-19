@@ -5,7 +5,7 @@
     <key>pfm_app_url</key>
     <string>https://code.visualstudio.com/</string>
     <key>pfm_description</key>
-    <string>Code - OSS Managed Settings</string>
+    <string>ArchiCode Managed Settings</string>
     <key>pfm_documentation_url</key>
     <string>https://code.visualstudio.com/docs/setup/enterprise</string>
     <key>pfm_domain</key>
@@ -22,10 +22,10 @@
     </array>
     <key>pfm_subkeys</key>
     <array>
-	
+
 		<dict>
 			<key>pfm_default</key>
-			<string>Configure Code - OSS</string>
+			<string>Configure ArchiCode</string>
 			<key>pfm_name</key>
 			<string>PayloadDescription</string>
 			<key>pfm_title</key>
@@ -35,7 +35,7 @@
 		</dict>
 		<dict>
 			<key>pfm_default</key>
-			<string>Code - OSS</string>
+			<string>ArchiCode</string>
 			<key>pfm_name</key>
 			<string>PayloadDisplayName</string>
 			<key>pfm_require</key>
@@ -265,7 +265,7 @@ Cette fonctionnalité désactive [les protections de sécurité critiques](https
 </dict>
     </array>
     <key>pfm_title</key>
-    <string>Code - OSS</string>
+    <string>ArchiCode</string>
     <key>pfm_unique</key>
     <true/>
     <key>pfm_version</key>

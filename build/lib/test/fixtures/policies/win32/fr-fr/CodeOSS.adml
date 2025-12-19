@@ -4,12 +4,12 @@
 	<description />
 	<resources>
 		<stringTable>
-			<string id="Application">Code - OSS</string>
-			<string id="Supported_1_101">Code - OSS &gt;= 1.101</string>
-			<string id="Supported_1_104">Code - OSS &gt;= 1.104</string>
-			<string id="Supported_1_67">Code - OSS &gt;= 1.67</string>
-			<string id="Supported_1_96">Code - OSS &gt;= 1.96</string>
-			<string id="Supported_1_99">Code - OSS &gt;= 1.99</string>
+			<string id="Application">ArchiCode</string>
+			<string id="Supported_1_101">ArchiCode &gt;= 1.101</string>
+			<string id="Supported_1_104">ArchiCode &gt;= 1.104</string>
+			<string id="Supported_1_67">ArchiCode &gt;= 1.67</string>
+			<string id="Supported_1_96">ArchiCode &gt;= 1.96</string>
+			<string id="Supported_1_99">ArchiCode &gt;= 1.99</string>
 			<string id="Category_interactiveSessionConfigurationTitle">Session interactive</string>
 			<string id="Category_extensionsConfigurationTitle">Extensions</string>
 			<string id="Category_terminalIntegratedConfigurationTitle">Terminal intégré</string>

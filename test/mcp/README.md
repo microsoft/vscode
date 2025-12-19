@@ -1,6 +1,6 @@
-# Code - OSS Development MCP Server
+# ArchiCode Development MCP Server
 
-This directory contains a Model Context Protocol (MCP) server that provides Playwright browser automation capabilities for Code - OSS development and testing. The MCP server exposes Code - OSS's Playwright testing infrastructure through a standardized interface, allowing AI assistants and other tools to interact with browsers programmatically.
+This directory contains a Model Context Protocol (MCP) server that provides Playwright browser automation capabilities for ArchiCode development and testing. The MCP server exposes ArchiCode's Playwright testing infrastructure through a standardized interface, allowing AI assistants and other tools to interact with browsers programmatically.
 
 ## What is MCP?
 
@@ -104,7 +104,7 @@ npm start
 test/mcp/
 ├── src/
 │   ├── main.ts              # Express server and MCP endpoint handlers
-│   ├── playwright.ts        # Code - OSS Playwright integration
+│   ├── playwright.ts        # ArchiCode Playwright integration
 │   ├── inMemoryEventStore.ts # Session management for resumability
 │   └── utils.ts             # Utility functions
 ├── package.json             # Dependencies and scripts
@@ -116,24 +116,24 @@ test/mcp/
 
 - **Session Management**: Supports multiple concurrent MCP sessions with proper cleanup
 - **Resumability**: Built-in event store for connection resumption
-- **Code - OSS Integration**: Uses Code - OSS's existing Playwright test infrastructure
+- **ArchiCode Integration**: Uses ArchiCode's existing Playwright test infrastructure
 - **CORS Support**: Configured for cross-origin requests
 - **Error Handling**: Comprehensive error handling and logging
 
 ## Troubleshooting
 
 ### Server Won't Start
-- Ensure Code - OSS has been built and run at least once (via F5 or `code.sh`)
+- Ensure ArchiCode has been built and run at least once (via F5 or `code.sh`)
 - Verify all dependencies are installed with `npm install`
 
 ### Browser Automation Issues
-- Ensure Code - OSS has been built and run at least once (via F5 or `code.sh`)
+- Ensure ArchiCode has been built and run at least once (via F5 or `code.sh`)
 - Check the server logs for Playwright-related errors
 - Verify the test repository is properly cloned
 
 ## Contributing
 
-This MCP server is part of the Code - OSS development infrastructure. When making changes:
+This MCP server is part of the ArchiCode development infrastructure. When making changes:
 
 1. Follow the existing TypeScript and coding conventions
 2. Test with multiple MCP clients if possible
