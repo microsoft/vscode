@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LayoutPriority, Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
-import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -15,7 +15,7 @@ import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { TerminalSettingId, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { openContextMenu } from './terminalContextMenu.js';
@@ -28,7 +28,6 @@ import { containsDragType } from '../../../../platform/dnd/browser/dnd.js';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from './terminalUri.js';
 import type { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
 import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
 
 const $ = dom.$;
 
@@ -41,9 +40,6 @@ const enum WidthConstants {
 	SplitAnnotation = 30
 }
 
-const enum OverlayConstants {
-	ResizeOverlayHideDelay = 500
-}
 
 export class TerminalTabbedView extends Disposable {
 
@@ -81,10 +77,6 @@ export class TerminalTabbedView extends Disposable {
 	private _panelOrientation: Orientation | undefined;
 	private _emptyAreaDropTargetCount = 0;
 
-	private _resizeOverlay: HTMLElement | undefined;
-	private _resizeOverlayHideTimeout: IDisposable | undefined;
-	private _isManuallyResizing: boolean = false;
-
 	constructor(
 		parentElement: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -102,7 +94,6 @@ export class TerminalTabbedView extends Disposable {
 		super();
 
 		this._parentElement = parentElement;
-		this._register(toDisposable(() => this._resizeOverlayHideTimeout?.dispose()));
 
 		this._tabContainer = $('.tabs-container');
 		const tabListContainer = $('.tabs-list-container');
@@ -124,8 +115,6 @@ export class TerminalTabbedView extends Disposable {
 		terminalOuterContainer.appendChild(this._terminalContainer);
 
 		this._terminalService.setContainers(parentElement, this._terminalContainer);
-
-		this._register(this._terminalService.onDidChangeInstanceDimensions(instance => this._handleInstanceDimensionsChanged(instance)));
 
 		this._terminalIsTabsNarrowContextKey = TerminalContextKeys.tabsNarrow.bindTo(contextKeyService);
 		this._terminalTabsFocusContextKey = TerminalContextKeys.tabsFocus.bindTo(contextKeyService);
@@ -230,43 +219,6 @@ export class TerminalTabbedView extends Disposable {
 		this._chatEntry?.update();
 	}
 
-	private _ensureResizeOverlay(): HTMLElement {
-		if (!this._resizeOverlay) {
-			this._resizeOverlay = $('.terminal-resize-overlay');
-			this._resizeOverlay.setAttribute('role', 'status');
-			this._resizeOverlay.setAttribute('aria-live', 'polite');
-			this._parentElement.append(this._resizeOverlay);
-			this._register(toDisposable(() => this._resizeOverlay?.remove()));
-		}
-		return this._resizeOverlay;
-	}
-
-	private _handleInstanceDimensionsChanged(instance: ITerminalInstance): void {
-		if (!this._parentElement.isConnected) {
-			return;
-		}
-
-		if (!this._isManuallyResizing) {
-			return;
-		}
-
-		if (instance.target !== TerminalLocation.Panel) {
-			return;
-		}
-
-		if (instance !== this._terminalGroupService.activeInstance) {
-			return;
-		}
-
-		const overlay = this._ensureResizeOverlay();
-		overlay.textContent = `${instance.cols} x ${instance.rows}`;
-		overlay.classList.add('visible');
-
-		this._resizeOverlayHideTimeout?.dispose();
-		this._resizeOverlayHideTimeout = disposableTimeout(() => {
-			this._resizeOverlay?.classList.remove('visible');
-		}, OverlayConstants.ResizeOverlayHideDelay);
-	}
 
 	private _getLastListWidth(): number {
 		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TerminalStorageKeys.TabsListWidthVertical : TerminalStorageKeys.TabsListWidthHorizontal;
@@ -375,13 +327,11 @@ export class TerminalTabbedView extends Disposable {
 		let interval: IDisposable;
 		this._sashDisposables = [
 			this._splitView.sashes[0].onDidStart(e => {
-				this._isManuallyResizing = true;
 				interval = dom.disposableWindowInterval(dom.getWindow(this._splitView.el), () => {
 					this.rerenderTabs();
 				}, 100);
 			}),
 			this._splitView.sashes[0].onDidEnd(e => {
-				this._isManuallyResizing = false;
 				interval.dispose();
 			})
 		];

@@ -108,6 +108,10 @@ const enum Constants {
 	MaxCanvasWidth = 4096
 }
 
+const enum OverlayConstants {
+	ResizeOverlayHideDelay = 500
+}
+
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
 
 interface ICanvasDimensions {
@@ -202,6 +206,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
 	private _resizeDebouncer?: TerminalResizeDebouncer;
+	private _resizeOverlay: HTMLElement | undefined;
+	private _resizeOverlayHideTimeout: IDisposable | undefined;
+	private _isManuallyResizing: boolean = false;
 
 	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
@@ -606,6 +613,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel(this)));
+
+		// Register dimension change handler for resize overlay
+		this._register(this.onDimensionsChanged(() => this._handleDimensionsChanged()));
+
+		// Register window resize listeners for manual resize detection
+		this._register(dom.addDisposableListener(dom.getWindow(this._wrapperElement), 'resize', () => {
+			this._isManuallyResizing = true;
+			// Reset the flag after a delay to detect when resizing stops
+			this._resizeOverlayHideTimeout?.dispose();
+			this._resizeOverlayHideTimeout = disposableTimeout(() => {
+				this._isManuallyResizing = false;
+			}, OverlayConstants.ResizeOverlayHideDelay);
+		}));
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
@@ -1977,6 +1997,46 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		TerminalInstance._lastKnownGridDimensions = { cols, rows };
 		this._resizeDebouncer!.resize(cols, rows, immediate ?? false);
+	}
+
+	private _ensureResizeOverlay(): HTMLElement {
+		if (!this._resizeOverlay) {
+			this._resizeOverlay = dom.$('.terminal-resize-overlay');
+			this._resizeOverlay.setAttribute('role', 'status');
+			this._resizeOverlay.setAttribute('aria-live', 'polite');
+			if (this._container) {
+				this._container.appendChild(this._resizeOverlay);
+			}
+			this._register(toDisposable(() => {
+				this._resizeOverlay?.remove();
+				this._resizeOverlay = undefined;
+				this._resizeOverlayHideTimeout?.dispose();
+				this._resizeOverlayHideTimeout = undefined;
+			}));
+		} else if (this._container && !this._container.contains(this._resizeOverlay)) {
+			// If container changed, move overlay to new container
+			this._container.appendChild(this._resizeOverlay);
+		}
+		return this._resizeOverlay;
+	}
+
+	private _handleDimensionsChanged(): void {
+		if (!this._container || !this._container.isConnected) {
+			return;
+		}
+
+		if (!this._isManuallyResizing) {
+			return;
+		}
+
+		const overlay = this._ensureResizeOverlay();
+		overlay.textContent = `${this.cols} x ${this.rows}`;
+		overlay.classList.add('visible');
+
+		this._resizeOverlayHideTimeout?.dispose();
+		this._resizeOverlayHideTimeout = disposableTimeout(() => {
+			this._resizeOverlay?.classList.remove('visible');
+		}, OverlayConstants.ResizeOverlayHideDelay);
 	}
 
 	private async _updatePtyDimensions(rawXterm: XTermTerminal): Promise<void> {
