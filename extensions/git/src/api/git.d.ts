@@ -261,7 +261,8 @@ export interface Repository {
 	diffBlobs(object1: string, object2: string): Promise<string>;
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
-
+	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
+	
 	hashObject(data: string): Promise<string>;
 
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
