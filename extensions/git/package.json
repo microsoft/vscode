@@ -1110,6 +1110,32 @@
         "icon": "$(trash)",
         "category": "Git",
         "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.createWorktree",
+        "title": "%command.createWorktree%",
+        "icon": "$(plus)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.openWorktree",
+        "title": "%command.openWorktree2%",
+        "icon": "$(folder-opened)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.openWorktreeInNewWindow",
+        "title": "%command.openWorktreeInNewWindow2%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.deleteWorktree",
+        "title": "%command.deleteRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
       }
     ],
     "continueEditSession": [
@@ -1789,6 +1815,22 @@
         {
           "command": "git.repositories.stashDrop",
           "when": "false"
+        },
+        {
+          "command": "git.repositories.createWorktree",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.openWorktree",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.openWorktreeInNewWindow",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.deleteWorktree",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1994,6 +2036,11 @@
           "submenu": "git.repositories.stash",
           "group": "inline@1",
           "when": "scmProvider == git && scmArtifactGroup == stashes"
+        },
+        {
+          "command": "git.repositories.createWorktree",
+          "group": "inline@1",
+          "when": "scmProvider == git && scmArtifactGroup == worktrees"
         }
       ],
       "scm/artifact/context": [
@@ -2067,6 +2114,26 @@
           "command": "git.repositories.compareRef",
           "group": "4_compare@1",
           "when": "scmProvider == git && (scmArtifactGroupId == branches || scmArtifactGroupId == tags)"
+        },
+        {
+          "command": "git.repositories.openWorktree",
+          "group": "inline@1",
+          "when": "scmProvider == git && scmArtifactGroupId == worktrees"
+        },
+        {
+          "command": "git.repositories.openWorktree",
+          "group": "1_open@1",
+          "when": "scmProvider == git && scmArtifactGroupId == worktrees"
+        },
+        {
+          "command": "git.repositories.openWorktreeInNewWindow",
+          "group": "1_open@2",
+          "when": "scmProvider == git && scmArtifactGroupId == worktrees"
+        },
+        {
+          "command": "git.repositories.deleteWorktree",
+          "group": "2_modify@1",
+          "when": "scmProvider == git && scmArtifactGroupId == worktrees"
         }
       ],
       "scm/resourceGroup/context": [
@@ -3835,6 +3902,11 @@
           "type": "string",
           "default": "${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameStatusBarItem.template%"
+        },
+        "git.blame.ignoreWhitespace": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameIgnoreWhitespace%"
         },
         "git.commitShortHashLength": {
           "type": "number",
