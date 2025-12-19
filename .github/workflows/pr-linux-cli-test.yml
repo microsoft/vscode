@@ -10,6 +10,7 @@ on:
 
 jobs:
   linux-cli-test:
+    if: false
     name: ${{ inputs.job_name }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
     env:

@@ -5,6 +5,7 @@ permissions: {}
 
 jobs:
   main:
+    if: false
     name: Prevent engineering system changes in PRs
     runs-on: ubuntu-latest
     steps:

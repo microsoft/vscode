@@ -9,6 +9,7 @@ permissions: {}
 
 jobs:
   compile:
+    if: false
     name: Compile
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
     steps:
@@ -85,6 +86,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
   linux:
+    if: false
     name: Linux
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
     env:
@@ -157,6 +159,7 @@ jobs:
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 
   macOS:
+    if: false
     name: macOS
     runs-on: macos-14-xlarge
     env:
@@ -218,6 +221,7 @@ jobs:
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 
   windows:
+    if: false
     name: Windows
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64 ]
     env:

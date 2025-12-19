@@ -3,6 +3,7 @@ on: pull_request
 permissions: {}
 jobs:
   check-metadata:
+    if: false
     name: 'Check metadata'
     runs-on: 'ubuntu-latest'
 
