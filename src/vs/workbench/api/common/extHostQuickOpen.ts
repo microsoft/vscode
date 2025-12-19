@@ -392,12 +392,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		set buttons(buttons: QuickInputButton[]) {
 			if (buttons.some(button =>
-				typeof button.location === 'number' ||
-				typeof button.toggle === 'object' && typeof button.toggle.checked === 'boolean')) {
-				checkProposedApiEnabled(this._extension, 'quickInputButtonLocation');
-			}
-
-			if (buttons.some(button =>
 				typeof button.location === 'number' &&
 				button.location !== QuickInputButtonLocation.Input &&
 				typeof button.toggle === 'object' &&
