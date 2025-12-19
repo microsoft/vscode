@@ -96,6 +96,15 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(this._ctx.instance.onDidChangeTarget((target) => {
 			this._updateContainerForTarget(target);
 		}));
+
+		// The terminal view can be reparented (for example when moved into a new view). Ensure the
+		// suggest widget follows the terminal's DOM when focus returns to the instance.
+		this.add(this._ctx.instance.onDidFocus(() => {
+			const xtermRaw = this._ctx.instance.xterm?.raw;
+			if (xtermRaw) {
+				this._prepareAddonLayout(xtermRaw);
+			}
+		}));
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {

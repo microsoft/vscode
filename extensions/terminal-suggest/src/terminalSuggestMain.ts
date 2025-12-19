@@ -309,11 +309,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			const cwd = result.cwd ?? terminal.shellIntegration?.cwd;
-			if (cwd && (result.showFiles || result.showFolders)) {
+			if (cwd && (result.showFiles || result.showDirectories)) {
 				const globPattern = createFileGlobPattern(result.fileExtensions);
 				return new vscode.TerminalCompletionList(result.items, {
 					showFiles: result.showFiles,
-					showDirectories: result.showFolders,
+					showDirectories: result.showDirectories,
 					globPattern,
 					cwd,
 				});
@@ -473,10 +473,10 @@ export async function getCompletionItemsFromSpecs(
 	name: string,
 	token?: vscode.CancellationToken,
 	executeExternals?: IFigExecuteExternals,
-): Promise<{ items: vscode.TerminalCompletionItem[]; showFiles: boolean; showFolders: boolean; fileExtensions?: string[]; cwd?: vscode.Uri }> {
+): Promise<{ items: vscode.TerminalCompletionItem[]; showFiles: boolean; showDirectories: boolean; fileExtensions?: string[]; cwd?: vscode.Uri }> {
 	let items: vscode.TerminalCompletionItem[] = [];
 	let showFiles = false;
-	let showFolders = false;
+	let showDirectories = false;
 	let hasCurrentArg = false;
 	let fileExtensions: string[] | undefined;
 
@@ -510,7 +510,7 @@ export async function getCompletionItemsFromSpecs(
 	if (result) {
 		hasCurrentArg ||= result.hasCurrentArg;
 		showFiles ||= result.showFiles;
-		showFolders ||= result.showFolders;
+		showDirectories ||= result.showDirectories;
 		fileExtensions = result.fileExtensions;
 		if (result.items) {
 			items = items.concat(result.items);
@@ -546,18 +546,18 @@ export async function getCompletionItemsFromSpecs(
 			}
 		}
 		showFiles = true;
-		showFolders = true;
-	} else if (!items.length && !showFiles && !showFolders && !hasCurrentArg) {
+		showDirectories = true;
+	} else if (!items.length && !showFiles && !showDirectories && !hasCurrentArg) {
 		showFiles = true;
-		showFolders = true;
+		showDirectories = true;
 	}
 
 	let cwd: vscode.Uri | undefined;
-	if (shellIntegrationCwd && (showFiles || showFolders)) {
+	if (shellIntegrationCwd && (showFiles || showDirectories)) {
 		cwd = await resolveCwdFromCurrentCommandString(currentCommandString, shellIntegrationCwd);
 	}
 
-	return { items, showFiles, showFolders, fileExtensions, cwd };
+	return { items, showFiles, showDirectories, fileExtensions, cwd };
 }
 
 function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<string, string> {
