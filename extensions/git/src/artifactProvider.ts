@@ -172,7 +172,9 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 						w.commitDetails?.hash.substring(0, shortCommitLength),
 						w.commitDetails?.message.split('\n')[0]
 					]).join(' \u2022 '),
-					icon: new ThemeIcon('list-tree'),
+					icon: w.name.startsWith('copilot-worktree')
+						? new ThemeIcon('chat-sparkle')
+						: new ThemeIcon('worktree'),
 					timestamp: w.commitDetails?.commitDate?.getTime(),
 				}));
 			}
