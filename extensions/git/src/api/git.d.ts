@@ -121,6 +121,11 @@ export interface Change {
 	readonly status: Status;
 }
 
+export interface DiffChange extends Change {
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface RepositoryState {
 	readonly HEAD: Branch | undefined;
 	readonly refs: Ref[];
