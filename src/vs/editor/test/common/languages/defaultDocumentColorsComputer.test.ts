@@ -120,4 +120,52 @@ suite('Default Document Colors Computer', () => {
 
 		assert.strictEqual(colors.length, 1, 'Should detect one hsl color');
 	});
+
+	test('hsl with decimal hue values should work', () => {
+		// Test case from issue #180436 comment
+		const testCases = [
+			{ content: 'hsl(253.5, 100%, 50%)', name: 'decimal hue' },
+			{ content: 'hsl(360.0, 50%, 50%)', name: '360.0 hue' },
+			{ content: 'hsl(100.5, 50.5%, 50.5%)', name: 'all decimals' },
+			{ content: 'hsl(0.5, 50%, 50%)', name: 'small decimal hue' },
+			{ content: 'hsl(359.9, 100%, 50%)', name: 'near-max decimal hue' }
+		];
+
+		testCases.forEach(testCase => {
+			const model = new TestDocumentModel(`const color = ${testCase.content};`);
+			const colors = computeDefaultDocumentColors(model);
+			assert.strictEqual(colors.length, 1, `Should detect hsl color with ${testCase.name}: ${testCase.content}`);
+		});
+	});
+
+	test('hsla with decimal values should work', () => {
+		const testCases = [
+			{ content: 'hsla(253.5, 100%, 50%, 0.5)', name: 'decimal hue with alpha' },
+			{ content: 'hsla(360.0, 50.5%, 50.5%, 1)', name: 'all decimals with alpha 1' },
+			{ content: 'hsla(0.5, 50%, 50%, 0.25)', name: 'small decimal hue with alpha' }
+		];
+
+		testCases.forEach(testCase => {
+			const model = new TestDocumentModel(`const color = ${testCase.content};`);
+			const colors = computeDefaultDocumentColors(model);
+			assert.strictEqual(colors.length, 1, `Should detect hsla color with ${testCase.name}: ${testCase.content}`);
+		});
+	});
+
+	test('hsl with space separator (CSS Level 4 syntax) should work', () => {
+		// CSS Level 4 allows space-separated values instead of comma-separated
+		const testCases = [
+			{ content: 'hsl(253 100% 50%)', name: 'space-separated' },
+			{ content: 'hsl(253.5 100% 50%)', name: 'space-separated with decimal hue' },
+			{ content: 'hsla(253 100% 50% / 0.5)', name: 'hsla with slash separator for alpha' },
+			{ content: 'hsla(253.5 100% 50% / 0.5)', name: 'hsla with decimal hue and slash separator' },
+			{ content: 'hsla(253 100% 50% / 1)', name: 'hsla with slash and alpha 1' }
+		];
+
+		testCases.forEach(testCase => {
+			const model = new TestDocumentModel(`const color = ${testCase.content};`);
+			const colors = computeDefaultDocumentColors(model);
+			assert.strictEqual(colors.length, 1, `Should detect hsl color with ${testCase.name}: ${testCase.content}`);
+		});
+	});
 });
