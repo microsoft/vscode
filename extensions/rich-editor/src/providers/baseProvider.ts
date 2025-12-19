@@ -828,7 +828,7 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 		}
 
 		.ProseMirror > * + * {
-			margin-top: 0.75em;
+			margin-top: 0.25em;
 		}
 
 		.ProseMirror h1 {
@@ -853,7 +853,7 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 		}
 
 		.ProseMirror p {
-			margin: 0.5em 0;
+			margin: 0.1em 0;
 		}
 
 		.ProseMirror ul,
@@ -1107,8 +1107,8 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 		.math-block.math-rendered {
 			display: block;
 			text-align: center;
-			padding: 16px;
-			margin: 16px 0;
+			padding: 4px 8px;
+			margin: 0;
 			cursor: pointer;
 		}
 
@@ -1150,8 +1150,8 @@ export abstract class BaseEditorProvider implements vscode.CustomTextEditorProvi
 			font-style: italic;
 			font-size: 1.2em;
 			text-align: center;
-			padding: 16px;
-			margin: 16px 0;
+			padding: 4px 8px;
+			margin: 0;
 			background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.03));
 			border-radius: 4px;
 			cursor: pointer;

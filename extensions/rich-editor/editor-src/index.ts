@@ -521,6 +521,9 @@ let resolvedImages: Record<string, string> = {};
 type ViewMode = 'wysiwyg' | 'source' | 'split';
 let currentViewMode: ViewMode = 'wysiwyg';
 
+// Store Typst preamble (directives like #set, #let, #import, #show) for preservation during serialization
+let typstPreamble: string[] = [];
+
 // Flag to prevent sync loops between editor and source textarea
 let isSyncingFromSource = false;
 let isSyncingFromEditor = false;
@@ -1316,9 +1319,44 @@ function inlineToMarkdown(node: Record<string, unknown>): string {
  */
 function jsonToTypst(doc: Record<string, unknown>): string {
 	const content = doc.content as Array<Record<string, unknown>> | undefined;
-	if (!content) { return ''; }
+	if (!content) {
+		// If no content but we have preamble, return just the preamble
+		return typstPreamble.length > 0 ? typstPreamble.join('\n') : '';
+	}
 
-	return content.map(node => nodeToTypst(node)).join('\n\n');
+	// Build body with smart line spacing
+	const lines: string[] = [];
+	let prevNodeType: string | null = null;
+
+	for (const node of content) {
+		const nodeType = node.type as string;
+		const serialized = nodeToTypst(node);
+
+		// Empty paragraph = blank line (preserve original spacing)
+		if (nodeType === 'paragraph' && serialized === '') {
+			lines.push('');
+			prevNodeType = nodeType;
+			continue;
+		}
+
+		// Add blank line before headings and block elements if previous wasn't empty
+		if (prevNodeType && prevNodeType !== 'paragraph' &&
+			(nodeType === 'heading' || nodeType === 'mathBlock' || nodeType === 'codeBlock' || nodeType === 'table')) {
+			lines.push('');
+		}
+
+		lines.push(serialized);
+		prevNodeType = nodeType;
+	}
+
+	const bodyContent = lines.join('\n');
+
+	// Prepend directives if we have stored any (#set, #let, #import, #show)
+	if (typstPreamble.length > 0) {
+		return typstPreamble.join('\n') + '\n\n' + bodyContent;
+	}
+
+	return bodyContent;
 }
 
 /**
@@ -1434,6 +1472,10 @@ function nodeToTypst(node: Record<string, unknown>): string {
 		case 'mathBlock': {
 			const mathContent = (attrs?.content as string) || '';
 			// Typst display math: $ content $ with spaces
+			// Preserve multiline content
+			if (mathContent.includes('\n')) {
+				return `$ ${mathContent} $`;
+			}
 			return `$ ${mathContent} $`;
 		}
 
@@ -1657,18 +1699,28 @@ function convertTableLinesToHtml(lines: string[]): string {
 function markdownToHtml(markdown: string): string {
 	let html = markdown;
 
+	// IMPORTANT: Extract math content FIRST and replace with placeholders
+	// This prevents italic/bold regex from corrupting math expressions
+	// Use \x00 (null char) as delimiter to avoid conflicts with any text formatting
+	const mathPlaceholders: Map<string, string> = new Map();
+	let placeholderIndex = 0;
+
 	// Math blocks ($$...$$) - must be before other processing
 	// Handle multiline math blocks
 	html = html.replace(/\$\$([\s\S]*?)\$\$/g, (_match, content) => {
+		const key = `\x00MATHBLOCK${placeholderIndex++}\x00`;
 		const escaped = content.trim().replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-		return `<div data-math-block="true" data-content="${escaped}" class="math-block">${escaped}</div>`;
+		mathPlaceholders.set(key, `<div data-math-block="true" data-content="${escaped}" class="math-block">${escaped}</div>`);
+		return key;
 	});
 
 	// Inline math ($...$) - single $ delimiters, not $$
 	// Use negative lookbehind/lookahead to avoid matching $$
 	html = html.replace(/(?<!\$)\$(?!\$)([^\$\n]+?)\$(?!\$)/g, (_match, content) => {
+		const key = `\x00MATHINLINE${placeholderIndex++}\x00`;
 		const escaped = content.trim().replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-		return `<span data-math-inline="true" data-content="${escaped}" class="math-inline">${escaped}</span>`;
+		mathPlaceholders.set(key, `<span data-math-inline="true" data-content="${escaped}" class="math-inline">${escaped}</span>`);
+		return key;
 	});
 
 	// Headers
@@ -1747,6 +1799,11 @@ function markdownToHtml(markdown: string): string {
 		// Wrap plain text in paragraph
 		return `<p>${line}</p>`;
 	}).join('');
+
+	// Restore math placeholders
+	for (const [key, value] of mathPlaceholders) {
+		html = html.replace(key, value);
+	}
 
 	return html;
 }
@@ -2063,11 +2120,259 @@ function parseTypstHorizontalRules(html: string): string {
 }
 
 /**
+ * Parse Typst math expressions (both block and inline) with proper multiline support
+ * Block math: $ content $ (with spaces after opening and before closing $)
+ * Inline math: $content$ (no spaces)
+ */
+function parseTypstMath(
+	html: string,
+	mathPlaceholders: Map<string, string>,
+	startIndex: number
+): string {
+	let result = '';
+	let i = 0;
+	let placeholderIndex = startIndex;
+
+	while (i < html.length) {
+		if (html[i] === '$') {
+			// Check if this is a math expression
+			const startPos = i;
+			i++; // Skip opening $
+
+			if (i >= html.length) {
+				result += '$';
+				break;
+			}
+
+			// Determine if block math (has space after $) or inline (no space)
+			const isBlock = /\s/.test(html[i]);
+
+			// Find the closing $
+			// For block math: look for $ preceded by space
+			// For inline math: look for $ not preceded by space
+			let content = '';
+			let foundClose = false;
+
+			while (i < html.length) {
+				if (html[i] === '$') {
+					// Check if this is a valid closing delimiter
+					if (isBlock) {
+						// Block math: needs whitespace before closing $
+						if (content.length > 0 && /\s$/.test(content)) {
+							foundClose = true;
+							break;
+						}
+					} else {
+						// Inline math: no space before closing $
+						if (content.length > 0 && !/\s$/.test(content)) {
+							foundClose = true;
+							break;
+						}
+					}
+				}
+				content += html[i];
+				i++;
+			}
+
+			if (foundClose) {
+				i++; // Skip closing $
+				const trimmedContent = content.trim();
+				const escaped = trimmedContent.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+				if (isBlock) {
+					const key = `\x00MATHBLOCK${placeholderIndex++}\x00`;
+					mathPlaceholders.set(key, `<div data-math-block="true" data-content="${escaped}" class="math-block">${escaped}</div>`);
+					result += key;
+				} else {
+					const key = `\x00MATHINLINE${placeholderIndex++}\x00`;
+					mathPlaceholders.set(key, `<span data-math-inline="true" data-content="${escaped}" class="math-inline">${escaped}</span>`);
+					result += key;
+				}
+			} else {
+				// No valid closing found, output as-is
+				result += html.slice(startPos, i);
+			}
+		} else {
+			result += html[i];
+			i++;
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Parse #math.equation(...) with proper handling of nested parentheses
+ * Returns the modified HTML string
+ */
+function parseMathEquations(
+	html: string,
+	mathPlaceholders: Map<string, string>,
+	startIndex: number
+): string {
+	let result = '';
+	let i = 0;
+	let placeholderIndex = startIndex;
+
+	while (i < html.length) {
+		// Look for #math.equation
+		if (html.slice(i, i + 15) === '#math.equation') {
+			// Find the opening parenthesis
+			let j = i + 15;
+			while (j < html.length && html[j] !== '(') {
+				if (!/\s/.test(html[j])) {
+					// Not a valid #math.equation call
+					result += html[i];
+					i++;
+					continue;
+				}
+				j++;
+			}
+
+			if (j >= html.length) {
+				result += html[i];
+				i++;
+				continue;
+			}
+
+			// Parse the parentheses content with nesting support
+			const startParen = j;
+			let depth = 1;
+			j++; // Skip opening paren
+
+			while (j < html.length && depth > 0) {
+				if (html[j] === '(') {
+					depth++;
+				} else if (html[j] === ')') {
+					depth--;
+				} else if (html[j] === '"') {
+					// Skip string content
+					j++;
+					while (j < html.length && html[j] !== '"') {
+						if (html[j] === '\\') {
+							j++; // Skip escaped char
+						}
+						j++;
+					}
+				}
+				j++;
+			}
+
+			if (depth !== 0) {
+				// Unmatched parentheses, skip this
+				result += html[i];
+				i++;
+				continue;
+			}
+
+			// Extract the full content between parentheses
+			const args = html.slice(startParen + 1, j - 1);
+
+			// Extract block parameter (default to true if present)
+			const isBlock = /block:\s*true/.test(args);
+
+			// Extract math content from $ ... $ within the arguments
+			// Need to find the $ delimiters properly
+			const dollarStart = args.indexOf('$');
+			if (dollarStart === -1) {
+				// No math content found, skip
+				result += html.slice(i, j);
+				i = j;
+				continue;
+			}
+
+			// Find the closing $ (skip the first character after opening $)
+			const dollarEnd = args.indexOf('$', dollarStart + 1);
+			if (dollarEnd === -1) {
+				result += html.slice(i, j);
+				i = j;
+				continue;
+			}
+
+			const mathContent = args.slice(dollarStart + 1, dollarEnd).trim();
+			const escaped = mathContent.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+			if (isBlock) {
+				const key = `\x00MATHBLOCK${placeholderIndex++}\x00`;
+				mathPlaceholders.set(key, `<div data-math-block="true" data-content="${escaped}" class="math-block">${escaped}</div>`);
+				result += key;
+			} else {
+				const key = `\x00MATHINLINE${placeholderIndex++}\x00`;
+				mathPlaceholders.set(key, `<span data-math-inline="true" data-content="${escaped}" class="math-inline">${escaped}</span>`);
+				result += key;
+			}
+
+			i = j;
+		} else {
+			result += html[i];
+			i++;
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Extract Typst directives (#set, #let, #import, #show) from anywhere in the document.
+ * These directives configure the document but are not visual content.
+ * Returns the content without directives and stores them for later serialization.
+ */
+function extractTypstDirectives(typst: string): string {
+	const lines = typst.split('\n');
+	const directiveLines: string[] = [];
+	const contentLines: string[] = [];
+
+	// Regex patterns for directives
+	// #set function(...) - page/text/document/heading/par configuration
+	const setPattern = /^#set\s+\w+\s*\(/;
+	// #let variable = value - variable declarations
+	const letPattern = /^#let\s+\w+/;
+	// #import "path" - imports
+	const importPattern = /^#import\s+/;
+	// #show: rule - show rules
+	const showPattern = /^#show\s*:/;
+
+	let i = 0;
+	while (i < lines.length) {
+		const line = lines[i].trim();
+
+		// Check if line is a directive
+		if (setPattern.test(line) || letPattern.test(line) || importPattern.test(line) || showPattern.test(line)) {
+			// Handle multi-line directives (find closing parenthesis)
+			let fullDirective = lines[i];
+			let j = i;
+
+			// Count parentheses to handle multi-line
+			let parenCount = (line.match(/\(/g) || []).length - (line.match(/\)/g) || []).length;
+
+			while (parenCount > 0 && j + 1 < lines.length) {
+				j++;
+				fullDirective += '\n' + lines[j];
+				parenCount += (lines[j].match(/\(/g) || []).length - (lines[j].match(/\)/g) || []).length;
+			}
+
+			directiveLines.push(fullDirective);
+			i = j + 1; // Skip processed lines
+		} else {
+			contentLines.push(lines[i]);
+			i++;
+		}
+	}
+
+	// Store directives for serialization
+	typstPreamble = directiveLines;
+
+	// Return content without directives
+	return contentLines.join('\n');
+}
+
+/**
  * Simple Typst to HTML converter
  * Supports Typst function syntax (#strong[], #emph[], etc.) and shorthand (*bold*, _italic_)
  */
 function typstToHtml(typst: string): string {
-	let html = typst;
+	// First, extract and store directives (they shouldn't appear in visual editor)
+	let html = extractTypstDirectives(typst);
 
 	// Tables - parse #table(...) syntax FIRST before other processing
 	html = parseTypstTables(html);
@@ -2078,24 +2383,22 @@ function typstToHtml(typst: string): string {
 	// Horizontal rules
 	html = parseTypstHorizontalRules(html);
 
-	// Math blocks in Typst: $ content $ on its own line (display mode has spaces)
-	// or multiline math blocks
-	html = html.replace(/^\$\s+([\s\S]*?)\s+\$$/gm, (_match, content) => {
-		const escaped = content.trim().replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-		return `<div data-math-block="true" data-content="${escaped}" class="math-block">${escaped}</div>`;
-	});
+	// IMPORTANT: Extract math content FIRST and replace with placeholders
+	// This prevents italic/bold regex from corrupting math expressions
+	// Use \x00 (null char) as delimiter to avoid conflicts with any text formatting
+	const mathPlaceholders: Map<string, string> = new Map();
+	let placeholderIndex = 0;
 
-	// Inline math in Typst: $content$ (no spaces around content)
-	html = html.replace(/\$([^\s$][^$]*?[^\s$])\$/g, (_match, content) => {
-		const escaped = content.trim().replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-		return `<span data-math-inline="true" data-content="${escaped}" class="math-inline">${escaped}</span>`;
-	});
+	// #math.equation(...) - advanced math with alt text and block option
+	// Example: #math.equation(alt: "...", block: true, $ content $)
+	// Need to handle nested parentheses properly
+	html = parseMathEquations(html, mathPlaceholders, placeholderIndex);
+	// Update placeholderIndex based on how many were added
+	placeholderIndex = mathPlaceholders.size;
 
-	// Also handle single-character math like $x$
-	html = html.replace(/\$([^\s$])\$/g, (_match, content) => {
-		const escaped = content.trim().replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-		return `<span data-math-inline="true" data-content="${escaped}" class="math-inline">${escaped}</span>`;
-	});
+	// Parse all math expressions (block and inline) with proper multiline support
+	html = parseTypstMath(html, mathPlaceholders, placeholderIndex);
+	placeholderIndex = mathPlaceholders.size;
 
 	// Headers (= Heading)
 	html = html.replace(/^====== (.+)$/gm, '<h6>$1</h6>');
@@ -2132,13 +2435,34 @@ function typstToHtml(typst: string): string {
 	// Parse lists with proper nesting support (- for bullet, + for ordered)
 	html = parseTypstLists(html);
 
-	// Paragraphs
+	// Paragraphs - convert non-HTML lines to paragraphs
 	const lines = html.split('\n');
-	html = lines.map(line => {
-		if (line.trim() === '') { return ''; }
-		if (line.match(/^<\/?[a-z]/i)) { return line; }
-		return `<p>${line}</p>`;
-	}).join('\n');
+	const processedLines: string[] = [];
+
+	for (const line of lines) {
+		const trimmed = line.trim();
+		// Skip empty lines entirely (don't create empty paragraphs)
+		if (trimmed === '') { continue; }
+		// Skip lines that already have HTML tags
+		if (trimmed.match(/^<\/?[a-z]/i)) {
+			processedLines.push(line);
+			continue;
+		}
+		// Skip lines that are math placeholders (they will be replaced with block elements)
+		if (trimmed.includes('\x00MATHBLOCK') || trimmed.includes('\x00MATHINLINE')) {
+			processedLines.push(trimmed);
+			continue;
+		}
+		// Wrap plain text in paragraph
+		processedLines.push(`<p>${trimmed}</p>`);
+	}
+
+	html = processedLines.join('\n');
+
+	// Restore math placeholders
+	for (const [key, value] of mathPlaceholders) {
+		html = html.replace(key, value);
+	}
 
 	return html;
 }
