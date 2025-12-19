@@ -65,11 +65,9 @@ class GoBackAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof BrowserEditor) {
-			await activeEditorPane.goBack();
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.goBack();
 		}
 	}
 }
@@ -101,11 +99,9 @@ class GoForwardAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof BrowserEditor) {
-			await activeEditorPane.goForward();
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.goForward();
 		}
 	}
 }
@@ -136,11 +132,9 @@ class ReloadAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof BrowserEditor) {
-			await activeEditorPane.reload();
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.reload();
 		}
 	}
 }
@@ -154,22 +148,21 @@ class ToggleDevToolsAction extends Action2 {
 			title: localize2('browser.toggleDevToolsAction', 'Toggle Developer Tools'),
 			category: BrowserCategory,
 			icon: Codicon.tools,
-			f1: true,
+			f1: false,
 			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
 				order: 1,
 				when: BROWSER_EDITOR_ACTIVE
-			}
+			},
+			precondition: BROWSER_EDITOR_ACTIVE
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof BrowserEditor) {
-			await activeEditorPane.toggleDevTools();
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.toggleDevTools();
 		}
 	}
 }

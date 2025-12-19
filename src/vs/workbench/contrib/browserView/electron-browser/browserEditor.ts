@@ -6,7 +6,6 @@
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, disposableWindowInterval, EventType, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -42,12 +41,10 @@ export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserS
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 
 class BrowserNavigationBar extends Disposable {
-	private readonly _onDidNavigate = this._register(new Emitter<string>());
-	readonly onDidNavigate: Event<string> = this._onDidNavigate.event;
-
 	private readonly _urlInput: HTMLInputElement;
 
 	constructor(
+		editor: BrowserEditor,
 		container: HTMLElement,
 		instantiationService: IInstantiationService,
 		scopedContextKeyService: IContextKeyService
@@ -69,7 +66,7 @@ class BrowserNavigationBar extends Disposable {
 		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService]
 		));
-		this._register(scopedInstantiationService.createInstance(
+		const navToolbar = this._register(scopedInstantiationService.createInstance(
 			MenuWorkbenchToolBar,
 			navContainer,
 			MenuId.BrowserNavigationToolbar,
@@ -78,6 +75,7 @@ class BrowserNavigationBar extends Disposable {
 				highlightToggledItems: true,
 				// Render all actions inline regardless of group
 				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
+				menuOptions: { shouldForwardArgs: true }
 			}
 		));
 
@@ -88,16 +86,20 @@ class BrowserNavigationBar extends Disposable {
 
 		// Create actions toolbar (right side) with scoped context
 		const actionsContainer = $('.browser-actions-toolbar');
-		this._register(scopedInstantiationService.createInstance(
+		const actionsToolbar = this._register(scopedInstantiationService.createInstance(
 			MenuWorkbenchToolBar,
 			actionsContainer,
 			MenuId.BrowserActionsToolbar,
 			{
 				hoverDelegate,
 				highlightToggledItems: true,
-				toolbarOptions: { primaryGroup: 'actions' }
+				toolbarOptions: { primaryGroup: 'actions' },
+				menuOptions: { shouldForwardArgs: true }
 			}
 		));
+
+		navToolbar.context = editor;
+		actionsToolbar.context = editor;
 
 		// Assemble layout: nav | url | actions
 		container.appendChild(navContainer);
@@ -109,7 +111,7 @@ class BrowserNavigationBar extends Disposable {
 			if (e.key === 'Enter') {
 				const url = this._urlInput.value.trim();
 				if (url) {
-					this._onDidNavigate.fire(url);
+					editor.navigateToUrl(url);
 				}
 			}
 		}));
@@ -193,10 +195,7 @@ export class BrowserEditor extends EditorPane {
 		const toolbar = $('.browser-toolbar');
 
 		// Create navigation bar widget with scoped context
-		this._navigationBar = this._register(new BrowserNavigationBar(toolbar, this.instantiationService, contextKeyService));
-
-		// Listen for navigation from URL input
-		this._register(this._navigationBar.onDidNavigate(url => this.navigateToUrl(url)));
+		this._navigationBar = this._register(new BrowserNavigationBar(this, toolbar, this.instantiationService, contextKeyService));
 
 		root.appendChild(toolbar);
 
@@ -418,7 +417,7 @@ export class BrowserEditor extends EditorPane {
 		this.updateVisibility();
 	}
 
-	private async navigateToUrl(url: string): Promise<void> {
+	async navigateToUrl(url: string): Promise<void> {
 		if (this._model) {
 			this.group.pinEditor(this.input); // pin editor on navigation
 
