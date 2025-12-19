@@ -40,10 +40,7 @@ const enum WidthConstants {
 	SplitAnnotation = 30
 }
 
-
 export class TerminalTabbedView extends Disposable {
-
-	private readonly _parentElement: HTMLElement;
 
 	private _splitView: SplitView;
 
@@ -92,8 +89,6 @@ export class TerminalTabbedView extends Disposable {
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
-
-		this._parentElement = parentElement;
 
 		this._tabContainer = $('.tabs-container');
 		const tabListContainer = $('.tabs-list-container');
@@ -218,7 +213,6 @@ export class TerminalTabbedView extends Disposable {
 	private _updateChatTerminalsEntry(): void {
 		this._chatEntry?.update();
 	}
-
 
 	private _getLastListWidth(): number {
 		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TerminalStorageKeys.TabsListWidthVertical : TerminalStorageKeys.TabsListWidthHorizontal;
