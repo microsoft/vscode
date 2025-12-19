@@ -7,9 +7,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IChatRequestFileEntry, IChatRequestVariableEntry, isPromptFileVariableEntry } from '../common/chatVariableEntries.js';
-import { FileChangeType, IFileService, IFileSystemWatcher } from '../../../../platform/files/common/files.js';
+import { FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
@@ -26,7 +26,7 @@ export interface IChatAttachmentChangeEvent {
 export class ChatAttachmentModel extends Disposable {
 
 	private readonly _attachments = new Map<string, IChatRequestVariableEntry>();
-	private readonly _fileWatchers = this._register(new DisposableMap<IChatRequestFileEntry['id'], IFileSystemWatcher>());
+	private readonly _fileWatchers = this._register(new DisposableMap<IChatRequestFileEntry['id'], IDisposable>());
 
 	private _onDidChange = this._register(new Emitter<IChatAttachmentChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
@@ -151,13 +151,13 @@ export class ChatAttachmentModel extends Disposable {
 		}
 
 		const watcher = this.fileService.createWatcher(uri, { recursive: false, excludes: [] });
-		this._fileWatchers.set(attachment.id, watcher);
-
-		watcher.onDidChange(e => {
+		const onDidChangeListener = watcher.onDidChange(e => {
 			if (e.contains(uri, FileChangeType.DELETED)) {
 				this.updateContext([attachment.id], Iterable.empty());
 			}
 		});
+
+		this._fileWatchers.set(attachment.id, combinedDisposable(onDidChangeListener, watcher));
 	}
 
 	// ---- create utils
