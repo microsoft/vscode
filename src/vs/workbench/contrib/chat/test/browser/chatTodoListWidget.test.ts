@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ChatTodoListWidget } from '../../browser/chatContentParts/chatTodoListWidget.js';
 import { IChatTodo, IChatTodoListService } from '../../common/chatTodoListService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -200,5 +201,45 @@ suite('ChatTodoListWidget Accessibility', () => {
 		// Verify aria-labelledby connection works
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
+	});
+
+	test('focus expands and places focus on the todo list', () => {
+		widget.render(testSessionUri);
+
+		const expandoButton = widget.domNode.querySelector('.todo-list-expand .monaco-button');
+		assert.strictEqual(expandoButton?.getAttribute('aria-expanded'), 'false', 'Todo list should start collapsed');
+
+		const focused = widget.focus();
+		assert.strictEqual(focused, true, 'Focus should succeed when todos are present');
+		assert.strictEqual(expandoButton?.getAttribute('aria-expanded'), 'true', 'Focus should expand the todo list');
+
+		const todoListContainer = widget.domNode.querySelector('.todo-list-container') as HTMLElement;
+		assert.ok(todoListContainer, 'Todo list container should exist');
+		assert.ok(isAncestorOfActiveElement(todoListContainer), 'Todo list container should contain the active element after focusing');
+	});
+
+	test('hasTodos reports visibility state', () => {
+		widget.render(testSessionUri);
+		assert.strictEqual(widget.hasTodos(), true, 'Widget should report todos are present');
+
+		const emptyTodoListService: IChatTodoListService = {
+			_serviceBrand: undefined,
+			onDidUpdateTodos: Event.None,
+			getTodos: () => [],
+			setTodos: () => { }
+		};
+		const emptyConfigurationService = new TestConfigurationService({ 'chat.todoListTool.descriptionField': true });
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatTodoListService, emptyTodoListService);
+		instantiationService.stub(IConfigurationService, emptyConfigurationService);
+		const emptyWidget = store.add(instantiationService.createInstance(ChatTodoListWidget));
+		mainWindow.document.body.appendChild(emptyWidget.domNode);
+
+		emptyWidget.render(testSessionUri);
+		assert.strictEqual(emptyWidget.hasTodos(), false, 'Widget should report no todos when the list is empty');
+
+		if (emptyWidget.domNode.parentNode) {
+			emptyWidget.domNode.parentNode.removeChild(emptyWidget.domNode);
+		}
 	});
 });

@@ -253,6 +253,27 @@ export class ChatTodoListWidget extends Disposable {
 		}
 	}
 
+	public hasTodos(): boolean {
+		return this.domNode.classList.contains('has-todos') && !!this._todoList && this._todoList.length > 0;
+	}
+
+	public hasFocus(): boolean {
+		return dom.isAncestorOfActiveElement(this.todoListContainer);
+	}
+
+	public focus(): boolean {
+		if (!this.hasTodos()) {
+			return false;
+		}
+
+		if (!this._isExpanded) {
+			this.toggleExpanded();
+		}
+
+		this._todoList?.domFocus();
+		return this.hasFocus();
+	}
+
 	private updateTodoDisplay(): void {
 		if (!this._currentSessionResource) {
 			return;
