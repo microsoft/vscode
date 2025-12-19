@@ -373,6 +373,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
 		},
+		[ChatConfiguration.ChatViewSessionsStackedShowAll]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.viewSessions.stackedShowAll', "Show all chat agent sessions when they show stacked above the chat input. Otherwise, only a few recent sessions will be shown."),
+		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
 			enum: ['stacked', 'sideBySide'],
