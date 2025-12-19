@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserViewBounds, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewService, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions } from '../common/browserView.js';
 import { joinPath } from '../../../base/common/resources.js';
@@ -38,7 +38,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return BrowserViewMainService.knownSessions.has(contents.session);
 	}
 
-	private readonly browserViews = new Map<string, BrowserView>();
+	private readonly browserViews = this._register(new DisposableMap<string, BrowserView>());
 
 	constructor(
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
@@ -144,8 +144,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	async destroyBrowserView(id: string): Promise<void> {
-		this._getBrowserView(id).dispose();
-		this.browserViews.delete(id);
+		this.browserViews.deleteAndDispose(id);
 	}
 
 	async layout(id: string, bounds: IBrowserViewBounds): Promise<void> {
@@ -218,14 +217,5 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			throw new Error('Failed to resolve workspace storage session');
 		}
 		await session.clearData();
-	}
-
-	override dispose(): void {
-		// Clean up all browser views
-		for (const view of this.browserViews.values()) {
-			view.dispose();
-		}
-		this.browserViews.clear();
-		super.dispose();
 	}
 }

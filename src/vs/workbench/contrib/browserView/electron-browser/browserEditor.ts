@@ -432,19 +432,19 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	public async goBack(): Promise<void> {
+	async goBack(): Promise<void> {
 		return this._model?.goBack();
 	}
 
-	public async goForward(): Promise<void> {
+	async goForward(): Promise<void> {
 		return this._model?.goForward();
 	}
 
-	public async reload(): Promise<void> {
+	async reload(): Promise<void> {
 		return this._model?.reload();
 	}
 
-	public async toggleDevTools(): Promise<void> {
+	async toggleDevTools(): Promise<void> {
 		return this._model?.toggleDevTools();
 	}
 
@@ -483,7 +483,7 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	public forwardCurrentEvent(): boolean {
+	forwardCurrentEvent(): boolean {
 		if (this._currentKeyDownEvent && this._model) {
 			void this._model.dispatchKeyEvent(this._currentKeyDownEvent);
 			return true;

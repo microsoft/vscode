@@ -55,7 +55,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			this.stopTrackingElements();
 		}
 	}));
-	public readonly onDidChangeOverlayState = this._onDidChangeOverlayState.event;
+	readonly onDidChangeOverlayState = this._onDidChangeOverlayState.event;
 
 	private readonly _overlayCollections = new Map<string, HTMLCollectionOf<Element>>();
 	private _overlayRectangles = new WeakMap<HTMLElement, IDomNodePagePosition>();
@@ -146,7 +146,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		return this._overlayRectangles.get(element)!;
 	}
 
-	public isOverlappingWithOverlays(element: HTMLElement): boolean {
+	isOverlappingWithOverlays(element: HTMLElement): boolean {
 		const elementRect = getDomNodePagePosition(element);
 
 		// Check against all precomputed overlay rectangles

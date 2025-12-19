@@ -66,7 +66,7 @@ export class BrowserEditorInput extends EditorInput {
 		}));
 	}
 
-	public get id() {
+	get id() {
 		return this._id;
 	}
 

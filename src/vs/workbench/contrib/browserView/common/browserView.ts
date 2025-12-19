@@ -127,7 +127,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 
 	constructor(
-		public readonly id: string,
+		readonly id: string,
 		private readonly browserViewService: IBrowserViewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
