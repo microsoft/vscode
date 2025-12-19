@@ -729,8 +729,9 @@ export class AICodeActionsHelper {
 			title: localize('explain', "Explain"),
 			arguments: [
 				{
-					query: `@workspace /explain ${markers.map(marker => marker.message).join(', ')}`
-				} satisfies { query: string }
+					query: `@workspace /explain ${markers.map(marker => marker.message).join(', ')}`,
+					isPartialQuery: true
+				} satisfies { query: string; isPartialQuery: boolean }
 			]
 		};
 	}
@@ -742,11 +743,10 @@ export class AICodeActionsHelper {
 			arguments: [
 				{
 					message: `/fix ${markers.map(marker => marker.message).join(', ')}`,
-					autoSend: true,
 					initialSelection: this.rangeToSelection(range),
 					initialRange: range,
 					position: range.getStartPosition()
-				} satisfies { message: string; autoSend: boolean; initialSelection: ISelection; initialRange: IRange; position: IPosition }
+				} satisfies { message: string; initialSelection: ISelection; initialRange: IRange; position: IPosition }
 			]
 		};
 	}

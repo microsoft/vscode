@@ -20,8 +20,11 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { awaitStatsForSession } from './chat.js';
 import { ModifiedFileEntryState } from './chatEditingService.js';
 import { ChatModel, IChatModelInputState, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
+import { IChatSessionStats, IChatSessionTiming, ResponseModelState } from './chatService.js';
+import { LocalChatSessionUri } from './chatUri.js';
 import { ChatAgentLocation } from './constants.js';
 
 const maxPersistedSessions = 25;
@@ -100,6 +103,27 @@ export class ChatSessionStore extends Disposable {
 		}
 	}
 
+	async storeSessionsMetadataOnly(sessions: ChatModel[]): Promise<void> {
+		if (this.shuttingDown) {
+			// Don't start this task if we missed the chance to block shutdown
+			return;
+		}
+
+		try {
+			this.storeTask = this.storeQueue.queue(async () => {
+				try {
+					await Promise.all(sessions.map(session => this.writeSessionMetadataOnly(session)));
+					await this.flushIndex();
+				} catch (e) {
+					this.reportError('storeSessions', 'Error storing chat sessions', e);
+				}
+			});
+			await this.storeTask;
+		} finally {
+			this.storeTask = undefined;
+		}
+	}
+
 	// async storeTransferSession(transferData: IChatTransfer, session: ISerializableChatData): Promise<void> {
 	// 	try {
 	// 		const content = JSON.stringify(session, undefined, 2);
@@ -136,9 +160,26 @@ export class ChatSessionStore extends Disposable {
 			await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
 
 			// Write succeeded, update index
-			index.entries[session.sessionId] = getSessionMetadata(session);
+			index.entries[session.sessionId] = await getSessionMetadata(session);
 		} catch (e) {
 			this.reportError('sessionWrite', 'Error writing chat session', e);
+		}
+	}
+
+	private async writeSessionMetadataOnly(session: ChatModel): Promise<void> {
+		// Only to be used for external sessions
+		if (LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
+			return;
+		}
+
+		try {
+			const index = this.internalGetIndex();
+
+			// TODO get this class on sessionResource
+			const externalSessionId = session.sessionResource.toString();
+			index.entries[externalSessionId] = await getSessionMetadata(session);
+		} catch (e) {
+			this.reportError('sessionMetadataWrite', 'Error writing chat session metadata', e);
 		}
 	}
 
@@ -161,6 +202,7 @@ export class ChatSessionStore extends Disposable {
 	private async trimEntries(): Promise<void> {
 		const index = this.internalGetIndex();
 		const entries = Object.entries(index.entries)
+			.filter(([_id, entry]) => !entry.isExternal)
 			.sort((a, b) => b[1].lastMessageDate - a[1].lastMessageDate)
 			.map(([id]) => id);
 
@@ -388,8 +430,11 @@ export interface IChatSessionEntryMetadata {
 	sessionId: string;
 	title: string;
 	lastMessageDate: number;
+	timing?: IChatSessionTiming;
 	initialLocation?: ChatAgentLocation;
 	hasPendingEdits?: boolean;
+	stats?: IChatSessionStats;
+	lastResponseState?: ResponseModelState;
 
 	/**
 	 * This only exists because the migrated data from the storage service had empty sessions persisted, and it's impossible to know which ones are
@@ -397,6 +442,11 @@ export interface IChatSessionEntryMetadata {
 	 * filter the old ones out of history.
 	 */
 	isEmpty?: boolean;
+
+	/**
+	 * Whether this session was loaded from an external provider (eg background/cloud sessions).
+	 */
+	isExternal?: boolean;
 }
 
 function isChatSessionEntryMetadata(obj: unknown): obj is IChatSessionEntryMetadata {
@@ -441,16 +491,35 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 	return true;
 }
 
-function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSessionEntryMetadata {
+async function getSessionMetadata(session: ChatModel | ISerializableChatData): Promise<IChatSessionEntryMetadata> {
 	const title = session.customTitle || (session instanceof ChatModel ? session.title : undefined);
+
+	let stats: IChatSessionStats | undefined;
+	if (session instanceof ChatModel) {
+		stats = await awaitStatsForSession(session);
+	}
+
+	const timing = session instanceof ChatModel ?
+		session.timing :
+		// session is only ISerializableChatData in the old pre-fs storage data migration scenario
+		{
+			startTime: session.creationDate,
+			endTime: session.lastMessageDate
+		};
 
 	return {
 		sessionId: session.sessionId,
 		title: title || localize('newChat', "New Chat"),
 		lastMessageDate: session.lastMessageDate,
+		timing,
 		initialLocation: session.initialLocation,
 		hasPendingEdits: session instanceof ChatModel ? (session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)) : false,
-		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0
+		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0,
+		stats,
+		isExternal: session instanceof ChatModel && !LocalChatSessionUri.parseLocalSessionId(session.sessionResource),
+		lastResponseState: session instanceof ChatModel ?
+			(session.lastRequest?.response?.state ?? ResponseModelState.Complete) :
+			ResponseModelState.Complete
 	};
 }
 

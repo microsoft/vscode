@@ -8,7 +8,7 @@ import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from '../../../
 import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { localize } from '../../../../../nls.js';
@@ -82,6 +82,7 @@ export class TerminalChatWidget extends Disposable {
 	private _terminalAgentName = 'terminal';
 
 	private readonly _model: MutableDisposable<IChatModelReference> = this._register(new MutableDisposable());
+	private readonly _sessionDisposables: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _sessionCtor: CancelablePromise<void> | undefined;
 
@@ -334,7 +335,7 @@ export class TerminalChatWidget extends Disposable {
 				this._resetPlaceholder();
 			}
 		});
-		this._register(toDisposable(() => this._sessionCtor?.cancel()));
+		this._sessionDisposables.value = toDisposable(() => this._sessionCtor?.cancel());
 	}
 
 	private _saveViewState() {

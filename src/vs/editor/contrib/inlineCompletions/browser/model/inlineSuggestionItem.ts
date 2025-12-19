@@ -34,11 +34,12 @@ export namespace InlineSuggestionItem {
 	export function create(
 		data: InlineSuggestData,
 		textModel: ITextModel,
+		shouldDiffEdit: boolean = true, // TODO@benibenj it should only be created once and hence not meeded to be passed here
 	): InlineSuggestionItem {
 		if (!data.isInlineEdit && !data.action?.uri && data.action?.kind === 'edit') {
 			return InlineCompletionItem.create(data, textModel, data.action);
 		} else {
-			return InlineEditItem.create(data, textModel);
+			return InlineEditItem.create(data, textModel, shouldDiffEdit);
 		}
 	}
 }
@@ -137,9 +138,9 @@ abstract class InlineSuggestionItemBase {
 		this.source.removeRef();
 	}
 
-	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, model: ITextModel) {
+	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, model: ITextModel, timeWhenShown: number) {
 		const insertText = this.action?.kind === 'edit' ? this.action.textReplacement.text : ''; // TODO@hediet support insertText === undefined
-		this._data.reportInlineEditShown(commandService, insertText, viewKind, viewData, this.computeEditKind(model));
+		this._data.reportInlineEditShown(commandService, insertText, viewKind, viewData, this.computeEditKind(model), timeWhenShown);
 	}
 
 	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo, partialAcceptance: PartialAcceptance) {
@@ -371,11 +372,12 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 	public static create(
 		data: InlineSuggestData,
 		textModel: ITextModel,
+		shouldDiffEdit: boolean = true,
 	): InlineEditItem {
 		let action: InlineSuggestionAction | undefined;
 		let edits: SingleUpdatedNextEdit[] = [];
 		if (data.action?.kind === 'edit') {
-			const offsetEdit = getStringEdit(textModel, data.action.range, data.action.insertText); // TODO compute async
+			const offsetEdit = shouldDiffEdit ? getDiffedStringEdit(textModel, data.action.range, data.action.insertText) : getStringEdit(textModel, data.action.range, data.action.insertText); // TODO compute async
 			const text = new TextModelText(textModel);
 			const textEdit = TextEdit.fromStringEdit(offsetEdit, text);
 			const singleTextEdit = offsetEdit.isEmpty() ? new TextReplacement(new Range(1, 1, 1, 1), '') : textEdit.toReplacement(text); // FIXME: .toReplacement() can throw because offsetEdit is empty because we get an empty diff in getStringEdit after diffing
@@ -549,7 +551,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 	}
 }
 
-function getStringEdit(textModel: ITextModel, editRange: Range, replaceText: string): StringEdit {
+function getDiffedStringEdit(textModel: ITextModel, editRange: Range, replaceText: string): StringEdit {
 	const eol = textModel.getEOL();
 	const editOriginalText = textModel.getValueInRange(editRange);
 	const editReplaceText = replaceText.replace(/\r\n|\r|\n/g, eol);
@@ -589,6 +591,13 @@ function getStringEdit(textModel: ITextModel, editRange: Range, replaceText: str
 	);
 
 	return offsetEdit;
+}
+
+function getStringEdit(textModel: ITextModel, editRange: Range, replaceText: string): StringEdit {
+	return new StringEdit([new StringReplacement(
+		getPositionOffsetTransformerFromTextModel(textModel).getOffsetRange(editRange),
+		replaceText
+	)]);
 }
 
 class SingleUpdatedNextEdit {
@@ -664,7 +673,7 @@ class SingleUpdatedNextEdit {
 			if (isInsertion && !shouldPreserveEditShape && change.replaceRange.start === editStart && editReplaceText.startsWith(change.newText)) {
 				editStart += change.newText.length;
 				editReplaceText = editReplaceText.substring(change.newText.length);
-				editEnd = Math.max(editStart, editEnd);
+				editEnd += change.newText.length;
 				editHasChanged = true;
 				continue;
 			}

@@ -19,15 +19,19 @@ export enum ChatConfiguration {
 	EligibleForAutoApproval = 'chat.tools.eligibleForAutoApproval',
 	EnableMath = 'chat.math.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
-	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
+	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
-	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
-	ChatViewRecentSessionsEnabled = 'chat.recentSessions.enabled',
+	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
+	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
+	ChatViewTitleEnabled = 'chat.viewTitle.enabled',
+	ChatViewWelcomeEnabled = 'chat.viewWelcome.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
+	ExitAfterDelegation = 'chat.exitAfterDelegation',
+	SuspendThrottling = 'chat.suspendThrottling',
 }
 
 /**
@@ -127,8 +131,6 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 	return true;
 }
 
-/** @deprecated */
-export const LEGACY_AGENT_SESSIONS_VIEW_ID = 'workbench.view.chat.sessions'; // TODO@bpasero clear once settled
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 export const ChatEditorTitleMaxLength = 30;
 

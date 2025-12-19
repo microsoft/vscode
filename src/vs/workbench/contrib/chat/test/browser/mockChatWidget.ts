@@ -11,6 +11,7 @@ import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatWidgetService implements IChatWidgetService {
 	readonly onDidAddWidget: Event<IChatWidget> = Event.None;
+	readonly onDidBackgroundSession: Event<URI> = Event.None;
 
 	readonly _serviceBrand: undefined;
 

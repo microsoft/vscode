@@ -16,7 +16,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 import { IChatToolInvocation } from '../common/chatService.js';
 import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
-import { toolContentToA11yString } from '../common/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../common/languageModelToolsService.js';
 import { CancelChatActionId } from './actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from './actions/chatToolActions.js';
 import { ChatTreeItem } from './chat.js';
@@ -30,9 +30,14 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 	const text = toolInvocation.map(v => {
 		const state = v.state.get();
 		if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			const detail = isToolResultInputOutputDetails(state.resultDetails)
+				? state.resultDetails.input
+				: isToolResultOutputDetails(state.resultDetails)
+					? undefined
+					: toolContentToA11yString(state.contentForModel);
 			return {
 				title: localize('toolPostApprovalTitle', "Approve results of tool"),
-				detail: toolContentToA11yString(state.contentForModel),
+				detail: detail,
 			};
 		}
 
