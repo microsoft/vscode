@@ -686,6 +686,11 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const canResizeView = chatLocation !== ViewContainerLocation.Panel || (panelPosition === Position.LEFT || panelPosition === Position.RIGHT);
 
 		// Update configuration if needed
+		const chatViewSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled);
+		if (!chatViewSessionsEnabled) {
+			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
+		}
+
 		let chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
 		if (!chatView) {
 			chatView = await viewsService.openView<ChatViewPane>(ChatViewId, false);
