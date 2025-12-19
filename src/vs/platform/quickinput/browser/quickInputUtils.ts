@@ -85,8 +85,8 @@ export function quickInputButtonToAction(button: IQuickInputButton, id: string, 
 	const action = button.toggle
 		? new QuickInputToggleButtonAction(
 			id,
-			button.tooltip || '',
 			'',
+			button.tooltip || '',
 			cssClasses,
 			true,
 			button.toggle.checked,
