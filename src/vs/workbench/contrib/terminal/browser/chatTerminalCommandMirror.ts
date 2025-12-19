@@ -175,8 +175,6 @@ export class DetachedTerminalCommandMirror extends DetachedTerminalMirror implem
 			return { lineCount: 0 };
 		}
 		const detached = await this._getTerminal();
-		detached.xterm.clearBuffer();
-		detached.xterm.clearSearchDecorations?.();
 		await new Promise<void>(resolve => {
 			detached.xterm.write(vt.text, () => resolve());
 		});
@@ -238,8 +236,6 @@ export class DetachedTerminalSnapshotMirror extends DetachedTerminalMirror {
 			return { lineCount: this._lastRenderedLineCount ?? output.lineCount };
 		}
 		const terminal = await this._getTerminal();
-		terminal.xterm.clearBuffer();
-		terminal.xterm.clearSearchDecorations?.();
 		if (this._container) {
 			this._applyTheme(this._container);
 		}

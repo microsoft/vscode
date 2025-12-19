@@ -446,7 +446,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 					terminalService.setActiveInstance(instance);
 					await terminalService.revealTerminal(instance);
 					qp.hide();
-					terminalService.focusInstance(instance);
+					await terminalService.focusInstance(instance);
 				} else {
 					qp.hide();
 				}

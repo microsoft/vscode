@@ -395,13 +395,13 @@ export class PromptFilesLocator {
 	 * Searches for skills in all default directories in the workspace.
 	 * Each skill is stored in its own subdirectory with a SKILL.md file.
 	 */
-	public async findAgentSkillsInWorkspace(token: CancellationToken): Promise<URI[]> {
+	public async findAgentSkillsInWorkspace(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
 		const workspace = this.workspaceService.getWorkspace();
-		const allResults: URI[] = [];
+		const allResults: Array<{ uri: URI; type: string }> = [];
 		for (const folder of workspace.folders) {
-			for (const skillsFolder of DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS) {
-				const results = await this.findAgentSkillsInFolder(folder.uri, skillsFolder, token);
-				allResults.push(...results);
+			for (const { path, type } of DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS) {
+				const results = await this.findAgentSkillsInFolder(folder.uri, path, token);
+				allResults.push(...results.map(uri => ({ uri, type })));
 			}
 		}
 		return allResults;
@@ -411,12 +411,12 @@ export class PromptFilesLocator {
 	 * Searches for skills in all default directories in the home folder.
 	 * Each skill is stored in its own subdirectory with a SKILL.md file.
 	 */
-	public async findAgentSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
+	public async findAgentSkillsInUserHome(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
 		const userHome = await this.pathService.userHome();
-		const allResults: URI[] = [];
-		for (const skillsFolder of DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS) {
-			const results = await this.findAgentSkillsInFolder(userHome, skillsFolder, token);
-			allResults.push(...results);
+		const allResults: Array<{ uri: URI; type: string }> = [];
+		for (const { path, type } of DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS) {
+			const results = await this.findAgentSkillsInFolder(userHome, path, token);
+			allResults.push(...results.map(uri => ({ uri, type })));
 		}
 		return allResults;
 	}
