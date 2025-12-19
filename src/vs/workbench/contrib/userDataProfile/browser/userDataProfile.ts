@@ -128,7 +128,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private registerDropHandler(): void {
 		const dndRegistry = Registry.as<IDragAndDropContributionRegistry>(DndExtensions.DragAndDropContribution);
 		this._register(dndRegistry.registerDropHandler(new class UserDataProfileDropHandler implements IResourceDropHandler {
-			async tryHandleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
+			async handleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
 				if (endsWithIgnoreCase(resource.path, `.${PROFILE_EXTENSION}`)) {
 					await accessor.get(ICommandService).executeCommand('workbench.profiles.actions.importProfile', resource);
 					return true;

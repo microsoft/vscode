@@ -93,7 +93,7 @@ export class ResourcesDropHandler {
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 	}
 
@@ -110,7 +110,7 @@ export class ResourcesDropHandler {
 		const dndRegistry = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution);
 		for (const { resource } of editors) {
 			if (resource) {
-				const handled = await this.instantiationService.invokeFunction(accessor => dndRegistry.tryHandleResourceDrop(resource, accessor));
+				const handled = await this.instantiationService.invokeFunction(accessor => dndRegistry.handleResourceDrop(resource, accessor));
 				if (handled) {
 					return;
 				}

@@ -326,7 +326,7 @@ export interface IResourceDropHandler {
 	 * @param accessor Service accessor to get services
 	 * @returns true if handled, false otherwise
 	 */
-	tryHandleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean>;
+	handleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean>;
 }
 
 export interface IDragAndDropContributionRegistry {
@@ -347,12 +347,12 @@ export interface IDragAndDropContributionRegistry {
 	registerDropHandler(handler: IResourceDropHandler): IDisposable;
 
 	/**
-	 * Try to handle a dropped resource using registered handlers.
+	 * Handle a dropped resource using registered handlers.
 	 * @param resource The resource that was dropped
 	 * @param accessor Service accessor to get services
 	 * @returns true if any handler handled the resource, false otherwise
 	 */
-	tryHandleResourceDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean>;
+	handleResourceDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean>;
 }
 
 interface IDragAndDropContribution {
@@ -381,9 +381,9 @@ class DragAndDropContributionRegistry implements IDragAndDropContributionRegistr
 		return toDisposable(() => this._dropHandlers.delete(handler));
 	}
 
-	async tryHandleResourceDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
+	async handleResourceDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
 		for (const handler of this._dropHandlers) {
-			if (await handler.tryHandleDrop(resource, accessor)) {
+			if (await handler.handleDrop(resource, accessor)) {
 				return true;
 			}
 		}
