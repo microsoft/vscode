@@ -114,8 +114,6 @@ export const upstreamSpecs = [
 	// JavaScript / TypeScript
 	'node',
 	'nvm',
-	'pnpm',
-	'yarn',
 	'yo',
 
 	// Python

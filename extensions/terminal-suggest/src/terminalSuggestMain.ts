@@ -18,7 +18,9 @@ import gitCompletionSpec from './completions/git';
 import ghCompletionSpec from './completions/gh';
 import npmCompletionSpec from './completions/npm';
 import npxCompletionSpec from './completions/npx';
+import pnpmCompletionSpec from './completions/pnpm';
 import setLocationSpec from './completions/set-location';
+import yarnCompletionSpec from './completions/yarn';
 import { upstreamSpecs } from './constants';
 import { ITerminalEnvironment, PathExecutableCache } from './env/pathExecutableCache';
 import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
@@ -72,7 +74,9 @@ export const availableSpecs: Fig.Spec[] = [
 	ghCompletionSpec,
 	npmCompletionSpec,
 	npxCompletionSpec,
+	pnpmCompletionSpec,
 	setLocationSpec,
+	yarnCompletionSpec,
 ];
 for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
