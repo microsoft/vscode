@@ -744,6 +744,7 @@ export class CodeCellLayout {
 	public _lastChangedEditorScrolltop?: number;
 	private _initialized: boolean = false;
 	private _pointerDown: boolean = false;
+	private _establishedContentHeight?: number;
 	constructor(
 		private readonly _enabled: boolean,
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -770,8 +771,11 @@ export class CodeCellLayout {
 	 *  - Content height stability: once the layout has been initialized, scroll-driven re-layouts can
 	 *    observe transient Monaco content heights that reflect the current clipped layout (rather than
 	 *    the full input height). To keep the notebook list layout stable (avoiding overlapping cells
-	 *    while navigating/scrolling), we reuse the previously established content height for all reasons
-	 *    except `onDidContentSizeChange`.
+	 *    while navigating/scrolling), we store the actual content height in `_establishedContentHeight`
+	 *    and reuse it for all layout reasons except `onDidContentSizeChange`. This prevents the editor
+	 *    from shrinking back to its initial height after content has been added (e.g., pasting text).
+	 *    When `onDidContentSizeChange` fires, we update `_establishedContentHeight` to reflect the new
+	 *    content size, which subsequent scroll events will then reuse.
 	 *  - Pointer-drag gating: while the user is holding the mouse button down in the editor (drag
 	 *    selection or potential drag selection), we avoid programmatic `editor.setScrollTop(...)` updates
 	 *    to prevent selection/scroll feedback loops and "stuck selection" behavior.
@@ -868,9 +872,16 @@ export class CodeCellLayout {
 		const elementHeight = this.notebookEditor.getHeightOfElement(this.viewCell);
 		const gotContentHeight = editor.getContentHeight();
 		// If we've already calculated the editor content height once before and the contents haven't changed, use that.
-		const previouslyCalculatedHeight = this._initialized && reason !== 'onDidContentSizeChange' ? this._initialEditorDimension.height : undefined;
 		const fallbackEditorContentHeight = gotContentHeight === -1 ? Math.max(editor.getLayoutInfo().height, this._initialEditorDimension.height) : gotContentHeight;
-		const editorContentHeight = previouslyCalculatedHeight ?? fallbackEditorContentHeight; // || this.calculatedEditorHeight || 0;
+		let editorContentHeight: number;
+		if (this._initialized && reason !== 'onDidContentSizeChange') {
+			// Reuse the previously established content height to avoid transient Monaco content height changes during scroll
+			editorContentHeight = this._establishedContentHeight ?? fallbackEditorContentHeight;
+		} else {
+			// Update the established content height when content actually changes or during initialization
+			editorContentHeight = fallbackEditorContentHeight;
+			this._establishedContentHeight = editorContentHeight;
+		}
 		const editorBottom = elementTop + this.viewCell.layoutInfo.outputContainerOffset;
 		const scrollBottom = this.notebookEditor.scrollBottom;
 		// When loading, scrollBottom -scrollTop === 0;
