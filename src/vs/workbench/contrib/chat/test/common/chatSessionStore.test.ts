@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -19,7 +18,7 @@ import { IUserDataProfilesService, toUserDataProfile } from '../../../../../plat
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { TestWorkspace, Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { InMemoryTestFileService, TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { InMemoryTestFileService, TestContextService, TestLifecycleService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { ChatSessionStore, IChatTransfer } from '../../common/chatSessionStore.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
@@ -57,7 +56,7 @@ suite('ChatSessionStore', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IFileService, testDisposables.add(new InMemoryTestFileService()));
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/workspaceStorage') });
-		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
+		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 	});
 
