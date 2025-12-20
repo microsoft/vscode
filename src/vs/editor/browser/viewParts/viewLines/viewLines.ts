@@ -257,12 +257,20 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._maxLineWidth = 0;
 		return shouldRender;
 	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return this._visibleLines.onLinesChanged(e);
+public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+	const shouldRender = this._visibleLines.onLinesChanged(e);
+	if (shouldRender) {
+		// A visible line changed, so the max line width might have changed
+		this._maxLineWidth = 0;
 	}
+	return shouldRender;
+}
 	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return this._visibleLines.onLinesDeleted(e);
-	}
+	const shouldRender = this._visibleLines.onLinesDeleted(e);
+	// The deleted lines might have contained the longest line
+	this._maxLineWidth = 0;
+	return shouldRender;
+}
 	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return this._visibleLines.onLinesInserted(e);
 	}
