@@ -946,11 +946,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container .monaco-button {
-	height: 24px;
 	width: fit-content;
-	display: flex;
-	padding: 0 11px;
-	align-items: center;
 	min-width: max-content;
 }
 
