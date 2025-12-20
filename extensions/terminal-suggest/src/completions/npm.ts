@@ -183,7 +183,6 @@ export const dependenciesGenerator: Fig.Generator = {
 				})
 				.map((pkgName) => ({
 					name: pkgName,
-					icon: '📦',
 					description: dependencies[pkgName]
 						? 'dependency'
 						: optionalDependencies[pkgName]
@@ -197,7 +196,6 @@ export const dependenciesGenerator: Fig.Generator = {
 			});
 			return stdout.split('\n').map((name) => ({
 				name,
-				icon: '📦',
 				description: 'Global dependency',
 			}));
 		}
