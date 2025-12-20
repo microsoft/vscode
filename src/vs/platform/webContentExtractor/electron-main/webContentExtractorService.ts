@@ -7,10 +7,10 @@ import { BrowserWindow } from 'electron';
 import { Limiter } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
+import { isURLDomainTrusted } from '../../url/common/trustedDomains.js';
 import { IWebContentExtractorOptions, IWebContentExtractorService, WebContentExtractResult } from '../common/webContentExtractor.js';
 import { WebContentCache } from './webContentCache.js';
 import { WebPageLoader } from './webPageLoader.js';
-//import { ITrustedDomainService } from '../../../workbench/contrib/url/browser/trustedDomainService.js';
 
 export class NativeWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
@@ -20,10 +20,7 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 	private _limiter = new Limiter<WebContentExtractResult>(3);
 	private _webContentsCache = new WebContentCache();
 
-	constructor(
-		@ILogService private readonly _logger: ILogService,
-		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService) {
-	}
+	constructor(@ILogService private readonly _logger: ILogService) { }
 
 	extract(uris: URI[], options?: IWebContentExtractorOptions): Promise<WebContentExtractResult[]> {
 		if (uris.length === 0) {
@@ -46,7 +43,7 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 			this._logger,
 			uri,
 			options,
-			(uri) => this._trustedDomainService.isValid(uri));
+			(uri) => isURLDomainTrusted(uri, options?.trustedDomains || []));
 
 		try {
 			const result = await loader.load();
