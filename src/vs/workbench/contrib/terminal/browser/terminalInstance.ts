@@ -94,6 +94,7 @@ import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { hasKey, isNumber, isString } from '../../../../base/common/types.js';
+import { TerminalResizeDimensionsOverlay } from './terminalResizeDimensionsOverlay.js';
 
 const enum Constants {
 	/**
@@ -202,6 +203,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
 	private _resizeDebouncer?: TerminalResizeDebouncer;
+	private readonly _terminalResizeDimensionsOverlay: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
@@ -1020,8 +1022,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('A container element needs to be set with `attachToElement` and be part of the DOM before calling `_open`');
 		}
 
-		const xtermElement = document.createElement('div');
-		this._wrapperElement.appendChild(xtermElement);
+		const xtermHost = document.createElement('div');
+		xtermHost.classList.add('terminal-xterm-host');
+		this._wrapperElement.appendChild(xtermHost);
 
 		this._container.appendChild(this._wrapperElement);
 
@@ -1030,7 +1033,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
 		this._wrapperElement.xterm = xterm.raw;
 
-		const screenElement = xterm.attachToElement(xtermElement);
+		const screenElement = xterm.attachToElement(xtermHost);
 
 		// Fire xtermOpen on all contributions
 		for (const contribution of this._contributions.values()) {
@@ -1178,6 +1181,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.layout(this._lastLayoutDimensions);
 		}
 		this.updateConfig();
+
+		// Initialize resize dimensions overlay
+		this.processReady.then(() => {
+			// Wait a second to avoid resize events during startup like when opening a terminal or
+			// when a terminal reconnects. Ideally we'd have an actual event to listen to here.
+			timeout(1000).then(() => {
+				if (!this._store.isDisposed) {
+					this._terminalResizeDimensionsOverlay.value = new TerminalResizeDimensionsOverlay(this._wrapperElement, xterm);
+				}
+			});
+		});
 
 		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
 		// panel was initialized.

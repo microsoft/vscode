@@ -99,16 +99,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		const input = this.editorService.activeEditor;
-		if (!(input instanceof ChatEditorInput)) {
+		const resource = (input instanceof ChatEditorInput) ? input.sessionResource : input?.resource;
+		if (!resource) {
 			return;
 		}
 
-		const sessionResource = input.sessionResource;
-		if (!sessionResource) {
-			return;
-		}
-
-		const matchingSession = this.agentSessionsService.model.getSession(sessionResource);
+		const matchingSession = this.agentSessionsService.model.getSession(resource);
 		if (matchingSession && this.sessionsList?.hasNode(matchingSession)) {
 			if (this.sessionsList.getRelativeTop(matchingSession) === null) {
 				this.sessionsList.reveal(matchingSession, 0.5); // only reveal when not already visible
