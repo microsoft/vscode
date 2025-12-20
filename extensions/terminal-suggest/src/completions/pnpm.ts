@@ -32,7 +32,6 @@ const searchBranches: Fig.Generator = {
 					return {
 						name: elm.replace('*', '').trim(),
 						description: 'Current branch',
-						icon: '⭐️',
 					};
 				} else if (parts[0] === '+') {
 					// Branch checked out in another worktree.
