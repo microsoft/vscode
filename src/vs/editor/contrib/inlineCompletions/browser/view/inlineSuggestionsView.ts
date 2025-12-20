@@ -35,10 +35,17 @@ export class InlineSuggestionsView extends Disposable {
 	private readonly _editorObs;
 	private readonly _ghostTextWidgets;
 
-	private readonly _inlineEdit = derived(this, reader => this._model.read(reader)?.inlineEditState.read(reader)?.inlineSuggestion);
 	private readonly _everHadInlineEdit = derivedObservableWithCache<boolean>(this,
-		(reader, last) => last || !!this._inlineEdit.read(reader)
-			|| !!this._model.read(reader)?.inlineCompletionState.read(reader)?.inlineSuggestion?.showInlineEditMenu
+		(reader, last) => {
+			if (last) {
+				return true;
+			}
+			const model = this._model.read(reader);
+			if (!model) {
+				return false;
+			}
+			return model.isActive.read(reader) === true && model.inlineCompletionsProviders.read(reader).length > 0;
+		}
 	);
 
 	// To break a cyclic dependency
