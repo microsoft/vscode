@@ -13,7 +13,7 @@ import { IInputBoxStyles } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { IKeybindingLabelStyles } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListStyles } from '../../../base/browser/ui/list/listWidget.js';
 import { IProgressBarStyles, ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
-import { IToggleStyles, Toggle, TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
+import { IToggleStyles, TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { equals } from '../../../base/common/arrays.js';
 import { TimeoutTimer } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -25,7 +25,7 @@ import Severity from '../../../base/common/severity.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import './media/quickInput.css';
 import { localize } from '../../../nls.js';
-import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputButtonLocation, QuickInputHideReason, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
+import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputButtonLocation, QuickInputHideReason, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -169,8 +169,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	private _inlineButtons: IQuickInputButton[] = [];
 	private _inputButtons: IQuickInputButton[] = [];
 	private buttonsUpdated = false;
-	private _toggles: IQuickInputToggle[] = [];
-	private togglesUpdated = false;
 	protected noValidationMessage: string | undefined = QuickInput.noPromptMessage;
 	private _validationMessage: string | undefined;
 	private _lastValidationMessage: string | undefined;
@@ -334,16 +332,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		this.update();
 	}
 
-	get toggles() {
-		return this._toggles;
-	}
-
-	set toggles(toggles: IQuickInputToggle[]) {
-		this._toggles = toggles ?? [];
-		this.togglesUpdated = true;
-		this.update();
-	}
-
 	get validationMessage() {
 		return this._validationMessage;
 	}
@@ -387,11 +375,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			// if there are buttons, the ui.show() clears them out of the UI so we should
 			// rerender them.
 			this.buttonsUpdated = true;
-		}
-		if (this.toggles.length) {
-			// if there are toggles, the ui.show() clears them out of the UI so we should
-			// rerender them.
-			this.togglesUpdated = true;
 		}
 
 		this.update();
@@ -492,17 +475,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 					`id-${index}`,
 					async () => this.onDidTriggerButtonEmitter.fire(button)
 				));
-		}
-		if (this.togglesUpdated) {
-			this.togglesUpdated = false;
-			// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
-			// a layering issue as quick input's interface is in common but Toggle is in browser and
-			// it requires a HTMLElement on its interface
-			const concreteToggles = this.toggles?.filter(opts => opts instanceof Toggle) ?? [];
-			this.ui.inputBox.toggles = concreteToggles;
-			// Adjust count badge position based on number of toggles (each toggle is ~22px wide)
-			const toggleOffset = concreteToggles.length * 22;
-			this.ui.countContainer.style.right = toggleOffset > 0 ? `${4 + toggleOffset}px` : '4px';
 		}
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
