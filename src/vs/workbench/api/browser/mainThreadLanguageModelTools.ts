@@ -57,10 +57,12 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 			token ?? CancellationToken.None,
 		);
 
-		// Only return content and metadata to EH
 		const out: Dto<IToolResult> = {
 			content: result.content,
-			toolMetadata: result.toolMetadata
+			toolResultMessage: result.toolResultMessage,
+			toolResultError: result.toolResultError,
+			toolMetadata: result.toolMetadata,
+			hasError: result.hasError
 		};
 		return toolResultHasBuffers(result) ? new SerializableObjectWithBuffers(out) : out;
 	}
