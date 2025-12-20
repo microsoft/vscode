@@ -314,12 +314,6 @@ export interface IQuickInput extends IDisposable {
 	description: string | undefined;
 
 	/**
-	 * An HTML widget rendered below the input.
-	 * @deprecated Use an IQuickWidget instead.
-	 */
-	widget: any | undefined;
-
-	/**
 	 * The current step of the quick input rendered in the titlebar.
 	 */
 	step: number | undefined;
@@ -390,10 +384,9 @@ export interface IQuickWidget extends IQuickInput {
 	readonly type: QuickInputType.QuickWidget;
 
 	/**
-	 * Should be an HTMLElement (TODO: move this entire file into browser)
-	 * @override
+	 * A HTML element that will be rendered inside the quick input.
 	 */
-	widget: any | undefined;
+	widget: HTMLElement | undefined;
 }
 
 export interface IQuickPickWillAcceptEvent {

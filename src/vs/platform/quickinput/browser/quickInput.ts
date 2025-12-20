@@ -156,8 +156,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	protected _visible = observableValue('visible', false);
 	private _title: string | undefined;
 	private _description: string | undefined;
-	private _widget: HTMLElement | undefined;
-	private _widgetUpdated = false;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
 	private _enabled = true;
@@ -211,21 +209,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	set description(description: string | undefined) {
 		this._description = description;
 		this.update();
-	}
-
-	get widget() {
-		return this._widget;
-	}
-
-	set widget(widget: unknown | undefined) {
-		if (!(dom.isHTMLElement(widget))) {
-			return;
-		}
-		if (this._widget !== widget) {
-			this._widget = widget;
-			this._widgetUpdated = true;
-			this.update();
-		}
 	}
 
 	get step() {
@@ -416,14 +399,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		}
 		if (this.ui.description2.textContent !== description) {
 			this.ui.description2.textContent = description;
-		}
-		if (this._widgetUpdated) {
-			this._widgetUpdated = false;
-			if (this._widget) {
-				dom.reset(this.ui.widget, this._widget);
-			} else {
-				dom.reset(this.ui.widget);
-			}
 		}
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = new TimeoutTimer();
@@ -1358,17 +1333,37 @@ export class InputBox extends QuickInput implements IInputBox {
 export class QuickWidget extends QuickInput implements IQuickWidget {
 	readonly type = QuickInputType.QuickWidget;
 
+	private _widget: HTMLElement | undefined;
+	private _widgetUpdated = false;
+
+	get widget() {
+		return this._widget;
+	}
+
+	set widget(widget: HTMLElement | undefined) {
+		if (this._widget !== widget) {
+			this._widget = widget;
+			this._widgetUpdated = true;
+			this.update();
+		}
+	}
+
 	protected override update() {
 		if (!this.visible) {
 			return;
 		}
-
-		const visibilities: Visibilities = {
+		this.ui.setVisibilities({
 			title: !!this.title || !!this.step || !!this.titleButtons.length,
 			description: !!this.description || !!this.step
-		};
-
-		this.ui.setVisibilities(visibilities);
+		});
+		if (this._widgetUpdated) {
+			this._widgetUpdated = false;
+			if (this._widget) {
+				dom.reset(this.ui.widget, this._widget);
+			} else {
+				dom.reset(this.ui.widget);
+			}
+		}
 		super.update();
 	}
 }
