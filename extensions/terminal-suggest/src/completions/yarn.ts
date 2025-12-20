@@ -84,7 +84,6 @@ const getGlobalPackagesGenerator: Fig.Generator = {
 
 			return filteredDependencies.map((dependencyName) => ({
 				name: dependencyName,
-				icon: '📦',
 			}));
 		} catch (e) { }
 
@@ -105,7 +104,6 @@ const allDependenciesGenerator: Fig.Generator = {
 			const dependencies = packageContent.data.trees;
 			return dependencies.map((dependency: { name: string }) => ({
 				name: dependency.name.split('@')[0],
-				icon: '📦',
 			}));
 		} catch (e) { }
 		return [];
@@ -164,7 +162,6 @@ export const dependenciesGenerator: Fig.Generator = {
 				})
 				.map((pkgName) => ({
 					name: pkgName,
-					icon: '📦',
 					description: dependencies[pkgName]
 						? 'dependency'
 						: optionalDependencies[pkgName]
@@ -780,7 +777,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: 'dir',
-					description: 'Print yarn’s global cache path',
+					description: 'Print yarn\'s global cache path',
 				},
 				{
 					name: 'list',
