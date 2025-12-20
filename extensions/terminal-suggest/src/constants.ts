@@ -113,7 +113,6 @@ export const upstreamSpecs = [
 
 	// JavaScript / TypeScript
 	'node',
-	'npm',
 	'nvm',
 	'pnpm',
 	'yarn',

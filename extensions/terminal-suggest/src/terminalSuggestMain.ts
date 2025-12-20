@@ -16,6 +16,7 @@ import codeTunnelInsidersCompletionSpec from './completions/code-tunnel-insiders
 import copilotSpec from './completions/copilot';
 import gitCompletionSpec from './completions/git';
 import ghCompletionSpec from './completions/gh';
+import npmCompletionSpec from './completions/npm';
 import npxCompletionSpec from './completions/npx';
 import setLocationSpec from './completions/set-location';
 import { upstreamSpecs } from './constants';
@@ -69,6 +70,7 @@ export const availableSpecs: Fig.Spec[] = [
 	copilotSpec,
 	gitCompletionSpec,
 	ghCompletionSpec,
+	npmCompletionSpec,
 	npxCompletionSpec,
 	setLocationSpec,
 ];
