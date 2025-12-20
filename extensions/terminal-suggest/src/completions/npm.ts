@@ -456,6 +456,10 @@ const completionSpec: Fig.Spec = {
 						'Bypass peerDependency auto-installation. Emulate install behavior of NPM v4 through v6',
 				},
 				{
+					name: '--package-lock-only',
+					description: 'Only update the `package-lock.json`, instead of checking `node_modules` and downloading dependencies.',
+				},
+				{
 					name: '--strict-peer-deps',
 					description:
 						'If set to true, and --legacy-peer-deps is not set, then any conflicting peerDependencies will be treated as an install failure',
