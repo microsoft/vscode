@@ -698,7 +698,7 @@ export class TestFileService implements IFileService {
  */
 export class InMemoryTestFileService extends TestFileService {
 
-	private files = new Map<string, VSBuffer>();
+	private files = new ResourceMap<VSBuffer>();
 
 	override clearTracking(): void {
 		super.clearTracking();
@@ -714,7 +714,7 @@ export class InMemoryTestFileService extends TestFileService {
 		this.readOperations.push({ resource });
 
 		// Check if we have content in our in-memory store
-		const content = this.files.get(resource.toString());
+		const content = this.files.get(resource);
 		if (content) {
 			return {
 				...createFileStat(resource, this.readonly),
@@ -743,10 +743,24 @@ export class InMemoryTestFileService extends TestFileService {
 		}
 
 		// Store in memory and track
-		this.files.set(resource.toString(), content);
+		this.files.set(resource, content);
 		this.writeOperations.push({ resource, content: content.toString() });
 
 		return createFileStat(resource, this.readonly);
+	}
+
+	override async del(resource: URI, _options?: { useTrash?: boolean; recursive?: boolean }): Promise<void> {
+		this.files.delete(resource);
+		this.notExistsSet.set(resource, true);
+	}
+
+	override async exists(resource: URI): Promise<boolean> {
+		const inMemory = this.files.has(resource);
+		if (inMemory) {
+			return true;
+		}
+
+		return super.exists(resource);
 	}
 }
 
@@ -778,4 +792,3 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
 }
-

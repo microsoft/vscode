@@ -1282,9 +1282,17 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): Promise<void> {
+		if (!LocalChatSessionUri.isLocalSession(transferredSessionData.sessionResource)) {
+			throw new Error(`Can only transfer local chat sessions. Invalid session: ${transferredSessionData.sessionResource}`);
+		}
+
 		const model = this._sessionModels.get(transferredSessionData.sessionResource) as ChatModel | undefined;
 		if (!model) {
 			throw new Error(`Failed to transfer session. Unknown session: ${transferredSessionData.sessionResource}`);
+		}
+
+		if (model.initialLocation !== ChatAgentLocation.Chat) {
+			throw new Error(`Can only transfer chat sessions located in the Chat view. Session ${transferredSessionData.sessionResource} has location=${model.initialLocation}`);
 		}
 
 		await this._chatSessionStore.storeTransferSession({

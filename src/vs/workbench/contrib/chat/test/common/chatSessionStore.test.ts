@@ -12,7 +12,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService, toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -305,21 +305,14 @@ suite('ChatSessionStore', () => {
 			const sessionResource = LocalChatSessionUri.forSession('transfer-session');
 			const model = testDisposables.add(createMockChatModel(sessionResource));
 
-			// Create transfer with timestamp 10 minutes in the past (expired)
-			const expiredTimestamp = Date.now() - (10 * 60 * 1000);
+			// Create transfer with timestamp 100 minutes in the past (expired)
+			const expiredTimestamp = Date.now() - (100 * 60 * 1000);
 			const transferData = createTransferData(folderUri, sessionResource, expiredTimestamp);
 			await store.storeTransferSession(transferData, model);
 
-			// Access triggers cleanup
-			store.getTransferredSessionData();
-
-			// Wait for async cleanup
-			await new Promise(resolve => setTimeout(resolve, 10));
-
-			// Verify cleanup occurred - check storage is empty
-			const storageService = instantiationService.get(IStorageService) as TestStorageService;
-			const indexData = storageService.get('ChatSessionStore.transferIndex', StorageScope.PROFILE);
-			assert.ok(!indexData || indexData === '{}');
+			// Assert cleaned up
+			const data = store.getTransferredSessionData();
+			assert.strictEqual(data, undefined);
 		});
 
 		test('readTransferredSession returns undefined for invalid session resource', async () => {
@@ -331,6 +324,52 @@ suite('ChatSessionStore', () => {
 
 			const result = await store.readTransferredSession(invalidResource);
 			assert.strictEqual(result, undefined);
+		});
+
+		test('storeTransferSession deletes preexisting transferred session file', async () => {
+			const folderUri = URI.file('/test/workspace');
+			const store = createChatSessionStoreWithSingleFolder(folderUri);
+			const fileService = instantiationService.get(IFileService);
+
+			// Store first session
+			const session1Resource = LocalChatSessionUri.forSession('transfer-session-1');
+			const model1 = testDisposables.add(createMockChatModel(session1Resource));
+			const transferData1 = createTransferData(folderUri, session1Resource);
+			await store.storeTransferSession(transferData1, model1);
+
+			// Verify first session file exists
+			const userDataProfile = instantiationService.get(IUserDataProfilesService).defaultProfile;
+			const storageLocation1 = URI.joinPath(
+				userDataProfile.globalStorageHome,
+				'transferredChatSessions',
+				'transfer-session-1.json'
+			);
+			const exists1 = await fileService.exists(storageLocation1);
+			assert.strictEqual(exists1, true, 'First session file should exist');
+
+			// Store second session for the same workspace
+			const session2Resource = LocalChatSessionUri.forSession('transfer-session-2');
+			const model2 = testDisposables.add(createMockChatModel(session2Resource));
+			const transferData2 = createTransferData(folderUri, session2Resource);
+			await store.storeTransferSession(transferData2, model2);
+
+			// Verify first session file is deleted
+			const exists1After = await fileService.exists(storageLocation1);
+			assert.strictEqual(exists1After, false, 'First session file should be deleted');
+
+			// Verify second session file exists
+			const storageLocation2 = URI.joinPath(
+				userDataProfile.globalStorageHome,
+				'transferredChatSessions',
+				'transfer-session-2.json'
+			);
+			const exists2 = await fileService.exists(storageLocation2);
+			assert.strictEqual(exists2, true, 'Second session file should exist');
+
+			// Verify only the second session is retrievable
+			const result = store.getTransferredSessionData();
+			assert.ok(result);
+			assert.strictEqual(result.toString(), session2Resource.toString());
 		});
 	});
 });

@@ -125,6 +125,25 @@ export class ChatSessionStore extends Disposable {
 	}
 
 	async storeTransferSession(transferData: IChatTransfer, session: ChatModel): Promise<void> {
+		const index = this.getTransferredSessionIndex();
+		const workspaceKey = transferData.toWorkspace.toString();
+
+		// Clean up any preexisting transferred session for this workspace
+		const existingTransfer = index[workspaceKey];
+		if (existingTransfer) {
+			try {
+				const existingSessionResource = URI.revive(existingTransfer.sessionResource);
+				if (existingSessionResource && LocalChatSessionUri.parseLocalSessionId(existingSessionResource)) {
+					const existingStorageLocation = this.getTransferredSessionStorageLocation(existingSessionResource);
+					await this.fileService.del(existingStorageLocation);
+				}
+			} catch (e) {
+				if (toFileOperationResult(e) !== FileOperationResult.FILE_NOT_FOUND) {
+					this.reportError('storeTransferSession', 'Error deleting old transferred session file', e);
+				}
+			}
+		}
+
 		try {
 			const content = JSON.stringify(session, undefined, 2);
 			const storageLocation = this.getTransferredSessionStorageLocation(session.sessionResource);
@@ -134,8 +153,7 @@ export class ChatSessionStore extends Disposable {
 			return;
 		}
 
-		const index = this.getTransferredSessionIndex();
-		index[transferData.toWorkspace.toString()] = transferData;
+		index[workspaceKey] = transferData;
 		try {
 			this.storageService.store(ChatTransferIndexStorageKey, index, StorageScope.PROFILE, StorageTarget.MACHINE);
 		} catch (e) {
