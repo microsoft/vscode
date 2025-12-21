@@ -260,6 +260,12 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			find: true,
 			'/^find\\b.*-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
 
+			// rg (ripgrep)
+			// - `--pre`: Executes arbitrary command as preprocessor for every file searched.
+			// - `--hostname-bin`: Executes arbitrary command to get hostname.
+			rg: true,
+			'/^rg\\b.*(--pre|--hostname-bin)\\b/': false,
+
 			// sed
 			// - `-e`/`--expression`: Add the commands in script to the set of commands to be run
 			//   while processing the input.
