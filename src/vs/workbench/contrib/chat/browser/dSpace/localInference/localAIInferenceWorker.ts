@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatMessage, ChatMessageRole } from '../../../contrib/chat/common/languageModels.js';
-import { ILocalAIGenerationOptions } from '../common/localAI.js';
-import { ILocalAIInferenceWorker, LocalAIInferenceWorkerHost } from '../common/localAIWorker.protocol.js';
-import { initialize } from '../../../../base/common/worker/webWorkerBootstrap.js';
-import { IWebWorkerServerRequestHandler } from '../../../../base/common/worker/webWorker.js';
+import { IChatMessage, ChatMessageRole } from '../../../common/languageModels.js';
+import { ILocalAIGenerationOptions } from './localAI.js';
+import { ILocalAIInferenceWorker, LocalAIInferenceWorkerHost } from './localAIWorker.protocol.js';
+import { initialize } from '../../../../../../base/common/worker/webWorkerBootstrap.js';
+import { IWebWorkerServerRequestHandler } from '../../../../../../base/common/worker/webWorker.js';
 
 /**
  * Web worker implementation for running inference with transformers.js
@@ -73,7 +73,7 @@ export class LocalAIInferenceWorker implements ILocalAIInferenceWorker, IWebWork
 			env.useBrowserCache = true; // Use browser's Cache API for caching
 			try {
 				// Ensure the ONNX runtime assets are loaded from our local dependency
-				const wasmPath = new URL('../../../../../../node_modules/onnxruntime-web/dist/', import.meta.url).toString();
+				const wasmPath = new URL('../../../../../../../../node_modules/onnxruntime-web/dist/', import.meta.url).toString();
 				type TransformersEnv = { backends?: { onnx?: { wasm?: { wasmPaths?: string } } } };
 				const typedEnv = env as TransformersEnv;
 				typedEnv.backends ??= {};
@@ -288,8 +288,8 @@ export class LocalAIInferenceWorker implements ILocalAIInferenceWorker, IWebWork
 		const candidates: string[] = [];
 		try {
 			// Try minified then unminified bundles served from the repo
-			candidates.push(new URL('../../../../../../node_modules/@huggingface/transformers/dist/transformers.min.js', import.meta.url).toString());
-			candidates.push(new URL('../../../../../../node_modules/@huggingface/transformers/dist/transformers.js', import.meta.url).toString());
+			candidates.push(new URL('../../../../../../../../node_modules/@huggingface/transformers/dist/transformers.min.js', import.meta.url).toString());
+			candidates.push(new URL('../../../../../../../../node_modules/@huggingface/transformers/dist/transformers.js', import.meta.url).toString());
 		} catch {
 			// ignore URL construction errors
 		}
@@ -322,3 +322,4 @@ initialize((workerServer) => {
 	return worker;
 });
 console.log('[Worker] Initialization complete');
+

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
-import { WebWorkerDescriptor } from '../../../../platform/webWorker/browser/webWorkerDescriptor.js';
-import { ILocalAIService, ILocalAIGenerationOptions } from '../common/localAI.js';
-import { ILocalAIInferenceWorker, LocalAIInferenceWorkerHost } from '../common/localAIWorker.protocol.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWebWorkerService } from '../../../../../../platform/webWorker/browser/webWorkerService.js';
+import { WebWorkerDescriptor } from '../../../../../../platform/webWorker/browser/webWorkerDescriptor.js';
+import { ILocalAIService, ILocalAIGenerationOptions } from './localAI.js';
+import { ILocalAIInferenceWorker, LocalAIInferenceWorkerHost } from './localAIWorker.protocol.js';
 import { LocalAIWebGPUDetector } from './localAIWebGPUDetector.js';
-import { IChatMessage } from '../../../contrib/chat/common/languageModels.js';
-import { IWebWorkerClient } from '../../../../base/common/worker/webWorker.js';
-import { FileAccess } from '../../../../base/common/network.js';
-import { IProgressService, ProgressLocation, IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
+import { IChatMessage } from '../../../common/languageModels.js';
+import { IWebWorkerClient } from '../../../../../../base/common/worker/webWorker.js';
+import { FileAccess } from '../../../../../../base/common/network.js';
+import { IProgressService, ProgressLocation, IProgress, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 
 /**
  * Main service for local AI inference
@@ -169,7 +169,7 @@ export class LocalAIService extends Disposable implements ILocalAIService {
 			this.logService.info('Creating inference worker');
 
 			const descriptor = new WebWorkerDescriptor({
-				esmModuleLocation: () => FileAccess.asBrowserUri('vs/workbench/contrib/localAI/browser/localAIInferenceWorker.js'),
+				esmModuleLocation: () => FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/dSpace/localInference/localAIInferenceWorker.js'),
 				esmModuleLocationBundler: () => new URL('./localAIInferenceWorker.ts?workerModule', import.meta.url),
 				label: 'Local AI Inference Worker'
 			});
@@ -223,7 +223,7 @@ export class LocalAIService extends Disposable implements ILocalAIService {
 
 		try {
 			// Import the model metadata to get the HuggingFace ID
-			const { LOCAL_AI_MODELS } = await import('../common/localAI.js');
+			const { LOCAL_AI_MODELS } = await import('./localAI.js');
 			const modelMetadata = LOCAL_AI_MODELS[modelId];
 
 			if (!modelMetadata) {
@@ -405,3 +405,4 @@ class LocalAIInferenceWorkerHostImpl extends LocalAIInferenceWorkerHost {
 		}
 	}
 }
+

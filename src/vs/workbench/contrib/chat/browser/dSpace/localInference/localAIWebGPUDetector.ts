@@ -54,3 +54,4 @@ export class LocalAIWebGPUDetector {
 		this._cachedResult = undefined;
 	}
 }
+

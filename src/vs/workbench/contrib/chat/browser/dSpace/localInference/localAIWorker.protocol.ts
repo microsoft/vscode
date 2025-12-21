@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatMessage } from '../../../contrib/chat/common/languageModels.js';
+import { IChatMessage } from '../../../common/languageModels.js';
 import { ILocalAIGenerationOptions } from './localAI.js';
 
 /**
@@ -95,3 +95,4 @@ export abstract class LocalAIInferenceWorkerHost {
 	 */
 	abstract $onGenerationError(requestId: string, error: string): Promise<void>;
 }
+

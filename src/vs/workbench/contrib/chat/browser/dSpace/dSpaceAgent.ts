@@ -20,8 +20,6 @@ import {
 } from '../../common/chatAgents.js';
 import { IChatProgress } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
-import { IRequestService, asText } from '../../../../../platform/request/common/request.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
@@ -37,30 +35,26 @@ import { ListFilesTool } from './tools/listFilesTool.js';
 import { DeleteFileTool } from './tools/deleteFileTool.js';
 import { OpenFileTool } from './tools/openFileTool.js';
 import { buildMessages } from './utils/messageBuilder.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-
-interface IDSpaceChatConfig {
-	backendUrl?: string;
-	apiKey?: string;
-}
-
-// Extend IProductService to include our custom DSpaceChat configuration
-
-interface IProductServiceWithDSpace extends IProductService {
-	dSpaceChat?: IDSpaceChatConfig;
-}
+import {
+	IDSpaceModelProviderService,
+	IDSpaceMessage,
+	IDSpaceTool,
+	IDSpaceToolCall,
+	DSpaceModelId,
+} from './providers/modelProvider.js';
 
 /**
  * Built-in DSpace AI Agent
  *
  * This agent is registered directly in the VS Code core and provides AI assistance
- * for the DSpace editor. It reuses all VS Code infrastructure for:
- * - Streaming responses
- * - Tool calling
- * - File editing
- * - Context management
+ * for the DSpace editor. It is provider-agnostic and delegates inference to the
+ * active model provider (online or offline).
  *
- * The only custom part is the `invoke()` method that calls the DSpace AI backend.
+ * Features:
+ * - Streaming responses
+ * - Tool calling (file operations)
+ * - Provider switching (online/offline)
+ * - Context management
  */
 export class DSpaceAgent extends Disposable implements IChatAgentImplementation {
 	private static readonly AGENT_ID = 'dspace.chat';
@@ -88,8 +82,8 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 				extensionDisplayName: 'DSpace',
 				extensionPublisherId: 'DSpace',
 				publisherDisplayName: 'DSpace',
-				isDefault: true, // This makes it the default agent
-				isCore: true, // This marks it as a core agent (no extension needed)
+				isDefault: true,
+				isCore: true,
 				metadata: {
 					helpTextPrefix: new MarkdownString(
 						localize('dSpaceAgent.helpText', "I'm your AI assistant for the DSpace editor.")
@@ -137,59 +131,18 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IRequestService private readonly requestService: IRequestService,
 		@IFileService private readonly fileService: IFileService,
-		@ILanguageModelToolsService
-		private readonly languageModelToolsService: ILanguageModelToolsService,
-		@IProductService private readonly productService: IProductService
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IDSpaceModelProviderService private readonly modelProviderService: IDSpaceModelProviderService
 	) {
 		super();
 	}
 
 	/**
-	 * Get the backend URL from product configuration or default
-	 * Priority: product.overrides.json (local) > product.json (CI/CD) > default
-	 * Note: This should return the base URL, as /v1/chat/completions is appended
-	 */
-	private getBackendUrl(): string {
-		const config = (this.productService as IProductServiceWithDSpace).dSpaceChat;
-
-		// Check if config exists and has a valid backendUrl (not a token placeholder)
-		if (config?.backendUrl && config.backendUrl !== '__DSPACE_CHAT_BACKEND_URL__') {
-			return config.backendUrl;
-		}
-
-		// Fall back to default (base URL only)
-		return 'https://api.dspace.writefull.com';
-	}
-
-	/**
-	 * Get the API key from product configuration
-	 * Priority: product.overrides.json (local) > product.json (CI/CD)
-	 * The API key must be configured and cannot be a token placeholder
-	 */
-	private getApiKey(): string {
-		const config = (this.productService as IProductServiceWithDSpace).dSpaceChat;
-
-		// Check if config exists and has a valid apiKey (not a token placeholder)
-		if (config?.apiKey && config.apiKey !== '__DSPACE_CHAT_API_KEY__') {
-			return config.apiKey;
-		}
-
-		// API key must be configured - throw error if missing
-		throw new Error('DSpace Chat API key is not configured. Please set dSpaceChat.apiKey in product.json or product.overrides.json');
-	}
-
-	/**
 	 * Main entry point when the agent receives a request
 	 *
-	 * VS Code automatically handles:
-	 * - Progress reporting (streaming)
-	 * - Tool invocation
-	 * - File edits
-	 * - Context gathering
-	 *
-	 * We call our backend which streams OpenAI responses with tool support
+	 * The agent is provider-agnostic - it uses the active model provider
+	 * for inference and handles tool execution locally.
 	 */
 	async invoke(
 		request: IChatAgentRequest,
@@ -197,7 +150,17 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 		history: IChatAgentHistoryEntry[],
 		token: CancellationToken
 	): Promise<IChatAgentResult> {
-		this.logService.info('[DSpaceAgent] Received request:', request.message);
+		// Update active provider based on user's model selection from the picker
+		if (request.userSelectedModelId) {
+			const selectedModelId = request.userSelectedModelId;
+			if (selectedModelId === DSpaceModelId.Online || selectedModelId === DSpaceModelId.Offline) {
+				this.modelProviderService.setActiveProvider(selectedModelId);
+				this.logService.info(`[DSpaceAgent] User selected model: ${selectedModelId}`);
+			}
+		}
+
+		const provider = this.modelProviderService.getActiveProvider();
+		this.logService.info(`[DSpaceAgent] Received request, using provider: ${provider.name}`);
 
 		const startTime = Date.now();
 
@@ -213,8 +176,18 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 			// Define tools available to the AI
 			const tools = this.getAvailableTools();
 
-			// Call backend API with streaming
-			await this.callBackend(messages, tools, progress, token, request.requestId, request.sessionResource);
+			// Convert messages to provider format
+			const providerMessages = this.convertToProviderMessages(messages);
+
+			// Stream from the active provider with tool execution loop
+			await this.streamWithToolExecution(
+				providerMessages,
+				tools,
+				progress,
+				token,
+				request.requestId,
+				request.sessionResource
+			);
 
 			const totalElapsed = Date.now() - startTime;
 			this.logService.info(`[DSpaceAgent] Request completed in ${totalElapsed}ms`);
@@ -252,21 +225,30 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 		}
 	}
 
+	/**
+	 * Convert internal messages to provider format
+	 */
+	private convertToProviderMessages(messages: Array<Record<string, unknown>>): IDSpaceMessage[] {
+		return messages.map(msg => ({
+			role: msg.role as 'system' | 'user' | 'assistant' | 'tool',
+			content: msg.content as string,
+			tool_calls: msg.tool_calls as IDSpaceToolCall[] | undefined,
+			tool_call_id: msg.tool_call_id as string | undefined,
+			name: msg.name as string | undefined,
+		}));
+	}
 
 	/**
-	 * Get available tools - only our own DSpace tools, not VS Code internal tools
+	 * Get available tools in provider format
 	 */
-	private getAvailableTools(): Array<{
-		type: string;
-		function: { name: string; description: string; parameters: unknown };
-	}> {
+	private getAvailableTools(): IDSpaceTool[] {
 		return [ReadFileTool, WriteFileTool, EditFileTool, ListFilesTool, DeleteFileTool, OpenFileTool]
 			.filter((ToolClass) => ToolClass.getToolData().modelDescription)
 			.map((ToolClass) => ({
-				type: 'function',
+				type: 'function' as const,
 				function: {
 					name: ToolClass.getToolData().id,
-					description: ToolClass.getToolData().modelDescription,
+					description: ToolClass.getToolData().modelDescription!,
 					parameters: ToolClass.getToolData().inputSchema || {
 						type: 'object',
 						properties: {},
@@ -277,268 +259,111 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 	}
 
 	/**
-	 * Call the backend API with streaming support
+	 * Stream from provider and handle tool execution in a loop
 	 */
-	private async callBackend(
-		messages: Array<Record<string, unknown>>,
-		tools: Array<{
-			type: string;
-			function: { name: string; description: string; parameters: unknown };
-		}>,
+	private async streamWithToolExecution(
+		messages: IDSpaceMessage[],
+		tools: IDSpaceTool[],
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken,
 		requestId: string,
 		sessionResource: URI
 	): Promise<void> {
-		// Only send messages, tools, and tool_choice
-		// Model configuration (model, temperature, max_tokens, stream) is handled by the backend
-		const requestBody = {
-			messages,
-			tools,
-		};
+		const provider = this.modelProviderService.getActiveProvider();
+		let currentMessages = [...messages];
+		let iterationCount = 0;
+		const maxIterations = 10; // Prevent infinite loops
 
-		const backendUrl = this.getBackendUrl();
-		const apiKey = this.getApiKey();
+		while (iterationCount < maxIterations && !token.isCancellationRequested) {
+			iterationCount++;
+			this.logService.info(`[DSpaceAgent] Iteration ${iterationCount}`);
 
-		try {
-			const response = await this.requestService.request(
-				{
-					type: 'POST',
-					url: `${backendUrl}/v1/chat/completions`,
-					data: JSON.stringify(requestBody),
-					headers: {
-						'Content-Type': 'application/json',
-						'x-api-key': apiKey,
+			let pendingToolCalls: IDSpaceToolCall[] = [];
+
+			// Stream from the provider
+			for await (const chunk of provider.generateStream(currentMessages, tools, token)) {
+				if (token.isCancellationRequested) {
+					break;
+				}
+
+				switch (chunk.type) {
+					case 'text':
+						if (chunk.content) {
+							progress([
+								{
+									kind: 'markdownContent',
+									content: new MarkdownString(chunk.content),
+								},
+							]);
+						}
+						break;
+
+					case 'tool_calls':
+						if (chunk.toolCalls && chunk.toolCalls.length > 0) {
+							pendingToolCalls = chunk.toolCalls;
+							this.logService.info(`[DSpaceAgent] Received ${pendingToolCalls.length} tool call(s)`);
+						}
+						break;
+
+					case 'done':
+						this.logService.info(`[DSpaceAgent] Stream done, finish reason: ${chunk.finishReason}`);
+						break;
+				}
+			}
+
+			// If no tool calls, we're done
+			if (pendingToolCalls.length === 0) {
+				this.logService.info('[DSpaceAgent] No tool calls, finishing');
+				break;
+			}
+
+			// Execute tool calls
+			this.logService.info(`[DSpaceAgent] Executing ${pendingToolCalls.length} tool call(s)`);
+
+			const toolResults: IDSpaceMessage[] = [];
+
+			for (const toolCall of pendingToolCalls) {
+				// Show progress
+				const semanticMessage = this.getSemanticToolMessage(toolCall.function.name, toolCall.function.arguments);
+				progress([
+					{
+						kind: 'progressMessage',
+						content: new MarkdownString(semanticMessage),
 					},
-					timeout: 120000, // 2 minutes timeout
-				},
-				token
-			);
+				]);
 
-			// Handle streaming response
-			if (response.res.statusCode !== 200) {
-				const errorText = await asText(response);
-				throw new Error(`Backend returned ${response.res.statusCode}: ${errorText}`);
+				// Execute the tool
+				const result = await this.executeToolCall(
+					toolCall.function.name,
+					toolCall.function.arguments,
+					requestId,
+					sessionResource,
+					token
+				);
+
+				toolResults.push({
+					role: 'tool',
+					content: result,
+					tool_call_id: toolCall.id,
+					name: toolCall.function.name,
+				});
 			}
 
-			// Clear tool calls buffer for this request
-			this.toolCallsBuffer.clear();
-			let shouldExecuteTools = false;
-			let lastFinishReason: string | undefined;
-
-			// Process SSE stream
-			await new Promise<void>((resolve, reject) => {
-				const disposables = new DisposableStore();
-				let buffer = '';
-				const decoder = new TextDecoder();
-				let isResolved = false;
-
-				// Cleanup function to dispose all resources
-				const cleanup = () => {
-					if (!isResolved) {
-						isResolved = true;
-						disposables.dispose();
-					}
-				};
-
-				// Ensure cleanup happens on both resolve and reject
-				const wrappedResolve = () => {
-					if (!isResolved) {
-						cleanup();
-						resolve();
-					}
-				};
-				const wrappedReject = (error: unknown) => {
-					if (!isResolved) {
-						cleanup();
-						reject(error);
-					}
-				};
-
-				// Handle cancellation - add this FIRST before setting up stream handlers
-				// to avoid race conditions
-				const cancellationDisposable = token.onCancellationRequested(() => {
-					wrappedReject(new CancellationError());
-				});
-				disposables.add(cancellationDisposable);
-
-				response.stream.on('data', (chunk) => {
-					if (token.isCancellationRequested) {
-						wrappedReject(new CancellationError());
-						return;
-					}
-
-					buffer += decoder.decode(chunk.buffer, { stream: true });
-					const lines = buffer.split('\n');
-					buffer = lines.pop() || '';
-
-					for (const line of lines) {
-						if (line.startsWith('data: ')) {
-							const data = line.slice(6);
-
-							if (data === '[DONE]') {
-								continue;
-							}
-
-							try {
-								const parsed = JSON.parse(data);
-								const result = this.handleStreamChunk(parsed, progress);
-								if (result.shouldExecuteTools) {
-									shouldExecuteTools = true;
-								}
-								if (result.finishReason) {
-									lastFinishReason = result.finishReason;
-									this.logService.info(
-										`[DSpaceAgent] Finish reason: ${lastFinishReason}, tool calls in buffer: ${this.toolCallsBuffer.size}`
-									);
-								}
-							} catch (e) {
-								this.logService.warn('[DSpaceAgent] Failed to parse SSE chunk:', e);
-							}
-						}
-					}
-				});
-
-				response.stream.on('end', async () => {
-					this.logService.info(
-						`[DSpaceAgent] Stream ended. Finish reason: ${lastFinishReason}, tool calls in buffer: ${this.toolCallsBuffer.size}`
-					);
-
-					// Execute tools if:
-					// 1. finish_reason is "tool_calls", OR
-					// 2. We have tool calls in the buffer (they might have been streamed but finish_reason wasn't set correctly)
-					const hasToolCalls = this.toolCallsBuffer.size > 0;
-					if (shouldExecuteTools || (hasToolCalls && lastFinishReason === 'tool_calls')) {
-						this.logService.info(`[DSpaceAgent] Executing ${this.toolCallsBuffer.size} tool call(s)`);
-						try {
-							await this.executeToolCallsAndContinue(
-								messages,
-								tools,
-								progress,
-								token,
-								requestId,
-								sessionResource
-							);
-						} catch (error) {
-							this.logService.error('[DSpaceAgent] Tool execution failed:', error);
-							wrappedReject(error);
-							return;
-						}
-					} else if (hasToolCalls) {
-						this.logService.warn(
-							`[DSpaceAgent] Tool calls detected in buffer but finish_reason was "${lastFinishReason}". Executing anyway.`
-						);
-						try {
-							await this.executeToolCallsAndContinue(
-								messages,
-								tools,
-								progress,
-								token,
-								requestId,
-								sessionResource
-							);
-						} catch (error) {
-							this.logService.error('[DSpaceAgent] Tool execution failed:', error);
-							wrappedReject(error);
-							return;
-						}
-					}
-
-					wrappedResolve();
-				});
-
-				response.stream.on('error', (error) => {
-					this.logService.error('[DSpaceAgent] Stream error:', error);
-					wrappedReject(error);
-				});
-			});
-		} catch (error) {
-			this.logService.error('[DSpaceAgent] Backend call failed:', error);
-			throw error;
-		}
-	}
-
-	/**
-	 * Execute tool calls and continue the conversation
-	 */
-	private async executeToolCallsAndContinue(
-		originalMessages: Array<Record<string, unknown>>,
-		tools: Array<{
-			type: string;
-			function: { name: string; description: string; parameters: unknown };
-		}>,
-		progress: (parts: IChatProgress[]) => void,
-		token: CancellationToken,
-		requestId: string,
-		sessionResource: URI
-	): Promise<void> {
-		this.logService.info(`[DSpaceAgent] Executing ${this.toolCallsBuffer.size} tool call(s)`);
-
-		// Convert buffer to array and add assistant message with tool_calls
-		const toolCalls: Array<{
-			id: string;
-			type: string;
-			function: { name: string; arguments: string };
-		}> = [];
-		const toolResults: Array<{
-			role: string;
-			content: string;
-			tool_call_id: string;
-			name: string;
-		}> = [];
-
-		for (const [index, toolCall] of this.toolCallsBuffer.entries()) {
-			if (!toolCall.id || !toolCall.name || !toolCall.arguments) {
-				this.logService.warn(`[DSpaceAgent] Skipping incomplete tool call at index ${index}`);
-				continue;
-			}
-
-			toolCalls.push({
-				id: toolCall.id,
-				type: 'function',
-				function: {
-					name: toolCall.name,
-					arguments: toolCall.arguments,
-				},
-			});
-
-			// Show progress with semantic message
-			const semanticMessage = this.getSemanticToolMessage(toolCall.name, toolCall.arguments);
-			progress([
+			// Add assistant message with tool_calls and tool results to messages
+			currentMessages = [
+				...currentMessages,
 				{
-					kind: 'progressMessage',
-					content: new MarkdownString(semanticMessage),
+					role: 'assistant',
+					content: '',
+					tool_calls: pendingToolCalls,
 				},
-			]);
-
-			// Execute the tool using VS Code's tool service
-			const result = await this.executeToolCall(toolCall.name, toolCall.arguments, requestId, sessionResource, token);
-
-			toolResults.push({
-				role: 'tool',
-				content: result,
-				tool_call_id: toolCall.id,
-				name: toolCall.name,
-			});
+				...toolResults,
+			];
 		}
 
-		// Build new messages array for continuation
-		const continuationMessages: Array<Record<string, unknown>> = [
-			...originalMessages,
-			{
-				role: 'assistant',
-				content: '', // Empty content when using tool_calls
-				tool_calls: toolCalls,
-			},
-			...toolResults,
-		];
-
-		// Clear buffer before next call
-		this.toolCallsBuffer.clear();
-
-		// Make another request with tool results
-		this.logService.info('[DSpaceAgent] Continuing conversation with tool results');
-		await this.callBackend(continuationMessages, tools, progress, token, requestId, sessionResource);
+		if (iterationCount >= maxIterations) {
+			this.logService.warn('[DSpaceAgent] Max iterations reached');
+		}
 	}
 
 	/**
@@ -551,11 +376,10 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 		sessionResource: URI,
 		token: CancellationToken
 	): Promise<string> {
-		this.logService.info(`[DSpaceAgent] Executing tool: ${toolId} with arguments: ${argumentsJson}`);
+		this.logService.info(`[DSpaceAgent] Executing tool: ${toolId}`);
 
 		try {
 			const args = JSON.parse(argumentsJson);
-			this.logService.info(`[DSpaceAgent] Parsed arguments:`, args);
 
 			// Check if tool exists
 			const toolData = this.languageModelToolsService.getTool(toolId);
@@ -571,20 +395,16 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 			const selections = this.fileSelections.get(requestId);
 			let fileRange: IRange | undefined;
 			if (selections && args.path) {
-				// Try to find matching file URI
 				for (const [fileUriStr, range] of selections.entries()) {
 					const fileUri = URI.parse(fileUriStr);
-					// Check if the path matches (could be absolute or relative)
 					if (fileUri.fsPath === args.path || fileUri.fsPath.endsWith(args.path) || args.path.endsWith(fileUri.fsPath)) {
 						fileRange = range;
-						this.logService.info(`[DSpaceAgent] Found selection for file ${args.path}: lines ${range.startLineNumber}-${range.endLineNumber}`);
 						break;
 					}
 				}
 			}
 
-			// Create tool invocation context with selection info
-			// Extend context with fileRange if available (using intersection type)
+			// Create tool invocation context
 			const context: IToolInvocationContext & { fileRange?: IRange } = {
 				sessionResource: sessionResource,
 				sessionId: sessionResource.toString(),
@@ -602,25 +422,21 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 				chatRequestId: requestId,
 			};
 
-			// Invoke the tool using VS Code's tool service
-			// This will use the registered implementation (e.g., EditTool, etc.)
+			// Invoke the tool
 			const toolResult = await this.languageModelToolsService.invokeTool(
 				invocation,
-				async (input: string, token: CancellationToken) => {
-					// Simple token counting - can be improved
+				async (input: string) => {
 					return Math.ceil(input.length / 4);
 				},
 				token
 			);
 
-			// Convert tool result to JSON string for the backend
 			// Extract text content from the result
 			const resultText = toolResult.content
 				.map((part) => {
 					if (part.kind === 'text') {
 						return part.value;
 					} else if (part.kind === 'promptTsx') {
-						// For promptTsx, we might need to stringify it
 						return JSON.stringify(part.value);
 					} else if (part.kind === 'data') {
 						return `[Binary data: ${part.value.data.byteLength} bytes, ${part.value.mimeType}]`;
@@ -630,7 +446,6 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 				.filter((text) => text.length > 0)
 				.join('\n');
 
-			// If there's an error, include it
 			if (toolResult.toolResultError) {
 				return JSON.stringify({
 					success: false,
@@ -639,14 +454,10 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 				});
 			}
 
-			// Return success result
-			const result = JSON.stringify({
+			return JSON.stringify({
 				success: true,
 				content: resultText || 'Tool executed successfully',
 			});
-
-			this.logService.info(`[DSpaceAgent] Tool ${toolId} result: ${result.substring(0, 200)}...`);
-			return result;
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			this.logService.error(`[DSpaceAgent] Tool ${toolId} failed:`, error);
@@ -658,100 +469,14 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 	}
 
 	/**
-	 * Handle individual stream chunks and accumulate tool calls
-	 */
-	private toolCallsBuffer: Map<number, { id?: string; name?: string; arguments?: string }> = new Map();
-
-	private handleStreamChunk(
-		chunk: {
-			choices?: Array<{
-				delta?: {
-					content?: string;
-					tool_calls?: Array<{
-						index?: number;
-						id?: string;
-						function?: { name?: string; arguments?: string };
-					}>;
-				};
-				finish_reason?: string;
-			}>;
-		},
-		progress: (parts: IChatProgress[]) => void
-	): { shouldExecuteTools: boolean; finishReason?: string } {
-		const choice = chunk.choices?.[0];
-		if (!choice) {
-			return { shouldExecuteTools: false };
-		}
-
-		const delta = choice.delta;
-
-		// Handle finish_reason even if there's no delta (final chunk)
-		if (!delta) {
-			const finishReason = choice.finish_reason;
-			const shouldExecute = finishReason === 'tool_calls' && this.toolCallsBuffer.size > 0;
-			if (finishReason) {
-				this.logService.info(
-					`[DSpaceAgent] Chunk without delta, finish_reason: ${finishReason}, tool calls: ${this.toolCallsBuffer.size}`
-				);
-			}
-			return { shouldExecuteTools: shouldExecute, finishReason };
-		}
-
-		// Handle text content
-		if (delta.content) {
-			progress([
-				{
-					kind: 'markdownContent',
-					content: new MarkdownString(delta.content),
-				},
-			]);
-		}
-
-		// Accumulate tool calls (streaming sends them in fragments)
-		if (delta.tool_calls) {
-			this.logService.info(`[DSpaceAgent] Received tool_calls delta with ${delta.tool_calls.length} call(s)`);
-			for (const toolCall of delta.tool_calls) {
-				const index = toolCall.index ?? 0;
-
-				if (!this.toolCallsBuffer.has(index)) {
-					this.toolCallsBuffer.set(index, {
-						id: toolCall.id,
-						name: toolCall.function?.name,
-						arguments: toolCall.function?.arguments || '',
-					});
-					this.logService.info(`[DSpaceAgent] Started tool call ${index}: ${toolCall.function?.name}`);
-				} else {
-					const existing = this.toolCallsBuffer.get(index)!;
-					if (toolCall.id) {
-						existing.id = toolCall.id;
-					}
-					if (toolCall.function?.name) {
-						existing.name = toolCall.function.name;
-					}
-					if (toolCall.function?.arguments) {
-						existing.arguments += toolCall.function.arguments;
-					}
-				}
-			}
-		}
-
-		// If finish_reason is "tool_calls", we need to execute them
-		const shouldExecuteTools = choice.finish_reason === 'tool_calls' && this.toolCallsBuffer.size > 0;
-
-		return { shouldExecuteTools, finishReason: choice.finish_reason };
-	}
-
-	/**
 	 * Get a user-friendly semantic message for a tool invocation
 	 */
 	private getSemanticToolMessage(toolName: string, toolArguments?: string): string {
-		// Try to extract file path from arguments for more descriptive messages
 		let filePath: string | undefined;
 		if (toolArguments) {
 			try {
 				const args = JSON.parse(toolArguments);
 				filePath = args.path;
-				// Extract just the filename for a cleaner display
 				if (filePath) {
 					const parts = filePath.replace(/\\/g, '/').split('/');
 					filePath = parts[parts.length - 1];
@@ -761,7 +486,6 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 			}
 		}
 
-		// Map tool IDs to semantic messages
 		const toolMessages: Record<string, string> = {
 			'dSpace_readFile': filePath ? `Reading \`${filePath}\`...` : 'Reading file...',
 			'dSpace_writeFile': filePath ? `Creating \`${filePath}\`...` : 'Creating file...',

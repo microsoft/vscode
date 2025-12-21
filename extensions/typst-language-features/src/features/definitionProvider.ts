@@ -8,7 +8,7 @@ import { queryDocument, isWasmLoaded } from '../wasm';
 
 /**
  * Provides "Go to Definition" functionality for Typst documents.
- * 
+ *
  * Uses a hybrid approach:
  * - Labels/references: Uses Typst's introspection query API (same as tinymist)
  * - Variables/functions: Uses regex-based parsing (quick win, can upgrade later)
@@ -23,7 +23,6 @@ export class TypstDefinitionProvider implements vscode.DefinitionProvider {
 	): Promise<vscode.DefinitionLink[] | undefined> {
 		const line = document.lineAt(position.line);
 		const lineText = line.text;
-		const offset = document.offsetAt(position);
 
 		// Check if we're on a label reference (@label)
 		const labelRefMatch = this.findLabelReference(lineText, position.character);

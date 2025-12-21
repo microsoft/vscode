@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatMessage } from '../../../contrib/chat/common/languageModels.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IChatMessage } from '../../../common/languageModels.js';
 
 export const ILocalAIService = createDecorator<ILocalAIService>('localAIService');
 
@@ -79,3 +79,4 @@ export const LOCAL_AI_MODELS: Record<string, ILocalAIModelMetadata> = {
 		}
 	}
 };
+

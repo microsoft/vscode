@@ -15,13 +15,12 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 
 export interface IModelPickerDelegate {
@@ -86,49 +85,13 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 	};
 }
 
-function getModelPickerActionBarActionProvider(commandService: ICommandService, chatEntitlementService: IChatEntitlementService, productService: IProductService): IActionProvider {
-
+// DSpace: Disabled additional model management actions in the picker
+// We only want users to select between DSpace Online and DSpace Local
+function getModelPickerActionBarActionProvider(_commandService: ICommandService, _chatEntitlementService: IChatEntitlementService, _productService: IProductService): IActionProvider {
 	const actionProvider: IActionProvider = {
 		getActions: () => {
-			const additionalActions: IAction[] = [];
-			if (
-				chatEntitlementService.entitlement === ChatEntitlement.Free ||
-				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
-				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
-				chatEntitlementService.isInternal
-			) {
-				additionalActions.push({
-					id: 'manageModels',
-					label: localize('chat.manageModels', "Manage Models..."),
-					enabled: true,
-					tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
-					class: undefined,
-					run: () => {
-						commandService.executeCommand(MANAGE_CHAT_COMMAND_ID);
-					}
-				});
-			}
-
-			// Add sign-in / upgrade option if entitlement is anonymous / free / new user
-			const isNewOrAnonymousUser = !chatEntitlementService.sentiment.installed ||
-				chatEntitlementService.entitlement === ChatEntitlement.Available ||
-				chatEntitlementService.anonymous ||
-				chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-			if (isNewOrAnonymousUser || chatEntitlementService.entitlement === ChatEntitlement.Free) {
-				additionalActions.push({
-					id: 'moreModels',
-					label: isNewOrAnonymousUser ? localize('chat.moreModels', "Add Language Models") : localize('chat.morePremiumModels', "Add Premium Models"),
-					enabled: true,
-					tooltip: isNewOrAnonymousUser ? localize('chat.moreModels.tooltip', "Add Language Models") : localize('chat.morePremiumModels.tooltip', "Add Premium Models"),
-					class: undefined,
-					run: () => {
-						const commandId = isNewOrAnonymousUser ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
-						commandService.executeCommand(commandId);
-					}
-				});
-			}
-
-			return additionalActions;
+			// Return empty array - no additional actions needed for DSpace
+			return [];
 		}
 	};
 	return actionProvider;
