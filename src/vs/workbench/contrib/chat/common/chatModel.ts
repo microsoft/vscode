@@ -205,7 +205,7 @@ export interface IChatResponseModel {
 	readonly confirmationAdjustedTimestamp: IObservable<number>;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
-	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number } | undefined>;
+	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number; detail?: string } | undefined>;
 	readonly isInProgress: IObservable<boolean>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	shouldBeBlocked: boolean;
@@ -776,6 +776,7 @@ export interface IChatResponseModelParameters {
 
 type ResponseModelStateT =
 	| { value: ResponseModelState.Pending }
+	| { value: ResponseModelState.NeedsInput }
 	| { value: ResponseModelState.Complete | ResponseModelState.Cancelled | ResponseModelState.Failed; completedAt: number };
 
 export class ChatResponseModel extends Disposable implements IChatResponseModel {
@@ -816,7 +817,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public get isComplete(): boolean {
-		return this._modelState.get().value !== ResponseModelState.Pending;
+		return this._modelState.get().value !== ResponseModelState.Pending && this._modelState.get().value !== ResponseModelState.NeedsInput;
 	}
 
 	public get timestamp(): number {
@@ -921,7 +922,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 
-	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number } | undefined>;
+	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number; detail?: string } | undefined>;
 
 	readonly isInProgress: IObservable<boolean>;
 
@@ -972,26 +973,36 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		const signal = observableSignalFromEvent(this, this.onDidChange);
 
-		const _isPendingBool = signal.map((_value, r) => {
-
+		const _pendingInfo = signal.map((_value, r): string | undefined => {
 			signal.read(r);
 
-			return this._response.value.some(part =>
-				part.kind === 'toolInvocation' && part.state.read(r).type === IChatToolInvocation.StateKind.WaitingForConfirmation
-				|| part.kind === 'confirmation' && !part.isUsed
-				|| part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending
-			);
+			for (const part of this._response.value) {
+				if (part.kind === 'toolInvocation' && part.state.read(r).type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					const title = part.confirmationMessages?.title;
+					return title ? (isMarkdownString(title) ? title.value : title) : undefined;
+				}
+				if (part.kind === 'confirmation' && !part.isUsed) {
+					return part.title;
+				}
+				if (part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending) {
+					const title = part.title;
+					return isMarkdownString(title) ? title.value : title;
+				}
+			}
+
+			return undefined;
 		});
 
-		this.isPendingConfirmation = _isPendingBool.map(pending => pending ? { startedWaitingAt: Date.now() } : undefined);
+		const _startedWaitingAt = _pendingInfo.map(p => !!p).map(p => p ? Date.now() : undefined);
+		this.isPendingConfirmation = _startedWaitingAt.map((waiting, r) => waiting ? { startedWaitingAt: waiting, detail: _pendingInfo.read(r) } : undefined);
 
 		this.isInProgress = signal.map((_value, r) => {
 
 			signal.read(r);
 
-			return !_isPendingBool.read(r)
+			return !_pendingInfo.read(r)
 				&& !this.shouldBeRemovedOnSend
-				&& this._modelState.read(r).value === ResponseModelState.Pending;
+				&& (this._modelState.read(r).value === ResponseModelState.Pending || this._modelState.read(r).value === ResponseModelState.NeedsInput);
 		});
 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
@@ -1011,9 +1022,16 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		let lastStartedWaitingAt: number | undefined = undefined;
 		this.confirmationAdjustedTimestamp = derived(reader => {
 			const pending = this.isPendingConfirmation.read(reader);
-			if (pending && !lastStartedWaitingAt) {
-				lastStartedWaitingAt = pending.startedWaitingAt;
-			} else if (!pending && lastStartedWaitingAt) {
+			if (pending) {
+				this._modelState.set({ value: ResponseModelState.NeedsInput }, undefined);
+				if (!lastStartedWaitingAt) {
+					lastStartedWaitingAt = pending.startedWaitingAt;
+				}
+			} else if (lastStartedWaitingAt) {
+				// Restore state to Pending if it was set to NeedsInput by this observable
+				if (this._modelState.read(reader).value === ResponseModelState.NeedsInput) {
+					this._modelState.set({ value: ResponseModelState.Pending }, undefined);
+				}
 				this._timeSpentWaitingAccumulator += Date.now() - lastStartedWaitingAt;
 				lastStartedWaitingAt = undefined;
 			}
@@ -1142,7 +1160,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			result: this.result,
 			responseMarkdownInfo: this.codeBlockInfos?.map<ISerializableMarkdownInfo>(info => ({ suggestionId: info.suggestionId })),
 			followups: this.followups,
-			modelState: modelState.value === ResponseModelState.Pending ? { value: ResponseModelState.Cancelled, completedAt: Date.now() } : modelState,
+			modelState: modelState.value === ResponseModelState.Pending || modelState.value === ResponseModelState.NeedsInput ? { value: ResponseModelState.Cancelled, completedAt: Date.now() } : modelState,
 			vote: this.vote,
 			voteDownReason: this.voteDownReason,
 			slashCommand: this.slashCommand,
@@ -1161,6 +1179,16 @@ export interface IChatRequestDisablement {
 	afterUndoStop?: string;
 }
 
+/**
+ * Information about a chat request that needs user input to continue.
+ */
+export interface IChatRequestNeedsInputInfo {
+	/** The chat session title */
+	readonly title: string;
+	/** Optional detail message, e.g., "<toolname> needs approval to run." */
+	readonly detail?: string;
+}
+
 export interface IChatModel extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
@@ -1175,8 +1203,8 @@ export interface IChatModel extends IDisposable {
 	readonly hasCustomTitle: boolean;
 	/** True whenever a request is currently running */
 	readonly requestInProgress: IObservable<boolean>;
-	/** True whenever a request needs user interaction to continue */
-	readonly requestNeedsInput: IObservable<boolean>;
+	/** Provides session information when a request needs user interaction to continue */
+	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 	readonly inputPlaceholder?: string;
 	readonly editingSession?: IChatEditingSession | undefined;
 	readonly checkpoint: IChatRequestModel | undefined;
@@ -1619,7 +1647,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	readonly requestInProgress: IObservable<boolean>;
-	readonly requestNeedsInput: IObservable<boolean>;
+	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 
 	/** Input model for managing input state */
 	readonly inputModel: InputModel;
@@ -1778,7 +1806,14 @@ export class ChatModel extends Disposable implements IChatModel {
 		});
 
 		this.requestNeedsInput = this.lastRequestObs.map((request, r) => {
-			return !!request?.response?.isPendingConfirmation.read(r);
+			const pendingInfo = request?.response?.isPendingConfirmation.read(r);
+			if (!pendingInfo) {
+				return undefined;
+			}
+			return {
+				title: this.title,
+				detail: pendingInfo.detail,
+			};
 		});
 
 		// Retain a reference to itself when a request is in progress, so the ChatModel stays alive in the background
@@ -1787,8 +1822,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			const selfRef = this._register(new MutableDisposable<IChatModelReference>());
 			this._register(autorun(r => {
 				const inProgress = this.requestInProgress.read(r);
-				const isWaitingForConfirmation = this.requestNeedsInput.read(r);
-				const shouldStayAlive = inProgress || isWaitingForConfirmation;
+				const needsInput = this.requestNeedsInput.read(r);
+				const shouldStayAlive = inProgress || !!needsInput;
 				if (shouldStayAlive && !selfRef.value) {
 					selfRef.value = chatService.getActiveSessionReference(this._sessionResource);
 				} else if (!shouldStayAlive && selfRef.value) {
@@ -2177,8 +2212,6 @@ export class ChatModel extends Disposable implements IChatModel {
 								return item.treeData;
 							} else if (item.kind === 'markdownContent') {
 								return item.content;
-							} else if (item.kind === 'confirmation') {
-								return { ...item, isLive: false };
 							} else {
 								// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 								return item as any; // TODO
