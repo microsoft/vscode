@@ -721,7 +721,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		for (const h of context.history) {
 			const ehResult = typeConvert.ChatAgentResult.to(h.result);
-			const result: vscode.ChatResult = agentId === h.request.agentId ?
+			const result: vscode.ChatResult = agentId === h.request.agentId || (isBuiltinParticipant(h.request.agentId) && isBuiltinParticipant(agentId)) ?
 				ehResult :
 				{ ...ehResult, metadata: undefined };
 
@@ -1121,4 +1121,8 @@ function raceCancellationWithTimeout<T>(cancelWait: number, promise: Promise<T>,
 		});
 		promise.then(resolve, reject).finally(() => ref.dispose());
 	});
+}
+
+function isBuiltinParticipant(agentId: string): boolean {
+	return agentId.startsWith('github.copilot');
 }
