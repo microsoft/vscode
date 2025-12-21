@@ -228,7 +228,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly visibilityTimeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private readonly visibilityAnimationFrameDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
-	private readonly scrollAnimationFrameDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
@@ -253,8 +252,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _visible = false;
 	get visible() { return this._visible; }
-
-	private previousTreeScrollHeight: number = 0;
 
 	/**
 	 * Whether the list is scroll-locked to the bottom. Initialize to true so that we can scroll to the bottom on first render.
@@ -1531,6 +1528,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				setRowLineHeight: false,
 				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions), } : undefined,
 				scrollToActiveElement: true,
+				autoscroll: true,
 				overrideStyles: {
 					listFocusBackground: this.styles.listBackground,
 					listInactiveFocusBackground: this.styles.listBackground,
@@ -1790,29 +1788,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private onDidChangeTreeContentHeight(): void {
-		// If the list was previously scrolled all the way down, ensure it stays scrolled down, if scroll lock is on
-		if (this.tree.scrollHeight !== this.previousTreeScrollHeight) {
-			const lastItem = this.viewModel?.getItems().at(-1);
-			const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
-			if (!lastResponseIsRendering || this.scrollLock) {
-				// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
-				// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
-				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
-				if (lastElementWasVisible) {
-					this.scrollAnimationFrameDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
-						// Can't set scrollTop during this event listener, the list might overwrite the change
-
-						this.scrollToEnd();
-					}, 0);
-				}
-			}
-		}
-
-		// TODO@roblourens add `show-scroll-down` class when button should show
-		// Show the button when content height changes, the list is not fully scrolled down, and (the latest response is currently rendering OR I haven't yet scrolled all the way down since the last response)
-		// So for example it would not reappear if I scroll up and delete a message
-
-		this.previousTreeScrollHeight = this.tree.scrollHeight;
 		this._onDidChangeContentHeight.fire();
 	}
 
