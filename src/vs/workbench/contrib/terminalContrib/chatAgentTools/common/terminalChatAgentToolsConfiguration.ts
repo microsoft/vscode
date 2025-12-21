@@ -271,7 +271,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   while processing the input.
 			// - `-f`/`--file`: Add the commands contained in the file script-file to the set of
 			//   commands to be run while processing the input.
-			// - `-i`/`--in-place`: This option specifies that files are to be edited in-place.
+			// - `-i`/`-I`/`--in-place`: This option specifies that files are to be edited in-place.
 			// - `w`/`W` commands: Write to files (blocked by `-i` check + agent typically won't use).
 			// - `s///e` flag: Executes substitution result as shell command
 			// - `s///w` flag: Write substitution result to file
@@ -279,7 +279,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// - Note that `--sandbox` exists which blocks unsafe commands that could potentially be
 			//   leveraged to auto approve
 			sed: true,
-			'/^sed\\b.*(-[a-zA-Z]*(e|i|f)[a-zA-Z]*|--expression|--file|--in-place)\\b/': false,
+			'/^sed\\b.*(-[a-zA-Z]*(e|i|I|f)[a-zA-Z]*|--expression|--file|--in-place)\\b/': false,
 			'/^sed\\b.*(\/e|\/w|;W)/': false,
 
 			// sort
