@@ -1,6 +1,9 @@
 {
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
+		"lib": ["ESNext"],
+		"module": "NodeNext",
+		"target": "ESNext",
 		"esModuleInterop": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
@@ -9,15 +12,7 @@
 		"resolveJsonModule": true,
 		"isolatedModules": false,
 		"outDir": "../out/vs",
-		"types": [
-			"@webgpu/types",
-			"mocha",
-			"semver",
-			"sinon",
-			"trusted-types",
-			"winreg",
-			"wicg-file-system-access"
-		],
+		"types": [],
 		"plugins": [
 			{
 				"name": "tsec",
