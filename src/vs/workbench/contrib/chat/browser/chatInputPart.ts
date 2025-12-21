@@ -2552,7 +2552,7 @@ class AddFilesButton extends ActionViewItem {
 	}
 
 	override render(container: HTMLElement): void {
-		container.classList.add('chat-attachment-button', 'chat-attach-context-button');
+		container.classList.add('chat-attachment-button');
 		super.render(container);
 		this.updateLabel();
 	}
