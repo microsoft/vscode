@@ -38,7 +38,7 @@ import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/c
 import { EditorOptions, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { Range } from '../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -1861,31 +1861,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (isSuggestedEnabled && implicitValue) {
 			const targetUri: URI | undefined = this.implicitContext.uri;
 			const targetRange = isLocation(implicitValue) ? implicitValue.range : undefined;
-
-			const currentlyAttached = attachments.some(([, attachment]) => {
-				let uri: URI | undefined;
-				let range: typeof targetRange | undefined;
-
-				if (URI.isUri(attachment.value)) {
-					uri = attachment.value;
-				} else if (isLocation(attachment.value)) {
-					uri = attachment.value.uri;
-					range = attachment.value.range;
-				} else if (isStringVariableEntry(attachment)) {
-					uri = attachment.uri;
-				}
-
-				if (!uri || !isEqual(uri, targetUri)) {
-					return false;
-				}
-
-				if (targetRange) {
-					return range && Range.equalsRange(range, targetRange);
-				}
-
-				return true;
-			});
-
+			const currentlyAttached = this.isAttachmentAlreadyAttached(targetUri, targetRange, attachments.map(([, a]) => a));
 			const shouldShowImplicit = !currentlyAttached;
 			if (shouldShowImplicit) {
 				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, () => this._widget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
@@ -1916,34 +1892,38 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (isUri || isLocation(implicit)) {
 			const targetUri = isUri ? implicit : implicit.uri;
 			const targetRange = isLocation(implicit) ? implicit.range : undefined;
-			const attachments = [...this._attachmentModel.attachments.entries()];
-
-			const currentlyAttached = attachments.some(([, attachment]) => {
-				let uri: URI | undefined;
-				let range: typeof targetRange | undefined;
-
-				if (URI.isUri(attachment.value)) {
-					uri = attachment.value;
-				} else if (isLocation(attachment.value)) {
-					uri = attachment.value.uri;
-					range = attachment.value.range;
-				}
-
-				if (!uri || !isEqual(uri, targetUri)) {
-					return false;
-				}
-
-				// check if the exact range is already attached
-				if (targetRange) {
-					return range && Range.equalsRange(range, targetRange);
-				}
-
-				return true;
-			});
-
+			const attachments = [...this._attachmentModel.attachments.values()];
+			const currentlyAttached = this.isAttachmentAlreadyAttached(targetUri, targetRange, attachments);
 			return !currentlyAttached;
 		}
 		return false;
+	}
+
+	private isAttachmentAlreadyAttached(targetUri: URI | undefined, targetRange: IRange | undefined, attachments: IChatRequestVariableEntry[]): boolean {
+		return attachments.some((attachment) => {
+			let uri: URI | undefined;
+			let range: IRange | undefined;
+
+			if (URI.isUri(attachment.value)) {
+				uri = attachment.value;
+			} else if (isLocation(attachment.value)) {
+				uri = attachment.value.uri;
+				range = attachment.value.range;
+			} else if (isStringVariableEntry(attachment)) {
+				uri = attachment.uri;
+			}
+
+			if (!uri || !isEqual(uri, targetUri)) {
+				return false;
+			}
+
+			// check if the exact range is already attached
+			if (targetRange) {
+				return range && Range.equalsRange(range, targetRange);
+			}
+
+			return true;
+		});
 	}
 
 	private handleAttachmentDeletion(e: KeyboardEvent | unknown, index: number, attachment: IChatRequestVariableEntry) {
