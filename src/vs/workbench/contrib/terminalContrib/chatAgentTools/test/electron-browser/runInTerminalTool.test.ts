@@ -304,6 +304,7 @@ suite('RunInTerminalTool', () => {
 			'rg --hostname-bin hostname pattern .',
 			'sed -i "s/foo/bar/g" file.txt',
 			'sed -i.bak "s/foo/bar/" file.txt',
+			'sed -Ibak "s/foo/bar/" file.txt',
 			'sed --in-place "s/foo/bar/" file.txt',
 			'sed -e "s/a/b/" file.txt',
 			'sed -f script.sed file.txt',
