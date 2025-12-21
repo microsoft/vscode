@@ -1561,9 +1561,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
-		this._register(this.tree.onDidChangeContentHeight(() => {
-			this.onDidChangeTreeContentHeight();
-		}));
+		this._register(this.tree.onDidChangeContentHeight(() => this._onDidChangeContentHeight.fire()));
 		this._register(this.renderer.onDidChangeItemHeight(e => {
 			if (this.tree.hasElement(e.element) && this.visible) {
 				this.tree.updateElementHeight(e.element, e.height);
@@ -1785,10 +1783,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			getAnchor: () => e.anchor,
 			getActionsContext: () => selected,
 		});
-	}
-
-	private onDidChangeTreeContentHeight(): void {
-		this._onDidChangeContentHeight.fire();
 	}
 
 	private getWidgetViewKindTag(): string {
