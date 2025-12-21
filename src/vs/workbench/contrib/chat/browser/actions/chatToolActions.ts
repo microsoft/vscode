@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../../base/browser/dom.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { markAsSingleton } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -176,9 +178,23 @@ class ConfigureToolsAction extends Action2 {
 
 		}
 
-		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get());
-		if (result) {
-			widget.input.selectedToolsModel.set(result, false);
+		// Create a cancellation token that cancels when the mode changes
+		const cts = new CancellationTokenSource();
+		const initialMode = widget.input.currentModeObs.get();
+		const modeListener = autorun(reader => {
+			if (initialMode.id !== widget.input.currentModeObs.read(reader).id) {
+				cts.cancel();
+			}
+		});
+
+		try {
+			const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get(), cts.token);
+			if (result) {
+				widget.input.selectedToolsModel.set(result, false);
+			}
+		} finally {
+			modeListener.dispose();
+			cts.dispose();
 		}
 
 		const tools = widget.input.selectedToolsModel.entriesMap.get();

@@ -13,7 +13,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel } from './agentSessionsModel.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -27,7 +27,6 @@ import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listVi
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
-import { ChatSessionStatus, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -247,15 +246,15 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	private getIcon(session: IAgentSession): ThemeIcon {
-		if (session.status === ChatSessionStatus.InProgress) {
+		if (session.status === AgentSessionStatus.InProgress) {
 			return Codicon.sessionInProgress;
 		}
 
-		if (session.status === ChatSessionStatus.NeedsInput) {
-			return Codicon.info;
+		if (session.status === AgentSessionStatus.NeedsInput) {
+			return Codicon.report;
 		}
 
-		if (session.status === ChatSessionStatus.Failed) {
+		if (session.status === AgentSessionStatus.Failed) {
 			return Codicon.error;
 		}
 
@@ -274,45 +273,45 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Fallback to state label
 		else {
-			if (isSessionInProgressStatus(session.element.status)) {
+			if (session.element.status === AgentSessionStatus.InProgress) {
 				template.description.textContent = localize('chat.session.status.inProgress', "Working...");
-			} else if (session.element.status === ChatSessionStatus.NeedsInput) {
+			} else if (session.element.status === AgentSessionStatus.NeedsInput) {
 				template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
-			} else if (hasBadge && session.element.status === ChatSessionStatus.Completed) {
+			} else if (hasBadge && session.element.status === AgentSessionStatus.Completed) {
 				template.description.textContent = ''; // no description if completed and has badge
 			} else if (
 				session.element.timing.finishedOrFailedTime &&
 				session.element.timing.inProgressTime &&
 				session.element.timing.finishedOrFailedTime > session.element.timing.inProgressTime
 			) {
-				const duration = this.toDuration(session.element.timing.inProgressTime, session.element.timing.finishedOrFailedTime);
+				const duration = this.toDuration(session.element.timing.inProgressTime, session.element.timing.finishedOrFailedTime, false);
 
-				template.description.textContent = session.element.status === ChatSessionStatus.Failed ?
+				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
 					localize('chat.session.status.failedAfter', "Failed after {0}.", duration ?? '1s') :
-					localize('chat.session.status.completedAfter', "Finished in {0}.", duration ?? '1s');
+					localize('chat.session.status.completedAfter', "Completed in {0}.", duration ?? '1s');
 			} else {
-				template.description.textContent = session.element.status === ChatSessionStatus.Failed ?
+				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
 					localize('chat.session.status.failed', "Failed") :
-					localize('chat.session.status.completed', "Finished");
+					localize('chat.session.status.completed', "Completed");
 			}
 		}
 	}
 
-	private toDuration(startTime: number, endTime: number): string | undefined {
+	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean): string | undefined {
 		const elapsed = Math.round((endTime - startTime) / 1000) * 1000;
 		if (elapsed < 1000) {
 			return undefined;
 		}
 
-		return getDurationString(elapsed);
+		return getDurationString(elapsed, useFullTimeWords);
 	}
 
 	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
 
 		const getStatus = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
-			if (isSessionInProgressStatus(session.status) && session.timing.inProgressTime) {
-				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now());
+			if (session.status === AgentSessionStatus.InProgress && session.timing.inProgressTime) {
+				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now(), false);
 			}
 
 			if (!timeLabel) {
@@ -324,22 +323,91 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		template.status.textContent = getStatus(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), isSessionInProgressStatus(session.element.status) ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
-		const tooltip = session.element.tooltip;
-		if (tooltip) {
-			template.elementDisposable.add(
-				this.hoverService.setupDelayedHover(template.element, () => ({
-					content: tooltip,
-					style: HoverStyle.Pointer,
-					position: {
-						hoverPosition: this.options.getHoverPosition()
-					}
-				}), { groupId: 'agent.sessions' })
-			);
+		template.elementDisposable.add(
+			this.hoverService.setupDelayedHover(template.element, () => ({
+				content: this.buildTooltip(session.element),
+				style: HoverStyle.Pointer,
+				position: {
+					hoverPosition: this.options.getHoverPosition()
+				}
+			}), { groupId: 'agent.sessions' })
+		);
+	}
+
+	private buildTooltip(session: IAgentSession): IMarkdownString {
+		const lines: string[] = [];
+
+		// Title
+		lines.push(`**${session.label}**`);
+
+		// Tooltip (from provider)
+		if (session.tooltip) {
+			const tooltip = typeof session.tooltip === 'string' ? session.tooltip : session.tooltip.value;
+			lines.push(tooltip);
+		} else {
+
+			// Description
+			if (session.description) {
+				const description = typeof session.description === 'string' ? session.description : session.description.value;
+				lines.push(description);
+			}
+
+			// Badge
+			if (session.badge) {
+				const badge = typeof session.badge === 'string' ? session.badge : session.badge.value;
+				lines.push(badge);
+			}
 		}
+
+		// Details line: Status • Provider • Duration/Time
+		const details: string[] = [];
+
+		// Status
+		details.push(toStatusLabel(session.status));
+
+		// Provider
+		details.push(session.providerLabel);
+
+		// Duration or start time
+		if (session.timing.finishedOrFailedTime && session.timing.inProgressTime) {
+			const duration = this.toDuration(session.timing.inProgressTime, session.timing.finishedOrFailedTime, true);
+			if (duration) {
+				details.push(duration);
+			}
+		} else {
+			details.push(fromNow(session.timing.startTime, true, true));
+		}
+
+		lines.push(details.join(' • '));
+
+		// Diff information
+		const diff = getAgentChangesSummary(session.changes);
+		if (diff && hasValidDiff(session.changes)) {
+			const diffParts: string[] = [];
+			if (diff.files > 0) {
+				diffParts.push(diff.files === 1 ? localize('tooltip.file', "1 file") : localize('tooltip.files', "{0} files", diff.files));
+			}
+			if (diff.insertions > 0) {
+				diffParts.push(`+${diff.insertions}`);
+			}
+			if (diff.deletions > 0) {
+				diffParts.push(`-${diff.deletions}`);
+			}
+			if (diffParts.length > 0) {
+				lines.push(`$(diff) ${diffParts.join(', ')}`);
+			}
+		}
+
+		// Archived status
+		if (session.isArchived()) {
+			lines.push(`$(archive) ${localize('tooltip.archived', "Archived")}`);
+		}
+
+		return new MarkdownString(lines.join('\n\n'), { supportThemeIcons: true });
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSession>, FuzzyScore>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
@@ -353,6 +421,25 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	disposeTemplate(templateData: IAgentSessionItemTemplate): void {
 		templateData.disposables.dispose();
 	}
+}
+
+function toStatusLabel(status: AgentSessionStatus): string {
+	let statusLabel: string;
+	switch (status) {
+		case AgentSessionStatus.NeedsInput:
+			statusLabel = localize('agentSessionNeedsInput', "Needs Input");
+			break;
+		case AgentSessionStatus.InProgress:
+			statusLabel = localize('agentSessionInProgress', "In Progress");
+			break;
+		case AgentSessionStatus.Failed:
+			statusLabel = localize('agentSessionFailed', "Failed");
+			break;
+		default:
+			statusLabel = localize('agentSessionCompleted', "Completed");
+	}
+
+	return statusLabel;
 }
 
 //#endregion
@@ -464,22 +551,7 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 			return localize('agentSessionSectionAriaLabel', "{0} sessions section", element.label);
 		}
 
-		let statusLabel: string;
-		switch (element.status) {
-			case ChatSessionStatus.NeedsInput:
-				statusLabel = localize('agentSessionNeedsInput', "needs input");
-				break;
-			case ChatSessionStatus.InProgress:
-				statusLabel = localize('agentSessionInProgress', "in progress");
-				break;
-			case ChatSessionStatus.Failed:
-				statusLabel = localize('agentSessionFailed', "failed");
-				break;
-			default:
-				statusLabel = localize('agentSessionCompleted', "completed");
-		}
-
-		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, statusLabel, new Date(element.timing.startTime).toLocaleString());
+		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.startTime).toLocaleString());
 	}
 }
 
@@ -497,16 +569,10 @@ export interface IAgentSessionsFilter {
 	readonly limitResults?: () => number | undefined;
 
 	/**
-	 * Whether to show section headers (Active, Older, Archived).
+	 * Whether to show section headers to group sessions.
 	 * When false, sessions are shown as a flat list.
 	 */
 	readonly groupResults?: () => boolean | undefined;
-
-	/**
-	 * A callback to notify the filter about the label of the
-	 * first section when grouping is enabled.
-	 */
-	notifyFirstGroupLabel?(label: string | undefined): void;
 
 	/**
 	 * A callback to notify the filter about the number of
@@ -593,28 +659,13 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
 		const groupedSessions = groupAgentSessions(sortedSessions);
 
-		let isFirstSection = true;
-		let firstSectionLabel: string | undefined;
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
 				continue;
 			}
 
-			// First section: add sessions directly without a parent node
-			if (isFirstSection) {
-				result.push(...sessions);
-				isFirstSection = false;
-				firstSectionLabel = label;
-			}
-
-			// Subsequent sections: add as parent nodes with children
-			else {
-				result.push({ section, label, sessions });
-			}
+			result.push({ section, label, sessions });
 		}
-
-		// Notify the first section label
-		this.filter?.notifyFirstGroupLabel?.(firstSectionLabel);
 
 		return result;
 	}
@@ -624,10 +675,10 @@ const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
 const WEEK_THRESHOLD = 7 * DAY_THRESHOLD;
 
 export const AgentSessionSectionLabels = {
-	[AgentSessionSection.Active]: localize('agentSessions.activeSection', "Active"),
+	[AgentSessionSection.InProgress]: localize('agentSessions.inProgressSection', "In Progress"),
 	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
 	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
-	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Week"),
+	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last Week"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
 };
@@ -638,7 +689,7 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
 	const weekThreshold = now - WEEK_THRESHOLD;
 
-	const activeSessions: IAgentSession[] = [];
+	const inProgressSessions: IAgentSession[] = [];
 	const todaySessions: IAgentSession[] = [];
 	const yesterdaySessions: IAgentSession[] = [];
 	const weekSessions: IAgentSession[] = [];
@@ -647,7 +698,7 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 
 	for (const session of sessions) {
 		if (isSessionInProgressStatus(session.status)) {
-			activeSessions.push(session);
+			inProgressSessions.push(session);
 		} else if (session.isArchived()) {
 			archivedSessions.push(session);
 		} else {
@@ -665,7 +716,7 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 	}
 
 	return new Map<AgentSessionSection, IAgentSessionSection>([
-		[AgentSessionSection.Active, { section: AgentSessionSection.Active, label: AgentSessionSectionLabels[AgentSessionSection.Active], sessions: activeSessions }],
+		[AgentSessionSection.InProgress, { section: AgentSessionSection.InProgress, label: AgentSessionSectionLabels[AgentSessionSection.InProgress], sessions: inProgressSessions }],
 		[AgentSessionSection.Today, { section: AgentSessionSection.Today, label: AgentSessionSectionLabels[AgentSessionSection.Today], sessions: todaySessions }],
 		[AgentSessionSection.Yesterday, { section: AgentSessionSection.Yesterday, label: AgentSessionSectionLabels[AgentSessionSection.Yesterday], sessions: yesterdaySessions }],
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
@@ -707,8 +758,8 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
 
 		// Input Needed
-		const aNeedsInput = sessionA.status === ChatSessionStatus.NeedsInput;
-		const bNeedsInput = sessionB.status === ChatSessionStatus.NeedsInput;
+		const aNeedsInput = sessionA.status === AgentSessionStatus.NeedsInput;
+		const bNeedsInput = sessionB.status === AgentSessionStatus.NeedsInput;
 
 		if (aNeedsInput && !bNeedsInput) {
 			return -1; // a (needs input) comes before b (other)
@@ -718,8 +769,8 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 
 		// In Progress
-		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
-		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;
+		const aInProgress = sessionA.status === AgentSessionStatus.InProgress;
+		const bInProgress = sessionB.status === AgentSessionStatus.InProgress;
 
 		if (aInProgress && !bInProgress) {
 			return -1; // a (in-progress) comes before b (finished)

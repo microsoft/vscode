@@ -84,6 +84,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			}
 			const upgraded = upgradeToISocket(req, socket as Socket, {
 				debugLabel: 'extension-host-cdp-' + generateUuid(),
+				enableMessageSplitting: false,
 			});
 
 			if (upgraded) {

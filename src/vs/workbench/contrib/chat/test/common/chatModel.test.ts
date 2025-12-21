@@ -519,6 +519,7 @@ suite('ChatResponseModel', () => {
 			const toolInvocation = {
 				kind: 'toolInvocation',
 				invocationMessage: 'calling tool',
+				confirmationMessages: { title: 'Please confirm' },
 				state: toolState
 			} as Partial<IChatToolInvocation> as IChatToolInvocation;
 

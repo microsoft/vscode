@@ -7,9 +7,8 @@ import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IChatSessionItem, localChatSessionType } from '../../common/chatSessionsService.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
-import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 
 export enum AgentSessionProviders {
 	Local = localChatSessionType,
@@ -33,7 +32,7 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 		case AgentSessionProviders.Local:
 			return Codicon.vm;
 		case AgentSessionProviders.Background:
-			return Codicon.collection;
+			return Codicon.worktree;
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
 	}
@@ -73,16 +72,5 @@ export const agentSessionSelectedUnfocusedBadgeBorder = registerColor(
 	localize('agentSessionSelectedUnfocusedBadgeBorder', "Border color for the badges in selected agent session items when the view is unfocused.")
 );
 
-export interface IMarshalledChatSessionContext {
-	readonly $mid: MarshalledId.ChatSessionContext;
-	readonly session: IChatSessionItem;
-}
-
-export function isMarshalledChatSessionContext(thing: unknown): thing is IMarshalledChatSessionContext {
-	if (typeof thing === 'object' && thing !== null) {
-		const candidate = thing as IMarshalledChatSessionContext;
-		return candidate.$mid === MarshalledId.ChatSessionContext && typeof candidate.session === 'object' && candidate.session !== null;
-	}
-
-	return false;
-}
+export const AGENT_SESSION_RENAME_ACTION_ID = 'agentSession.rename';
+export const AGENT_SESSION_DELETE_ACTION_ID = 'agentSession.delete';
