@@ -565,9 +565,7 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private isScrolledToBottom(): boolean {
-		// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
-		// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
-		return this.scrollTop + this.renderHeight >= this.scrollHeight - 2;
+		return this.scrollTop + this.renderHeight >= this.scrollHeight;
 	}
 
 	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void {
