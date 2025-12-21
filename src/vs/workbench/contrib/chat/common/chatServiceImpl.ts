@@ -14,6 +14,7 @@ import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, Mutabl
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -24,7 +25,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
@@ -36,10 +37,10 @@ import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, ICha
 import { ChatModelStore, IStartSessionProps } from './chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
-import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent, ResponseModelState } from './chatService.js';
+import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
-import { ChatSessionStore, IChatSessionEntryMetadata, IChatTransfer2 } from './chatSessionStore.js';
+import { ChatSessionStore, IChatSessionEntryMetadata } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
 import { LocalChatSessionUri } from './chatUri.js';
@@ -49,10 +50,6 @@ import { ChatMessageRole, IChatMessage } from './languageModels.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
 
 const serializedChatKey = 'interactive.sessions';
-
-const TransferredGlobalChatKey = 'chat.workspaceTransfer';
-
-const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
 class CancellableRequest implements IDisposable {
 	constructor(
@@ -82,9 +79,9 @@ export class ChatService extends Disposable implements IChatService {
 	private _persistedSessions: ISerializableChatsData;
 	private _saveModelsEnabled = true;
 
-	private _transferredSessionData: IChatTransferredSessionData | undefined;
-	public get transferredSessionData(): IChatTransferredSessionData | undefined {
-		return this._transferredSessionData;
+	private _transferredSessionResource: URI | undefined;
+	public get transferredSessionResource(): URI | undefined {
+		return this._transferredSessionResource;
 	}
 
 	private readonly _onDidSubmitRequest = this._register(new Emitter<{ readonly chatSessionResource: URI }>());
@@ -128,7 +125,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	constructor(
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -175,20 +172,14 @@ export class ChatService extends Disposable implements IChatService {
 			this._persistedSessions = {};
 		}
 
-		const transferredData = this.getTransferredSessionData();
-		const transferredChat = transferredData?.chat;
-		if (transferredChat) {
-			this.trace('constructor', `Transferred session ${transferredChat.sessionId}`);
-			this._persistedSessions[transferredChat.sessionId] = transferredChat;
-			this._transferredSessionData = {
-				sessionId: transferredChat.sessionId,
-				location: transferredData.location,
-				inputState: transferredData.inputState
-			};
-		}
-
 		this._chatSessionStore = this._register(this.instantiationService.createInstance(ChatSessionStore));
 		this._chatSessionStore.migrateDataIfNeeded(() => this._persistedSessions);
+
+		const transferredData = this._chatSessionStore.getTransferredSessionData();
+		if (transferredData) {
+			this.trace('constructor', `Transferred session ${transferredData}`);
+			this._transferredSessionResource = transferredData;
+		}
 
 		// When using file storage, populate _persistedSessions with session metadata from the index
 		// This ensures that getPersistedSessionTitle() can find titles for inactive sessions
@@ -307,23 +298,6 @@ export class ChatService extends Disposable implements IChatService {
 			this.error('deserializeChats', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);
 			return {};
 		}
-	}
-
-	private getTransferredSessionData(): IChatTransfer2 | undefined {
-		const data: IChatTransfer2[] = this.storageService.getObject(TransferredGlobalChatKey, StorageScope.PROFILE, []);
-		const workspaceUri = this.workspaceContextService.getWorkspace().folders[0]?.uri;
-		if (!workspaceUri) {
-			return;
-		}
-
-		const thisWorkspace = workspaceUri.toString();
-		const currentTime = Date.now();
-		// Only use transferred data if it was created recently
-		const transferred = data.find(item => URI.revive(item.toWorkspace).toString() === thisWorkspace && (currentTime - item.timestampInMilliseconds < SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS));
-		// Keep data that isn't for the current workspace and that hasn't expired yet
-		const filtered = data.filter(item => URI.revive(item.toWorkspace).toString() !== thisWorkspace && (currentTime - item.timestampInMilliseconds < SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS));
-		this.storageService.store(TransferredGlobalChatKey, JSON.stringify(filtered), StorageScope.PROFILE, StorageTarget.MACHINE);
-		return transferred;
 	}
 
 	/**
@@ -540,8 +514,9 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		let sessionData: ISerializableChatData | undefined;
-		if (this.transferredSessionData?.sessionId === sessionId) {
-			sessionData = revive(this._persistedSessions[sessionId]);
+		if (isEqual(this.transferredSessionResource, sessionResource)) {
+			this._transferredSessionResource = undefined;
+			sessionData = revive(await this._chatSessionStore.readTransferredSession(sessionResource));
 		} else {
 			sessionData = revive(await this._chatSessionStore.readSession(sessionId));
 		}
@@ -557,11 +532,6 @@ export class ChatService extends Disposable implements IChatService {
 			sessionId,
 			canUseTools: true,
 		});
-
-		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
-		if (isTransferred) {
-			this._transferredSessionData = undefined;
-		}
 
 		return sessionRef;
 	}
@@ -1309,22 +1279,25 @@ export class ChatService extends Disposable implements IChatService {
 		return this._chatSessionStore.hasSessions();
 	}
 
-	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
-		const model = Iterable.find(this._sessionModels.values(), model => model.sessionId === transferredSessionData.sessionId);
-		if (!model) {
-			throw new Error(`Failed to transfer session. Unknown session ID: ${transferredSessionData.sessionId}`);
+	async transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void> {
+		if (!LocalChatSessionUri.isLocalSession(transferredSessionResource)) {
+			throw new Error(`Can only transfer local chat sessions. Invalid session: ${transferredSessionResource}`);
 		}
 
-		const existingRaw: IChatTransfer2[] = this.storageService.getObject(TransferredGlobalChatKey, StorageScope.PROFILE, []);
-		existingRaw.push({
-			chat: model.toJSON(),
+		const model = this._sessionModels.get(transferredSessionResource) as ChatModel | undefined;
+		if (!model) {
+			throw new Error(`Failed to transfer session. Unknown session: ${transferredSessionResource}`);
+		}
+
+		if (model.initialLocation !== ChatAgentLocation.Chat) {
+			throw new Error(`Can only transfer chat sessions located in the Chat view. Session ${transferredSessionResource} has location=${model.initialLocation}`);
+		}
+
+		await this._chatSessionStore.storeTransferSession({
+			sessionResource: model.sessionResource,
 			timestampInMilliseconds: Date.now(),
 			toWorkspace: toWorkspace,
-			inputState: transferredSessionData.inputState,
-			location: transferredSessionData.location,
-		});
-
-		this.storageService.store(TransferredGlobalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}, model);
 		this.chatTransferService.addWorkspaceToTransferred(toWorkspace);
 		this.trace('transferChatSession', `Transferred session ${model.sessionResource} to workspace ${toWorkspace.toString()}`);
 	}
