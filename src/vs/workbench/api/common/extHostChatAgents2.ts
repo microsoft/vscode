@@ -437,8 +437,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		});
 	}
 
-	transferActiveChat(newWorkspace: vscode.Uri): void {
-		this._proxy.$transferActiveChatSession(newWorkspace);
+	async transferActiveChat(newWorkspace: vscode.Uri): Promise<void> {
+		await this._proxy.$transferActiveChatSession(newWorkspace);
 	}
 
 	createChatAgent(extension: IExtensionDescription, id: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
