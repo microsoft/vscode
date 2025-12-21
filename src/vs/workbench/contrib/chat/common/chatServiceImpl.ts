@@ -37,7 +37,7 @@ import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, ICha
 import { ChatModelStore, IStartSessionProps } from './chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
-import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent, ResponseModelState } from './chatService.js';
+import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from './chatSessionStore.js';
@@ -79,9 +79,9 @@ export class ChatService extends Disposable implements IChatService {
 	private _persistedSessions: ISerializableChatsData;
 	private _saveModelsEnabled = true;
 
-	private _transferredSessionData: IChatTransferredSessionData | undefined;
-	public get transferredSessionData(): IChatTransferredSessionData | undefined {
-		return this._transferredSessionData;
+	private _transferredSessionResource: URI | undefined;
+	public get transferredSessionResource(): URI | undefined {
+		return this._transferredSessionResource;
 	}
 
 	private readonly _onDidSubmitRequest = this._register(new Emitter<{ readonly chatSessionResource: URI }>());
@@ -178,9 +178,7 @@ export class ChatService extends Disposable implements IChatService {
 		const transferredData = this._chatSessionStore.getTransferredSessionData();
 		if (transferredData) {
 			this.trace('constructor', `Transferred session ${transferredData}`);
-			this._transferredSessionData = {
-				sessionResource: transferredData,
-			};
+			this._transferredSessionResource = transferredData;
 		}
 
 		// When using file storage, populate _persistedSessions with session metadata from the index
@@ -516,8 +514,8 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		let sessionData: ISerializableChatData | undefined;
-		if (isEqual(this.transferredSessionData?.sessionResource, sessionResource)) {
-			this._transferredSessionData = undefined;
+		if (isEqual(this.transferredSessionResource, sessionResource)) {
+			this._transferredSessionResource = undefined;
 			sessionData = revive(await this._chatSessionStore.readTransferredSession(sessionResource));
 		} else {
 			sessionData = revive(await this._chatSessionStore.readSession(sessionId));
@@ -1281,18 +1279,18 @@ export class ChatService extends Disposable implements IChatService {
 		return this._chatSessionStore.hasSessions();
 	}
 
-	async transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): Promise<void> {
-		if (!LocalChatSessionUri.isLocalSession(transferredSessionData.sessionResource)) {
-			throw new Error(`Can only transfer local chat sessions. Invalid session: ${transferredSessionData.sessionResource}`);
+	async transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void> {
+		if (!LocalChatSessionUri.isLocalSession(transferredSessionResource)) {
+			throw new Error(`Can only transfer local chat sessions. Invalid session: ${transferredSessionResource}`);
 		}
 
-		const model = this._sessionModels.get(transferredSessionData.sessionResource) as ChatModel | undefined;
+		const model = this._sessionModels.get(transferredSessionResource) as ChatModel | undefined;
 		if (!model) {
-			throw new Error(`Failed to transfer session. Unknown session: ${transferredSessionData.sessionResource}`);
+			throw new Error(`Failed to transfer session. Unknown session: ${transferredSessionResource}`);
 		}
 
 		if (model.initialLocation !== ChatAgentLocation.Chat) {
-			throw new Error(`Can only transfer chat sessions located in the Chat view. Session ${transferredSessionData.sessionResource} has location=${model.initialLocation}`);
+			throw new Error(`Can only transfer chat sessions located in the Chat view. Session ${transferredSessionResource} has location=${model.initialLocation}`);
 		}
 
 		await this._chatSessionStore.storeTransferSession({

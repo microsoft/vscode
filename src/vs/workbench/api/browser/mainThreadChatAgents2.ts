@@ -156,7 +156,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			return;
 		}
 
-		await this._chatService.transferChatSession({ sessionResource: model.sessionResource }, URI.revive(toWorkspace));
+		await this._chatService.transferChatSession(model.sessionResource, URI.revive(toWorkspace));
 	}
 
 	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {

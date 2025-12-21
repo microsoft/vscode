@@ -30,7 +30,7 @@ class MockChatService implements IChatService {
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
-	transferredSessionData = undefined;
+	transferredSessionResource = undefined;
 	readonly onDidSubmitRequest = Event.None;
 
 	private sessions = new Map<string, IChatModel>();

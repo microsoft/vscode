@@ -943,10 +943,6 @@ export interface IChatProviderInfo {
 	id: string;
 }
 
-export interface IChatTransferredSessionData {
-	sessionResource: URI;
-}
-
 export interface IChatSendRequestResponseState {
 	responseCreatedPromise: Promise<IChatResponseModel>;
 	responseCompletePromise: Promise<void>;
@@ -1013,7 +1009,7 @@ export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
-	transferredSessionData: IChatTransferredSessionData | undefined;
+	transferredSessionResource: URI | undefined;
 
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
 
@@ -1073,7 +1069,7 @@ export interface IChatService {
 	notifyUserAction(event: IChatUserActionEvent): void;
 	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
 
-	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): Promise<void>;
+	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 

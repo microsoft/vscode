@@ -214,9 +214,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private getTransferredOrPersistedSessionInfo(): URI | undefined {
-		if (this.chatService.transferredSessionData) {
-			const sessionResource = this.chatService.transferredSessionData.sessionResource;
-			return sessionResource;
+		if (this.chatService.transferredSessionResource) {
+			return this.chatService.transferredSessionResource;
 		}
 
 		return this.viewState.sessionId ? LocalChatSessionUri.forSession(this.viewState.sessionId) : undefined;
@@ -634,8 +633,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		let ref: IChatModelReference | undefined;
 		if (startNewSession) {
-			ref = modelRef ?? (this.chatService.transferredSessionData
-				? await this.chatService.getOrRestoreSession(this.chatService.transferredSessionData.sessionResource)
+			ref = modelRef ?? (this.chatService.transferredSessionResource
+				? await this.chatService.getOrRestoreSession(this.chatService.transferredSessionResource)
 				: this.chatService.startSession(ChatAgentLocation.Chat));
 			if (!ref) {
 				throw new Error('Could not start chat session');
