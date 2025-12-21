@@ -1447,17 +1447,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
+		// Singleton editors cannot be copied, only moved (https://github.com/microsoft/vscode/issues/XXXXX)
+		const isSingletonEditor = editor.hasCapability(EditorInputCapabilities.Singleton);
+		const isActualMove = !keepCopy || isSingletonEditor;
+
 		// When moving/copying an editor, try to preserve as much view state as possible
 		// by checking for the editor to be a text editor and creating the options accordingly
 		// if so
 		const options = fillActiveEditorViewState(this, editor, {
 			...openOptions,
 			pinned: true, 																// always pin moved editor
-			sticky: openOptions?.sticky ?? (!keepCopy && this.model.isSticky(editor))	// preserve sticky state only if editor is moved or explicitly wanted (https://github.com/microsoft/vscode/issues/99035)
+			sticky: openOptions?.sticky ?? (isActualMove && this.model.isSticky(editor))	// preserve sticky state only if editor is moved or explicitly wanted (https://github.com/microsoft/vscode/issues/99035)
 		});
 
 		// Indicate will move event
-		if (!keepCopy) {
+		if (isActualMove) {
 			this._onWillMoveEditor.fire({
 				groupId: this.id,
 				editor,
@@ -1468,8 +1472,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// A move to another group is an open first...
 		target.doOpenEditor(keepCopy ? editor.copy() : editor, options, internalOptions);
 
-		// ...and a close afterwards (unless we copy)
-		if (!keepCopy) {
+		// ...and a close afterwards (unless we copy, but singleton editors always close because they cannot be duplicated)
+		if (isActualMove) {
 			this.doCloseEditor(editor, true /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
 		}
 
