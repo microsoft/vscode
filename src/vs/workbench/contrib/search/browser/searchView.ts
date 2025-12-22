@@ -60,7 +60,7 @@ import { appendKeyBindingLabel } from './searchActionsBase.js';
 import { IFindInFilesArgs } from './searchActionsFind.js';
 import { searchDetailsIcon } from './searchIcons.js';
 import { renderSearchMessage } from './searchMessage.js';
-import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, TextSearchResultRenderer } from './searchResultsView.js';
+import { FileMatchRenderer, FileNameMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, TextSearchResultRenderer } from './searchResultsView.js';
 import { SearchWidget } from './searchWidget.js';
 import * as Constants from '../common/constants.js';
 import { IReplaceService } from './replace.js';
@@ -79,7 +79,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../pl
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
-import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocation, IChangeEvent, FileMatchOrMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWithResource, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading, isSearchHeader } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocation, IChangeEvent, FileMatchOrMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWithResource, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading, isSearchHeader, isFileNameMatch, isFileNameSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
@@ -762,6 +762,10 @@ export class SearchView extends ViewPane {
 
 	private originalShouldCollapse(match: RenderableMatch) {
 		const collapseResults = this.searchConfig.collapseResults;
+		// FileNameMatch is a leaf node with no count() method - never auto-collapse
+		if (isFileNameMatch(match)) {
+			return ObjectTreeElementCollapseState.PreserveOrExpanded;
+		}
 		return (collapseResults === 'alwaysCollapse' ||
 			(!(isSearchTreeMatch(match)) && match.count() > 10 && collapseResults !== 'alwaysExpand')) ?
 			ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
@@ -941,6 +945,7 @@ export class SearchView extends ViewPane {
 			[
 				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(FileMatchRenderer, this, this.treeLabels)),
+				this._register(this.instantiationService.createInstance(FileNameMatchRenderer, this, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(TextSearchResultRenderer, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(MatchRenderer, this)),
 			],
@@ -992,6 +997,18 @@ export class SearchView extends ViewPane {
 				this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
 
 				this.onFocus(selectedMatch, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
+			} else if (isFileNameMatch(options.element)) {
+				const fileNameMatch = options.element;
+				if (!fileNameMatch.isFolder) {
+					this.editorService.openEditor({
+						resource: fileNameMatch.resource,
+						options: {
+							preserveFocus: options.editorOptions.preserveFocus,
+							pinned: options.editorOptions.pinned,
+							revealIfVisible: true
+						}
+					}, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				}
 			}
 		}));
 
@@ -1947,6 +1964,19 @@ export class SearchView extends ViewPane {
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 		const result = this.viewModel.search(query);
 
+		// Add file name search in parallel
+		const fileNameResultsPromise = this.viewModel.fileNameSearch();
+
+		// Handle file name results
+		fileNameResultsPromise.then(complete => {
+			// Results already routed via onSearchProgress
+			this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
+		}).catch(e => {
+			if (!errors.isCancellationError(e)) {
+				this.logService.error(e);
+			}
+		});
+
 		if (!shouldKeepAIResults || shouldUpdateAISearch) {
 			this.viewModel.searchResult.setAIQueryUsingTextQuery(query);
 		}
@@ -2564,13 +2594,19 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 			ret.push(searchResult.aiTextSearchResult);
 		}
 
+		// Add plain text search results first (before file name results)
+		const hasFileNameResults = !searchResult.fileNameSearchResult.hidden && !searchResult.fileNameSearchResult.isEmpty();
 		if (!searchResult.plainTextSearchResult.isEmpty()) {
-			if (!this.searchView.shouldShowAIResults() || searchResult.aiTextSearchResult.hidden) {
+			if (ret.length === 0 && !hasFileNameResults) {
 				// only one root, so just return the children
 				return this.createTextSearchResultIterator(searchResult.plainTextSearchResult);
 			}
 			ret.push(searchResult.plainTextSearchResult);
+		}
 
+		// Add file name search results after text results
+		if (hasFileNameResults) {
+			ret.push(searchResult.fileNameSearchResult);
 		}
 
 		return ret;
@@ -2608,6 +2644,10 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 			return false;
 		}
 
+		if (isFileNameMatch(element)) {
+			return false;
+		}
+
 		if (isTextSearchHeading(element) && element.isAIContributed) {
 			return true;
 		}
@@ -2620,6 +2660,10 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 		if (isSearchResult(element)) {
 			return this.createSearchResultIterator(element);
 		} else if (isTextSearchHeading(element)) {
+			// Special handling for file name search heading - return FileNameMatch objects directly
+			if (isFileNameSearchHeading(element)) {
+				return element.fileNameMatches();
+			}
 			if (element.isAIContributed && (!this.searchView.model.hasAIResults || !!this.searchView._pendingSemanticSearchPromise)) {
 				if (this.searchView.cachedResults) {
 					return this.createTextSearchResultIterator(element);

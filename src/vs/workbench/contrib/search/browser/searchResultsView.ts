@@ -32,7 +32,7 @@ import { SearchContext } from '../common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, ITextSearchHeading, ISearchTreeFolderMatch, ISearchTreeFileMatch, isSearchTreeFileMatch, isSearchTreeFolderMatch, isTextSearchHeading, ISearchModel, isSearchTreeFolderMatchWorkspaceRoot, isSearchTreeFolderMatchNoRoot, isPlainTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, ITextSearchHeading, ISearchTreeFolderMatch, ISearchTreeFileMatch, isSearchTreeFileMatch, isSearchTreeFolderMatch, isTextSearchHeading, ISearchModel, isSearchTreeFolderMatchWorkspaceRoot, isSearchTreeFolderMatchNoRoot, isPlainTextSearchHeading, IFileNameMatch, isFileNameMatch, isFileNameSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { isSearchTreeAIFileMatch } from './AISearch/aiSearchModelBase.js';
 
 interface IFolderMatchTemplate {
@@ -73,6 +73,14 @@ interface IMatchTemplate {
 	contextKeyService: IContextKeyService;
 }
 
+interface IFileNameMatchTemplate {
+	el: HTMLElement;
+	label: IResourceLabel;
+	actions: MenuWorkbenchToolBar;
+	disposables: DisposableStore;
+	contextKeyService: IContextKeyService;
+}
+
 export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 
 	public static ITEM_HEIGHT = 22;
@@ -82,7 +90,9 @@ export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 	}
 
 	getTemplateId(element: RenderableMatch): string {
-		if (isSearchTreeFolderMatch(element)) {
+		if (isFileNameMatch(element)) {
+			return FileNameMatchRenderer.TEMPLATE_ID;
+		} else if (isSearchTreeFolderMatch(element)) {
 			return FolderMatchRenderer.TEMPLATE_ID;
 		} else if (isSearchTreeFileMatch(element)) {
 			return FileMatchRenderer.TEMPLATE_ID;
@@ -136,6 +146,12 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 	async renderElement(node: ITreeNode<ITextSearchHeading, any>, index: number, templateData: IFolderMatchTemplate): Promise<void> {
 		if (isPlainTextSearchHeading(node.element)) {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.plainText.label', "Text Results"));
+			SearchContext.AIResultsTitle.bindTo(templateData.contextKeyService).set(false);
+			SearchContext.MatchFocusKey.bindTo(templateData.contextKeyService).set(false);
+			SearchContext.FileFocusKey.bindTo(templateData.contextKeyService).set(false);
+			SearchContext.FolderFocusKey.bindTo(templateData.contextKeyService).set(false);
+		} else if (isFileNameSearchHeading(node.element)) {
+			templateData.label.setLabel(nls.localize('searchFolderMatch.fileName.label', "File and Folder Names"));
 			SearchContext.AIResultsTitle.bindTo(templateData.contextKeyService).set(false);
 			SearchContext.MatchFocusKey.bindTo(templateData.contextKeyService).set(false);
 			SearchContext.FileFocusKey.bindTo(templateData.contextKeyService).set(false);
@@ -494,6 +510,73 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 	}
 }
 
+export class FileNameMatchRenderer extends Disposable implements ICompressibleTreeRenderer<IFileNameMatch, void, IFileNameMatchTemplate> {
+	static readonly TEMPLATE_ID = 'fileNameMatch';
+
+	readonly templateId = FileNameMatchRenderer.TEMPLATE_ID;
+
+	constructor(
+		private searchView: SearchView,
+		private labels: ResourceLabels,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+	) {
+		super();
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IFileNameMatch>, void>, index: number, templateData: IFileNameMatchTemplate): void {
+		throw new Error('Should never happen since node is incompressible.');
+	}
+
+	renderTemplate(container: HTMLElement): IFileNameMatchTemplate {
+		const disposables = new DisposableStore();
+		const fileNameMatchElement = DOM.append(container, DOM.$('.filenamematch'));
+		const label = this.labels.create(fileNameMatchElement, { supportHighlights: true });
+		disposables.add(label);
+
+		const actionBarContainer = DOM.append(fileNameMatchElement, DOM.$('.actionBarContainer'));
+
+		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
+		SearchContext.AIResultsTitle.bindTo(contextKeyServiceMain).set(false);
+		SearchContext.MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
+		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(true);
+		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(false);
+
+		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain])));
+		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
+			menuOptions: {
+				shouldForwardArgs: true
+			},
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			toolbarOptions: {
+				primaryGroup: (g: string) => /^inline/.test(g),
+			},
+		}));
+
+		return {
+			el: fileNameMatchElement,
+			label,
+			actions,
+			disposables,
+			contextKeyService: contextKeyServiceMain
+		};
+	}
+
+	renderElement(node: ITreeNode<IFileNameMatch, any>, index: number, templateData: IFileNameMatchTemplate): void {
+		const match = node.element;
+		templateData.el.setAttribute('data-resource', match.resource.toString());
+
+		const fileKind = match.isFolder ? FileKind.FOLDER : FileKind.FILE;
+		templateData.label.setFile(match.resource, { fileKind, hidePath: false });
+
+		templateData.actions.context = { viewer: this.searchView.getControl(), element: match } satisfies ISearchActionContext;
+	}
+
+	disposeTemplate(templateData: IFileNameMatchTemplate): void {
+		templateData.disposables.dispose();
+	}
+}
+
 export class SearchAccessibilityProvider implements IListAccessibilityProvider<RenderableMatch> {
 
 	constructor(
@@ -507,6 +590,12 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 	}
 
 	getAriaLabel(element: RenderableMatch): string | null {
+		if (isFileNameMatch(element)) {
+			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
+			const type = element.isFolder ? nls.localize('folder', "folder") : nls.localize('file', "file");
+			return nls.localize('fileNameMatchAriaLabel', "{0} {1}, Search result", type, path);
+		}
+
 		if (isSearchTreeFolderMatch(element)) {
 			const count = element.allDownstreamFileMatches().reduce((total, current) => total + current.count(), 0);
 			return element.resource ?

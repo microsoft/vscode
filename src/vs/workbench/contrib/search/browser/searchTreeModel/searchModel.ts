@@ -11,13 +11,14 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { INotebookSearchService } from '../../common/notebookSearch.js';
 import { ReplacePattern } from '../../../../services/search/common/replace.js';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchStats, QueryType, SearchCompletionExitCode } from '../../../../services/search/common/search.js';
+import { IFileMatch, IFileQuery, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchStats, QueryType, SearchCompletionExitCode } from '../../../../services/search/common/search.js';
 import { IChangeEvent, mergeSearchResultEvents, SearchModelLocation, ISearchModel, ISearchResult, SEARCH_MODEL_PREFIX } from './searchTreeCommon.js';
 import { SearchResultImpl } from './searchResult.js';
 import { ISearchViewModelWorkbenchService } from './searchViewModelWorkbenchService.js';
@@ -33,6 +34,7 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 	private _startStreamDelay: Promise<void> = Promise.resolve();
 	private readonly _resultQueue: IFileMatch[] = [];
 	private readonly _aiResultQueue: IFileMatch[] = [];
+	private readonly _fileNameResultQueue: IFileMatch[] = [];
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
@@ -44,8 +46,10 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private currentAICancelTokenSource: CancellationTokenSource | null = null;
+	private currentFileNameCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
 	private aiSearchCancelledForNewSearch: boolean = false;
+	private fileNameSearchCancelledForNewSearch: boolean = false;
 	public location: SearchModelLocation = SearchModelLocation.PANEL;
 	private readonly _aiTextResultProviderName: Lazy<Promise<string | undefined>>;
 
@@ -150,6 +154,65 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 					throw e;
 				});
 		return asyncAIResults;
+	}
+
+	fileNameSearch(onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		if (!this._searchQuery) {
+			throw new Error('fileNameSearch called before search');
+		}
+
+		const searchInstanceID = Date.now().toString();
+		this.currentFileNameCancelTokenSource?.cancel();
+		this.currentFileNameCancelTokenSource = new CancellationTokenSource();
+
+		const fileQuery: IFileQuery = {
+			type: QueryType.File,
+			filePattern: this._searchQuery.contentPattern.pattern,
+			folderQueries: this._searchQuery.folderQueries,
+			includePattern: this._searchQuery.includePattern,
+			excludePattern: this._searchQuery.excludePattern,
+			maxResults: this._searchQuery.maxResults,
+		};
+
+		// Set the file query on the search result's file name heading
+		this._searchResult.fileNameSearchResult.setFileQuery(fileQuery);
+
+		const startTime = Date.now();
+
+		return this.searchService.fileSearch(fileQuery, this.currentFileNameCancelTokenSource.token)
+			.then(complete => {
+				// Filter results to only include files where the search pattern appears in the filename
+				// The file search API uses fuzzy matching which can return too many results
+				const pattern = this._searchQuery!.contentPattern.pattern.toLowerCase();
+				const filteredResults = complete.results.filter(result => {
+					const fileName = basename(result.resource).toLowerCase();
+					return fileName.includes(pattern);
+				});
+
+				// Convert filtered file search results to IFileMatch format (no text matches, just the file)
+				const fileMatches: IFileMatch[] = filteredResults.map(result => ({
+					resource: result.resource,
+					results: [] // No text matches for file name search
+				}));
+
+				// Add results via onSearchProgress
+				fileMatches.forEach(match => {
+					this.onSearchProgress(match, searchInstanceID, false, false, true);
+					onProgress?.(match);
+				});
+
+				// Update complete with filtered results for accurate count
+				const filteredComplete = { ...complete, results: filteredResults };
+				this.onSearchCompleted(filteredComplete, Date.now() - startTime, searchInstanceID, false, true);
+				return filteredComplete;
+			})
+			.catch(e => {
+				this.onSearchError(e, Date.now() - startTime, false, true);
+				throw e;
+			})
+			.finally(() => {
+				this.currentFileNameCancelTokenSource?.dispose(true);
+			});
 	}
 
 	private doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
@@ -287,16 +350,19 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 		}
 	}
 
-	private onSearchCompleted(completed: ISearchComplete | undefined, duration: number, searchInstanceID: string, ai: boolean): ISearchComplete | undefined {
+	private onSearchCompleted(completed: ISearchComplete | undefined, duration: number, searchInstanceID: string, ai: boolean, fileName: boolean = false): ISearchComplete | undefined {
 		if (!this._searchQuery) {
 			throw new Error('onSearchCompleted must be called after a search is started');
 		}
 
 		if (ai) {
-			this._searchResult.add(this._aiResultQueue, searchInstanceID, true);
+			this._searchResult.add(this._aiResultQueue, searchInstanceID, { ai: true });
 			this._aiResultQueue.length = 0;
+		} else if (fileName) {
+			this._searchResult.add(this._fileNameResultQueue, searchInstanceID, { fileName: true });
+			this._fileNameResultQueue.length = 0;
 		} else {
-			this._searchResult.add(this._resultQueue, searchInstanceID, false);
+			this._searchResult.add(this._resultQueue, searchInstanceID, {});
 			this._resultQueue.length = 0;
 		}
 
@@ -338,34 +404,39 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 		return completed;
 	}
 
-	private onSearchError(e: any, duration: number, ai: boolean): void {
+	private onSearchError(e: any, duration: number, ai: boolean, fileName: boolean = false): void {
 		if (errors.isCancellationError(e)) {
+			const cancelledForNewSearch = ai ? this.aiSearchCancelledForNewSearch :
+				fileName ? this.fileNameSearchCancelledForNewSearch :
+					this.searchCancelledForNewSearch;
 			this.onSearchCompleted(
-				(ai ? this.aiSearchCancelledForNewSearch : this.searchCancelledForNewSearch)
+				cancelledForNewSearch
 					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [], messages: [] }
 					: undefined,
-				duration, '', ai);
+				duration, '', ai, fileName);
 			if (ai) {
 				this.aiSearchCancelledForNewSearch = false;
+			} else if (fileName) {
+				this.fileNameSearchCancelledForNewSearch = false;
 			} else {
 				this.searchCancelledForNewSearch = false;
 			}
 		}
 	}
 
-	private onSearchProgress(p: ISearchProgressItem, searchInstanceID: string, sync = true, ai: boolean = false) {
-		const targetQueue = ai ? this._aiResultQueue : this._resultQueue;
+	private onSearchProgress(p: ISearchProgressItem, searchInstanceID: string, sync = true, ai: boolean = false, fileName: boolean = false) {
+		const targetQueue = ai ? this._aiResultQueue : fileName ? this._fileNameResultQueue : this._resultQueue;
 		if ((<IFileMatch>p).resource) {
 			targetQueue.push(<IFileMatch>p);
 			if (sync) {
 				if (targetQueue.length) {
-					this._searchResult.add(targetQueue, searchInstanceID, false, true);
+					this._searchResult.add(targetQueue, searchInstanceID, { silent: true });
 					targetQueue.length = 0;
 				}
 			} else {
 				this._startStreamDelay.then(() => {
 					if (targetQueue.length) {
-						this._searchResult.add(targetQueue, searchInstanceID, ai, !ai);
+						this._searchResult.add(targetQueue, searchInstanceID, { ai, fileName, silent: !ai && !fileName });
 						targetQueue.length = 0;
 					}
 				});
@@ -394,14 +465,28 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 		}
 		return false;
 	}
+	cancelFileNameSearch(cancelledForNewSearch = false): boolean {
+		if (this.currentFileNameCancelTokenSource) {
+			this.fileNameSearchCancelledForNewSearch = cancelledForNewSearch;
+			this.currentFileNameCancelTokenSource.cancel();
+			return true;
+		}
+		return false;
+	}
 	clearAiSearchResults(): void {
 		this._aiResultQueue.length = 0;
 		// it's not clear all as we are only clearing the AI results
 		this._searchResult.aiTextSearchResult.clear(false);
 	}
+	clearFileNameSearchResults(): void {
+		this._fileNameResultQueue.length = 0;
+		// it's not clear all as we are only clearing the file name results
+		this._searchResult.fileNameSearchResult.clear(false);
+	}
 	override dispose(): void {
 		this.cancelSearch();
 		this.cancelAISearch();
+		this.cancelFileNameSearch();
 		this.searchResult.dispose();
 		super.dispose();
 	}

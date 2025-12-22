@@ -13,11 +13,12 @@ import { IProgress, IProgressStep } from '../../../../../platform/progress/commo
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { IAITextQuery, IFileMatch, ISearchComplete, ITextQuery, QueryType } from '../../../../services/search/common/search.js';
-import { arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, RenderableMatch, SEARCH_RESULT_PREFIX } from './searchTreeCommon.js';
+import { arrayContainsElementOrParent, IChangeEvent, IFileNameSearchHeading, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, RenderableMatch, SEARCH_RESULT_PREFIX } from './searchTreeCommon.js';
 
 import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { PlainTextSearchHeadingImpl } from './textSearchHeading.js';
 import { AITextSearchHeadingImpl } from '../AISearch/aiSearchModel.js';
+import { FileNameSearchHeadingImpl } from './fileNameSearchHeading.js';
 
 export class SearchResultImpl extends Disposable implements ISearchResult {
 
@@ -29,6 +30,7 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 	private _onDidChangeModelListener: IDisposable | undefined;
 	private _plainTextSearchResult: PlainTextSearchHeadingImpl;
 	private _aiTextSearchResult: AITextSearchHeadingImpl;
+	private _fileNameSearchResult: FileNameSearchHeadingImpl;
 
 	private readonly _id: string;
 	constructor(
@@ -40,9 +42,11 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		super();
 		this._plainTextSearchResult = this._register(this.instantiationService.createInstance(PlainTextSearchHeadingImpl, this));
 		this._aiTextSearchResult = this._register(this.instantiationService.createInstance(AITextSearchHeadingImpl, this));
+		this._fileNameSearchResult = this._register(this.instantiationService.createInstance(FileNameSearchHeadingImpl, this));
 
 		this._register(this._plainTextSearchResult.onChange((e) => this._onChange.fire(e)));
 		this._register(this._aiTextSearchResult.onChange((e) => this._onChange.fire(e)));
+		this._register(this._fileNameSearchResult.onChange((e) => this._onChange.fire(e)));
 
 		this.modelService.getModels().forEach(model => this.onModelAdded(model));
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
@@ -68,6 +72,10 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		return this._aiTextSearchResult;
 	}
 
+	get fileNameSearchResult(): IFileNameSearchHeading {
+		return this._fileNameSearchResult;
+	}
+
 	get children() {
 		return this.textSearchResults;
 	}
@@ -76,7 +84,7 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		return true; // should always have a Text Search Result for plain results.
 	}
 	get textSearchResults(): ITextSearchHeading[] {
-		return [this._plainTextSearchResult, this._aiTextSearchResult];
+		return [this._plainTextSearchResult, this._fileNameSearchResult, this._aiTextSearchResult];
 	}
 
 	async batchReplace(elementsToReplace: RenderableMatch[]) {
@@ -132,7 +140,7 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 	}
 
 	get isDirty(): boolean {
-		return this._aiTextSearchResult.isDirty || this._plainTextSearchResult.isDirty;
+		return this._aiTextSearchResult.isDirty || this._plainTextSearchResult.isDirty || this._fileNameSearchResult.isDirty;
 	}
 
 	get query(): ITextQuery | null {
@@ -195,19 +203,23 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 	}
 
 
-	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent: boolean = false): void {
+	add(allRaw: IFileMatch[], searchInstanceID: string, options: { ai?: boolean; fileName?: boolean; silent?: boolean }): void {
 		this._plainTextSearchResult.hidden = false;
 
-		if (ai) {
-			this._aiTextSearchResult.add(allRaw, searchInstanceID, silent);
+		if (options.ai) {
+			this._aiTextSearchResult.add(allRaw, searchInstanceID, options.silent ?? false);
+		} else if (options.fileName) {
+			this._fileNameSearchResult.hidden = false;
+			this._fileNameSearchResult.add(allRaw, searchInstanceID, options.silent ?? false);
 		} else {
-			this._plainTextSearchResult.add(allRaw, searchInstanceID, silent);
+			this._plainTextSearchResult.add(allRaw, searchInstanceID, options.silent ?? false);
 		}
 	}
 
 	clear(): void {
 		this._plainTextSearchResult.clear();
 		this._aiTextSearchResult.clear();
+		this._fileNameSearchResult.clear();
 	}
 
 	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatch | (ISearchTreeFileMatch | ISearchTreeFolderMatch)[], ai = false): void {
@@ -286,6 +298,7 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 	override async dispose(): Promise<void> {
 		this._aiTextSearchResult?.dispose();
 		this._plainTextSearchResult?.dispose();
+		this._fileNameSearchResult?.dispose();
 		this._onWillChangeModelListener?.dispose();
 		this._onDidChangeModelListener?.dispose();
 		super.dispose();
