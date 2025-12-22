@@ -15,6 +15,7 @@ import { IAction, Separator, toAction } from '../../../../base/common/actions.js
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from '../../../common/theme.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { contrastBorder, activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, isHTMLElement, $ } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
@@ -124,8 +125,22 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	readonly minimumHeight: number = StatusbarPart.HEIGHT;
-	readonly maximumHeight: number = StatusbarPart.HEIGHT;
+
+	get minimumHeight(): number {
+		// Hide statusbar completely when no workspace and no editors
+		if (this.isBare && !this.hasOpenEditors) {
+			return 0;
+		}
+		return StatusbarPart.HEIGHT;
+	}
+
+	get maximumHeight(): number {
+		// Hide statusbar completely when no workspace and no editors
+		if (this.isBare && !this.hasOpenEditors) {
+			return 0;
+		}
+		return StatusbarPart.HEIGHT;
+	}
 
 	//#endregion
 
@@ -151,6 +166,9 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	private readonly compactEntriesDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
 
+	private isBare: boolean;
+	private hasOpenEditors: boolean;
+
 	constructor(
 		id: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -160,6 +178,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -195,6 +214,13 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			}
 		)));
 
+		// Initialize workspace and editor state tracking
+		const workbenchState = this.contextService.getWorkbenchState();
+		const workspace = this.contextService.getWorkspace();
+		this.isBare = workbenchState === WorkbenchState.EMPTY || workspace.folders.length === 0;
+		this.hasOpenEditors = this.editorService.count > 0;
+		console.log('[Statusbar] Constructor - isBare:', this.isBare, 'hasOpenEditors:', this.hasOpenEditors, 'workbenchState:', workbenchState, 'folders:', workspace.folders.length);
+
 		this.registerListeners();
 	}
 
@@ -204,7 +230,32 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		this._register(this.onDidChangeEntryVisibility(() => this.updateCompactEntries()));
 
 		// Workbench state changes
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => {
+			this.updateStyles();
+			const workbenchState = this.contextService.getWorkbenchState();
+			const workspace = this.contextService.getWorkspace();
+			const previousIsBare = this.isBare;
+			this.isBare = workbenchState === WorkbenchState.EMPTY || workspace.folders.length === 0;
+			if (previousIsBare !== this.isBare) {
+				this.updateStatusbarVisibility();
+			}
+		}));
+
+		// Listen to editor state changes
+		this._register(this.editorService.onDidVisibleEditorsChange(() => {
+			const newHasOpenEditors = this.editorService.count > 0;
+			if (this.hasOpenEditors !== newHasOpenEditors) {
+				this.hasOpenEditors = newHasOpenEditors;
+				this.updateStatusbarVisibility();
+			}
+		}));
+	}
+
+	private updateStatusbarVisibility(): void {
+		const shouldHide = this.isBare && !this.hasOpenEditors;
+		console.log('[Statusbar] updateStatusbarVisibility - shouldHide:', shouldHide, 'isBare:', this.isBare, 'hasOpenEditors:', this.hasOpenEditors);
+		// Trigger a layout update by notifying that preferred height changed
+		this.layoutService.layout();
 	}
 
 	overrideEntry(id: string, override: Partial<IStatusbarEntry>): IDisposable {
@@ -721,8 +772,9 @@ export class MainStatusbarPart extends StatusbarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorService editorService: IEditorService,
 	) {
-		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
+		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, editorService);
 	}
 }
 
@@ -746,9 +798,10 @@ export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryS
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorService editorService: IEditorService,
 	) {
 		const id = AuxiliaryStatusbarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
+		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, editorService);
 	}
 }
 

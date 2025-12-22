@@ -1,0 +1,11 @@
+**/*.ts
+**/*.map
+**/tsconfig.json
+**/*.webpack.config.js
+**/esbuild-editor.mjs
+.vscode/
+node_modules/
+src/
+editor-src/
+!dist/**
+!media/**

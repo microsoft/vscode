@@ -1049,6 +1049,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return;
 			}
 
+			// Don't restore sidebar when workbench is empty (no folders open) and no editors are open on launch screen
+			const isBare = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.contextService.getWorkspace().folders.length === 0;
+			const hasOpenEditors = this.editorService.count > 0;
+			if (isBare && !hasOpenEditors) {
+				return;
+			}
+
 			mark('code/willRestoreViewlet');
 
 			await this.openViewContainer(ViewContainerLocation.Sidebar, this.state.initialization.views.containerToRestore.sideBar);
@@ -2633,6 +2640,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			panelPosition: positionToString(this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION)),
 		};
 
+		// WARNING: Do not remove this event, it's used to track build rollout progress
+		// Talk to @joaomoreno, @lszomoru or @jruales before doing so
 		this.telemetryService.publicLog2<StartupLayoutEvent, StartupLayoutEventClassification>('startupLayout', layoutDescriptor);
 
 		return result;

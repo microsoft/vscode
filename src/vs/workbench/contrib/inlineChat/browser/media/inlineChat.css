@@ -62,6 +62,23 @@
 	animation: 3s shift linear infinite;
 }
 
+/* DSpace: Completion state styling - green border and glow when request completes successfully */
+.monaco-workbench .zone-widget.inline-chat-widget .request-completed {
+	border-color: var(--vscode-editorGutter-addedBackground, #28a745);
+	box-shadow: 0 0 8px 0 var(--vscode-editorGutter-addedBackground, rgba(40, 167, 69, 0.3));
+}
+
+/* DSpace: Error state styling - red border when request fails */
+.monaco-workbench .zone-widget.inline-chat-widget .request-error {
+	border-color: var(--vscode-errorForeground, #f14c4c);
+	box-shadow: 0 0 8px 0 var(--vscode-errorForeground, rgba(241, 76, 76, 0.3));
+}
+
+/* DSpace: Success info label styling */
+.monaco-workbench .inline-chat .status .label.info.success {
+	color: var(--vscode-editorGutter-addedBackground, #28a745);
+}
+
 .monaco-workbench .zone-widget.inline-chat-widget > .zone-widget-container > .inline-chat {
 	color: inherit;
 	border-radius: unset;
@@ -408,4 +425,115 @@
 
 .monaco-workbench .inline-chat .chat-attached-context {
 	padding: 2px 0px;
+}
+
+/* DSpace: Modified files section styling */
+.monaco-workbench .inline-chat .modified-files {
+	padding: 8px 12px;
+	border-top: 1px solid var(--vscode-inlineChat-border, var(--vscode-widget-border));
+	background-color: var(--vscode-editorWidget-background);
+}
+
+.monaco-workbench .inline-chat .modified-files.hidden {
+	display: none;
+}
+
+.monaco-workbench .inline-chat .modified-files-header {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 6px;
+	letter-spacing: 0.5px;
+}
+
+.monaco-workbench .inline-chat .modified-files-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.monaco-workbench .inline-chat .modified-file-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 4px 6px;
+	border-radius: 3px;
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.monaco-workbench .inline-chat .modified-file-row:hover {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+.monaco-workbench .inline-chat .modified-file-link {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench .inline-chat .modified-file-link:hover {
+	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.monaco-workbench .inline-chat .modified-file-actions {
+	display: flex;
+	gap: 4px;
+	margin-left: 8px;
+}
+
+.monaco-workbench .inline-chat .modified-file-accept,
+.monaco-workbench .inline-chat .modified-file-reject {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	padding: 0;
+	background-color: transparent;
+}
+
+.monaco-workbench .inline-chat .modified-file-accept {
+	color: var(--vscode-editorGutter-addedBackground, #28a745);
+}
+
+.monaco-workbench .inline-chat .modified-file-accept:hover {
+	background-color: var(--vscode-editorGutter-addedBackground, rgba(40, 167, 69, 0.2));
+	color: var(--vscode-editorGutter-addedBackground, #28a745);
+}
+
+.monaco-workbench .inline-chat .modified-file-reject {
+	color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.monaco-workbench .inline-chat .modified-file-reject:hover {
+	background-color: var(--vscode-errorForeground, rgba(241, 76, 76, 0.2));
+	color: var(--vscode-errorForeground, #f14c4c);
+}
+
+/* DSpace: Status indicators for accepted/rejected files */
+.monaco-workbench .inline-chat .modified-file-status {
+	display: flex;
+	align-items: center;
+	margin-left: 8px;
+	font-size: 12px;
+}
+
+.monaco-workbench .inline-chat .modified-file-status.accepted {
+	color: var(--vscode-editorGutter-addedBackground, #28a745);
+}
+
+.monaco-workbench .inline-chat .modified-file-status.rejected {
+	color: var(--vscode-errorForeground, #f14c4c);
 }

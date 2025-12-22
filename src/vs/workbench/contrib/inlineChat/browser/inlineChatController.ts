@@ -47,7 +47,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
@@ -1296,6 +1296,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
+			assertType(this._editor.hasModel(), '[Illegal State] widget should only be created when the editor has a model');
 
 			const location: IChatWidgetLocationOptions = {
 				location: ChatAgentLocation.EditorInline,
@@ -1438,7 +1439,7 @@ export class InlineChatController2 implements IEditorContribution {
 			const session = visibleSessionObs.read(r);
 			if (!session) {
 				this._zone.rawValue?.hide();
-				this._zone.value.widget.chatWidget.setModel(undefined);
+				this._zone.rawValue?.widget.chatWidget.setModel(undefined);
 				_editor.focus();
 				ctxInlineChatVisible.reset();
 			} else {
@@ -1460,9 +1461,14 @@ export class InlineChatController2 implements IEditorContribution {
 				const entries = session.editingSession.entries.read(r);
 				const otherEntries = entries.filter(entry => !isEqual(entry.modifiedURI, session.uri));
 				for (const entry of otherEntries) {
-					// OPEN other modified files in side group. This is a workaround, temp-solution until we have no more backend
-					// that modifies other files
-					this._editorService.openEditor({ resource: entry.modifiedURI }, SIDE_GROUP).catch(onUnexpectedError);
+					// DSpace: OPEN other modified files in DIFF VIEW in side group
+					// This shows the changes clearly with accept/reject options
+					const fileName = entry.modifiedURI.path.split('/').pop() || 'file';
+					this._editorService.openEditor({
+						original: { resource: entry.originalURI },
+						modified: { resource: entry.modifiedURI },
+						label: localize('diffLabel', "{0} (changes)", fileName)
+					}, SIDE_GROUP).catch(onUnexpectedError);
 				}
 			}
 		}));
@@ -1485,30 +1491,83 @@ export class InlineChatController2 implements IEditorContribution {
 
 		this._store.add(autorun(r => {
 			const response = lastResponseObs.read(r);
+			const session = visibleSessionObs.read(r);
+			const isInProgress = response?.isInProgress.read(r);
 
-			this._zone.value.widget.updateInfo('');
-
-			if (!response?.isInProgress.read(r)) {
-
-				if (response?.result?.errorDetails) {
-					// ERROR case
-					this._zone.value.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
-					alert(response.result.errorDetails.message);
-				}
-
-				// no response or not in progress
-				this._zone.value.widget.domNode.classList.toggle('request-in-progress', false);
-				// DSpace: Changed placeholder to be LaTeX-focused
-				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder_edit_improve_generate', "Edit, improve, and generate content"));
-
-			} else {
-				this._zone.value.widget.domNode.classList.toggle('request-in-progress', true);
+			if (isInProgress && response) {
+				// DSpace: Request is in progress - show working state
+				this._zone.rawValue?.widget.updateInfo('');
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', true);
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-completed', false);
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-error', false);
 				let placeholder = response.request?.message.text;
 				const lastProgress = lastResponseProgressObs.read(r);
 				if (lastProgress) {
 					placeholder = renderAsPlaintext(lastProgress.content);
 				}
-				this._zone.value.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
+				this._zone.rawValue?.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
+			} else if (response?.result?.errorDetails) {
+				// DSpace: ERROR case - show error feedback
+				this._zone.rawValue?.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
+				alert(response.result.errorDetails.message);
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', false);
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-completed', false);
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-error', true);
+				this._zone.rawValue?.widget.chatWidget.setInputPlaceholder(localize('placeholder_edit_improve_generate', "Edit, improve, and generate content"));
+			} else if (response && !isInProgress) {
+				// DSpace: SUCCESS case - show completion feedback
+				const entries = session?.editingSession.entries.read(r) ?? [];
+				const modifiedCount = entries.length;
+
+				// Build completion message with file summary
+				let completionMessage = `$(check) ${localize('done', "Done")}`;
+				const clickableElements: HTMLElement[] = [];
+
+				if (modifiedCount > 0) {
+					if (modifiedCount === 1) {
+						const entry = entries[0];
+						const parts = entry.modifiedURI.path.split('/');
+						const fileName = parts[parts.length - 1];
+						completionMessage = `$(check) ${localize('doneWithFile2', "Done - modified")}`;
+
+						// DSpace: Create a clickable link for the file name
+						const fileLink = document.createElement('a');
+						fileLink.textContent = fileName;
+						fileLink.style.cursor = 'pointer';
+						fileLink.style.textDecoration = 'underline';
+						fileLink.style.marginLeft = '2px';
+						fileLink.title = localize('clickToOpen', "Click to open {0}", entry.modifiedURI.path);
+						fileLink.addEventListener('click', (e) => {
+							e.preventDefault();
+							// DSpace: Reveal existing editor or open in same group, don't split
+							this._editorService.openEditor({
+								resource: entry.modifiedURI,
+								options: { revealIfOpened: true, revealIfVisible: true }
+							}, ACTIVE_GROUP);
+						});
+						clickableElements.push(fileLink);
+					} else {
+						completionMessage = `$(check) ${localize('doneWithFiles', "Done - modified {0} files", modifiedCount)}`;
+					}
+				}
+				// DSpace: Use success class for green styling, pass clickable elements
+				this._zone.rawValue?.widget.updateInfo(completionMessage, { classes: ['success'], elements: clickableElements });
+
+				// Add visual feedback for completion
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', false);
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-completed', true);
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-error', false);
+
+				// DSpace: Set a helpful placeholder indicating completion and next actions
+				this._zone.rawValue?.widget.chatWidget.setInputPlaceholder(localize('placeholder_followup', "Ask a follow-up, or use Keep/Close"));
+			} else {
+				// No response yet - initial/waiting state
+				this._zone.rawValue?.widget.updateInfo('');
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', false);
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-completed', false);
+				this._zone.rawValue?.widget.domNode.classList.toggle('request-error', false);
+				// DSpace: Generic placeholder for multiple content types
+				this._zone.rawValue?.widget.chatWidget.setInputPlaceholder(localize('placeholder_edit_improve_generate', "Edit, improve, and generate content"));
 			}
 
 		}));
@@ -1550,6 +1609,9 @@ export class InlineChatController2 implements IEditorContribution {
 				}
 			}
 		}));
+
+		// DSpace: Removed "Other modified files" section from inline chat
+		// The blue overlay bar at the top provides navigation between files instead
 	}
 
 	dispose(): void {

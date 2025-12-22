@@ -184,17 +184,17 @@ export class CursorMoveCommands {
 
 		if (!inSelectionMode) {
 			// Entering line selection for the first time
-			const lineCount = viewModel.getLineCount();
+			const lineCount = viewModel.model.getLineCount();
 
-			let selectToLineNumber = viewPosition.lineNumber + 1;
+			let selectToLineNumber = position.lineNumber + 1;
 			let selectToColumn = 1;
 			if (selectToLineNumber > lineCount) {
 				selectToLineNumber = lineCount;
-				selectToColumn = viewModel.getLineMaxColumn(selectToLineNumber);
+				selectToColumn = viewModel.model.getLineMaxColumn(selectToLineNumber);
 			}
 
-			return CursorState.fromViewState(new SingleCursorState(
-				new Range(viewPosition.lineNumber, 1, selectToLineNumber, selectToColumn), SelectionStartKind.Line, 0,
+			return CursorState.fromModelState(new SingleCursorState(
+				new Range(position.lineNumber, 1, selectToLineNumber, selectToColumn), SelectionStartKind.Line, 0,
 				new Position(selectToLineNumber, selectToColumn), 0
 			));
 		}

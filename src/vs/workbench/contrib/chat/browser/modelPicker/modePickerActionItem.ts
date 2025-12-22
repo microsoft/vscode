@@ -81,7 +81,9 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 						ToggleAgentModeActionId,
 						{ modeId: mode.id, sessionResource: this.delegate.sessionResource() } satisfies IToggleChatModeArgs
 					);
-					this.renderLabel(this.element!);
+					if (this.element) {
+						this.renderLabel(this.element);
+					}
 					return result;
 				},
 				category: isDisabledViaPolicy ? policyDisabledCategory : builtInCategory

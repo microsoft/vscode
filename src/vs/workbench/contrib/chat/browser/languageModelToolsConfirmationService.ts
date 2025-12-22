@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -11,10 +10,8 @@ import { LRUCache } from '../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickTreeItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButtonWithToggle, IQuickInputService, IQuickTreeItem, QuickInputButtonLocation } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { ConfirmedReason, ToolConfirmKind } from '../common/chatService.js';
 import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationContributionQuickTreeItem, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
 import { IToolData, ToolDataSource } from '../common/languageModelToolsService.js';
@@ -696,19 +693,19 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 		// Only show toggle if not in session scope
 		if (currentScope !== 'session') {
-			const scopeToggle = disposables.add(new Toggle({
-				title: localize('workspaceScope', "Configure for this workspace only"),
-				icon: Codicon.folder,
-				isChecked: currentScope === 'workspace',
-				inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
-				inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
-				inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
-			}));
-			quickTree.toggles = [scopeToggle];
-			disposables.add(scopeToggle.onChange(() => {
-				currentScope = currentScope === 'workspace' ? 'profile' : 'workspace';
-				updatePlaceholder();
-				quickTree.setItemTree(buildTreeItems());
+			const scopeButton: IQuickInputButtonWithToggle = {
+				iconClass: ThemeIcon.asClassName(Codicon.folder),
+				tooltip: localize('workspaceScope', "Configure for this workspace only"),
+				toggle: { checked: currentScope === 'workspace' },
+				location: QuickInputButtonLocation.Input
+			};
+			quickTree.buttons = [scopeButton];
+			disposables.add(quickTree.onDidTriggerButton(button => {
+				if (button === scopeButton) {
+					currentScope = currentScope === 'workspace' ? 'profile' : 'workspace';
+					updatePlaceholder();
+					quickTree.setItemTree(buildTreeItems());
+				}
 			}));
 		}
 

@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-editor-overlay-widget {
-	padding: 2px;
+	padding: 0 6px;
 	color: var(--vscode-button-foreground);
 	background-color: var(--vscode-button-background);
-	border-radius: 2px;
-	border: 1px solid var(--vscode-contrastBorder);
-	display: flex;
+	/* DSpace: No border radius for inline display */
+	border-radius: 0;
+	display: inline-flex;
 	align-items: center;
-	z-index: 10;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	overflow: hidden;
+	font-size: 11px;
+	white-space: nowrap;
+	/* DSpace: Limit height to fit in container */
+	max-height: 100%;
+	height: 22px;
 }
 
 @keyframes pulse {
@@ -35,14 +38,24 @@
 .chat-editor-overlay-widget .chat-editor-overlay-progress {
 	align-items: center;
 	display: none;
-	padding: 5px 0 5px 5px;
-	font-size: 12px;
+	padding: 0 0 0 4px;
+	font-size: 11px;
 	overflow: hidden;
-	gap: 6px;
+	gap: 4px;
 }
 
 .chat-editor-overlay-widget.busy .chat-editor-overlay-progress {
 	display: inline-flex;
+}
+
+/* DSpace: Hide toolbar buttons when busy (working state) */
+.chat-editor-overlay-widget.busy .chat-editor-overlay-toolbar {
+	display: none;
+}
+
+/* DSpace: Hide separators when only 1 file (no navigation needed) */
+.chat-editor-overlay-widget.single-file .monaco-action-bar .action-item .action-label.separator {
+	display: none;
 }
 
 .chat-editor-overlay-widget .chat-editor-overlay-progress .progress-message {
@@ -54,18 +67,19 @@
 }
 
 .chat-editor-overlay-widget .action-item > .action-label {
-	padding: 5px;
-	font-size: 12px;
+	padding: 0 4px;
+	font-size: 11px;
 	border-radius: 2px; /* same as overlay widget */
+	line-height: 20px;
 }
 
 
 .chat-editor-overlay-widget .action-item:first-child > .action-label {
-	padding-left: 7px;
+	padding-left: 4px;
 }
 
 .chat-editor-overlay-widget .action-item:last-child > .action-label {
-	padding-right: 7px;
+	padding-right: 4px;
 }
 
 .chat-editor-overlay-widget.busy .chat-editor-overlay-progress .codicon,

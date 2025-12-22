@@ -429,7 +429,7 @@ CommandsRegistry.registerCommand({
 						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
 					});
 				} else {
-					await extensionsWorkbenchService.install(arg, {
+					await extensionsWorkbenchService.install(id, {
 						version,
 						installPreReleaseVersion: options?.installPreReleaseVersion,
 						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
@@ -1217,7 +1217,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			this.registerExtensionAction({
 				id: `extensions.sort.${id}`,
 				title,
-				precondition: ContextKeyExpr.and(precondition, ContextKeyExpr.regex(ExtensionsSearchValueContext.key, /^@feature:/).negate(), sortCapabilityContext),
+				precondition: ContextKeyExpr.and(precondition, ContextKeyExpr.regex(ExtensionsSearchValueContext.key, /^@contribute:/).negate(), sortCapabilityContext),
 				menu: [{
 					id: extensionsSortSubMenu,
 					when: ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext), sortCapabilityContext),

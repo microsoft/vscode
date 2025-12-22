@@ -300,15 +300,6 @@ export class AcceptChanges extends AbstractInline1ChatAction {
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 			}],
 			menu: [{
-				id: MENU_INLINE_CHAT_WIDGET_STATUS,
-				group: '0_main',
-				order: 1,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.inputHasText.toNegated(),
-					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
-					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits)
-				),
-			}, {
 				id: MENU_INLINE_CHAT_ZONE,
 				group: 'navigation',
 				order: 1,
@@ -318,6 +309,58 @@ export class AcceptChanges extends AbstractInline1ChatAction {
 
 	override async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, hunk?: HunkInformation | any): Promise<void> {
 		ctrl.acceptHunk(hunk);
+	}
+}
+
+// DSpace: New action to accept all edits from inline chat and close
+// Using EditorAction2 directly to work with both V1 and V2 inline chat
+export class AcceptAllEditsAction extends EditorAction2 {
+
+	static readonly ID = 'inlineChat.acceptAllEdits';
+
+	constructor() {
+		super({
+			id: AcceptAllEditsAction.ID,
+			title: localize2('acceptEdits', "Accept Edits"),
+			category: AbstractInline1ChatAction.category,
+			icon: Codicon.check,
+			f1: true,
+			precondition: CTX_INLINE_CHAT_VISIBLE,
+			keybinding: [{
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				when: ContextKeyExpr.and(
+					CTX_INLINE_CHAT_VISIBLE,
+					ChatContextKeys.inputHasText.toNegated(),
+					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated()
+				)
+			}],
+			menu: [{
+				id: MENU_INLINE_CHAT_WIDGET_STATUS,
+				group: '0_main',
+				order: -10, // DSpace: Before other buttons
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inputHasText.toNegated(),
+					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
+					CTX_INLINE_CHAT_RESPONSE_TYPE.notEqualsTo(InlineChatResponseType.None) // Only show if there's a response
+				),
+			}]
+		});
+	}
+
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		// Try V1 controller first
+		const ctrl1 = InlineChatController1.get(editor);
+		if (ctrl1) {
+			ctrl1.acceptSession();
+			return;
+		}
+		// Try V2 controller
+		const ctrl2 = InlineChatController2.get(editor);
+		if (ctrl2) {
+			ctrl2.acceptSession();
+			return;
+		}
 	}
 }
 
@@ -394,13 +437,19 @@ export class RerunAction extends AbstractInline1ChatAction {
 	}
 }
 
-export class CloseAction extends AbstractInline1ChatAction {
+// DSpace: Modified to work with both V1 and V2 and renamed to "Discard Edits"
+export class CloseAction extends EditorAction2 {
+
+	static readonly ID = 'inlineChat.close';
 
 	constructor() {
 		super({
-			id: 'inlineChat.close',
-			title: localize('close', 'Close'),
+			id: CloseAction.ID,
+			// DSpace: Changed title to "Discard Edits" for clearer UX
+			title: localize2('discardEdits', 'Discard Edits'),
+			category: AbstractInline1ChatAction.category,
 			icon: Codicon.close,
+			f1: true,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -409,8 +458,12 @@ export class CloseAction extends AbstractInline1ChatAction {
 			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: '0_main',
-				order: 1,
-				when: CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate()
+				order: -9, // DSpace: After Accept Edits
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inputHasText.toNegated(),
+					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
+					CTX_INLINE_CHAT_RESPONSE_TYPE.notEqualsTo(InlineChatResponseType.None) // Only show if there's a response
+				)
 			}, {
 				id: MENU_INLINE_CHAT_SIDE,
 				group: 'navigation',
@@ -419,8 +472,19 @@ export class CloseAction extends AbstractInline1ChatAction {
 		});
 	}
 
-	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
-		ctrl.cancelSession();
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		// Try V1 controller first
+		const ctrl1 = InlineChatController1.get(editor);
+		if (ctrl1) {
+			ctrl1.cancelSession();
+			return;
+		}
+		// Try V2 controller
+		const ctrl2 = InlineChatController2.get(editor);
+		if (ctrl2) {
+			ctrl2.rejectSession();
+			return;
+		}
 	}
 }
 

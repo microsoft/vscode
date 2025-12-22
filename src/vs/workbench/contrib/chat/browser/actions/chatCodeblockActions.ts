@@ -278,7 +278,7 @@ export function registerChatCodeBlockActions() {
 				id: APPLY_IN_EDITOR_ID,
 				title: localize2('interactive.applyInEditor.label', "Apply in Editor"),
 				precondition: ChatContextKeys.enabled,
-				f1: true,
+				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.gitPullRequestGoToChanges,
 
@@ -468,19 +468,20 @@ export function registerChatCodeBlockActions() {
 			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 
-			let terminal = await terminalService.getActiveOrCreateInstance();
+			let terminal = await terminalService.getActiveOrCreateInstance({ acceptsInput: true });
 
 			// isFeatureTerminal = debug terminal or task terminal
-			const unusableTerminal = terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal;
-			terminal = unusableTerminal ? await terminalService.createTerminal() : terminal;
+			if (terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal) {
+				terminal = await terminalService.createAndFocusTerminal({ location: TerminalLocation.Panel });
+			} else {
+				await terminalService.focusInstance(terminal);
+			}
 
-			terminalService.setActiveInstance(terminal);
-			await terminal.focusWhenReady(true);
 			if (terminal.target === TerminalLocation.Editor) {
 				const existingEditors = editorService.findEditors(terminal.resource);
 				terminalEditorService.openEditor(terminal, { viewColumn: existingEditors?.[0].groupId });
 			} else {
-				terminalGroupService.showPanel(true);
+				await terminalGroupService.showPanel(true);
 			}
 
 			terminal.runCommand(context.code, false);

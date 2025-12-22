@@ -13,7 +13,8 @@ import { InsertLinkFromWorkspace, InsertImageFromWorkspace } from './insertResou
 import { RefreshPreviewCommand } from './refreshPreview';
 import { ReloadPlugins } from './reloadPlugins';
 import { RenderDocument } from './renderDocument';
-import { ShowLockedPreviewToSideCommand, ShowPreviewCommand, ShowPreviewToSideCommand } from './showPreview';
+// DSpace: ShowPreviewToSideCommand import commented out - handled by pdf-preview extension
+import { ShowLockedPreviewToSideCommand, ShowPreviewCommand /*, ShowPreviewToSideCommand */ } from './showPreview';
 import { CopyImageCommand } from './copyImage';
 import { ShowPreviewSecuritySelectorCommand } from './showPreviewSecuritySelector';
 import { ShowSourceCommand } from './showSource';
@@ -32,7 +33,8 @@ export function registerMarkdownCommands(
 	commandManager.register(new OpenImageCommand(previewManager));
 	commandManager.register(new CopyImageCommand(previewManager));
 	commandManager.register(new ShowPreviewCommand(previewManager, telemetryReporter));
-	commandManager.register(new ShowPreviewToSideCommand(previewManager, telemetryReporter));
+	// DSpace: Disabled to allow pdf-preview extension to handle markdown preview with PDF export capability
+	// commandManager.register(new ShowPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new ShowSourceCommand(previewManager));
 	commandManager.register(new RefreshPreviewCommand(previewManager, engine));

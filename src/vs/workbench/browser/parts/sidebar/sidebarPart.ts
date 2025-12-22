@@ -22,6 +22,7 @@ import { LayoutPriority } from '../../../../base/browser/ui/grid/grid.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
+import { PaneComposite } from '../../panecomposite.js';
 import { ActivityBarCompositeBar, ActivitybarPart } from '../activitybar/activitybarPart.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -32,6 +33,8 @@ import { Separator } from '../../../../base/common/actions.js';
 import { ToggleActivityBarVisibilityActionId } from '../../actions/layoutActions.js';
 import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -39,8 +42,23 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	//#region IView
 
-	readonly minimumWidth: number = 170;
-	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	get minimumWidth(): number {
+		// Hide sidebar completely when no workspace and no editors, unless user explicitly requested to open it
+		if (this.isBare && !this.hasOpenEditors && !this.userRequestedOpen) {
+			// console.log('[Sidebar] minimumWidth - returning 0 (isBare && !hasOpenEditors && !userRequestedOpen)');
+			return 0;
+		}
+		// console.log('[Sidebar] minimumWidth - returning 170, isBare:', this.isBare, 'hasOpenEditors:', this.hasOpenEditors, 'userRequestedOpen:', this.userRequestedOpen);
+		return 170;
+	}
+
+	get maximumWidth(): number {
+		// Hide sidebar completely when no workspace and no editors, unless user explicitly requested to open it
+		if (this.isBare && !this.hasOpenEditors && !this.userRequestedOpen) {
+			return 0;
+		}
+		return Number.POSITIVE_INFINITY;
+	}
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 	override get snap(): boolean { return true; }
@@ -64,6 +82,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this));
 
+	private isBare: boolean;
+	private hasOpenEditors: boolean;
+	private userRequestedOpen: boolean = false;
+
 	//#endregion
 
 	constructor(
@@ -80,6 +102,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -105,6 +129,33 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			menuService,
 		);
 
+		// Initialize workspace and editor state tracking
+		const workbenchState = this.contextService.getWorkbenchState();
+		const workspace = this.contextService.getWorkspace();
+		this.isBare = workbenchState === WorkbenchState.EMPTY || workspace.folders.length === 0;
+		this.hasOpenEditors = this.editorService.count > 0;
+		console.log('[Sidebar] Constructor - isBare:', this.isBare, 'hasOpenEditors:', this.hasOpenEditors, 'workbenchState:', workbenchState, 'folders:', workspace.folders.length);
+
+		// Listen to workspace state changes
+		this._register(this.contextService.onDidChangeWorkbenchState(() => {
+			const workbenchState = this.contextService.getWorkbenchState();
+			const workspace = this.contextService.getWorkspace();
+			const previousIsBare = this.isBare;
+			this.isBare = workbenchState === WorkbenchState.EMPTY || workspace.folders.length === 0;
+			if (previousIsBare !== this.isBare) {
+				this.updateSidebarVisibility();
+			}
+		}));
+
+		// Listen to editor state changes
+		this._register(this.editorService.onDidVisibleEditorsChange(() => {
+			const newHasOpenEditors = this.editorService.count > 0;
+			if (this.hasOpenEditors !== newHasOpenEditors) {
+				this.hasOpenEditors = newHasOpenEditors;
+				this.updateSidebarVisibility();
+			}
+		}));
+
 		this.rememberActivityBarVisiblePosition();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
@@ -113,6 +164,19 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 
 		this.registerActions();
+	}
+
+	private updateSidebarVisibility(): void {
+		const shouldHide = this.isBare && !this.hasOpenEditors;
+		console.log('[Sidebar] updateSidebarVisibility - shouldHide:', shouldHide, 'isBare:', this.isBare, 'hasOpenEditors:', this.hasOpenEditors);
+
+		// Reset userRequestedOpen when a folder/file is opened (normal visibility logic applies)
+		if (!this.isBare || this.hasOpenEditors) {
+			this.userRequestedOpen = false;
+		}
+
+		// Trigger a layout update by notifying that preferred width changed
+		this.layoutService.layout();
 	}
 
 	private onDidChangeActivityBarLocation(): void {
@@ -273,6 +337,24 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 			this.activityBarPart.show(true);
 		}
+	}
+
+	override async openPaneComposite(id?: string, focus?: boolean): Promise<PaneComposite | undefined> {
+		// When user explicitly opens a pane composite, mark that they requested it
+		this.userRequestedOpen = true;
+		console.log('[Sidebar] openPaneComposite - setting userRequestedOpen to true');
+
+		// Trigger layout update to allow sidebar to be shown
+		this.layoutService.layout();
+
+		return super.openPaneComposite(id, focus);
+	}
+
+	override hideActivePaneComposite(): void {
+		// When user explicitly hides the sidebar, reset the flag
+		this.userRequestedOpen = false;
+		console.log('[Sidebar] hideActivePaneComposite - setting userRequestedOpen to false');
+		super.hideActivePaneComposite();
 	}
 
 	private registerActions(): void {

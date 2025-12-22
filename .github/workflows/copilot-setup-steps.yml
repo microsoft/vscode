@@ -1,15 +1,17 @@
 name: "Copilot Setup Steps"
 
+# DISABLED: Automatic triggers disabled for DSpace fork
 # Automatically run the setup steps when they are changed to allow for easy validation, and
 # allow manual testing through the repository's "Actions" tab
-on:
-  workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/copilot-setup-steps.yml
-  pull_request:
-    paths:
-      - .github/workflows/copilot-setup-steps.yml
+# on:
+#   workflow_dispatch:
+#   push:
+#     paths:
+#       - .github/workflows/copilot-setup-steps.yml
+#   pull_request:
+#     paths:
+#       - .github/workflows/copilot-setup-steps.yml
+on: workflow_dispatch
 
 jobs:
   # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
@@ -55,7 +57,7 @@ jobs:
 
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .build/node_modules_cache
           key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
@@ -119,7 +121,7 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           enableCrossOsArchive: true
           path: .build/builtInExtensions

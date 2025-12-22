@@ -75,7 +75,7 @@ import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { IHandOff, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
-import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
+import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
@@ -184,7 +184,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
-	private _onDidChangeViewModel = this._register(new Emitter<void>());
+	private _onDidChangeViewModel = this._register(new Emitter<IChatWidgetViewModelChangeEvent>());
 	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
 
 	private _onDidScroll = this._register(new Emitter<void>());
@@ -227,6 +227,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private lastItem: ChatTreeItem | undefined;
 
 	private readonly visibilityTimeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly visibilityAnimationFrameDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly scrollAnimationFrameDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
@@ -292,6 +294,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		const previousSessionResource = this._viewModel?.sessionResource;
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
@@ -302,7 +305,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.logService.debug('ChatWidget#setViewModel: no viewModel');
 		}
 
-		this._onDidChangeViewModel.fire();
+		this._onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: this._viewModel?.sessionResource });
 	}
 
 	get viewModel() {
@@ -674,8 +677,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
-		this.onDidStyleChange();
+		this._register(Event.runAndSubscribe(this.editorOptions.onDidChange, () => this.onDidStyleChange()));
 
 		// Do initial render
 		if (this.viewModel) {
@@ -1010,18 +1012,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// }
 
 	/**
-	 * Determines if the current project is a Typst project based on active editor.
+	 * Determines if the current project is a LaTeX project based on active editor.
+	 * Returns true only if the active file is a LaTeX file (.tex, .bib, etc.)
+	 * Default (when no active editor or unknown file type) is false, meaning Typst is the default.
 	 */
-	private _isTypstProject(): boolean {
+	private _isLatexProject(): boolean {
 		const activeEditor = this.editorService.activeEditor;
-		console.log(`[ChatWidget] _isTypstProject - activeEditor: ${activeEditor?.resource?.path}`);
+		console.log(`[ChatWidget] _isLatexProject - activeEditor: ${activeEditor?.resource?.path}`);
 		if (activeEditor?.resource) {
 			const path = activeEditor.resource.path.toLowerCase();
-			const isTypst = path.endsWith('.typ');
-			console.log(`[ChatWidget] _isTypstProject result: ${isTypst} (path: ${path})`);
-			return isTypst;
+			const isLatex = path.endsWith('.tex') || path.endsWith('.bib') || path.endsWith('.sty') || path.endsWith('.cls') || path.endsWith('.ltx');
+			console.log(`[ChatWidget] _isLatexProject result: ${isLatex} (path: ${path})`);
+			return isLatex;
 		}
-		console.log(`[ChatWidget] _isTypstProject - no active editor resource, returning false`);
+		console.log(`[ChatWidget] _isLatexProject - no active editor resource, returning false (default to Typst)`);
 		return false;
 	}
 
@@ -1074,44 +1078,30 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Use predefined suggestions for new users
 		if (!this.chatEntitlementService.sentiment.installed) {
 			const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
-			const isTypst = this._isTypstProject();
-			console.log(`[ChatWidget] isEmpty: ${isEmpty}, isTypst: ${isTypst}`);
+			const isLatex = this._isLatexProject();
+			console.log(`[ChatWidget] isEmpty: ${isEmpty}, isLatex: ${isLatex}`);
 
 			if (isEmpty) {
-				// Empty workspace - offer both LaTeX and Typst options since we can't determine the type
-				console.log(`[ChatWidget] Returning empty workspace suggestions with both LaTeX and Typst options`);
+				// Empty workspace - offer both Typst and LaTeX options since we can't determine the type
+				// Typst is shown first as it's the default
+				console.log(`[ChatWidget] Returning empty workspace suggestions with both Typst and LaTeX options`);
 				return [
-					{
-						icon: Codicon.newFile,
-						label: localize('chatWidget.suggestedPrompts.createLatexProject', "Create LaTeX Project"),
-						prompt: localize('chatWidget.suggestedPrompts.createLatexProjectPrompt', "Create a new LaTeX project with a main .tex file and a .bib bibliography file"),
-					},
 					{
 						icon: Codicon.newFile,
 						label: localize('chatWidget.suggestedPrompts.createTypstProject', "Create Typst Project"),
 						prompt: localize('chatWidget.suggestedPrompts.createTypstProjectPrompt', "Create a new Typst project with a main .typ file"),
+					},
+					{
+						icon: Codicon.newFile,
+						label: localize('chatWidget.suggestedPrompts.createLatexProject', "Create LaTeX Project"),
+						prompt: localize('chatWidget.suggestedPrompts.createLatexProjectPrompt', "Create a new LaTeX project with a main .tex file and a .bib bibliography file"),
 					}
 				];
 			} else {
 				// Non-empty workspace - offer error checking and citations
-				console.log(`[ChatWidget] Returning non-empty workspace suggestions (isTypst: ${isTypst})`);
-				if (isTypst) {
-					console.log(`[ChatWidget] Returning TYPST suggestions`);
-					return [
-						{
-							icon: Codicon.error,
-							label: localize('chatWidget.suggestedPrompts.checkTypstErrors', "Check Typst Errors"),
-							prompt: localize('chatWidget.suggestedPrompts.checkTypstErrorsPrompt', "Review this Typst document for compilation errors and suggest fixes"),
-						},
-						{
-							icon: Codicon.references,
-							label: localize('chatWidget.suggestedPrompts.checkTypstCitations', "Check Citations & Bibliography"),
-							prompt: localize('chatWidget.suggestedPrompts.checkTypstCitationsPrompt', "Review the citations in this Typst document. Check if all citations are properly referenced and if there are any missing or unused bibliography entries"),
-						}
-					];
-				} else {
-					// Default to LaTeX suggestions
-					console.log(`[ChatWidget] Returning LATEX suggestions (default)`);
+				console.log(`[ChatWidget] Returning non-empty workspace suggestions (isLatex: ${isLatex})`);
+				if (isLatex) {
+					console.log(`[ChatWidget] Returning LATEX suggestions`);
 					return [
 						{
 							icon: Codicon.error,
@@ -1122,6 +1112,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							icon: Codicon.references,
 							label: localize('chatWidget.suggestedPrompts.checkCitations', "Check Citations & Bibliography"),
 							prompt: localize('chatWidget.suggestedPrompts.checkCitationsPrompt', "Review the citations in this LaTeX project. Check if all citations are properly referenced in the .bib file and if there are any missing or unused bibliography entries"),
+						}
+					];
+				} else {
+					// Default to Typst suggestions
+					console.log(`[ChatWidget] Returning TYPST suggestions (default)`);
+					return [
+						{
+							icon: Codicon.error,
+							label: localize('chatWidget.suggestedPrompts.checkTypstErrors', "Check Typst Errors"),
+							prompt: localize('chatWidget.suggestedPrompts.checkTypstErrorsPrompt', "Review this Typst document for compilation errors and suggest fixes"),
+						},
+						{
+							icon: Codicon.references,
+							label: localize('chatWidget.suggestedPrompts.checkTypstCitations', "Check Citations & Bibliography"),
+							prompt: localize('chatWidget.suggestedPrompts.checkTypstCitationsPrompt', "Review the citations in this Typst document. Check if all citations are properly referenced and if there are any missing or unused bibliography entries"),
 						}
 					];
 				}
@@ -1283,7 +1288,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async renderFollowups(): Promise<void> {
-		if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete && this.input.currentModeKind === ChatModeKind.Ask) {
+		if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete) {
 			this.input.renderFollowups(this.lastItem.replyFollowups, this.lastItem);
 		} else {
 			this.input.renderFollowups(undefined, undefined);
@@ -1511,9 +1516,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}, 0);
 
-				this._register(dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
+				this.visibilityAnimationFrameDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 					this._onDidShow.fire();
-				}));
+				});
 			}
 		} else if (wasVisible) {
 			this._onDidHide.fire();
@@ -1870,11 +1875,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
 				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
 				if (lastElementWasVisible) {
-					this._register(dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
+					this.scrollAnimationFrameDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 						// Can't set scrollTop during this event listener, the list might overwrite the change
 
 						this.scrollToEnd();
-					}, 0));
+					}, 0);
 				}
 			}
 		}
@@ -2061,7 +2066,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
 
 		// Pass input model reference to input part for state syncing
-		this.inputPart.setInputModel(model.inputModel);
+		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0);
 
 		if (this._lockedAgent) {
 			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
@@ -2107,8 +2112,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		const inputState = model.inputModel.state.get();
-		this.input.initForNewChatModel(inputState, model.getRequests().length === 0);
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
 
 		this.refreshParsedInput();
@@ -2325,7 +2328,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.scrollLock = this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll);
 
 		const editorValue = this.getInput();
-		const requestId = this.chatAccessibilityService.acceptRequest();
 		const requestInputs: IChatRequestInputOptions = {
 			input: !query ? editorValue : query.query,
 			attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext(this.viewModel.sessionResource) : this.input.getAttachedAndImplicitContext(this.viewModel.sessionResource),
@@ -2373,7 +2375,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 			this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: uniqueWorkingSetEntries.size, actualSize: uniqueWorkingSetEntries.size });
 		}
-
 		this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource);
 		if (this.currentRequest) {
 			// We have to wait the current request to be properly cancelled so that it has a chance to update the model with its result metadata.
@@ -2392,6 +2393,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 		}
+		if (this.viewModel.sessionResource) {
+			this.chatAccessibilityService.acceptRequest(this._viewModel!.sessionResource);
+		}
 
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
@@ -2406,17 +2410,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 
 		if (!result) {
-			this.chatAccessibilityService.disposeRequest(requestId);
+			this.chatAccessibilityService.disposeRequest(this.viewModel.sessionResource);
 			return;
 		}
 
-		this.input.acceptInput(isUserQuery);
+		// visibility sync before we accept input to hide the welcome view
+		this.updateChatViewVisibility();
+
+		this.input.acceptInput(options?.storeToHistory ?? isUserQuery);
 		this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
 		this.handleDelegationExitIfNeeded(this._lockedAgent, result.agent);
 		this.currentRequest = result.responseCompletePromise.then(() => {
 			const responses = this.viewModel?.getItems().filter(isResponseVM);
 			const lastResponse = responses?.[responses.length - 1];
-			this.chatAccessibilityService.acceptResponse(this, this.container, lastResponse, requestId, options?.isVoiceInput);
+			this.chatAccessibilityService.acceptResponse(this, this.container, lastResponse, this.viewModel?.sessionResource, options?.isVoiceInput);
 			if (lastResponse?.result?.nextQuestion) {
 				const { prompt, participant, command } = lastResponse.result.nextQuestion;
 				const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);
@@ -2424,7 +2431,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					this.input.setValue(question, false);
 				}
 			}
-
 			this.currentRequest = undefined;
 		});
 

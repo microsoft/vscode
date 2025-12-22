@@ -1,0 +1,300 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Markdown Preview specific styles.
+ * Common styles are imported from sharedPreview.css
+ */
+
+/* Import shared styles */
+@import url('./sharedPreview.css');
+
+/* ==================== MARKDOWN CONTAINER ==================== */
+
+#markdown-container {
+	flex: 1;
+	width: 100%;
+	overflow: auto;
+	padding: 20px;
+	box-sizing: border-box;
+	min-height: 0;
+	position: relative;
+}
+
+/* Markdown content wrapper */
+#markdown-content {
+	max-width: 900px;
+	margin: 0 auto;
+	padding: 24px 32px;
+	background: white;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+	border-radius: 4px;
+	transform-origin: top center;
+	transition: transform 0.1s ease-out;
+}
+
+/* ==================== MARKDOWN BODY STYLES ==================== */
+
+.markdown-body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+	font-size: 16px;
+	line-height: 1.6;
+	color: #24292e;
+	word-wrap: break-word;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+	margin-top: 24px;
+	margin-bottom: 16px;
+	font-weight: 600;
+	line-height: 1.25;
+}
+
+.markdown-body h1 {
+	font-size: 2em;
+	border-bottom: 1px solid #eaecef;
+	padding-bottom: 0.3em;
+}
+
+.markdown-body h2 {
+	font-size: 1.5em;
+	border-bottom: 1px solid #eaecef;
+	padding-bottom: 0.3em;
+}
+
+.markdown-body h3 {
+	font-size: 1.25em;
+}
+
+.markdown-body h4 {
+	font-size: 1em;
+}
+
+.markdown-body h5 {
+	font-size: 0.875em;
+}
+
+.markdown-body h6 {
+	font-size: 0.85em;
+	color: #6a737d;
+}
+
+.markdown-body p {
+	margin-top: 0;
+	margin-bottom: 16px;
+}
+
+.markdown-body a {
+	color: #0366d6;
+	text-decoration: none;
+}
+
+.markdown-body a:hover {
+	text-decoration: underline;
+}
+
+.markdown-body code {
+	font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+	font-size: 85%;
+	background-color: rgba(27, 31, 35, 0.05);
+	padding: 0.2em 0.4em;
+	border-radius: 3px;
+}
+
+.markdown-body pre {
+	padding: 16px;
+	overflow: auto;
+	font-size: 85%;
+	line-height: 1.45;
+	background-color: #f6f8fa;
+	border-radius: 6px;
+	margin-top: 0;
+	margin-bottom: 16px;
+}
+
+.markdown-body pre code {
+	background: transparent;
+	padding: 0;
+	font-size: 100%;
+}
+
+.markdown-body blockquote {
+	margin: 0 0 16px 0;
+	padding: 0 1em;
+	color: #6a737d;
+	border-left: 0.25em solid #dfe2e5;
+}
+
+.markdown-body ul, .markdown-body ol {
+	padding-left: 2em;
+	margin-top: 0;
+	margin-bottom: 16px;
+}
+
+.markdown-body li {
+	margin-top: 0.25em;
+}
+
+.markdown-body li + li {
+	margin-top: 0.25em;
+}
+
+.markdown-body table {
+	display: block;
+	width: 100%;
+	overflow: auto;
+	border-spacing: 0;
+	border-collapse: collapse;
+	margin-top: 0;
+	margin-bottom: 16px;
+}
+
+.markdown-body table th, .markdown-body table td {
+	padding: 6px 13px;
+	border: 1px solid #dfe2e5;
+}
+
+.markdown-body table th {
+	font-weight: 600;
+	background-color: #f6f8fa;
+}
+
+.markdown-body table tr {
+	background-color: #fff;
+	border-top: 1px solid #c6cbd1;
+}
+
+.markdown-body table tr:nth-child(2n) {
+	background-color: #f6f8fa;
+}
+
+.markdown-body img {
+	max-width: 100%;
+	box-sizing: border-box;
+	background-color: #fff;
+}
+
+.markdown-body hr {
+	height: 0.25em;
+	padding: 0;
+	margin: 24px 0;
+	background-color: #e1e4e8;
+	border: 0;
+}
+
+/* ==================== MARKDOWN SCROLLBAR STYLING ==================== */
+
+#markdown-container::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+#markdown-container::-webkit-scrollbar-track {
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+#markdown-container::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+	border-radius: 5px;
+}
+
+#markdown-container::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* ==================== MARKDOWN DARK MODE STYLES ==================== */
+
+body.markdown-dark-mode #markdown-content {
+	background: #1a1a1a;
+	color: #e8eaed;
+}
+
+body.markdown-dark-mode .markdown-body {
+	color: #e8eaed;
+}
+
+body.markdown-dark-mode .markdown-body h1,
+body.markdown-dark-mode .markdown-body h2 {
+	border-bottom-color: #3c4043;
+}
+
+body.markdown-dark-mode .markdown-body h6 {
+	color: #9aa0a6;
+}
+
+body.markdown-dark-mode .markdown-body a {
+	color: #8ab4f8;
+}
+
+body.markdown-dark-mode .markdown-body code {
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+body.markdown-dark-mode .markdown-body pre {
+	background-color: #282c34;
+}
+
+body.markdown-dark-mode .markdown-body blockquote {
+	color: #9aa0a6;
+	border-left-color: #3c4043;
+}
+
+body.markdown-dark-mode .markdown-body table th,
+body.markdown-dark-mode .markdown-body table td {
+	border-color: #3c4043;
+}
+
+body.markdown-dark-mode .markdown-body table th {
+	background-color: #282c34;
+}
+
+body.markdown-dark-mode .markdown-body table tr {
+	background-color: #1a1a1a;
+	border-top-color: #3c4043;
+}
+
+body.markdown-dark-mode .markdown-body table tr:nth-child(2n) {
+	background-color: #202124;
+}
+
+body.markdown-dark-mode .markdown-body hr {
+	background-color: #3c4043;
+}
+
+/* ==================== MARKDOWN DARK MODE SEARCH HIGHLIGHTS ==================== */
+
+body.markdown-dark-mode .highlight {
+	background-color: rgba(255, 230, 0, 0.4);
+}
+
+body.markdown-dark-mode .highlight.selected {
+	background-color: rgba(255, 140, 0, 0.6);
+}
+
+/* ==================== MARKDOWN PRINT STYLES ==================== */
+
+@media print {
+	#markdown-container {
+		overflow: visible !important;
+		padding: 0 !important;
+	}
+
+	#markdown-content {
+		max-width: none !important;
+		box-shadow: none !important;
+		transform: none !important;
+		padding: 0 !important;
+		margin: 0 !important;
+	}
+
+	.markdown-body {
+		color: black !important;
+	}
+
+	.highlight {
+		background: none !important;
+	}
+}

@@ -31,6 +31,8 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 // @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { HasSpeechProvider } from '../../speech/common/speechService.js';
 import { hasKey } from '../../../../base/common/types.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
+import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
 export const enum TerminalContextMenuGroup {
 	Chat = '0_chat',
@@ -425,7 +427,7 @@ export function setupTerminalMenus(): void {
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
-						ContextKeyExpr.not('hasHiddenChatTerminals'),
+						ContextKeyExpr.not(TerminalContribContextKeyStrings.ChatHasHiddenTerminals),
 						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.has(`config.${TerminalSettingId.TabsEnabled}`),
 						ContextKeyExpr.or(
@@ -774,7 +776,7 @@ export function setupTerminalMenus(): void {
 			command: {
 				id: TerminalCommandId.StartVoice,
 				title: localize('workbench.action.terminal.startVoiceEditor', "Start Dictation"),
-				icon: Codicon.run
+				icon: Codicon.mic
 			},
 			group: 'navigation',
 			order: 9,

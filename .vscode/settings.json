@@ -131,6 +131,7 @@
 	"git.ignoreLimitWarning": true,
 	"git.branchProtection": [
 		"main",
+		"main-*",
 		"distro",
 		"release/*"
 	],
@@ -219,4 +220,5 @@
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
 	"chat.tools.terminal.outputLocation": "none",
+  "debug.breakpointsView.presentation": "tree"
 }

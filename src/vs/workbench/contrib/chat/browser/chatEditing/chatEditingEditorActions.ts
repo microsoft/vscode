@@ -22,7 +22,8 @@ import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../no
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ctxCursorInChangeRange, ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
+// DSpace: Removed ctxIsGlobalEditingSession from import since we now allow inline chat to use the overlay
+import { ctxCursorInChangeRange, ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -164,13 +165,15 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 			title: _keep
 				? localize2('accept', 'Keep Chat Edits')
 				: localize2('discard', 'Undo Chat Edits'),
+			// DSpace: Changed to "Keep File" / "Undo File" like Cursor
 			shortTitle: _keep
-				? localize2('accept2', 'Keep')
-				: localize2('discard2', 'Undo'),
+				? localize2('accept2', 'Keep File')
+				: localize2('discard2', 'Undo File'),
 			tooltip: _keep
 				? localize2('accept3', 'Keep Chat Edits in this File')
 				: localize2('discard3', 'Undo Chat Edits in this File'),
-			precondition: ContextKeyExpr.and(ctxIsGlobalEditingSession, ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
+			// DSpace: Removed ctxIsGlobalEditingSession requirement so buttons work for inline chat too
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
 			icon: _keep
 				? Codicon.check
 				: Codicon.discard,
@@ -186,7 +189,10 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: _keep ? 0 : 1,
-				when: !_keep ? ctxReviewModeEnabled : undefined
+				// DSpace: Hide buttons while working (ctxIsCurrentlyBeingModified)
+				when: _keep
+					? ctxIsCurrentlyBeingModified.negate()
+					: ContextKeyExpr.and(ctxReviewModeEnabled, ctxIsCurrentlyBeingModified.negate())
 			}
 		});
 	}

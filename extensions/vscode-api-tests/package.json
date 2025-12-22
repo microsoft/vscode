@@ -34,7 +34,6 @@
     "portsAttributes",
     "quickInputButtonLocation",
     "quickPickSortByLabel",
-    "quickPickItemResource",
     "resolvers",
     "scmActionButton",
     "scmSelectedProvider",

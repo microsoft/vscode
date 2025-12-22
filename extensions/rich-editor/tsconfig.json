@@ -1,0 +1,21 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./out",
+		"typeRoots": [
+			"./node_modules/@types"
+		],
+		"esModuleInterop": true,
+		"types": [
+			"node"
+		],
+		"skipLibCheck": true
+	},
+	"include": [
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts"
+	],
+	"exclude": [
+		"node_modules"
+	]
+}

@@ -1,0 +1,510 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Shared styles for PDF and Markdown previews.
+ * This file contains common UI components: toolbar, findbar, buttons, loading, error, scrollbar, sync toggle.
+ */
+
+/* ==================== BASE LAYOUT ==================== */
+
+html, body {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+}
+
+body {
+	display: flex;
+	flex-direction: column;
+}
+
+/* ==================== TOOLBAR STYLES ==================== */
+
+#toolbar {
+	position: sticky;
+	top: 0;
+	z-index: 1000;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 8px;
+	background: #323639;
+	border-bottom: none;
+	flex-shrink: 0;
+	min-height: 40px;
+}
+
+.toolbar-group {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 0;
+	border-right: none;
+}
+
+.toolbar-group:last-child {
+	border-right: none;
+}
+
+.toolbar-group-right {
+	margin-left: auto;
+	gap: 4px;
+}
+
+.toolbar-group-nav {
+	gap: 0;
+}
+
+.toolbar-group-zoom {
+	gap: 4px;
+}
+
+.toolbar-divider {
+	width: 1px;
+	height: 16px;
+	background: rgba(255, 255, 255, 0.15);
+	margin: 0 6px;
+	flex-shrink: 0;
+}
+
+/* Base button style - Chrome-like */
+.toolbar-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	background: transparent;
+	color: #e8eaed;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 14px;
+	min-width: 32px;
+	width: 32px;
+	height: 32px;
+	transition: background-color 0.15s ease;
+}
+
+.toolbar-button:hover {
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.toolbar-button:active {
+	background: rgba(255, 255, 255, 0.1);
+	color: #e8eaed;
+}
+
+.toolbar-button:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.toolbar-button:focus {
+	outline: none;
+}
+
+.toolbar-button:focus-visible {
+	outline: 2px solid #8ab4f8;
+	outline-offset: -2px;
+}
+
+/* Icon button - same size as base for consistency */
+.toolbar-button-icon {
+	min-width: 32px;
+	width: 32px;
+	height: 32px;
+}
+
+.toolbar-button-icon svg {
+	flex-shrink: 0;
+}
+
+/* Navigation buttons (prev/next page) - same size as base for consistency */
+.toolbar-button-nav {
+	min-width: 32px;
+	width: 32px;
+	height: 32px;
+}
+
+/* Toolbar label */
+.toolbar-label {
+	color: #e8eaed;
+	font-size: 13px;
+	margin: 0 8px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 200px;
+}
+
+/* Zoom select - Chrome style */
+.toolbar-select {
+	padding: 0 24px 0 8px;
+	background: #202124;
+	color: #e8eaed;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	font-size: 13px;
+	height: 28px;
+	cursor: pointer;
+	appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='%23e8eaed' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 6px center;
+}
+
+.toolbar-select:hover {
+	border-color: rgba(255, 255, 255, 0.2);
+}
+
+.toolbar-select:focus {
+	outline: none;
+	border-color: #8ab4f8;
+}
+
+.toolbar-select option {
+	background: #202124;
+	color: #e8eaed;
+}
+
+/* Legacy input class - keep for compatibility */
+.toolbar-input {
+	padding: 4px 8px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+	font-size: 12px;
+	width: 50px;
+	height: 28px;
+	box-sizing: border-box;
+	text-align: center;
+}
+
+.toolbar-input:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Pagination container - compact Chrome style (used by PDF) */
+.pagination-container {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 0 4px;
+}
+
+.toolbar-input-page {
+	padding: 0;
+	background: #202124;
+	color: #e8eaed;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	font-size: 13px;
+	font-family: inherit;
+	width: 36px;
+	height: 24px;
+	box-sizing: border-box;
+	text-align: center;
+	line-height: 24px;
+}
+
+.toolbar-input-page:hover {
+	border-color: rgba(255, 255, 255, 0.2);
+}
+
+.toolbar-input-page:focus {
+	outline: none;
+	border-color: #8ab4f8;
+	background: #202124;
+}
+
+.toolbar-page-separator {
+	color: rgba(255, 255, 255, 0.5);
+	font-size: 13px;
+	line-height: 24px;
+}
+
+.toolbar-page-total {
+	color: #e8eaed;
+	font-size: 13px;
+	line-height: 24px;
+	white-space: nowrap;
+}
+
+/* ==================== LOADING AND ERROR ==================== */
+
+#loading {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	text-align: center;
+	padding: 2rem;
+	color: var(--vscode-foreground);
+	z-index: 1;
+}
+
+.loading-spinner {
+	width: 40px;
+	height: 40px;
+	margin: 0 auto 16px auto;
+	border: 3px solid var(--vscode-progressBar-background, #0078d4);
+	border-top-color: transparent;
+	border-radius: 50%;
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	to { transform: rotate(360deg); }
+}
+
+#error-container {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	text-align: center;
+	padding: 2rem;
+	color: var(--vscode-errorForeground);
+	z-index: 1;
+}
+
+#error-message {
+	margin: 0;
+	font-size: 14px;
+}
+
+/* ==================== BUTTON ACTIVE STATES ==================== */
+
+/* Dark mode toggle button active state */
+#btn-dark-mode.active svg path {
+	fill: #8ab4f8;
+}
+
+/* Find button active state (when findbar is open) */
+#btn-find.active svg path {
+	fill: #8ab4f8;
+}
+
+/* Fit width button active state */
+#btn-fit-width.active svg path {
+	fill: #8ab4f8;
+}
+
+/* ==================== SYNC TOGGLE BUTTON STYLES ==================== */
+
+#btn-sync-toggle.active svg path {
+	fill: #8ab4f8;
+}
+
+/* Sync toggle button active with click mode - blue with cursor indicator */
+#btn-sync-toggle.sync-mode-click svg path {
+	fill: #8ab4f8;
+}
+
+/* Sync toggle button active with scroll mode - default blue (no extra indicator) */
+#btn-sync-toggle.sync-mode-scroll svg path {
+	fill: #8ab4f8;
+}
+
+/* Sync toggle button disabled state - show strikethrough effect */
+#btn-sync-toggle.sync-disabled svg path {
+	fill: #9aa0a6;
+}
+
+#btn-sync-toggle.sync-disabled {
+	position: relative;
+}
+
+#btn-sync-toggle.sync-disabled::after {
+	content: '';
+	position: absolute;
+	width: 22px;
+	height: 2px;
+	background: #f28b82;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%) rotate(-45deg);
+	border-radius: 1px;
+}
+
+/* ==================== FINDBAR STYLES ==================== */
+
+.findbar {
+	position: sticky;
+	top: 40px;
+	z-index: 999;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 12px;
+	background: #2a2d30;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	flex-wrap: wrap;
+}
+
+.findbar.hidden {
+	display: none;
+}
+
+.findbar-input-container {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+	min-width: 200px;
+	max-width: 400px;
+}
+
+.findbar-input {
+	flex: 1;
+	padding: 6px 10px;
+	background: #202124;
+	color: #e8eaed;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	font-size: 13px;
+	font-family: inherit;
+	min-width: 150px;
+}
+
+.findbar-input:hover {
+	border-color: rgba(255, 255, 255, 0.2);
+}
+
+.findbar-input:focus {
+	outline: none;
+	border-color: #8ab4f8;
+}
+
+.findbar-input::placeholder {
+	color: rgba(255, 255, 255, 0.5);
+}
+
+.findbar-buttons {
+	display: flex;
+	gap: 2px;
+}
+
+.findbar-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	background: transparent;
+	color: #e8eaed;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+}
+
+.findbar-button:hover {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.findbar-button:active {
+	background: rgba(255, 255, 255, 0.15);
+}
+
+.findbar-button:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.findbar-options {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.findbar-option {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	color: #e8eaed;
+	font-size: 12px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.findbar-option input[type="checkbox"] {
+	width: 14px;
+	height: 14px;
+	margin: 0;
+	cursor: pointer;
+	accent-color: #8ab4f8;
+}
+
+.findbar-status {
+	color: rgba(255, 255, 255, 0.7);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+#find-results-count {
+	font-variant-numeric: tabular-nums;
+}
+
+#find-results-count.not-found {
+	color: #f28b82;
+}
+
+.findbar-close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	margin-left: auto;
+	background: transparent;
+	color: #e8eaed;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+}
+
+.findbar-close:hover {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+/* ==================== BASE SEARCH HIGHLIGHT STYLES ==================== */
+
+.highlight {
+	background-color: rgba(255, 255, 0, 0.5);
+	border-radius: 2px;
+	padding: 0 1px;
+}
+
+.highlight.selected {
+	background-color: rgba(255, 165, 0, 0.7);
+}
+
+/* ==================== PRINT STYLES ==================== */
+
+@media print {
+	#toolbar,
+	#findbar {
+		display: none !important;
+	}
+
+	body {
+		background: white !important;
+		overflow: visible !important;
+	}
+}
+
