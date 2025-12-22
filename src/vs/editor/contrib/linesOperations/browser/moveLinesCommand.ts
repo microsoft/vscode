@@ -40,14 +40,28 @@ export class MoveLinesCommand implements ICommand {
 		this._moveEndLineSelectionShrink = false;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+	private createVirtualModel(
+		model: ITextModel,
+		lineNumberMapper: (lineNumber: number) => number,
+		contentOverride?: (lineNumber: number) => string | undefined
+	): IVirtualModel {
+		return {
+			tokenization: {
+				getLineTokens: (lineNumber) => model.tokenization.getLineTokens(lineNumberMapper(lineNumber)),
+				getLanguageId: () => model.getLanguageId(),
+				getLanguageIdAtPosition: (lineNumber, column) => model.getLanguageIdAtPosition(lineNumber, column)
+			},
+			getLineContent: (lineNumber: number) => {
+				const customContent = contentOverride?.(lineNumber);
+				if (customContent !== undefined) {
+					return customContent;
+				}
+				return model.getLineContent(lineNumberMapper(lineNumber));
+			}
+		};
+	}
 
-		const getLanguageId = () => {
-			return model.getLanguageId();
-		};
-		const getLanguageIdAtPosition = (lineNumber: number, column: number) => {
-			return model.getLanguageIdAtPosition(lineNumber, column);
-		};
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 
 		const modelLineCount = model.getLineCount();
 
@@ -113,26 +127,10 @@ export class MoveLinesCommand implements ICommand {
 						insertingText = newIndentation + this.trimStart(movingLineText);
 					} else {
 						// no enter rule matches, let's check indentatin rules then.
-						const virtualModel: IVirtualModel = {
-							tokenization: {
-								getLineTokens: (lineNumber: number) => {
-									if (lineNumber === s.startLineNumber) {
-										return model.tokenization.getLineTokens(movingLineNumber);
-									} else {
-										return model.tokenization.getLineTokens(lineNumber);
-									}
-								},
-								getLanguageId,
-								getLanguageIdAtPosition,
-							},
-							getLineContent: (lineNumber: number) => {
-								if (lineNumber === s.startLineNumber) {
-									return model.getLineContent(movingLineNumber);
-								} else {
-									return model.getLineContent(lineNumber);
-								}
-							},
-						};
+						const virtualModel = this.createVirtualModel(
+							model,
+							(lineNumber) => lineNumber === s.startLineNumber ? movingLineNumber : lineNumber
+						);
 						const indentOfMovingLine = getGoodIndentForLine(
 							this._autoIndent,
 							virtualModel,
@@ -165,31 +163,19 @@ export class MoveLinesCommand implements ICommand {
 						}
 					} else {
 						// it doesn't match onEnter rules, let's check indentation rules then.
-						const virtualModel: IVirtualModel = {
-							tokenization: {
-								getLineTokens: (lineNumber: number) => {
-									if (lineNumber === s.startLineNumber) {
-										// TODO@aiday-mar: the tokens here don't correspond exactly to the corresponding content (after indentation adjustment), have to fix this.
-										return model.tokenization.getLineTokens(movingLineNumber);
-									} else if (lineNumber >= s.startLineNumber + 1 && lineNumber <= s.endLineNumber + 1) {
-										return model.tokenization.getLineTokens(lineNumber - 1);
-									} else {
-										return model.tokenization.getLineTokens(lineNumber);
-									}
-								},
-								getLanguageId,
-								getLanguageIdAtPosition,
-							},
-							getLineContent: (lineNumber: number) => {
+						const virtualModel = this.createVirtualModel(
+							model,
+							(lineNumber) => {
 								if (lineNumber === s.startLineNumber) {
-									return insertingText;
+									return movingLineNumber;
 								} else if (lineNumber >= s.startLineNumber + 1 && lineNumber <= s.endLineNumber + 1) {
-									return model.getLineContent(lineNumber - 1);
+									return lineNumber - 1;
 								} else {
-									return model.getLineContent(lineNumber);
+									return lineNumber;
 								}
 							},
-						};
+							(lineNumber) => lineNumber === s.startLineNumber ? insertingText : undefined
+						);
 
 						const newIndentatOfMovingBlock = getGoodIndentForLine(
 							this._autoIndent,
@@ -226,26 +212,10 @@ export class MoveLinesCommand implements ICommand {
 				builder.addEditOperation(new Range(s.endLineNumber, model.getLineMaxColumn(s.endLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)), '\n' + movingLineText);
 
 				if (this.shouldAutoIndent(model, s)) {
-					const virtualModel: IVirtualModel = {
-						tokenization: {
-							getLineTokens: (lineNumber: number) => {
-								if (lineNumber === movingLineNumber) {
-									return model.tokenization.getLineTokens(s.startLineNumber);
-								} else {
-									return model.tokenization.getLineTokens(lineNumber);
-								}
-							},
-							getLanguageId,
-							getLanguageIdAtPosition,
-						},
-						getLineContent: (lineNumber: number) => {
-							if (lineNumber === movingLineNumber) {
-								return model.getLineContent(s.startLineNumber);
-							} else {
-								return model.getLineContent(lineNumber);
-							}
-						},
-					};
+					const virtualModel = this.createVirtualModel(
+						model,
+						(lineNumber) => lineNumber === movingLineNumber ? s.startLineNumber : lineNumber
+					);
 
 					const ret = this.matchEnterRule(model, indentConverter, tabSize, s.startLineNumber, s.startLineNumber - 2);
 					// check if s.startLineNumber - 2 matches onEnter rules, if so adjust the moving block by onEnter rules.
