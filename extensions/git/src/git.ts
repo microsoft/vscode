@@ -2263,6 +2263,11 @@ export class Repository {
 		}
 	}
 
+	async revertCommit(commitHash: string): Promise<void> {
+		const args = ['revert', '--no-edit', commitHash];
+		await this.exec(args);
+	}
+
 	async addRemote(name: string, url: string): Promise<void> {
 		const args = ['remote', 'add', name, url];
 		await this.exec(args);
