@@ -1255,13 +1255,6 @@ registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.D
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
 
-registerAction2(ConfigureToolSets);
-registerAction2(RenameChatSessionAction);
-registerAction2(DeleteChatSessionAction);
-registerAction2(OpenChatSessionInSidebarAction);
-registerAction2(ToggleChatSessionsDescriptionDisplayAction);
-registerAction2(ToggleAgentSessionsViewLocationAction);
-
 class EagerLanguageModelResolverContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.eagerLanguageModelResolver';
 
