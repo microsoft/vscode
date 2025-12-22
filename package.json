@@ -253,7 +253,7 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "sharp": "0.33.3",
+    "sharp": "^0.33.2",
     "windows-foreground-love": "0.5.0"
   }
 }
