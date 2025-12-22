@@ -131,7 +131,6 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
-    "node-gyp": "^10.3.1",
     "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/cookie": "^0.3.3",
@@ -241,9 +240,7 @@
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
     },
-    "@huggingface/transformers": {
-      "sharp": "$sharp"
-    }
+    "sharp": "0.33.5"
   },
   "repository": {
     "type": "git",
@@ -253,7 +250,6 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "sharp": "^0.34.1",
     "windows-foreground-love": "0.5.0"
   }
 }
