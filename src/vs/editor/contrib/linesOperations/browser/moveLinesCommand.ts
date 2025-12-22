@@ -51,7 +51,7 @@ export class MoveLinesCommand implements ICommand {
 				getLanguageId: () => model.getLanguageId(),
 				getLanguageIdAtPosition: (lineNumber, column) => model.getLanguageIdAtPosition(lineNumber, column)
 			},
-			getLineContent: (lineNumber: number) => {
+			getLineContent: (lineNumber) => {
 				const customContent = contentOverride?.(lineNumber);
 				if (customContent !== undefined) {
 					return customContent;
