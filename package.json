@@ -240,7 +240,10 @@
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
     },
-    "sharp": "0.33.5"
+    "sharp": "0.33.5",
+    "ajv-keywords@5": {
+      "ajv": "^8.17.1"
+    }
   },
   "repository": {
     "type": "git",
