@@ -23,5 +23,11 @@
     "tas-client": "0.3.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-textmate": "^9.3.0"
+  },
+  "overrides": {
+    "@huggingface/transformers": {
+      "sharp": "npm:empty-npm-package@1.0.0",
+      "onnxruntime-node": "npm:empty-npm-package@1.0.0"
+    }
   }
 }
