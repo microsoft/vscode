@@ -56,7 +56,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
-		glyphMarginClassName: 'ClassName.EditorWarningDecoration'
+		glyphMarginClassName: ClassName.EditorWarningDecoration
 	});
 
 	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
