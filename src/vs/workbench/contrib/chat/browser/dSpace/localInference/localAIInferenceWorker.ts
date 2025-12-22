@@ -290,7 +290,7 @@ export class LocalAIInferenceWorker implements ILocalAIInferenceWorker, IWebWork
 	}
 
 	/**
-	 * Load transformers.js from the correct location
+	 * Load transformers.js from the bundled local copy
 	 * Uses the host to get the proper URI that works in both development and production
 	 */
 	private async loadTransformers(): Promise<unknown> {

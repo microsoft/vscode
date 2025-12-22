@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "parcel-bundler/watcher#1ca032aa8339260a8a3bcf825c3a1a71e3e43542",
@@ -45,6 +46,10 @@
     "node-gyp-build": "4.8.1",
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
+    },
+    "@huggingface/transformers": {
+      "sharp": "npm:empty-npm-package@1.0.0",
+      "onnxruntime-node": "npm:empty-npm-package@1.0.0"
     }
   }
 }

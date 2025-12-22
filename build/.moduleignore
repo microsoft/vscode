@@ -188,3 +188,21 @@ zone.js/dist/**
 @xterm/xterm-addon-*/fixtures/**
 @xterm/xterm-addon-*/out/**
 @xterm/xterm-addon-*/out-test/**
+
+# transformers.js for local AI inference (WebGPU)
+@huggingface/transformers/**
+!@huggingface/transformers/dist/transformers.min.js
+!@huggingface/transformers/dist/transformers.js
+!@huggingface/transformers/dist/*.wasm
+!@huggingface/transformers/dist/*.mjs
+
+# onnxruntime-web is required for WebGPU inference
+onnxruntime-web/**
+!onnxruntime-web/dist/*.wasm
+!onnxruntime-web/dist/*.mjs
+!onnxruntime-web/dist/*.js
+
+# onnxruntime-common is required by onnxruntime-web
+onnxruntime-common/**
+!onnxruntime-common/dist/*.mjs
+!onnxruntime-common/dist/*.js
