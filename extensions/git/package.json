@@ -1128,6 +1128,7 @@
       {
         "command": "git.repositories.openWorktreeInNewWindow",
         "title": "%command.openWorktreeInNewWindow2%",
+        "icon": "$(folder-opened)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -2116,7 +2117,7 @@
           "when": "scmProvider == git && (scmArtifactGroupId == branches || scmArtifactGroupId == tags)"
         },
         {
-          "command": "git.repositories.openWorktree",
+          "command": "git.repositories.openWorktreeInNewWindow",
           "group": "inline@1",
           "when": "scmProvider == git && scmArtifactGroupId == worktrees"
         },
