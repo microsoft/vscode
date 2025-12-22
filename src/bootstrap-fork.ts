@@ -197,11 +197,9 @@ function configureCrashReporter(): void {
 
 //#endregion
 
-// Crash reporter
-configureCrashReporter();
+configureCrashReporter(); // Crash reporter
 
-// Remove global paths from the node module lookup (node.js only)
-removeGlobalNodeJsModuleLookupPaths();
+removeGlobalNodeJsModuleLookupPaths(); // Remove global paths from the node module lookup (node.js only)
 
 if (process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']) {
 	devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
@@ -222,8 +220,7 @@ if (process.env['VSCODE_PARENT_PID']) {
 	terminateWhenParentTerminates();
 }
 
-// Bootstrap ESM
-await bootstrapESM();
+await bootstrapESM(); // Bootstrap ESM
 
 // Load ESM entry point
 await import([`./${process.env['VSCODE_ESM_ENTRYPOINT']}.js`].join('/') /* workaround: esbuild prints some strange warnings when trying to inline? */);
