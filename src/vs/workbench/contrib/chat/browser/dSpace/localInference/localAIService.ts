@@ -169,8 +169,7 @@ export class LocalAIService extends Disposable implements ILocalAIService {
 			this.logService.info('Creating inference worker');
 
 			const descriptor = new WebWorkerDescriptor({
-				esmModuleLocation: () => FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/dSpace/localInference/localAIInferenceWorker.js'),
-				esmModuleLocationBundler: () => new URL('./localAIInferenceWorker.ts?workerModule', import.meta.url),
+				esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/dSpace/localInference/localAIInferenceWorkerMain.js'),
 				label: 'Local AI Inference Worker'
 			});
 

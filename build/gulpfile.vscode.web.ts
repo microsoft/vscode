@@ -85,6 +85,7 @@ const vscodeWebEntryPoints = [
 	buildfile.workerLocalFileSearch,
 	buildfile.workerOutputLinks,
 	buildfile.workerBackgroundTokenization,
+	buildfile.workerLocalAI,
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb,
 	buildfile.entrypoint('vs/workbench/workbench.web.main.internal') // TODO@esm remove line when we stop supporting web-amd-esm-bridge

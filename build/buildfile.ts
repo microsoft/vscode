@@ -19,6 +19,7 @@ export const workerLocalFileSearch = createModuleDescription('vs/workbench/servi
 export const workerProfileAnalysis = createModuleDescription('vs/platform/profiling/electron-browser/profileAnalysisWorkerMain');
 export const workerOutputLinks = createModuleDescription('vs/workbench/contrib/output/common/outputLinkComputerMain');
 export const workerBackgroundTokenization = createModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain');
+export const workerLocalAI = createModuleDescription('vs/workbench/contrib/chat/browser/dSpace/localInference/localAIInferenceWorkerMain');
 
 export const workbenchDesktop = [
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
@@ -65,6 +66,7 @@ const buildfile = {
 	workerProfileAnalysis,
 	workerOutputLinks,
 	workerBackgroundTokenization,
+	workerLocalAI,
 	workbenchDesktop,
 	workbenchWeb,
 	keyboardMaps,

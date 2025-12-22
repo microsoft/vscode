@@ -6,8 +6,20 @@
 import { IChatMessage, ChatMessageRole } from '../../../common/languageModels.js';
 import { ILocalAIGenerationOptions } from './localAI.js';
 import { ILocalAIInferenceWorker, LocalAIInferenceWorkerHost } from './localAIWorker.protocol.js';
-import { initialize } from '../../../../../../base/common/worker/webWorkerBootstrap.js';
-import { IWebWorkerServerRequestHandler } from '../../../../../../base/common/worker/webWorker.js';
+import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../../../base/common/worker/webWorker.js';
+
+/**
+ * Factory function to create the worker instance
+ * This is called by the bootstrapWebWorker function from the Main entry point
+ */
+export function create(workerServer: IWebWorkerServer): IWebWorkerServerRequestHandler {
+	console.log('[Worker] Worker factory called, getting host channel...');
+	const host = LocalAIInferenceWorkerHost.getChannel(workerServer);
+	console.log('[Worker] Host channel obtained, creating LocalAIInferenceWorker instance');
+	const worker = new LocalAIInferenceWorker(host);
+	console.log('[Worker] LocalAIInferenceWorker instance created');
+	return worker;
+}
 
 /**
  * Web worker implementation for running inference with transformers.js
@@ -311,15 +323,4 @@ export class LocalAIInferenceWorker implements ILocalAIInferenceWorker, IWebWork
 	}
 }
 
-// Initialize the worker immediately
-console.log('[Worker] Initializing Local AI Inference Worker...');
-initialize((workerServer) => {
-	console.log('[Worker] Worker factory called, getting host channel...');
-	const host = LocalAIInferenceWorkerHost.getChannel(workerServer);
-	console.log('[Worker] Host channel obtained, creating LocalAIInferenceWorker instance');
-	const worker = new LocalAIInferenceWorker(host);
-	console.log('[Worker] LocalAIInferenceWorker instance created');
-	return worker;
-});
-console.log('[Worker] Initialization complete');
 

@@ -119,6 +119,7 @@ const webEntryPoints = [
 	buildfile.workerLocalFileSearch,
 	buildfile.workerOutputLinks,
 	buildfile.workerBackgroundTokenization,
+	buildfile.workerLocalAI,
 	buildfile.keyboardMaps,
 	buildfile.codeWeb
 ].flat();
