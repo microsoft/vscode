@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable, Command } from 'vscode';
-import { coalesce, dispose, filterEvent, IDisposable } from './util';
+import { coalesce, dispose, filterEvent, IDisposable, isCopilotWorktree } from './util';
 import { Repository } from './repository';
 import { Commit, Ref, RefType } from './api/git';
 import { OperationKind } from './operation';
@@ -172,7 +172,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 						w.commitDetails?.hash.substring(0, shortCommitLength),
 						w.commitDetails?.message.split('\n')[0]
 					]).join(' \u2022 '),
-					icon: w.name.startsWith('copilot-worktree')
+					icon: isCopilotWorktree(w.path)
 						? new ThemeIcon('chat-sparkle')
 						: new ThemeIcon('worktree'),
 					timestamp: w.commitDetails?.commitDate?.getTime(),

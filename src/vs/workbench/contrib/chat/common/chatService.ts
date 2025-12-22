@@ -23,7 +23,7 @@ import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from './chatAgents.js';
 import { IChatEditingSession } from './chatEditingService.js';
-import { IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
@@ -934,12 +934,6 @@ export interface IChatProviderInfo {
 	id: string;
 }
 
-export interface IChatTransferredSessionData {
-	sessionId: string;
-	location: ChatAgentLocation;
-	inputState: IChatModelInputState | undefined;
-}
-
 export interface IChatSendRequestResponseState {
 	responseCreatedPromise: Promise<IChatResponseModel>;
 	responseCompletePromise: Promise<void>;
@@ -1006,7 +1000,7 @@ export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
-	transferredSessionData: IChatTransferredSessionData | undefined;
+	transferredSessionResource: URI | undefined;
 
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
 
@@ -1066,7 +1060,7 @@ export interface IChatService {
 	notifyUserAction(event: IChatUserActionEvent): void;
 	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
 
-	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
+	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 

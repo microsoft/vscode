@@ -30,7 +30,7 @@ export class ChatTransferService implements IChatTransferService {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) { }
 
-	deleteWorkspaceFromTransferredList(workspace: URI): void {
+	private deleteWorkspaceFromTransferredList(workspace: URI): void {
 		const transferredWorkspaces = this.storageService.getObject<string[]>(transferredWorkspacesKey, StorageScope.PROFILE, []);
 		const updatedWorkspaces = transferredWorkspaces.filter(uri => uri !== workspace.toString());
 		this.storageService.store(transferredWorkspacesKey, updatedWorkspaces, StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -54,7 +54,7 @@ export class ChatTransferService implements IChatTransferService {
 		}
 	}
 
-	isChatTransferredWorkspace(workspace: URI, storageService: IStorageService): boolean {
+	private isChatTransferredWorkspace(workspace: URI, storageService: IStorageService): boolean {
 		if (!workspace) {
 			return false;
 		}

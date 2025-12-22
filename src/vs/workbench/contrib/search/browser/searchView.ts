@@ -2038,8 +2038,10 @@ export class SearchView extends ViewPane {
 				openInEditorTooltip));
 			dom.append(messageEl, openInEditorButton.element);
 
-			dom.append(messageEl, ' - ');
-			this.appendSearchWithAIButton(messageEl);
+			if (this.shouldShowAIResults()) {
+				dom.append(messageEl, ' - ');
+				this.appendSearchWithAIButton(messageEl);
+			}
 
 			this.reLayout();
 		} else if (!msgWasHidden) {
