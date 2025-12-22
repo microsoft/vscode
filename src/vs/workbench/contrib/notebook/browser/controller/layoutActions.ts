@@ -164,7 +164,8 @@ registerAction2(class ToggleBreadcrumbFromEditorTitle extends Action2 {
 	constructor() {
 		super({
 			id: 'breadcrumbs.toggleFromEditorTitle',
-			title: localize2('notebook.toggleBreadcrumb', 'Breadcrumbs'),
+			title: localize2('notebook.toggleBreadcrumb', 'Toggle Breadcrumbs'),
+			shortTitle: localize2('notebook.toggleBreadcrumb.short', 'Breadcrumbs'),
 			toggled: {
 				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
 				title: localize('cmd.toggle2', "Breadcrumbs")
@@ -174,6 +175,7 @@ registerAction2(class ToggleBreadcrumbFromEditorTitle extends Action2 {
 				group: 'notebookLayoutDetails',
 				order: 2
 			}],
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			f1: false
 		});
 	}
