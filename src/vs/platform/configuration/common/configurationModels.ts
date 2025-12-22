@@ -229,26 +229,59 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	private getContentsForOverrideIdentifer(identifier: string): IStringDictionary<unknown> | null {
-		let contentsForIdentifierOnly: IStringDictionary<unknown> | null = null;
-		let contents: IStringDictionary<unknown> | null = null;
-		const mergeContents = (contentsToMerge: IStringDictionary<unknown> | null) => {
-			if (contentsToMerge) {
-				if (contents) {
-					this.mergeContents(contents, contentsToMerge);
+		// Track single-language and multi-language overrides separately along with their positions
+		let multiLanguageContents: IStringDictionary<unknown> | null = null;
+		let singleLanguageContents: IStringDictionary<unknown> | null = null;
+		let lastMultiLanguageIndex = -1;
+		let lastSingleLanguageIndex = -1;
+
+		// Process all overrides and track the last occurrence of each type
+		this.overrides.forEach((override, index) => {
+			if (override.identifiers.length === 1 && override.identifiers[0] === identifier) {
+				// Single-language match: remember the last one
+				singleLanguageContents = override.contents;
+				lastSingleLanguageIndex = index;
+			} else if (override.identifiers.includes(identifier)) {
+				// Multi-language match: merge all of them
+				if (multiLanguageContents) {
+					this.mergeContents(multiLanguageContents, override.contents);
 				} else {
-					contents = objects.deepClone(contentsToMerge);
+					multiLanguageContents = objects.deepClone(override.contents);
+				}
+				lastMultiLanguageIndex = index;
+			}
+		});
+
+		// Merge based on order: the override that came last in the array should have higher priority
+		// This preserves both cross-scope priority (workspace > user) and within-scope specificity
+		let contents: IStringDictionary<unknown> | null = null;
+
+		if (lastSingleLanguageIndex > lastMultiLanguageIndex) {
+			// Single-language came after all multi-language, so merge multi first, then single
+			if (multiLanguageContents) {
+				contents = objects.deepClone(multiLanguageContents);
+			}
+			if (singleLanguageContents) {
+				if (contents) {
+					this.mergeContents(contents, singleLanguageContents);
+				} else {
+					contents = objects.deepClone(singleLanguageContents);
 				}
 			}
-		};
-		for (const override of this.overrides) {
-			if (override.identifiers.length === 1 && override.identifiers[0] === identifier) {
-				contentsForIdentifierOnly = override.contents;
-			} else if (override.identifiers.includes(identifier)) {
-				mergeContents(override.contents);
+		} else if (lastMultiLanguageIndex >= 0 || lastSingleLanguageIndex >= 0) {
+			// Multi-language came last (or there's only multi-language), so merge single first, then multi
+			if (singleLanguageContents) {
+				contents = objects.deepClone(singleLanguageContents);
+			}
+			if (multiLanguageContents) {
+				if (contents) {
+					this.mergeContents(contents, multiLanguageContents);
+				} else {
+					contents = multiLanguageContents;
+				}
 			}
 		}
-		// Merge contents of the identifier only at the end to take precedence.
-		mergeContents(contentsForIdentifierOnly);
+
 		return contents;
 	}
 
