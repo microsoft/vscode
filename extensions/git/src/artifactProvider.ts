@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable, Command } from 'vscode';
-import { coalesce, dispose, filterEvent, IDisposable } from './util';
+import { coalesce, dispose, filterEvent, IDisposable, isCopilotWorktree } from './util';
 import { Repository } from './repository';
 import { Commit, Ref, RefType } from './api/git';
 import { OperationKind } from './operation';
@@ -77,7 +77,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch'), supportsFolders: true },
 			{ id: 'stashes', name: l10n.t('Stashes'), icon: new ThemeIcon('git-stash'), supportsFolders: false },
 			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag'), supportsFolders: true },
-			{ id: 'worktrees', name: l10n.t('Worktrees'), icon: new ThemeIcon('list-tree'), supportsFolders: false }
+			{ id: 'worktrees', name: l10n.t('Worktrees'), icon: new ThemeIcon('worktree'), supportsFolders: false }
 		];
 
 		this._disposables.push(this._onDidChangeArtifacts);
@@ -172,7 +172,9 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 						w.commitDetails?.hash.substring(0, shortCommitLength),
 						w.commitDetails?.message.split('\n')[0]
 					]).join(' \u2022 '),
-					icon: new ThemeIcon('list-tree'),
+					icon: isCopilotWorktree(w.path)
+						? new ThemeIcon('chat-sparkle')
+						: new ThemeIcon('worktree'),
 					timestamp: w.commitDetails?.commitDate?.getTime(),
 				}));
 			}
