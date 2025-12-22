@@ -17,6 +17,7 @@
       {
         "id": "r",
         "extensions": [
+          ".R",
           ".r",
           ".rhistory",
           ".rprofile",
