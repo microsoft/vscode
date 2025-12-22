@@ -419,6 +419,16 @@ export class ChatSessionStore extends Disposable {
 		});
 	}
 
+	getMetadataForSessionSync(sessionResource: URI): IChatSessionEntryMetadata | undefined {
+		const index = this.internalGetIndex();
+		return index.entries[this.getIndexKey(sessionResource)];
+	}
+
+	private getIndexKey(sessionResource: URI): string {
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+		return sessionId ?? sessionResource.toString();
+	}
+
 	logIndex(): void {
 		const data = this.storageService.get(ChatIndexStorageKey, this.getIndexStorageScope(), undefined);
 		this.logService.info('ChatSessionStore index: ', data);

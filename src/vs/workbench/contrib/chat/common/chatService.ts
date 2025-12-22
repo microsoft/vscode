@@ -1024,8 +1024,7 @@ export interface IChatService {
 	getActiveSessionReference(sessionResource: URI): IChatModelReference | undefined;
 
 	getOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined>;
-	getPersistedSessionTitle(sessionResource: URI): string | undefined;
-	isPersistedSessionEmpty(sessionResource: URI): boolean;
+	getSessionTitle(sessionResource: URI): string | undefined;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModelReference | undefined;
 	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined>;
 	readonly editingSessions: IChatEditingSession[];
