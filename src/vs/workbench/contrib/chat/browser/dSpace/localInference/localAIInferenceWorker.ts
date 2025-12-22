@@ -290,36 +290,27 @@ export class LocalAIInferenceWorker implements ILocalAIInferenceWorker, IWebWork
 	}
 
 	/**
-	 * Load transformers.js from the locally bundled dependency
+	 * Load transformers.js from the correct location
+	 * Uses the host to get the proper URI that works in both development and production
 	 */
 	private async loadTransformers(): Promise<unknown> {
 		if (this.transformers) {
 			return this.transformers;
 		}
 
-		const candidates: string[] = [];
+		// Get the URI from the host - this resolves correctly for both dev and production
+		const transformersUri = await this.host.$getTransformersJsUri();
+		await this.host.$logMessage('info', `Loading transformers.js from: ${transformersUri}`);
+
 		try {
-			// Try minified then unminified bundles served from the repo
-			candidates.push(new URL('../../../../../../../../node_modules/@huggingface/transformers/dist/transformers.min.js', import.meta.url).toString());
-			candidates.push(new URL('../../../../../../../../node_modules/@huggingface/transformers/dist/transformers.js', import.meta.url).toString());
-		} catch {
-			// ignore URL construction errors
+			const mod = await import(/* webpackIgnore: true */ transformersUri);
+			this.transformers = (mod as { default?: unknown }).default ?? mod;
+			await this.host.$logMessage('info', 'Successfully loaded transformers.js');
+			return this.transformers;
+		} catch (error) {
+			await this.host.$logMessage('error', `Failed to load transformers.js: ${error}`);
+			throw error;
 		}
-
-		let lastError: unknown;
-		for (const candidate of candidates) {
-			try {
-				await this.host.$logMessage('info', `Attempting to import transformers.js from: ${candidate}`);
-				const mod = await import(/* webpackIgnore: true */ candidate);
-				this.transformers = (mod as { default?: unknown }).default ?? mod;
-				return this.transformers;
-			} catch (error) {
-				lastError = error;
-				await this.host.$logMessage('error', `Import failed from ${candidate}: ${error}`);
-			}
-		}
-
-		throw lastError ?? new Error('Failed to load transformers.js');
 	}
 }
 

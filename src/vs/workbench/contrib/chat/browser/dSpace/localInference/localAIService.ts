@@ -13,7 +13,7 @@ import { ILocalAIInferenceWorker, LocalAIInferenceWorkerHost } from './localAIWo
 import { LocalAIWebGPUDetector } from './localAIWebGPUDetector.js';
 import { IChatMessage } from '../../../common/languageModels.js';
 import { IWebWorkerClient } from '../../../../../../base/common/worker/webWorker.js';
-import { FileAccess } from '../../../../../../base/common/network.js';
+import { FileAccess, nodeModulesPath } from '../../../../../../base/common/network.js';
 import { IProgressService, ProgressLocation, IProgress, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 
 /**
@@ -313,6 +313,12 @@ class LocalAIInferenceWorkerHostImpl extends LocalAIInferenceWorkerHost {
 		}>
 	) {
 		super();
+	}
+
+	async $getTransformersJsUri(): Promise<string> {
+		// Use FileAccess to get the correct URI for transformers.js
+		// This works in both development and production
+		return FileAccess.asBrowserUri(`${nodeModulesPath}/@huggingface/transformers/dist/transformers.min.js`).toString(true);
 	}
 
 	setProgressReporter(reporter: IProgress<IProgressStep>): void {

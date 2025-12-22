@@ -48,6 +48,15 @@ vscode-textmate/webpack.config.js
 !@vscode/vscode-languagedetection/model/**
 !@vscode/tree-sitter-wasm/wasm/**
 
+# Include transformers.js for local AI inference
+@huggingface/transformers/**
+!@huggingface/transformers/dist/transformers.min.js
+!@huggingface/transformers/dist/transformers.js
+# onnxruntime-web is a dependency of transformers.js needed for WebGPU inference
+onnxruntime-web/**
+!onnxruntime-web/dist/*.wasm
+!onnxruntime-web/dist/*.mjs
+
 # Ensure only the required telemetry pieces are loaded in web to reduce bundle size
 @microsoft/1ds-core-js/**
 @microsoft/1ds-post-js/**

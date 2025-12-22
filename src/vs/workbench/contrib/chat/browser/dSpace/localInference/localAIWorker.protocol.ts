@@ -53,6 +53,12 @@ export abstract class LocalAIInferenceWorkerHost {
 	}
 
 	/**
+	 * Get the URI for the transformers.js library
+	 * This resolves the correct path whether in development or production
+	 */
+	abstract $getTransformersJsUri(): Promise<string>;
+
+	/**
 	 * Log a message from the worker
 	 */
 	abstract $logMessage(level: 'info' | 'warn' | 'error', message: string): Promise<void>;
