@@ -14,6 +14,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { ClassName } from '../../../common/model/intervalTree.js';
 
 const foldBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hcDark: null, hcLight: null }, localize('foldBackgroundBackground', "Background color behind folded ranges. The color must not be opaque so as not to hide underlying decorations."), true);
 registerColor('editor.foldPlaceholderForeground', { light: '#808080', dark: '#808080', hcDark: null, hcLight: null }, localize('collapsedTextColor', "Color of the collapsed text after the first line of a folded range."));
@@ -46,7 +47,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
-		glyphMarginClassName: 'squiggly-error'
+		glyphMarginClassName: ClassName.EditorErrorDecoration
 	});
 
 	private static readonly COLLAPSED_VISUAL_WARNING_DECORATION = ModelDecorationOptions.register({
@@ -55,7 +56,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
-		glyphMarginClassName: 'squiggly-warning'
+		glyphMarginClassName: 'ClassName.EditorWarningDecoration'
 	});
 
 	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -77,7 +78,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
-		glyphMarginClassName: 'squiggly-error'
+		glyphMarginClassName: ClassName.EditorErrorDecoration
 	});
 
 	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_WARNING_DECORATION = ModelDecorationOptions.register({
@@ -88,7 +89,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
-		glyphMarginClassName: 'squiggly-warning'
+		glyphMarginClassName: ClassName.EditorWarningDecoration
 	});
 
 	private static readonly MANUALLY_COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -106,7 +107,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon),
-		glyphMarginClassName: 'squiggly-error'
+		glyphMarginClassName: ClassName.EditorErrorDecoration
 	});
 
 	private static readonly MANUALLY_COLLAPSED_VISUAL_WARNING_DECORATION = ModelDecorationOptions.register({
@@ -115,7 +116,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon),
-		glyphMarginClassName: 'squiggly-warning'
+		glyphMarginClassName: ClassName.EditorWarningDecoration
 	});
 
 	private static readonly MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -137,7 +138,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon),
-		glyphMarginClassName: 'squiggly-error'
+		glyphMarginClassName: ClassName.EditorErrorDecoration
 	});
 
 	private static readonly MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_WARNING_DECORATION = ModelDecorationOptions.register({
@@ -148,7 +149,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon),
-		glyphMarginClassName: 'squiggly-warning'
+		glyphMarginClassName: ClassName.EditorWarningDecoration
 	});
 
 	private static readonly NO_CONTROLS_COLLAPSED_RANGE_DECORATION = ModelDecorationOptions.register({
@@ -164,7 +165,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
-		glyphMarginClassName: 'squiggly-error'
+		glyphMarginClassName: ClassName.EditorErrorDecoration
 	});
 
 	private static readonly NO_CONTROLS_COLLAPSED_RANGE_WARNING_DECORATION = ModelDecorationOptions.register({
@@ -172,7 +173,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
-		glyphMarginClassName: 'squiggly-warning'
+		glyphMarginClassName: ClassName.EditorWarningDecoration
 	});
 
 	private static readonly NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_DECORATION = ModelDecorationOptions.register({
@@ -192,17 +193,17 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		className: 'folded-background',
 		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
-		glyphMarginClassName: 'squiggly-error'
+		glyphMarginClassName: ClassName.EditorErrorDecoration
 	});
 
 	private static readonly NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_WARNING_DECORATION = ModelDecorationOptions.register({
-		description: 'folding-no-controls-range-decoration',
+		description: 'folding-no-controls-range-warning-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		className: 'folded-background',
 		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
-		glyphMarginClassName: 'squiggly-warning'
+		glyphMarginClassName: ClassName.EditorWarningDecoration
 	});
 
 	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({

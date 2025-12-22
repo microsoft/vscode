@@ -9,6 +9,7 @@ import { FoldingRegion, FoldingRegions, ILineRange, FoldRange, FoldSource } from
 import { hash } from '../../../../base/common/hash.js';
 import { SelectedLines } from './folding.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { ClassName } from '../../../common/model/intervalTree.js';
 
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean, markerSeverity?: MarkerSeverity): IModelDecorationOptions;
@@ -106,11 +107,11 @@ export class FoldingModel {
 		const decorations = this._textModel.getLinesDecorations(startLineNumber + 1, endLineNumber);
 		for (let index = 0; index < decorations.length; index++) {
 			const decoration = decorations[index];
-			if (decoration.options.className === 'squiggly-error') {
+			if (decoration.options.className === ClassName.EditorErrorDecoration) {
 				maxMarkerSeverity = MarkerSeverity.Error;
 				break;
 			}
-			if (decoration.options.className === 'squiggly-warning') {
+			if (decoration.options.className === ClassName.EditorWarningDecoration) {
 				maxMarkerSeverity = MarkerSeverity.Warning;
 			}
 		}
