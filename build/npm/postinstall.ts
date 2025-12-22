@@ -125,10 +125,43 @@ function removeParcelWatcherPrebuild(dir: string) {
 	}
 }
 
+/**
+ * Fixes ajv version conflict: ajv-keywords@5.x requires ajv@8.x but npm dedupes to ajv@6.x
+ * Copy ajv@8.x from schema-utils/node_modules/ajv to ajv-keywords/node_modules/ajv
+ */
+function fixAjvVersionConflict(dir: string) {
+	const ajvKeywordsPath = path.join(root, dir, 'node_modules', 'ajv-keywords');
+	const schemaUtilsAjvPath = path.join(root, dir, 'node_modules', 'schema-utils', 'node_modules', 'ajv');
+
+	if (!fs.existsSync(ajvKeywordsPath) || !fs.existsSync(schemaUtilsAjvPath)) {
+		return;
+	}
+
+	const ajvKeywordsNestedPath = path.join(ajvKeywordsPath, 'node_modules', 'ajv');
+
+	if (fs.existsSync(ajvKeywordsNestedPath)) {
+		return;
+	}
+
+	try {
+		const ajvPkg = JSON.parse(fs.readFileSync(path.join(schemaUtilsAjvPath, 'package.json'), 'utf8'));
+		if (!ajvPkg.version.startsWith('8.')) {
+			return;
+		}
+
+		fs.mkdirSync(path.join(ajvKeywordsPath, 'node_modules'), { recursive: true });
+		fs.cpSync(schemaUtilsAjvPath, ajvKeywordsNestedPath, { recursive: true });
+		log(dir, `Fixed ajv version conflict: copied ajv@${ajvPkg.version} to ajv-keywords/node_modules/ajv`);
+	} catch {
+		// Ignore errors - best effort fix
+	}
+}
+
 for (const dir of dirs) {
 
 	if (dir === '') {
 		removeParcelWatcherPrebuild(dir);
+		fixAjvVersionConflict(dir);
 		continue; // already executed in root
 	}
 
