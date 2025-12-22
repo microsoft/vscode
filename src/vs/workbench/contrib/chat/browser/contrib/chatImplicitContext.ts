@@ -200,7 +200,10 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		}
 
 		const notebookEditor = this.findActiveNotebookEditor();
-		if (notebookEditor) {
+		if (notebookEditor?.isReplHistory) {
+			// The chat APIs don't work well with Interactive Windows
+			newValue = undefined;
+		} else if (notebookEditor) {
 			const activeCell = notebookEditor.getActiveCell();
 			if (activeCell) {
 				const codeEditor = this.codeEditorService.getActiveCodeEditor();

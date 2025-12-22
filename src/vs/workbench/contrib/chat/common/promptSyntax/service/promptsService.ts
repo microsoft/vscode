@@ -198,7 +198,7 @@ export interface IChatPromptSlashCommand {
 	readonly parsedPromptFile: ParsedPromptFile;
 }
 
-export interface IClaudeSkill {
+export interface IAgentSkill {
 	readonly uri: URI;
 	readonly type: 'personal' | 'project';
 	readonly name: string;
@@ -328,7 +328,7 @@ export interface IPromptsService extends IDisposable {
 	}): IDisposable;
 
 	/**
-	 * Gets list of claude skills files.
+	 * Gets list of agent skills files.
 	 */
-	findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined>;
+	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined>;
 }
