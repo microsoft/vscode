@@ -34,9 +34,11 @@ import { ILLMService } from './llmService.js';
 const textMimeType: { [ext: string]: string | undefined } = {
 	'.html': 'text/html',
 	'.js': 'text/javascript',
+	'.mjs': 'text/javascript', // ES modules (needed for onnxruntime-web, transformers.js)
 	'.json': 'application/json',
 	'.css': 'text/css',
 	'.svg': 'image/svg+xml',
+	'.wasm': 'application/wasm', // WebAssembly (needed for onnxruntime-web)
 };
 
 /**
