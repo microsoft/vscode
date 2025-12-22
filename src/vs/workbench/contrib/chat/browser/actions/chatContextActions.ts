@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { asArray } from '../../../../../base/common/arrays.js';
 import { DeferredPromise, isThenable } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -35,8 +36,6 @@ import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, isEditorCommandsContext, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { CTX_INLINE_CHAT_V2_ENABLED } from '../../../inlineChat/common/inlineChat.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
@@ -45,11 +44,11 @@ import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../searc
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
-import { isSupportedChatFileScheme, ChatAgentLocation } from '../../common/constants.js';
-import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
+import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
-import { resizeImage } from '../imageUtils.js';
+import { resizeImage } from '../chatImageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -63,13 +62,11 @@ export function registerChatContextActions() {
 }
 
 async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
-	const viewsService = accessor.get(IViewsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
-	const layoutService = accessor.get(IWorkbenchLayoutService);
 
 	const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
 	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Chat) {
-		return showChatView(viewsService, layoutService); // only show chat view if we either have no chat view or its located in view container
+		return chatWidgetService.revealWidget(); // only show chat view if we either have no chat view or its located in view container
 	}
 	return lastFocusedWidget;
 }
@@ -261,6 +258,7 @@ class AttachSelectionToChatAction extends Action2 {
 		});
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
@@ -652,11 +650,11 @@ export class AttachContextAction extends Action2 {
 				if (isThenable(attachment)) {
 					addPromises.push(attachment.then(v => {
 						if (v !== noop) {
-							widget.attachmentModel.addContext(v);
+							widget.attachmentModel.addContext(...asArray(v));
 						}
 					}));
 				} else {
-					widget.attachmentModel.addContext(attachment);
+					widget.attachmentModel.addContext(...asArray(attachment));
 				}
 			}
 			if (selected === goBackItem) {

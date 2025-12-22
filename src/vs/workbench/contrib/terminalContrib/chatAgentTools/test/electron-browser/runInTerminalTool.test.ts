@@ -33,11 +33,12 @@ import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/ch
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
-import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -59,7 +60,7 @@ suite('RunInTerminalTool', () => {
 	let storageService: IStorageService;
 	let workspaceContextService: TestContextService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
-	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI; reason: 'cleared' }>;
+	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI[]; reason: 'cleared' }>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -74,13 +75,14 @@ suite('RunInTerminalTool', () => {
 
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
-		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI; reason: 'cleared' }>();
+		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
 			fileService: () => fileService,
 		}, store);
 
+		instantiationService.stub(ITerminalChatService, store.add(instantiationService.createInstance(TerminalChatService)));
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(IHistoryService, {
 			getLastActiveWorkspaceRoot: () => undefined
@@ -241,6 +243,11 @@ suite('RunInTerminalTool', () => {
 			'date +%Y-%m-%d',
 			'find . -name "*.txt"',
 			'grep pattern file.txt',
+			'rg pattern file.txt',
+			'rg --json pattern .',
+			'rg -i --color=never "TODO" src/',
+			'sed "s/foo/bar/g"',
+			'sed -n "1,10p" file.txt',
 			'sort file.txt',
 			'tree directory'
 		];
@@ -293,6 +300,19 @@ suite('RunInTerminalTool', () => {
 			'find . -exec rm {} \\;',
 			'find . -execdir rm {} \\;',
 			'find . -fprint output.txt',
+			'rg --pre cat pattern .',
+			'rg --hostname-bin hostname pattern .',
+			'sed -i "s/foo/bar/g" file.txt',
+			'sed -i.bak "s/foo/bar/" file.txt',
+			'sed -Ibak "s/foo/bar/" file.txt',
+			'sed --in-place "s/foo/bar/" file.txt',
+			'sed -e "s/a/b/" file.txt',
+			'sed -f script.sed file.txt',
+			'sed --expression "s/a/b/" file.txt',
+			'sed --file script.sed file.txt',
+			'sed "s/foo/bar/e" file.txt',
+			'sed "s/foo/bar/w output.txt" file.txt',
+			'sed ";W output.txt" file.txt',
 			'sort -o /etc/passwd file.txt',
 			'sort -S 100G file.txt',
 			'tree -o output.txt',
@@ -473,7 +493,7 @@ suite('RunInTerminalTool', () => {
 
 	suite('prepareToolInvocation - custom actions for dropdown', () => {
 
-		function assertDropdownActions(result: IPreparedToolInvocation | undefined, items: ({ subCommand: SingleOrMany<string> } | 'commandLine' | '---' | 'configure')[]) {
+		function assertDropdownActions(result: IPreparedToolInvocation | undefined, items: ({ subCommand: SingleOrMany<string> } | 'commandLine' | '---' | 'configure' | 'sessionApproval')[]) {
 			const actions = result?.confirmationMessages?.terminalCustomActions!;
 			ok(actions, 'Expected custom actions to be defined');
 
@@ -488,6 +508,9 @@ suite('RunInTerminalTool', () => {
 					if (item === 'configure') {
 						strictEqual(action.label, 'Configure Auto Approve...');
 						strictEqual(action.data.type, 'configure');
+					} else if (item === 'sessionApproval') {
+						strictEqual(action.label, 'Allow All Commands in this Session');
+						strictEqual(action.data.type, 'sessionApproval');
 					} else if (item === 'commandLine') {
 						strictEqual(action.label, 'Always Allow Exact Command Line');
 						strictEqual(action.data.type, 'newRule');
@@ -519,6 +542,8 @@ suite('RunInTerminalTool', () => {
 				{ subCommand: 'npm run build' },
 				'commandLine',
 				'---',
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -532,6 +557,8 @@ suite('RunInTerminalTool', () => {
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
 				{ subCommand: 'foo' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -560,6 +587,8 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -574,6 +603,8 @@ suite('RunInTerminalTool', () => {
 			assertDropdownActions(result, [
 				{ subCommand: ['npm install', 'npm run build'] },
 				'commandLine',
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -592,6 +623,8 @@ suite('RunInTerminalTool', () => {
 			assertDropdownActions(result, [
 				{ subCommand: 'foo' },
 				'commandLine',
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -625,6 +658,8 @@ suite('RunInTerminalTool', () => {
 				{ subCommand: ['foo', 'bar'] },
 				'commandLine',
 				'---',
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -639,6 +674,8 @@ suite('RunInTerminalTool', () => {
 			assertDropdownActions(result, [
 				{ subCommand: 'git status' },
 				'commandLine',
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -655,6 +692,8 @@ suite('RunInTerminalTool', () => {
 				{ subCommand: 'npm test' },
 				'commandLine',
 				'---',
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -669,6 +708,8 @@ suite('RunInTerminalTool', () => {
 			assertDropdownActions(result, [
 				{ subCommand: 'npm run build' },
 				'commandLine',
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -685,6 +726,8 @@ suite('RunInTerminalTool', () => {
 				{ subCommand: 'yarn run test' },
 				'commandLine',
 				'---',
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -699,6 +742,8 @@ suite('RunInTerminalTool', () => {
 			assertDropdownActions(result, [
 				{ subCommand: 'foo' },
 				'commandLine',
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -715,6 +760,8 @@ suite('RunInTerminalTool', () => {
 				{ subCommand: 'npm run abc' },
 				'commandLine',
 				'---',
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -729,6 +776,8 @@ suite('RunInTerminalTool', () => {
 			assertDropdownActions(result, [
 				{ subCommand: ['npm run build', 'git status'] },
 				'commandLine',
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -745,6 +794,8 @@ suite('RunInTerminalTool', () => {
 				{ subCommand: ['git push', 'echo'] },
 				'commandLine',
 				'---',
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -759,6 +810,8 @@ suite('RunInTerminalTool', () => {
 			assertDropdownActions(result, [
 				{ subCommand: ['git status', 'git log'] },
 				'commandLine',
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -775,6 +828,8 @@ suite('RunInTerminalTool', () => {
 				{ subCommand: 'foo' },
 				'commandLine',
 				'---',
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -787,6 +842,8 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -801,6 +858,8 @@ suite('RunInTerminalTool', () => {
 			assertDropdownActions(result, [
 				{ subCommand: 'npm test' },
 				'commandLine',
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -817,6 +876,8 @@ suite('RunInTerminalTool', () => {
 				{ subCommand: 'foo' },
 				'commandLine',
 				'---',
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -830,6 +891,8 @@ suite('RunInTerminalTool', () => {
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
 				'commandLine',
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -847,6 +910,8 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -889,7 +954,7 @@ suite('RunInTerminalTool', () => {
 
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should exist before disposal');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession(sessionId), reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId)], reason: 'cleared' });
 
 			strictEqual(terminalDisposed, true, 'Terminal should have been disposed');
 			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should be removed after disposal');
@@ -926,7 +991,7 @@ suite('RunInTerminalTool', () => {
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should exist');
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should exist');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession(sessionId1), reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId1)], reason: 'cleared' });
 
 			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
 			strictEqual(terminal2Disposed, false, 'Terminal 2 should NOT have been disposed');
@@ -936,7 +1001,7 @@ suite('RunInTerminalTool', () => {
 
 		test('should handle disposal of non-existent session gracefully', () => {
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist initially');
-			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession('non-existent-session'), reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession('non-existent-session')], reason: 'cleared' });
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
 		});
 	});
@@ -986,6 +1051,34 @@ suite('RunInTerminalTool', () => {
 			ok(autoApproveInfo);
 			ok(autoApproveInfo.value.includes('Auto approved by rule '), 'should contain singular "rule", not plural');
 			strictEqual(count(autoApproveInfo.value, 'echo'), 1);
+		});
+	});
+
+	suite('session auto approval', () => {
+		test('should auto approve all commands when session has auto approval enabled', async () => {
+			const sessionId = 'test-session-123';
+			const terminalChatService = instantiationService.get(ITerminalChatService);
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'rm dangerous-file.txt',
+					explanation: 'Remove a file',
+					isBackground: false
+				} as IRunInTerminalInputParams,
+				chatSessionId: sessionId
+			} as IToolInvocationPreparationContext;
+
+			let result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result);
+
+			terminalChatService.setChatSessionAutoApproval(sessionId, true);
+
+			result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			assertAutoApproved(result);
+
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
+			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined');
+			ok(terminalData.autoApproveInfo.value.includes('Auto approved for this session'), 'Expected session approval message');
 		});
 	});
 

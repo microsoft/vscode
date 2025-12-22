@@ -142,7 +142,7 @@ suite('TerminalCompletionService', () => {
 	});
 
 	suite('resolveResources should return undefined', () => {
-		test('if neither showFiles nor showFolders are true', async () => {
+		test('if neither showFiles nor showDirectories are true', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
 				pathSeparator

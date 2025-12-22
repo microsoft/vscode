@@ -18,7 +18,7 @@ import { TestInstantiationService } from '../../../../platform/instantiation/tes
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
 import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
-import { IChatProgress, IChatProgressMessage } from '../../../contrib/chat/common/chatService.js';
+import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
@@ -31,7 +31,7 @@ import { mock, TestExtensionService } from '../../../test/common/workbenchTestSe
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { MockChatService } from '../../../contrib/chat/test/common/mockChatService.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -226,7 +226,6 @@ suite('ObservableChatSession', function () {
 
 		const request: IChatAgentRequest = {
 			requestId: 'req1',
-			sessionId: 'test-session',
 			sessionResource: LocalChatSessionUri.forSession('test-session'),
 			agentId: 'test-agent',
 			message: 'Test prompt',
@@ -248,7 +247,6 @@ suite('ObservableChatSession', function () {
 
 		const request: IChatAgentRequest = {
 			requestId: 'req1',
-			sessionId: 'test-session',
 			sessionResource: LocalChatSessionUri.forSession('test-session'),
 			agentId: 'test-agent',
 			message: 'Test prompt',
@@ -390,6 +388,7 @@ suite('MainThreadChatSessions', function () {
 				};
 			}
 		});
+		instantiationService.stub(IChatService, new MockChatService());
 
 		chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
@@ -403,39 +402,6 @@ suite('MainThreadChatSessions', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('provideNewChatSessionItem creates a new chat session', async function () {
-		mainThread.$registerChatSessionItemProvider(1, 'test-type');
-
-		// Create a mock IChatAgentRequest
-		const mockRequest: IChatAgentRequest = {
-			sessionId: 'test-session',
-			sessionResource: LocalChatSessionUri.forSession('test-session'),
-			requestId: 'test-request',
-			agentId: 'test-agent',
-			message: 'my prompt',
-			location: ChatAgentLocation.Chat,
-			variables: { variables: [] }
-		};
-
-		// Valid
-		const chatSessionItem = await chatSessionsService.getNewChatSessionItem('test-type', {
-			request: mockRequest,
-			metadata: {}
-		}, CancellationToken.None);
-		assert.ok(isEqual(chatSessionItem.resource, exampleSessionResource));
-		assert.strictEqual(chatSessionItem.label, 'New Session');
-
-		// Invalid session type should throw
-		await assert.rejects(
-			chatSessionsService.getNewChatSessionItem('invalid-type', {
-				request: mockRequest,
-				metadata: {}
-			}, CancellationToken.None)
-		);
-
-		mainThread.$unregisterChatSessionItemProvider(1);
-	});
 
 	test('provideChatSessionContent creates and initializes session', async function () {
 		const sessionScheme = 'test-session-type';

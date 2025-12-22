@@ -27,7 +27,7 @@ import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../co
 import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
-import { cleanupOldImages, createFileForMedia, resizeImage } from './imageUtils.js';
+import { cleanupOldImages, createFileForMedia, resizeImage } from './chatImageUtils.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 

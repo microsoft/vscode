@@ -8,7 +8,7 @@ import * as cssJs from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { renderFormattedText, renderText } from '../../formattedTextRenderer.js';
 import { IHistoryNavigationWidget } from '../../history.js';
-import { ActionBar } from '../actionbar/actionbar.js';
+import { ActionBar, IActionViewItemProvider } from '../actionbar/actionbar.js';
 import * as aria from '../aria/aria.js';
 import { AnchorAlignment, IContextViewProvider } from '../contextview/contextview.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
@@ -37,6 +37,7 @@ export interface IInputOptions {
 	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
+	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly history?: IHistory<string>;
 }
@@ -206,11 +207,27 @@ export class InputBox extends Widget {
 
 		// Support actions
 		if (this.options.actions) {
-			this.actionbar = this._register(new ActionBar(this.element));
+			this.actionbar = this._register(new ActionBar(this.element, {
+				actionViewItemProvider: this.options.actionViewItemProvider
+			}));
 			this.actionbar.push(this.options.actions, { icon: true, label: false });
 		}
 
 		this.applyStyles();
+	}
+
+	public setActions(actions: ReadonlyArray<IAction> | undefined, actionViewItemProvider?: IActionViewItemProvider): void {
+		if (this.actionbar) {
+			this.actionbar.clear();
+			if (actions) {
+				this.actionbar.push(actions, { icon: true, label: false });
+			}
+		} else if (actions) {
+			this.actionbar = this._register(new ActionBar(this.element, {
+				actionViewItemProvider: actionViewItemProvider ?? this.options.actionViewItemProvider
+			}));
+			this.actionbar.push(actions, { icon: true, label: false });
+		}
 	}
 
 	protected onBlur(): void {

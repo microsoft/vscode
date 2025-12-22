@@ -9,7 +9,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { createToggleActionViewItemProvider, IToggleStyles, TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { ITreeElementRenderDetails, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -34,6 +34,15 @@ export interface IQuickTreeTemplateData {
 	toDisposeTemplate: DisposableStore;
 }
 
+export class QuickInputCheckboxStateHandler<T> extends Disposable {
+	private readonly _onDidChangeCheckboxState = this._register(new Emitter<{ item: T; checked: boolean | 'mixed' }>());
+	public readonly onDidChangeCheckboxState = this._onDidChangeCheckboxState.event;
+
+	public setCheckboxState(node: T, checked: boolean | 'mixed') {
+		this._onDidChangeCheckboxState.fire({ item: node, checked });
+	}
+}
+
 export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable implements ITreeRenderer<T, IQuickTreeFilterData, IQuickTreeTemplateData> {
 	static readonly ID = 'quickInputTreeElement';
 	templateId = QuickInputTreeRenderer.ID;
@@ -42,6 +51,8 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 		private readonly _hoverDelegate: IHoverDelegate | undefined,
 		private readonly _buttonTriggeredEmitter: Emitter<IQuickTreeItemButtonEvent<T>>,
 		private readonly onCheckedEvent: Event<IQuickTreeCheckboxEvent<T>>,
+		private readonly _checkboxStateHandler: QuickInputCheckboxStateHandler<T>,
+		private readonly _toggleStyles: IToggleStyles,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
@@ -66,7 +77,10 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			supportIcons: true,
 			hoverDelegate: this._hoverDelegate
 		}));
-		const actionBar = store.add(new ActionBar(entry, this._hoverDelegate ? { hoverDelegate: this._hoverDelegate } : undefined));
+		const actionBar = store.add(new ActionBar(entry, {
+			actionViewItemProvider: createToggleActionViewItemProvider(this._toggleStyles),
+			hoverDelegate: this._hoverDelegate
+		}));
 		actionBar.domNode.classList.add('quick-input-tree-entry-action-bar');
 		return {
 			toDisposeTemplate: store,
@@ -78,7 +92,8 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			toDisposeElement: new DisposableStore(),
 		};
 	}
-	renderElement(node: ITreeNode<T, IQuickTreeFilterData>, index: number, templateData: IQuickTreeTemplateData, _details?: ITreeElementRenderDetails): void {
+
+	renderElement(node: ITreeNode<T, IQuickTreeFilterData>, _index: number, templateData: IQuickTreeTemplateData, _details?: ITreeElementRenderDetails): void {
 		const store = templateData.toDisposeElement;
 		const quickTreeItem = node.element;
 
@@ -87,12 +102,14 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			// Hide checkbox for non-pickable items
 			templateData.checkbox.domNode.style.display = 'none';
 		} else {
-			templateData.checkbox.domNode.style.display = '';
-			templateData.checkbox.checked = quickTreeItem.checked ?? false;
-			store.add(Event.filter(this.onCheckedEvent, e => e.item === quickTreeItem)(e => templateData.checkbox.checked = e.checked));
+			const checkbox = templateData.checkbox;
+			checkbox.domNode.style.display = '';
+			checkbox.checked = quickTreeItem.checked ?? false;
+			store.add(Event.filter(this.onCheckedEvent, e => e.item === quickTreeItem)(e => checkbox.checked = e.checked));
 			if (quickTreeItem.disabled) {
-				templateData.checkbox.disable();
+				checkbox.disable();
 			}
+			store.add(checkbox.onChange((e) => this._checkboxStateHandler.setCheckboxState(quickTreeItem, checkbox.checked)));
 		}
 
 		// Icon
@@ -147,10 +164,12 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			templateData.entry.classList.remove('has-actions');
 		}
 	}
+
 	disposeElement(_element: ITreeNode<T, IQuickTreeFilterData>, _index: number, templateData: IQuickTreeTemplateData, _details?: ITreeElementRenderDetails): void {
 		templateData.toDisposeElement.clear();
 		templateData.actionBar.clear();
 	}
+
 	disposeTemplate(templateData: IQuickTreeTemplateData): void {
 		templateData.toDisposeElement.dispose();
 		templateData.toDisposeTemplate.dispose();

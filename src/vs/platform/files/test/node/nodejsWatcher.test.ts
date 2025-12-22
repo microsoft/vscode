@@ -803,4 +803,46 @@ suite.skip('File Watcher (node.js)', function () {
 		await fs.promises.unlink(filePath);
 		await changeFuture;
 	});
+
+	(isLinux ? test.skip : test)('includes are case insensitive on Windows/Mac', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['*.TXT'], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'newFile.txt'));
+	});
+
+	(isLinux ? test.skip : test)('excludes are case insensitive on Windows/Mac', async function () {
+		await watcher.watch([{ path: testDir, excludes: ['*.TXT'], recursive: false }]);
+
+		// New file (should be excluded)
+		const newFilePath = join(testDir, 'newFile.txt');
+		const changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newFilePath, 'Hello World');
+
+		const res = await Promise.any([
+			timeout(500).then(() => true),
+			changeFuture.then(() => false)
+		]);
+
+		if (!res) {
+			assert.fail('Unexpected change event');
+		}
+	});
+
+	(isLinux ? test.skip : test)('excludes are case insensitive on Windows/Mac', async function () {
+		await watcher.watch([{ path: testDir, excludes: ['*.TXT'], recursive: false }]);
+
+		// New file (should be excluded)
+		const newFilePath = join(testDir, 'newFile.txt');
+		const changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newFilePath, 'Hello World');
+
+		const res = await Promise.any([
+			timeout(500).then(() => true),
+			changeFuture.then(() => false)
+		]);
+
+		if (!res) {
+			assert.fail('Unexpected change event');
+		}
+	});
 });

@@ -94,6 +94,7 @@ import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { hasKey, isNumber, isString } from '../../../../base/common/types.js';
+import { TerminalResizeDimensionsOverlay } from './terminalResizeDimensionsOverlay.js';
 
 const enum Constants {
 	/**
@@ -202,6 +203,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
 	private _resizeDebouncer?: TerminalResizeDebouncer;
+	private readonly _terminalResizeDimensionsOverlay: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
@@ -384,7 +386,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IProductService private readonly _productService: IProductService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
@@ -509,7 +511,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// which would result in the wrong profile being selected and the wrong icon being
 		// permanently attached to the terminal. This also doesn't work when the default profile
 		// setting is set to null, that's handled after the process is created.
-		if (!this.shellLaunchConfig.executable && !workbenchEnvironmentService.remoteAuthority) {
+		if (!this.shellLaunchConfig.executable && !this._workbenchEnvironmentService.remoteAuthority) {
 			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig, OS);
 		}
 		this._icon = _shellLaunchConfig.attachPersistentProcess?.icon || _shellLaunchConfig.icon;
@@ -960,10 +962,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			await this._processManager.setNextCommandId(commandLine, commandId);
 		}
 
-		// Determine whether to send ETX (ctrl+c) before running the command. This should always
-		// happen unless command detection can reliably say that a command is being entered and
-		// there is no content in the prompt
-		if (!commandDetection || commandDetection.promptInputModel.value.length > 0) {
+		// Determine whether to send ETX (ctrl+c) before running the command. Only do this when the
+		// command will be executed immediately or when command detection shows the prompt contains text.
+		if (shouldExecute && (!commandDetection || commandDetection.promptInputModel.value.length > 0)) {
 			await this.sendText('\x03', false);
 			// Wait a little before running the command to avoid the sequences being echoed while the ^C
 			// is being evaluated
@@ -1021,8 +1022,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('A container element needs to be set with `attachToElement` and be part of the DOM before calling `_open`');
 		}
 
-		const xtermElement = document.createElement('div');
-		this._wrapperElement.appendChild(xtermElement);
+		const xtermHost = document.createElement('div');
+		xtermHost.classList.add('terminal-xterm-host');
+		this._wrapperElement.appendChild(xtermHost);
 
 		this._container.appendChild(this._wrapperElement);
 
@@ -1031,7 +1033,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
 		this._wrapperElement.xterm = xterm.raw;
 
-		const screenElement = xterm.attachToElement(xtermElement);
+		const screenElement = xterm.attachToElement(xtermHost);
 
 		// Fire xtermOpen on all contributions
 		for (const contribution of this._contributions.values()) {
@@ -1179,6 +1181,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.layout(this._lastLayoutDimensions);
 		}
 		this.updateConfig();
+
+		// Initialize resize dimensions overlay
+		this.processReady.then(() => {
+			// Wait a second to avoid resize events during startup like when opening a terminal or
+			// when a terminal reconnects. Ideally we'd have an actual event to listen to here.
+			timeout(1000).then(() => {
+				if (!this._store.isDisposed) {
+					this._terminalResizeDimensionsOverlay.value = new TerminalResizeDimensionsOverlay(this._wrapperElement, xterm);
+				}
+			});
+		});
 
 		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
 		// panel was initialized.
@@ -1530,13 +1543,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.isDisposed) {
 			return;
 		}
-		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		if (activeWorkspaceRootUri) {
-			const trusted = await this._trust();
-			if (!trusted) {
-				this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
-			}
-		} else if (this._cwd && this._userHome && this._cwd !== this._userHome) {
+		const trusted = await this._trust();
+		// Allow remote and local terminals from remote to be created in untrusted remote workspace
+		if (!trusted && !this.remoteAuthority && !this._workbenchEnvironmentService.remoteAuthority) {
+			this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
+		} else if (this._workspaceContextService.getWorkspace().folders.length === 0 && this._cwd && this._userHome && this._cwd !== this._userHome) {
 			// something strange is going on if cwd is not userHome in an empty workspace
 			this._onProcessExit({
 				message: nls.localize('workspaceNotTrustedCreateTerminalCwd', "Cannot launch a terminal process in an untrusted workspace with cwd {0} and userHome {1}", this._cwd, this._userHome)

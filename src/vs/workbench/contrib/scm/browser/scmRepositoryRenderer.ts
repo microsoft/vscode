@@ -12,7 +12,7 @@ import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
-import { addClassToTwistieElement, connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util.js';
+import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util.js';
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -89,9 +89,6 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	}
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
-		// HACK - use helper function as there is no tree API
-		addClassToTwistieElement(container, 'force-twistie');
-
 		const provider = append(container, $('.scm-provider'));
 		const icon = append(provider, $('.icon'));
 		const label = new IconLabel(provider, { supportIcons: false });

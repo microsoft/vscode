@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -15,6 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { LanguageModelPartAudience } from '../../common/languageModels.js';
@@ -31,6 +33,7 @@ export interface IChatCollapsibleIOCodePart {
 	languageId: string;
 	options: ICodeBlockRenderOptions;
 	codeBlockInfo: IChatCodeBlockInfo;
+	title?: string | IMarkdownString;
 }
 
 export interface IChatCollapsibleIODataPart {
@@ -84,6 +87,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	constructor(
 		title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
+		progressTooltip: IMarkdownString | string | undefined,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly input: IChatCollapsibleInputData,
 		private readonly output: IChatCollapsibleOutputData | undefined,
@@ -91,13 +95,13 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		initiallyExpanded: boolean,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 		this._currentWidth = context.currentWidth();
 
 		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
-		const iconEl = dom.h('.chat-confirmation-widget-title-icon');
 		const elements = dom.h('.chat-confirmation-widget');
 		this.domNode = container.root;
 		container.root.appendChild(elements.root);
@@ -115,7 +119,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 		const btn = this._register(new ButtonWithIcon(elements.root, {}));
 		btn.element.classList.add('chat-confirmation-widget-title', 'monaco-text-button');
-		btn.labelElement.append(titleEl.root, iconEl.root);
+		btn.labelElement.append(titleEl.root);
 
 		const check = dom.h(isError
 			? ThemeIcon.asCSSSelector(Codicon.error)
@@ -123,12 +127,22 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 				? ThemeIcon.asCSSSelector(Codicon.check)
 				: ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))
 		);
-		iconEl.root.appendChild(check.root);
+
+		if (progressTooltip) {
+			this._register(hoverService.setupDelayedHover(check.root, {
+				content: progressTooltip,
+				style: HoverStyle.Pointer,
+			}));
+		}
 
 		const expanded = this._expanded = observableValue(this, initiallyExpanded);
 		this._register(autorun(r => {
 			const value = expanded.read(r);
-			btn.icon = value ? Codicon.chevronDown : Codicon.chevronRight;
+			btn.icon = isError
+				? Codicon.error
+				: output
+					? Codicon.check
+					: ThemeIcon.modify(Codicon.loading, 'spin');
 			elements.root.classList.toggle('collapsed', !value);
 			this._onDidChangeHeight.fire();
 		}));

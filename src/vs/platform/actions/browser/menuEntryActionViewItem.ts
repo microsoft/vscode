@@ -9,6 +9,7 @@ import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { SeparatorSelectOption } from '../../../base/browser/ui/selectBox/selectBox.js';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator, SubmenuAction } from '../../../base/common/actions.js';
 import { Event } from '../../../base/common/event.js';
 import { UILabelProvider } from '../../../base/common/keybindingLabels.js';
@@ -592,10 +593,7 @@ class SubmenuEntrySelectActionViewItem extends SelectActionViewItem {
 		@IContextViewService contextViewService: IContextViewService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(null, action, action.actions.map(a => ({
-			text: a.id === Separator.ID ? '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500' : a.label,
-			isDisabled: !a.enabled,
-		})), 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: action.tooltip, optionsAsChildren: true, useCustomDrawn: !hasNativeContextMenu(configurationService) });
+		super(null, action, action.actions.map(a => (a.id === Separator.ID ? SeparatorSelectOption : { text: a.label, isDisabled: !a.enabled, })), 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: action.tooltip, optionsAsChildren: true, useCustomDrawn: !hasNativeContextMenu(configurationService) });
 		this.select(Math.max(0, action.actions.findIndex(a => a.checked)));
 	}
 

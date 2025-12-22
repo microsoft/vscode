@@ -401,4 +401,312 @@ suite('CellPart', () => {
 			);
 		}
 	});
+
+	test('CodeCellLayout reuses content height after init', () => {
+		const LINE_HEIGHT = 21;
+		const STATUSBAR_HEIGHT = 22;
+		const CELL_TOP_MARGIN = 6;
+		const CELL_OUTLINE_WIDTH = 1;
+		const VIEWPORT_HEIGHT = 1000;
+		const ELEMENT_TOP = 100;
+		const ELEMENT_HEIGHT = 1200;
+		const OUTPUT_CONTAINER_OFFSET = 300;
+		const EDITOR_HEIGHT = 800;
+
+		let contentHeight = 800;
+		const stubEditor = {
+			layoutCalls: [] as { width: number; height: number }[],
+			_lastScrollTopSet: -1,
+			getLayoutInfo: () => ({ width: 600, height: EDITOR_HEIGHT }),
+			getContentHeight: () => contentHeight,
+			layout: (dim: { width: number; height: number }) => {
+				stubEditor.layoutCalls.push(dim);
+			},
+			setScrollTop: (v: number) => {
+				stubEditor._lastScrollTopSet = v;
+			},
+			hasModel: () => true,
+		};
+		const editorPart = { style: { top: '' } };
+		const template: Partial<CodeCellRenderTemplate> = {
+			editor: stubEditor as unknown as ICodeEditor,
+			editorPart: editorPart as unknown as HTMLElement,
+		};
+		const viewCell: Partial<CodeCellViewModel> = {
+			isInputCollapsed: false,
+			layoutInfo: {
+				statusBarHeight: STATUSBAR_HEIGHT,
+				topMargin: CELL_TOP_MARGIN,
+				outlineWidth: CELL_OUTLINE_WIDTH,
+				editorHeight: EDITOR_HEIGHT,
+				outputContainerOffset: OUTPUT_CONTAINER_OFFSET,
+				editorWidth: 600,
+			} as unknown as CodeCellLayoutInfo,
+		};
+		const notebookEditor = {
+			scrollTop: 0,
+			get scrollBottom() {
+				return VIEWPORT_HEIGHT;
+			},
+			setScrollTop: (v: number) => {
+				/* no-op */
+			},
+			getLayoutInfo: () => ({
+				fontInfo: { lineHeight: LINE_HEIGHT },
+				height: VIEWPORT_HEIGHT,
+				stickyHeight: 0,
+			}),
+			getAbsoluteTopOfElement: () => ELEMENT_TOP,
+			getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
+			getHeightOfElement: () => ELEMENT_HEIGHT,
+			notebookOptions: {
+				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
+			},
+		};
+
+		const layout = new CodeCellLayout(
+			true,
+			notebookEditor as unknown as IActiveNotebookEditorDelegate,
+			viewCell as CodeCellViewModel,
+			template as CodeCellRenderTemplate,
+			{ debug: () => { } },
+			{ width: 600, height: EDITOR_HEIGHT }
+		);
+
+		layout.layoutEditor('init');
+		assert.strictEqual(layout.editorVisibility, 'Full');
+		assert.strictEqual(stubEditor.layoutCalls.at(-1)?.height, 800);
+
+		// Simulate Monaco reporting a transient smaller content height on scroll.
+		contentHeight = 200;
+		layout.layoutEditor('nbDidScroll');
+		assert.strictEqual(layout.editorVisibility, 'Full');
+		assert.strictEqual(
+			stubEditor.layoutCalls.at(-1)?.height,
+			800,
+			'nbDidScroll should reuse the established content height'
+		);
+
+		layout.layoutEditor('onDidContentSizeChange');
+		assert.strictEqual(layout.editorVisibility, 'Full');
+		assert.strictEqual(
+			stubEditor.layoutCalls.at(-1)?.height,
+			200,
+			'onDidContentSizeChange should refresh the content height'
+		);
+	});
+
+	test('CodeCellLayout maintains content height after paste when scrolling', () => {
+		/**
+		 * Regression test for https://github.com/microsoft/vscode/issues/284524
+		 *
+		 * Scenario: Cell starts with 1 line (37px), user pastes text (grows to 679px),
+		 * then scrolls. During scroll, Monaco may report a transient smaller height (39px)
+		 * due to the clipped layout. The fix uses _establishedContentHeight to maintain
+		 * the actual content height (679px) instead of using the transient or initial values.
+		 */
+		const LINE_HEIGHT = 21;
+		const CELL_TOP_MARGIN = 6;
+		const CELL_OUTLINE_WIDTH = 1;
+		const STATUSBAR_HEIGHT = 22;
+		const VIEWPORT_HEIGHT = 1000;
+		const ELEMENT_TOP = 100;
+		const ELEMENT_HEIGHT = 1200;
+		const INITIAL_CONTENT_HEIGHT = 37; // 1 line
+		const INITIAL_EDITOR_HEIGHT = INITIAL_CONTENT_HEIGHT;
+		const OUTPUT_CONTAINER_OFFSET = 300;
+		const PASTED_CONTENT_HEIGHT = 679;
+
+		let contentHeight = INITIAL_CONTENT_HEIGHT;
+		const stubEditor = {
+			layoutCalls: [] as { width: number; height: number }[],
+			_lastScrollTopSet: -1,
+			getLayoutInfo: () => ({ width: 600, height: INITIAL_EDITOR_HEIGHT }),
+			getContentHeight: () => contentHeight,
+			layout: (dim: { width: number; height: number }) => {
+				stubEditor.layoutCalls.push(dim);
+			},
+			setScrollTop: (v: number) => {
+				stubEditor._lastScrollTopSet = v;
+			},
+			hasModel: () => true,
+		};
+		const editorPart = { style: { top: '' } };
+		const template: Partial<CodeCellRenderTemplate> = {
+			editor: stubEditor as unknown as ICodeEditor,
+			editorPart: editorPart as unknown as HTMLElement,
+		};
+		const layoutInfo = {
+			statusBarHeight: STATUSBAR_HEIGHT,
+			topMargin: CELL_TOP_MARGIN,
+			outlineWidth: CELL_OUTLINE_WIDTH,
+			editorHeight: INITIAL_EDITOR_HEIGHT,
+			outputContainerOffset: OUTPUT_CONTAINER_OFFSET,
+			editorWidth: 600,
+		};
+		const viewCell: Partial<CodeCellViewModel> = {
+			isInputCollapsed: false,
+			layoutInfo: layoutInfo as unknown as CodeCellLayoutInfo,
+		};
+		const notebookEditor = {
+			scrollTop: 0,
+			get scrollBottom() {
+				return notebookEditor.scrollTop + VIEWPORT_HEIGHT;
+			},
+			setScrollTop: (v: number) => {
+				notebookEditor.scrollTop = v;
+			},
+			getLayoutInfo: () => ({
+				fontInfo: { lineHeight: LINE_HEIGHT },
+				height: VIEWPORT_HEIGHT,
+				stickyHeight: 0,
+			}),
+			getAbsoluteTopOfElement: () => ELEMENT_TOP,
+			getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
+			getHeightOfElement: () => ELEMENT_HEIGHT,
+			notebookOptions: {
+				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
+			},
+		};
+
+		const layout = new CodeCellLayout(
+			true,
+			notebookEditor as unknown as IActiveNotebookEditorDelegate,
+			viewCell as CodeCellViewModel,
+			template as CodeCellRenderTemplate,
+			{ debug: () => { } },
+			{ width: 600, height: INITIAL_EDITOR_HEIGHT }
+		);
+
+		// Initial layout
+		layout.layoutEditor('init');
+
+		// Simulate pasting content - content grows to 679px
+		contentHeight = PASTED_CONTENT_HEIGHT;
+		layoutInfo.editorHeight = PASTED_CONTENT_HEIGHT;
+		layout.layoutEditor('onDidContentSizeChange');
+
+		// Now scroll and Monaco reports transient smaller height (39px)
+		// The fix should use the established 679px, not the transient 39px or initial 37px
+		contentHeight = 39;
+		notebookEditor.scrollTop = 200;
+		layout.layoutEditor('nbDidScroll');
+
+		const finalHeight = stubEditor.layoutCalls.at(-1)?.height;
+
+		// Verify the layout doesn't use the transient 39px value from Monaco
+		assert.notStrictEqual(
+			finalHeight,
+			39,
+			'Should not use Monaco\'s transient value (39px)'
+		);
+
+		// Verify the layout doesn't shrink back to the initial 37px value
+		assert.notStrictEqual(
+			finalHeight,
+			37,
+			'Should not use initial content height (37px)'
+		);
+
+		// The layout should be based on the established 679px content height
+		// The exact height will be calculated based on viewport, scroll position, etc.
+		// but should be significantly larger than 39px or 37px
+		assert.ok(
+			finalHeight && finalHeight > 100,
+			`Layout height (${finalHeight}px) should be calculated from established 679px content, not transient 39px or initial 37px`
+		);
+	});
+
+	test('CodeCellLayout does not programmatically scroll editor while pointer down', () => {
+		const LINE_HEIGHT = 21;
+		const CELL_TOP_MARGIN = 6;
+		const CELL_OUTLINE_WIDTH = 1;
+		const STATUSBAR_HEIGHT = 22;
+		const VIEWPORT_HEIGHT = 220;
+		const ELEMENT_TOP = 100;
+		const EDITOR_CONTENT_HEIGHT = 500;
+		const EDITOR_HEIGHT = EDITOR_CONTENT_HEIGHT;
+		const OUTPUT_CONTAINER_OFFSET = 600;
+		const ELEMENT_HEIGHT = 900;
+		const scrollTop = ELEMENT_TOP + CELL_TOP_MARGIN + 20;
+		const scrollBottom = scrollTop + VIEWPORT_HEIGHT;
+
+		const stubEditor = {
+			_lastScrollTopSet: -1,
+			getLayoutInfo: () => ({ width: 600, height: EDITOR_HEIGHT }),
+			getContentHeight: () => EDITOR_CONTENT_HEIGHT,
+			layout: () => {
+				/* no-op */
+			},
+			setScrollTop: (v: number) => {
+				stubEditor._lastScrollTopSet = v;
+			},
+			hasModel: () => true,
+		};
+		const editorPart = { style: { top: '' } };
+		const template: Partial<CodeCellRenderTemplate> = {
+			editor: stubEditor as unknown as ICodeEditor,
+			editorPart: editorPart as unknown as HTMLElement,
+		};
+		const viewCell: Partial<CodeCellViewModel> = {
+			isInputCollapsed: false,
+			layoutInfo: {
+				statusBarHeight: STATUSBAR_HEIGHT,
+				topMargin: CELL_TOP_MARGIN,
+				outlineWidth: CELL_OUTLINE_WIDTH,
+				editorHeight: EDITOR_HEIGHT,
+				outputContainerOffset: OUTPUT_CONTAINER_OFFSET,
+			} as unknown as CodeCellLayoutInfo,
+		};
+		const notebookEditor = {
+			scrollTop,
+			get scrollBottom() {
+				return scrollBottom;
+			},
+			setScrollTop: (v: number) => {
+				/* no-op */
+			},
+			getLayoutInfo: () => ({
+				fontInfo: { lineHeight: LINE_HEIGHT },
+				height: VIEWPORT_HEIGHT,
+				stickyHeight: 0,
+			}),
+			getAbsoluteTopOfElement: () => ELEMENT_TOP,
+			getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
+			getHeightOfElement: () => ELEMENT_HEIGHT,
+			notebookOptions: {
+				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
+			},
+		};
+
+		const layout = new CodeCellLayout(
+			true,
+			notebookEditor as unknown as IActiveNotebookEditorDelegate,
+			viewCell as CodeCellViewModel,
+			template as CodeCellRenderTemplate,
+			{ debug: () => { } },
+			{ width: 600, height: EDITOR_HEIGHT }
+		);
+
+		layout.layoutEditor('init');
+		stubEditor._lastScrollTopSet = -1;
+
+		layout.setPointerDown(true);
+		layout.layoutEditor('nbDidScroll');
+		assert.strictEqual(layout.editorVisibility, 'Full (Small Viewport)');
+		assert.strictEqual(
+			stubEditor._lastScrollTopSet,
+			-1,
+			'Expected no programmatic editor.setScrollTop while pointer is down'
+		);
+
+		layout.setPointerDown(false);
+		layout.layoutEditor('nbDidScroll');
+		assert.strictEqual(layout.editorVisibility, 'Full (Small Viewport)');
+		assert.notStrictEqual(
+			stubEditor._lastScrollTopSet,
+			-1,
+			'Expected editor.setScrollTop to resume once pointer is released'
+		);
+	});
 });

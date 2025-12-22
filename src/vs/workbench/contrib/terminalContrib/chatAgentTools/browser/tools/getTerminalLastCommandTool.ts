@@ -14,6 +14,7 @@ import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 export const GetTerminalLastCommandToolData: IToolData = {
 	id: 'terminal_last_command',
 	toolReferenceName: 'terminalLastCommand',
+	legacyToolReferenceFullNames: ['runCommands/terminalLastCommand'],
 	displayName: localize('terminalLastCommandTool.displayName', 'Get Terminal Last Command'),
 	modelDescription: 'Get the last command run in the active terminal.',
 	source: ToolDataSource.Internal,

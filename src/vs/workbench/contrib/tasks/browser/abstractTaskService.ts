@@ -1286,16 +1286,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public removeRecentlyUsedTask(taskRecentlyUsedKey: string) {
-		if (this._getTasksFromStorage('historical').has(taskRecentlyUsedKey)) {
-			this._getTasksFromStorage('historical').delete(taskRecentlyUsedKey);
+		if (this._getTasksFromStorage('historical').delete(taskRecentlyUsedKey)) {
 			this._saveRecentlyUsedTasks();
 		}
 	}
 
 	public removePersistentTask(key: string) {
 		this._log(nls.localize('taskService.removePersistentTask', 'Removing persistent task {0}', key), true);
-		if (this._getTasksFromStorage('persistent').has(key)) {
-			this._getTasksFromStorage('persistent').delete(key);
+		if (this._getTasksFromStorage('persistent').delete(key)) {
 			this._savePersistentTasks();
 		}
 	}
@@ -3017,7 +3015,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return entries;
 	}
 	private async _showTwoLevelQuickPick(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, type?: string, name?: string) {
-		return this._instantiationService.createInstance(TaskQuickPick).show(placeHolder, defaultEntry, type, name);
+		const taskQuickPick = this._instantiationService.createInstance(TaskQuickPick);
+		try {
+			return await taskQuickPick.show(placeHolder, defaultEntry, type, name);
+		} finally {
+			taskQuickPick.dispose();
+		}
 	}
 
 	private async _showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[], name?: string): Promise<ITaskQuickPickEntry | undefined | null> {

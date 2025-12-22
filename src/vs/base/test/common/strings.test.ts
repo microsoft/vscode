@@ -215,6 +215,11 @@ suite('Strings', () => {
 		assert.strictEqual(strings.ltrim('///', '/'), '');
 		assert.strictEqual(strings.ltrim('', ''), '');
 		assert.strictEqual(strings.ltrim('', '/'), '');
+		// Multi-character needle with consecutive repetitions
+		assert.strictEqual(strings.ltrim('---hello', '---'), 'hello');
+		assert.strictEqual(strings.ltrim('------hello', '---'), 'hello');
+		assert.strictEqual(strings.ltrim('---------hello', '---'), 'hello');
+		assert.strictEqual(strings.ltrim('hello---', '---'), 'hello---');
 	});
 
 	test('rtrim', () => {
@@ -228,6 +233,13 @@ suite('Strings', () => {
 		assert.strictEqual(strings.rtrim('///', '/'), '');
 		assert.strictEqual(strings.rtrim('', ''), '');
 		assert.strictEqual(strings.rtrim('', '/'), '');
+		// Multi-character needle with consecutive repetitions (bug fix)
+		assert.strictEqual(strings.rtrim('hello---', '---'), 'hello');
+		assert.strictEqual(strings.rtrim('hello------', '---'), 'hello');
+		assert.strictEqual(strings.rtrim('hello---------', '---'), 'hello');
+		assert.strictEqual(strings.rtrim('---hello', '---'), '---hello');
+		assert.strictEqual(strings.rtrim('hello world' + '---'.repeat(10), '---'), 'hello world');
+		assert.strictEqual(strings.rtrim('path/to/file///', '//'), 'path/to/file/');
 	});
 
 	test('trim', () => {
@@ -271,6 +283,24 @@ suite('Strings', () => {
 	test('issue #115221: isEmojiImprecise misses ⭐', () => {
 		const codePoint = strings.getNextCodePoint('⭐', '⭐'.length, 0);
 		assert.strictEqual(strings.isEmojiImprecise(codePoint), true);
+	});
+
+	test('isFullWidthCharacter', () => {
+		// Fullwidth ASCII (FF01-FF5E)
+		assert.strictEqual(strings.isFullWidthCharacter('Ａ'.charCodeAt(0)), true, 'Ａ U+FF21 fullwidth A');
+		assert.strictEqual(strings.isFullWidthCharacter('？'.charCodeAt(0)), true, '？ U+FF1F fullwidth question mark');
+		assert.strictEqual(strings.isFullWidthCharacter('＃'.charCodeAt(0)), true, '＃ U+FF03 fullwidth number sign');
+		assert.strictEqual(strings.isFullWidthCharacter('＝'.charCodeAt(0)), true, '＝ U+FF1D fullwidth equals sign');
+
+		// Hiragana (3040-309F)
+		assert.strictEqual(strings.isFullWidthCharacter('あ'.charCodeAt(0)), true, 'あ U+3042 hiragana');
+
+		// Fullwidth symbols (FFE0-FFE6)
+		assert.strictEqual(strings.isFullWidthCharacter('￥'.charCodeAt(0)), true, '￥ U+FFE5 fullwidth yen sign');
+
+		// Regular ASCII should not be full width
+		assert.strictEqual(strings.isFullWidthCharacter('A'.charCodeAt(0)), false, 'A regular ASCII');
+		assert.strictEqual(strings.isFullWidthCharacter('?'.charCodeAt(0)), false, '? regular ASCII');
 	});
 
 	test('isBasicASCII', () => {

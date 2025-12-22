@@ -44,10 +44,10 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatAccessibilityService, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatAccessibilityService, IChatWidgetService, IQuickChatService } from '../../../chat/browser/chat.js';
 import { ChatSessionsService } from '../../../chat/browser/chatSessions.contribution.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
-import { ChatWidget, ChatWidgetService } from '../../../chat/browser/chatWidget.js';
+import { ChatWidget } from '../../../chat/browser/chatWidget.js';
 import { ChatAgentService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 import { IChatRequestModel } from '../../../chat/common/chatModel.js';
@@ -70,6 +70,8 @@ import { HunkState } from '../../browser/inlineChatSession.js';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { TestWorkerService } from './testWorkerService.js';
+import { ChatWidgetService } from '../../../chat/browser/chatWidgetService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 suite('InlineChatSession', function () {
 
@@ -121,8 +123,8 @@ suite('InlineChatSession', function () {
 				override editingSessionsObs: IObservable<readonly IChatEditingSession[]> = constObservable([]);
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
-				override acceptResponse(chatWidget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: number): void { }
-				override acceptRequest(): number { return -1; }
+				override acceptResponse(chatWidget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: URI | undefined): void { }
+				override acceptRequest(): URI | undefined { return undefined; }
 				override acceptElicitation(): void { }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
@@ -130,6 +132,7 @@ suite('InlineChatSession', function () {
 					return null;
 				}
 			}],
+			[IQuickChatService, new class extends mock<IQuickChatService>() { }],
 			[IConfigurationService, new TestConfigurationService()],
 			[IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
 				override onDidChangeLocation = Event.None;
@@ -142,6 +145,7 @@ suite('InlineChatSession', function () {
 		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 		store.add(instaService.get(IChatSessionsService) as ChatSessionsService);  // Needs to be disposed in between test runs to clear extensionPoint contribution
+		store.add(instaService.get(IChatService) as ChatService);
 
 		instaService.get(IChatAgentService).registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,
@@ -169,8 +173,9 @@ suite('InlineChatSession', function () {
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
 	});
 
-	teardown(function () {
+	teardown(async function () {
 		store.clear();
+		await instaService.get(IChatService).waitForModelDisposals();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

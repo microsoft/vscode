@@ -118,6 +118,53 @@ suite('NewPromptsParser', () => {
 		]);
 	});
 
+	test('mode with handoff and showContinueOn per handoff', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			/* 01 */'---',
+			/* 02 */`description: "Agent test"`,
+			/* 03 */'model: GPT 4.1',
+			/* 04 */'handoffs:',
+			/* 05 */'  - label: "Implement"',
+			/* 06 */'    agent: Default',
+			/* 07 */'    prompt: "Implement the plan"',
+			/* 08 */'    send: false',
+			/* 09 */'    showContinueOn: false',
+			/* 10 */'  - label: "Save"',
+			/* 11 */'    agent: Default',
+			/* 12 */'    prompt: "Save the plan"',
+			/* 13 */'    send: true',
+			/* 14 */'    showContinueOn: true',
+			/* 15 */'---',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.ok(result.header.handOffs);
+		assert.deepEqual(result.header.handOffs, [
+			{ label: 'Implement', agent: 'Default', prompt: 'Implement the plan', send: false, showContinueOn: false },
+			{ label: 'Save', agent: 'Default', prompt: 'Save the plan', send: true, showContinueOn: true }
+		]);
+	});
+
+	test('showContinueOn defaults to undefined when not specified per handoff', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			/* 01 */'---',
+			/* 02 */`description: "Agent test"`,
+			/* 03 */'handoffs:',
+			/* 04 */'  - label: "Save"',
+			/* 05 */'    agent: Default',
+			/* 06 */'    prompt: "Save the plan"',
+			/* 07 */'---',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.ok(result.header.handOffs);
+		assert.deepEqual(result.header.handOffs[0].showContinueOn, undefined);
+	});
+
 	test('instructions', async () => {
 		const uri = URI.parse('file:///test/prompt1.md');
 		const content = [

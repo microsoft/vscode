@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 
 function isCallExpression(node: TSESTree.Node): node is TSESTree.CallExpression {
@@ -15,7 +15,7 @@ function isFunctionExpression(node: TSESTree.Node): node is TSESTree.FunctionExp
 	return node.type.includes('FunctionExpression');
 }
 
-export = new class NoAsyncSuite implements eslint.Rule.RuleModule {
+export default new class NoAsyncSuite implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		function hasAsyncSuite(node: ESTree.Node) {
