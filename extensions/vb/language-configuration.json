@@ -33,7 +33,7 @@
 	"onEnterRules": [
 		// Prevent indent after End statements, block terminators (Else, ElseIf, Loop, Next, etc.)
 		{
-			"beforeText": "^\\s*((End\\s+(If|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Select|Try|While|For|Property|Get|Set|SyncLock|Using|AddHandler|RaiseEvent|RemoveHandler|Event|Operator))|Else|ElseIf|Loop|Next|Wend|Until)\\b.*$",
+			"beforeText": { "pattern": "^\\s*((End\\s+(If|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Select|Try|While|For|Property|Get|Set|SyncLock|Using|AddHandler|RaiseEvent|RemoveHandler|Event|Operator))|Else|ElseIf|Loop|Next|Wend|Until)\\b.*$", "flags": "i" },
 			"action": {
 				"indent": "none"
 			}
@@ -41,14 +41,14 @@
 		// Prevent indent when pressing Enter on a blank line after End statements or block terminators
 		{
 			"beforeText": "^\\s*$",
-			"previousLineText": "^\\s*((End\\s+(If|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Select|Try|While|For|Property|Get|Set|SyncLock|Using|AddHandler|RaiseEvent|RemoveHandler|Event|Operator))|Else|ElseIf|Loop|Next|Wend|Until)\\b.*$",
+			"previousLineText": { "pattern": "^\\s*((End\\s+(If|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Select|Try|While|For|Property|Get|Set|SyncLock|Using|AddHandler|RaiseEvent|RemoveHandler|Event|Operator))|Else|ElseIf|Loop|Next|Wend|Until)\\b.*$", "flags": "i" },
 			"action": {
 				"indent": "none"
 			}
 		},
 		// Prevent indent after lines ending with closing parenthesis (e.g., function calls, method invocations)
 		{
-			"beforeText": "^[^'\"]*\\)\\s*('.*)?$",
+			"beforeText": { "pattern": "^[^'\"]*\\)\\s*('.*)?$", "flags": "i" },
 			"afterText": "^(?!\\s*\\))",
 			"action": {
 				"indent": "none"
