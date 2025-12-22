@@ -21,6 +21,7 @@ import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { Separator } from '../../../../base/common/actions.js';
 import { URI } from '../../../../base/common/uri.js';
 
 const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
@@ -101,7 +102,8 @@ MenuRegistry.appendMenuItem(MenuId.TimelineTitle, {
 	title: localize('filterTimeline', "Filter Timeline"),
 	group: 'navigation',
 	order: 100,
-	icon: timelineFilter
+	icon: timelineFilter,
+	highlightFunction: (action) => { return action.actions.some(a => !(a instanceof Separator) && (typeof a.checked !== 'undefined') && !a.checked); }
 } satisfies ISubmenuItem);
 
 registerSingleton(ITimelineService, TimelineService, InstantiationType.Delayed);
