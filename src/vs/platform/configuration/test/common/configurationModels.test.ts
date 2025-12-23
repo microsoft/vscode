@@ -705,7 +705,7 @@ suite('ConfigurationModel', () => {
 		const userConfig = new ConfigurationModel(
 			{},
 			[],
-			[{ identifiers: ['javascript'], contents: { 'editor.tabSize': 2 }, keys: ['editor.tabSize'] }],
+			[{ identifiers: ['javascript'], contents: { 'editor': { 'tabSize': 2 } }, keys: ['editor.tabSize'] }],
 			undefined,
 			new NullLogService()
 		);
@@ -714,7 +714,7 @@ suite('ConfigurationModel', () => {
 		const workspaceConfig = new ConfigurationModel(
 			{},
 			[],
-			[{ identifiers: ['javascript', 'typescript'], contents: { 'editor.tabSize': 4 }, keys: ['editor.tabSize'] }],
+			[{ identifiers: ['javascript', 'typescript'], contents: { 'editor': { 'tabSize': 4 } }, keys: ['editor.tabSize'] }],
 			undefined,
 			new NullLogService()
 		);
