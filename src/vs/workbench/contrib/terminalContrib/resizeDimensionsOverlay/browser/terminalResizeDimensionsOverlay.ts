@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../base/browser/dom.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
-import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
-import type { XtermTerminal } from './xterm/xtermTerminal.js';
+
+import './media/terminalResizeDimensionsOverlay.css';
+import { $ } from '../../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
+import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../base/common/lifecycle.js';
+import type { IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
 
 const enum Constants {
 	ResizeOverlayHideDelay = 500,
@@ -20,11 +23,11 @@ export class TerminalResizeDimensionsOverlay extends Disposable {
 
 	constructor(
 		private readonly _container: HTMLElement,
-		xterm: XtermTerminal,
+		xterm: IXtermTerminal,
 	) {
 		super();
 
-		this._register(xterm.raw.onResize(dims => this._handleDimensionsChanged(dims)));
+		this._register((xterm as XtermTerminal).raw.onResize(dims => this._handleDimensionsChanged(dims)));
 		this._register(toDisposable(() => {
 			this._resizeOverlay?.remove();
 			this._resizeOverlay = undefined;
