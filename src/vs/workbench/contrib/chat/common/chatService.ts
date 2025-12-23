@@ -23,7 +23,7 @@ import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from './chatAgents.js';
 import { IChatEditingSession } from './chatEditingService.js';
-import { IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
@@ -104,6 +104,12 @@ export interface IChatContentVariableReference {
 	value?: URI | Location;
 }
 
+export function isChatContentVariableReference(obj: unknown): obj is IChatContentVariableReference {
+	return !!obj &&
+		typeof obj === 'object' &&
+		typeof (obj as IChatContentVariableReference).variableName === 'string';
+}
+
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
@@ -125,13 +131,6 @@ export interface IChatContentReference {
 		originalUri?: URI;
 	};
 	kind: 'reference';
-}
-
-export interface IChatChangesSummary {
-	readonly reference: URI;
-	readonly sessionId: string;
-	readonly requestId: string;
-	readonly kind: 'changesSummary';
 }
 
 export interface IChatCodeCitation {
@@ -316,8 +315,6 @@ export interface IChatConfirmation {
 	message: string | IMarkdownString;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	data: any;
-	/** Indicates whether this came from a current chat session (true/undefined) or a restored historic session (false) */
-	isLive?: boolean;
 	buttons?: string[];
 	isUsed?: boolean;
 	kind: 'confirmation';
@@ -409,6 +406,10 @@ export interface ILegacyChatTerminalToolInvocationData {
 	kind: 'terminal';
 	command: string;
 	language: string;
+}
+
+export function isLegacyChatTerminalToolInvocationData(data: unknown): data is ILegacyChatTerminalToolInvocationData {
+	return !!data && typeof data === 'object' && 'command' in data;
 }
 
 export interface IChatToolInputInvocationData {
@@ -613,7 +614,7 @@ export namespace IChatToolInvocation {
 	}
 
 	export function isComplete(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
-		if ('isComplete' in invocation) { // serialized
+		if (invocation.kind === 'toolInvocationSerialized') {
 			return true; // always cancelled or complete
 		}
 
@@ -943,12 +944,6 @@ export interface IChatProviderInfo {
 	id: string;
 }
 
-export interface IChatTransferredSessionData {
-	sessionId: string;
-	location: ChatAgentLocation;
-	inputState: IChatModelInputState | undefined;
-}
-
 export interface IChatSendRequestResponseState {
 	responseCreatedPromise: Promise<IChatResponseModel>;
 	responseCompletePromise: Promise<void>;
@@ -1015,7 +1010,7 @@ export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
-	transferredSessionData: IChatTransferredSessionData | undefined;
+	transferredSessionResource: URI | undefined;
 
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
 
@@ -1039,8 +1034,7 @@ export interface IChatService {
 	getActiveSessionReference(sessionResource: URI): IChatModelReference | undefined;
 
 	getOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined>;
-	getPersistedSessionTitle(sessionResource: URI): string | undefined;
-	isPersistedSessionEmpty(sessionResource: URI): boolean;
+	getSessionTitle(sessionResource: URI): string | undefined;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModelReference | undefined;
 	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined>;
 	readonly editingSessions: IChatEditingSession[];
@@ -1075,7 +1069,7 @@ export interface IChatService {
 	notifyUserAction(event: IChatUserActionEvent): void;
 	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
 
-	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
+	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 

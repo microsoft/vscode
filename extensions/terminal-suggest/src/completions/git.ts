@@ -99,6 +99,7 @@ const postProcessBranches =
 						}
 
 						let description = "Branch";
+
 						if (insertWithoutRemotes && name.startsWith("remotes/")) {
 							name = name.slice(name.indexOf("/", 8) + 1);
 							description = "Remote branch";
@@ -287,7 +288,7 @@ export const gitGenerators = {
 			"refs/remotes/",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
-	} satisfies Fig.Generator,
+	},
 
 	localBranches: {
 		script: [
@@ -295,26 +296,44 @@ export const gitGenerators = {
 			"refs/heads/",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
-	} satisfies Fig.Generator,
+	},
 
 	// custom generator to display local branches by default or
 	// remote branches if '-r' flag is used. See branch -d for use
 	localOrRemoteBranches: {
 		custom: async (tokens, executeShellCommand) => {
 			const pp = postProcessBranches({ insertWithoutRemotes: true });
-			const refs = tokens.includes("-r") ? "refs/remotes/" : "refs/heads/";
-			return pp?.(
-				(
-					await executeShellCommand({
-						command: gitBranchForEachRefArgs[0],
-						args: [
-							...gitBranchForEachRefArgs.slice(1),
-							refs,
-						],
-					})
-				).stdout,
-				tokens
-			);
+			if (tokens.includes("-r")) {
+				return pp?.(
+					(
+						await executeShellCommand({
+							command: "git",
+							args: [
+								"--no-optional-locks",
+								"-r",
+								"--no-color",
+								"--sort=-committerdate",
+							],
+						})
+					).stdout,
+					tokens
+				);
+			} else {
+				return pp?.(
+					(
+						await executeShellCommand({
+							command: "git",
+							args: [
+								"--no-optional-locks",
+								"branch",
+								"--no-color",
+								"--sort=-committerdate",
+							],
+						})
+					).stdout,
+					tokens
+				);
+			}
 		},
 	} satisfies Fig.Generator,
 

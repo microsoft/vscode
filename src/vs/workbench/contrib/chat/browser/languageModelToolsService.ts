@@ -520,7 +520,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// TODO: This should be more detailed per tool.
 			prepared.confirmationMessages = {
 				...prepared.confirmationMessages,
-				title: localize('defaultToolConfirmation.title', 'Allow tool to execute?'),
+				title: localize('defaultToolConfirmation.title', 'Confirm tool execution'),
 				message: localize('defaultToolConfirmation.message', 'Run the \'{0}\' tool?', fullReferenceName),
 				disclaimer: new MarkdownString(localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted via {1}.', getToolFullReferenceName(tool.data), createMarkdownCommandLink({ title: '`' + ChatConfiguration.EligibleForAutoApproval + '`', id: 'workbench.action.openSettings', arguments: [ChatConfiguration.EligibleForAutoApproval] }, false)), { isTrusted: true }),
 				allowAutoConfirm: false,
@@ -613,13 +613,20 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// Back compat with legacy names
 			if (toolData.legacyToolReferenceFullNames) {
 				for (const legacyName of toolData.legacyToolReferenceFullNames) {
+					// Check if the full legacy name is in the config
 					if (Object.prototype.hasOwnProperty.call(eligibilityConfig, legacyName)) {
 						return eligibilityConfig[legacyName];
+					}
+					// Some tools may be both renamed and namespaced from a toolset, eg: xxx/yyy -> yyy
+					if (legacyName.includes('/')) {
+						const trimmedLegacyName = legacyName.split('/').pop();
+						if (trimmedLegacyName && Object.prototype.hasOwnProperty.call(eligibilityConfig, trimmedLegacyName)) {
+							return eligibilityConfig[trimmedLegacyName];
+						}
 					}
 				}
 			}
 		}
-		// Default true
 		return true;
 	}
 

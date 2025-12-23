@@ -578,11 +578,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._sessionTypeToHandle.set(chatSessionScheme, handle);
 		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionScheme, provider));
-		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
-			if (options?.optionGroups && options.optionGroups.length) {
-				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, options.optionGroups);
-			}
-		}).catch(err => this._logService.error('Error fetching chat session options', err));
+		this._refreshProviderOptions(handle, chatSessionScheme);
 	}
 
 	$unregisterChatSessionContentProvider(handle: number): void {
@@ -632,6 +628,31 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$handleAnchorResolve(handle: number, sesssionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void {
 		// throw new Error('Method not implemented.');
+	}
+
+	$onDidChangeChatSessionProviderOptions(handle: number): void {
+		let sessionType: string | undefined;
+		for (const [type, h] of this._sessionTypeToHandle) {
+			if (h === handle) {
+				sessionType = type;
+				break;
+			}
+		}
+
+		if (!sessionType) {
+			this._logService.warn(`No session type found for chat session content provider handle ${handle} when refreshing provider options`);
+			return;
+		}
+
+		this._refreshProviderOptions(handle, sessionType);
+	}
+
+	private _refreshProviderOptions(handle: number, chatSessionScheme: string): void {
+		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
+			if (options?.optionGroups && options.optionGroups.length) {
+				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, options.optionGroups);
+			}
+		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}
 
 	override dispose(): void {

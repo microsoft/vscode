@@ -1143,8 +1143,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		} else if (task.command.presentation && (task.command.presentation.focus || task.command.presentation.reveal === RevealKind.Always)) {
 			this._terminalService.setActiveInstance(terminal);
 			await this._terminalService.revealTerminal(terminal);
-			if (task.command.presentation.focus) {
-				this._terminalService.focusInstance(terminal);
+			if (task.command.presentation.focus && terminal) {
+				await this._terminalService.focusInstance(terminal);
 			}
 		}
 		if (this._activeTasks[task.getMapKey()]) {

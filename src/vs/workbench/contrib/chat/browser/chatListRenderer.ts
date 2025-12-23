@@ -53,14 +53,14 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../common/chatService.js';
+import { localChatSessionType } from '../common/chatSessionsService.js';
+import { getChatSessionType } from '../common/chatUri.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../common/constants.js';
-import { localChatSessionType } from '../common/chatSessionsService.js';
-import { getChatSessionType } from '../common/chatUri.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
@@ -769,7 +769,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 
-		if (collapsedToolsMode === CollapsedToolsDisplayMode.Always || (collapsedToolsMode === CollapsedToolsDisplayMode.WithThinking && this.getLastThinkingPart(templateData.renderedParts))) {
+		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+
+		if (lastThinking &&
+			(collapsedToolsMode === CollapsedToolsDisplayMode.Always ||
+				collapsedToolsMode === CollapsedToolsDisplayMode.WithThinking)) {
 			if (!lastPart || lastPart.kind === 'thinking' || lastPart.kind === 'toolInvocation' || lastPart.kind === 'prepareToolInvocation' || lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') {
 				return false;
 			}
@@ -794,23 +798,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!this.shouldShowFileChangesSummary(element)) {
 			return undefined;
 		}
-		const consideredFiles: Set<string> = new Set();
-		const fileChanges: IChatChangesSummary[] = [];
-		for (const part of element.model.entireResponse.value) {
-			if ((part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup') && !consideredFiles.has(part.uri.toString(true))) {
-				fileChanges.push({
-					kind: 'changesSummary',
-					reference: part.uri,
-					sessionId: element.sessionId,
-					requestId: element.requestId,
-				});
-				consideredFiles.add(part.uri.toString(true));
-			}
-		}
-		if (!fileChanges.length) {
+		if (!element.model.entireResponse.value.some(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup')) {
 			return undefined;
 		}
-		return { kind: 'changesSummary', fileChanges };
+
+		return { kind: 'changesSummary', requestId: element.requestId, sessionResource: element.sessionResource };
 	}
 
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
@@ -917,9 +909,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(templateData.value), () => {
 				// Have to recompute the height here because codeblock rendering is currently async and it may have changed.
 				// If it becomes properly sync, then this could be removed.
-				element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
+				if (templateData.rowContainer.isConnected) {
+					element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
+					this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
+				}
 				disposable.dispose();
-				this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
 			}));
 		}
 	}
@@ -929,9 +923,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		const newHeight = Math.max(templateData.rowContainer.offsetHeight, 1);
-		templateData.currentElement.currentRenderedHeight = newHeight;
-		this._onDidChangeItemHeight.fire({ element: templateData.currentElement, height: newHeight });
+		if (templateData.rowContainer.isConnected) {
+			const newHeight = templateData.rowContainer.offsetHeight;
+			templateData.currentElement.currentRenderedHeight = newHeight;
+			this._onDidChangeItemHeight.fire({ element: templateData.currentElement, height: newHeight });
+		}
 	}
 
 	/**
@@ -1649,6 +1645,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderMarkdown(markdown: IChatMarkdownContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
+		this.finalizeCurrentThinkingPart(context, templateData);
 		const element = context.element;
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;
@@ -1689,7 +1686,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					e.stopPropagation();
 					this._onDidClickRequest.fire(templateData);
 				}));
-				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
+				markdownPart.addDisposable(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
 			}
 			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.FOCUS, () => {
 				this.hoverVisible(templateData.requestHover);

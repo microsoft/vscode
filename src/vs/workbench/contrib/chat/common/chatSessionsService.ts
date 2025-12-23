@@ -66,6 +66,7 @@ export interface IChatSessionItem {
 	resource: URI;
 	label: string;
 	iconPath?: ThemeIcon;
+	badge?: string | IMarkdownString;
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
@@ -211,6 +212,7 @@ export interface IChatSessionsService {
 	 * Get the capabilities for a specific session type
 	 */
 	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined;
+	onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;

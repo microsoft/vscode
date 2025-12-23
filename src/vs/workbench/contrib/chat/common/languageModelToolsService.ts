@@ -240,6 +240,7 @@ export interface IToolResultTextPart {
 	kind: 'text';
 	value: string;
 	audience?: LanguageModelPartAudience[];
+	title?: string;
 }
 
 export interface IToolResultDataPart {
@@ -249,6 +250,7 @@ export interface IToolResultDataPart {
 		data: VSBuffer;
 	};
 	audience?: LanguageModelPartAudience[];
+	title?: string;
 }
 
 export interface IToolConfirmationMessages {
