@@ -311,6 +311,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			this.filePickBox.placeholder = nls.localize('remoteFileDialog.placeholder', "Folder path");
 			this.filePickBox.ok = true;
 			this.filePickBox.okLabel = typeof this.options.openLabel === 'string' ? this.options.openLabel : this.options.openLabel?.withoutMnemonic;
+			// Show "Show Local" button when on remote and local is available
 			if ((this.scheme !== Schemas.file) && this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
 				this.filePickBox.customButton = true;
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
@@ -328,6 +329,12 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 						this.filePickBox.customHover = format('{0} ({1})', action.LABEL, label);
 					}
 				}
+			}
+			// Show "Show OS Dialog" button when on local file system
+			else if (this.scheme === Schemas.file) {
+				this.filePickBox.customButton = true;
+				this.filePickBox.customLabel = nls.localize('simpleFileDialog.showOSDialog', "Show OS Dialog");
+				this.filePickBox.customHover = nls.localize('simpleFileDialog.showOSDialogHover', "Open native file dialog");
 			}
 
 			this.setButtons();
@@ -363,9 +370,21 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 
 				isAcceptHandled = true;
 				isResolving++;
-				if (this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
-					this.options.availableFileSystems = this.options.availableFileSystems.slice(1);
+				
+				// Handle switching between simple and native dialogs
+				const isRemoteWithLocalAvailable = (this.scheme !== Schemas.file) 
+					&& this.options.availableFileSystems 
+					&& (this.options.availableFileSystems.length > 1);
+				const isLocalFileSystem = (this.scheme === Schemas.file);
+				
+				if (isRemoteWithLocalAvailable) {
+					// When switching from remote to local, adjust availableFileSystems
+					this.options.availableFileSystems = this.options.availableFileSystems!.slice(1);
+				} else if (isLocalFileSystem) {
+					// When on local filesystem, force the native dialog to be used
+					this.options.forceNative = true;
 				}
+				
 				this.filePickBox.hide();
 				if (isSave) {
 					return this.fileDialogService.showSaveDialog(this.options).then(result => {

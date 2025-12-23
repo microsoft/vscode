@@ -223,6 +223,11 @@ export interface ISaveDialogOptions {
 	 * the schema of the current window.
 	 */
 	availableFileSystems?: readonly string[];
+
+	/**
+	 * Force the use of the native (OS) file dialog instead of the simple file dialog.
+	 */
+	forceNative?: boolean;
 }
 
 export interface IOpenDialogOptions {
@@ -268,6 +273,11 @@ export interface IOpenDialogOptions {
 	 * the schema of the current window.
 	 */
 	availableFileSystems?: readonly string[];
+
+	/**
+	 * Force the use of the native (OS) file dialog instead of the simple file dialog.
+	 */
+	forceNative?: boolean;
 }
 
 export const IDialogService = createDecorator<IDialogService>('dialogService');
