@@ -167,6 +167,7 @@ export class MoveLinesCommand implements ICommand {
 							model,
 							(lineNumber) => {
 								if (lineNumber === s.startLineNumber) {
+									// TODO@aiday-mar: the tokens here don't correspond exactly to the corresponding content (after indentation adjustment), have to fix this.
 									return movingLineNumber;
 								} else if (lineNumber >= s.startLineNumber + 1 && lineNumber <= s.endLineNumber + 1) {
 									return lineNumber - 1;
