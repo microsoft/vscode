@@ -104,6 +104,12 @@ export interface IChatContentVariableReference {
 	value?: URI | Location;
 }
 
+export function isChatContentVariableReference(obj: unknown): obj is IChatContentVariableReference {
+	return !!obj &&
+		typeof obj === 'object' &&
+		typeof (obj as IChatContentVariableReference).variableName === 'string';
+}
+
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
@@ -402,6 +408,10 @@ export interface ILegacyChatTerminalToolInvocationData {
 	language: string;
 }
 
+export function isLegacyChatTerminalToolInvocationData(data: unknown): data is ILegacyChatTerminalToolInvocationData {
+	return !!data && typeof data === 'object' && 'command' in data;
+}
+
 export interface IChatToolInputInvocationData {
 	kind: 'input';
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -604,7 +614,7 @@ export namespace IChatToolInvocation {
 	}
 
 	export function isComplete(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
-		if ('isComplete' in invocation) { // serialized
+		if (invocation.kind === 'toolInvocationSerialized') {
 			return true; // always cancelled or complete
 		}
 
