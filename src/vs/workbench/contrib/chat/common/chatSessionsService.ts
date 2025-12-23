@@ -66,6 +66,7 @@ export interface IChatSessionItem {
 	resource: URI;
 	label: string;
 	iconPath?: ThemeIcon;
+	badge?: string | IMarkdownString;
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
@@ -79,9 +80,6 @@ export interface IChatSessionItem {
 		deletions: number;
 	} | readonly IChatSessionFileChange[];
 	archived?: boolean;
-	// TODO:@osortega remove once the single-view is default
-	/** @deprecated */
-	history?: boolean;
 }
 
 export interface IChatSessionFileChange {
@@ -147,11 +145,6 @@ export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
 	readonly onDidChangeChatSessionItems: Event<void>;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
-	provideNewChatSessionItem?(options: {
-		request: IChatAgentRequest;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		metadata?: any;
-	}, token: CancellationToken): Promise<IChatSessionItem>;
 }
 
 export interface IChatSessionContentProvider {
@@ -219,6 +212,7 @@ export interface IChatSessionsService {
 	 * Get the capabilities for a specific session type
 	 */
 	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined;
+	onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
@@ -227,7 +221,10 @@ export interface IChatSessionsService {
 
 	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
-	isChatSessionInProgressStatus(state: ChatSessionStatus): boolean;
+}
+
+export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {
+	return state === ChatSessionStatus.InProgress || state === ChatSessionStatus.NeedsInput;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

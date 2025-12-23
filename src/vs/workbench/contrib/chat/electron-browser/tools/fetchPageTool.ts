@@ -144,7 +144,7 @@ export class FetchWebPageTool implements IToolImpl {
 		const actuallyValidUris = [...webUris.values(), ...successfulFileUris];
 
 		return {
-			content: this._getPromptPartsForResults(results),
+			content: this._getPromptPartsForResults(urls, results),
 			toolResultDetails: actuallyValidUris,
 			confirmResults,
 		};
@@ -278,28 +278,31 @@ export class FetchWebPageTool implements IToolImpl {
 		return { webUris, fileUris, invalidUris };
 	}
 
-	private _getPromptPartsForResults(results: ResultType[]): (IToolResultTextPart | IToolResultDataPart)[] {
-		return results.map(value => {
+	private _getPromptPartsForResults(urls: string[], results: ResultType[]): (IToolResultTextPart | IToolResultDataPart)[] {
+		return results.map((value, i) => {
+			const title = results.length > 1 ? localize('fetchWebPage.fetchedFrom', 'Fetched from {0}', urls[i]) : undefined;
 			if (!value) {
 				return {
 					kind: 'text',
+					title,
 					value: localize('fetchWebPage.invalidUrl', 'Invalid URL')
 				};
 			} else if (typeof value === 'string') {
 				return {
 					kind: 'text',
+					title,
 					value: value
 				};
 			} else if (value.type === 'tooldata') {
-				return value.value;
+				return { ...value.value, title };
 			} else if (value.type === 'extracted') {
 				switch (value.value.status) {
 					case 'ok':
-						return { kind: 'text', value: value.value.result };
+						return { kind: 'text', title, value: value.value.result };
 					case 'redirect':
-						return { kind: 'text', value: `The webpage has redirected to "${value.value.toURI.toString(true)}". Use the ${InternalFetchWebPageToolId} again to get its contents.` };
+						return { kind: 'text', title, value: `The webpage has redirected to "${value.value.toURI.toString(true)}". Use the ${InternalFetchWebPageToolId} again to get its contents.` };
 					case 'error':
-						return { kind: 'text', value: `An error occurred retrieving the fetch result: ${value.value.error}` };
+						return { kind: 'text', title, value: `An error occurred retrieving the fetch result: ${value.value.error}` };
 					default:
 						assertNever(value.value);
 				}

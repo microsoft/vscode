@@ -10,9 +10,9 @@ import { localize } from '../../../../../nls.js';
 import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ChatSessionStatus, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from './agentSessions.js';
-import { IAgentSession } from './agentSessionsModel.js';
+import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter } from './agentSessionsViewer.js';
 
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {
@@ -22,12 +22,14 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
+	readonly groupResults?: () => boolean | undefined;
+
 	overrideExclude?(session: IAgentSession): boolean | undefined;
 }
 
 interface IAgentSessionsViewExcludes {
 	readonly providers: readonly string[];
-	readonly states: readonly ChatSessionStatus[];
+	readonly states: readonly AgentSessionStatus[];
 
 	readonly archived: boolean;
 	readonly read: boolean;
@@ -48,6 +50,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	readonly onDidChange = this._onDidChange.event;
 
 	readonly limitResults = () => this.options.limitResults?.();
+	readonly groupResults = () => this.options.groupResults?.();
 
 	private excludes = DEFAULT_EXCLUDES;
 
@@ -162,11 +165,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private registerStateActions(disposables: DisposableStore): void {
-		const states: { id: ChatSessionStatus; label: string }[] = [
-			{ id: ChatSessionStatus.Completed, label: localize('chatSessionStatus.completed', "Completed") },
-			{ id: ChatSessionStatus.InProgress, label: localize('chatSessionStatus.inProgress', "In Progress") },
-			{ id: ChatSessionStatus.Failed, label: localize('chatSessionStatus.failed', "Failed") },
-			{ id: ChatSessionStatus.NeedsInput, label: localize('chatSessionStatus.needsInput', "Needs Input") },
+		const states: { id: AgentSessionStatus; label: string }[] = [
+			{ id: AgentSessionStatus.Completed, label: localize('agentSessionStatus.completed', "Completed") },
+			{ id: AgentSessionStatus.InProgress, label: localize('agentSessionStatus.inProgress', "In Progress") },
+			{ id: AgentSessionStatus.NeedsInput, label: localize('agentSessionStatus.needsInput', "Input Needed") },
+			{ id: AgentSessionStatus.Failed, label: localize('agentSessionStatus.failed', "Failed") },
 		];
 
 		const that = this;

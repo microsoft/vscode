@@ -366,7 +366,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			chatSessionType,
 			onDidChangeChatSessionItems: Event.debounce(changeEmitter.event, (_, e) => e, 200),
 			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token),
-			provideNewChatSessionItem: (options, token) => this._provideNewChatSessionItem(handle, options, token)
 		};
 		disposables.add(this._chatSessionsService.registerChatSessionItemProvider(provider));
 
@@ -528,25 +527,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		return session;
 	}
 
-	private async _provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
-		try {
-			const chatSessionItem = await this._proxy.$provideNewChatSessionItem(handle, options, token);
-			if (!chatSessionItem) {
-				throw new Error('Extension failed to create chat session');
-			}
-			return {
-				...chatSessionItem,
-				changes: revive(chatSessionItem.changes),
-				resource: URI.revive(chatSessionItem.resource),
-				iconPath: chatSessionItem.iconPath,
-				tooltip: chatSessionItem.tooltip ? this._reviveTooltip(chatSessionItem.tooltip) : undefined,
-			};
-		} catch (error) {
-			this._logService.error('Error creating chat session:', error);
-			throw error;
-		}
-	}
-
 	private async _provideChatSessionContent(providerHandle: number, sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		let session = this._activeSessions.get(sessionResource);
 
@@ -598,11 +578,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._sessionTypeToHandle.set(chatSessionScheme, handle);
 		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionScheme, provider));
-		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
-			if (options?.optionGroups && options.optionGroups.length) {
-				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, options.optionGroups);
-			}
-		}).catch(err => this._logService.error('Error fetching chat session options', err));
+		this._refreshProviderOptions(handle, chatSessionScheme);
 	}
 
 	$unregisterChatSessionContentProvider(handle: number): void {
@@ -652,6 +628,31 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$handleAnchorResolve(handle: number, sesssionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void {
 		// throw new Error('Method not implemented.');
+	}
+
+	$onDidChangeChatSessionProviderOptions(handle: number): void {
+		let sessionType: string | undefined;
+		for (const [type, h] of this._sessionTypeToHandle) {
+			if (h === handle) {
+				sessionType = type;
+				break;
+			}
+		}
+
+		if (!sessionType) {
+			this._logService.warn(`No session type found for chat session content provider handle ${handle} when refreshing provider options`);
+			return;
+		}
+
+		this._refreshProviderOptions(handle, sessionType);
+	}
+
+	private _refreshProviderOptions(handle: number, chatSessionScheme: string): void {
+		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
+			if (options?.optionGroups && options.optionGroups.length) {
+				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, options.optionGroups);
+			}
+		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}
 
 	override dispose(): void {

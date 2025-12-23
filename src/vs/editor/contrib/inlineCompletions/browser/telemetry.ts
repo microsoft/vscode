@@ -42,9 +42,9 @@ export type InlineCompletionEndOfLifeEvent = {
 	preceeded: boolean | undefined;
 	superseded: boolean | undefined;
 	notShownReason: string | undefined;
-	renameCreated: boolean;
+	renameCreated: boolean | undefined;
 	renameDuration: number | undefined;
-	renameTimedOut: boolean;
+	renameTimedOut: boolean | undefined;
 	renameDroppedOtherEdits: number | undefined;
 	renameDroppedRenameEdits: number | undefined;
 	performanceMarkers: string | undefined;
