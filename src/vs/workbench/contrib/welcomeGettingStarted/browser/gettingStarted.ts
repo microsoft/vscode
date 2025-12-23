@@ -5,6 +5,7 @@
 
 import { $, Dimension, addDisposableListener, append, clearNode, reset } from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -295,6 +296,9 @@ export class GettingStartedPage extends EditorPane {
 						badgeelement.setAttribute('aria-label', localize('stepNotDone', "Checkbox for Step {0}: Not completed", step.title));
 					}
 				});
+				if (step.done) {
+					status(localize('stepAutoCompleted', "Step {0} completed", step.title));
+				}
 			}
 			this.updateCategoryProgress();
 		}));
