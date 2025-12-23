@@ -314,12 +314,6 @@ export interface IQuickInput extends IDisposable {
 	description: string | undefined;
 
 	/**
-	 * An HTML widget rendered below the input.
-	 * @deprecated Use an IQuickWidget instead.
-	 */
-	widget: any | undefined;
-
-	/**
 	 * The current step of the quick input rendered in the titlebar.
 	 */
 	step: number | undefined;
@@ -360,11 +354,6 @@ export interface IQuickInput extends IDisposable {
 	ignoreFocusOut: boolean;
 
 	/**
-	 * The toggle buttons to be added to the input box.
-	 */
-	toggles: IQuickInputToggle[] | undefined;
-
-	/**
 	 * Shows the quick input.
 	 */
 	show(): void;
@@ -395,10 +384,9 @@ export interface IQuickWidget extends IQuickInput {
 	readonly type: QuickInputType.QuickWidget;
 
 	/**
-	 * Should be an HTMLElement (TODO: move this entire file into browser)
-	 * @override
+	 * A HTML element that will be rendered inside the quick input.
 	 */
-	widget: any | undefined;
+	widget: HTMLElement | undefined;
 }
 
 export interface IQuickPickWillAcceptEvent {
@@ -718,17 +706,6 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 }
 
 /**
- * Represents a toggle for quick input.
- */
-export interface IQuickInputToggle {
-	/**
-	 * Event that is fired when the toggle value changes.
-	 * The boolean value indicates whether the change was triggered via keyboard.
-	 */
-	readonly onChange: Event<boolean>;
-}
-
-/**
  * Represents an input box in a quick input dialog.
  */
 export interface IInputBox extends IQuickInput {
@@ -842,6 +819,10 @@ export interface IQuickInputButton {
 	 * when the button is clicked.
 	 */
 	readonly toggle?: { checked: boolean };
+}
+
+export interface IQuickInputButtonWithToggle extends IQuickInputButton {
+	readonly toggle: { checked: boolean };
 }
 
 /**
