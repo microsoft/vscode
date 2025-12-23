@@ -10,7 +10,7 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
-import { IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent } from '../../common/chatService.js';
+import { IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
@@ -19,7 +19,7 @@ export class MockChatService implements IChatService {
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
-	transferredSessionData: IChatTransferredSessionData | undefined;
+	transferredSessionResource: URI | undefined;
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }> = Event.None;
 
 	private sessions = new ResourceMap<IChatModel>();
@@ -49,7 +49,7 @@ export class MockChatService implements IChatService {
 	async getOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
 		throw new Error('Method not implemented.');
 	}
-	getPersistedSessionTitle(sessionResource: URI): string | undefined {
+	getSessionTitle(sessionResource: URI): string | undefined {
 		throw new Error('Method not implemented.');
 	}
 	loadSessionFromContent(data: ISerializableChatData): IChatModelReference | undefined {
@@ -104,7 +104,7 @@ export class MockChatService implements IChatService {
 	}
 	readonly onDidDisposeSession: Event<{ sessionResource: URI[]; reason: 'cleared' }> = undefined!;
 
-	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
+	async transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -121,10 +121,6 @@ export class MockChatService implements IChatService {
 	}
 
 	logChatIndex(): void {
-		throw new Error('Method not implemented.');
-	}
-
-	isPersistedSessionEmpty(sessionResource: URI): boolean {
 		throw new Error('Method not implemented.');
 	}
 

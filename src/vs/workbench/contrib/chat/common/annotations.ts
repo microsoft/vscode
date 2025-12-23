@@ -7,6 +7,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from './chatModel.js';
 import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from './chatService.js';
 
@@ -24,10 +25,10 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 			if (!label) {
 				if (URI.isUri(item.inlineReference)) {
 					label = basename(item.inlineReference);
-				} else if ('name' in item.inlineReference) {
-					label = item.inlineReference.name;
-				} else {
+				} else if (isLocation(item.inlineReference)) {
 					label = basename(item.inlineReference.uri);
+				} else {
+					label = item.inlineReference.name;
 				}
 			}
 
