@@ -22,6 +22,14 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return;
 	}
 
+	updateModelDisplayName(modelIdentifier: string, displayName: string | undefined): void {
+		return;
+	}
+
+	getModelDisplayName(modelIdentifier: string): string | undefined {
+		return undefined;
+	}
+
 	getVendors(): IUserFriendlyLanguageModel[] {
 		return [];
 	}
