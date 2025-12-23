@@ -518,7 +518,7 @@ export class AcceptAllInput1 extends MergeEditorAction {
 		super({
 			id: 'merge.acceptAllInput1',
 			category: mergeEditorCategory,
-			title: localize2('merge.acceptAllInput1', "Accept All Incoming Changes from Left"),
+			title: localize2('merge.acceptAllInput1', "Accept All Current Changes from Left"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
 			menu: { id: MenuId.MergeInput1Toolbar, group: 'primary' },
@@ -536,7 +536,7 @@ export class AcceptAllInput2 extends MergeEditorAction {
 		super({
 			id: 'merge.acceptAllInput2',
 			category: mergeEditorCategory,
-			title: localize2('merge.acceptAllInput2', "Accept All Current Changes from Right"),
+			title: localize2('merge.acceptAllInput2', "Accept All Incoming Changes from Right"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
 			menu: { id: MenuId.MergeInput2Toolbar, group: 'primary' },
