@@ -22,7 +22,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
@@ -947,11 +947,20 @@ export class Repository implements Disposable {
 		const icon = repository.kind === 'submodule'
 			? new ThemeIcon('archive')
 			: repository.kind === 'worktree'
-				? new ThemeIcon('list-tree')
+				? isCopilotWorktree(repository.root)
+					? new ThemeIcon('chat-sparkle')
+					: new ThemeIcon('worktree')
 				: new ThemeIcon('repo');
 
+		// Hidden
+		// This is a temporary solution to hide worktrees created by Copilot
+		// when the main repository is opened. Users can still manually open
+		// the worktree from the Repositories view.
+		const hidden = repository.kind === 'worktree' &&
+			isCopilotWorktree(repository.root) && parent !== undefined;
+
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, parent);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, hidden, parent);
 		this._sourceControl.contextValue = repository.kind;
 
 		this._sourceControl.quickDiffProvider = this;

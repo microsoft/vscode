@@ -28,6 +28,10 @@ export namespace LocalChatSessionUri {
 		return parsed?.chatSessionType === localChatSessionType ? parsed.sessionId : undefined;
 	}
 
+	export function isLocalSession(resource: URI): boolean {
+		return !!parseLocalSessionId(resource);
+	}
+
 	function parse(resource: URI): ChatSessionIdentifier | undefined {
 		if (resource.scheme !== scheme) {
 			return undefined;
