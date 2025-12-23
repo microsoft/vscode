@@ -200,6 +200,35 @@ suite('Common Editor Config', () => {
 		config.dispose();
 	});
 
+	test('defensive word wrap with accessibility enabled and dominated by long lines', () => {
+		const config = new TestWrappingConfiguration({
+			envConfig: {
+				accessibilitySupport: AccessibilitySupport.Enabled
+			}
+		});
+		config.setIsDominatedByLongLines(true);
+		// Should enable automatic wrapping when dominated by long lines with accessibility enabled
+		const wrappingInfo = config.options.get(EditorOption.wrappingInfo);
+		assert.strictEqual(wrappingInfo.isWordWrapMinified, true);
+		assert.strictEqual(wrappingInfo.isViewportWrapping, true);
+		config.dispose();
+	});
+
+	test('wordWrapMinified=on prevents defensive word wrap', () => {
+		const config = new TestWrappingConfiguration({
+			wordWrapMinified: 'on',
+			envConfig: {
+				accessibilitySupport: AccessibilitySupport.Enabled
+			}
+		});
+		config.setIsDominatedByLongLines(true);
+		// Should NOT enable automatic wrapping when wordWrapMinified is 'on'
+		const wrappingInfo = config.options.get(EditorOption.wrappingInfo);
+		assert.strictEqual(wrappingInfo.isWordWrapMinified, false);
+		assert.strictEqual(wrappingInfo.isViewportWrapping, false);
+		config.dispose();
+	});
+
 	test('issue #53152: Cannot assign to read only property \'enabled\' of object', () => {
 		const hoverOptions: IEditorHoverOptions = {};
 		Object.defineProperty(hoverOptions, 'enabled', {
