@@ -14,12 +14,16 @@ import { ChatAgentLocation } from '../../common/constants.js';
 export class MockChatModel extends Disposable implements IChatModel {
 	readonly onDidDispose = this._register(new Emitter<void>()).event;
 	readonly onDidChange = this._register(new Emitter<IChatChangeEvent>()).event;
-	readonly sessionId = '';
+	sessionId = '';
 	readonly timestamp = 0;
 	readonly timing = { startTime: 0 };
 	readonly initialLocation = ChatAgentLocation.Chat;
 	readonly title = '';
 	readonly hasCustomTitle = false;
+	customTitle: string | undefined;
+	lastMessageDate = Date.now();
+	creationDate = Date.now();
+	requests: IChatRequestModel[] = [];
 	readonly requestInProgress = observableValue('requestInProgress', false);
 	readonly requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
 	readonly inputPlaceholder = undefined;
@@ -66,8 +70,8 @@ export class MockChatModel extends Disposable implements IChatModel {
 			version: 3,
 			sessionId: this.sessionId,
 			creationDate: this.timestamp,
-			lastMessageDate: this.timestamp,
-			customTitle: undefined,
+			lastMessageDate: this.lastMessageDate,
+			customTitle: this.customTitle,
 			initialLocation: this.initialLocation,
 			requests: [],
 			responderUsername: '',

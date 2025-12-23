@@ -60,6 +60,7 @@ import { IAgentSession } from './agentSessions/agentSessionsModel.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
+	sessionsViewerLimited?: boolean;
 }
 
 type ChatViewPaneOpenedClassification = {
@@ -117,6 +118,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		) {
 			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
+		this.sessionsViewerLimited = this.viewState.sessionsViewerLimited ?? true;
 
 		// Contextkeys
 		this.chatViewLocationContext = ChatContextKeys.panelLocation.bindTo(contextKeyService);
@@ -213,9 +215,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private onDidChangeAgents(): void {
 		if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 			if (!this._widget?.viewModel && !this.restoringSession) {
-				const info = this.getTransferredOrPersistedSessionInfo();
+				const sessionResource = this.getTransferredOrPersistedSessionInfo();
 				this.restoringSession =
-					(info.sessionId ? this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(info.sessionId)) : Promise.resolve(undefined)).then(async modelRef => {
+					(sessionResource ? this.chatService.getOrRestoreSession(sessionResource) : Promise.resolve(undefined)).then(async modelRef => {
 						if (!this._widget) {
 							return; // renderBody has not been called yet
 						}
@@ -226,9 +228,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						const wasVisible = this._widget.visible;
 						try {
 							this._widget.setVisible(false);
-							if (info.inputState && modelRef) {
-								modelRef.object.inputModel.setState(info.inputState);
-							}
 
 							await this.showModel(modelRef);
 						} finally {
@@ -243,16 +242,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._onDidChangeViewWelcomeState.fire();
 	}
 
-	private getTransferredOrPersistedSessionInfo(): { sessionId?: string; inputState?: IChatModelInputState; mode?: ChatModeKind } {
-		if (this.chatService.transferredSessionData?.location === ChatAgentLocation.Chat) {
-			const sessionId = this.chatService.transferredSessionData.sessionId;
-			return {
-				sessionId,
-				inputState: this.chatService.transferredSessionData.inputState,
-			};
+	private getTransferredOrPersistedSessionInfo(): URI | undefined {
+		if (this.chatService.transferredSessionResource) {
+			return this.chatService.transferredSessionResource;
 		}
 
-		return { sessionId: this.viewState.sessionId };
+		return this.viewState.sessionId ? LocalChatSessionUri.forSession(this.viewState.sessionId) : undefined;
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -304,7 +299,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsLink: Link | undefined;
 	private sessionsCount = 0;
 	private sessionsViewerLimited = true;
-	private sessionsViewerLimitedConfiguration = true;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationConfiguration: 'stacked' | 'sideBySide' = 'sideBySide';
 	private sessionsViewerOrientationContext: IContextKey<AgentSessionsViewerOrientation>;
@@ -369,7 +363,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				return position === Position.RIGHT ? HoverPosition.LEFT : HoverPosition.RIGHT;
 			},
 			trackActiveEditorSession: () => {
-				return !this._widget || this._widget?.isEmpty(); // only track and reveal unless we show a chat in the this pane
+				return !this._widget || this._widget.isEmpty(); // only track and reveal if chat widget is empty
 			},
 			overrideCompare(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined {
 
@@ -401,9 +395,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}, {
 			opener: () => {
 				this.sessionsViewerLimited = !this.sessionsViewerLimited;
-
-				this.sessionsViewerLimitedConfiguration = this.sessionsViewerLimited;
-				this.configurationService.updateValue(ChatConfiguration.ChatViewSessionsStackedShowAll, !this.sessionsViewerLimited);
+				this.viewState.sessionsViewerLimited = this.sessionsViewerLimited;
 
 				this.notifySessionsControlLimitedChanged(true /* layout */, true /* update */);
 
@@ -415,15 +407,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.runAndSubscribe(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsOrientation)), e => {
 			const newSessionsViewerOrientationConfiguration = this.configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
 			this.doUpdateConfiguredSessionsViewerOrientation(newSessionsViewerOrientationConfiguration, { updateConfiguration: false, layout: !!e });
-		}));
-
-		// Deal with limited configuration
-		this._register(Event.runAndSubscribe(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsStackedShowAll)), e => {
-			this.sessionsViewerLimitedConfiguration = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsStackedShowAll) === false;
-			if (this.sessionsViewerLimitedConfiguration !== this.sessionsViewerLimited && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-				this.sessionsViewerLimited = this.sessionsViewerLimitedConfiguration; // only accept when we show stacked, side by side is always showing all
-				this.notifySessionsControlLimitedChanged(!!e /* layout */, !!e /* update */);
-			}
 		}));
 
 		return sessionsControl;
@@ -668,12 +651,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#region Model Management
 
 	private async applyModel(): Promise<void> {
-		const info = this.getTransferredOrPersistedSessionInfo();
-		const modelRef = info.sessionId ? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(info.sessionId)) : undefined;
-		if (modelRef && info.inputState) {
-			modelRef.object.inputModel.setState(info.inputState);
-		}
-
+		const sessionResource = this.getTransferredOrPersistedSessionInfo();
+		const modelRef = sessionResource ? await this.chatService.getOrRestoreSession(sessionResource) : undefined;
 		await this.showModel(modelRef);
 	}
 
@@ -683,8 +662,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		let ref: IChatModelReference | undefined;
 		if (startNewSession) {
-			ref = modelRef ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === ChatAgentLocation.Chat
-				? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(this.chatService.transferredSessionData.sessionId))
+			ref = modelRef ?? (this.chatService.transferredSessionResource
+				? await this.chatService.getOrRestoreSession(this.chatService.transferredSessionResource)
 				: this.chatService.startSession(ChatAgentLocation.Chat));
 			if (!ref) {
 				throw new Error('Could not start chat session');
@@ -860,7 +839,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
 				this.sessionsViewerLimited = false; // side by side always shows all
 			} else {
-				this.sessionsViewerLimited = this.sessionsViewerLimitedConfiguration;
+				this.sessionsViewerLimited = this.viewState.sessionsViewerLimited ?? true;
 			}
 
 			let updatePromise: Promise<void>;

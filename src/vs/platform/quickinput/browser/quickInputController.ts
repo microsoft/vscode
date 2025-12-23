@@ -674,6 +674,7 @@ export class QuickInputController extends Disposable {
 		ui.inputBox.showDecoration(Severity.Ignore);
 		ui.visibleCount.setCount(0);
 		ui.count.setCount(0);
+		ui.countContainer.style.right = '4px';
 		dom.reset(ui.message);
 		ui.progressBar.stop();
 		ui.progressBar.getContainer().setAttribute('aria-hidden', 'true');

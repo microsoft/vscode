@@ -21,7 +21,6 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { OutputViewPane } from './outputView.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { localize } from '../../../../nls.js';
@@ -30,6 +29,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { telemetryLogId } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { toLocalISOString } from '../../../../base/common/date.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IDefaultLogLevelsService } from '../../../services/log/common/defaultLogLevels.js';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -605,7 +605,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		const descriptor = this.activeChannel?.outputChannelDescriptor;
 		const channelLogLevel = descriptor ? this.getLogLevel(descriptor) : undefined;
 		if (channelLogLevel !== undefined) {
-			const channelDefaultLogLevel = await this.defaultLogLevelsService.getDefaultLogLevel(descriptor?.extensionId);
+			const channelDefaultLogLevel = this.defaultLogLevelsService.getDefaultLogLevel(descriptor?.extensionId);
 			this.activeOutputChannelLevelIsDefaultContext.set(channelDefaultLogLevel === channelLogLevel);
 		} else {
 			this.activeOutputChannelLevelIsDefaultContext.set(false);
