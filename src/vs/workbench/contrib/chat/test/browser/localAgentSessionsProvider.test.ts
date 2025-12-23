@@ -92,7 +92,7 @@ class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	getPersistedSessionTitle(_sessionResource: URI): string | undefined {
+	getSessionTitle(_sessionResource: URI): string | undefined {
 		return undefined;
 	}
 
@@ -157,10 +157,6 @@ class MockChatService implements IChatService {
 	}
 
 	logChatIndex(): void { }
-
-	isPersistedSessionEmpty(_sessionResource: URI): boolean {
-		return false;
-	}
 
 	activateDefaultAgent(_location: ChatAgentLocation): Promise<void> {
 		return Promise.resolve();
