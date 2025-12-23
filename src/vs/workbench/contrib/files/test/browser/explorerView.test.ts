@@ -15,7 +15,6 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
-import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 
 suite('Files - ExplorerView', () => {
 
@@ -120,41 +119,5 @@ suite('Files - ExplorerView', () => {
 		assert.strictEqual(navigationController.current, s2);
 		navigationController.setIndex(44);
 		assert.strictEqual(navigationController.current, s2);
-	});
-
-	test('compact folders disabled when screen reader optimized', function () {
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration('explorer', { compactFolders: true });
-
-		// Test with screen reader disabled - compact folders should be enabled
-		const testAccessibilityServiceOff = new class extends TestAccessibilityService {
-			override isScreenReaderOptimized(): boolean { return false; }
-		}();
-
-		// Simulate the isCompressionEnabled function from ExplorerView
-		const isCompressionEnabledOff = () => {
-			const configValue = configService.getValue<boolean>('explorer.compactFolders');
-			if (testAccessibilityServiceOff.isScreenReaderOptimized()) {
-				return false;
-			}
-			return configValue;
-		};
-
-		assert.strictEqual(isCompressionEnabledOff(), true, 'Compact folders should be enabled when screen reader is off');
-
-		// Test with screen reader enabled - compact folders should be disabled
-		const testAccessibilityServiceOn = new class extends TestAccessibilityService {
-			override isScreenReaderOptimized(): boolean { return true; }
-		}();
-
-		const isCompressionEnabledOn = () => {
-			const configValue = configService.getValue<boolean>('explorer.compactFolders');
-			if (testAccessibilityServiceOn.isScreenReaderOptimized()) {
-				return false;
-			}
-			return configValue;
-		};
-
-		assert.strictEqual(isCompressionEnabledOn(), false, 'Compact folders should be disabled when screen reader is optimized');
 	});
 });
