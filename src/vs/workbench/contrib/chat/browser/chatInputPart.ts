@@ -1476,7 +1476,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.tryUpdateWidgetController();
 
-		this.renderAttachedContext();
 		this._register(this._attachmentModel.onDidChange((e) => {
 			if (e.added.length > 0) {
 				this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
@@ -1759,6 +1758,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._onDidChangeHeight.fire();
 			}
 		}));
+		this.renderAttachedContext();
 	}
 
 	public toggleChatInputOverlay(editing: boolean): void {

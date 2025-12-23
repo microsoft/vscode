@@ -3305,6 +3305,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
 	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto2>): void;
+	$onDidChangeChatSessionProviderOptions(handle: number): void;
 
 	$handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
