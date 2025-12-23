@@ -144,8 +144,8 @@
 	position: relative;
 }
 
-.monaco-workbench .terminal-editor .terminal-wrapper > div,
-.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > div {
+.monaco-workbench .terminal-editor .terminal-wrapper > .terminal-xterm-host,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > .terminal-xterm-host {
 	height: 100%;
 }
 
