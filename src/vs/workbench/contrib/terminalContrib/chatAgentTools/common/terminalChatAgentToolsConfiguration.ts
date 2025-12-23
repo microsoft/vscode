@@ -260,6 +260,28 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			find: true,
 			'/^find\\b.*-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
 
+			// rg (ripgrep)
+			// - `--pre`: Executes arbitrary command as preprocessor for every file searched.
+			// - `--hostname-bin`: Executes arbitrary command to get hostname.
+			rg: true,
+			'/^rg\\b.*(--pre|--hostname-bin)\\b/': false,
+
+			// sed
+			// - `-e`/`--expression`: Add the commands in script to the set of commands to be run
+			//   while processing the input.
+			// - `-f`/`--file`: Add the commands contained in the file script-file to the set of
+			//   commands to be run while processing the input.
+			// - `-i`/`-I`/`--in-place`: This option specifies that files are to be edited in-place.
+			// - `w`/`W` commands: Write to files (blocked by `-i` check + agent typically won't use).
+			// - `s///e` flag: Executes substitution result as shell command
+			// - `s///w` flag: Write substitution result to file
+			// - `;W` Write first line of pattern space to file
+			// - Note that `--sandbox` exists which blocks unsafe commands that could potentially be
+			//   leveraged to auto approve
+			sed: true,
+			'/^sed\\b.*(-[a-zA-Z]*(e|i|I|f)[a-zA-Z]*|--expression|--file|--in-place)\\b/': false,
+			'/^sed\\b.*(\/e|\/w|;W)/': false,
+
 			// sort
 			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are
 			//   blocked currently

@@ -7,16 +7,17 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { createManageTodoListToolData } from '../../../common/tools/manageTodoListTool.js';
 import { IToolData } from '../../../common/languageModelToolsService.js';
+import { IJSONSchema } from '../../../../../../base/common/jsonSchema.js';
 
 suite('ManageTodoListTool Description Field Setting', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function getSchemaProperties(toolData: IToolData): { properties: any; required: string[] } {
 		assert.ok(toolData.inputSchema);
-		// eslint-disable-next-line local/code-no-any-casts
-		const schema = toolData.inputSchema as any;
-		const properties = schema?.properties?.todoList?.items?.properties;
-		const required = schema?.properties?.todoList?.items?.required;
+		const schema = toolData.inputSchema;
+		const todolistItems = schema?.properties?.todoList?.items as IJSONSchema | undefined;
+		const properties = todolistItems?.properties;
+		const required = todolistItems?.required;
 
 		assert.ok(properties, 'Schema properties should be defined');
 		assert.ok(required, 'Schema required fields should be defined');

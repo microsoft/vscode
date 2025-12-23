@@ -268,7 +268,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			locks.add(await this.createResourceLock(tempResource));
 
 			// Write to temp resource first
-			await this.doWriteFile(tempResource, content, opts, true /* disable write lock */);
+			await this.doWriteFile(tempResource, content, { ...opts, create: true, overwrite: true }, true /* disable write lock */);
 
 			try {
 
