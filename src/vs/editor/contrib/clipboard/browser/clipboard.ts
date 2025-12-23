@@ -318,10 +318,12 @@ if (PasteAction) {
 
 			logService.trace('registerExecCommandImpl (before triggerPaste)');
 			PasteOptions.electronBugWorkaroundPasteEventHasFired = false;
+			logService.trace('PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
 			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 			if (triggerPaste) {
 				logService.trace('registerExecCommandImpl (triggerPaste defined)');
 				return triggerPaste.then(async () => {
+					logService.trace('PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
 					if (PasteOptions.electronBugWorkaroundPasteEventHasFired === false) {
 						return pasteWithNavigatorAPI(focusedEditor, clipboardService, logService);
 					}
