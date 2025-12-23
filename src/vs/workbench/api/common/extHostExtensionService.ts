@@ -563,6 +563,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 						messagePort.start();
 						messagePassingProtocol = {
 							onDidReceiveMessage,
+							// eslint-disable-next-line local/code-no-any-casts
 							postMessage: messagePort.postMessage.bind(messagePort) as any
 						};
 					}
@@ -593,8 +594,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			try {
 				activationTimesBuilder.activateCallStart();
 				logService.trace(`ExtensionService#_callActivateOptional ${extensionId.value}`);
-				const scope = typeof global === 'object' ? global : self; // `global` is nodejs while `self` is for workers
-				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(scope, [context]);
+				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(globalThis, [context]);
 				activationTimesBuilder.activateCallStop();
 
 				activationTimesBuilder.activateResolveStart();
@@ -1006,6 +1006,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		const { globalRegistry, myExtensions } = applyExtensionsDelta(this._activationEventsReader, this._globalRegistry, this._myRegistry, extensionsDelta);
@@ -1046,6 +1047,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		// First build up and update the trie and only afterwards apply the delta
@@ -1087,7 +1089,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	protected _isESM(extensionDescription: IExtensionDescription | undefined, modulePath?: string): boolean {
-		modulePath ??= extensionDescription?.main;
+		modulePath ??= extensionDescription ? this._getEntryPoint(extensionDescription) : modulePath;
 		return modulePath?.endsWith('.mjs') || (extensionDescription?.type === 'module' && !modulePath?.endsWith('.cjs'));
 	}
 
@@ -1160,7 +1162,7 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
 	getRemoteExecServer(authority: string): Promise<vscode.ExecServer | undefined>;
 
-	onDidChangeRemoteConnectionData: Event<void>;
+	readonly onDidChangeRemoteConnectionData: Event<void>;
 	getRemoteConnectionData(): IRemoteConnectionData | null;
 }
 

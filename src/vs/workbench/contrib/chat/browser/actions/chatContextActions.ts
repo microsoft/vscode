@@ -3,70 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { groupBy } from '../../../../../base/common/arrays.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { asArray } from '../../../../../base/common/arrays.js';
+import { DeferredPromise, isThenable } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { isElectron } from '../../../../../base/common/platform.js';
-import { basename, dirname, extUri } from '../../../../../base/common/resources.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { WithUriValue } from '../../../../../base/common/types.js';
+import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { IRange, Range } from '../../../../../editor/common/core/range.js';
-import { Command, SymbolKinds } from '../../../../../editor/common/languages.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IListService } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ActiveEditorContext, TextCompareEditorActiveContext } from '../../../../common/contextkeys.js';
-import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
+import { EditorResourceAccessor, isEditorCommandsContext, SideBySideEditor } from '../../../../common/editor.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
-import { IHostService } from '../../../../services/host/browser/host.js';
-import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
-import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
-import { TEXT_FILE_EDITOR_ID } from '../../../files/common/files.js';
-import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
+import { ExplorerFolderContext } from '../../../files/common/files.js';
+import { CTX_INLINE_CHAT_V2_ENABLED } from '../../../inlineChat/common/inlineChat.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
-import { SearchView } from '../../../search/browser/searchView.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, OmittedState } from '../../common/chatModel.js';
-import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
-import { ChatAgentLocation } from '../../common/constants.js';
-import { IToolData } from '../../common/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
-import { imageToHash, isImage } from '../chatPasteProviders.js';
+import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
+import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
+import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
-import { createFolderQuickPick } from '../contrib/chatDynamicVariables.js';
-import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
-import { resizeImage } from '../imageUtils.js';
-import { INSTRUCTIONS_COMMAND_ID } from '../promptSyntax/contributions/attachInstructionsCommand.js';
+import { resizeImage } from '../chatImageUtils.js';
+import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { runAttachInstructionsAction, registerPromptActions } from './promptActions/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -74,176 +58,36 @@ export function registerChatContextActions() {
 	registerAction2(AttachFolderToChatAction);
 	registerAction2(AttachSelectionToChatAction);
 	registerAction2(AttachSearchResultAction);
+	registerPromptActions();
 }
 
-/**
- * We fill the quickpick with these types, and enable some quick access providers
- */
-type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem
-	| IToolsQuickPickItem | IToolQuickPickItem
-	| IImageQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem
-	| IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IInstructionsQuickPickItem
-	| IFolderQuickPickItem | IFolderResultQuickPickItem
-	| IDiagnosticsQuickPickItem | IDiagnosticsQuickPickItemWithFilter;
+async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
+	const chatWidgetService = accessor.get(IChatWidgetService);
 
-function isIAttachmentQuickPickItem(obj: unknown): obj is IAttachmentQuickPickItem {
-	return (
-		typeof obj === 'object'
-		&& obj !== null
-		&& typeof (<IAttachmentQuickPickItem>obj).kind === 'string'
-	);
-}
-
-const attachmentsOrdinals: (IAttachmentQuickPickItem['kind'])[] = [
-	// bottom-most
-	'tools',
-	'screenshot',
-	'image',
-	'quickaccess',
-	'diagnostic',
-	'instructions',
-	'folder',
-	'open-editors',
-	// top-most
-];
-
-/**
- * These are the types that we can get out of the quick pick
- */
-type IChatContextQuickPickItem = IAttachmentQuickPickItem | IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickPickItemWithResource;
-
-function isIGotoSymbolQuickPickItem(obj: unknown): obj is IGotoSymbolQuickPickItem {
-	return (
-		typeof obj === 'object'
-		&& typeof (obj as IGotoSymbolQuickPickItem).symbolName === 'string'
-		&& !!(obj as IGotoSymbolQuickPickItem).uri
-		&& !!(obj as IGotoSymbolQuickPickItem).range);
-}
-
-function isISymbolQuickPickItem(obj: unknown): obj is ISymbolQuickPickItem {
-	return (
-		typeof obj === 'object'
-		&& typeof (obj as ISymbolQuickPickItem).symbol === 'object'
-		&& !!(obj as ISymbolQuickPickItem).symbol);
-}
-
-function isIQuickPickItemWithResource(obj: unknown): obj is IQuickPickItemWithResource {
-	return (
-		typeof obj === 'object'
-		&& typeof (obj as IQuickPickItemWithResource).resource === 'object'
-		&& URI.isUri((obj as IQuickPickItemWithResource).resource));
-}
-
-
-interface IToolsQuickPickItem extends IQuickPickItem {
-	kind: 'tools';
-	id: string;
-	label: string;
-}
-
-interface IRelatedFilesQuickPickItem extends IQuickPickItem {
-	kind: 'related-files';
-	id: string;
-	label: string;
-}
-
-interface IFolderQuickPickItem extends IQuickPickItem {
-	kind: 'folder';
-	id: string;
-	label: string;
-}
-
-interface IFolderResultQuickPickItem extends IQuickPickItem {
-	kind: 'folder-search-result';
-	id: string;
-	resource: URI;
-}
-
-interface IImageQuickPickItem extends IQuickPickItem {
-	kind: 'image';
-	id: string;
-}
-
-interface ICommandVariableQuickPickItem extends IQuickPickItem {
-	kind: 'command';
-	id: string;
-	command: Command;
-	name?: string;
-	value: unknown;
-	icon?: ThemeIcon;
-}
-
-interface IToolQuickPickItem extends IQuickPickItem {
-	kind: 'tool';
-	id: string;
-	name?: string;
-	icon?: ThemeIcon;
-	tool: IToolData;
-}
-
-interface IQuickAccessQuickPickItem extends IQuickPickItem {
-	kind: 'quickaccess';
-	id: string;
-	prefix: string;
-}
-
-interface IOpenEditorsQuickPickItem extends IQuickPickItem {
-	kind: 'open-editors';
-	id: 'open-editors';
-	icon?: ThemeIcon;
-}
-
-interface ISearchResultsQuickPickItem extends IQuickPickItem {
-	kind: 'search-results';
-	id: string;
-	icon?: ThemeIcon;
-}
-
-interface IScreenShotQuickPickItem extends IQuickPickItem {
-	kind: 'screenshot';
-	id: string;
-	icon?: ThemeIcon;
-}
-
-interface IDiagnosticsQuickPickItem extends IQuickPickItem {
-	kind: 'diagnostic';
-	id: string;
-	icon?: ThemeIcon;
-}
-
-interface IDiagnosticsQuickPickItemWithFilter extends IQuickPickItem {
-	kind: 'diagnostic-filter';
-	id: string;
-	filter: IDiagnosticVariableEntryFilterData;
-	icon?: ThemeIcon;
-}
-
-/**
- * Quick pick item for instructions attachment.
- */
-const INSTRUCTION_PICK_ID = 'instructions';
-interface IInstructionsQuickPickItem extends IQuickPickItem {
-	/**
-	 * The ID of the quick pick item.
-	 */
-	id: typeof INSTRUCTION_PICK_ID;
-
-	/**
-	 * Unique kind identifier of the instructions attachment.
-	 */
-	kind: typeof INSTRUCTION_PICK_ID;
-
-	/**
-	 * Keybinding of the command.
-	 */
-	keybinding?: ResolvedKeybinding;
+	const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
+	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Chat) {
+		return chatWidgetService.revealWidget(); // only show chat view if we either have no chat view or its located in view container
+	}
+	return lastFocusedWidget;
 }
 
 abstract class AttachResourceAction extends Action2 {
-	getResources(accessor: ServicesAccessor, ...args: any[]): URI[] {
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const instaService = accessor.get(IInstantiationService);
+		const widget = await instaService.invokeFunction(withChatView);
+		if (!widget) {
+			return;
+		}
+		return instaService.invokeFunction(this.runWithWidget.bind(this), widget, ...args);
+	}
+
+	abstract runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void>;
+
+	protected _getResources(accessor: ServicesAccessor, ...args: unknown[]): URI[] {
 		const editorService = accessor.get(IEditorService);
 
-		const contexts = Array.isArray(args[1]) ? args[1] : [args[0]];
+		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, args) : Array.isArray(args[1]) ? args[1] : [args[0]];
 		const files = [];
 		for (const context of contexts) {
 			let uri;
@@ -264,6 +108,15 @@ abstract class AttachResourceAction extends Action2 {
 
 		return files;
 	}
+
+	private _getEditorResources(accessor: ServicesAccessor, ...args: unknown[]): URI[] {
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
+
+		return resolvedContext.groupedEditors
+			.flatMap(groupedEditor => groupedEditor.editors)
+			.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }))
+			.filter(uri => uri !== undefined);
+	}
 }
 
 class AttachFileToChatAction extends AttachResourceAction {
@@ -275,23 +128,58 @@ class AttachFileToChatAction extends AttachResourceAction {
 			id: AttachFileToChatAction.ID,
 			title: localize2('workbench.action.chat.attachFile.label', "Add File to Chat"),
 			category: CHAT_CATEGORY,
-			f1: false,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
 			menu: [{
 				id: MenuId.SearchContext,
 				group: 'z_chat',
 				order: 1,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext), SearchContext.SearchResultHeaderFocused.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SearchContext.FileMatchOrMatchFocusKey, SearchContext.SearchResultHeaderFocused.negate()),
+			}, {
+				id: MenuId.ExplorerContext,
+				group: '5_chat',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ExplorerFolderContext.negate(),
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				),
+			}, {
+				id: MenuId.EditorTitleContext,
+				group: '2_chat',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				),
+			}, {
+				id: MenuId.EditorContext,
+				group: '1_chat',
+				order: 2,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.untitled),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
+					)
+				)
 			}]
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const files = this.getResources(accessor, ...args);
+	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void> {
+		const files = this._getResources(accessor, ...args);
 		if (!files.length) {
 			return;
 		}
-		const widget = await showChatView(viewsService);
 		if (widget) {
 			widget.focusInput();
 			for (const file of files) {
@@ -311,17 +199,27 @@ class AttachFolderToChatAction extends AttachResourceAction {
 			title: localize2('workbench.action.chat.attachFolder.label', "Add Folder to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
+			menu: {
+				id: MenuId.ExplorerContext,
+				group: '5_chat',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ExplorerFolderContext,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				)
+			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-
-		const folders = this.getResources(accessor, ...args);
+	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void> {
+		const folders = this._getResources(accessor, ...args);
 		if (!folders.length) {
 			return;
 		}
-		const widget = await showChatView(viewsService);
 		if (widget) {
 			widget.focusInput();
 			for (const folder of folders) {
@@ -340,15 +238,31 @@ class AttachSelectionToChatAction extends Action2 {
 			id: AttachSelectionToChatAction.ID,
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
-			f1: false,
+			f1: true,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.EditorContext,
+				group: '1_chat',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					EditorContextKeys.hasNonEmptySelection,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.untitled),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
+					)
+				)
+			}
 		});
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const viewsService = accessor.get(IViewsService);
 
-		const widget = await showChatView(viewsService);
+		const widget = await accessor.get(IInstantiationService).invokeFunction(withChatView);
 		if (!widget) {
 			return;
 		}
@@ -414,7 +328,7 @@ export class AttachSearchResultAction extends Action2 {
 	}
 	async run(accessor: ServicesAccessor) {
 		const logService = accessor.get(ILogService);
-		const widget = await showChatView(accessor.get(IViewsService));
+		const widget = await accessor.get(IInstantiationService).invokeFunction(withChatView);
 
 		if (!widget) {
 			logService.trace('InsertSearchResultAction: no chat view available');
@@ -444,6 +358,38 @@ export class AttachSearchResultAction extends Action2 {
 	}
 }
 
+/** This is our type */
+interface IContextPickItemItem extends IQuickPickItem {
+	kind: 'contextPick';
+	item: IChatContextValueItem | IChatContextPickerItem;
+}
+
+/** These are the types we get from "platform QP" */
+type IQuickPickServicePickItem = IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickPickItemWithResource;
+
+function isIContextPickItemItem(obj: unknown): obj is IContextPickItemItem {
+	return (
+		isObject(obj)
+		&& typeof (<IContextPickItemItem>obj).kind === 'string'
+		&& (<IContextPickItemItem>obj).kind === 'contextPick'
+	);
+}
+
+function isIGotoSymbolQuickPickItem(obj: unknown): obj is IGotoSymbolQuickPickItem {
+	return (
+		isObject(obj)
+		&& typeof (obj as IGotoSymbolQuickPickItem).symbolName === 'string'
+		&& !!(obj as IGotoSymbolQuickPickItem).uri
+		&& !!(obj as IGotoSymbolQuickPickItem).range);
+}
+
+function isIQuickPickItemWithResource(obj: unknown): obj is IQuickPickItemWithResource {
+	return (
+		isObject(obj)
+		&& URI.isUri((obj as IQuickPickItemWithResource).resource));
+}
+
+
 export class AttachContextAction extends Action2 {
 
 	constructor() {
@@ -453,477 +399,105 @@ export class AttachContextAction extends Action2 {
 			icon: Codicon.attach,
 			category: CHAT_CATEGORY,
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menu: {
-				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline), CTX_INLINE_CHAT_V2_ENABLED)
+					),
+					ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.agentSupportsAttachments
+					)
+				),
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation',
 				order: 3
 			},
+
 		});
 	}
 
-	private _getFileContextId(item: { resource: URI } | { uri: URI; range: IRange }) {
-		if ('resource' in item) {
-			return item.resource.toString();
-		}
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 
-		return item.uri.toString() + (item.range.startLineNumber !== item.range.endLineNumber ?
-			`:${item.range.startLineNumber}-${item.range.endLineNumber}` :
-			`:${item.range.startLineNumber}`);
-	}
-
-	private async _attachContext(accessor: ServicesAccessor, widget: IChatWidget, isInBackground?: boolean, ...picks: IChatContextQuickPickItem[]) {
-		const commandService = accessor.get(ICommandService);
-		const clipboardService = accessor.get(IClipboardService);
-		const editorService = accessor.get(IEditorService);
-		const labelService = accessor.get(ILabelService);
-		const viewsService = accessor.get(IViewsService);
-		const chatEditingService = accessor.get(IChatEditingService);
-		const hostService = accessor.get(IHostService);
-		const fileService = accessor.get(IFileService);
-		const textModelService = accessor.get(ITextModelService);
-		const quickInputService = accessor.get(IQuickInputService);
-
-		const toAttach: IChatRequestVariableEntry[] = [];
-		for (const pick of picks) {
-
-			if (isIAttachmentQuickPickItem(pick)) {
-				if (pick.kind === 'folder-search-result') {
-					toAttach.push({
-						kind: 'directory',
-						id: pick.id,
-						value: pick.resource,
-						name: basename(pick.resource),
-					});
-				} else if (pick.kind === 'diagnostic-filter') {
-					toAttach.push({
-						id: pick.id,
-						name: pick.label,
-						value: pick.filter,
-						kind: 'diagnostic',
-						icon: pick.icon,
-						...pick.filter,
-					});
-
-				} else if (pick.kind === 'open-editors') {
-					for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput || e instanceof NotebookEditorInput)) {
-						const uri = editor instanceof DiffEditorInput ? editor.modified.resource : editor.resource;
-						if (uri) {
-							toAttach.push({
-								kind: 'file',
-								id: this._getFileContextId({ resource: uri }),
-								value: uri,
-								name: labelService.getUriBasenameLabel(uri),
-							});
-						}
-					}
-				} else if (pick.kind === 'search-results') {
-					const searchView = viewsService.getViewWithId(SEARCH_VIEW_ID) as SearchView;
-					for (const result of searchView.model.searchResult.matches()) {
-						toAttach.push({
-							kind: 'file',
-							id: this._getFileContextId({ resource: result.resource }),
-							value: result.resource,
-							name: labelService.getUriBasenameLabel(result.resource),
-						});
-					}
-				} else if (pick.kind === 'related-files') {
-					// Get all provider results and show them in a second tier picker
-					const chatSessionId = widget.viewModel?.sessionId;
-					if (!chatSessionId || !chatEditingService) {
-						continue;
-					}
-					const relatedFiles = await chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None);
-					if (!relatedFiles) {
-						continue;
-					}
-					const attachments = widget.attachmentModel.getAttachmentIDs();
-					const itemsPromise = chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
-						.then((files) => (files ?? []).reduce<(WithUriValue<IQuickPickItem> | IQuickPickSeparator)[]>((acc, cur) => {
-							acc.push({ type: 'separator', label: cur.group });
-							for (const file of cur.files) {
-								acc.push({
-									type: 'item',
-									label: labelService.getUriBasenameLabel(file.uri),
-									description: labelService.getUriLabel(dirname(file.uri), { relative: true }),
-									value: file.uri,
-									disabled: attachments.has(this._getFileContextId({ resource: file.uri })),
-									picked: true
-								});
-							}
-							return acc;
-						}, []));
-					const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set'), canPickMany: true });
-					for (const file of selectedFiles ?? []) {
-						toAttach.push({
-							kind: 'file',
-							id: this._getFileContextId({ resource: file.value }),
-							value: file.value,
-							name: file.label,
-							omittedState: OmittedState.NotOmitted
-						});
-					}
-				} else if (pick.kind === 'screenshot') {
-					const blob = await hostService.getScreenshot();
-					if (blob) {
-						toAttach.push(convertBufferToScreenshotVariable(blob));
-					}
-				} else if (pick.kind === 'command') {
-					// Dynamic variable with a followup command
-					const selection = await commandService.executeCommand(pick.command.id, ...(pick.command.arguments ?? []));
-					if (!selection) {
-						// User made no selection, skip this variable
-						continue;
-					}
-					toAttach.push({
-						...pick,
-						value: pick.value,
-						name: `${typeof pick.value === 'string' && pick.value.startsWith('#') ? pick.value.slice(1) : ''}${selection}`,
-						// Apply the original icon with the new name
-						fullName: selection
-					});
-				} else if (pick.kind === 'tool') {
-					toAttach.push({
-						id: pick.id,
-						name: pick.tool.displayName,
-						fullName: pick.tool.displayName,
-						value: undefined,
-						icon: pick.icon,
-						kind: 'tool'
-					});
-				} else if (pick.kind === 'image') {
-					const fileBuffer = await clipboardService.readImage();
-					toAttach.push({
-						id: await imageToHash(fileBuffer),
-						name: localize('pastedImage', 'Pasted Image'),
-						fullName: localize('pastedImage', 'Pasted Image'),
-						value: fileBuffer,
-						kind: 'image',
-					});
-				}
-			} else if (isISymbolQuickPickItem(pick) && pick.symbol) {
-				// Workspace symbol
-				toAttach.push({
-					kind: 'symbol',
-					id: this._getFileContextId(pick.symbol.location),
-					value: pick.symbol.location,
-					symbolKind: pick.symbol.kind,
-					icon: SymbolKinds.toIcon(pick.symbol.kind),
-					fullName: pick.label,
-					name: pick.symbol.name,
-				});
-			} else if (isIQuickPickItemWithResource(pick) && pick.resource) {
-				if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
-					// checks if the file is an image
-					if (URI.isUri(pick.resource)) {
-						// read the image and attach a new file context.
-						const readFile = await fileService.readFile(pick.resource);
-						const resizedImage = await resizeImage(readFile.value.buffer);
-						toAttach.push({
-							id: pick.resource.toString(),
-							name: pick.label,
-							fullName: pick.label,
-							value: resizedImage,
-							kind: 'image',
-						});
-					}
-				} else {
-					let omittedState = OmittedState.NotOmitted;
-					try {
-						const createdModel = await textModelService.createModelReference(pick.resource);
-						createdModel.dispose();
-					} catch {
-						omittedState = OmittedState.Full;
-					}
-
-					toAttach.push({
-						kind: 'file',
-						id: this._getFileContextId({ resource: pick.resource }),
-						value: pick.resource,
-						name: pick.label,
-						omittedState
-					});
-				}
-			} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
-				toAttach.push({
-					kind: 'generic',
-					id: this._getFileContextId({ uri: pick.uri, range: pick.range.decoration }),
-					value: { uri: pick.uri, range: pick.range.decoration },
-					fullName: pick.label,
-					name: pick.symbolName!,
-				});
-			}
-		}
-
-		widget.attachmentModel.addContext(...toAttach);
-		if (!isInBackground) {
-			// Set focus back into the input once the user is done attaching items
-			// so that the user can start typing their message
-			widget.focusInput();
-		}
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatAgentService = accessor.get(IChatAgentService);
-		const widgetService = accessor.get(IChatWidgetService);
-		const clipboardService = accessor.get(IClipboardService);
-		const editorService = accessor.get(IEditorService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const extensionService = accessor.get(IExtensionService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const widgetService = accessor.get(IChatWidgetService);
+		const contextKeyService = accessor.get(IContextKeyService);
 		const keybindingService = accessor.get(IKeybindingService);
-		const chatEditingService = accessor.get(IChatEditingService);
+		const contextPickService = accessor.get(IChatContextPickService);
 
-		const context: { widget?: IChatWidget; placeholder?: string } | undefined = args[0];
+		const context = args[0] as { widget?: IChatWidget; placeholder?: string } | undefined;
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
 		}
 
-		const quickPickItems: IAttachmentQuickPickItem[] = [];
-		if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
-			const imageData = await clipboardService.readImage();
-			if (isImage(imageData)) {
-				quickPickItems.push({
-					kind: 'image',
-					id: await imageToHash(imageData),
-					label: localize('imageFromClipboard', 'Image from Clipboard'),
-					iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
-				});
+		const quickPickItems: IContextPickItemItem[] = [];
+
+		for (const item of contextPickService.items) {
+
+			if (item.isEnabled && !await item.isEnabled(widget)) {
+				continue;
 			}
 
 			quickPickItems.push({
-				kind: 'screenshot',
-				id: ScreenshotVariableId,
-				icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
-				iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
-				label: (isElectron
-					? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
-					: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
+				kind: 'contextPick',
+				item,
+				label: item.label,
+				iconClass: ThemeIcon.asClassName(item.icon),
+				keybinding: item.commandId ? keybindingService.lookupKeybinding(item.commandId, contextKeyService) : undefined,
 			});
 		}
 
-		if (widget.viewModel?.sessionId) {
-			const agentPart = widget.parsedInput.parts.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
-			if (agentPart) {
-				const completions = await chatAgentService.getAgentCompletionItems(agentPart.agent.id, '', CancellationToken.None);
-				for (const variable of completions) {
-					if (variable.fullName && variable.command) {
-						quickPickItems.push({
-							kind: 'command',
-							label: variable.fullName,
-							id: variable.id,
-							command: variable.command,
-							icon: variable.icon,
-							iconClass: variable.icon ? ThemeIcon.asClassName(variable.icon) : undefined,
-							value: variable.value,
-							name: variable.name
-						});
-					} else {
-						// Currently there's nothing that falls into this category
-					}
-				}
-			}
-		}
-
-		quickPickItems.push({
-			kind: 'tools',
-			label: localize('chatContext.tools', 'Tools...'),
-			iconClass: ThemeIcon.asClassName(Codicon.tools),
-			id: 'tools',
-		});
-
-		quickPickItems.push({
-			kind: 'quickaccess',
-			label: localize('chatContext.symbol', 'Symbols...'),
-			iconClass: ThemeIcon.asClassName(Codicon.symbolField),
-			prefix: SymbolsQuickAccessProvider.PREFIX,
-			id: 'symbol'
-		});
-
-		quickPickItems.push({
-			kind: 'folder',
-			label: localize('chatContext.folder', 'Folders...'),
-			iconClass: ThemeIcon.asClassName(Codicon.folder),
-			id: 'folder',
-		});
-
-		quickPickItems.push({
-			kind: 'diagnostic',
-			label: localize('chatContext.diagnstic', 'Problems...'),
-			iconClass: ThemeIcon.asClassName(Codicon.error),
-			id: 'diagnostic'
-		});
-
-		if (widget.location === ChatAgentLocation.Notebook) {
-			quickPickItems.push({
-				kind: 'command',
-				id: 'chatContext.notebook.kernelVariable',
-				icon: ThemeIcon.fromId(Codicon.serverEnvironment.id),
-				iconClass: ThemeIcon.asClassName(Codicon.serverEnvironment),
-				value: 'kernelVariable',
-				label: localize('chatContext.notebook.kernelVariable', 'Kernel Variable...'),
-				command: {
-					id: 'notebook.chat.selectAndInsertKernelVariable',
-					title: localize('chatContext.notebook.selectkernelVariable', 'Select and Insert Kernel Variable'),
-					arguments: [{ widget, range: undefined }]
-				}
-			});
-		}
-
-		if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || widget.attachmentModel.fileAttachments.length > 0)) {
-			quickPickItems.push({
-				kind: 'related-files',
-				id: 'related-files',
-				label: localize('chatContext.relatedFiles', 'Related Files'),
-				iconClass: ThemeIcon.asClassName(Codicon.sparkle),
-			});
-		}
-		if (editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput).length > 0) {
-			quickPickItems.push({
-				kind: 'open-editors',
-				id: 'open-editors',
-				label: localize('chatContext.editors', 'Open Editors'),
-				iconClass: ThemeIcon.asClassName(Codicon.files),
-			});
-		}
-		if (SearchContext.HasSearchResults.getValue(contextKeyService)) {
-			quickPickItems.push({
-				kind: 'search-results',
-				id: 'search-results',
-				label: localize('chatContext.searchResults', 'Search Results'),
-				iconClass: ThemeIcon.asClassName(Codicon.search),
-			});
-		}
-
-		// if the `reusable prompts` feature is enabled, add
-		// the appropriate attachment type to the list
-		if (widget.attachmentModel.promptInstructions.featureEnabled) {
-			const keybinding = keybindingService.lookupKeybinding(INSTRUCTIONS_COMMAND_ID, contextKeyService);
-
-			quickPickItems.push({
-				id: INSTRUCTION_PICK_ID,
-				kind: INSTRUCTION_PICK_ID,
-				label: localize('chatContext.attach.instructions.label', 'Instructions...'),
-				iconClass: ThemeIcon.asClassName(Codicon.bookmark),
-				keybinding,
-			});
-		}
-
-		quickPickItems.sort((a, b) => {
-			let result = attachmentsOrdinals.indexOf(b.kind) - attachmentsOrdinals.indexOf(a.kind);
-			if (result === 0) {
-				result = a.label.localeCompare(b.label);
-			}
-			return result;
-		});
-
-		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, '', context?.placeholder);
+		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder);
 	}
 
-	private async _showDiagnosticsPick(instantiationService: IInstantiationService, onBackgroundAccept: (item: IChatContextQuickPickItem[]) => void): Promise<IDiagnosticsQuickPickItemWithFilter | undefined> {
-		const convert = (item: IDiagnosticVariableEntryFilterData): IDiagnosticsQuickPickItemWithFilter => ({
-			kind: 'diagnostic-filter',
-			id: IDiagnosticVariableEntryFilterData.id(item),
-			label: IDiagnosticVariableEntryFilterData.label(item),
-			icon: IDiagnosticVariableEntryFilterData.icon,
-			filter: item,
-		});
-
-		const filter = await instantiationService.invokeFunction(createMarkersQuickPick, items => onBackgroundAccept(items.map(convert)));
-		return filter && convert(filter);
-	}
-
-	private _show(accessor: ServicesAccessor, widget: IChatWidget, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, query: string = '', placeholder?: string) {
+	private _show(accessor: ServicesAccessor, widget: IChatWidget, additionPicks: IContextPickItemItem[] | undefined, placeholder?: string) {
 		const quickInputService = accessor.get(IQuickInputService);
 		const quickChatService = accessor.get(IQuickChatService);
-		const editorService = accessor.get(IEditorService);
-		const commandService = accessor.get(ICommandService);
 		const instantiationService = accessor.get(IInstantiationService);
-
-		const attach = (isBackgroundAccept: boolean, ...items: IChatContextQuickPickItem[]) => {
-			instantiationService.invokeFunction(this._attachContext.bind(this), widget, isBackgroundAccept, ...items);
-		};
+		const commandService = accessor.get(ICommandService);
 
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
-			additionPicks: quickPickItems,
-			handleAccept: async (inputItem: IChatContextQuickPickItem, isBackgroundAccept: boolean) => {
-				let item: IChatContextQuickPickItem | undefined = inputItem;
-
-				if (isIAttachmentQuickPickItem(item)) {
-
-					if (item.kind === 'quickaccess') {
-						instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, item.prefix, placeholder);
-						return;
-					} else if (item.kind === 'instructions') {
-						runAttachInstructionsAction(commandService, { widget });
-						return;
-					}
-
-					if (item.kind === 'folder') {
-						item = await this._showFolders(instantiationService);
-					} else if (item.kind === 'diagnostic') {
-						item = await this._showDiagnosticsPick(instantiationService, i => attach(true, ...i));
-					} else if (item.kind === 'tools') {
-						item = await instantiationService.invokeFunction(showToolsPick, widget);
-					}
-					if (!item) {
-						// restart picker when sub-picker didn't return anything
-						instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, '', placeholder);
-						return;
-					}
-
+			filter: (pick) => {
+				if (isIQuickPickItemWithResource(pick) && pick.resource) {
+					return instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, pick.resource!.scheme));
 				}
-				attach(isBackgroundAccept, item);
+				return true;
+			},
+			additionPicks,
+			handleAccept: async (item: IQuickPickServicePickItem | IContextPickItemItem, isBackgroundAccept: boolean) => {
+
+				if (isIContextPickItemItem(item)) {
+
+					let isDone = true;
+					if (item.item.type === 'valuePick') {
+						this._handleContextPick(item.item, widget);
+
+					} else if (item.item.type === 'pickerPick') {
+						isDone = await this._handleContextPickerItem(quickInputService, commandService, item.item, widget);
+					}
+
+					if (!isDone) {
+						// restart picker when sub-picker didn't return anything
+						instantiationService.invokeFunction(this._show.bind(this), widget, additionPicks, placeholder);
+						return;
+					}
+
+				} else {
+					instantiationService.invokeFunction(this._handleQPPick.bind(this), widget, isBackgroundAccept, item);
+				}
 				if (isQuickChat(widget)) {
 					quickChatService.open();
 				}
-
-			},
-			filter: (item: IChatContextQuickPickItem | IQuickPickSeparator) => {
-				// Avoid attaching the same context twice
-				const attachedContext = widget.attachmentModel.getAttachmentIDs();
-
-				if (isIAttachmentQuickPickItem(item) && item.kind === 'open-editors') {
-					for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput)) {
-						// There is an open editor that hasn't yet been attached to the chat
-						if (editor.resource && !attachedContext.has(this._getFileContextId({ resource: editor.resource }))) {
-							return true;
-						}
-					}
-					return false;
-				}
-
-				if ('kind' in item && item.kind === 'image') {
-					return !attachedContext.has(item.id);
-				}
-
-				if ('symbol' in item && item.symbol) {
-					return !attachedContext.has(this._getFileContextId(item.symbol.location));
-				}
-
-				if (item && typeof item === 'object' && 'resource' in item && URI.isUri(item.resource)) {
-					return [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(item.resource.scheme)
-						&& !attachedContext.has(this._getFileContextId({ resource: item.resource })); // Hack because Typescript doesn't narrow this type correctly
-				}
-
-				if (item && typeof item === 'object' && 'uri' in item && item.uri && item.range) {
-					return !attachedContext.has(this._getFileContextId({ uri: item.uri, range: item.range.decoration }));
-				}
-
-				if (!('command' in item) && item.id) {
-					return !attachedContext.has(item.id);
-				}
-
-				// Don't filter out dynamic variables which show secondary data (temporary)
-				return true;
 			}
 		};
-		quickInputService.quickAccess.show(query, {
+
+		quickInputService.quickAccess.show('', {
 			enabledProviderPrefixes: [
 				AnythingQuickAccessProvider.PREFIX,
 				SymbolsQuickAccessProvider.PREFIX,
@@ -934,140 +508,184 @@ export class AttachContextAction extends Action2 {
 		});
 	}
 
-	private async _showFolders(instantiationService: IInstantiationService): Promise<IFolderResultQuickPickItem | undefined> {
-		const folder = await instantiationService.invokeFunction(accessor => createFolderQuickPick(accessor));
-		if (!folder) {
-			return undefined;
-		}
+	private async _handleQPPick(accessor: ServicesAccessor, widget: IChatWidget, isInBackground: boolean, pick: IQuickPickServicePickItem) {
+		const fileService = accessor.get(IFileService);
+		const textModelService = accessor.get(ITextModelService);
 
-		return {
-			kind: 'folder-search-result',
-			id: folder.toString(),
-			label: basename(folder),
-			resource: folder,
-		};
-	}
-}
+		const toAttach: IChatRequestVariableEntry[] = [];
 
-async function createMarkersQuickPick(accessor: ServicesAccessor, onBackgroundAccept?: (item: IDiagnosticVariableEntryFilterData[]) => void): Promise<IDiagnosticVariableEntryFilterData | undefined> {
-	const quickInputService = accessor.get(IQuickInputService);
-	const markerService = accessor.get(IMarkerService);
-	const labelService = accessor.get(ILabelService);
+		if (isIQuickPickItemWithResource(pick) && pick.resource) {
+			if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
+				// checks if the file is an image
+				if (URI.isUri(pick.resource)) {
+					// read the image and attach a new file context.
+					const readFile = await fileService.readFile(pick.resource);
+					const resizedImage = await resizeImage(readFile.value.buffer);
+					toAttach.push({
+						id: pick.resource.toString(),
+						name: pick.label,
+						fullName: pick.label,
+						value: resizedImage,
+						kind: 'image',
+						references: [{ reference: pick.resource, kind: 'reference' }]
+					});
+				}
+			} else {
+				let omittedState = OmittedState.NotOmitted;
+				try {
+					const createdModel = await textModelService.createModelReference(pick.resource);
+					createdModel.dispose();
+				} catch {
+					omittedState = OmittedState.Full;
+				}
 
-	const markers = markerService.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
-	const grouped = groupBy(markers, (a, b) => extUri.compare(a.resource, b.resource));
-
-	const severities = new Set<MarkerSeverity>();
-	type MarkerPickItem = IQuickPickItem & { resource?: URI; entry: IDiagnosticVariableEntryFilterData };
-	const items: (MarkerPickItem | IQuickPickSeparator)[] = [];
-
-	let pickCount = 0;
-	for (const group of grouped) {
-		const resource = group[0].resource;
-
-		items.push({ type: 'separator', label: labelService.getUriLabel(resource, { relative: true }) });
-		for (const marker of group) {
-			pickCount++;
-			severities.add(marker.severity);
-			items.push({
-				type: 'item',
-				resource: marker.resource,
-				label: marker.message,
-				description: localize('markers.panel.at.ln.col.number', "[Ln {0}, Col {1}]", '' + marker.startLineNumber, '' + marker.startColumn),
-				entry: IDiagnosticVariableEntryFilterData.fromMarker(marker),
+				toAttach.push({
+					kind: 'file',
+					id: pick.resource.toString(),
+					value: pick.resource,
+					name: pick.label,
+					omittedState
+				});
+			}
+		} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
+			toAttach.push({
+				kind: 'generic',
+				id: JSON.stringify({ uri: pick.uri, range: pick.range.decoration }),
+				value: { uri: pick.uri, range: pick.range.decoration },
+				fullName: pick.label,
+				name: pick.symbolName!,
 			});
 		}
+
+
+		widget.attachmentModel.addContext(...toAttach);
+
+		if (!isInBackground) {
+			// Set focus back into the input once the user is done attaching items
+			// so that the user can start typing their message
+			widget.focusInput();
+		}
 	}
 
-	items.unshift({ type: 'item', label: localize('markers.panel.allErrors', 'All Problems'), entry: { filterSeverity: MarkerSeverity.Info } });
+	private async _handleContextPick(item: IChatContextValueItem, widget: IChatWidget) {
 
-	const store = new DisposableStore();
-	const quickPick = store.add(quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true }));
-	quickPick.canAcceptInBackground = !onBackgroundAccept;
-	quickPick.placeholder = localize('pickAProblem', 'Pick a problem to attach...');
-	quickPick.items = items;
+		const value = await item.asAttachment(widget);
+		if (Array.isArray(value)) {
+			widget.attachmentModel.addContext(...value);
+		} else if (value) {
+			widget.attachmentModel.addContext(value);
+		}
+	}
 
-	return new Promise<IDiagnosticVariableEntryFilterData | undefined>(resolve => {
-		store.add(quickPick.onDidHide(() => resolve(undefined)));
-		store.add(quickPick.onDidAccept(ev => {
-			if (ev.inBackground) {
-				onBackgroundAccept?.(quickPick.selectedItems.map(i => i.entry));
-			} else {
-				resolve(quickPick.selectedItems[0]?.entry);
-				quickPick.dispose();
+	private async _handleContextPickerItem(quickInputService: IQuickInputService, commandService: ICommandService, item: IChatContextPickerItem, widget: IChatWidget): Promise<boolean> {
+
+		const pickerConfig = item.asPicker(widget);
+
+		const store = new DisposableStore();
+
+		const goBackItem: IQuickPickItem = {
+			label: localize('goBack', 'Go back ↩'),
+			alwaysShow: true
+		};
+		const configureItem = pickerConfig.configure ? {
+			label: pickerConfig.configure.label,
+			commandId: pickerConfig.configure.commandId,
+			alwaysShow: true
+		} : undefined;
+		const extraPicks: QuickPickItem[] = [{ type: 'separator' }];
+		if (configureItem) {
+			extraPicks.push(configureItem);
+		}
+		extraPicks.push(goBackItem);
+
+		const qp = store.add(quickInputService.createQuickPick({ useSeparators: true }));
+
+		const cts = new CancellationTokenSource();
+		store.add(qp.onDidHide(() => cts.cancel()));
+		store.add(toDisposable(() => cts.dispose(true)));
+
+		qp.placeholder = pickerConfig.placeholder;
+		qp.matchOnDescription = true;
+		qp.matchOnDetail = true;
+		// qp.ignoreFocusOut = true;
+		qp.canAcceptInBackground = true;
+		qp.busy = true;
+		qp.show();
+
+		if (isThenable(pickerConfig.picks)) {
+			const items = await (pickerConfig.picks.then(value => {
+				return ([] as QuickPickItem[]).concat(value, extraPicks);
+			}));
+
+			qp.items = items;
+			qp.busy = false;
+		} else {
+			const query = observableValue<string>('attachContext.query', qp.value);
+			store.add(qp.onDidChangeValue(() => query.set(qp.value, undefined)));
+
+			const picksObservable = pickerConfig.picks(query, cts.token);
+			store.add(autorun(reader => {
+				const { busy, picks } = picksObservable.read(reader);
+				qp.items = ([] as QuickPickItem[]).concat(picks, extraPicks);
+				qp.busy = busy;
+			}));
+		}
+
+		if (cts.token.isCancellationRequested) {
+			pickerConfig.dispose?.();
+			return true; // picker got hidden already
+		}
+
+		const defer = new DeferredPromise<boolean>();
+		const addPromises: Promise<void>[] = [];
+
+		store.add(qp.onDidAccept(async e => {
+			const noop = 'noop';
+			const [selected] = qp.selectedItems;
+			if (isChatContextPickerPickItem(selected)) {
+				const attachment = selected.asAttachment();
+				if (!attachment || attachment === noop) {
+					return;
+				}
+				if (isThenable(attachment)) {
+					addPromises.push(attachment.then(v => {
+						if (v !== noop) {
+							widget.attachmentModel.addContext(...asArray(v));
+						}
+					}));
+				} else {
+					widget.attachmentModel.addContext(...asArray(attachment));
+				}
+			}
+			if (selected === goBackItem) {
+				if (pickerConfig.goBack?.()) {
+					// Custom goBack handled the navigation, stay in the picker
+					return; // Don't complete, keep picker open
+				}
+				// Default behavior: go back to main picker
+				defer.complete(false);
+			}
+			if (selected === configureItem) {
+				defer.complete(true);
+				commandService.executeCommand(configureItem.commandId);
+			}
+			if (!e.inBackground) {
+				defer.complete(true);
 			}
 		}));
-		quickPick.show();
-	}).finally(() => store.dispose());
+
+		store.add(qp.onDidHide(() => {
+			defer.complete(true);
+			pickerConfig.dispose?.();
+		}));
+
+		try {
+			const result = await defer.p;
+			qp.busy = true; // if still visible
+			await Promise.all(addPromises);
+			return result;
+		} finally {
+			store.dispose();
+		}
+	}
 }
-
-async function showToolsPick(accessor: ServicesAccessor, widget: IChatWidget): Promise<IToolQuickPickItem | undefined> {
-
-	const quickPickService = accessor.get(IQuickInputService);
-
-
-	function classify(tool: IToolData) {
-		if (tool.source.type === 'internal' || tool.source.type === 'extension' && !tool.source.isExternalTool) {
-			return { ordinal: 1, groupLabel: localize('chatContext.tools.internal', 'Built-In') };
-		} else if (tool.source.type === 'mcp') {
-			return { ordinal: 2, groupLabel: localize('chatContext.tools.mcp', 'MCP Servers') };
-		} else {
-			return { ordinal: 3, groupLabel: localize('chatContext.tools.extension', 'Extensions') };
-		}
-	}
-
-	type Pick = IToolQuickPickItem & { ordinal: number; groupLabel: string };
-	const items: Pick[] = [];
-
-	for (const tool of widget.input.selectedToolsModel.tools.get()) {
-		if (!tool.canBeReferencedInPrompt) {
-			continue;
-		}
-		const item: Pick = {
-			tool,
-			...classify(tool),
-			kind: 'tool',
-			label: tool.toolReferenceName ?? tool.id,
-			description: (tool.toolReferenceName ?? tool.id) !== tool.displayName ? tool.displayName : undefined,
-			id: tool.id,
-		};
-		// if (ThemeIcon.isThemeIcon(tool.icon)) {
-		// 	item.iconClass = ThemeIcon.asClassName(tool.icon);
-		// } else if (tool.icon) {
-		// 	item.iconPath = tool.icon;
-		// }
-		items.push(item);
-	}
-
-	items.sort((a, b) => {
-		let res = a.ordinal - b.ordinal;
-		if (res === 0) {
-			res = a.label.localeCompare(b.label);
-		}
-		return res;
-	});
-
-	let lastGroupLabel: string | undefined;
-	const picks: (IQuickPickSeparator | Pick)[] = [];
-
-
-	for (const item of items) {
-		if (lastGroupLabel !== item.groupLabel) {
-			picks.push({ type: 'separator', label: item.groupLabel });
-			lastGroupLabel = item.groupLabel;
-		}
-		picks.push(item);
-	}
-
-	const result = await quickPickService.pick(picks, {
-		placeHolder: localize('chatContext.tools.placeholder', 'Select a tool'),
-		canPickMany: false
-	});
-
-	return result;
-}
-
-/**
- * Register all actions related to reusable prompt files.
- */
-registerPromptActions();

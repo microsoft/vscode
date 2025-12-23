@@ -8,9 +8,10 @@ import * as dom from '../../../../base/browser/dom.js';
 import * as languages from '../../../../editor/common/languages.js';
 import { ActionsOrientation, ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action, IAction, Separator, ActionRunner } from '../../../../base/common/actions.js';
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererExtraOptions, IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommentService } from './commentService.js';
 import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor.js';
@@ -51,7 +52,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { Position } from '../../../../editor/common/core/position.js';
 
 class CommentsActionRunner extends ActionRunner {
-	protected override async runAction(action: IAction, context: any[]): Promise<void> {
+	protected override async runAction(action: IAction, context: unknown[]): Promise<void> {
 		await action.run(...context);
 	}
 }
@@ -60,9 +61,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
 	private _avatar: HTMLElement;
-	private readonly _md: MutableDisposable<IMarkdownRenderResult> = this._register(new MutableDisposable());
+	private readonly _md: MutableDisposable<IRenderedMarkdown> = this._register(new MutableDisposable());
 	private _plainText: HTMLElement | undefined;
-	private _clearTimeout: any;
+	private _clearTimeout: Timeout | null;
 
 	private _editAction: Action | null = null;
 	private _commentEditContainer: HTMLElement | null = null;
@@ -72,7 +73,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private readonly _reactionActions: DisposableStore = this._register(new DisposableStore());
 	private _reactionActionsContainer?: HTMLElement;
 	private _commentEditor: SimpleCommentEditor | null = null;
-	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: IReference<IResolvedTextEditorModel> | null = null;
 	private _editorHeight = MIN_EDITOR_HEIGHT;
 
@@ -107,7 +107,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		private owner: string,
 		private resource: URI,
 		private parentThread: ICommentThreadWidget,
-		private markdownRenderer: MarkdownRenderer,
+		private readonly markdownRendererOptions: IMarkdownRendererExtraOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
 		@INotificationService private notificationService: INotificationService,
@@ -117,6 +117,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		@IHoverService private hoverService: IHoverService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
@@ -210,7 +211,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._plainText = dom.append(this._body, dom.$('.comment-body-plainstring'));
 			this._plainText.innerText = body;
 		} else {
-			this._md.value = this.markdownRenderer.render(body);
+			this._md.value = this.markdownRendererService.render(body, this.markdownRendererOptions);
 			this._body.appendChild(this._md.value.element);
 		}
 	}
@@ -278,7 +279,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		return result;
 	}
 
-	private get commentNodeContext(): [any, MarshalledCommentThread] {
+	private get commentNodeContext(): [{ thread: languages.CommentThread<T>; commentUniqueId: number; $mid: MarshalledId.CommentNode }, MarshalledCommentThread] {
 		return [{
 			thread: this.commentThread,
 			commentUniqueId: this.comment.uniqueIdInThread,
@@ -466,8 +467,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private async createCommentEditor(editContainer: HTMLElement): Promise<void> {
+		this._editModeDisposables.clear();
 		const container = dom.append(editContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(this.configurationService), this._contextKeyService, this.parentThread);
+		this._editModeDisposables.add(this._commentEditor);
 
 		const resource = URI.from({
 			scheme: Schemas.commentsInput,
@@ -475,6 +478,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 		const modelRef = await this.textModelService.createModelReference(resource);
 		this._commentEditorModel = modelRef;
+		this._editModeDisposables.add(this._commentEditorModel);
 
 		this._commentEditor.setModel(this._commentEditorModel.object.textEditorModel);
 		this._commentEditor.setValue(this.pendingEdit?.body ?? this.commentBodyValue);
@@ -502,7 +506,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this.commentService.setActiveEditingCommentThread(commentThread);
 		this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 
-		this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
+		this._editModeDisposables.add(this._commentEditor.onDidFocusEditorWidget(() => {
 			commentThread.input = {
 				uri: this._commentEditor!.getModel()!.uri,
 				value: this.commentBodyValue
@@ -511,7 +515,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 		}));
 
-		this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
+		this._editModeDisposables.add(this._commentEditor.onDidChangeModelContent(e => {
 			if (commentThread.input && this._commentEditor && this._commentEditor.getModel()!.uri === commentThread.input.uri) {
 				const newVal = this._commentEditor.getValue();
 				if (newVal !== commentThread.input.value) {
@@ -526,15 +530,13 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this.calculateEditorHeight();
 
-		this._register((this._commentEditorModel.object.textEditorModel.onDidChangeContent(() => {
+		this._editModeDisposables.add((this._commentEditorModel.object.textEditorModel.onDidChangeContent(() => {
 			if (this._commentEditor && this.calculateEditorHeight()) {
 				this._commentEditor.layout({ height: this._editorHeight, width: this._commentEditor.getLayoutInfo().width });
 				this._commentEditor.render(true);
 			}
 		})));
 
-		this._register(this._commentEditor);
-		this._register(this._commentEditorModel);
 	}
 
 	private calculateEditorHeight(): boolean {
@@ -562,14 +564,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._editAction.enabled = true;
 		}
 		this._body.classList.remove('hidden');
-
-		this._commentEditorModel?.dispose();
-
-		dispose(this._commentEditorDisposables);
-		this._commentEditorDisposables = [];
-		this._commentEditor?.dispose();
+		this._editModeDisposables.clear();
 		this._commentEditor = null;
-
 		this._commentEditContainer!.remove();
 	}
 
@@ -600,12 +596,13 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this.createCommentWidgetEditorActions(editorActions);
 	}
 
+	private readonly _editModeDisposables: DisposableStore = this._register(new DisposableStore());
 	private createCommentWidgetFormActions(container: HTMLElement) {
 		const menus = this.commentService.getCommentMenus(this.owner);
 		const menu = menus.getCommentActions(this.comment, this._contextKeyService);
 
-		this._register(menu);
-		this._register(menu.onDidChange(() => {
+		this._editModeDisposables.add(menu);
+		this._editModeDisposables.add(menu.onDidChange(() => {
 			this._commentFormActions?.setActions(menu);
 		}));
 
@@ -622,7 +619,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this.removeCommentEditor();
 		});
 
-		this._register(this._commentFormActions);
+		this._editModeDisposables.add(this._commentFormActions);
 		this._commentFormActions.setActions(menu);
 	}
 
@@ -630,8 +627,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		const menus = this.commentService.getCommentMenus(this.owner);
 		const menu = menus.getCommentEditorActions(this._contextKeyService);
 
-		this._register(menu);
-		this._register(menu.onDidChange(() => {
+		this._editModeDisposables.add(menu);
+		this._editModeDisposables.add(menu.onDidChange(() => {
 			this._commentEditorActions?.setActions(menu, true);
 		}));
 
@@ -648,7 +645,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditor?.focus();
 		});
 
-		this._register(this._commentEditorActions);
+		this._editModeDisposables.add(this._commentEditorActions);
 		this._commentEditorActions.setActions(menu, true);
 	}
 
@@ -736,7 +733,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	override dispose(): void {
 		super.dispose();
-		dispose(this._commentEditorDisposables);
 	}
 }
 

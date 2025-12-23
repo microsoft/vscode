@@ -7,7 +7,7 @@ import { normalizeDriveLetter } from '../../../../../../base/common/labels.js';
 import { basenameOrAuthority } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { INotebookOutputVariableEntry } from '../../../../chat/common/chatModel.js';
+import { INotebookOutputVariableEntry } from '../../../../chat/common/chatVariableEntries.js';
 import { CellUri } from '../../../common/notebookCommon.js';
 import { ICellOutputViewModel, INotebookEditor } from '../../notebookBrowser.js';
 

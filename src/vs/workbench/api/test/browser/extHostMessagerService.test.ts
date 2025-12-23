@@ -19,26 +19,24 @@ const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
 	onWillExecuteCommand: () => Disposable.None,
 	onDidExecuteCommand: () => Disposable.None,
-	executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
+	executeCommand: (commandId: string, ...args: unknown[]): Promise<any> => {
 		return Promise.resolve(undefined);
 	}
 };
 
 const emptyNotificationService = new class implements INotificationService {
 	declare readonly _serviceBrand: undefined;
-	onDidAddNotification: Event<INotification> = Event.None;
-	onDidRemoveNotification: Event<INotification> = Event.None;
-	onDidChangeFilter: Event<void> = Event.None;
-	notify(...args: any[]): never {
+	readonly onDidChangeFilter: Event<void> = Event.None;
+	notify(...args: unknown[]): never {
 		throw new Error('not implemented');
 	}
-	info(...args: any[]): never {
+	info(...args: unknown[]): never {
 		throw new Error('not implemented');
 	}
-	warn(...args: any[]): never {
+	warn(...args: unknown[]): never {
 		throw new Error('not implemented');
 	}
-	error(...args: any[]): never {
+	error(...args: unknown[]): never {
 		throw new Error('not implemented');
 	}
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
@@ -67,9 +65,7 @@ class EmptyNotificationService implements INotificationService {
 	constructor(private withNotify: (notification: INotification) => void) {
 	}
 
-	onDidAddNotification: Event<INotification> = Event.None;
-	onDidRemoveNotification: Event<INotification> = Event.None;
-	onDidChangeFilter: Event<void> = Event.None;
+	readonly onDidChangeFilter: Event<void> = Event.None;
 	notify(notification: INotification): INotificationHandle {
 		this.withNotify(notification);
 

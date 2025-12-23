@@ -26,7 +26,8 @@ export function resolveCommonProperties(
 	sqmId: string | undefined,
 	devDeviceId: string | undefined,
 	isInternalTelemetry: boolean,
-	product?: string
+	releaseDate: string | undefined,
+	product?: string,
 ): ICommonProperties {
 	const result: ICommonProperties = Object.create(null);
 
@@ -42,6 +43,8 @@ export function resolveCommonProperties(
 	result['commitHash'] = commit;
 	// __GDPR__COMMON__ "version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['version'] = version;
+	// __GDPR__COMMON__ "common.releaseDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	result['common.releaseDate'] = releaseDate;
 	// __GDPR__COMMON__ "common.platformVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.platformVersion'] = (release || '').replace(/^(\d+)(\.\d+)?(\.\d+)?(.*)/, '$1$2$3');
 	// __GDPR__COMMON__ "common.platform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }

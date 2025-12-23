@@ -20,7 +20,7 @@ import type { NotebookCellOutputTransferData } from '../../../../../../platform/
 // function. Imports are not allowed. This is stringified and injected into
 // the webview.
 
-declare module globalThis {
+declare namespace globalThis {
 	const acquireVsCodeApi: () => ({
 		getState(): { [key: string]: unknown };
 		setState(data: { [key: string]: unknown }): void;
@@ -53,7 +53,7 @@ type Listener<T> = { fn: (evt: T) => void; thisArg: unknown };
 
 interface EmitterLike<T> {
 	fire(data: T): void;
-	event: Event<T>;
+	readonly event: Event<T>;
 }
 
 interface PreloadStyles {
@@ -119,7 +119,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
-	delete (globalThis as any).acquireVsCodeApi;
+	delete (globalThis as { acquireVsCodeApi: unknown }).acquireVsCodeApi;
 
 	const tokenizationStyle = new CSSStyleSheet();
 	tokenizationStyle.replaceSync(ctx.style.tokenizationCss);
@@ -188,9 +188,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}, 0);
 	};
 
-	const isEditableElement = (element: Element) => {
-		return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea'
-			|| ('editContext' in element && !!element.editContext);
+	const hasActiveEditableElement = (
+		parent: Node | DocumentFragment,
+		root: ShadowRoot | Document = document
+	): boolean => {
+		const element = root.activeElement;
+		return !!(element && parent.contains(element)
+			&& (element.matches(':read-write') || element.tagName.toLowerCase() === 'select'
+				|| (element.shadowRoot && hasActiveEditableElement(element.shadowRoot, element.shadowRoot)))
+		);
 	};
 
 	// check if an input element is focused within the output element
@@ -202,7 +208,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		const id = lastFocusedOutput?.id;
-		if (id && (isEditableElement(activeElement) || activeElement.tagName === 'SELECT')) {
+		if (id && (hasActiveEditableElement(activeElement, window.document))) {
 			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
 			activeElement.addEventListener('blur', () => {
@@ -309,7 +315,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement && isEditableElement(activeElement)) {
+		if (activeElement && hasActiveEditableElement(activeElement, window.document)) {
 			(activeElement as HTMLInputElement).select();
 		}
 	};
@@ -335,7 +341,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement && isEditableElement(activeElement)) {
+		if (activeElement && hasActiveEditableElement(activeElement, window.document)) {
 			// Leave for default behavior.
 			return;
 		}
@@ -363,7 +369,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement && isEditableElement(activeElement)) {
+		if (activeElement && hasActiveEditableElement(activeElement, window.document)) {
 			// The input element will handle this.
 			return;
 		}
@@ -500,7 +506,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private readonly _observer: ResizeObserver;
 
 		private readonly _observedElements = new WeakMap<Element, IObservedElement>();
-		private _outputResizeTimer: any;
+		private _outputResizeTimer: Timeout | undefined;
 
 		constructor() {
 			this._observer = new ResizeObserver(entries => {
@@ -584,7 +590,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	let previousDelta: number | undefined;
-	let scrollTimeout: any /* NodeJS.Timeout */ | undefined;
+	let scrollTimeout: Timeout | undefined;
 	let scrolledElement: Element | undefined;
 	let lastTimeScrolled: number | undefined;
 	function flagRecentlyScrolled(node: Element, deltaY?: number) {
@@ -702,7 +708,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				focusableElement.tabIndex = -1;
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
 			} else {
-				const inputFocused = isEditableElement(focusableElement);
+				const inputFocused = hasActiveEditableElement(focusableElement, focusableElement.ownerDocument);
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused, id });
 			}
 
@@ -824,7 +830,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		// Remove a highlight element created with wrapNodeInHighlight.
 		function _removeHighlight(highlightElement: Element) {
 			if (highlightElement.childNodes.length === 1) {
-				highlightElement.parentNode?.replaceChild(highlightElement.firstChild!, highlightElement);
+				highlightElement.replaceWith(highlightElement.firstChild!);
 			} else {
 				// If the highlight somehow contains multiple nodes now, move them all.
 				while (highlightElement.firstChild) {
@@ -1070,7 +1076,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 
 				blob(): Blob {
-					return new Blob([valueBytes], { type: this.mime });
+					return new Blob([valueBytes as Uint8Array<ArrayBuffer>], { type: this.mime });
 				},
 
 				get _allOutputItems() {
@@ -1452,7 +1458,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			document.designMode = 'On';
 
 			while (find && matches.length < 500) {
-				find = (window as any).find(query, /* caseSensitive*/ !!options.caseSensitive,
+				find = (window as unknown as { find: (query: string, caseSensitive: boolean, backwards: boolean, wrapAround: boolean, wholeWord: boolean, searchInFrames: boolean, includeMarkup: boolean) => boolean }).find(query, /* caseSensitive*/ !!options.caseSensitive,
 				/* backwards*/ false,
 				/* wrapAround*/ false,
 				/* wholeWord */ !!options.wholeWord,
@@ -1584,12 +1590,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	const copyOutputImage = async (outputId: string, altOutputId: string, retries = 5) => {
+	const copyOutputImage = async (outputId: string, altOutputId: string, textAlternates?: { mimeType: string; content: string }[], retries = 5) => {
 		if (!window.document.hasFocus() && retries > 0) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 50);
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, textAlternates, retries - 1); }, 50);
 			return;
 		}
 
@@ -1610,8 +1616,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			if (image) {
-				const imageToCopy = image;
-				await navigator.clipboard.write([new ClipboardItem({
+				const ensureImageLoaded = (img: HTMLImageElement): Promise<HTMLImageElement> => {
+					return new Promise((resolve, reject) => {
+						if (img.complete && img.naturalWidth > 0) {
+							resolve(img);
+						} else {
+							img.onload = () => resolve(img);
+							img.onerror = () => reject(new Error('Failed to load image'));
+							setTimeout(() => reject(new Error('Image load timeout')), 5000);
+						}
+					});
+				};
+				const imageToCopy = await ensureImageLoaded(image);
+
+				// Build clipboard data with both image and text formats
+				const clipboardData: Record<string, any> = {
 					'image/png': new Promise((resolve) => {
 						const canvas = document.createElement('canvas');
 						canvas.width = imageToCopy.naturalWidth;
@@ -1628,7 +1647,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 							canvas.remove();
 						}, 'image/png');
 					})
-				})]);
+				};
+
+				// Add text alternates if provided
+				if (textAlternates) {
+					for (const alternate of textAlternates) {
+						clipboardData[alternate.mimeType] = alternate.content;
+					}
+				}
+
+				await navigator.clipboard.write([new ClipboardItem(clipboardData)]);
 			} else {
 				console.error('Could not find image element to copy for output with id', outputId);
 			}
@@ -1738,7 +1766,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'copyImage': {
-				await copyOutputImage(event.data.outputId, event.data.altOutputId);
+				await copyOutputImage(event.data.outputId, event.data.altOutputId, event.data.textAlternates);
 				break;
 			}
 			case 'ack-dimension': {
@@ -2520,7 +2548,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 
 				blob(): Blob {
-					return new Blob([this.data()], { type: this.mime });
+					return new Blob([this.data() as Uint8Array<ArrayBuffer>], { type: this.mime });
 				},
 
 				_allOutputItems: [{

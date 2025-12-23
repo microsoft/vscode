@@ -18,7 +18,7 @@ import { getPathLabel } from '../../base/common/labels.js';
 import { Schemas } from '../../base/common/network.js';
 import { basename, resolve } from '../../base/common/path.js';
 import { mark } from '../../base/common/performance.js';
-import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
 import { cwd } from '../../base/common/process.js';
 import { rtrim, trim } from '../../base/common/strings.js';
 import { Promises as FSPromises } from '../../base/node/pfs.js';
@@ -58,7 +58,7 @@ import { ISignService } from '../../platform/sign/common/sign.js';
 import { SignService } from '../../platform/sign/node/signService.js';
 import { IStateReadService, IStateService } from '../../platform/state/node/state.js';
 import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
-import { IThemeMainService, ThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
+import { IThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
 import { IUserDataProfilesMainService, UserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
 import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
 import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
@@ -72,6 +72,8 @@ import { massageMessageBoxOptions } from '../../platform/dialogs/common/dialogs.
 import { SaveStrategy, StateService } from '../../platform/state/node/stateService.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
+import { ThemeMainService } from '../../platform/theme/electron-main/themeMainServiceImpl.js';
+import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
 
 /**
  * The main VS Code entry point.
@@ -142,6 +144,14 @@ class CodeMain {
 					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
+				// Check if Inno Setup is running
+				const innoSetupActive = await this.checkInnoSetupMutex(productService);
+				if (innoSetupActive) {
+					const message = `${productService.nameShort} is currently being updated. Please wait for the update to complete before launching.`;
+					instantiationService.invokeFunction(this.quit, new Error(message));
+					return;
+				}
+
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
 			});
 		} catch (error) {
@@ -203,6 +213,8 @@ class CodeMain {
 			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
 		} else if (isMacintosh && productService.darwinBundleIdentifier) {
 			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		} else if (isLinux) {
+			policyService = disposables.add(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService));
 		} else if (environmentMainService.policyFile) {
 			policyService = disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService));
 		} else {
@@ -357,7 +369,7 @@ class CodeMain {
 			// Show a warning dialog after some timeout if it takes long to talk to the other instance
 			// Skip this if we are running with --wait where it is expected that we wait for a while.
 			// Also skip when gathering diagnostics (--status) which can take a longer time.
-			let startupWarningDialogHandle: NodeJS.Timeout | undefined = undefined;
+			let startupWarningDialogHandle: Timeout | undefined = undefined;
 			if (!environmentMainService.args.wait && !environmentMainService.args.status) {
 				startupWarningDialogHandle = setTimeout(() => {
 					this.showStartupWarningDialog(
@@ -483,6 +495,21 @@ class CodeMain {
 		lifecycleMainService.kill(exitCode);
 	}
 
+	private async checkInnoSetupMutex(productService: IProductService): Promise<boolean> {
+		if (!isWindows || !productService.win32MutexName || productService.quality !== 'insider') {
+			return false;
+		}
+
+		try {
+			const readyMutexName = `${productService.win32MutexName}setup`;
+			const mutex = await import('@vscode/windows-mutex');
+			return mutex.isActive(readyMutexName);
+		} catch (error) {
+			console.error('Failed to check Inno Setup mutex:', error);
+			return false;
+		}
+	}
+
 	//#region Command line arguments utilities
 
 	private resolveArgs(): NativeParsedArgs {
@@ -490,19 +517,36 @@ class CodeMain {
 		// Parse arguments
 		const args = this.validatePaths(parseMainProcessArgv(process.argv));
 
-		// If we are started with --wait create a random temporary file
-		// and pass it over to the starting instance. We can use this file
-		// to wait for it to be deleted to monitor that the edited file
-		// is closed and then exit the waiting process.
-		//
-		// Note: we are not doing this if the wait marker has been already
-		// added as argument. This can happen if VS Code was started from CLI.
-
 		if (args.wait && !args.waitMarkerFilePath) {
+			// If we are started with --wait create a random temporary file
+			// and pass it over to the starting instance. We can use this file
+			// to wait for it to be deleted to monitor that the edited file
+			// is closed and then exit the waiting process.
+			//
+			// Note: we are not doing this if the wait marker has been already
+			// added as argument. This can happen if VS Code was started from CLI.
 			const waitMarkerFilePath = createWaitMarkerFileSync(args.verbose);
 			if (waitMarkerFilePath) {
 				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
 				args.waitMarkerFilePath = waitMarkerFilePath;
+			}
+		}
+
+		if (args.chat) {
+			if (args.chat['new-window']) {
+				// Apply `--new-window` flag to the main arguments
+				args['new-window'] = true;
+			} else if (args.chat['reuse-window']) {
+				// Apply `--reuse-window` flag to the main arguments
+				args['reuse-window'] = true;
+			} else if (args.chat['profile']) {
+				// Apply `--profile` flag to the main arguments
+				args['profile'] = args.chat['profile'];
+			} else {
+				// Unless we are started with specific instructions about
+				// new windows or reusing existing ones, always take the
+				// current working directory as workspace to open.
+				args._ = [cwd()];
 			}
 		}
 

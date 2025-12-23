@@ -5,12 +5,15 @@
 
 import assert from 'assert';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { DefaultAccountService, IDefaultAccount, IDefaultAccountService } from '../../../accounts/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { DefaultAccountService } from '../../../accounts/common/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	enterprise: false,
@@ -37,7 +40,9 @@ suite('AccountPolicyService', () => {
 				'default': 'defaultValueA',
 				policy: {
 					name: 'PolicySettingA',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } }
 				}
 			},
 			'setting.B': {
@@ -45,9 +50,10 @@ suite('AccountPolicyService', () => {
 				'default': 'defaultValueB',
 				policy: {
 					name: 'PolicySettingB',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					previewFeature: true,
-					defaultValue: "policyValueB"
+					localization: { description: { key: '', value: '' } },
+					value: account => account.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
 			},
 			'setting.C': {
@@ -55,9 +61,10 @@ suite('AccountPolicyService', () => {
 				'default': ['defaultValueC1', 'defaultValueC2'],
 				policy: {
 					name: 'PolicySettingC',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					previewFeature: true,
-					defaultValue: JSON.stringify(['policyValueC1', 'policyValueC2']),
+					localization: { description: { key: '', value: '' } },
+					value: account => account.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
 			},
 			'setting.D': {
@@ -65,9 +72,10 @@ suite('AccountPolicyService', () => {
 				'default': true,
 				policy: {
 					name: 'PolicySettingD',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					previewFeature: true,
-					defaultValue: false,
+					localization: { description: { key: '', value: '' } },
+					value: account => account.chat_preview_features_enabled === false ? false : undefined,
 				}
 			},
 			'setting.E': {
@@ -144,7 +152,7 @@ suite('AccountPolicyService', () => {
 			const C = policyService.getPolicyValue('PolicySettingC');
 			const D = policyService.getPolicyValue('PolicySettingD');
 
-			assert.strictEqual(A, undefined); // Not tagged with 'previewFeature'
+			assert.strictEqual(A, undefined); // Not tagged with chat preview tags
 			assert.strictEqual(B, 'policyValueB');
 			assert.strictEqual(C, JSON.stringify(['policyValueC1', 'policyValueC2']));
 			assert.strictEqual(D, false);

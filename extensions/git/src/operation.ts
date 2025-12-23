@@ -22,6 +22,7 @@ export const enum OperationKind {
 	DeleteRef = 'DeleteRef',
 	DeleteRemoteRef = 'DeleteRemoteRef',
 	DeleteTag = 'DeleteTag',
+	DeleteWorktree = 'DeleteWorktree',
 	Diff = 'Diff',
 	Fetch = 'Fetch',
 	FindTrackingBranches = 'GetTracking',
@@ -62,6 +63,7 @@ export const enum OperationKind {
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	Sync = 'Sync',
 	Tag = 'Tag',
+	Worktree = 'Worktree'
 }
 
 export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchOperation | CheckIgnoreOperation | CherryPickOperation |
@@ -72,7 +74,7 @@ export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchO
 	MergeBaseOperation | MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation |
 	RemoveOperation | ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation | RevertFilesOperation |
 	RevListOperation | RevParseOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation | StashOperation |
-	SubmoduleUpdateOperation | SyncOperation | TagOperation;
+	SubmoduleUpdateOperation | SyncOperation | TagOperation | WorktreeOperation;
 
 type BaseOperation = { kind: OperationKind; blocking: boolean; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
 export type AddOperation = BaseOperation & { kind: OperationKind.Add };
@@ -130,6 +132,7 @@ export type StashOperation = BaseOperation & { kind: OperationKind.Stash };
 export type SubmoduleUpdateOperation = BaseOperation & { kind: OperationKind.SubmoduleUpdate };
 export type SyncOperation = BaseOperation & { kind: OperationKind.Sync };
 export type TagOperation = BaseOperation & { kind: OperationKind.Tag };
+export type WorktreeOperation = BaseOperation & { kind: OperationKind.Worktree };
 
 export const Operation = {
 	Add: (showProgress: boolean): AddOperation => ({ kind: OperationKind.Add, blocking: false, readOnly: false, remote: false, retry: false, showProgress }),
@@ -183,15 +186,16 @@ export const Operation = {
 	Show: { kind: OperationKind.Show, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as ShowOperation,
 	Stage: { kind: OperationKind.Stage, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StageOperation,
 	Status: { kind: OperationKind.Status, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StatusOperation,
-	Stash: { kind: OperationKind.Stash, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StashOperation,
+	Stash: (readOnly: boolean) => ({ kind: OperationKind.Stash, blocking: false, readOnly, remote: false, retry: false, showProgress: true } as StashOperation),
 	SubmoduleUpdate: { kind: OperationKind.SubmoduleUpdate, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as SubmoduleUpdateOperation,
 	Sync: { kind: OperationKind.Sync, blocking: true, readOnly: false, remote: true, retry: true, showProgress: true } as SyncOperation,
-	Tag: { kind: OperationKind.Tag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as TagOperation
+	Tag: { kind: OperationKind.Tag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as TagOperation,
+	Worktree: (readOnly: boolean) => ({ kind: OperationKind.Worktree, blocking: false, readOnly, remote: false, retry: false, showProgress: true } as WorktreeOperation)
 };
 
 export interface OperationResult {
 	operation: Operation;
-	error: any;
+	error: unknown;
 }
 
 interface IOperationManager {

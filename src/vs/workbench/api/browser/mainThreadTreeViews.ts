@@ -375,7 +375,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			const properties = distinct([...Object.keys(current instanceof ResolvableTreeItem ? current.asTreeItem() : current),
 			...Object.keys(treeItem)]);
 			for (const property of properties) {
-				(<any>current)[property] = (<any>treeItem)[property];
+				(current as unknown as { [key: string]: unknown })[property] = (treeItem as unknown as { [key: string]: unknown })[property];
 			}
 			if (current instanceof ResolvableTreeItem) {
 				current.resetResolve();

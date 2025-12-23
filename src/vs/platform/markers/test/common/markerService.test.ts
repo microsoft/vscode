@@ -212,6 +212,30 @@ suite('Marker Service', () => {
 		assert.strictEqual(marker[0].code, '0');
 	});
 
+	test('modelVersionId is preserved on IMarker when present in IMarkerData', () => {
+		service = new markerService.MarkerService();
+		const resource = URI.parse('file:///path/file.ts');
+
+		// Test with modelVersionId present
+		const dataWithVersion: IMarkerData = {
+			...randomMarkerData(),
+			modelVersionId: 42
+		};
+		service.changeOne('owner', resource, [dataWithVersion]);
+
+		const markersWithVersion = service.read({ resource });
+		assert.strictEqual(markersWithVersion.length, 1);
+		assert.strictEqual(markersWithVersion[0].modelVersionId, 42);
+
+		// Test without modelVersionId (should be undefined)
+		const dataWithoutVersion: IMarkerData = randomMarkerData();
+		service.changeOne('owner', resource, [dataWithoutVersion]);
+
+		const markersWithoutVersion = service.read({ resource });
+		assert.strictEqual(markersWithoutVersion.length, 1);
+		assert.strictEqual(markersWithoutVersion[0].modelVersionId, undefined);
+	});
+
 	test('resource filter hides markers for the filtered resource', () => {
 		service = new markerService.MarkerService();
 		const resource1 = URI.parse('file:///path/file1.cs');
@@ -241,6 +265,39 @@ suite('Marker Service', () => {
 		assert.strictEqual(service.read().length, 2);
 		assert.strictEqual(service.read({ resource: resource1 }).length, 1);
 		assert.strictEqual(service.read({ resource: resource2 }).length, 1);
+	});
+
+	test('resource filter hides markers for the filtered resource UNLESS explicit read', () => {
+		service = new markerService.MarkerService();
+		const resource1 = URI.parse('file:///path/file1.cs');
+		const resource2 = URI.parse('file:///path/file2.cs');
+
+		// Add markers to both resources
+		service.changeOne('owner1', resource1, [randomMarkerData()]);
+		service.changeOne('owner1', resource2, [randomMarkerData()]);
+
+		// Verify both resources have markers
+		assert.strictEqual(service.read().length, 2);
+		assert.strictEqual(service.read({ resource: resource1 }).length, 1);
+		assert.strictEqual(service.read({ resource: resource2 }).length, 1);
+
+		// Install filter for resource1
+		const filter = service.installResourceFilter(resource1, 'Test filter');
+
+		// Verify resource1 markers are filtered out, but have 1 info marker instead
+		assert.strictEqual(service.read().length, 2); // 1 real + 1 info
+		assert.strictEqual(service.read({ resource: resource1 }).length, 1); // 1 info
+		assert.strictEqual(service.read({ resource: resource2 }).length, 1);
+
+		// Verify resource1 markers are visible again
+		assert.strictEqual(service.read({ ignoreResourceFilters: true }).length, 2);
+		assert.strictEqual(service.read({ resource: resource1, ignoreResourceFilters: true }).length, 1);
+		assert.strictEqual(service.read({ resource: resource1, ignoreResourceFilters: true })[0].severity, MarkerSeverity.Error);
+		assert.strictEqual(service.read({ resource: resource2, ignoreResourceFilters: true }).length, 1);
+		assert.strictEqual(service.read({ resource: resource2, ignoreResourceFilters: true })[0].severity, MarkerSeverity.Error);
+
+		// Dispose filter
+		filter.dispose();
 	});
 
 	test('resource filter affects all filter combinations', () => {

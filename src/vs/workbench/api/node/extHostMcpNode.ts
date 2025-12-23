@@ -6,40 +6,37 @@
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import { homedir } from 'os';
+import type { RequestInit as UndiciRequestInit } from 'undici';
 import { parseEnvFile } from '../../../base/common/envfile.js';
+import { untildify } from '../../../base/common/labels.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import { DisposableMap } from '../../../base/common/lifecycle.js';
+import * as path from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
+import { findExecutable } from '../../../base/node/processes.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
-import { ExtHostMcpService } from '../common/extHostMcp.js';
-import { IExtHostRpcService } from '../common/extHostRpcService.js';
-import { findExecutable } from '../../../base/node/processes.js';
+import { McpStdioStateHandler } from '../../contrib/mcp/node/mcpStdioStateHandler.js';
+import { CommonRequestInit, CommonResponse, ExtHostMcpService, McpHTTPHandle } from '../common/extHostMcp.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-	) {
-		super(extHostRpc);
-	}
+	private nodeServers = this._register(new DisposableMap<number, McpStdioStateHandler>());
 
-	private nodeServers = new Map<number, {
-		abortCtrl: AbortController;
-		child: ChildProcessWithoutNullStreams;
-	}>();
-
-	protected override _startMcp(id: number, launch: McpServerLaunch): void {
+	protected override _startMcp(id: number, launch: McpServerLaunch, defaultCwd?: URI, errorOnUserInteraction?: boolean): void {
 		if (launch.type === McpServerTransportType.Stdio) {
-			this.startNodeMpc(id, launch);
+			this.startNodeMpc(id, launch, defaultCwd);
+		} else if (launch.type === McpServerTransportType.HTTP) {
+			this._sseEventSources.set(id, new McpHTTPHandleNode(id, launch, this._proxy, this._logService, errorOnUserInteraction));
 		} else {
-			super._startMcp(id, launch);
+			super._startMcp(id, launch, defaultCwd, errorOnUserInteraction);
 		}
 	}
 
 	override $stopMcp(id: number): void {
 		const nodeServer = this.nodeServers.get(id);
 		if (nodeServer) {
-			nodeServer.abortCtrl.abort();
-			this.nodeServers.delete(id);
+			nodeServer.stop(); // will get removed from map when process is fully stopped
 		} else {
 			super.$stopMcp(id);
 		}
@@ -48,15 +45,17 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 	override $sendMessage(id: number, message: string): void {
 		const nodeServer = this.nodeServers.get(id);
 		if (nodeServer) {
-			nodeServer.child.stdin.write(message + '\n');
+			nodeServer.write(message);
 		} else {
 			super.$sendMessage(id, message);
 		}
 	}
 
-	private async startNodeMpc(id: number, launch: McpServerTransportStdio) {
+	private async startNodeMpc(id: number, launch: McpServerTransportStdio, defaultCwd?: URI): Promise<void> {
 		const onError = (err: Error | string) => this._proxy.$onDidChangeState(id, {
 			state: McpConnectionState.Kind.Error,
+			// eslint-disable-next-line local/code-no-any-casts
+			code: err.hasOwnProperty('code') ? String((err as any).code) : undefined,
 			message: typeof err === 'string' ? err : err.message,
 		});
 
@@ -77,24 +76,35 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 			env[key] = value === null ? undefined : String(value);
 		}
 
-		const abortCtrl = new AbortController();
 		let child: ChildProcessWithoutNullStreams;
 		try {
-			const cwd = launch.cwd ? URI.revive(launch.cwd).fsPath : homedir();
-			const { executable, args, shell } = await formatSubprocessArguments(launch.command, launch.args, cwd, env);
+			const home = homedir();
+			let cwd = launch.cwd ? untildify(launch.cwd, home) : (defaultCwd?.fsPath || home);
+			if (!path.isAbsolute(cwd)) {
+				cwd = defaultCwd ? path.join(defaultCwd.fsPath, cwd) : path.join(home, cwd);
+			}
+
+			const { executable, args, shell } = await formatSubprocessArguments(
+				untildify(launch.command, home),
+				launch.args.map(a => untildify(a, home)),
+				cwd,
+				env
+			);
+
 			this._proxy.$onDidPublishLog(id, LogLevel.Debug, `Server command line: ${executable} ${args.join(' ')}`);
 			child = spawn(executable, args, {
 				stdio: 'pipe',
-				cwd: launch.cwd ? URI.revive(launch.cwd).fsPath : homedir(),
-				signal: abortCtrl.signal,
+				cwd,
 				env,
 				shell,
 			});
 		} catch (e) {
 			onError(e);
-			abortCtrl.abort();
 			return;
 		}
+
+		// Create the connection manager for graceful shutdown
+		const connectionManager = new McpStdioStateHandler(child);
 
 		this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Starting });
 
@@ -110,22 +120,65 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		child.on('spawn', () => this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Running }));
 
 		child.on('error', e => {
-			if (abortCtrl.signal.aborted) {
+			onError(e);
+		});
+		child.on('exit', code => {
+			this.nodeServers.deleteAndDispose(id);
+
+			if (code === 0 || connectionManager.stopped) {
 				this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped });
 			} else {
-				onError(e);
-			}
-		});
-		child.on('exit', code =>
-			code === 0 || abortCtrl.signal.aborted
-				? this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped })
-				: this._proxy.$onDidChangeState(id, {
+				this._proxy.$onDidChangeState(id, {
 					state: McpConnectionState.Kind.Error,
 					message: `Process exited with code ${code}`,
-				})
-		);
+				});
+			}
+		});
 
-		this.nodeServers.set(id, { abortCtrl, child });
+		this.nodeServers.set(id, connectionManager);
+	}
+}
+
+class McpHTTPHandleNode extends McpHTTPHandle {
+	private readonly _undici = new Lazy(() => import('undici'));
+
+	protected override async _fetchInternal(url: string, init?: CommonRequestInit): Promise<CommonResponse> {
+		// Note: imported async so that we can ensure we load undici after proxy patches have been applied
+		const { fetch, Agent } = await this._undici.value;
+
+		const undiciInit: UndiciRequestInit = { ...init };
+
+		let httpUrl = url;
+		const uri = URI.parse(url);
+
+		if (uri.scheme === 'unix' || uri.scheme === 'pipe') {
+			// By convention, we put the *socket path* as the URI path, and the *request path* in the fragment
+			// So, set the dispatcher with the socket path
+			undiciInit.dispatcher = new Agent({
+				socketPath: uri.path,
+			});
+
+			// And then rewrite the URL to be http://localhost/<fragment>
+			httpUrl = uri.with({
+				scheme: 'http',
+				authority: 'localhost', // HTTP always wants a host (not that we're using it), but if we're using a socket or pipe then localhost is sorta right anyway
+				path: uri.fragment,
+			}).toString(true);
+		} else {
+			return super._fetchInternal(url, init);
+		}
+
+		const undiciResponse = await fetch(httpUrl, undiciInit);
+
+		return {
+			status: undiciResponse.status,
+			statusText: undiciResponse.statusText,
+			headers: undiciResponse.headers,
+			body: undiciResponse.body as ReadableStream, // Way down in `ReadableStreamReadDoneResult<T>`, `value` is optional in the undici type but required (yet can be `undefined`) in the standard type
+			url: undiciResponse.url,
+			json: () => undiciResponse.json(),
+			text: () => undiciResponse.text(),
+		};
 	}
 }
 

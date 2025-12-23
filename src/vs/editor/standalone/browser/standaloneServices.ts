@@ -9,7 +9,8 @@ import '../../../platform/undoRedo/common/undoRedoService.js';
 import '../../common/services/languageFeatureDebounce.js';
 import '../../common/services/semanticTokensStylingService.js';
 import '../../common/services/languageFeaturesService.js';
-import '../../browser/services/hoverService/hoverService.js';
+import '../../../platform/hover/browser/hoverService.js';
+import '../../browser/services/inlineCompletionsService.js';
 
 import * as strings from '../../../base/common/strings.js';
 import * as dom from '../../../base/browser/dom.js';
@@ -50,7 +51,7 @@ import { ILayoutService } from '../../../platform/layout/browser/layoutService.j
 import { StandaloneServicesNLS } from '../../common/standaloneStrings.js';
 import { basename } from '../../../base/common/resources.js';
 import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
-import { ConsoleLogger, ILogService } from '../../../platform/log/common/log.js';
+import { ConsoleLogger, ILoggerService, ILogService, NullLoggerService } from '../../../platform/log/common/log.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from '../../../platform/workspace/common/workspaceTrust.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { ICodeEditor, IDiffEditor } from '../../browser/editorBrowser.js';
@@ -60,8 +61,6 @@ import { LanguageService } from '../../common/services/languageService.js';
 import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
 import { getSingletonServiceDescriptors, InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { OpenerService } from '../../browser/services/openerService.js';
-import { IEditorWorkerService } from '../../common/services/editorWorker.js';
-import { EditorWorkerService } from '../../browser/services/editorWorkerService.js';
 import { ILanguageService } from '../../common/languages/language.js';
 import { MarkerDecorationsService } from '../../common/services/markerDecorationsService.js';
 import { IMarkerDecorationsService } from '../../common/services/markerDecorations.js';
@@ -88,17 +87,19 @@ import { IStorageService, InMemoryStorageService } from '../../../platform/stora
 import { DefaultConfiguration } from '../../../platform/configuration/common/configurations.js';
 import { WorkspaceEdit } from '../../common/languages.js';
 import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService, Sound } from '../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
-import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
 import { LogService } from '../../../platform/log/common/logService.js';
 import { getEditorFeatures } from '../../common/editorFeatures.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from '../../../platform/environment/common/environment.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
-import { StandaloneTreeSitterParserService } from './standaloneTreeSitterService.js';
-import { IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
+import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
+import { StandaloneTreeSitterLibraryService } from './standaloneTreeSitterLibraryService.js';
+import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
+import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
+import { StandaloneWebWorkerService } from './services/standaloneWebWorkerService.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount } from '../../../base/common/defaultAccount.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -193,7 +194,7 @@ class StandaloneEditorProgressService implements IEditorProgressService {
 		return StandaloneEditorProgressService.NULL_PROGRESS_RUNNER;
 	}
 
-	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
 		await promise;
 	}
 }
@@ -228,6 +229,7 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly debugExtensionHost: IExtensionHostDebugParams = { port: null, break: false };
 	readonly isExtensionDevelopment: boolean = false;
 	readonly disableExtensions: boolean | string[] = false;
+	readonly disableExperiments: boolean = false;
 	readonly enableExtensions?: readonly string[] | undefined = undefined;
 	readonly extensionDevelopmentLocationURI?: URI[] | undefined = undefined;
 	readonly extensionDevelopmentKind?: ExtensionKind[] | undefined = undefined;
@@ -308,10 +310,6 @@ class StandaloneDialogService implements IDialogService {
 
 export class StandaloneNotificationService implements INotificationService {
 
-	readonly onDidAddNotification: Event<INotification> = Event.None;
-
-	readonly onDidRemoveNotification: Event<INotification> = Event.None;
-
 	readonly onDidChangeFilter: Event<void> = Event.None;
 
 	public _serviceBrand: undefined;
@@ -383,7 +381,7 @@ export class StandaloneCommandService implements ICommandService {
 		this._instantiationService = instantiationService;
 	}
 
-	public executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+	public executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));
@@ -404,7 +402,7 @@ export class StandaloneCommandService implements ICommandService {
 export interface IKeybindingRule {
 	keybinding: number;
 	command?: string | null;
-	commandArgs?: any;
+	commandArgs?: unknown;
 	when?: ContextKeyExpression | null;
 }
 
@@ -595,8 +593,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		return '';
 	}
 
-	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
-		// noop
+	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): IDisposable {
+		return Disposable.None;
 	}
 
 	/**
@@ -617,11 +615,11 @@ class DomNodeListeners extends Disposable {
 	}
 }
 
-function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
-	return thing
+function isConfigurationOverrides(thing: unknown): thing is IConfigurationOverrides {
+	return !!thing
 		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
-		&& (!thing.resource || thing.resource instanceof URI);
+		&& (!(thing as IConfigurationOverrides).overrideIdentifier || typeof (thing as IConfigurationOverrides).overrideIdentifier === 'string')
+		&& (!(thing as IConfigurationOverrides).resource || (thing as IConfigurationOverrides).resource instanceof URI);
 }
 
 export class StandaloneConfigurationService implements IConfigurationService {
@@ -656,13 +654,13 @@ export class StandaloneConfigurationService implements IConfigurationService {
 	getValue<T>(section: string): T;
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
-	getValue(arg1?: any, arg2?: any): any {
+	getValue(arg1?: unknown, arg2?: unknown): unknown {
 		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
 		return this._configuration.getValue(section, overrides, undefined);
 	}
 
-	public updateValues(values: [string, any][]): Promise<void> {
+	public updateValues(values: [string, unknown][]): Promise<void> {
 		const previous = { data: this._configuration.toData() };
 
 		const changedKeys: string[] = [];
@@ -685,7 +683,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		return Promise.resolve();
 	}
 
-	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
+	public updateValue(key: string, value: unknown, arg3?: unknown, arg4?: unknown): Promise<void> {
 		return this.updateValues([[key, value]]);
 	}
 
@@ -738,7 +736,7 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 
 	getValue<T>(resource: URI, section?: string): T;
 	getValue<T>(resource: URI, position?: IPosition, section?: string): T;
-	getValue<T>(resource: URI | undefined, arg2?: any, arg3?: any) {
+	getValue<T>(resource: URI | undefined, arg2?: unknown, arg3?: unknown) {
 		const position: IPosition | null = Pos.isIPosition(arg2) ? arg2 : null;
 		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
 		const language = resource ? this.getLanguage(resource, position) : undefined;
@@ -767,7 +765,7 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 		return this.languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 	}
 
-	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
+	updateValue(resource: URI, key: string, value: unknown, configurationTarget?: ConfigurationTarget): Promise<void> {
 		return this.configurationService.updateValue(key, value, { resource }, configurationTarget);
 	}
 }
@@ -870,7 +868,7 @@ export function updateConfigurationService(configurationService: IConfigurationS
 	if (!(configurationService instanceof StandaloneConfigurationService)) {
 		return;
 	}
-	const toUpdate: [string, any][] = [];
+	const toUpdate: [string, unknown][] = [];
 	Object.keys(source).forEach((key) => {
 		if (isEditorConfigurationKey(key)) {
 			toUpdate.push([`editor.${key}`, source[key]]);
@@ -1010,7 +1008,7 @@ class StandaloneWorkspaceTrustManagementService implements IWorkspaceTrustManage
 
 	private _neverEmitter = new Emitter<never>();
 	public readonly onDidChangeTrust: Event<boolean> = this._neverEmitter.event;
-	onDidChangeTrustedFolders: Event<void> = this._neverEmitter.event;
+	readonly onDidChangeTrustedFolders: Event<void> = this._neverEmitter.event;
 	public readonly workspaceResolved = Promise.resolve();
 	public readonly workspaceTrustInitialized = Promise.resolve();
 	public readonly acceptsOutOfWorkspaceFiles = true;
@@ -1076,23 +1074,6 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
-const standaloneEditorWorkerDescriptor: IWebWorkerDescriptor = {
-	esmModuleLocation: undefined,
-	label: 'editorWorkerService'
-};
-
-class StandaloneEditorWorkerService extends EditorWorkerService {
-	constructor(
-		@IModelService modelService: IModelService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@ILogService logService: ILogService,
-		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-	) {
-		super(standaloneEditorWorkerDescriptor, modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
-	}
-}
-
 class StandaloneAccessbilitySignalService implements IAccessibilitySignalService {
 	_serviceBrand: undefined;
 	async playSignal(cue: AccessibilitySignal, options: {}): Promise<void> {
@@ -1128,10 +1109,26 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 	}
 }
 
-export interface IEditorOverrideServices {
-	[index: string]: any;
+class StandaloneDefaultAccountService implements IDefaultAccountService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null> = Event.None;
+
+	async getDefaultAccount(): Promise<IDefaultAccount | null> {
+		return null;
+	}
+
+	setDefaultAccount(account: IDefaultAccount | null): void {
+		// no-op
+	}
 }
 
+export interface IEditorOverrideServices {
+	[index: string]: unknown;
+}
+
+
+registerSingleton(IWebWorkerService, StandaloneWebWorkerService, InstantiationType.Eager);
 registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IConfigurationService, StandaloneConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService, InstantiationType.Eager);
@@ -1151,7 +1148,6 @@ registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Eager
 registerSingleton(IProgressService, StandaloneProgressService, InstantiationType.Eager);
 registerSingleton(IEditorProgressService, StandaloneEditorProgressService, InstantiationType.Eager);
 registerSingleton(IStorageService, InMemoryStorageService, InstantiationType.Eager);
-registerSingleton(IEditorWorkerService, StandaloneEditorWorkerService, InstantiationType.Eager);
 registerSingleton(IBulkEditService, StandaloneBulkEditService, InstantiationType.Eager);
 registerSingleton(IWorkspaceTrustManagementService, StandaloneWorkspaceTrustManagementService, InstantiationType.Eager);
 registerSingleton(ITextModelService, StandaloneTextModelService, InstantiationType.Eager);
@@ -1166,13 +1162,16 @@ registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
 registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalService, InstantiationType.Eager);
-registerSingleton(ITreeSitterParserService, StandaloneTreeSitterParserService, InstantiationType.Eager);
+registerSingleton(ITreeSitterLibraryService, StandaloneTreeSitterLibraryService, InstantiationType.Eager);
+registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
+registerSingleton(IDataChannelService, NullDataChannelService, InstantiationType.Eager);
+registerSingleton(IDefaultAccountService, StandaloneDefaultAccountService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance
  * to override services when they create the first editor.
  */
-export module StandaloneServices {
+export namespace StandaloneServices {
 
 	const serviceCollection = new ServiceCollection();
 	for (const [id, descriptor] of getSingletonServiceDescriptors()) {

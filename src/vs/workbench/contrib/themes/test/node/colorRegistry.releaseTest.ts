@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IColorRegistry, Extensions, ColorContribution, asCssVariableName } from '../../../../../platform/theme/common/colorRegistry.js';
+import { ISizeRegistry, Extensions as SizeExtensions, asCssVariableName as asSizeCssVariableName } from '../../../../../platform/theme/common/sizeUtils.js';
 import { asTextOrError } from '../../../../../platform/request/common/request.js';
 import * as pfs from '../../../../../base/node/pfs.js';
 import * as path from '../../../../../base/common/path.js';
@@ -76,9 +77,38 @@ suite('Color Registry', function () {
 			errorText += `\n\Removing the following colors:\n\n${superfluousKeys.join('\n')}\n`;
 		}
 
+		const sizesArray = variablesInfo.sizes as string[] || [];
+		const sizes = new Set(sizesArray);
+		const updatedSizes = [];
+		const missingSizes = [];
+		const sizeRegistry = Registry.as<ISizeRegistry>(SizeExtensions.SizeContribution);
+		for (const size of sizeRegistry.getSizes()) {
+			const id = asSizeCssVariableName(size.id);
+
+			if (!sizes.has(id)) {
+				if (!size.deprecationMessage) {
+					missingSizes.push(id);
+				}
+			} else {
+				sizes.delete(id);
+			}
+			updatedSizes.push(id);
+		}
+
+		const superfluousSizes = [...sizes.keys()];
+
+		if (missingSizes.length > 0) {
+			errorText += `\n\Adding the following sizes:\n\n${JSON.stringify(missingSizes, undefined, '\t')}\n`;
+		}
+		if (superfluousSizes.length > 0) {
+			errorText += `\n\Removing the following sizes:\n\n${superfluousSizes.join('\n')}\n`;
+		}
+
 		if (errorText.length > 0) {
 			updatedColors.sort();
 			variablesInfo.colors = updatedColors;
+			updatedSizes.sort();
+			variablesInfo.sizes = updatedSizes;
 			await pfs.Promises.writeFile(varFilePath, JSON.stringify(variablesInfo, undefined, '\t'));
 
 			assert.fail(`\n\Updating ${path.normalize(varFilePath)}.\nPlease verify and commit.\n\n${errorText}\n`);
@@ -89,7 +119,7 @@ suite('Color Registry', function () {
 		// avoid importing the TestEnvironmentService as it brings in a duplicate registration of the file editor input factory.
 		const environmentService = new class extends mock<INativeEnvironmentService>() { override args = { _: [] }; };
 
-		const docUrl = 'https://raw.githubusercontent.com/microsoft/vscode-docs/main/api/references/theme-color.md';
+		const docUrl = 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md';
 
 		const reqContext = await new RequestService('local', new TestConfigurationService(), environmentService, new NullLogService()).request({ url: docUrl }, CancellationToken.None);
 		const content = (await asTextOrError(reqContext))!;

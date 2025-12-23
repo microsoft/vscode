@@ -6,7 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IProductService } from '../../product/common/productService.js';
-import { ExtensionGalleryResourceType, Flag, IExtensionGalleryManifest, IExtensionGalleryManifestService } from './extensionGalleryManifest.js';
+import { ExtensionGalleryResourceType, Flag, IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
 import { FilterType, SortBy } from './extensionManagement.js';
 
 type ExtensionGalleryConfig = {
@@ -23,15 +23,16 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeExtensionGalleryManifest = Event.None;
+	readonly onDidChangeExtensionGalleryManifestStatus = Event.None;
+
+	get extensionGalleryManifestStatus(): ExtensionGalleryManifestStatus {
+		return !!this.productService.extensionsGallery?.serviceUrl ? ExtensionGalleryManifestStatus.Available : ExtensionGalleryManifestStatus.Unavailable;
+	}
 
 	constructor(
 		@IProductService protected readonly productService: IProductService,
 	) {
 		super();
-	}
-
-	isEnabled(): boolean {
-		return !!this.productService.extensionsGallery?.serviceUrl;
 	}
 
 	async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null> {

@@ -76,6 +76,7 @@ suite('FindController', () => {
 	serviceCollection.set(IStorageService, new InMemoryStorageService());
 
 	if (platform.isMacintosh) {
+		// eslint-disable-next-line local/code-no-any-casts
 		serviceCollection.set(IClipboardService, <any>{
 			readFindText: () => clipboardState,
 			writeFindText: (value: any) => { clipboardState = value; }
@@ -168,7 +169,7 @@ suite('FindController', () => {
 			// The cursor is at the very top, of the file, at the first ABC
 			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			const findState = findController.getState();
-			const nextMatchFindAction = new NextMatchFindAction();
+			const nextMatchFindAction = NextMatchFindAction;
 
 			// I hit Ctrl+F to show the Find dialog
 			await executeAction(instantiationService, editor, StartFindAction);
@@ -205,7 +206,7 @@ suite('FindController', () => {
 			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 4, 1, 4]);
 
 			// I hit F3 to "Find Next" to find the next occurrence of ABC, but instead it searches for XYZ.
-			await nextMatchFindAction.run(null, editor);
+			await editor.runAction(nextMatchFindAction);
 
 			assert.strictEqual(findState.searchString, 'ABC');
 			assert.strictEqual(findController.hasFocus, false);
@@ -220,17 +221,17 @@ suite('FindController', () => {
 		], { serviceCollection: serviceCollection }, async (editor) => {
 			clipboardState = '';
 			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const nextMatchFindAction = new NextMatchFindAction();
+			const nextMatchFindAction = NextMatchFindAction;
 
 			editor.setPosition({
 				lineNumber: 1,
 				column: 9
 			});
 
-			await nextMatchFindAction.run(null, editor);
+			await editor.runAction(nextMatchFindAction);
 			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 26, 1, 29]);
 
-			await nextMatchFindAction.run(null, editor);
+			await editor.runAction(nextMatchFindAction);
 			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 8, 1, 11]);
 
 			findController.dispose();
@@ -245,17 +246,17 @@ suite('FindController', () => {
 		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
 			clipboardState = '';
 			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const nextMatchFindAction = new NextMatchFindAction();
+			const nextMatchFindAction = NextMatchFindAction;
 
 			editor.setSelection(new Selection(1, 9, 1, 13));
 
 			findController.toggleRegex();
 			await executeAction(instantiationService, editor, StartFindAction);
 
-			await nextMatchFindAction.run(null, editor);
+			await editor.runAction(nextMatchFindAction);
 			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [2, 9, 2, 13]);
 
-			await nextMatchFindAction.run(null, editor);
+			await editor.runAction(nextMatchFindAction);
 			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 9, 1, 13]);
 
 			findController.dispose();
@@ -268,7 +269,7 @@ suite('FindController', () => {
 		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
 			const testRegexString = 'tes.';
 			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const nextMatchFindAction = new NextMatchFindAction();
+			const nextMatchFindAction = NextMatchFindAction;
 
 			findController.toggleRegex();
 			findController.setSearchString(testRegexString);
@@ -282,7 +283,7 @@ suite('FindController', () => {
 				updateSearchScope: false,
 				loop: true
 			});
-			await nextMatchFindAction.run(null, editor);
+			await editor.runAction(nextMatchFindAction);
 			await executeAction(instantiationService, editor, StartFindReplaceAction);
 
 			assert.strictEqual(findController.getState().searchString, testRegexString);
@@ -390,7 +391,7 @@ suite('FindController', () => {
 			editor.setSelection(new Selection(1, 1, 1, 9));
 
 			// cmd+f3
-			await nextSelectionMatchFindAction.run(null, editor);
+			await editor.runAction(nextSelectionMatchFindAction);
 
 			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
 				[3, 1, 3, 9]
@@ -420,7 +421,7 @@ suite('FindController', () => {
 			editor.setSelection(new Selection(1, 1, 1, 9));
 
 			// cmd+f3
-			await nextSelectionMatchFindAction.run(null, editor);
+			await editor.runAction(nextSelectionMatchFindAction);
 
 			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
 				[3, 1, 3, 9]
@@ -449,13 +450,13 @@ suite('FindController', () => {
 
 			editor.setSelection(new Selection(1, 1, 2, 4));
 			const startFindWithSelectionAction = new StartFindWithSelectionAction();
-			await startFindWithSelectionAction.run(null, editor);
+			await editor.runAction(startFindWithSelectionAction);
 			const findState = findController.getState();
 
 			assert.deepStrictEqual(findState.searchString.split(/\r\n|\r|\n/g), ['ABC', 'ABC']);
 
 			editor.setSelection(new Selection(3, 1, 3, 1));
-			await startFindWithSelectionAction.run(null, editor);
+			await editor.runAction(startFindWithSelectionAction);
 
 			findController.dispose();
 		});
@@ -474,7 +475,7 @@ suite('FindController', () => {
 			editor.setSelection(new Selection(1, 2, 1, 2));
 
 			const startFindWithSelectionAction = new StartFindWithSelectionAction();
-			startFindWithSelectionAction.run(null, editor);
+			editor.runAction(startFindWithSelectionAction);
 
 			const findState = findController.getState();
 			assert.deepStrictEqual(findState.searchString, 'ABC');

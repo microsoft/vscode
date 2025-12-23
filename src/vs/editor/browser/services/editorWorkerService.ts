@@ -7,7 +7,8 @@ import { timeout } from '../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { logOnceWebWorkerWarning, IWebWorkerClient, Proxied } from '../../../base/common/worker/webWorker.js';
-import { createWebWorker, IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
+import { WebWorkerDescriptor } from '../../../platform/webWorker/browser/webWorkerDescriptor.js';
+import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
 import { Position } from '../../common/core/position.js';
 import { IRange, Range } from '../../common/core/range.js';
 import { ITextModel } from '../../common/model.js';
@@ -27,12 +28,15 @@ import { IChange } from '../../common/diff/legacyLinesDiffComputer.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../common/diff/documentDiffProvider.js';
 import { ILinesDiffComputerOptions, MovedText } from '../../common/diff/linesDiffComputer.js';
 import { DetailedLineRangeMapping, RangeMapping, LineRangeMapping } from '../../common/diff/rangeMapping.js';
-import { LineRange } from '../../common/core/lineRange.js';
+import { LineRange } from '../../common/core/ranges/lineRange.js';
 import { SectionHeader, FindSectionHeaderOptions } from '../../common/services/findSectionHeaders.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { WindowIntervalTimer } from '../../../base/browser/dom.js';
 import { WorkerTextModelSyncClient } from '../../common/services/textModelSync/textModelSync.impl.js';
 import { EditorWorkerHost } from '../../common/services/editorWorkerHost.js';
+import { StringEdit } from '../../common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../common/core/ranges/offsetRange.js';
+import { FileAccess } from '../../../base/common/network.js';
 
 /**
  * Stop the worker if it was not needed for 5 min.
@@ -50,7 +54,7 @@ function canSyncModel(modelService: IModelService, resource: URI): boolean {
 	return true;
 }
 
-export abstract class EditorWorkerService extends Disposable implements IEditorWorkerService {
+export class EditorWorkerService extends Disposable implements IEditorWorkerService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -59,16 +63,23 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 	private readonly _logService: ILogService;
 
 	constructor(
-		workerDescriptor: IWebWorkerDescriptor,
 		@IModelService modelService: IModelService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@ILogService logService: ILogService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IWebWorkerService private readonly _webWorkerService: IWebWorkerService,
 	) {
 		super();
 		this._modelService = modelService;
-		this._workerManager = this._register(new WorkerManager(workerDescriptor, this._modelService));
+
+		const workerDescriptor = new WebWorkerDescriptor({
+			esmModuleLocation: () => FileAccess.asBrowserUri('vs/editor/common/services/editorWebWorkerMain.js'),
+			esmModuleLocationBundler: () => new URL('../../common/services/editorWebWorkerMain.ts?workerModule', import.meta.url),
+			label: 'editorWorkerService'
+		});
+
+		this._workerManager = this._register(new WorkerManager(workerDescriptor, this._modelService, this._webWorkerService));
 		this._logService = logService;
 
 		// register default link-provider and default completions-provider
@@ -82,7 +93,7 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 				return links && { links };
 			}
 		}));
-		this._register(languageFeaturesService.completionProvider.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService, this._languageConfigurationService)));
+		this._register(languageFeaturesService.completionProvider.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService, this._languageConfigurationService, this._logService, languageFeaturesService)));
 	}
 
 	public override dispose(): void {
@@ -180,6 +191,17 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 		}
 	}
 
+	public async computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit> {
+		try {
+			const worker = await this._workerWithResources([]);
+			const edit = await worker.$computeStringDiff(original, modified, options, algorithm);
+			return StringEdit.fromJson(edit);
+		} catch (e) {
+			onUnexpectedError(e);
+			return StringEdit.replace(OffsetRange.ofLength(original.length), modified); // approximation
+		}
+	}
+
 	public canNavigateValueSet(resource: URI): boolean {
 		return (canSyncModel(this._modelService, resource));
 	}
@@ -240,7 +262,9 @@ class WordBasedCompletionItemProvider implements languages.CompletionItemProvide
 		workerManager: WorkerManager,
 		configurationService: ITextResourceConfigurationService,
 		modelService: IModelService,
-		private readonly languageConfigurationService: ILanguageConfigurationService
+		private readonly languageConfigurationService: ILanguageConfigurationService,
+		private readonly logService: ILogService,
+		private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this._workerManager = workerManager;
 		this._configurationService = configurationService;
@@ -249,10 +273,14 @@ class WordBasedCompletionItemProvider implements languages.CompletionItemProvide
 
 	async provideCompletionItems(model: ITextModel, position: Position): Promise<languages.CompletionList | undefined> {
 		type WordBasedSuggestionsConfig = {
-			wordBasedSuggestions?: 'off' | 'currentDocument' | 'matchingDocuments' | 'allDocuments';
+			wordBasedSuggestions?: 'off' | 'currentDocument' | 'matchingDocuments' | 'allDocuments' | 'offWithInlineSuggestions';
 		};
 		const config = this._configurationService.getValue<WordBasedSuggestionsConfig>(model.uri, position, 'editor');
 		if (config.wordBasedSuggestions === 'off') {
+			return undefined;
+		}
+
+		if (config.wordBasedSuggestions === 'offWithInlineSuggestions' && this.languageFeaturesService.inlineCompletionsProvider.has(model)) {
 			return undefined;
 		}
 
@@ -286,6 +314,9 @@ class WordBasedCompletionItemProvider implements languages.CompletionItemProvide
 		const replace = !word ? Range.fromPositions(position) : new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 		const insert = replace.setEndPosition(position.lineNumber, position.column);
 
+		// Trace logging about the word and replace/insert ranges
+		this.logService.trace('[WordBasedCompletionItemProvider]', `word: "${word?.word || ''}", wordDef: "${wordDefRegExp}", replace: [${replace.toString()}], insert: [${insert.toString()}]`);
+
 		const client = await this._workerManager.withWorker();
 		const data = await client.textualSuggest(models, word?.word, wordDefRegExp);
 		if (!data) {
@@ -309,15 +340,18 @@ class WordBasedCompletionItemProvider implements languages.CompletionItemProvide
 class WorkerManager extends Disposable {
 
 	private readonly _modelService: IModelService;
+	private readonly _webWorkerService: IWebWorkerService;
 	private _editorWorkerClient: EditorWorkerClient | null;
 	private _lastWorkerUsedTime: number;
 
 	constructor(
-		private readonly _workerDescriptor: IWebWorkerDescriptor,
-		@IModelService modelService: IModelService
+		private readonly _workerDescriptor: WebWorkerDescriptor,
+		@IModelService modelService: IModelService,
+		@IWebWorkerService webWorkerService: IWebWorkerService
 	) {
 		super();
 		this._modelService = modelService;
+		this._webWorkerService = webWorkerService;
 		this._editorWorkerClient = null;
 		this._lastWorkerUsedTime = (new Date()).getTime();
 
@@ -369,7 +403,7 @@ class WorkerManager extends Disposable {
 	public withWorker(): Promise<EditorWorkerClient> {
 		this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new EditorWorkerClient(this._workerDescriptor, false, this._modelService);
+			this._editorWorkerClient = new EditorWorkerClient(this._workerDescriptor, false, this._modelService, this._webWorkerService);
 		}
 		return Promise.resolve(this._editorWorkerClient);
 	}
@@ -398,38 +432,41 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWebWorkerClient
 }
 
 export interface IEditorWorkerClient {
-	fhr(method: string, args: any[]): Promise<any>;
+	fhr(method: string, args: unknown[]): Promise<unknown>;
 }
 
 export class EditorWorkerClient extends Disposable implements IEditorWorkerClient {
 
 	private readonly _modelService: IModelService;
+	private readonly _webWorkerService: IWebWorkerService;
 	private readonly _keepIdleModels: boolean;
 	private _worker: IWebWorkerClient<EditorWorker> | null;
 	private _modelManager: WorkerTextModelSyncClient | null;
 	private _disposed = false;
 
 	constructor(
-		private readonly _workerDescriptorOrWorker: IWebWorkerDescriptor | Worker,
+		private readonly _workerDescriptorOrWorker: WebWorkerDescriptor | Worker | Promise<Worker>,
 		keepIdleModels: boolean,
 		@IModelService modelService: IModelService,
+		@IWebWorkerService webWorkerService: IWebWorkerService
 	) {
 		super();
 		this._modelService = modelService;
+		this._webWorkerService = webWorkerService;
 		this._keepIdleModels = keepIdleModels;
 		this._worker = null;
 		this._modelManager = null;
 	}
 
 	// foreign host request
-	public fhr(method: string, args: any[]): Promise<any> {
+	public fhr(method: string, args: unknown[]): Promise<unknown> {
 		throw new Error(`Not implemented!`);
 	}
 
 	private _getOrCreateWorker(): IWebWorkerClient<EditorWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(createWebWorker<EditorWorker>(this._workerDescriptorOrWorker));
+				this._worker = this._register(this._webWorkerService.createWorkerClient<EditorWorker>(this._workerDescriptorOrWorker));
 				EditorWorkerHost.setChannel(this._worker, this._createEditorWorkerHost());
 			} catch (err) {
 				logOnceWebWorkerWarning(err);

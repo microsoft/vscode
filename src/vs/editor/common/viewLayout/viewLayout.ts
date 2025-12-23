@@ -405,7 +405,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public isInTopPadding(verticalOffset: number): boolean {
 		return this._linesLayout.isInTopPadding(verticalOffset);
 	}
-	isInBottomPadding(verticalOffset: number): boolean {
+	public isInBottomPadding(verticalOffset: number): boolean {
 		return this._linesLayout.isInBottomPadding(verticalOffset);
 	}
 

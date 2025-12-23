@@ -390,13 +390,13 @@ export class Range {
 	/**
 	 * Test if `obj` is an `IRange`.
 	 */
-	public static isIRange(obj: any): obj is IRange {
+	public static isIRange(obj: unknown): obj is IRange {
 		return (
-			obj
-			&& (typeof obj.startLineNumber === 'number')
-			&& (typeof obj.startColumn === 'number')
-			&& (typeof obj.endLineNumber === 'number')
-			&& (typeof obj.endColumn === 'number')
+			!!obj
+			&& (typeof (obj as IRange).startLineNumber === 'number')
+			&& (typeof (obj as IRange).startColumn === 'number')
+			&& (typeof (obj as IRange).endLineNumber === 'number')
+			&& (typeof (obj as IRange).endColumn === 'number')
 		);
 	}
 

@@ -8,31 +8,37 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { AutoOpenBarrier } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable, Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { GeneralShellType, TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction, registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
-import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration, registerTerminalSuggestProvidersConfiguration, type ITerminalSuggestProviderInfo } from '../common/terminalSuggestConfiguration.js';
 import { ITerminalCompletionService, TerminalCompletionService } from './terminalCompletionService.js';
+import { ITerminalContributionService } from '../../../terminal/common/terminalExtensionPoints.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
-import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
 import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { SuggestDetailsClassName } from '../../../../services/suggest/browser/simpleSuggestWidgetDetails.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import './terminalSymbolIcons.js';
+import { LspCompletionProviderAddon } from './lspCompletionProviderAddon.js';
+import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { getTerminalLspSupportedLanguageObj } from './lspTerminalUtil.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -46,23 +52,27 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
-	private readonly _pwshAddon: MutableDisposable<PwshCompletionProviderAddon> = new MutableDisposable();
+	private readonly _lspAddons: DisposableMap<string, LspCompletionProviderAddon> = this.add(new DisposableMap());
+	private readonly _lspModelProvider: MutableDisposable<LspTerminalModelContentProvider> = new MutableDisposable();
 	private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
-	get pwshAddon(): PwshCompletionProviderAddon | undefined { return this._pwshAddon.value; }
+	get lspAddons(): LspCompletionProviderAddon[] { return Array.from(this._lspAddons.values()); }
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 		this.add(toDisposable(() => {
 			this._addon?.dispose();
-			this._pwshAddon?.dispose();
+			this._lspModelProvider?.value?.dispose();
+			this._lspModelProvider?.dispose();
 		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
@@ -70,12 +80,29 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				const completionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enabled;
 				if (!completionsEnabled) {
 					this._addon.clear();
-					this._pwshAddon.clear();
+					this._lspAddons.clearAndDisposeAll();
 				}
 				const xtermRaw = this._ctx.instance.xterm?.raw;
 				if (!!xtermRaw && completionsEnabled) {
 					this._loadAddons(xtermRaw);
 				}
+			}
+		}));
+
+		// Initialize the dynamic providers configuration manager
+		TerminalSuggestProvidersConfigurationManager.initialize(this._instantiationService);
+
+		// Listen for terminal location changes to update the suggest widget container
+		this.add(this._ctx.instance.onDidChangeTarget((target) => {
+			this._updateContainerForTarget(target);
+		}));
+
+		// The terminal view can be reparented (for example when moved into a new view). Ensure the
+		// suggest widget follows the terminal's DOM when focus returns to the instance.
+		this.add(this._ctx.instance.onDidFocus(() => {
+			const xtermRaw = this._ctx.instance.xterm?.raw;
+			if (xtermRaw) {
+				this._prepareAddonLayout(xtermRaw);
 			}
 		}));
 	}
@@ -89,55 +116,41 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this._loadAddons(xterm.raw);
 		this.add(Event.runAndSubscribe(this._ctx.instance.onDidChangeShellType, async () => {
 			this._refreshAddons();
+			this._lspModelProvider.value?.shellTypeChanged(this._ctx.instance.shellType);
 		}));
 	}
 
-	private async _loadPwshCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
-		// Disable when shell type is not powershell. A naive check is done for Windows PowerShell
-		// as we don't differentiate it in shellType
-		if (
-			this._ctx.instance.shellType !== GeneralShellType.PowerShell ||
-			this._ctx.instance.shellLaunchConfig.executable?.endsWith('WindowsPowerShell\\v1.0\\powershell.exe')
-		) {
-			this._pwshAddon.clear();
+	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
+		let lspTerminalObj = undefined;
+		// TODO: Change to always load after settings update for terminal suggest provider
+		if (!this._ctx.instance.shellType || !(lspTerminalObj = getTerminalLspSupportedLanguageObj(this._ctx.instance.shellType))) {
+			this._lspAddons.clearAndDisposeAll();
 			return;
 		}
 
-		// Disable the addon on old backends (not conpty or Windows 11)
-		await this._ctx.instance.processReady;
-		const processTraits = this._ctx.processManager.processTraits;
-		if (processTraits?.windowsPty && (processTraits.windowsPty.backend !== 'conpty' || processTraits?.windowsPty.buildNumber <= 19045)) {
-			return;
-		}
+		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, lspTerminalObj.extension);
 
-		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, this._ctx.instance.capabilities);
-		xterm.loadAddon(pwshCompletionProviderAddon);
-		this.add(pwshCompletionProviderAddon);
-		this.add(pwshCompletionProviderAddon.onDidRequestSendText(text => {
-			this._ctx.instance.sendText(text, false);
-		}));
-		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', pwshCompletionProviderAddon.id, pwshCompletionProviderAddon));
-		// If completions are requested, pause and queue input events until completions are
-		// received. This fixing some problems in PowerShell, particularly enter not executing
-		// when typing quickly and some characters being printed twice. On Windows this isn't
-		// needed because inputs are _not_ echoed when not handled immediately.
-		// TODO: This should be based on the OS of the pty host, not the client
-		if (!isWindows) {
-			let barrier: AutoOpenBarrier | undefined;
-			if (pwshCompletionProviderAddon) {
-				this.add(pwshCompletionProviderAddon.onDidRequestSendText(() => {
-					barrier = new AutoOpenBarrier(2000);
-					this._ctx.instance.pauseInputEvents(barrier);
-				}));
-			}
-			if (this._pwshAddon.value) {
-				this.add(this._pwshAddon.value.onDidReceiveCompletions(() => {
-					barrier?.open();
-					barrier = undefined;
-				}));
-			} else {
-				throw Error('no addon');
-			}
+		// Load and register the LSP completion providers (one per language server)
+		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider, this._ctx.instance.capabilities, this._ctx.instance.instanceId, virtualTerminalDocumentUri, this._ctx.instance.shellType);
+		this.add(this._lspModelProvider.value);
+
+		const textVirtualModel = await this._textModelService.createModelReference(virtualTerminalDocumentUri);
+		this.add(textVirtualModel);
+
+		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
+		const filteredProviders = virtualProviders.filter(p => p._debugDisplayName !== 'wordbasedCompletions');
+
+		// Iterate through all available providers
+		for (const provider of filteredProviders) {
+			const lspCompletionProviderAddon = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
+			this._lspAddons.set(provider._debugDisplayName, lspCompletionProviderAddon);
+			xterm.loadAddon(lspCompletionProviderAddon);
+			this.add(this._terminalCompletionService.registerTerminalCompletionProvider(
+				'lsp',
+				lspCompletionProviderAddon.id,
+				lspCompletionProviderAddon,
+				...(lspCompletionProviderAddon.triggerCharacters ?? [])
+			));
 		}
 	}
 
@@ -147,15 +160,11 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 
-		const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
+		const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.sessionId, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 		xterm.loadAddon(addon);
-		this._loadPwshCompletionAddon(xterm);
-		if (this._ctx.instance.target === TerminalLocation.Editor) {
-			addon.setContainerWithOverflow(xterm.element!);
-		} else {
-			addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
-		}
-		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
+		this._loadLspCompletionAddon(xterm);
+
+		this._prepareAddonLayout(xterm);
 
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {
 			const focusedElement = e.relatedTarget as HTMLElement;
@@ -195,7 +204,62 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		// Relies on shell type being set
-		this._loadPwshCompletionAddon(this._ctx.instance.xterm.raw);
+		this._loadLspCompletionAddon(this._ctx.instance.xterm.raw);
+	}
+
+	private _updateContainerForTarget(target: TerminalLocation | undefined): void {
+		const addon = this._addon.value;
+		if (!addon || !this._ctx.instance.xterm?.raw) {
+			return;
+		}
+
+		this._prepareAddonLayout(this._ctx.instance.xterm.raw);
+	}
+
+
+	private async _prepareAddonLayout(xterm: RawXtermTerminal): Promise<void> {
+		const addon = this._addon.value;
+		if (!addon || this.isDisposed) {
+			return;
+		}
+
+		const xtermElement = xterm.element ?? await this._waitForXtermElement(xterm);
+		if (!xtermElement || this.isDisposed || addon !== this._addon.value) {
+			return;
+		}
+
+		const container = this._resolveAddonContainer(xtermElement);
+		addon.setContainerWithOverflow(container);
+		// eslint-disable-next-line no-restricted-syntax
+		const screenElement = xtermElement.querySelector('.xterm-screen');
+		if (dom.isHTMLElement(screenElement)) {
+			addon.setScreen(screenElement);
+		}
+	}
+
+	private async _waitForXtermElement(xterm: RawXtermTerminal): Promise<HTMLElement | undefined> {
+		if (xterm.element) {
+			return xterm.element;
+		}
+
+		await Promise.race([
+			Event.toPromise(Event.filter(this._ctx.instance.onDidChangeVisibility, visible => visible)),
+			Event.toPromise(this._ctx.instance.onDisposed)
+		]);
+
+		if (this.isDisposed || this._ctx.instance.isDisposed) {
+			return undefined;
+		}
+
+		return xterm.element ?? undefined;
+	}
+
+	private _resolveAddonContainer(xtermElement: HTMLElement): HTMLElement {
+		if (this._ctx.instance.target === TerminalLocation.Editor) {
+			return xtermElement;
+		}
+
+		return dom.findParentWithClass(xtermElement, 'panel') ?? xtermElement;
 	}
 }
 
@@ -222,9 +286,30 @@ registerTerminalAction({
 	run: (c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
 });
 
+registerTerminalAction({
+	id: TerminalSuggestCommandId.LearnMore,
+	title: localize2('workbench.action.terminal.learnMore', 'Learn More'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'center',
+		order: 1
+	},
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: TerminalContextKeys.suggestWidgetVisible
+	},
+	run: (c, accessor) => {
+		(accessor.get(IOpenerService)).open('https://aka.ms/vscode-terminal-intellisense');
+	}
+});
+
 registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.RequestCompletions,
-	title: localize2('workbench.action.terminal.requestCompletions', 'Request Completions'),
+	id: TerminalSuggestCommandId.TriggerSuggest,
+	title: localize2('workbench.action.terminal.triggerSuggest', 'Trigger Suggest'),
+	f1: false,
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
@@ -340,11 +425,17 @@ registerActiveInstanceAction({
 	title: localize2('workbench.action.terminal.acceptSelectedSuggestion', 'Insert'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-	keybinding: {
+	keybinding: [{
 		primary: KeyCode.Tab,
 		// Tab is bound to other workbench keybindings that this needs to beat
-		weight: KeybindingWeight.WorkbenchContrib + 1
+		weight: KeybindingWeight.WorkbenchContrib + 2,
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion)
 	},
+	{
+		primary: KeyCode.Enter,
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion, ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial'), ContextKeyExpr.or(SimpleSuggestContext.FirstSuggestionFocused.toNegated(), SimpleSuggestContext.HasNavigated))),
+		weight: KeybindingWeight.WorkbenchContrib + 1
+	}],
 	menu: {
 		id: MenuId.MenubarTerminalSuggestStatusMenu,
 		order: 1,
@@ -362,7 +453,7 @@ registerActiveInstanceAction({
 		primary: KeyCode.Enter,
 		// Enter is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.RunOnEnter}`, 'ignore'),
+		when: ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.RunOnEnter}`, 'never'),
 	},
 	run: async (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion(undefined, true)
 });
@@ -396,5 +487,49 @@ registerActiveInstanceAction({
 		activeInstance.sendText('\u001b[A', false); // Up arrow
 	}
 });
+
+// #endregion
+
+// #region Dynamic Providers Configuration
+
+class TerminalSuggestProvidersConfigurationManager extends Disposable {
+	private static _instance: TerminalSuggestProvidersConfigurationManager | undefined;
+
+	static initialize(instantiationService: IInstantiationService): void {
+		if (!this._instance) {
+			this._instance = instantiationService.createInstance(TerminalSuggestProvidersConfigurationManager);
+		}
+	}
+
+	constructor(
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService
+	) {
+		super();
+		this._register(this._terminalCompletionService.onDidChangeProviders(() => {
+			this._updateConfiguration();
+		}));
+		this._register(this._terminalContributionService.onDidChangeTerminalCompletionProviders(() => {
+			this._updateConfiguration();
+		}));
+		// Initial configuration
+		this._updateConfiguration();
+	}
+
+	private _updateConfiguration(): void {
+		// Add statically declared providers from package.json contributions
+		const providers = new Map<string, ITerminalSuggestProviderInfo>();
+		this._terminalContributionService.terminalCompletionProviders.forEach(o => providers.set(o.extensionIdentifier, { ...o, id: o.extensionIdentifier }));
+
+		// Add dynamically registered providers (that aren't already declared statically)
+		for (const { id } of this._terminalCompletionService.providers) {
+			if (id && !providers.has(id)) {
+				providers.set(id, { id });
+			}
+		}
+
+		registerTerminalSuggestProvidersConfiguration(providers);
+	}
+}
 
 // #endregion

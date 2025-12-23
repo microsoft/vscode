@@ -617,14 +617,14 @@ export namespace Color {
 
 			export function formatHSL(color: Color): string {
 				if (color.hsla.a === 1) {
-					return `hsl(${color.hsla.h}, ${(color.hsla.s * 100).toFixed(2)}%, ${(color.hsla.l * 100).toFixed(2)}%)`;
+					return `hsl(${color.hsla.h}, ${Math.round(color.hsla.s * 100)}%, ${Math.round(color.hsla.l * 100)}%)`;
 				}
 
 				return Color.Format.CSS.formatHSLA(color);
 			}
 
 			export function formatHSLA(color: Color): string {
-				return `hsla(${color.hsla.h}, ${(color.hsla.s * 100).toFixed(2)}%, ${(color.hsla.l * 100).toFixed(2)}%, ${color.hsla.a.toFixed(2)})`;
+				return `hsla(${color.hsla.h}, ${Math.round(color.hsla.s * 100)}%, ${Math.round(color.hsla.l * 100)}%, ${color.hsla.a.toFixed(2)})`;
 			}
 
 			function _toTwoDigitHex(n: number): string {

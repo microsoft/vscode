@@ -16,7 +16,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ExtensionRuntime } from '../common/extHostTypes.js';
 import { CLIServer } from './extHostCLIServer.js';
-import { realpathSync } from '../../../base/node/extpath.js';
+import { realpathSync } from '../../../base/node/pfs.js';
 import { ExtHostConsoleForwarder } from './extHostConsoleForwarder.js';
 import { ExtHostDiskFileSystemProvider } from './extHostDiskFileSystemProvider.js';
 import nodeModule from 'node:module';

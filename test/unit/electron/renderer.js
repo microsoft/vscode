@@ -88,7 +88,7 @@ Object.assign(globalThis, {
 	__mkdirPInTests: path => fs.promises.mkdir(path, { recursive: true }),
 });
 
-const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY;
+const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
 const _tests_glob = '**/test/**/*.test.js';
 
 
@@ -171,7 +171,14 @@ async function loadTestModules(opts) {
 
 	const pattern = opts.runGlob || _tests_glob;
 	const files = await globAsync(pattern, { cwd: loadFn._out });
-	const modules = files.map(file => file.replace(/\.js$/, ''));
+	let modules = files.map(file => file.replace(/\.js$/, ''));
+	if (opts.testSplit) {
+		const [i, n] = opts.testSplit.split('/').map(Number);
+		const chunkSize = Math.floor(modules.length / n);
+		const start = (i - 1) * chunkSize;
+		const end = i === n ? modules.length : i * chunkSize;
+		modules = modules.slice(start, end);
+	}
 	return loadModules(modules);
 }
 
@@ -297,7 +304,7 @@ async function loadTests(opts) {
 			const msg = [];
 			for (const error of errors) {
 				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
-				msg.push(String(error))
+				msg.push(String(error));
 			}
 			assert.ok(false, `Error: Test run should not have unexpected errors:\n${msg.join('\n')}`);
 		}
@@ -372,7 +379,7 @@ function safeStringify(obj) {
 
 function isObject(obj) {
 	// The method can't do a type cast since there are type (like strings) which
-	// are subclasses of any put not positvely matched by the function. Hence type
+	// are subclasses of any put not positively matched by the function. Hence type
 	// narrowing results in wrong results.
 	return typeof obj === 'object'
 		&& obj !== null
@@ -457,7 +464,7 @@ async function runTests(opts) {
 	await loadTests(opts);
 
 	const runner = mocha.run(async () => {
-		await createCoverageReport(opts)
+		await createCoverageReport(opts);
 		ipcRenderer.send('all done');
 	});
 

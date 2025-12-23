@@ -185,7 +185,7 @@ export class FindModelBoundToEditorModel {
 		if (typeof newFindScope !== 'undefined') {
 			if (newFindScope !== null) {
 				if (!Array.isArray(newFindScope)) {
-					findScopes = [newFindScope as Range];
+					findScopes = [newFindScope];
 				} else {
 					findScopes = newFindScope;
 				}
@@ -553,6 +553,7 @@ export class FindModelBoundToEditorModel {
 
 		if (replacePattern.hasReplacementPatterns || preserveCase) {
 			resultText = modelText.replace(searchRegex, function () {
+				// eslint-disable-next-line local/code-no-any-casts
 				return replacePattern.buildReplaceString(<string[]><any>arguments, preserveCase);
 			});
 		} else {

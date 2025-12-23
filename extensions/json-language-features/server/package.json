@@ -15,13 +15,13 @@
     "@vscode/l10n": "^0.0.18",
     "jsonc-parser": "^3.3.1",
     "request-light": "^0.8.0",
-    "vscode-json-languageservice": "^5.4.4",
-    "vscode-languageserver": "^10.0.0-next.12",
-    "vscode-uri": "^3.0.8"
+    "vscode-json-languageservice": "^5.6.4",
+    "vscode-languageserver": "^10.0.0-next.15",
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
-    "@types/mocha": "^9.1.1",
-    "@types/node": "20.x"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x"
   },
   "scripts": {
     "prepublishOnly": "npm run clean && npm run compile",

@@ -104,6 +104,7 @@ export interface ICodeActionContribution {
 export interface IAuthenticationContribution {
 	readonly id: string;
 	readonly label: string;
+	readonly authorizationServerGlobs?: string[];
 }
 
 export interface IWalkthroughStep {
@@ -184,14 +185,24 @@ export interface IToolContribution {
 	userDescription?: string;
 }
 
+export interface IToolSetContribution {
+	name: string;
+	referenceName: string;
+	description: string;
+	icon?: string;
+	tools: string[];
+}
+
 export interface IMcpCollectionContribution {
 	readonly id: string;
 	readonly label: string;
+	readonly when?: string;
 }
 
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: any;
+	configurationDefaults?: any;
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
@@ -216,7 +227,8 @@ export interface IExtensionContributions {
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
 	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
-	readonly modelContextServerCollections?: ReadonlyArray<IMcpCollectionContribution>;
+	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
+	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
 }
 
 export interface IExtensionCapabilities {
@@ -289,7 +301,7 @@ export interface IRelaxedExtensionManifest {
 	icon?: string;
 	categories?: string[];
 	keywords?: string[];
-	activationEvents?: string[];
+	activationEvents?: readonly string[];
 	extensionDependencies?: string[];
 	extensionPack?: string[];
 	extensionKind?: ExtensionKind | ExtensionKind[];

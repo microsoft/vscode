@@ -2,31 +2,36 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { getWindow, n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
+import { n } from '../../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
-import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
-import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, IObservable, IReader, observableValue } from '../../../../../../../base/common/observable.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Rect } from '../../../../../../browser/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
-import { InlineCompletionDisplayLocation } from '../../../../../../common/languages.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
+import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
+import { InlineCompletionHintStyle } from '../../../../../../common/languages.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
-import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
-import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
-import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../theme.js';
-import { maxContentWidthInRange, rectToProps } from '../utils/utils.js';
+import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
+import { InlineSuggestHint } from '../../../model/inlineSuggestionItem.js';
+import { InlineCompletionEditorType } from '../../../model/provideInlineCompletions.js';
+import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { getEditorBackgroundColor, getEditorBlendedColor, INLINE_EDITS_BORDER_RADIUS, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground } from '../theme.js';
+import { getContentRenderWidth, maxContentWidthInRange, rectToProps } from '../utils/utils.js';
+
+const MIN_END_OF_LINE_PADDING = 14;
+const PADDING_VERTICALLY = 0;
+const PADDING_HORIZONTALLY = 4;
+const HORIZONTAL_OFFSET_WHEN_ABOVE_BELOW = 4;
+const VERTICAL_OFFSET_WHEN_ABOVE_BELOW = 2;
+// !! minEndOfLinePadding should always be larger than paddingHorizontally + horizontalOffsetWhenAboveBelow
 
 export class InlineEditsCustomView extends Disposable implements IInlineEditsView {
 
-	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
+	private readonly _onDidClick = this._register(new Emitter<InlineEditClickEvent>());
 	readonly onDidClick = this._onDidClick.event;
 
 	private readonly _isHovered = observableValue(this, false);
@@ -35,10 +40,13 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 	private readonly _editorObs: ObservableCodeEditor;
 
+	readonly minEditorScrollHeight: IObservable<number>;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
-		displayLocation: IObservable<InlineCompletionDisplayLocation | undefined>,
+		displayLocation: IObservable<InlineSuggestHint | undefined>,
 		tabAction: IObservable<InlineEditTabAction>,
+		editorType: IObservable<InlineCompletionEditorType>,
 		@IThemeService themeService: IThemeService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
@@ -46,32 +54,30 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 		this._editorObs = observableCodeEditor(this._editor);
 
-		/* const styles = derived(reader => ({
-			background: getEditorBlendedColor(modifiedChangedLineBackgroundColor, themeService).read(reader).toString(),
-			border: asCssVariable(getModifiedBorderColor(tabAction).read(reader)),
-		})); */
-
 		const styles = tabAction.map((v, reader) => {
 			let border;
 			switch (v) {
 				case InlineEditTabAction.Inactive: border = inlineEditIndicatorSecondaryBackground; break;
 				case InlineEditTabAction.Jump: border = inlineEditIndicatorPrimaryBackground; break;
-				case InlineEditTabAction.Accept: border = inlineEditIndicatorsuccessfulBackground; break;
+				case InlineEditTabAction.Accept: border = inlineEditIndicatorSuccessfulBackground; break;
 			}
 			return {
 				border: getEditorBlendedColor(border, themeService).read(reader).toString(),
-				background: asCssVariable(editorBackground)
+				background: getEditorBackgroundColor(editorType.read(reader))
 			};
 		});
-
-		/* const styles = derived(reader => ({
-			background: asCssVariable(editorBackground),
-			border: asCssVariable(getModifiedBorderColor(tabAction).read(reader)),
-		})); */
 
 		const state = displayLocation.map(dl => dl ? this.getState(dl) : undefined);
 
 		const view = state.map(s => s ? this.getRendering(s, styles) : undefined);
+
+		this.minEditorScrollHeight = derived(this, reader => {
+			const s = state.read(reader);
+			if (!s) {
+				return 0;
+			}
+			return s.rect.read(reader).bottom + this._editor.getScrollTop();
+		});
 
 		const overlay = n.div({
 			class: 'inline-edits-custom-view',
@@ -88,7 +94,16 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			domNode: overlay.element,
 			position: constObservable(null),
 			allowEditorOverflow: false,
-			minContentWidthInPx: constObservable(0),
+			minContentWidthInPx: derivedObservableWithCache<number>(this, (reader, prev) => {
+				const s = state.read(reader);
+				if (!s) { return prev ?? 0; }
+
+				const current = s.rect.map(rect => rect.right).read(reader)
+					+ this._editorObs.layoutInfoVerticalScrollbarWidth.read(reader)
+					+ PADDING_HORIZONTALLY
+					- this._editorObs.layoutInfoContentLeft.read(reader);
+				return Math.max(prev ?? 0, current); // will run into infinite loop otherwise TODO: fix this
+			}).recomputeInitiallyAndOnChange(this._store),
 		}));
 
 		this._register(autorun((reader) => {
@@ -98,9 +113,23 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		}));
 	}
 
-	private getState(displayLocation: InlineCompletionDisplayLocation): { rect: IObservable<Rect>; label: string } {
+	// TODO: this is very similar to side by side `fitsInsideViewport`, try to use the same function
+	private fitsInsideViewport(range: LineRange, displayLabel: string, reader: IReader | undefined): boolean {
+		const editorWidth = this._editorObs.layoutInfoWidth.read(reader);
+		const editorContentLeft = this._editorObs.layoutInfoContentLeft.read(reader);
+		const editorVerticalScrollbar = this._editor.getLayoutInfo().verticalScrollbarWidth;
+		const minimapWidth = this._editorObs.layoutInfoMinimap.read(reader).minimapLeft !== 0 ? this._editorObs.layoutInfoMinimap.read(reader).minimapWidth : 0;
 
-		const contentState = derived((reader) => {
+		const maxOriginalContent = maxContentWidthInRange(this._editorObs, range, undefined);
+		const maxModifiedContent = getContentRenderWidth(displayLabel, this._editor, this._editor.getModel()!);
+		const padding = PADDING_HORIZONTALLY + MIN_END_OF_LINE_PADDING;
+
+		return maxOriginalContent + maxModifiedContent + padding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
+	}
+
+	private getState(displayLocation: InlineSuggestHint): { rect: IObservable<Rect>; label: string; kind: InlineCompletionHintStyle } {
+
+		const contentState = derived(this, (reader) => {
 			const startLineNumber = displayLocation.range.startLineNumber;
 			const endLineNumber = displayLocation.range.endLineNumber;
 			const startColumn = displayLocation.range.startColumn;
@@ -122,31 +151,27 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			};
 		});
 
-		const minEndOfLinePadding = 14;
-		const paddingVertically = 0;
-		const paddingHorizontally = 4;
-		const horizontalOffsetWhenAboveBelow = 4;
-		const verticalOffsetWhenAboveBelow = 2;
-		// !! minEndOfLinePadding should always be larger than paddingHorizontally + horizontalOffsetWhenAboveBelow
+		const startLineNumber = displayLocation.range.startLineNumber;
+		const endLineNumber = displayLocation.range.endLineNumber;
+		// only check viewport once in the beginning when rendering the view
+		const fitsInsideViewport = this.fitsInsideViewport(new LineRange(startLineNumber, endLineNumber + 1), displayLocation.content, undefined);
 
-		const rect = derived((reader) => {
+		const rect = derived(this, reader => {
 			const w = this._editorObs.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
 
-			const startLineNumber = displayLocation.range.startLineNumber;
-			const endLineNumber = displayLocation.range.endLineNumber;
 			const { lineWidth, lineWidthBelow, lineWidthAbove, startContentLeftOffset, endContentLeftOffset } = contentState.read(reader);
 
 			const contentLeft = this._editorObs.layoutInfoContentLeft.read(reader);
-			const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
+			const lineHeight = this._editorObs.observeLineHeightForLine(startLineNumber).recomputeInitiallyAndOnChange(reader.store).read(reader);
 			const scrollTop = this._editorObs.scrollTop.read(reader);
 			const scrollLeft = this._editorObs.scrollLeft.read(reader);
 
 			let position: 'end' | 'below' | 'above';
-			if (startLineNumber === endLineNumber && endContentLeftOffset + 5 * w >= lineWidth) {
+			if (startLineNumber === endLineNumber && endContentLeftOffset + 5 * w >= lineWidth && fitsInsideViewport) {
 				position = 'end'; // Render at the end of the line if the range ends almost at the end of the line
-			} else if (lineWidthBelow !== undefined && lineWidthBelow + minEndOfLinePadding - horizontalOffsetWhenAboveBelow - paddingHorizontally < startContentLeftOffset) {
+			} else if (lineWidthBelow !== undefined && lineWidthBelow + MIN_END_OF_LINE_PADDING - HORIZONTAL_OFFSET_WHEN_ABOVE_BELOW - PADDING_HORIZONTALLY < startContentLeftOffset) {
 				position = 'below'; // Render Below if possible
-			} else if (lineWidthAbove !== undefined && lineWidthAbove + minEndOfLinePadding - horizontalOffsetWhenAboveBelow - paddingHorizontally < startContentLeftOffset) {
+			} else if (lineWidthAbove !== undefined && lineWidthAbove + MIN_END_OF_LINE_PADDING - HORIZONTAL_OFFSET_WHEN_ABOVE_BELOW - PADDING_HORIZONTALLY < startContentLeftOffset) {
 				position = 'above'; // Render Above if possible
 			} else {
 				position = 'end'; // Render at the end of the line otherwise
@@ -161,21 +186,21 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				case 'end': {
 					topOfLine = this._editorObs.editor.getTopForLineNumber(startLineNumber);
 					contentStartOffset = lineWidth;
-					deltaX = paddingHorizontally + minEndOfLinePadding;
+					deltaX = PADDING_HORIZONTALLY + MIN_END_OF_LINE_PADDING;
 					break;
 				}
 				case 'below': {
 					topOfLine = this._editorObs.editor.getTopForLineNumber(startLineNumber + 1);
 					contentStartOffset = startContentLeftOffset;
-					deltaX = paddingHorizontally + horizontalOffsetWhenAboveBelow;
-					deltaY = paddingVertically + verticalOffsetWhenAboveBelow;
+					deltaX = PADDING_HORIZONTALLY + HORIZONTAL_OFFSET_WHEN_ABOVE_BELOW;
+					deltaY = PADDING_VERTICALLY + VERTICAL_OFFSET_WHEN_ABOVE_BELOW;
 					break;
 				}
 				case 'above': {
 					topOfLine = this._editorObs.editor.getTopForLineNumber(startLineNumber - 1);
 					contentStartOffset = startContentLeftOffset;
-					deltaX = paddingHorizontally + horizontalOffsetWhenAboveBelow;
-					deltaY = -paddingVertically + verticalOffsetWhenAboveBelow;
+					deltaX = PADDING_HORIZONTALLY + HORIZONTAL_OFFSET_WHEN_ABOVE_BELOW;
+					deltaY = -PADDING_VERTICALLY + VERTICAL_OFFSET_WHEN_ABOVE_BELOW;
 					break;
 				}
 			}
@@ -183,25 +208,26 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			const textRect = Rect.fromLeftTopWidthHeight(
 				contentLeft + contentStartOffset - scrollLeft,
 				topOfLine - scrollTop,
-				w * displayLocation.label.length,
+				w * displayLocation.content.length,
 				lineHeight
 			);
 
-			return textRect.withMargin(paddingVertically, paddingHorizontally).translateX(deltaX).translateY(deltaY);
+			return textRect.withMargin(PADDING_VERTICALLY, PADDING_HORIZONTALLY).translateX(deltaX).translateY(deltaY);
 		});
 
 		return {
 			rect,
-			label: displayLocation.label
+			label: displayLocation.content,
+			kind: displayLocation.style
 		};
 	}
 
-	private getRendering(state: { rect: IObservable<Rect>; label: string }, styles: IObservable<{ background: string; border: string }>) {
+	private getRendering(state: { rect: IObservable<Rect>; label: string; kind: InlineCompletionHintStyle }, styles: IObservable<{ background: string; border: string }>) {
 
 		const line = document.createElement('div');
 		const t = this._editor.getModel()!.tokenization.tokenizeLinesAt(1, [state.label])?.[0];
 		let tokens: LineTokens;
-		if (t) {
+		if (t && state.kind === InlineCompletionHintStyle.Code) {
 			tokens = TokenArray.fromLineTokens(t).toLineTokens(state.label, this._languageService.languageIdCodec);
 		} else {
 			tokens = LineTokens.createEmpty(state.label, this._languageService.languageIdCodec);
@@ -210,7 +236,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		const result = renderLines(new LineSource([tokens]), RenderOptions.fromEditor(this._editor).withSetWidth(false).withScrollBeyondLastColumn(0), [], line, true);
 		line.style.width = `${result.minWidthInPx}px`;
 
-		const rect = state.rect.map(r => r.withMargin(0, 4));
+		const rect = state.rect.map(r => r.withMargin(0, PADDING_HORIZONTALLY));
 
 		return n.div({
 			class: 'collapsedView',
@@ -222,7 +248,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				boxSizing: 'border-box',
 				cursor: 'pointer',
 				border: styles.map(s => `1px solid ${s.border}`),
-				borderRadius: '4px',
+				borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 				backgroundColor: styles.map(s => s.background),
 
 				display: 'flex',
@@ -230,7 +256,10 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				justifyContent: 'center',
 				whiteSpace: 'nowrap',
 			},
-			onclick: (e) => { this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)); }
+			onmousedown: e => {
+				e.preventDefault(); // This prevents that the editor loses focus
+			},
+			onclick: (e) => { this._onDidClick.fire(InlineEditClickEvent.create(e)); }
 		}, [
 			line
 		]);

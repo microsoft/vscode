@@ -18,9 +18,6 @@ import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol.js';
 import * as extHostTypes from './extHostTypes.js';
 
-
-type IconPath = URI | { readonly light: URI; readonly dark: URI };
-
 class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 
 	readonly #handle: extHostProtocol.WebviewHandle;
@@ -31,7 +28,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 	readonly #options: vscode.WebviewPanelOptions;
 
 	#title: string;
-	#iconPath?: IconPath;
+	#iconPath?: vscode.IconPath;
 	#viewColumn: vscode.ViewColumn | undefined = undefined;
 	#visible: boolean = true;
 	#active: boolean;
@@ -103,17 +100,21 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 		}
 	}
 
-	get iconPath(): IconPath | undefined {
+	get iconPath(): vscode.IconPath | undefined {
 		this.assertNotDisposed();
 		return this.#iconPath;
 	}
 
-	set iconPath(value: IconPath | undefined) {
+	set iconPath(value: vscode.IconPath | undefined) {
 		this.assertNotDisposed();
 		if (this.#iconPath !== value) {
 			this.#iconPath = value;
 
-			this.#proxy.$setIconPath(this.#handle, URI.isUri(value) ? { light: value, dark: value } : value);
+			if (URI.isUri(value)) {
+				this.#proxy.$setIconPath(this.#handle, { light: value, dark: value });
+			} else {
+				this.#proxy.$setIconPath(this.#handle, value as { light: URI; dark: URI } | vscode.ThemeIcon);
+			}
 		}
 	}
 

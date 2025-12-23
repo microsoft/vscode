@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { JSDOM } from "jsdom";
+import { JSDOM } from 'jsdom';
 import { LinkDetector, linkify } from '../linkify';
 
 const dom = new JSDOM();

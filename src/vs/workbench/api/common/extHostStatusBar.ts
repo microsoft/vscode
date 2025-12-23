@@ -57,7 +57,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		readonly internal: ICommandDto;
 	};
 
-	private _timeoutHandle: any;
+	private _timeoutHandle: Timeout | undefined;
 	private _accessibilityInformation?: vscode.AccessibilityInformation;
 
 	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number, _onDispose?: () => void);
@@ -389,7 +389,7 @@ export class ExtHostStatusBar implements ExtHostStatusBarShape {
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {
 		const d = this._statusMessage.setMessage(text);
-		let handle: any;
+		let handle: Timeout | undefined;
 
 		if (typeof timeoutOrThenable === 'number') {
 			handle = setTimeout(() => d.dispose(), timeoutOrThenable);

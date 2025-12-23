@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
+import { DisableTsgoCommand, tsNativeExtensionId } from './commands/useTsgo';
 import { registerBaseCommands } from './commands/index';
 import { ElectronServiceConfigurationProvider } from './configuration/configuration.electron';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
@@ -24,6 +25,8 @@ import { onCaseInsensitiveFileSystem } from './utils/fs.electron';
 import { Lazy } from './utils/lazy';
 import { getPackageInfo } from './utils/packageInfo';
 import * as temp from './utils/temp.electron';
+import { conditionalRegistration, requireGlobalConfiguration, requireHasVsCodeExtension } from './languageFeatures/util/dependentRegistration';
+import { DisposableStore } from './utils/dispose';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -31,17 +34,11 @@ export function activate(
 	const pluginManager = new PluginManager();
 	context.subscriptions.push(pluginManager);
 
-	const commandManager = new CommandManager();
-	context.subscriptions.push(commandManager);
-
 	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);
 
 	const logDirectoryProvider = new NodeLogDirectoryProvider(context);
 	const versionProvider = new DiskTypeScriptVersionProvider();
-
-	const activeJsTsEditorTracker = new ActiveJsTsEditorTracker();
-	context.subscriptions.push(activeJsTsEditorTracker);
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -56,34 +53,58 @@ export function activate(
 		new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
 	}
 
-	const logger = new Logger();
-
-	const lazyClientHost = createLazyClientHost(context, onCaseInsensitiveFileSystem(), {
-		pluginManager,
-		commandManager,
-		logDirectoryProvider,
-		cancellerFactory: nodeRequestCancellerFactory,
-		versionProvider,
-		processFactory: new ElectronServiceProcessFactory(),
-		activeJsTsEditorTracker,
-		serviceConfigurationProvider: new ElectronServiceConfigurationProvider(),
-		experimentTelemetryReporter,
-		logger,
-	}, item => {
-		onCompletionAccepted.fire(item);
-	});
-
-	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
-
-	import('./task/taskProvider').then(module => {
-		context.subscriptions.push(module.register(new Lazy(() => lazyClientHost.value.serviceClient)));
-	});
-
+	// Register features that work in both TSGO and non-TSGO modes
 	import('./languageFeatures/tsconfig').then(module => {
 		context.subscriptions.push(module.register());
 	});
 
-	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));
+	// Conditionally register features based on whether TSGO is enabled
+	context.subscriptions.push(conditionalRegistration([
+		requireGlobalConfiguration('typescript', 'experimental.useTsgo'),
+		requireHasVsCodeExtension(tsNativeExtensionId),
+	], () => {
+		// TSGO. Only register a small set of features that don't use TS Server
+		const disposables = new DisposableStore();
+
+		const commandManager = disposables.add(new CommandManager());
+		commandManager.register(new DisableTsgoCommand());
+
+		return disposables;
+	}, () => {
+		// Normal registration path
+		const disposables = new DisposableStore();
+
+		const commandManager = disposables.add(new CommandManager());
+		const activeJsTsEditorTracker = disposables.add(new ActiveJsTsEditorTracker());
+
+		const lazyClientHost = createLazyClientHost(context, onCaseInsensitiveFileSystem(), {
+			pluginManager,
+			commandManager,
+			logDirectoryProvider,
+			cancellerFactory: nodeRequestCancellerFactory,
+			versionProvider,
+			processFactory: new ElectronServiceProcessFactory(),
+			activeJsTsEditorTracker,
+			serviceConfigurationProvider: new ElectronServiceConfigurationProvider(),
+			experimentTelemetryReporter,
+			logger: new Logger(),
+		}, item => {
+			onCompletionAccepted.fire(item);
+		}).map(clientHost => {
+			return disposables.add(clientHost);
+		});
+
+		// Register features
+		registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
+
+		import('./task/taskProvider').then(module => {
+			disposables.add(module.register(new Lazy(() => lazyClientHost.value.serviceClient)));
+		});
+
+		disposables.add(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));
+
+		return disposables;
+	},));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }

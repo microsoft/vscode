@@ -1,0 +1,94 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.mcp-server-editor {
+	.configuration-content {
+		padding: 20px;
+		box-sizing: border-box;
+	}
+
+	.config-section {
+		margin-bottom: 15px;
+		display: flex;
+		align-items: flex-start;
+	}
+
+	.config-label {
+		font-weight: 600;
+		min-width: 80px;
+		margin-right: 15px;
+	}
+
+	.config-value {
+		word-break: break-all;
+	}
+
+	.no-config {
+		color: var(--vscode-descriptionForeground);
+		font-style: italic;
+		padding: 20px;
+	}
+
+	.manifest-content {
+		padding: 20px;
+		box-sizing: border-box;
+
+		.manifest-section {
+			margin-bottom: 20px;
+
+			.manifest-section-title {
+				font-size: 26px;
+				display: inline-block;
+				margin: 0px;
+				font-weight: 600;
+				height: 100%;
+				box-sizing: border-box;
+				padding: 10px;
+				padding-left: 0px;
+				flex: 1;
+				position: relative;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+		}
+
+		.package-section {
+
+			margin-top: 10px;
+
+			.package-section-title {
+				margin-bottom: 5px;
+				font-size: 1.4em;
+				font-weight: 600;
+				border-bottom: 1px solid var(--vscode-panelSection-border);
+				padding: 5px;
+			}
+
+			.package-details {
+				padding-left: 10px;
+				.package-detail {
+					display: grid;
+					grid-template-columns: 200px 1fr;
+					gap: 12px;
+					align-items: start;
+					padding: 8px 0px;
+				}
+
+				.package-separator {
+					margin-top: 10px;
+					border-bottom: 1px solid var(--vscode-panelSection-border);
+				}
+			}
+		}
+
+
+		.no-manifest {
+			font-style: italic;
+			padding: 20px;
+		}
+	}
+
+
+}

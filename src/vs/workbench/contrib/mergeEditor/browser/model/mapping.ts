@@ -11,7 +11,7 @@ import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { LineRangeEdit } from './editing.js';
-import { LineRange } from './lineRange.js';
+import { MergeEditorLineRange } from './lineRange.js';
 import { addLength, lengthBetweenPositions, rangeContainsPosition, rangeIsBeforeOrTouching } from './rangeUtils.js';
 
 /**
@@ -22,11 +22,11 @@ export class LineRangeMapping {
 		return mappings.reduce<undefined | LineRangeMapping>((acc, cur) => acc ? acc.join(cur) : cur, undefined);
 	}
 	constructor(
-		public readonly inputRange: LineRange,
-		public readonly outputRange: LineRange
+		public readonly inputRange: MergeEditorLineRange,
+		public readonly outputRange: MergeEditorLineRange
 	) { }
 
-	public extendInputRange(extendedInputRange: LineRange): LineRangeMapping {
+	public extendInputRange(extendedInputRange: MergeEditorLineRange): LineRangeMapping {
 		if (!extendedInputRange.containsRange(this.inputRange)) {
 			throw new BugIndicatingError();
 		}
@@ -35,9 +35,9 @@ export class LineRangeMapping {
 		const endDelta = extendedInputRange.endLineNumberExclusive - this.inputRange.endLineNumberExclusive;
 		return new LineRangeMapping(
 			extendedInputRange,
-			new LineRange(
+			MergeEditorLineRange.fromLength(
 				this.outputRange.startLineNumber + startDelta,
-				this.outputRange.lineCount - startDelta + endDelta
+				this.outputRange.length - startDelta + endDelta
 			)
 		);
 	}
@@ -111,16 +111,16 @@ export class DocumentLineRangeMap {
 		const lastBefore = findLast(this.lineRangeMappings, r => r.inputRange.startLineNumber <= lineNumber);
 		if (!lastBefore) {
 			return new LineRangeMapping(
-				new LineRange(lineNumber, 1),
-				new LineRange(lineNumber, 1)
+				MergeEditorLineRange.fromLength(lineNumber, 1),
+				MergeEditorLineRange.fromLength(lineNumber, 1)
 			);
 		}
 
 		if (lastBefore.inputRange.contains(lineNumber)) {
 			return lastBefore;
 		}
-		const containingRange = new LineRange(lineNumber, 1);
-		const mappedRange = new LineRange(
+		const containingRange = MergeEditorLineRange.fromLength(lineNumber, 1);
+		const mappedRange = MergeEditorLineRange.fromLength(
 			lineNumber +
 			lastBefore.outputRange.endLineNumberExclusive -
 			lastBefore.inputRange.endLineNumberExclusive,
@@ -166,7 +166,7 @@ export class MappingAlignment<T extends LineRangeMapping> {
 
 		const alignments = new Array<MappingAlignment<T>>();
 
-		function pushAndReset(inputRange: LineRange) {
+		function pushAndReset(inputRange: MergeEditorLineRange) {
 			const mapping1 = LineRangeMapping.join(currentDiffs[0]) || new LineRangeMapping(inputRange, inputRange.delta(deltaFromBaseToInput[0]));
 			const mapping2 = LineRangeMapping.join(currentDiffs[1]) || new LineRangeMapping(inputRange, inputRange.delta(deltaFromBaseToInput[1]));
 
@@ -183,11 +183,11 @@ export class MappingAlignment<T extends LineRangeMapping> {
 			currentDiffs[1] = [];
 		}
 
-		let currentInputRange: LineRange | undefined;
+		let currentInputRange: MergeEditorLineRange | undefined;
 
 		for (const diff of combinedDiffs) {
 			const range = diff.diff.inputRange;
-			if (currentInputRange && !currentInputRange.touches(range)) {
+			if (currentInputRange && !currentInputRange.intersectsOrTouches(range)) {
 				pushAndReset(currentInputRange);
 				currentInputRange = undefined;
 			}
@@ -204,10 +204,10 @@ export class MappingAlignment<T extends LineRangeMapping> {
 	}
 
 	constructor(
-		public readonly inputRange: LineRange,
-		public readonly output1Range: LineRange,
+		public readonly inputRange: MergeEditorLineRange,
+		public readonly output1Range: MergeEditorLineRange,
 		public readonly output1LineMappings: T[],
-		public readonly output2Range: LineRange,
+		public readonly output2Range: MergeEditorLineRange,
 		public readonly output2LineMappings: T[],
 	) {
 	}
@@ -228,15 +228,15 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
 	public readonly rangeMappings: readonly RangeMapping[];
 
 	constructor(
-		inputRange: LineRange,
+		inputRange: MergeEditorLineRange,
 		public readonly inputTextModel: ITextModel,
-		outputRange: LineRange,
+		outputRange: MergeEditorLineRange,
 		public readonly outputTextModel: ITextModel,
 		rangeMappings?: readonly RangeMapping[],
 	) {
 		super(inputRange, outputRange);
 
-		this.rangeMappings = rangeMappings || [new RangeMapping(this.inputRange.toRange(), this.outputRange.toRange())];
+		this.rangeMappings = rangeMappings || [new RangeMapping(this.inputRange.toExclusiveRange(), this.outputRange.toExclusiveRange())];
 	}
 
 	public override addOutputLineDelta(delta: number): DetailedLineRangeMapping {

@@ -53,7 +53,6 @@ export interface ISettingsGroup {
 }
 
 export interface ISettingsSection {
-	titleRange?: IRange;
 	title?: string;
 	settings: ISetting[];
 }
@@ -157,6 +156,7 @@ export interface ISettingMatch {
 	matchType: SettingMatchType;
 	keyMatchScore: number;
 	score: number;
+	providerName?: string;
 }
 
 export interface IScoredResults {
@@ -262,6 +262,8 @@ export interface IPreferencesService {
 	hasDefaultSettingsContent(uri: URI): boolean;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
+	openPreferences(): Promise<void>;
+
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
 	openSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openApplicationSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
@@ -346,5 +348,6 @@ export interface IDefineKeybindingEditorContribution extends IEditorContribution
 export const FOLDER_SETTINGS_PATH = '.vscode/settings.json';
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 export const USE_SPLIT_JSON_SETTING = 'workbench.settings.useSplitJSON';
+export const ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING = 'workbench.settings.alwaysShowAdvancedSettings';
 
 export const SETTINGS_AUTHORITY = 'settings';

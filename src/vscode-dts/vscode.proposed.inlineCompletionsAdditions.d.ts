@@ -21,16 +21,19 @@ declare module 'vscode' {
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider, metadata: InlineCompletionItemProviderMetadata): Disposable;
+
+		/**
+		 * temporary: to be removed
+		 */
+		export const inlineCompletionsUnificationState: InlineCompletionsUnificationState;
+		/**
+		 * temporary: to be removed
+		 */
+		export const onDidChangeCompletionsUnificationState: Event<void>;
 	}
 
 	export interface InlineCompletionItem {
-		/**
-		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
-		 * Defaults to `false`.
-		*/
-		completeBracketPairs?: boolean;
-
-		warning?: InlineCompletionWarning;
+		// insertText: string | SnippetString | undefined;
 
 		/** If set to `true`, this item is treated as inline edit. */
 		isInlineEdit?: boolean;
@@ -43,14 +46,42 @@ declare module 'vscode' {
 
 		showInlineEditMenu?: boolean;
 
+		/**
+		 * If set, specifies where insertText, filterText, range, jumpToPosition apply to.
+		*/
+		uri?: Uri;
+
+		// TODO: rename to gutterMenuLinkAction
 		action?: Command;
 
 		displayLocation?: InlineCompletionDisplayLocation;
+
+		/** Used for telemetry. Can be an arbitrary string. */
+		correlationId?: string;
+
+		/**
+		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
+		 * Defaults to `false`.
+		*/
+		completeBracketPairs?: boolean;
+
+		warning?: InlineCompletionWarning;
+
+		supportsRename?: boolean;
+
+		jumpToPosition?: Position;
 	}
+
 
 	export interface InlineCompletionDisplayLocation {
 		range: Range;
+		kind: InlineCompletionDisplayLocationKind;
 		label: string;
+	}
+
+	export enum InlineCompletionDisplayLocationKind {
+		Code = 1,
+		Label = 2
 	}
 
 	export interface InlineCompletionWarning {
@@ -64,10 +95,16 @@ declare module 'vscode' {
 		 * If some inline completion provider registered by such an extension returns a result, this provider is not asked.
 		 */
 		yieldTo?: string[];
+		/**
+		 * Can override the extension id for the yieldTo mechanism. Used for testing, so that yieldTo can be tested within one extension.
+		*/
+		groupId?: string;
 
 		debounceDelayMs?: number;
 
 		displayName?: string;
+
+		excludes?: string[];
 	}
 
 	export interface InlineCompletionItemProvider {
@@ -92,14 +129,21 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleEndOfLifetime?(completionItem: InlineCompletionItem, reason: InlineCompletionEndOfLifeReason): void;
 
-		readonly debounceDelayMs?: number;
+		/**
+		 * Is called when an inline completion list is no longer being used (same reference as the list returned by provideInlineEditsForRange).
+		*/
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleListEndOfLifetime?(list: InlineCompletionList, reason: InlineCompletionsDisposeReason): void;
 
-		onDidChange?: Event<void>;
+		readonly onDidChange?: Event<void>;
+
+		readonly modelInfo?: InlineCompletionModelInfo;
+		readonly onDidChangeModelInfo?: Event<void>;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		setCurrentModelId?(modelId: string): Thenable<void>;
+
 
 		// #region Deprecated methods
-
-		/** @deprecated */
-		provideInlineEditsForRange?(document: TextDocument, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
 
 		/**
 		 * Is called when an inline completion item was accepted partially.
@@ -119,6 +163,16 @@ declare module 'vscode' {
 		// #endregion
 	}
 
+	export interface InlineCompletionModelInfo {
+		readonly models: InlineCompletionModel[];
+		readonly currentModelId: string;
+	}
+
+	export interface InlineCompletionModel {
+		readonly id: string;
+		readonly name: string;
+	}
+
 	export enum InlineCompletionEndOfLifeReasonKind {
 		Accepted = 0,
 		Rejected = 1,
@@ -135,10 +189,24 @@ declare module 'vscode' {
 		userTypingDisagreed: boolean;
 	};
 
+	export enum InlineCompletionsDisposeReasonKind {
+		Other = 0,
+		Empty = 1,
+		TokenCancellation = 2,
+		LostRace = 3,
+		NotTaken = 4,
+	}
+
+	export type InlineCompletionsDisposeReason = { kind: InlineCompletionsDisposeReasonKind };
+
 	export interface InlineCompletionContext {
 		readonly userPrompt?: string;
 
-		readonly requestUuid?: string;
+		readonly requestUuid: string;
+
+		readonly requestIssuedDateTime: number;
+
+		readonly earliestShownDateTime: number;
 	}
 
 	export interface PartialAcceptInfo {
@@ -161,12 +229,22 @@ declare module 'vscode' {
 		/**
 		 * A list of commands associated with the inline completions of this list.
 		 */
-		commands?: Command[];
+		commands?: Array<Command | { command: Command; icon: ThemeIcon }>;
 
 		/**
 		 * When set and the user types a suggestion without deviating from it, the inline suggestion is not updated.
 		 * Defaults to false (might change).
 		 */
 		enableForwardStability?: boolean;
+	}
+
+	/**
+	 * temporary: to be removed
+	 */
+	export interface InlineCompletionsUnificationState {
+		codeUnification: boolean;
+		modelUnification: boolean;
+		extensionUnification: boolean;
+		expAssignments: string[];
 	}
 }

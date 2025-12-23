@@ -21,9 +21,13 @@ import { LanguageFeaturesService } from '../../../../common/services/languageFea
 import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
 import { InlineCompletionsController } from '../../browser/controller/inlineCompletionsController.js';
 import { Range } from '../../../../common/core/range.js';
-import { TextEdit } from '../../../../common/core/textEdit.js';
+import { TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
-import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
+import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
+import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
+import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { Event } from '../../../../../base/common/event.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -31,6 +35,10 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 
 	private callHistory = new Array<unknown>();
 	private calledTwiceIn50Ms = false;
+
+	constructor(
+		public readonly enableForwardStability = false,
+	) { }
 
 	public setReturnValue(value: InlineCompletion | undefined, delayMs: number = 0): void {
 		this.returnValue = value ? [value] : [];
@@ -56,7 +64,7 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 
 	private lastTimeMs: number | undefined = undefined;
 
-	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken) {
+	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletions> {
 		const currentTimeMs = new Date().getTime();
 		if (this.lastTimeMs && currentTimeMs - this.lastTimeMs < 50) {
 			this.calledTwiceIn50Ms = true;
@@ -81,9 +89,9 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 			await timeout(this.delayMs);
 		}
 
-		return { items: result };
+		return { items: result, enableForwardStability: this.enableForwardStability };
 	}
-	freeInlineCompletions() { }
+	disposeInlineCompletions() { }
 	handleItemDidShow() { }
 }
 
@@ -110,7 +118,7 @@ export class MockSearchReplaceCompletionsProvider implements InlineCompletionsPr
 		}
 		return { items: [] };
 	}
-	freeInlineCompletions() { }
+	disposeInlineCompletions() { }
 	handleItemDidShow() { }
 }
 
@@ -185,27 +193,27 @@ export class GhostTextContext extends Disposable {
 	}
 
 	public cursorUp(): void {
-		CoreNavigationCommands.CursorUp.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorUp, null);
 	}
 
 	public cursorRight(): void {
-		CoreNavigationCommands.CursorRight.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorRight, null);
 	}
 
 	public cursorLeft(): void {
-		CoreNavigationCommands.CursorLeft.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorLeft, null);
 	}
 
 	public cursorDown(): void {
-		CoreNavigationCommands.CursorDown.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorDown, null);
 	}
 
 	public cursorLineEnd(): void {
-		CoreNavigationCommands.CursorLineEnd.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorLineEnd, null);
 	}
 
 	public leftDelete(): void {
-		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreEditingCommands.DeleteLeft, null);
 	}
 }
 
@@ -233,18 +241,35 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					options.serviceCollection = new ServiceCollection();
 				}
 				options.serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
+				// eslint-disable-next-line local/code-no-any-casts
 				options.serviceCollection.set(IAccessibilitySignalService, {
 					playSignal: async () => { },
 					isSoundEnabled(signal: unknown) { return false; },
 				} as any);
+				options.serviceCollection.set(IBulkEditService, {
+					apply: async () => { throw new Error('IBulkEditService.apply not implemented'); },
+					hasPreviewHandler: () => { throw new Error('IBulkEditService.hasPreviewHandler not implemented'); },
+					setPreviewHandler: () => { throw new Error('IBulkEditService.setPreviewHandler not implemented'); },
+					_serviceBrand: undefined,
+				});
+				options.serviceCollection.set(IDefaultAccountService, {
+					_serviceBrand: undefined,
+					onDidChangeDefaultAccount: Event.None,
+					getDefaultAccount: async () => null,
+					setDefaultAccount: () => { },
+				});
+
 				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);
 			}
 
 			let result: T;
 			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
+				instantiationService.stubInstance(InlineSuggestionsView, {
+					shouldShowHoverAtViewZone: () => false,
+					dispose: () => { },
+				});
 				const controller = instantiationService.createInstance(InlineCompletionsController, editor);
-				controller.testOnlyDisableUi();
 				const model = controller.model.get()!;
 				const context = new GhostTextContext(model, editor);
 				try {

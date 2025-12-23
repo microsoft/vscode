@@ -196,7 +196,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
 		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
-		this._glyphRasterizer.value = this._register(new GlyphRasterizer(fontSize, fontFamily, this._viewGpuContext.devicePixelRatio.get()));
+		this._glyphRasterizer.value = this._register(new GlyphRasterizer(fontSize, fontFamily, this._viewGpuContext.devicePixelRatio.get(), ViewGpuContext.decorationStyleCache));
 		this._register(runOnChange(this._viewGpuContext.devicePixelRatio, () => {
 			this._refreshGlyphRasterizer();
 		}));
@@ -240,7 +240,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		const module = this._device.createShaderModule({
 			label: 'Monaco shader module',
-			code: this._renderStrategy.value!.wgsl,
+			code: this._renderStrategy.value.wgsl,
 		});
 
 		// #endregion Shader module
@@ -454,7 +454,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			glyphRasterizer.fontSize !== fontSize ||
 			glyphRasterizer.devicePixelRatio !== devicePixelRatio
 		) {
-			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily, devicePixelRatio);
+			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily, devicePixelRatio, ViewGpuContext.decorationStyleCache);
 		}
 	}
 

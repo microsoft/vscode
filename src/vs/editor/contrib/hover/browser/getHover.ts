@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from '../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { registerModelAndPositionCommand } from '../../../browser/editorExtensions.js';
@@ -34,14 +34,18 @@ async function executeProvider(provider: HoverProvider, ordinal: number, model: 
 	return new HoverProviderResult(provider, result, ordinal);
 }
 
-export function getHoverProviderResultsAsAsyncIterable(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): AsyncIterableObject<HoverProviderResult> {
+export function getHoverProviderResultsAsAsyncIterable(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): AsyncIterable<HoverProviderResult> {
 	const providers = registry.ordered(model, recursive);
 	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
-	return AsyncIterableObject.fromPromisesResolveOrder(promises).coalesce();
+	return AsyncIterableProducer.fromPromisesResolveOrder(promises).coalesce();
 }
 
-export function getHoversPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): Promise<Hover[]> {
-	return getHoverProviderResultsAsAsyncIterable(registry, model, position, token, recursive).map(item => item.hover).toPromise();
+export async function getHoversPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): Promise<Hover[]> {
+	const out: Hover[] = [];
+	for await (const item of getHoverProviderResultsAsAsyncIterable(registry, model, position, token, recursive)) {
+		out.push(item.hover);
+	}
+	return out;
 }
 
 registerModelAndPositionCommand('_executeHoverProvider', (accessor, model, position): Promise<Hover[]> => {

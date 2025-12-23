@@ -29,7 +29,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { buttonBackground, buttonForeground, buttonHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator } from '../../../../platform/theme/common/colorRegistry.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
 import { ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -59,7 +59,7 @@ import { isIOS, isWeb, language } from '../../../../base/common/platform.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
-import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { getLocale } from '../../../../platform/languagePacks/common/languagePacks.js';
@@ -74,6 +74,7 @@ import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOpti
 import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -215,7 +216,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 
 		const downloadUrl = await this.getDownloadUrl();
 		if (downloadUrl) {
-			additionalMessage = localize('check logs', "Please check the [log]({0}) for more details.", `command:${showWindowLogActionId}`);
+			additionalMessage = localize('check logs', "Please check the [log]({0}) for more details.", createCommandUri(showWindowLogActionId).toString());
 			promptChoices.push({
 				label: localize('download', "Try Downloading Manually..."),
 				run: () => this.openerService.open(downloadUrl).then(() => {
@@ -284,12 +285,11 @@ export interface IExtensionActionChangeEvent extends IActionChangeEvent {
 export abstract class ExtensionAction extends Action implements IExtensionContainer {
 
 	protected override _onDidChange = this._register(new Emitter<IExtensionActionChangeEvent>());
-	override readonly onDidChange = this._onDidChange.event;
+	override get onDidChange() { return this._onDidChange.event; }
 
 	static readonly EXTENSION_ACTION_CLASS = 'extension-action';
 	static readonly TEXT_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} text`;
 	static readonly LABEL_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} label`;
-	static readonly PROMINENT_LABEL_ACTION_CLASS = `${ExtensionAction.LABEL_ACTION_CLASS} prominent`;
 	static readonly ICON_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} icon`;
 
 	private _extension: IExtension | null = null;
@@ -694,12 +694,12 @@ export class InstallDropdownAction extends ButtonWithDropDownExtensionAction {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
 	) {
 		super(`extensions.installActions`, InstallAction.CLASS, [
 			[
-				instantiationService.createInstance(InstallAction, { installPreReleaseVersion: extensionsWorkbenchService.preferPreReleases }),
-				instantiationService.createInstance(InstallAction, { installPreReleaseVersion: !extensionsWorkbenchService.preferPreReleases }),
+				instantiationService.createInstance(InstallAction, { installPreReleaseVersion: extensionManagementService.preferPreReleases }),
+				instantiationService.createInstance(InstallAction, { installPreReleaseVersion: !extensionManagementService.preferPreReleases }),
 			]
 		]);
 	}
@@ -893,6 +893,7 @@ export class UninstallAction extends ExtensionAction {
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super('extensions.uninstall', UninstallAction.UninstallLabel, UninstallAction.UninstallClass, false);
@@ -914,7 +915,7 @@ export class UninstallAction extends ExtensionAction {
 			return;
 		}
 
-		this.label = UninstallAction.UninstallLabel;
+		this.label = this.extension.local?.isApplicationScoped && this.userDataProfilesService.profiles.length > 1 ? localize('uninstallAll', "Uninstall (All Profiles)") : UninstallAction.UninstallLabel;
 		this.class = UninstallAction.UninstallClass;
 		this.tooltip = UninstallAction.UninstallLabel;
 
@@ -950,7 +951,7 @@ export class UninstallAction extends ExtensionAction {
 
 export class UpdateAction extends ExtensionAction {
 
-	private static readonly EnabledClass = `${this.LABEL_ACTION_CLASS} prominent update`;
+	private static readonly EnabledClass = `${this.LABEL_ACTION_CLASS} update`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	private readonly updateThrottler = new Throttler();
@@ -1211,7 +1212,7 @@ export abstract class DropDownExtensionAction extends ExtensionAction {
 export class DropDownExtensionActionViewItem extends ActionViewItem {
 
 	constructor(
-		action: DropDownExtensionAction,
+		action: IAction,
 		options: IActionViewItemOptions,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
@@ -1493,7 +1494,7 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 	static readonly ID = 'workbench.extensions.action.togglePreRlease';
 	static readonly LABEL = localize('togglePreRleaseLabel', "Pre-Release");
 
-	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} pre-release`;
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent pre-release`;
 	private static readonly DisabledClass = `${this.EnabledClass} hide`;
 
 	constructor(
@@ -2591,10 +2592,10 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		if (this.extension.deprecationInfo) {
 			if (this.extension.deprecationInfo.extension) {
-				const link = `[${this.extension.deprecationInfo.extension.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.extension.id]))}`)})`;
+				const link = `[${this.extension.deprecationInfo.extension.displayName}](${createCommandUri('extension.open', this.extension.deprecationInfo.extension.id)})`;
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate extension tooltip', "This extension is deprecated. Use the {0} extension instead.", link)) }, true);
 			} else if (this.extension.deprecationInfo.settings) {
-				const link = `[${localize('settings', "settings")}](${URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' ')]))}`)})`;
+				const link = `[${localize('settings', "settings")}](${createCommandUri('workbench.action.openSettings', this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' '))}})`;
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "This extension is deprecated as this functionality is now built-in to VS Code. Configure these {0} to use this functionality.", link)) }, true);
 			} else {
 				const message = new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained."));
@@ -2603,6 +2604,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 				}
 				this.updateStatus({ icon: warningIcon, message }, true);
 			}
+			return;
+		}
+
+		if (this.extension.missingFromGallery) {
+			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('missing from gallery tooltip', "This extension is no longer available on the Extension Marketplace.")) }, true);
 			return;
 		}
 
@@ -2618,10 +2624,10 @@ export class ExtensionStatusAction extends ExtensionAction {
 				markdown.appendMarkdown(
 					localize('auto update message', "Please [review the extension]({0}) and update it manually.",
 						this.extension.hasChangelog()
-							? URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Changelog]))}`).toString()
+							? createCommandUri('extension.open', this.extension.identifier.id, ExtensionEditorTab.Changelog).toString()
 							: this.extension.repository
 								? this.extension.repository
-								: URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id]))}`).toString()
+								: createCommandUri('extension.open', this.extension.identifier.id).toString()
 					));
 				this.updateStatus({ icon: warningIcon, message: markdown }, true);
 			}
@@ -2678,6 +2684,12 @@ export class ExtensionStatusAction extends ExtensionAction {
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(details ? escapeMarkdownSyntaxTokens(details) : localize('extension limited because of virtual workspace', "This extension has limited features because the current workspace is virtual.")) }, true);
 				return;
 			}
+		}
+
+		// Unification
+		if (this.extension.enablementState === EnablementState.DisabledByUnification) {
+			this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('extension disabled because of unification', "All GitHub Copilot functionality is now being served from the GitHub Copilot Chat extension. To temporarily opt out of this extension unification, toggle the {0} setting.", '`chat.extensionUnification.enabled`')) }, true);
+			return;
 		}
 
 		if (!this.workspaceTrustService.isWorkspaceTrusted() &&
@@ -2739,7 +2751,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		const features = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeatures();
 		for (const feature of features) {
 			const status = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id)?.current?.status;
-			const manageAccessLink = `[${localize('manage access', 'Manage Access')}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Features, false, feature.id]))}`)})`;
+			const manageAccessLink = `[${localize('manage access', 'Manage Access')}](${createCommandUri('extension.open', this.extension.identifier.id, ExtensionEditorTab.Features, false, feature.id)})`;
 			if (status?.severity === Severity.Error) {
 				this.updateStatus({ icon: errorIcon, message: new MarkdownString().appendText(status.message).appendMarkdown(` ${manageAccessLink}`) }, true);
 				return;
@@ -2791,7 +2803,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			this.updateStatus({
 				icon: warningIcon,
 				message: new MarkdownString(localize('extension disabled because of dependency', "This extension depends on an extension that is disabled."))
-					.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`)
+					.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${createCommandUri('extension.open', this.extension.identifier.id, ExtensionEditorTab.Dependencies)})`)
 			}, true);
 			return;
 		}
@@ -3164,22 +3176,22 @@ CommandsRegistry.registerCommand(showExtensionsWithIdsCommandId, function (acces
 });
 
 registerColor('extensionButton.background', {
-	dark: buttonBackground,
-	light: buttonBackground,
+	dark: buttonSecondaryBackground,
+	light: buttonSecondaryBackground,
 	hcDark: null,
 	hcLight: null
 }, localize('extensionButtonBackground', "Button background color for extension actions."));
 
 registerColor('extensionButton.foreground', {
-	dark: buttonForeground,
-	light: buttonForeground,
+	dark: buttonSecondaryForeground,
+	light: buttonSecondaryForeground,
 	hcDark: null,
 	hcLight: null
 }, localize('extensionButtonForeground', "Button foreground color for extension actions."));
 
 registerColor('extensionButton.hoverBackground', {
-	dark: buttonHoverBackground,
-	light: buttonHoverBackground,
+	dark: buttonSecondaryHoverBackground,
+	light: buttonSecondaryHoverBackground,
 	hcDark: null,
 	hcLight: null
 }, localize('extensionButtonHoverBackground', "Button background hover color for extension actions."));

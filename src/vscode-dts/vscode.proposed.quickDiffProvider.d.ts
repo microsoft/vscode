@@ -8,7 +8,7 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/169012
 
 	export namespace window {
-		export function registerQuickDiffProvider(selector: DocumentSelector, quickDiffProvider: QuickDiffProvider, label: string, rootUri?: Uri): Disposable;
+		export function registerQuickDiffProvider(selector: DocumentSelector, quickDiffProvider: QuickDiffProvider, id: string, label: string, rootUri?: Uri): Disposable;
 	}
 
 	export interface SourceControl {
@@ -16,6 +16,7 @@ declare module 'vscode' {
 	}
 
 	export interface QuickDiffProvider {
+		readonly id?: string;
 		readonly label?: string;
 	}
 }

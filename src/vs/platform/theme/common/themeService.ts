@@ -71,9 +71,20 @@ export interface IColorTheme {
 	readonly tokenColorMap: string[];
 
 	/**
+	 * List of all the fonts used with tokens.
+	 */
+	readonly tokenFontMap: IFontTokenOptions[];
+
+	/**
 	 * Defines whether semantic highlighting should be enabled for the theme.
 	 */
 	readonly semanticHighlighting: boolean;
+}
+
+export class IFontTokenOptions {
+	fontFamily?: string;
+	fontSize?: string;
+	lineHeight?: number;
 }
 
 export interface IFileIconTheme {
@@ -231,7 +242,7 @@ export interface IPartsSplash {
 		titleBarHeight: number;
 		activityBarWidth: number;
 		sideBarWidth: number;
-		auxiliarySideBarWidth: number;
+		auxiliaryBarWidth: number;
 		statusBarHeight: number;
 		windowBorder: boolean;
 		windowBorderRadius: string | undefined;

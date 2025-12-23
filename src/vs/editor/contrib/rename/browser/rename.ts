@@ -35,6 +35,7 @@ import { NewSymbolNameTriggerKind, Rejection, RenameLocation, RenameProvider, Wo
 import { ITextModel } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { ITextResourceConfigurationService } from '../../../common/services/textResourceConfiguration.js';
+import { EditSources } from '../../../common/textModelEditSource.js';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { MessageController } from '../../message/browser/messageController.js';
 import { CONTEXT_RENAME_INPUT_VISIBLE, RenameWidget } from './renameWidget.js';
@@ -116,6 +117,21 @@ class RenameSkeleton {
 		}
 		return result;
 	}
+}
+
+export function hasProvider(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel): boolean {
+	const providers = registry.ordered(model);
+	return providers.length > 0;
+}
+
+export async function prepareRename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position, cancellationToken?: CancellationToken): Promise<RenameLocation & Rejection | undefined> {
+	const skeleton = new RenameSkeleton(model, position, registry);
+	return skeleton.resolveRenameLocation(cancellationToken ?? CancellationToken.None);
+}
+
+export async function rawRename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position, newName: string, cancellationToken?: CancellationToken): Promise<WorkspaceEdit & Rejection> {
+	const skeleton = new RenameSkeleton(model, position, registry);
+	return skeleton.provideRenameEdits(newName, cancellationToken ?? CancellationToken.None);
 }
 
 export async function rename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit & Rejection> {
@@ -293,7 +309,8 @@ class RenameController implements IEditorContribution {
 				label: nls.localize('label', "Renaming '{0}' to '{1}'", loc?.text, inputFieldResult.newName),
 				code: 'undoredo.rename',
 				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
-				respectAutoSaveConfig: true
+				respectAutoSaveConfig: true,
+				reason: EditSources.rename(loc?.text, inputFieldResult.newName),
 			}).then(result => {
 				trace('edits applied');
 				if (result.ariaSummary) {
@@ -356,7 +373,8 @@ export class RenameAction extends EditorAction {
 			contextMenuOpts: {
 				group: '1_modification',
 				order: 1.1
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 

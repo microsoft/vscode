@@ -23,6 +23,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IDefaultLogLevelsService } from '../../log/common/defaultLogLevels.js';
 import { parseExtensionDevOptions } from './extensionDevOptions.js';
 import { IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from './extensionHostProtocol.js';
 import { RemoteRunningLocation } from './extensionRunningLocation.js';
@@ -72,7 +73,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
 		@IProductService private readonly _productService: IProductService,
-		@ISignService private readonly _signService: ISignService
+		@ISignService private readonly _signService: ISignService,
+		@IDefaultLogLevelsService private readonly _defaultLogLevelsService: IDefaultLogLevelsService,
 	) {
 		super();
 		this.remoteAuthority = this._initDataProvider.remoteAuthority;
@@ -209,6 +211,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			commit: this._productService.commit,
 			version: this._productService.version,
 			quality: this._productService.quality,
+			date: this._productService.date,
 			parentPid: remoteInitData.pid,
 			environment: {
 				isExtensionDevelopmentDebug,
@@ -222,7 +225,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
 				workspaceStorageHome: remoteInitData.workspaceStorageHome,
-				extensionLogLevel: this._environmentService.extensionLogLevel
+				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 				configuration: workspace.configuration,
@@ -244,7 +247,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
 				sqmId: this._telemetryService.sqmId,
-				devDeviceId: this._telemetryService.devDeviceId,
+				devDeviceId: this._telemetryService.devDeviceId ?? this._telemetryService.machineId,
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
@@ -291,4 +294,3 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		}
 	}
 }
-

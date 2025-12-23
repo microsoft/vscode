@@ -9,7 +9,7 @@ import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveRe
 import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorContext, ActiveEditorReadonlyContext, ActiveEditorCanRevertContext, ActiveEditorCanToggleReadonlyContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey } from '../../../common/contextkeys.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
-import { Emitter, Relay } from '../../../../base/common/event.js';
+import { Emitter, Event, Relay } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement, $ } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -25,14 +25,14 @@ import { EditorProgressIndicator } from '../../../services/progress/browser/prog
 import { localize } from '../../../../nls.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryData, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DeferredPromise, Promises, RunOnceWorker } from '../../../../base/common/async.js';
 import { EventType as TouchEventType, GestureEvent } from '../../../../base/browser/touch.js';
 import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView, IEditorGroupViewOptions } from './editor.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { SubmenuAction } from '../../../../base/common/actions.js';
-import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenuChangeEvent, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getActionBarActions, PrimaryAndSecondaryActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -336,6 +336,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				case GroupModelChangeKind.EDITOR_CLOSE:
 					groupActiveEditorPinnedContext.set(this.model.activeEditor ? this.model.isPinned(this.model.activeEditor) : false);
 					groupActiveEditorStickyContext.set(this.model.activeEditor ? this.model.isSticky(this.model.activeEditor) : false);
+					break;
 				case GroupModelChangeKind.EDITOR_OPEN:
 				case GroupModelChangeKind.EDITOR_MOVE:
 					groupActiveEditorFirstContext.set(this.model.isFirst(this.model.activeEditor));
@@ -723,7 +724,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		};
 	}
 
-	private toEditorTelemetryDescriptor(editor: EditorInput): object {
+	private toEditorTelemetryDescriptor(editor: EditorInput): ITelemetryData {
 		const descriptor = editor.getTelemetryDescriptor();
 
 		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
@@ -1036,7 +1037,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	findEditors(resource: URI, options?: IFindEditorOptions): EditorInput[] {
 		const canonicalResource = this.uriIdentityService.asCanonicalUri(resource);
-		return this.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
+		return this.getEditors(options?.order ?? EditorsOrder.SEQUENTIAL).filter(editor => {
 			if (editor.resource && isEqual(editor.resource, canonicalResource)) {
 				return true;
 			}
@@ -1177,7 +1178,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			sticky: options?.sticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
 			transient: !!options?.transient,
 			inactiveSelection: internalOptions?.inactiveSelection,
-			active: this.count === 0 || !options || !options.inactive,
+			active: this.count === 0 || !options?.inactive,
 			supportSideBySide: internalOptions?.supportSideBySide
 		};
 
@@ -1206,7 +1207,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// opening as active editor.
 			// If preserveFocus is enabled, we only restore but never
 			// activate the group.
-			activateGroup = !options || !options.preserveFocus;
+			activateGroup = !options?.preserveFocus;
 			restoreGroup = !activateGroup;
 		}
 
@@ -1763,7 +1764,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (!autoSave) {
 
 			// Switch to editor that we want to handle for confirmation unless showing already
-			if (!this.activeEditor || !this.activeEditor.matches(editor)) {
+			if (!this.activeEditor?.matches(editor)) {
 				await this.doOpenEditor(editor);
 			}
 
@@ -1802,7 +1803,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// However, we only do this unless a custom confirm handler is installed
 		// that may not be fit to be asked a second time right after.
 		if (!editor.closeHandler && !this.shouldConfirmClose(editor)) {
-			return confirmation === ConfirmResult.CANCEL ? true : false;
+			return confirmation === ConfirmResult.CANCEL;
 		}
 
 		// Otherwise, handle accordingly
@@ -2084,16 +2085,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region Editor Actions
 
-	createEditorActions(disposables: DisposableStore): IActiveEditorActions {
+	createEditorActions(disposables: DisposableStore, menuId = MenuId.EditorTitle): IActiveEditorActions {
 		let actions: PrimaryAndSecondaryActions = { primary: [], secondary: [] };
-
-		let onDidChange;
+		let onDidChange: Event<IMenuChangeEvent | void> | undefined;
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.activeEditorPane;
 		if (activeEditorPane instanceof EditorPane) {
 			const editorScopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.scopedContextKeyService;
-			const editorTitleMenu = disposables.add(this.menuService.createMenu(MenuId.EditorTitle, editorScopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 }));
+			const editorTitleMenu = disposables.add(this.menuService.createMenu(menuId, editorScopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 }));
 			onDidChange = editorTitleMenu.onDidChange;
 
 			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
@@ -2106,9 +2106,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		} else {
 			// If there is no active pane in the group (it's the last group and it's empty)
 			// Trigger the change event when the active editor changes
-			const _onDidChange = disposables.add(new Emitter<void>());
-			onDidChange = _onDidChange.event;
-			disposables.add(this.onDidActiveEditorChange(() => _onDidChange.fire()));
+			const onDidChangeEmitter = disposables.add(new Emitter<void>());
+			onDidChange = onDidChangeEmitter.event;
+			disposables.add(this.onDidActiveEditorChange(() => onDidChangeEmitter.fire()));
 		}
 
 		return { actions, onDidChange };

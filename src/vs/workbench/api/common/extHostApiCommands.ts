@@ -60,7 +60,7 @@ const newCommands: ApiCommand[] = [
 				range!: vscode.Range;
 				selectionRange!: vscode.Range;
 				children!: vscode.DocumentSymbol[];
-				override containerName!: string;
+				override containerName: string = '';
 			}
 			return value.map(MergedInfo.to);
 
@@ -550,6 +550,7 @@ const newCommands: ApiCommand[] = [
 				attachments: v.attachments,
 				autoSend: v.autoSend,
 				position: v.position ? typeConverters.Position.from(v.position) : undefined,
+				blockOnResponse: v.blockOnResponse
 			};
 		})],
 		ApiCommandResult.Void
@@ -563,6 +564,7 @@ type InlineChatEditorApiArg = {
 	attachments?: vscode.Uri[];
 	autoSend?: boolean;
 	position?: vscode.Position;
+	blockOnResponse?: boolean;
 };
 
 type InlineChatRunOptions = {
@@ -572,6 +574,7 @@ type InlineChatRunOptions = {
 	attachments?: URI[];
 	autoSend?: boolean;
 	position?: IPosition;
+	blockOnResponse?: boolean;
 };
 
 //#endregion

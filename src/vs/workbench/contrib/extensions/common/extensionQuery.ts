@@ -6,6 +6,8 @@
 import { IExtensionGalleryManifest } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { FilterType, SortBy } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
 
 export class Query {
 
@@ -15,12 +17,12 @@ export class Query {
 
 	static suggestions(query: string, galleryManifest: IExtensionGalleryManifest | null): string[] {
 
-		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin'];
+		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin', 'contribute'];
 		if (galleryManifest?.capabilities.extensionQuery?.filtering?.some(c => c.name === FilterType.Featured)) {
 			commands.push('featured');
 		}
 
-		commands.push(...['popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort']);
+		commands.push(...['mcp', 'popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort']);
 		const isCategoriesEnabled = galleryManifest?.capabilities.extensionQuery?.filtering?.some(c => c.name === FilterType.Category);
 		if (isCategoriesEnabled) {
 			commands.push('category');
@@ -36,12 +38,18 @@ export class Query {
 		}
 		sortCommands.push('name', 'publishedDate', 'updateDate');
 
+		const contributeCommands = [];
+		for (const feature of Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeatures()) {
+			contributeCommands.push(feature.id);
+		}
+
 		const subcommands = {
 			'sort': sortCommands,
 			'category': isCategoriesEnabled ? EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`) : [],
 			'tag': [''],
 			'ext': [''],
-			'id': ['']
+			'id': [''],
+			'contribute': contributeCommands
 		} as const;
 
 		const queryContains = (substr: string) => query.indexOf(substr) > -1;

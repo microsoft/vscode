@@ -336,18 +336,18 @@ export const STATUS_BAR_ITEM_FOCUS_BORDER = registerColor('statusBarItem.focusBo
 
 export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hoverBackground', {
 	dark: Color.white.transparent(0.12),
-	light: Color.white.transparent(0.12),
-	hcDark: Color.white.transparent(0.12),
-	hcLight: Color.black.transparent(0.12)
+	light: Color.black.transparent(0.12),
+	hcDark: Color.black,
+	hcLight: Color.white
 }, localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.hoverForeground', STATUS_BAR_FOREGROUND, localize('statusBarItemHoverForeground', "Status bar item foreground color when hovering. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND = registerColor('statusBarItem.compactHoverBackground', {
-	dark: Color.white.transparent(0.20),
-	light: Color.white.transparent(0.20),
-	hcDark: Color.white.transparent(0.20),
-	hcLight: Color.black.transparent(0.20)
+	dark: Color.white.transparent(0.12),
+	light: Color.black.transparent(0.12),
+	hcDark: Color.black,
+	hcLight: Color.white
 }, localize('statusBarItemCompactHoverBackground', "Status bar item background color when hovering an item that contains two hovers. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_PROMINENT_ITEM_FOREGROUND = registerColor('statusBarItem.prominentForeground', STATUS_BAR_FOREGROUND, localize('statusBarProminentItemForeground', "Status bar prominent items foreground color. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
@@ -594,9 +594,8 @@ export const STATUS_BAR_OFFLINE_ITEM_HOVER_BACKGROUND = registerColor('statusBar
 	hcLight: null
 }, localize('statusBarOfflineItemHoverBackground', "Status bar item background hover color when the workbench is offline."));
 
-export const EXTENSION_BADGE_REMOTE_BACKGROUND = registerColor('extensionBadge.remoteBackground', ACTIVITY_BAR_BADGE_BACKGROUND, localize('extensionBadge.remoteBackground', "Background color for the remote badge in the extensions view."));
-
-export const EXTENSION_BADGE_REMOTE_FOREGROUND = registerColor('extensionBadge.remoteForeground', ACTIVITY_BAR_BADGE_FOREGROUND, localize('extensionBadge.remoteForeground', "Foreground color for the remote badge in the extensions view."));
+export const EXTENSION_BADGE_BACKGROUND = registerColor('extensionBadge.remoteBackground', ACTIVITY_BAR_BADGE_BACKGROUND, localize('extensionBadge.remoteBackground', "Background color for the remote badge in the extensions view."));
+export const EXTENSION_BADGE_FOREGROUND = registerColor('extensionBadge.remoteForeground', ACTIVITY_BAR_BADGE_FOREGROUND, localize('extensionBadge.remoteForeground', "Foreground color for the remote badge in the extensions view."));
 
 
 // < --- Side Bar --- >
