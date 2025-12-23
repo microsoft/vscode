@@ -242,6 +242,14 @@ declare module 'vscode' {
 		readonly onDidChangeChatSessionOptions?: Event<ChatSessionOptionChangeEvent>;
 
 		/**
+		 * Event that the provider can fire to signal that the available provider options have changed.
+		 *
+		 * When fired, the editor will re-query {@link ChatSessionContentProvider.provideChatSessionProviderOptions}
+		 * and update the UI to reflect the new option groups.
+		 */
+		readonly onDidChangeChatSessionProviderOptions?: Event<void>;
+
+		/**
 		 * Provides the chat session content for a given uri.
 		 *
 		 * The returned {@linkcode ChatSession} is used to populate the history of the chat UI.
