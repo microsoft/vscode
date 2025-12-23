@@ -30,7 +30,7 @@ class MockChatService implements IChatService {
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
-	transferredSessionData = undefined;
+	transferredSessionResource = undefined;
 	readonly onDidSubmitRequest = Event.None;
 
 	private sessions = new Map<string, IChatModel>();
@@ -92,7 +92,7 @@ class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	getPersistedSessionTitle(_sessionResource: URI): string | undefined {
+	getSessionTitle(_sessionResource: URI): string | undefined {
 		return undefined;
 	}
 
@@ -144,7 +144,7 @@ class MockChatService implements IChatService {
 
 	notifyUserAction(_event: any): void { }
 
-	transferChatSession(): void { }
+	async transferChatSession(): Promise<void> { }
 
 	setChatSessionTitle(): void { }
 
@@ -157,10 +157,6 @@ class MockChatService implements IChatService {
 	}
 
 	logChatIndex(): void { }
-
-	isPersistedSessionEmpty(_sessionResource: URI): boolean {
-		return false;
-	}
 
 	activateDefaultAgent(_location: ChatAgentLocation): Promise<void> {
 		return Promise.resolve();

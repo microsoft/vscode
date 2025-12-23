@@ -958,7 +958,9 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 			const extensionCacheData: IExtensionCacheData = JSON.parse(cacheRawContents.value.toString());
 			return { result: extensionCacheData.result, input: revive(extensionCacheData.input) };
 		} catch (error) {
-			this.logService.debug('Error while reading the extension cache file:', cacheFile.path, getErrorMessage(error));
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.debug('Error while reading the extension cache file:', cacheFile.path, getErrorMessage(error));
+			}
 		}
 		return null;
 	}

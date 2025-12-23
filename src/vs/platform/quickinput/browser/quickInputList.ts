@@ -15,7 +15,7 @@ import { IIconLabelValueOptions, IconLabel } from '../../../base/browser/ui/icon
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, IListStyles } from '../../../base/browser/ui/list/listWidget.js';
-import { Checkbox } from '../../../base/browser/ui/toggle/toggle.js';
+import { Checkbox, createToggleActionViewItemProvider, IToggleStyles } from '../../../base/browser/ui/toggle/toggle.js';
 import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from '../../../base/browser/ui/tree/tree.js';
 import { equals } from '../../../base/common/arrays.js';
@@ -42,6 +42,7 @@ import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickFocus, QuickPickItem } from '../common/quickInput.js';
+import { IQuickInputStyles } from './quickInput.js';
 import { quickInputButtonToAction } from './quickInputUtils.js';
 
 const $ = dom.$;
@@ -325,6 +326,7 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate | undefined,
+		private readonly toggleStyles: IToggleStyles
 	) { }
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
@@ -371,7 +373,10 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
 
 		// Actions
-		data.actionBar = new ActionBar(data.entry, this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined);
+		data.actionBar = new ActionBar(data.entry, {
+			...(this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined),
+			actionViewItemProvider: createToggleActionViewItemProvider(this.toggleStyles)
+		});
 		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
 		data.toDisposeTemplate.add(data.actionBar);
 
@@ -400,9 +405,10 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 
 	constructor(
 		hoverDelegate: IHoverDelegate | undefined,
+		toggleStyles: IToggleStyles,
 		@IThemeService private readonly themeService: IThemeService,
 	) {
-		super(hoverDelegate);
+		super(hoverDelegate, toggleStyles);
 	}
 
 	get templateId() {
@@ -718,13 +724,14 @@ export class QuickInputList extends Disposable {
 		private hoverDelegate: IHoverDelegate,
 		private linkOpenerDelegate: (content: string) => void,
 		id: string,
+		private styles: IQuickInputStyles,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 		this._container = dom.append(this.parent, $('.quick-input-list'));
-		this._separatorRenderer = new QuickPickSeparatorElementRenderer(hoverDelegate);
-		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate);
+		this._separatorRenderer = new QuickPickSeparatorElementRenderer(hoverDelegate, this.styles.toggle);
+		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, this.styles.toggle);
 		this._tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickPickElement, void>,
 			'QuickInput',

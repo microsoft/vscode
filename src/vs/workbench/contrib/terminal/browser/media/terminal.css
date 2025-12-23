@@ -144,8 +144,8 @@
 	position: relative;
 }
 
-.monaco-workbench .terminal-editor .terminal-wrapper > div,
-.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > div {
+.monaco-workbench .terminal-editor .terminal-wrapper > .terminal-xterm-host,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > .terminal-xterm-host {
 	height: 100%;
 }
 
@@ -418,6 +418,20 @@
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-icon-name-container {
 	display: none;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-inputbox {
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
+	height: 22px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-inputbox > .ibwrapper > .input {
+	padding: 0 6px;
+	height: 100%;
+	line-height: 22px;
+	box-sizing: border-box;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .actions .action-label {

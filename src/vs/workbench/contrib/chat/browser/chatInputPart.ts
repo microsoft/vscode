@@ -38,6 +38,7 @@ import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/c
 import { EditorOptions, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -63,6 +64,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -109,7 +111,7 @@ import { ChatSelectedTools } from './chatSelectedTools.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from './chatSessions/chatSessionPickerActionItem.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
-import { resizeImage } from './imageUtils.js';
+import { resizeImage } from './chatImageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
 
@@ -144,6 +146,13 @@ export interface IChatInputPartOptions {
 export interface IWorkingSetEntry {
 	uri: URI;
 }
+
+const emptyInputState = observableMemento<IChatModelInputState | undefined>({
+	defaultValue: undefined,
+	key: 'chat.untitledInputState',
+	toStorage: JSON.stringify,
+	fromStorage: JSON.parse,
+});
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	private static _counter = 0;
@@ -402,6 +411,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private _generating?: { rc: number; defer: DeferredPromise<void> };
 
+	private _emptyInputState: ObservableMemento<IChatModelInputState | undefined>;
+	private _chatSessionIsEmpty = false;
+
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
 		private readonly location: ChatAgentLocation,
@@ -437,6 +449,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Initialize debounced text sync scheduler
 		this._syncTextDebounced = this._register(new RunOnceScheduler(() => this._syncInputStateToModel(), 150));
+		this._emptyInputState = this._register(emptyInputState(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
@@ -451,6 +464,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (sessionResource && isEqual(sessionResource, e)) {
 				// Options changed for our current session - refresh pickers
 				this.refreshChatSessionPickers();
+			}
+		}));
+
+		this._register(this.chatSessionsService.onDidChangeOptionGroups(chatSessionType => {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource) {
+				const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
+				if (ctx?.chatSessionType === chatSessionType) {
+					this.refreshChatSessionPickers();
+				}
 			}
 		}));
 
@@ -739,19 +762,53 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Set the input model reference for syncing input state
 	 */
-	setInputModel(model: IInputModel | undefined): void {
+	setInputModel(model: IInputModel, chatSessionIsEmpty: boolean): void {
 		this._inputModel = model;
 		this._modelSyncDisposables.clear();
+		this.selectedToolsModel.resetSessionEnablementState();
+		this._chatSessionIsEmpty = chatSessionIsEmpty;
 
-		if (!model) {
-			return;
+		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
+		if (chatSessionIsEmpty) {
+			this._setEmptyModelState();
 		}
 
 		// Observe changes from model and sync to view
 		this._modelSyncDisposables.add(autorun(reader => {
-			const state = model.state.read(reader);
+			let state = model.state.read(reader);
+			if (!state && this._chatSessionIsEmpty) {
+				state = this._emptyInputState.read(undefined);
+			}
+
 			this._syncFromModel(state);
 		}));
+	}
+
+	private _setEmptyModelState() {
+		const storageKey = this.getDefaultModeExperimentStorageKey();
+		const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
+		if (!hasSetDefaultMode) {
+			const isAnonymous = this.entitlementService.anonymous;
+			this.experimentService.getTreatment('chat.defaultMode')
+				.then((defaultModeTreatment => {
+					if (isAnonymous) {
+						// be deterministic for anonymous users
+						// to support agentic flows with default
+						// model.
+						defaultModeTreatment = ChatModeKind.Agent;
+					}
+
+					if (typeof defaultModeTreatment === 'string') {
+						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+						const defaultMode = validateChatMode(defaultModeTreatment);
+						if (defaultMode) {
+							this.logService.trace(`Applying default mode from experiment: ${defaultMode}`);
+							this.setChatMode(defaultMode, false);
+							this.checkModelSupported();
+						}
+					}
+				}));
+		}
 	}
 
 	/**
@@ -811,12 +868,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Sync current input state to the input model
 	 */
 	private _syncInputStateToModel(): void {
-		if (!this._inputModel || this._isSyncingToOrFromInputModel) {
+		if (this._isSyncingToOrFromInputModel) {
 			return;
 		}
 
+
 		this._isSyncingToOrFromInputModel = true;
-		this._inputModel.setState(this.getCurrentInputState());
+		const state = this.getCurrentInputState();
+		if (this._chatSessionIsEmpty) {
+			this._emptyInputState.set(state, undefined);
+		}
+		this._inputModel?.setState(state);
 		this._isSyncingToOrFromInputModel = false;
 	}
 
@@ -984,38 +1046,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	initForNewChatModel(state: IChatModelInputState | undefined, chatSessionIsEmpty: boolean): void {
-		this.selectedToolsModel.resetSessionEnablementState();
-
-		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
-		if (chatSessionIsEmpty) {
-			const storageKey = this.getDefaultModeExperimentStorageKey();
-			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
-			if (!hasSetDefaultMode) {
-				const isAnonymous = this.entitlementService.anonymous;
-				this.experimentService.getTreatment('chat.defaultMode')
-					.then((defaultModeTreatment => {
-						if (isAnonymous) {
-							// be deterministic for anonymous users
-							// to support agentic flows with default
-							// model.
-							defaultModeTreatment = ChatModeKind.Agent;
-						}
-
-						if (typeof defaultModeTreatment === 'string') {
-							this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-							const defaultMode = validateChatMode(defaultModeTreatment);
-							if (defaultMode) {
-								this.logService.trace(`Applying default mode from experiment: ${defaultMode}`);
-								this.setChatMode(defaultMode, false);
-								this.checkModelSupported();
-							}
-						}
-					}));
-			}
-		}
-	}
-
 	private getDefaultModeExperimentStorageKey(): string {
 		const tag = this.options.widgetViewKindTag;
 		return `chat.${tag}.hasSetDefaultModeByExperiment`;
@@ -1159,6 +1189,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (isUserQuery) {
 			const userQuery = this.getCurrentInputState();
 			this.history.append(this._getFilteredEntry(userQuery));
+		}
+
+		if (this._chatSessionIsEmpty) {
+			this._chatSessionIsEmpty = false;
+			this._emptyInputState.set(undefined, undefined);
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
@@ -1441,7 +1476,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.tryUpdateWidgetController();
 
-		this.renderAttachedContext();
 		this._register(this._attachmentModel.onDidChange((e) => {
 			if (e.added.length > 0) {
 				this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
@@ -1724,6 +1758,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._onDidChangeHeight.fire();
 			}
 		}));
+		this.renderAttachedContext();
 	}
 
 	public toggleChatInputOverlay(editing: boolean): void {
@@ -1825,18 +1860,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (isSuggestedEnabled && implicitValue) {
 			const targetUri: URI | undefined = this.implicitContext.uri;
-
-			const currentlyAttached = attachments.some(([, attachment]) => {
-				let uri: URI | undefined;
-				if (URI.isUri(attachment.value)) {
-					uri = attachment.value;
-				} else if (isStringVariableEntry(attachment)) {
-					uri = attachment.uri;
-				}
-				return uri && isEqual(uri, targetUri);
-			});
-
-			const shouldShowImplicit = !isLocation(implicitValue) ? !currentlyAttached : implicitValue.range;
+			const targetRange = isLocation(implicitValue) ? implicitValue.range : undefined;
+			const currentlyAttached = this.isAttachmentAlreadyAttached(targetUri, targetRange, attachments.map(([, a]) => a));
+			const shouldShowImplicit = !currentlyAttached;
 			if (shouldShowImplicit) {
 				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, () => this._widget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
 				container.appendChild(implicitPart.domNode);
@@ -1862,16 +1888,42 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return true;
 		}
 
-		// TODO @justschen: merge this with above showing implicit logic
 		const isUri = URI.isUri(implicit);
 		if (isUri || isLocation(implicit)) {
 			const targetUri = isUri ? implicit : implicit.uri;
-			const attachments = [...this._attachmentModel.attachments.entries()];
-			const currentlyAttached = attachments.some(([, a]) => URI.isUri(a.value) && isEqual(a.value, targetUri));
-			const shouldShowImplicit = isUri ? !currentlyAttached : implicit.range;
-			return !!shouldShowImplicit;
+			const targetRange = isLocation(implicit) ? implicit.range : undefined;
+			const attachments = [...this._attachmentModel.attachments.values()];
+			const currentlyAttached = this.isAttachmentAlreadyAttached(targetUri, targetRange, attachments);
+			return !currentlyAttached;
 		}
 		return false;
+	}
+
+	private isAttachmentAlreadyAttached(targetUri: URI | undefined, targetRange: IRange | undefined, attachments: IChatRequestVariableEntry[]): boolean {
+		return attachments.some((attachment) => {
+			let uri: URI | undefined;
+			let range: IRange | undefined;
+
+			if (URI.isUri(attachment.value)) {
+				uri = attachment.value;
+			} else if (isLocation(attachment.value)) {
+				uri = attachment.value.uri;
+				range = attachment.value.range;
+			} else if (isStringVariableEntry(attachment)) {
+				uri = attachment.uri;
+			}
+
+			if (!uri || !isEqual(uri, targetUri)) {
+				return false;
+			}
+
+			// check if the exact range is already attached
+			if (targetRange) {
+				return range && Range.equalsRange(range, targetRange);
+			}
+
+			return true;
+		});
 	}
 
 	private handleAttachmentDeletion(e: KeyboardEvent | unknown, index: number, attachment: IChatRequestVariableEntry) {

@@ -96,7 +96,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		commands.registerArgumentProcessor({
 			processArgument: (arg) => {
-				if (arg && arg.$mid === MarshalledId.ChatSessionContext) {
+				if (arg && arg.$mid === MarshalledId.AgentSessionContext) {
 					const id = arg.session.resource || arg.sessionId;
 					const sessionContent = this._sessionItems.get(id);
 					if (sessionContent) {
@@ -170,6 +170,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				return ChatSessionStatus.Completed;
 			case 2: // vscode.ChatSessionStatus.InProgress
 				return ChatSessionStatus.InProgress;
+			// Need to support NeedsInput status if we ever export it to the extension API
 			default:
 				return undefined;
 		}
@@ -180,6 +181,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			resource: sessionContent.resource,
 			label: sessionContent.label,
 			description: sessionContent.description ? typeConvert.MarkdownString.from(sessionContent.description) : undefined,
+			badge: sessionContent.badge ? typeConvert.MarkdownString.from(sessionContent.badge) : undefined,
 			status: this.convertChatSessionStatus(sessionContent.status),
 			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip),
 			timing: {
