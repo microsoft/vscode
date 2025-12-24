@@ -103,6 +103,12 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	outline-width: 0px; /* do not render focus outline, we already have background */
+	/* Optical adjustment for text alignment - compensates for font metrics across platforms */
+	transform: translateY(-1px);
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label > span.codicon {
+	transform: translateY(1px);
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
@@ -153,6 +159,7 @@
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item span.codicon {
 	text-align: center;
 	color: inherit;
+	line-height: 1; /* Ensure codicons use their natural 1:1 aspect ratio */
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) {
