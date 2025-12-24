@@ -5,7 +5,6 @@
 
 import { createLogger, defineConfig, Plugin } from 'vite';
 import path, { join } from 'path';
-/// @ts-ignore
 import { urlToEsmPlugin } from './rollup-url-to-module-plugin/index.mjs';
 import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
@@ -185,7 +184,6 @@ export default defineConfig({
 		fs: {
 			allow: [
 				// To allow loading from sources, not needed when loading monaco-editor from npm package
-				/// @ts-ignore
 				join(import.meta.dirname, '../../../')
 			]
 		}
