@@ -24,8 +24,6 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): IColorPresentation[] {
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;
-		const alpha = colorFromInfo.alpha;
-		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), alpha));
 
 		const rgb = Color.Format.CSS.formatRGB(color);
 		const hsl = Color.Format.CSS.formatHSL(color);
