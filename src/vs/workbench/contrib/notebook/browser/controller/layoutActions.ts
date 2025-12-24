@@ -117,6 +117,7 @@ registerAction2(class ToggleLineNumberFromEditorTitle extends Action2 {
 		super({
 			id: 'notebook.toggleLineNumbersFromEditorTitle',
 			title: localize2('notebook.toggleLineNumbers', 'Toggle Notebook Line Numbers'),
+			shortTitle: localize2('notebook.toggleLineNumbers.short', 'Line Numbers'),
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [
 				{
@@ -129,7 +130,7 @@ registerAction2(class ToggleLineNumberFromEditorTitle extends Action2 {
 			f1: true,
 			toggled: {
 				condition: ContextKeyExpr.notEquals('config.notebook.lineNumbers', 'off'),
-				title: localize('notebook.showLineNumbers', "Notebook Line Numbers"),
+				title: localize('notebook.showLineNumbers', "Line Numbers"),
 			}
 		});
 	}
@@ -164,11 +165,17 @@ registerAction2(class ToggleBreadcrumbFromEditorTitle extends Action2 {
 		super({
 			id: 'breadcrumbs.toggleFromEditorTitle',
 			title: localize2('notebook.toggleBreadcrumb', 'Toggle Breadcrumbs'),
+			shortTitle: localize2('notebook.toggleBreadcrumb.short', 'Breadcrumbs'),
+			toggled: {
+				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
+				title: localize('cmd.toggle2', "Breadcrumbs")
+			},
 			menu: [{
 				id: MenuId.NotebookEditorLayoutConfigure,
 				group: 'notebookLayoutDetails',
 				order: 2
 			}],
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			f1: false
 		});
 	}
@@ -251,13 +258,14 @@ registerAction2(class ToggleNotebookStickyScroll extends Action2 {
 			id: 'notebook.action.toggleNotebookStickyScroll',
 			title: {
 				...localize2('toggleStickyScroll', "Toggle Notebook Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Sticky Scroll"),
 			},
+			shortTitle: localize2('toggleStickyScroll.short', "Sticky Scroll"),
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true),
-				title: localize('notebookStickyScroll', "Toggle Notebook Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
+				title: localize('notebookStickyScroll', "Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Sticky Scroll"),
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
