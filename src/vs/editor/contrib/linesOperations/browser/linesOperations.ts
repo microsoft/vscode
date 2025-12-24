@@ -17,7 +17,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { Selection } from '../../../common/core/selection.js';
+import { Selection, SelectionDirection } from '../../../common/core/selection.js';
 import { EnterOperation } from '../../../common/cursor/cursorTypeEditOperations.js';
 import { TypeOperations } from '../../../common/cursor/cursorTypeOperations.js';
 import { ICommand } from '../../../common/editorCommon.js';
@@ -388,61 +388,55 @@ export class ReverseLinesAction extends EditorAction {
 
 		const model: ITextModel = editor.getModel();
 		const originalSelections = editor.getSelections();
-		let selections = originalSelections;
-		if (selections.length === 1 && selections[0].isSingleLine()) {
+		let ranges: Range[] = originalSelections;
+		if (ranges.length === 1 && ranges[0].isSingleLine()) {
 			// Apply to whole document.
-			selections = [new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount()))];
+			ranges = [new Range(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount()))];
 		}
 
 		const edits: ISingleEditOperation[] = [];
-		const resultingSelections: Selection[] = [];
+		const updatedSelections: Selection[] = [];
 
-		for (let i = 0; i < selections.length; i++) {
-			const selection = selections[i];
+		for (let i = 0; i < ranges.length; i++) {
+			let range = ranges[i];
 			const originalSelection = originalSelections[i];
-			let endLineNumber = selection.endLineNumber;
-			if (selection.startLineNumber < selection.endLineNumber && selection.endColumn === 1) {
+			let endLineNumber = range.endLineNumber;
+			if (range.startLineNumber < range.endLineNumber && range.endColumn === 1) {
 				endLineNumber--;
 			}
 
-			let range: Range = new Range(selection.startLineNumber, 1, endLineNumber, model.getLineMaxColumn(endLineNumber));
+			range = new Range(range.startLineNumber, 1, endLineNumber, model.getLineMaxColumn(endLineNumber));
 
 			// Exclude last line if empty and we're at the end of the document
 			if (endLineNumber === model.getLineCount() && model.getLineContent(range.endLineNumber) === '') {
 				range = range.setEndPosition(range.endLineNumber - 1, model.getLineMaxColumn(range.endLineNumber - 1));
 			}
 
-			const lines: string[] = [];
-			for (let i = range.endLineNumber; i >= range.startLineNumber; i--) {
-				lines.push(model.getLineContent(i));
-			}
-			const edit: ISingleEditOperation = EditOperation.replace(range, lines.join('\n'));
-			edits.push(edit);
+			let updatedSelection = originalSelection;
 
-			const updateLineNumber = function (lineNumber: number): number {
-				return lineNumber <= range.endLineNumber ? range.endLineNumber - lineNumber + range.startLineNumber : lineNumber;
-			};
-			const updateSelection = function (sel: Selection): Selection {
-				if (sel.isEmpty()) {
-					// keep just the cursor
-					return new Selection(updateLineNumber(sel.positionLineNumber), sel.positionColumn, updateLineNumber(sel.positionLineNumber), sel.positionColumn);
-				} else {
-					// keep selection - maintain direction by creating backward selection
-					const newSelectionStart = updateLineNumber(sel.selectionStartLineNumber);
-					const newPosition = updateLineNumber(sel.positionLineNumber);
-					const newSelectionStartColumn = sel.selectionStartColumn;
-					const newPositionColumn = sel.positionColumn;
-
-					// Create selection: from (newSelectionStart, newSelectionStartColumn) to (newPosition, newPositionColumn)
-					// After reversal: from (3, 2) to (1, 3)
-					return new Selection(newSelectionStart, newSelectionStartColumn, newPosition, newPositionColumn);
+			if (!range.isSingleLine()) {
+				const lines: string[] = [];
+				for (let i = range.endLineNumber; i >= range.startLineNumber; i--) {
+					lines.push(model.getLineContent(i));
 				}
-			};
-			resultingSelections.push(updateSelection(originalSelection));
+				const edit: ISingleEditOperation = EditOperation.replace(range, lines.join('\n'));
+				edits.push(edit);
+
+				if (originalSelection.isSingleLine()) {
+					const originalLineNumber = originalSelection.positionLineNumber;
+					const updatedLineNumber = originalLineNumber <= range.endLineNumber ? range.endLineNumber - originalLineNumber + range.startLineNumber : originalLineNumber;
+					updatedSelection = new Selection(updatedLineNumber, originalSelection.selectionStartColumn, updatedLineNumber, originalSelection.positionColumn);
+				} else {
+					// Select range that was reversed (so action is clear to user), reversing original selection direction (so cursor remains on same line of text)
+					updatedSelection = Selection.fromRange(new Range(range.startLineNumber, 1, range.endLineNumber, model.getLineLength(range.startLineNumber) + 1), originalSelection.getDirection() === SelectionDirection.LTR ? SelectionDirection.RTL : SelectionDirection.LTR);
+				}
+			}
+
+			updatedSelections.push(updatedSelection);
 		}
 
 		editor.pushUndoStop();
-		editor.executeEdits(this.id, edits, resultingSelections);
+		editor.executeEdits(this.id, edits, updatedSelections);
 		editor.pushUndoStop();
 	}
 }
