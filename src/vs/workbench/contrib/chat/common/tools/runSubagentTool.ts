@@ -17,7 +17,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService, UserSelectedTools } from '../chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../chatModel.js';
 import { IChatModeService } from '../chatModes.js';
-import { IChatProgress, IChatService } from '../chatService.js';
+import { IChatContentInlineReference, IChatProgress, IChatService } from '../chatService.js';
 import { ChatRequestVariableSet } from '../chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../languageModels.js';
@@ -36,6 +36,9 @@ import {
 	VSCodeToolReference,
 	IToolAndToolSetEnablementMap
 } from '../languageModelToolsService.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { isLocation } from '../../../../../editor/common/languages.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
 import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
@@ -202,14 +205,19 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						if (part.kind === 'prepareToolInvocation') {
 							markdownParts.length = 0; // Clear previously collected markdown
 						}
-					} else if (part.kind === 'markdownContent') {
+					} else if (part.kind === 'markdownContent' || part.kind === 'inlineReference') {
 						if (inEdit) {
 							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n```\n\n'), fromSubagent: true });
 							inEdit = false;
 						}
 
-						// Collect markdown content for the tool result
-						markdownParts.push(part.content.value);
+						if (part.kind === 'inlineReference') {
+							// Convert inline references into markdown links for the tool result
+							markdownParts.push(inlineReferenceToMarkdown(part));
+						} else {
+							// Collect markdown content for the tool result
+							markdownParts.push(part.content.value);
+						}
 					}
 				}
 			};
@@ -287,4 +295,29 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 		return variableSet;
 	}
+}
+
+function inlineReferenceToMarkdown(part: IChatContentInlineReference): string {
+	const reference = part.inlineReference;
+	let refUri: URI;
+	if (URI.isUri(reference)) {
+		refUri = reference;
+	} else {
+		const range = isLocation(reference) ? reference.range : reference.location.range;
+		const uri = isLocation(reference) ? reference.uri : reference.location.uri;
+		const rangeFragment = range ? `${range.startLineNumber},${range.startColumn}` : undefined;
+		refUri = rangeFragment ? uri.with({ fragment: rangeFragment }) : uri;
+	}
+	let label: string;
+	if (part.name) {
+		label = part.name;
+	} else if (URI.isUri(reference)) {
+		label = basename(reference);
+	} else if (isLocation(reference)) {
+		label = basename(reference.uri);
+	} else {
+		label = reference.name ?? basename(reference.location.uri);
+	}
+	const escapedLabel = label.replace(/[[\]()\\]/g, '\\$&');
+	return `[${escapedLabel}](${refUri.toString()})\n`;
 }
