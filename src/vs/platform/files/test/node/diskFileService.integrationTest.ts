@@ -1070,6 +1070,76 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(deleteEvent!.resource.fsPath, folderResource.fsPath);
 	});
 
+	test('move - merge folders when moving to existing folder', async () => {
+		// Create source folder with files
+		const sourceFolder = URI.file(join(testDir, 'sourceFolder'));
+		await service.createFolder(sourceFolder);
+		await service.writeFile(URI.file(join(sourceFolder.fsPath, 'file1.txt')), VSBuffer.fromString('content1'));
+		await service.writeFile(URI.file(join(sourceFolder.fsPath, 'file2.txt')), VSBuffer.fromString('content2'));
+
+		// Create target parent folder with a folder of the same name
+		const targetParent = URI.file(join(testDir, 'targetParent'));
+		await service.createFolder(targetParent);
+		const targetFolder = URI.file(join(targetParent.fsPath, 'sourceFolder'));
+		await service.createFolder(targetFolder);
+		await service.writeFile(URI.file(join(targetFolder.fsPath, 'file3.txt')), VSBuffer.fromString('content3'));
+
+		// Move source folder into target parent (should merge with existing folder)
+		const moved = await service.move(sourceFolder, targetFolder, true);
+
+		// Verify source folder no longer exists
+		assert.strictEqual(existsSync(sourceFolder.fsPath), false);
+
+		// Verify target folder exists and contains files from both folders
+		assert.strictEqual(existsSync(moved.resource.fsPath), true);
+		assert.strictEqual(existsSync(join(moved.resource.fsPath, 'file1.txt')), true);
+		assert.strictEqual(existsSync(join(moved.resource.fsPath, 'file2.txt')), true);
+		assert.strictEqual(existsSync(join(moved.resource.fsPath, 'file3.txt')), true);
+
+		// Verify file contents
+		const file1Content = readFileSync(join(moved.resource.fsPath, 'file1.txt'), 'utf8');
+		const file2Content = readFileSync(join(moved.resource.fsPath, 'file2.txt'), 'utf8');
+		const file3Content = readFileSync(join(moved.resource.fsPath, 'file3.txt'), 'utf8');
+		assert.strictEqual(file1Content, 'content1');
+		assert.strictEqual(file2Content, 'content2');
+		assert.strictEqual(file3Content, 'content3');
+	});
+
+	test('copy - merge folders when copying to existing folder', async () => {
+		// Create source folder with files
+		const sourceFolder = URI.file(join(testDir, 'sourceFolderCopy'));
+		await service.createFolder(sourceFolder);
+		await service.writeFile(URI.file(join(sourceFolder.fsPath, 'fileA.txt')), VSBuffer.fromString('contentA'));
+		await service.writeFile(URI.file(join(sourceFolder.fsPath, 'fileB.txt')), VSBuffer.fromString('contentB'));
+
+		// Create target parent folder with a folder of the same name
+		const targetParent = URI.file(join(testDir, 'targetParentCopy'));
+		await service.createFolder(targetParent);
+		const targetFolder = URI.file(join(targetParent.fsPath, 'sourceFolderCopy'));
+		await service.createFolder(targetFolder);
+		await service.writeFile(URI.file(join(targetFolder.fsPath, 'fileC.txt')), VSBuffer.fromString('contentC'));
+
+		// Copy source folder into target parent (should merge with existing folder)
+		const copied = await service.copy(sourceFolder, targetFolder, true);
+
+		// Verify source folder still exists
+		assert.strictEqual(existsSync(sourceFolder.fsPath), true);
+
+		// Verify target folder exists and contains files from both folders
+		assert.strictEqual(existsSync(copied.resource.fsPath), true);
+		assert.strictEqual(existsSync(join(copied.resource.fsPath, 'fileA.txt')), true);
+		assert.strictEqual(existsSync(join(copied.resource.fsPath, 'fileB.txt')), true);
+		assert.strictEqual(existsSync(join(copied.resource.fsPath, 'fileC.txt')), true);
+
+		// Verify file contents
+		const fileAContent = readFileSync(join(copied.resource.fsPath, 'fileA.txt'), 'utf8');
+		const fileBContent = readFileSync(join(copied.resource.fsPath, 'fileB.txt'), 'utf8');
+		const fileCContent = readFileSync(join(copied.resource.fsPath, 'fileC.txt'), 'utf8');
+		assert.strictEqual(fileAContent, 'contentA');
+		assert.strictEqual(fileBContent, 'contentB');
+		assert.strictEqual(fileCContent, 'contentC');
+	});
+
 	test('copy - MIX CASE same target - no overwrite', async () => {
 		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
 		const originalSize = source.size;
