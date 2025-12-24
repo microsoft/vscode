@@ -129,7 +129,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				break;
 			case RegistryType.PYTHON:
-				args.push(serverPackage.version ? `${serverPackage.identifier}==${serverPackage.version}` : serverPackage.identifier);
+				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				break;
 			case RegistryType.DOCKER:
 				args.push(serverPackage.version ? `${serverPackage.identifier}:${serverPackage.version}` : serverPackage.identifier);
