@@ -203,14 +203,28 @@ export function validateTelemetryData(data?: unknown): { properties: Properties;
 	};
 }
 
-const telemetryAllowedAuthorities = new Set(['ssh-remote', 'dev-container', 'attached-container', 'wsl', 'tunnel', 'codespaces', 'amlext']);
+interface IProductRemoteConfig {
+	remoteExtensionTips?: { readonly [remoteName: string]: unknown };
+	virtualWorkspaceExtensionTips?: { readonly [remoteName: string]: unknown };
+}
 
-export function cleanRemoteAuthority(remoteAuthority?: string): string {
+export function cleanRemoteAuthority(remoteAuthority: string | undefined, productConfig: IProductRemoteConfig): string {
 	if (!remoteAuthority) {
 		return 'none';
 	}
 	const remoteName = getRemoteName(remoteAuthority);
-	return telemetryAllowedAuthorities.has(remoteName) ? remoteName : 'other';
+
+	const set1 = productConfig?.remoteExtensionTips;
+	if (set1 && Object.keys(set1).includes(remoteName)) {
+		return remoteName;
+	}
+
+	const set2 = productConfig?.virtualWorkspaceExtensionTips;
+	if (set2 && Object.keys(set2).includes(remoteName)) {
+		return remoteName;
+	}
+
+	return 'other';
 }
 
 function flatten(obj: unknown, result: Record<string, unknown>, order: number = 0, prefix?: string): void {

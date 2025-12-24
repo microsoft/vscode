@@ -116,7 +116,7 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 				commonProperties['common.uikind'] = 'unknown';
 		}
 
-		commonProperties['common.remotename'] = getRemoteName(cleanRemoteAuthority(this.initData.remote.authority));
+		commonProperties['common.remotename'] = getRemoteName(cleanRemoteAuthority(this.initData.remote.authority, this.initData));
 
 		return commonProperties;
 	}

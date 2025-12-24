@@ -46,7 +46,18 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const channel = sharedProcessService.getChannel('telemetryAppender');
 			const config: ITelemetryServiceConfig = {
 				appenders: [new TelemetryAppenderClient(channel)],
-				commonProperties: resolveWorkbenchCommonProperties(storageService, environmentService.os.release, environmentService.os.hostname, productService.commit, productService.version, environmentService.machineId, environmentService.sqmId, environmentService.devDeviceId, isInternal, process, productService.date, environmentService.remoteAuthority),
+				commonProperties: resolveWorkbenchCommonProperties(
+					storageService,
+					productService,
+					environmentService.os.release,
+					environmentService.os.hostname,
+					environmentService.machineId,
+					environmentService.sqmId,
+					environmentService.devDeviceId,
+					isInternal,
+					process,
+					environmentService.remoteAuthority
+				),
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 				sendErrorTelemetry: true
 			};
