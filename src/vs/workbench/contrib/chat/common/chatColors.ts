@@ -73,3 +73,27 @@ export const chatLinesRemovedForeground = registerColor(
 	'chat.linesRemovedForeground',
 	{ dark: '#FC6A6A', light: '#BC2F32', hcDark: '#F48771', hcLight: '#B5200D' },
 	localize('chat.linesRemovedForeground', 'Foreground color of lines removed in chat code block pill.'), true);
+
+export const chatResponseBackground = registerColor(
+	'chat.responseBackground',
+	{dark: transparent(editorBackground, 0.45),light: transparent(editorBackground, 0.45), hcDark: editorWidgetBackground,hcLight: editorWidgetBackground},
+	localize('chat.responseBackground', 'The background color of a chat response.')
+);
+
+export const chatPromptForeground = registerColor(
+	'chat.promptForeground',
+	{dark: foreground, light: foreground, hcDark: foreground, hcLight: foreground},
+	localize('chat.promptForeground', 'The foreground color of the chat prompt.')
+);
+
+export const chatResponseForeground = registerColor(
+	'chat.responseForeground',
+	{dark: foreground, light: foreground, hcDark: foreground,hcLight: foreground},
+	localize('chat.responseForeground', 'The primary foreground color of chat responses.')
+);
+
+export const chatResponseSecondaryForeground = registerColor(
+	'chat.responseSecondaryForeground',
+	{dark: '#CCCCCC', light: '#555555', hcDark: '#FFFFFF', hcLight: '#000000'},
+	localize('chat.responseSecondaryForeground', 'The secondary foreground color of chat responses.')
+);
