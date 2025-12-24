@@ -8,8 +8,10 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
@@ -37,6 +39,7 @@ export class EditTool implements IToolImpl {
 		@IChatService private readonly chatService: IChatService,
 		@ICodeMapperService private readonly codeMapperService: ICodeMapperService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -47,6 +50,17 @@ export class EditTool implements IToolImpl {
 		const parameters = invocation.parameters as EditToolParams;
 		const fileUri = URI.revive(parameters.uri);
 		const uri = CellUri.parse(fileUri)?.notebook || fileUri;
+
+		// Save the file if it's dirty
+		// If we got to this point, the user has already confirmed to save (if there was a confirmation dialog)
+		const textFileModel = this.textFileService.files.get(uri);
+		if (textFileModel && textFileModel.isDirty()) {
+			try {
+				await this.textFileService.save(uri);
+			} catch (error) {
+				// Continue with edit even if save fails
+			}
+		}
 
 		const model = this.chatService.getSession(LocalChatSessionUri.forSession(invocation.context?.sessionId)) as ChatModel;
 		const request = model.getRequests().at(-1)!;
@@ -138,6 +152,23 @@ export class EditTool implements IToolImpl {
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const parameters = context.parameters as EditToolParams;
+		const fileUri = URI.revive(parameters.uri);
+		const uri = CellUri.parse(fileUri)?.notebook || fileUri;
+
+		// Check if file has a text file model and if it's dirty
+		const textFileModel = this.textFileService.files.get(uri);
+		if (textFileModel && textFileModel.isDirty()) {
+			return {
+				confirmationMessages: {
+					title: localize('editTool.saveDirtyFile.title', 'Save file before editing?'),
+					message: new MarkdownString(localize('editTool.saveDirtyFile.message', 'The file `{0}` has unsaved changes. Would you like to save it before editing?', uri.fsPath)),
+					allowAutoConfirm: true
+				},
+				presentation: ToolInvocationPresentation.Hidden
+			};
+		}
+
 		return {
 			presentation: ToolInvocationPresentation.Hidden
 		};
