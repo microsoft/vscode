@@ -215,12 +215,6 @@ export function cleanRemoteAuthority(remoteAuthority: string | undefined, produc
 	const remoteName = getRemoteName(remoteAuthority);
 
 	const set1 = productConfig?.remoteExtensionTips;
-	if (set1 && Object.keys(set1).includes(remoteName)) {
-		return remoteName;
-	}
-
-	const set2 = productConfig?.virtualWorkspaceExtensionTips;
-	if (set2 && Object.keys(set2).includes(remoteName)) {
 		return remoteName;
 	}
 
