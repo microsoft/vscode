@@ -6,7 +6,7 @@
 				"git": {
 					"name": "sumneko/lua.tmbundle",
 					"repositoryUrl": "https://github.com/sumneko/lua.tmbundle",
-					"commitHash": "1483add845ebfb3e1e631fe372603e5fed2cdd42"
+					"commitHash": "ec2f07535da6cec62a6b98aa19622b4f40fa952a"
 				}
 			},
 			"licenseDetail": [
