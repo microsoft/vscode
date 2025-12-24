@@ -6,7 +6,7 @@
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../../platform/policy/common/policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicySource } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 
@@ -41,10 +41,17 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			if (policyValue !== undefined) {
 				if (this.policies.get(key) !== policyValue) {
 					this.policies.set(key, policyValue);
+					this.policyMetadata.set(key, {
+						source: PolicySource.Account,
+						accountSessionId: this.account?.sessionId,
+						orgName: this.account?.enterprise ? 'Enterprise' : undefined,
+						details: `Set via GitHub Copilot account (Session: ${this.account?.sessionId || 'unknown'})`
+					});
 					updated.push(key);
 				}
 			} else {
 				if (this.policies.delete(key)) {
+					this.policyMetadata.delete(key);
 					updated.push(key);
 				}
 			}

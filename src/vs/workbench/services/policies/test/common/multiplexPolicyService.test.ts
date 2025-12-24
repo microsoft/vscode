@@ -21,6 +21,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { PolicySource } from '../../../../../platform/policy/common/policy.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	enterprise: false,
@@ -275,6 +276,34 @@ suite('MultiplexPolicyService', () => {
 			assert.strictEqual(B, 'policyValueB');
 			assert.deepStrictEqual(C, ['policyValueC1', 'policyValueC2']);
 			assert.strictEqual(D, false);
+		}
+	});
+
+	test('should provide metadata from multiplex policy service', async () => {
+		await clear();
+
+		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, chat_preview_features_enabled: false };
+		defaultAccountService.setDefaultAccount(defaultAccount);
+
+		await fileService.writeFile(policyFile,
+			VSBuffer.fromString(
+				JSON.stringify({ 'PolicySettingA': 'policyValueA' })
+			)
+		);
+
+		await policyConfiguration.initialize();
+
+		{
+			// Metadata from file policy
+			const metadataA = policyService.getPolicyMetadata('PolicySettingA');
+			assert.ok(metadataA, 'Metadata should exist for PolicySettingA');
+			assert.strictEqual(metadataA.source, PolicySource.File);
+
+			// Metadata from account policy
+			const metadataB = policyService.getPolicyMetadata('PolicySettingB');
+			assert.ok(metadataB, 'Metadata should exist for PolicySettingB');
+			assert.strictEqual(metadataB.source, PolicySource.Account);
+			assert.strictEqual(metadataB.accountSessionId, 'abc123');
 		}
 	});
 });

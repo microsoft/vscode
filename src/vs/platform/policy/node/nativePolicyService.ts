@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from '../common/policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicySource, PolicyValue } from '../common/policy.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Throttler } from '../../../base/common/async.js';
 import type { PolicyUpdate, Watcher } from '@vscode/policy-watcher';
@@ -48,8 +48,13 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 
 			if (value === undefined) {
 				this.policies.delete(key);
+				this.policyMetadata.delete(key);
 			} else {
 				this.policies.set(key, value);
+				this.policyMetadata.set(key, {
+					source: PolicySource.Device,
+					details: `Set via device policy (${this.productName})`
+				});
 			}
 		}
 
