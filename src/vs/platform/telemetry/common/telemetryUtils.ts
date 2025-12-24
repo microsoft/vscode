@@ -203,18 +203,25 @@ export function validateTelemetryData(data?: unknown): { properties: Properties;
 	};
 }
 
-interface IProductRemoteConfig {
+interface IRemoteAuthoringConfig {
 	remoteExtensionTips?: { readonly [remoteName: string]: unknown };
 	virtualWorkspaceExtensionTips?: { readonly [remoteName: string]: unknown };
 }
 
-export function cleanRemoteAuthority(remoteAuthority: string | undefined, productConfig: IProductRemoteConfig): string {
+export function cleanRemoteAuthority(remoteAuthority: string | undefined, config: IRemoteAuthoringConfig): string {
 	if (!remoteAuthority) {
 		return 'none';
 	}
+
 	const remoteName = getRemoteName(remoteAuthority);
 
-	const set1 = productConfig?.remoteExtensionTips;
+	const set1 = config?.remoteExtensionTips;
+	if (set1 && Object.prototype.hasOwnProperty.call(set1, remoteName)) {
+		return remoteName;
+	}
+
+	const set2 = config?.virtualWorkspaceExtensionTips;
+	if (set2 && Object.prototype.hasOwnProperty.call(set2, remoteName)) {
 		return remoteName;
 	}
 
