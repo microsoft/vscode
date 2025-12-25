@@ -10060,6 +10060,11 @@ declare module 'vscode' {
 		 * your panel's context cannot be quickly saved and restored.
 		 */
 		readonly retainContextWhenHidden?: boolean;
+
+		/**
+		 * Whether the webview panel is automatically closed when it is disposed.
+		 */
+		readonly autoCloseWhenDispose?: boolean;
 	}
 
 	/**
