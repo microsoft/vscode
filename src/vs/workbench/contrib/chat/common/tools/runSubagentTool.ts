@@ -305,7 +305,7 @@ function inlineReferenceToMarkdown(part: IChatContentInlineReference): string {
 	} else {
 		const range = isLocation(reference) ? reference.range : reference.location.range;
 		const uri = isLocation(reference) ? reference.uri : reference.location.uri;
-		const rangeFragment = range ? `${range.startLineNumber},${range.startColumn}` : undefined;
+		const rangeFragment = range ? `L${range.startLineNumber}-L${range.endLineNumber}` : undefined;
 		refUri = rangeFragment ? uri.with({ fragment: rangeFragment }) : uri;
 	}
 	let label: string;
