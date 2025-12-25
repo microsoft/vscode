@@ -41,9 +41,72 @@ export class TerminalProfileQuickpick {
 			return;
 		}
 		if (type === 'setDefault') {
+			// Check if workspace and user default profiles differ
+			const configInspect = this._configurationService.inspect(defaultProfileKey);
+			const userDefault = configInspect.userValue;
+			const workspaceDefault = configInspect.workspaceValue;
+
+			// Check if the selected profile is workspace-only
+			const profilesInspect = this._configurationService.inspect(profilesKey);
+			const workspaceProfileNames = profilesInspect.workspaceValue && typeof profilesInspect.workspaceValue === 'object'
+				? Object.keys(profilesInspect.workspaceValue as { [key: string]: unknown })
+				: [];
+			const userProfileNames = profilesInspect.userValue && typeof profilesInspect.userValue === 'object'
+				? Object.keys(profilesInspect.userValue as { [key: string]: unknown })
+				: [];
+			const workspaceOnlyProfileNames = workspaceProfileNames.filter(name => !userProfileNames.includes(name));
+			const isWorkspaceOnlyProfile = workspaceOnlyProfileNames.includes(result.profileName);
+
+			// If workspace and user defaults differ, ask where to apply the change
+			// For workspace-only profiles, default to workspace target
+			let targets: ConfigurationTarget[] = isWorkspaceOnlyProfile ? [ConfigurationTarget.WORKSPACE] : [ConfigurationTarget.USER];
+			if (workspaceDefault !== undefined && (workspaceDefault !== userDefault || workspaceDefault !== result.profileName)) {
+				const targetChoice = await this._showTargetPicker();
+				if (!targetChoice) {
+					return; // User cancelled
+				}
+				targets = targetChoice;
+			}
+
+			// Apply the configuration to selected targets
+			for (const target of targets) {
+				if (hasKey(result.profile, { id: true })) {
+					// extension contributed profile
+					await this._configurationService.updateValue(defaultProfileKey, result.profile.title, target);
+				} else {
+					// For workspace-only profiles, don't copy the profile definition to user settings
+					// Only set it as the default in workspace settings
+					if (isWorkspaceOnlyProfile && target === ConfigurationTarget.USER) {
+						// Skip adding workspace-only profile to user settings
+						// Just set the default to reference the workspace profile
+						await this._configurationService.updateValue(defaultProfileKey, result.profileName, target);
+					} else {
+						// Add the profile to settings if necessary
+						if (hasKey(result.profile, { profileName: true })) {
+							// Get the appropriate configuration based on target
+							let profilesConfig: { [key: string]: ITerminalProfileObject };
+							if (target === ConfigurationTarget.WORKSPACE) {
+								profilesConfig = profilesInspect.workspaceValue || {};
+							} else {
+								profilesConfig = profilesInspect.userValue || {};
+							}
+
+							if (typeof profilesConfig === 'object') {
+								// Only add profile definition if it doesn't already exist in the target
+								if (!profilesConfig[result.profile.profileName]) {
+									const newProfilesConfig = { ...profilesConfig };
+									newProfilesConfig[result.profile.profileName] = this._createNewProfileConfig(result.profile);
+									await this._configurationService.updateValue(profilesKey, newProfilesConfig, target);
+								}
+							}
+						}
+						// Set the default profile
+						await this._configurationService.updateValue(defaultProfileKey, result.profileName, target);
+					}
+				}
+			}
+
 			if (hasKey(result.profile, { id: true })) {
-				// extension contributed profile
-				await this._configurationService.updateValue(defaultProfileKey, result.profile.title, ConfigurationTarget.USER);
 				return {
 					config: {
 						extensionIdentifier: result.profile.extensionIdentifier,
@@ -57,23 +120,6 @@ export class TerminalProfileQuickpick {
 					keyMods: result.keyMods
 				};
 			}
-
-			// Add the profile to settings if necessary
-			if (hasKey(result.profile, { profileName: true })) {
-				const profilesConfig = await this._configurationService.getValue(profilesKey);
-				if (typeof profilesConfig === 'object') {
-					const newProfile: ITerminalProfileObject = {
-						path: result.profile.path
-					};
-					if (result.profile.args) {
-						newProfile.args = result.profile.args;
-					}
-					(profilesConfig as { [key: string]: ITerminalProfileObject })[result.profile.profileName] = this._createNewProfileConfig(result.profile);
-					await this._configurationService.updateValue(profilesKey, profilesConfig, ConfigurationTarget.USER);
-				}
-			}
-			// Set the default profile
-			await this._configurationService.updateValue(defaultProfileKey, result.profileName, ConfigurationTarget.USER);
 		} else if (type === 'createInstance') {
 			if (hasKey(result.profile, { id: true })) {
 				return {
@@ -94,6 +140,36 @@ export class TerminalProfileQuickpick {
 		}
 		// for tests
 		return hasKey(result.profile, { profileName: true }) ? result.profile.profileName : result.profile.title;
+	}
+
+	private async _showTargetPicker(): Promise<ConfigurationTarget[] | undefined> {
+		interface ITargetPickItem extends IQuickPickItem {
+			targets: ConfigurationTarget[];
+		}
+
+		const items: ITargetPickItem[] = [
+			{
+				label: nls.localize('terminal.setDefaultProfile.user', "User"),
+				detail: nls.localize('terminal.setDefaultProfile.user.detail', "Apply to user settings only"),
+				targets: [ConfigurationTarget.USER]
+			},
+			{
+				label: nls.localize('terminal.setDefaultProfile.workspace', "Workspace"),
+				detail: nls.localize('terminal.setDefaultProfile.workspace.detail', "Apply to workspace settings (overrides user settings)"),
+				targets: [ConfigurationTarget.WORKSPACE]
+			},
+			{
+				label: nls.localize('terminal.setDefaultProfile.both', "Both"),
+				detail: nls.localize('terminal.setDefaultProfile.both.detail', "Apply to both user and workspace settings"),
+				targets: [ConfigurationTarget.USER, ConfigurationTarget.WORKSPACE]
+			}
+		];
+
+		const result = await this._quickInputService.pick(items, {
+			placeHolder: nls.localize('terminal.setDefaultProfile.selectTarget', "Select where to apply the default profile")
+		});
+
+		return result?.targets;
 	}
 
 	private async _createAndShow(type: 'setDefault' | 'createInstance'): Promise<IProfileQuickPickItem | undefined> {
@@ -141,9 +217,35 @@ export class TerminalProfileQuickpick {
 		const configProfiles = profiles.filter(e => !e.isAutoDetected);
 		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
 
-		if (configProfiles.length > 0) {
+		// Inspect workspace configuration to separate user and workspace profiles
+		const workspaceProfilesConfig = this._configurationService.inspect(profilesKey);
+		const userProfilesConfig = this._configurationService.inspect(profilesKey);
+
+		const workspaceProfileNames = workspaceProfilesConfig.workspaceValue && typeof workspaceProfilesConfig.workspaceValue === 'object'
+			? Object.keys(workspaceProfilesConfig.workspaceValue as { [key: string]: unknown })
+			: [];
+
+		const userProfileNames = userProfilesConfig.userValue && typeof userProfilesConfig.userValue === 'object'
+			? Object.keys(userProfilesConfig.userValue as { [key: string]: unknown })
+			: [];
+
+		// Filter profiles: only show workspace profiles if they're NOT already in user profiles
+		const workspaceOnlyProfileNames = workspaceProfileNames.filter(name => !userProfileNames.includes(name));
+
+		// User profiles section includes profiles from user config + profiles in both user and workspace
+		const userConfigProfiles = configProfiles.filter(e => !workspaceOnlyProfileNames.includes(e.profileName));
+		// Workspace section only includes profiles that are ONLY in workspace, not in user
+		const workspaceConfigProfiles = configProfiles.filter(e => workspaceOnlyProfileNames.includes(e.profileName));
+
+		if (userConfigProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
-			quickPickItems.push(...this._sortProfileQuickPickItems(configProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
+			quickPickItems.push(...this._sortProfileQuickPickItems(userConfigProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
+		}
+
+		// Add workspace profiles section if any exist (only workspace-only profiles)
+		if (workspaceConfigProfiles.length > 0) {
+			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.workspace', "workspace") });
+			quickPickItems.push(...this._sortProfileQuickPickItems(workspaceConfigProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
 		}
 
 		quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });
