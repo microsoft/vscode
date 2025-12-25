@@ -73,6 +73,21 @@ jobs:
       - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
         displayName: Extract compilation output
 
+      - script: |
+          set -e
+
+          [ -d "out-build" ] || { echo "ERROR: out-build folder is missing" >&2; exit 1; }
+          [ -n "$(find out-build -mindepth 1 2>/dev/null | head -1)" ] || { echo "ERROR: out-build folder is empty" >&2; exit 1; }
+
+          ls -d out-vscode-reh-* >/dev/null 2>&1 || { echo "ERROR: No out-vscode-reh-* folders found" >&2; exit 1; }
+          for folder in out-vscode-reh-*; do
+            [ -d "$folder" ] || { echo "ERROR: $folder is missing" >&2; exit 1; }
+            [ -n "$(find "$folder" -mindepth 1 2>/dev/null | head -1)" ] || { echo "ERROR: $folder is empty" >&2; exit 1; }
+          done
+
+          echo "All required compilation folders exist and are not empty"
+        displayName: Validate extracted compilation folders
+
       - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
