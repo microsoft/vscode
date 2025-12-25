@@ -50,6 +50,29 @@ import { ChatViewId } from '../chat.js';
 
 const defaultChat = product.defaultChatAgent;
 
+function getSkuDisplayName(sku: string | undefined, entitlement: ChatEntitlement): string | undefined {
+	// Handle special case for anonymous/no-auth users
+	if (sku === 'no_auth_limited_copilot') {
+		return localize('skuAnonymous', "Free (Limited)");
+	}
+
+	// Map SKU strings to display names based on entitlement
+	switch (entitlement) {
+		case ChatEntitlement.Free:
+			return localize('skuFree', "Free");
+		case ChatEntitlement.Pro:
+			return localize('skuPro', "Pro");
+		case ChatEntitlement.ProPlus:
+			return localize('skuProPlus', "Pro+");
+		case ChatEntitlement.Business:
+			return localize('skuBusiness', "Business");
+		case ChatEntitlement.Enterprise:
+			return localize('skuEnterprise', "Enterprise");
+		default:
+			return undefined;
+	}
+}
+
 interface ISettingsAccessor {
 	readSetting: () => boolean;
 	writeSetting: (value: boolean) => Promise<void>;
@@ -175,6 +198,12 @@ export class ChatStatusDashboard extends DomWidget {
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
+			// Show SKU below "Copilot Usage" title
+			const skuDisplayName = getSkuDisplayName(this.chatEntitlementService.sku, this.chatEntitlementService.entitlement);
+			if (skuDisplayName) {
+				this.element.appendChild($('div.sku-display', undefined, skuDisplayName));
+			}
+
 			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false) : undefined;
 			const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
 			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
@@ -211,6 +240,12 @@ export class ChatStatusDashboard extends DomWidget {
 		// Anonymous Indicator
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
+
+			// Show SKU below "Copilot Usage" title
+			const skuDisplayName = getSkuDisplayName(this.chatEntitlementService.sku, this.chatEntitlementService.entitlement);
+			if (skuDisplayName) {
+				this.element.appendChild($('div.sku-display', undefined, skuDisplayName));
+			}
 
 			this.createQuotaIndicator(this.element, this._store, localize('quotaLimited', "Limited"), localize('completionsLabel', "Inline Suggestions"), false);
 			this.createQuotaIndicator(this.element, this._store, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"), false);
