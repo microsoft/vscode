@@ -142,6 +142,12 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 		this.updateHighlights();
 	}
 
+	forceUpdateMatches(): void {
+		// Cancel any pending scheduled update and run immediately
+		this._updateScheduler.cancel();
+		this.updateMatchesForModel();
+	}
+
 	private onModelWillDispose(): void {
 		// Update matches because model might have some dirty changes
 		this.updateMatchesForModel();
