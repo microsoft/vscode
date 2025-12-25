@@ -1107,13 +1107,20 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * Sends a path to the terminal instance, preparing it as needed based on the detected shell
 	 * running within the terminal. The text is written to the stdin of the underlying pty process
-	 * (shell) of the terminal instance.
+	 * (shell) of the terminal instance. The character(s) added are \n or \r\n, depending on the platform.
 	 *
 	 * @param originalPath The path to send.
-	 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
-	 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
 	 */
-	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
+	executePath(originalPath: string | URI): Promise<void>;
+
+	/**
+	 * Sends paths to the terminal instance, preparing it as needed based on the detected shell
+	 * running within the terminal. The text is written to the stdin of the underlying pty process
+	 * (shell) of the terminal instance. The URIs are separated by a single space.
+	 *
+	 * @param originalPaths The paths to send.
+	 */
+	sendPaths(originalPaths: (string | URI)[]): Promise<void>;
 
 	runCommand(command: string, shouldExecute?: boolean, commandId?: string): Promise<void>;
 
