@@ -53,6 +53,13 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	 */
 	private readonly _sessionAutoApprovalEnabled = new Set<string>();
 
+	/**
+	 * Tracks session-scoped auto-approve rules per chat session. These are temporary rules that
+	 * last only for the duration of the chat session (not persisted to disk).
+	 * Map<chatSessionId, Record<ruleKey, ruleValue>>
+	 */
+	private readonly _sessionAutoApproveRules = new Map<string, Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>();
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -66,6 +73,16 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._hasHiddenToolTerminalContext = TerminalChatContextKeys.hasHiddenChatTerminals.bindTo(this._contextKeyService);
 
 		this._restoreFromStorage();
+
+		// Clear session auto-approve rules when chat sessions end
+		this._register(this._chatService.onDidDisposeSession(e => {
+			for (const resource of e.sessionResource) {
+				const sessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+				if (sessionId) {
+					this._sessionAutoApproveRules.delete(sessionId);
+				}
+			}
+		}));
 	}
 
 	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
@@ -312,5 +329,18 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	hasChatSessionAutoApproval(chatSessionId: string): boolean {
 		return this._sessionAutoApprovalEnabled.has(chatSessionId);
+	}
+
+	addSessionAutoApproveRule(chatSessionId: string, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void {
+		let sessionRules = this._sessionAutoApproveRules.get(chatSessionId);
+		if (!sessionRules) {
+			sessionRules = {};
+			this._sessionAutoApproveRules.set(chatSessionId, sessionRules);
+		}
+		sessionRules[key] = value;
+	}
+
+	getSessionAutoApproveRules(chatSessionId: string): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>> {
+		return this._sessionAutoApproveRules.get(chatSessionId) ?? {};
 	}
 }
