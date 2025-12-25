@@ -1442,7 +1442,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			delete this._decorationTypeKeysToIds[decorationTypeKey];
 		}
 		if (this._decorationTypeSubtypes.hasOwnProperty(decorationTypeKey)) {
+			const items = this._decorationTypeSubtypes[decorationTypeKey];
+			for (const subType of Object.keys(items)) {
+				this._removeDecorationType(decorationTypeKey + '-' + subType);
+			}
 			delete this._decorationTypeSubtypes[decorationTypeKey];
+
 		}
 	}
 
@@ -1666,6 +1671,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		return this._modelData.view.getOffsetForColumn(lineNumber, column);
+	}
+
+	public getWidthOfLine(lineNumber: number): number {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return -1;
+		}
+		return this._modelData.view.getLineWidth(lineNumber);
 	}
 
 	public render(forceRedraw: boolean = false): void {

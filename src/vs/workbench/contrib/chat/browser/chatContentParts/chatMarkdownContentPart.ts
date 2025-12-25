@@ -79,6 +79,10 @@ export interface IChatMarkdownContentPartOptions {
 	};
 }
 
+interface IMarkdownPartCodeBlockInfo extends IChatCodeBlockInfo {
+	isStreamingEdit: boolean;
+}
+
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
 
 	private static ID_POOL = 0;
@@ -91,7 +95,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	readonly codeblocks: IChatCodeBlockInfo[] = [];
+	private readonly _codeblocks: IMarkdownPartCodeBlockInfo[] = [];
+	public get codeblocks(): IChatCodeBlockInfo[] {
+		return this._codeblocks;
+	}
 
 	private readonly mathLayoutParticipants = new Set<() => void>();
 
@@ -247,12 +254,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 
 						const ownerMarkdownPartId = this.codeblocksPartId;
-						const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
+						const info: IMarkdownPartCodeBlockInfo = new class implements IMarkdownPartCodeBlockInfo {
 							readonly ownerMarkdownPartId = ownerMarkdownPartId;
 							readonly codeBlockIndex = globalIndex;
 							readonly elementId = element.id;
 							readonly chatSessionResource = element.sessionResource;
 							readonly languageId = languageId;
+							readonly isStreamingEdit = false;
 							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 							codemapperUri = undefined; // will be set async
 							get uri() {
@@ -265,7 +273,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 								ref.object.focus();
 							}
 						}();
-						this.codeblocks.push(info);
+						this._codeblocks.push(info);
 						orderedDisposablesList.push(ref);
 						return ref.object.element;
 					} else {
@@ -275,18 +283,19 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 							this.codeBlockModelCollection.update(codeBlockInfo.element.sessionResource, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
 								// Update the existing object's codemapperUri
-								this.codeblocks[codeBlockInfo.codeBlockPartIndex].codemapperUri = e.codemapperUri;
+								this._codeblocks[codeBlockInfo.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 								this._onDidChangeHeight.fire();
 							});
 						}
 						this.allRefs.push(ref);
 						const ownerMarkdownPartId = this.codeblocksPartId;
-						const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
+						const info: IMarkdownPartCodeBlockInfo = new class implements IMarkdownPartCodeBlockInfo {
 							readonly ownerMarkdownPartId = ownerMarkdownPartId;
 							readonly codeBlockIndex = globalIndex;
 							readonly elementId = element.id;
 							readonly codemapperUri = codeblockEntry?.codemapperUri;
 							readonly chatSessionResource = element.sessionResource;
+							readonly isStreamingEdit = !isCodeBlockComplete;
 							get uri() {
 								return undefined;
 							}
@@ -297,7 +306,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							readonly languageId = languageId;
 							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 						}();
-						this.codeblocks.push(info);
+						this._codeblocks.push(info);
 						orderedDisposablesList.push(ref);
 						return ref.object.element;
 					}
@@ -310,7 +319,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 			// Ideally this would happen earlier, but we need to parse the markdown.
 			if (isResponseVM(element) && !element.model.codeBlockInfos && element.model.isComplete) {
-				element.model.initializeCodeBlockInfos(this.codeblocks.map(info => {
+				element.model.initializeCodeBlockInfos(this._codeblocks.map(info => {
 					return {
 						suggestionId: this.aiEditTelemetryService.createSuggestionId({
 							presentation: 'codeBlock',
@@ -391,7 +400,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		if (isResponseVM(data.element)) {
 			this.codeBlockModelCollection.update(data.element.sessionResource, data.element, data.codeBlockIndex, { text, languageId: data.languageId, isComplete }).then((e) => {
 				// Update the existing object's codemapperUri
-				this.codeblocks[data.codeBlockPartIndex].codemapperUri = e.codemapperUri;
+				this._codeblocks[data.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 				this._onDidChangeHeight.fire();
 			});
 		}
@@ -404,8 +413,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.content.value
-			|| this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```'));
+		if (other.kind !== 'markdownContent') {
+			return false;
+		}
+
+		if (other.content.value === this.markdown.content.value) {
+			return true;
+		}
+
+		// If we are streaming in code shown in an edit pill, do not re-render the entire content as long as it's coming in
+		const lastCodeblock = this._codeblocks.at(-1);
+		if (lastCodeblock && lastCodeblock.codemapperUri !== undefined && lastCodeblock.isStreamingEdit) {
+			return other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```');
+		}
+
+		return false;
 	}
 
 	layout(width: number): void {
@@ -415,7 +437,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			} else if (ref.object instanceof MarkdownDiffBlockPart) {
 				ref.object.layout(width);
 			} else if (ref.object instanceof CollapsedCodeBlock) {
-				const codeblockModel = this.codeblocks[index];
+				const codeblockModel = this._codeblocks[index];
 				if (codeblockModel.codemapperUri && ref.object.uri?.toString() !== codeblockModel.codemapperUri.toString()) {
 					ref.object.render(codeblockModel.codemapperUri);
 				}

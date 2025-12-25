@@ -1,7 +1,3 @@
-parameters:
-  - name: VSCODE_QUALITY
-    type: string
-
 jobs:
   - job: Web
     displayName: Web
@@ -28,9 +24,6 @@ jobs:
           versionSource: fromFile
           versionFilePath: .nvmrc
 
-      - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-        - template: ../common/bump-insiders-version.yml@self
-
       - template: ../distro/download-distro.yml@self
 
       - task: AzureKeyVault@2
@@ -49,11 +42,11 @@ jobs:
       - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
         displayName: Extract compilation output
 
-      - script: node build/setup-npm-registry.js $NPM_REGISTRY
+      - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js web $(node -p process.arch) > .build/packagelockhash
+      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts web $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
 
       - task: Cache@2
@@ -108,19 +101,19 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: node build/azure-pipelines/distro/mixin-npm
+      - script: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules
 
       - script: |
           set -e
-          node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
           mkdir -p .build/node_modules_cache
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Create node_modules archive
 
-      - script: node build/azure-pipelines/distro/mixin-quality
+      - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
 
       - template: ../common/install-builtin-extensions.yml@self
@@ -154,7 +147,7 @@ jobs:
           AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
           AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-cdn
+            node build/azure-pipelines/upload-cdn.ts
         displayName: Upload to CDN
 
       - script: |
@@ -163,7 +156,7 @@ jobs:
           AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
           AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
+            node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
         displayName: Upload sourcemaps (Web Main)
 
       - script: |
@@ -172,7 +165,7 @@ jobs:
           AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
           AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.internal.js.map
+            node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.internal.js.map
         displayName: Upload sourcemaps (Web Internal)
 
       - script: |
@@ -181,5 +174,5 @@ jobs:
           AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
           AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-nlsmetadata
+            node build/azure-pipelines/upload-nlsmetadata.ts
         displayName: Upload NLS Metadata

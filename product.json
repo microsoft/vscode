@@ -117,16 +117,16 @@
 		"providerUriSetting": "github-enterprise.uri",
 		"providerScopes": [
 			[
-				"user:email"
-			],
-			[
-				"read:user"
-			],
-			[
 				"read:user",
 				"user:email",
 				"repo",
 				"workflow"
+			],
+			[
+				"user:email"
+			],
+			[
+				"read:user"
 			]
 		],
 		"entitlementUrl": "https://api.github.com/copilot_internal/user",
@@ -142,5 +142,13 @@
 		"completionsAdvancedSetting": "github.copilot.advanced",
 		"completionsEnablementSetting": "github.copilot.enable",
 		"nextEditSuggestionsSetting": "github.copilot.nextEditSuggestions.enabled"
+	},
+	"trustedExtensionAuthAccess": {
+		"github": [
+			"GitHub.copilot-chat"
+		],
+		"github-enterprise": [
+			"GitHub.copilot-chat"
+		]
 	}
 }

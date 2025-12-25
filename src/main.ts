@@ -528,7 +528,8 @@ function configureCrashReporter(): void {
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL,
 		uploadToServer,
-		compress: true
+		compress: true,
+		ignoreSystemCrashHandler: true
 	});
 }
 

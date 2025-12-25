@@ -144,7 +144,7 @@ export class FetchWebPageTool implements IToolImpl {
 		const actuallyValidUris = [...webUris.values(), ...successfulFileUris];
 
 		return {
-			content: this._getPromptPartsForResults(results),
+			content: this._getPromptPartsForResults(urls, results),
 			toolResultDetails: actuallyValidUris,
 			confirmResults,
 		};
@@ -191,7 +191,7 @@ export class FetchWebPageTool implements IToolImpl {
 			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', urlsNeedingConfirmation.size));
 			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', urlsNeedingConfirmation.size));
 		} else if (urlsNeedingConfirmation.size === 1) {
-			const url = Iterable.first(urlsNeedingConfirmation)!.toString();
+			const url = Iterable.first(urlsNeedingConfirmation)!.toString(true);
 			// If the URL is too long or it's a file url, show it as a link... otherwise, show it as plain text
 			if (url.length > 400 || validFileUris.length === 1) {
 				pastTenseMessage.appendMarkdown(localize({
@@ -235,13 +235,13 @@ export class FetchWebPageTool implements IToolImpl {
 			if (urlsNeedingConfirmation.size === 1) {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch web page?');
 				confirmationMessage = new MarkdownString(
-					Iterable.first(urlsNeedingConfirmation)!.toString(),
+					Iterable.first(urlsNeedingConfirmation)!.toString(true),
 					{ supportThemeIcons: true }
 				);
 			} else {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch web pages?');
 				confirmationMessage = new MarkdownString(
-					[...urlsNeedingConfirmation].map(uri => `- ${uri.toString()}`).join('\n'),
+					[...urlsNeedingConfirmation].map(uri => `- ${uri.toString(true)}`).join('\n'),
 					{ supportThemeIcons: true }
 				);
 			}
@@ -278,28 +278,31 @@ export class FetchWebPageTool implements IToolImpl {
 		return { webUris, fileUris, invalidUris };
 	}
 
-	private _getPromptPartsForResults(results: ResultType[]): (IToolResultTextPart | IToolResultDataPart)[] {
-		return results.map(value => {
+	private _getPromptPartsForResults(urls: string[], results: ResultType[]): (IToolResultTextPart | IToolResultDataPart)[] {
+		return results.map((value, i) => {
+			const title = results.length > 1 ? localize('fetchWebPage.fetchedFrom', 'Fetched from {0}', urls[i]) : undefined;
 			if (!value) {
 				return {
 					kind: 'text',
+					title,
 					value: localize('fetchWebPage.invalidUrl', 'Invalid URL')
 				};
 			} else if (typeof value === 'string') {
 				return {
 					kind: 'text',
+					title,
 					value: value
 				};
 			} else if (value.type === 'tooldata') {
-				return value.value;
+				return { ...value.value, title };
 			} else if (value.type === 'extracted') {
 				switch (value.value.status) {
 					case 'ok':
-						return { kind: 'text', value: value.value.result };
+						return { kind: 'text', title, value: value.value.result };
 					case 'redirect':
-						return { kind: 'text', value: `The webpage has redirected to "${value.value.toURI.toString(true)}". Use the ${InternalFetchWebPageToolId} again to get its contents.` };
+						return { kind: 'text', title, value: `The webpage has redirected to "${value.value.toURI.toString(true)}". Use the ${InternalFetchWebPageToolId} again to get its contents.` };
 					case 'error':
-						return { kind: 'text', value: `An error occurred retrieving the fetch result: ${value.value.error}` };
+						return { kind: 'text', title, value: `An error occurred retrieving the fetch result: ${value.value.error}` };
 					default:
 						assertNever(value.value);
 				}

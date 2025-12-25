@@ -9,7 +9,7 @@ import vfs from 'vinyl-fs';
 import merge from 'gulp-merge-json';
 import gzip from 'gulp-gzip';
 import { ClientAssertionCredential } from '@azure/identity';
-import path = require('path');
+import path from 'path';
 import { readFileSync } from 'fs';
 import azure from 'gulp-azure-storage';
 

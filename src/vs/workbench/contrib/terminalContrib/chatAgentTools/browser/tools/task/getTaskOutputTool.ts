@@ -20,6 +20,7 @@ import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
 	toolReferenceName: 'getTaskOutput',
+	legacyToolReferenceFullNames: ['runTasks/getTaskOutput'],
 	displayName: localize('getTaskOutputTool.displayName', 'Get Task Output'),
 	modelDescription: 'Get the output of a task',
 	source: ToolDataSource.Internal,
@@ -123,7 +124,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
-		const toolResultMessage = toolResultMessageFromResponse(undefined, taskLabel, toolResultDetails, terminalResults, true);
+		const toolResultMessage = toolResultMessageFromResponse(undefined, taskLabel, toolResultDetails, terminalResults, true, task.configurationProperties.isBackground);
 
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],

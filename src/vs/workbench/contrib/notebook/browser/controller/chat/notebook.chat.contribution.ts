@@ -310,7 +310,7 @@ class KernelVariableContextPicker implements IChatContextPickerItem {
 }
 
 
-registerAction2(class CopyCellOutputAction extends Action2 {
+registerAction2(class AddCellOutputToChatAction extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.cellOutput.addToChat',
@@ -371,15 +371,8 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 		const mimeType = outputViewModel.pickedMimeType?.mimeType;
 
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		let widget = chatWidgetService.lastFocusedWidget;
-		if (!widget) {
-			const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat);
-			if (widgets.length === 0) {
-				return;
-			}
-			widget = widgets[0];
-		}
-		if (mimeType && NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST.includes(mimeType)) {
+		const widget = await chatWidgetService.revealWidget();
+		if (widget && mimeType && NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST.includes(mimeType)) {
 
 			const entry = createNotebookOutputVariableEntry(outputViewModel, mimeType, notebookEditor);
 			if (!entry) {

@@ -33,6 +33,7 @@ export interface IChatCollapsibleIOCodePart {
 	languageId: string;
 	options: ICodeBlockRenderOptions;
 	codeBlockInfo: IChatCodeBlockInfo;
+	title?: string | IMarkdownString;
 }
 
 export interface IChatCollapsibleIODataPart {
@@ -101,7 +102,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
-		const iconEl = dom.h('.chat-confirmation-widget-title-icon');
 		const elements = dom.h('.chat-confirmation-widget');
 		this.domNode = container.root;
 		container.root.appendChild(elements.root);
@@ -119,7 +119,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 		const btn = this._register(new ButtonWithIcon(elements.root, {}));
 		btn.element.classList.add('chat-confirmation-widget-title', 'monaco-text-button');
-		btn.labelElement.append(titleEl.root, iconEl.root);
+		btn.labelElement.append(titleEl.root);
 
 		const check = dom.h(isError
 			? ThemeIcon.asCSSSelector(Codicon.error)
@@ -127,7 +127,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 				? ThemeIcon.asCSSSelector(Codicon.check)
 				: ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))
 		);
-		iconEl.root.appendChild(check.root);
+
 		if (progressTooltip) {
 			this._register(hoverService.setupDelayedHover(check.root, {
 				content: progressTooltip,
@@ -138,7 +138,11 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		const expanded = this._expanded = observableValue(this, initiallyExpanded);
 		this._register(autorun(r => {
 			const value = expanded.read(r);
-			btn.icon = value ? Codicon.chevronDown : Codicon.chevronRight;
+			btn.icon = isError
+				? Codicon.error
+				: output
+					? Codicon.check
+					: ThemeIcon.modify(Codicon.loading, 'spin');
 			elements.root.classList.toggle('collapsed', !value);
 			this._onDidChangeHeight.fire();
 		}));
