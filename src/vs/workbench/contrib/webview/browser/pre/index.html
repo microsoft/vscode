@@ -29,6 +29,10 @@
 			navigator.userAgent.indexOf('Firefox') >= 0
 		);
 
+		// Detect macOS platform for platform-specific keyboard shortcuts
+		const isMacOS = navigator.platform?.toUpperCase().includes('MAC') ||
+			navigator.userAgent?.toUpperCase().includes('MAC');
+
 		const searchParams = new URL(location.toString()).searchParams;
 		const ID = searchParams.get('id');
 		const webviewOrigin = searchParams.get('origin');
@@ -688,6 +692,12 @@
 		 * @return {boolean}
 		 */
 		function isPrint(e) {
+			// On macOS, Ctrl+P is used as an emacs-style shortcut to move to the previous line.
+			// Only treat Ctrl+P as "Print" on non-macOS platforms.
+			// On macOS, Cmd+P is the print shortcut (detected via metaKey).
+			if (isMacOS && e.ctrlKey && !e.metaKey) {
+				return false;
+			}
 			const hasMeta = e.ctrlKey || e.metaKey;
 			// 80: keyCode of "P"
 			return hasMeta && e.keyCode === 80;
