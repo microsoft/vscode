@@ -22,7 +22,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, isAIKeyword, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from './search.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IFolderQuery2, IProgressMessage, isAIKeyword, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from './search.js';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from './searchHelpers.js';
 
 export class SearchService extends Disposable implements ISearchService {
@@ -32,10 +32,12 @@ export class SearchService extends Disposable implements ISearchService {
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly aiTextSearchProviders = new Map<string, ISearchResultProvider>();
+	private readonly folderSearchProviders = new Map<string, ISearchResultProvider>();
 
 	private deferredFileSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 	private deferredTextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 	private deferredAITextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
+	private deferredFolderSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 
 	private loggedSchemesMissingProviders = new Set<string>();
 
@@ -63,6 +65,9 @@ export class SearchService extends Disposable implements ISearchService {
 		} else if (type === SearchProviderType.aiText) {
 			list = this.aiTextSearchProviders;
 			deferredMap = this.deferredAITextSearchesByScheme;
+		} else if (type === SearchProviderType.folder) {
+			list = this.folderSearchProviders;
+			deferredMap = this.deferredFolderSearchesByScheme;
 		} else {
 			throw new Error('Unknown SearchProviderType');
 		}
@@ -166,8 +171,16 @@ export class SearchService extends Disposable implements ISearchService {
 		return this.doSearch(query, token);
 	}
 
+	folderSearch(query: IFolderQuery2, token?: CancellationToken): Promise<ISearchComplete> {
+		return this.doSearch(query, token);
+	}
+
 	schemeHasFileSearchProvider(scheme: string): boolean {
 		return this.fileSearchProviders.has(scheme);
+	}
+
+	schemeHasFolderSearchProvider(scheme: string): boolean {
+		return this.folderSearchProviders.has(scheme);
 	}
 
 	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
@@ -250,6 +263,8 @@ export class SearchService extends Disposable implements ISearchService {
 				return this.textSearchProviders;
 			case QueryType.aiText:
 				return this.aiTextSearchProviders;
+			case QueryType.Folder:
+				return this.folderSearchProviders;
 			default:
 				throw new Error(`Unknown query type: ${type}`);
 		}
@@ -263,6 +278,8 @@ export class SearchService extends Disposable implements ISearchService {
 				return this.deferredTextSearchesByScheme;
 			case QueryType.aiText:
 				return this.deferredAITextSearchesByScheme;
+			case QueryType.Folder:
+				return this.deferredFolderSearchesByScheme;
 			default:
 				throw new Error(`Unknown query type: ${type}`);
 		}
@@ -312,6 +329,11 @@ export class SearchService extends Disposable implements ISearchService {
 				switch (query.type) {
 					case QueryType.File:
 						return provider.fileSearch(<IFileQuery>oneSchemeQuery, token);
+					case QueryType.Folder:
+						if (provider.folderSearch) {
+							return provider.folderSearch(<IFolderQuery2>oneSchemeQuery, token);
+						}
+						throw new Error(`Provider for scheme ${scheme} does not support folder search`);
 					case QueryType.Text:
 						return provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token);
 					default:
@@ -575,8 +597,10 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	async clearCache(cacheKey: string): Promise<void> {
-		const clearPs = Array.from(this.fileSearchProviders.values())
-			.map(provider => provider && provider.clearCache(cacheKey));
+		const clearPs = [
+			...Array.from(this.fileSearchProviders.values()),
+			...Array.from(this.folderSearchProviders.values())
+		].map(provider => provider && provider.clearCache(cacheKey));
 		await Promise.all(clearPs);
 	}
 }
