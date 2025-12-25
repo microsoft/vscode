@@ -320,7 +320,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			case 'tilde': {
 				const home = this._getHomeDir(useWindowsStylePath, capabilities);
 				if (home) {
-					lastWordFolderResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+					// Use the scheme and authority from cwd to handle remote scenarios correctly
+					const homePath = this._normalizePathForScheme(home, cwd.scheme);
+					const homeUri = cwd.with({ path: homePath });
+					lastWordFolderResource = URI.joinPath(homeUri, lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 				}
 				if (!lastWordFolderResource) {
 					// Use less strong wording here as it's not as strong of a concept on Windows
@@ -332,10 +335,16 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				break;
 			}
 			case 'absolute': {
+				// Use the scheme and authority from cwd to handle remote scenarios correctly
+				// (e.g., Remote SSH where cwd has vscode-remote:// scheme)
 				if (shellType === WindowsShellType.GitBash) {
-					lastWordFolderResource = URI.file(gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive));
+					const windowsPath = gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive);
+					const normalizedPath = this._normalizePathForScheme(windowsPath, cwd.scheme);
+					lastWordFolderResource = cwd.with({ path: normalizedPath });
 				} else {
-					lastWordFolderResource = URI.file(lastWordFolder.replaceAll('\\ ', ' '));
+					const cleanPath = lastWordFolder.replaceAll('\\ ', ' ');
+					const normalizedPath = this._normalizePathForScheme(cleanPath, cwd.scheme);
+					lastWordFolderResource = cwd.with({ path: normalizedPath });
 				}
 				break;
 			}
@@ -492,7 +501,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 						const cdPathEntries = cdPath.split(useWindowsStylePath ? ';' : ':');
 						for (const cdPathEntry of cdPathEntries) {
 							try {
-								const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
+								// Use the scheme and authority from cwd to handle remote scenarios correctly
+								const normalizedPath = this._normalizePathForScheme(cdPathEntry, cwd.scheme);
+								const cdPathUri = cwd.with({ path: normalizedPath });
+								const fileStat = await this._fileService.resolve(cdPathUri, { resolveSingleChildDescendants: true });
 								if (fileStat?.children) {
 									for (const child of fileStat.children) {
 										if (!child.isDirectory) {
@@ -553,7 +565,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			let homeResource: URI | string | undefined;
 			const home = this._getHomeDir(useWindowsStylePath, capabilities);
 			if (home) {
-				homeResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+				// Use the scheme and authority from cwd to handle remote scenarios correctly
+				const normalizedPath = this._normalizePathForScheme(home, cwd.scheme);
+				homeResource = cwd.with({ path: normalizedPath });
 			}
 			if (!homeResource) {
 				// Use less strong wording here as it's not as strong of a concept on Windows
@@ -573,6 +587,24 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return resourceCompletions;
 	}
 
+	/**
+	 * Normalizes a path for use with URI.with(). For file-like schemes (file, vscode-remote),
+	 * paths must start with / in the URI path component and use forward slashes as separators.
+	 * This is normally handled by _referenceResolution in the URI constructor, but URI.with() bypasses that logic.
+	 */
+	private _normalizePathForScheme(path: string, scheme: string): string {
+		// For file-like schemes, ensure the path starts with / and uses forward slashes
+		if (scheme === 'file' || scheme.startsWith('vscode-')) {
+			// First, normalize backslashes to forward slashes
+			path = path.replace(/\\/g, '/');
+			// Then ensure it starts with /
+			if (!path.startsWith('/')) {
+				path = '/' + path;
+			}
+		}
+		return path;
+	}
+
 	private _getEnvVar(key: string, capabilities: ITerminalCapabilityStore): string | undefined {
 		const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env?.value as { [key: string]: string | undefined };
 		if (env) {
@@ -588,8 +620,15 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 function getFriendlyPath(labelService: ILabelService, uri: URI, pathSeparator: string, kind: TerminalCompletionItemKind, shellType?: TerminalShellType): string {
 	let path = labelService.getUriLabel(uri, { noPrefix: true });
-	// Normalize line endings for folders
+	// Normalize path separators to match the requested separator
+	// This is important for remote scenarios where the terminal uses different separators than the host OS
 	const sep = shellType === WindowsShellType.GitBash ? '\\' : pathSeparator;
+	if (sep === '/') {
+		path = path.replace(/\\/g, '/');
+	} else if (sep === '\\') {
+		path = path.replace(/\//g, '\\');
+	}
+	// Add trailing separator for folders
 	if (kind === TerminalCompletionItemKind.Folder && !path.endsWith(sep)) {
 		path += sep;
 	}
