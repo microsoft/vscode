@@ -5,6 +5,7 @@
 
 import path from 'path';
 import fs from 'fs';
+import { getDate } from './util.ts';
 
 const root = path.join(import.meta.dirname, '..', '..');
 
@@ -18,7 +19,7 @@ export function writeISODate(outDir: string) {
 		const outDirectory = path.join(root, outDir);
 		fs.mkdirSync(outDirectory, { recursive: true });
 
-		const date = new Date().toISOString();
+		const date = getDate().toISOString();
 		fs.writeFileSync(path.join(outDirectory, 'date'), date, 'utf8');
 
 		resolve();

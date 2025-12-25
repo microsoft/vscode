@@ -44,6 +44,7 @@ function npmInstall(dir: string, opts?: child_process.SpawnSyncOptions) {
 	};
 
 	const command = process.env['npm_command'] || 'install';
+	const npm_install_command = process.env['npm_install_command'];
 
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		const userinfo = os.userInfo();
@@ -64,6 +65,9 @@ function npmInstall(dir: string, opts?: child_process.SpawnSyncOptions) {
 			'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && export PATH="/root/vscode/.build/nodejs-musl/usr/local/bin:$PATH" && npm i -g node-gyp-build && npm ci\"`
 		], opts);
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
+	} else if (npm_install_command) {
+		log(dir, `Installing dependencies by ${npm_install_command}`);
+		run(npm_install_command, [], opts);
 	} else {
 		log(dir, 'Installing dependencies...');
 		run(npm, command.split(' '), opts);
@@ -140,10 +144,6 @@ for (const dir of dirs) {
 				...process.env
 			},
 		};
-		if (process.env['CC']) { opts.env!['CC'] = 'gcc'; }
-		if (process.env['CXX']) { opts.env!['CXX'] = 'g++'; }
-		if (process.env['CXXFLAGS']) { opts.env!['CXXFLAGS'] = ''; }
-		if (process.env['LDFLAGS']) { opts.env!['LDFLAGS'] = ''; }
 
 		setNpmrcConfig('build', opts.env!);
 		npmInstall('build', opts);
@@ -182,5 +182,7 @@ for (const dir of dirs) {
 	npmInstall(dir, opts);
 }
 
-child_process.execSync('git config pull.rebase merges');
-child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+if (fs.existsSync(path.join(root, '.git'))) {
+	child_process.execSync('git config pull.rebase merges');
+	child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+}
