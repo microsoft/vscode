@@ -27,7 +27,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../actions/chatExecuteActions.js';
 
@@ -81,7 +81,9 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 						ToggleAgentModeActionId,
 						{ modeId: mode.id, sessionResource: this.delegate.sessionResource() } satisfies IToggleChatModeArgs
 					);
-					this.renderLabel(this.element!);
+					if (this.element) {
+						this.renderLabel(this.element);
+					}
 					return result;
 				},
 				category: isDisabledViaPolicy ? policyDisabledCategory : builtInCategory
@@ -104,7 +106,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id);
 				const customModes = groupBy(
 					modes.custom,
-					mode => mode.source?.storage === PromptsStorage.extension && mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId ?
+					mode => mode.source?.storage === PromptsStorage.extension && mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId && mode.source.type === ExtensionAgentSourceType.contribution ?
 						'builtin' : 'custom');
 
 				const customBuiltinModeActions = customModes.builtin?.map(mode => {

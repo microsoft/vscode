@@ -990,7 +990,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 
 export interface TerminalCompletionResourceOptions {
 	showFiles?: boolean;
-	showFolders?: boolean;
+	showDirectories?: boolean;
 	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }
@@ -3370,6 +3370,7 @@ export class ChatToolInvocationPart {
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
 	fromSubAgent?: boolean;
+	presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 	constructor(toolName: string,
 		toolCallId: string,
@@ -3425,6 +3426,10 @@ export enum ChatSessionStatus {
 	InProgress = 2
 }
 
+export class ChatSessionChangedFile {
+	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+}
+
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
@@ -3439,6 +3444,7 @@ export enum ChatResponseClearToPreviousToolInvocationReason {
 
 export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
 	constructor(
+		readonly editor: vscode.TextEditor,
 		readonly document: vscode.TextDocument,
 		readonly selection: vscode.Selection,
 		readonly wholeRange: vscode.Range,

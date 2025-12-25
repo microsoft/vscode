@@ -446,6 +446,8 @@ export class CodeBlockPart extends Disposable {
 		} else {
 			this.element.classList.add('no-vulns');
 		}
+
+		this._onDidChangeContentHeight.fire();
 	}
 
 	reset() {

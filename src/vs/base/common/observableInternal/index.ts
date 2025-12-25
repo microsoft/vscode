@@ -18,6 +18,7 @@ export {
 	derivedObservableWithWritableCache, keepObserved, mapObservableArrayCached, observableFromPromise,
 	recomputeInitiallyAndOnChange,
 	signalFromObservable, wasEventTriggeredRecently,
+	isObservable,
 } from './utils/utils.js';
 export { type DebugOwner } from './debugName.js';
 export { type IChangeContext, type IChangeTracker, recordChanges, recordChangesLazy } from './changeTracker.js';

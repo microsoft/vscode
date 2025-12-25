@@ -313,7 +313,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart,
 			{
 				kind: 'markdownContent',
-				content: typeof message === 'string' ? new MarkdownString().appendMarkdown(message) : message
+				content: typeof message === 'string' ? new MarkdownString().appendMarkdown(message) : message,
 			},
 			this.context,
 			this.editorPool,

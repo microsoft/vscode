@@ -29,6 +29,7 @@ import { CommentsInputContentProvider } from './commentsInputContentProvider.js'
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { CommentWidgetFocus } from './commentThreadZoneWidget.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { CommentThread, CommentThreadCollapsibleState, CommentThreadState } from '../../../../editor/common/languages.js';
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerWorkbenchContribution2(CommentsInputContentProvider.ID, CommentsInputContentProvider, WorkbenchPhase.BlockRestore);
@@ -330,6 +331,14 @@ registerAction2(class extends Action2 {
 	}
 });
 
+function changeAllCollapseState(commentService: ICommentService, newState: (commentThread: CommentThread) => CommentThreadCollapsibleState) {
+	for (const resource of commentService.commentsModel.resourceCommentThreads) {
+		for (const thread of resource.commentThreads) {
+			thread.thread.collapsibleState = newState(thread.thread);
+		}
+	}
+}
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -349,7 +358,8 @@ registerAction2(class extends Action2 {
 		});
 	}
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		getActiveController(accessor)?.collapseAll();
+		const commentService = accessor.get(ICommentService);
+		changeAllCollapseState(commentService, () => CommentThreadCollapsibleState.Collapsed);
 	}
 });
 
@@ -372,7 +382,8 @@ registerAction2(class extends Action2 {
 		});
 	}
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		getActiveController(accessor)?.expandAll();
+		const commentService = accessor.get(ICommentService);
+		changeAllCollapseState(commentService, () => CommentThreadCollapsibleState.Expanded);
 	}
 });
 
@@ -395,7 +406,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		getActiveController(accessor)?.expandUnresolved();
+		const commentService = accessor.get(ICommentService);
+		changeAllCollapseState(commentService, (commentThread) => {
+			return commentThread.state === CommentThreadState.Unresolved ? CommentThreadCollapsibleState.Expanded : CommentThreadCollapsibleState.Collapsed;
+		});
 	}
 });
 
@@ -467,18 +481,5 @@ export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor |
 	}
 
 	return activeTextEditorControl;
-}
-
-function getActiveController(accessor: ServicesAccessor): CommentController | undefined {
-	const activeEditor = getActiveEditor(accessor);
-	if (!activeEditor) {
-		return undefined;
-	}
-
-	const controller = CommentController.get(activeEditor);
-	if (!controller) {
-		return undefined;
-	}
-	return controller;
 }
 

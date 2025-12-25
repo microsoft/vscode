@@ -60,7 +60,7 @@ suite('RunInTerminalTool', () => {
 	let storageService: IStorageService;
 	let workspaceContextService: TestContextService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
-	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI; reason: 'cleared' }>;
+	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI[]; reason: 'cleared' }>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -75,7 +75,7 @@ suite('RunInTerminalTool', () => {
 
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
-		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI; reason: 'cleared' }>();
+		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
@@ -243,6 +243,11 @@ suite('RunInTerminalTool', () => {
 			'date +%Y-%m-%d',
 			'find . -name "*.txt"',
 			'grep pattern file.txt',
+			'rg pattern file.txt',
+			'rg --json pattern .',
+			'rg -i --color=never "TODO" src/',
+			'sed "s/foo/bar/g"',
+			'sed -n "1,10p" file.txt',
 			'sort file.txt',
 			'tree directory'
 		];
@@ -295,6 +300,19 @@ suite('RunInTerminalTool', () => {
 			'find . -exec rm {} \\;',
 			'find . -execdir rm {} \\;',
 			'find . -fprint output.txt',
+			'rg --pre cat pattern .',
+			'rg --hostname-bin hostname pattern .',
+			'sed -i "s/foo/bar/g" file.txt',
+			'sed -i.bak "s/foo/bar/" file.txt',
+			'sed -Ibak "s/foo/bar/" file.txt',
+			'sed --in-place "s/foo/bar/" file.txt',
+			'sed -e "s/a/b/" file.txt',
+			'sed -f script.sed file.txt',
+			'sed --expression "s/a/b/" file.txt',
+			'sed --file script.sed file.txt',
+			'sed "s/foo/bar/e" file.txt',
+			'sed "s/foo/bar/w output.txt" file.txt',
+			'sed ";W output.txt" file.txt',
 			'sort -o /etc/passwd file.txt',
 			'sort -S 100G file.txt',
 			'tree -o output.txt',
@@ -936,7 +954,7 @@ suite('RunInTerminalTool', () => {
 
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should exist before disposal');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession(sessionId), reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId)], reason: 'cleared' });
 
 			strictEqual(terminalDisposed, true, 'Terminal should have been disposed');
 			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should be removed after disposal');
@@ -973,7 +991,7 @@ suite('RunInTerminalTool', () => {
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should exist');
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should exist');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession(sessionId1), reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId1)], reason: 'cleared' });
 
 			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
 			strictEqual(terminal2Disposed, false, 'Terminal 2 should NOT have been disposed');
@@ -983,7 +1001,7 @@ suite('RunInTerminalTool', () => {
 
 		test('should handle disposal of non-existent session gracefully', () => {
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist initially');
-			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession('non-existent-session'), reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession('non-existent-session')], reason: 'cleared' });
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
 		});
 	});

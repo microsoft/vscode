@@ -16,6 +16,41 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
+ * Activation event for custom agent providers.
+ */
+export const CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentsProvider';
+
+/**
+ * Options for querying custom agents.
+ */
+export interface ICustomAgentQueryOptions { }
+
+/**
+ * Represents a custom agent resource from an external provider.
+ */
+export interface IExternalCustomAgent {
+	/**
+	 * The unique identifier/name of the custom agent resource.
+	 */
+	readonly name: string;
+
+	/**
+	 * A description of what the custom agent resource does.
+	 */
+	readonly description: string;
+
+	/**
+	 * The URI to the agent or prompt resource file.
+	 */
+	readonly uri: URI;
+
+	/**
+	 * Indicates whether the custom agent resource is editable. Defaults to false.
+	 */
+	readonly isEditable?: boolean;
+}
+
+/**
  * Provides prompt services.
  */
 export const IPromptsService = createDecorator<IPromptsService>('IPromptsService');
@@ -27,6 +62,14 @@ export enum PromptsStorage {
 	local = 'local',
 	user = 'user',
 	extension = 'extension'
+}
+
+/**
+ * The type of source for extension agents.
+ */
+export enum ExtensionAgentSourceType {
+	contribution = 'contribution',
+	provider = 'provider',
 }
 
 /**
@@ -65,8 +108,9 @@ export interface IPromptPathBase {
 export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.extension;
 	readonly extension: IExtensionDescription;
-	readonly name: string;
-	readonly description: string;
+	readonly source: ExtensionAgentSourceType;
+	readonly name?: string;
+	readonly description?: string;
 }
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
@@ -78,6 +122,7 @@ export interface IUserPromptPath extends IPromptPathBase {
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
+	readonly type: ExtensionAgentSourceType;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
 };
@@ -153,7 +198,7 @@ export interface IChatPromptSlashCommand {
 	readonly parsedPromptFile: ParsedPromptFile;
 }
 
-export interface IClaudeSkill {
+export interface IAgentSkill {
 	readonly uri: URI;
 	readonly type: 'personal' | 'project';
 	readonly name: string;
@@ -233,7 +278,7 @@ export interface IPromptsService extends IDisposable {
 	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
 	 * Not intended for extension authors; used by contribution point handler.
 	 */
-	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription): IDisposable;
+	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined): IDisposable;
 
 
 	getPromptLocationLabel(promptPath: IPromptPath): string;
@@ -271,7 +316,19 @@ export interface IPromptsService extends IDisposable {
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
 
 	/**
-	 * Gets list of claude skills files.
+	 * Registers a CustomAgentsProvider that can provide custom agents for repositories.
+	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
+	 * @param extension The extension registering the provider.
+	 * @param provider The provider implementation with optional change event.
+	 * @returns A disposable that unregisters the provider when disposed.
 	 */
-	findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined>;
+	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
+		onDidChangeCustomAgents?: Event<void>;
+		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+	}): IDisposable;
+
+	/**
+	 * Gets list of agent skills files.
+	 */
+	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined>;
 }

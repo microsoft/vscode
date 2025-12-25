@@ -22,10 +22,11 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatModel, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
+import { ChatModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
 import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
-import { IChatToolInvocation } from '../../common/chatService.js';
+import { IChatService, IChatToolInvocation } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { MockChatService } from './mockChatService.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,6 +41,83 @@ suite('ChatModel', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatService, new MockChatService());
+	});
+
+	test('initialization with exported data only (imported)', async () => {
+		const exportedData: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 'bot',
+			responderAvatarIconUri: undefined
+		};
+
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			exportedData,
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		assert.strictEqual(model.isImported, true);
+		assert.ok(model.sessionId); // Should have generated ID
+		assert.ok(model.timestamp > 0); // Should have generated timestamp
+	});
+
+	test('initialization with full serializable data (not imported)', async () => {
+		const now = Date.now();
+		const serializableData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'existing-session',
+			creationDate: now - 1000,
+			lastMessageDate: now,
+			customTitle: 'My Chat',
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 'bot',
+			responderAvatarIconUri: undefined
+		};
+
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			serializableData,
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		assert.strictEqual(model.isImported, false);
+		assert.strictEqual(model.sessionId, 'existing-session');
+		assert.strictEqual(model.timestamp, now - 1000);
+		assert.strictEqual(model.lastMessageDate, now);
+		assert.strictEqual(model.customTitle, 'My Chat');
+	});
+
+	test('initialization with invalid data', async () => {
+		const invalidData = {
+			// Missing required fields
+			requests: 'not-an-array'
+		} as unknown as IExportableChatData;
+
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			invalidData,
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		// Should handle gracefully with empty state
+		assert.strictEqual(model.getRequests().length, 0);
+		assert.ok(model.sessionId); // Should have generated ID
+	});
+
+	test('initialization without data', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			undefined,
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		assert.strictEqual(model.isImported, false);
+		assert.strictEqual(model.getRequests().length, 0);
+		assert.ok(model.sessionId);
+		assert.ok(model.timestamp > 0);
 	});
 
 	test('removeRequest', async () => {
@@ -175,7 +253,6 @@ suite('normalizeSerializableChatData', () => {
 		const v1Data: ISerializableChatData1 = {
 			creationDate: Date.now(),
 			initialLocation: undefined,
-			isImported: false,
 			requests: [],
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
@@ -186,7 +263,6 @@ suite('normalizeSerializableChatData', () => {
 		assert.strictEqual(newData.creationDate, v1Data.creationDate);
 		assert.strictEqual(newData.lastMessageDate, v1Data.creationDate);
 		assert.strictEqual(newData.version, 3);
-		assert.ok('customTitle' in newData);
 	});
 
 	test('v2', () => {
@@ -195,7 +271,6 @@ suite('normalizeSerializableChatData', () => {
 			creationDate: 100,
 			lastMessageDate: Date.now(),
 			initialLocation: undefined,
-			isImported: false,
 			requests: [],
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
@@ -217,7 +292,6 @@ suite('normalizeSerializableChatData', () => {
 			creationDate: undefined!,
 
 			initialLocation: undefined,
-			isImported: false,
 			requests: [],
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
@@ -238,7 +312,6 @@ suite('normalizeSerializableChatData', () => {
 
 			version: 3,
 			initialLocation: undefined,
-			isImported: false,
 			requests: [],
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
@@ -251,6 +324,159 @@ suite('normalizeSerializableChatData', () => {
 		assert.ok(newData.creationDate > 0);
 		assert.ok(newData.lastMessageDate > 0);
 		assert.ok(newData.sessionId);
+	});
+});
+
+suite('isExportableSessionData', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('valid exportable data', () => {
+		const validData: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 'bot',
+			responderAvatarIconUri: undefined
+		};
+
+		assert.strictEqual(isExportableSessionData(validData), true);
+	});
+
+	test('invalid - missing requests', () => {
+		const invalidData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			responderAvatarIconUri: undefined
+		};
+
+		assert.strictEqual(isExportableSessionData(invalidData), false);
+	});
+
+	test('invalid - requests not array', () => {
+		const invalidData = {
+			initialLocation: ChatAgentLocation.Chat,
+			requests: 'not-an-array',
+			responderUsername: 'bot',
+			responderAvatarIconUri: undefined
+		};
+
+		assert.strictEqual(isExportableSessionData(invalidData), false);
+	});
+
+	test('invalid - missing responderUsername', () => {
+		const invalidData = {
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderAvatarIconUri: undefined
+		};
+
+		assert.strictEqual(isExportableSessionData(invalidData), false);
+	});
+
+	test('invalid - responderUsername not string', () => {
+		const invalidData = {
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 123,
+			responderAvatarIconUri: undefined
+		};
+
+		assert.strictEqual(isExportableSessionData(invalidData), false);
+	});
+
+	test('invalid - null', () => {
+		assert.strictEqual(isExportableSessionData(null), false);
+	});
+
+	test('invalid - undefined', () => {
+		assert.strictEqual(isExportableSessionData(undefined), false);
+	});
+});
+
+suite('isSerializableSessionData', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('valid serializable data', () => {
+		const validData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'session1',
+			creationDate: Date.now(),
+			lastMessageDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 'bot',
+			responderAvatarIconUri: undefined
+		};
+
+		assert.strictEqual(isSerializableSessionData(validData), true);
+	});
+
+	test('valid - with usedContext', () => {
+		const validData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'session1',
+			creationDate: Date.now(),
+			lastMessageDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [{
+				requestId: 'req1',
+				message: 'test',
+				variableData: { variables: [] },
+				response: undefined,
+				usedContext: { documents: [], kind: 'usedContext' }
+			}],
+			responderUsername: 'bot',
+			responderAvatarIconUri: undefined
+		};
+
+		assert.strictEqual(isSerializableSessionData(validData), true);
+	});
+
+	test('invalid - missing sessionId', () => {
+		const invalidData = {
+			version: 3,
+			creationDate: Date.now(),
+			lastMessageDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 'bot',
+			responderAvatarIconUri: undefined
+		};
+
+		assert.strictEqual(isSerializableSessionData(invalidData), false);
+	});
+
+	test('invalid - missing creationDate', () => {
+		const invalidData = {
+			version: 3,
+			sessionId: 'session1',
+			lastMessageDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 'bot',
+			responderAvatarIconUri: undefined
+		};
+
+		assert.strictEqual(isSerializableSessionData(invalidData), false);
+	});
+
+	test('invalid - not exportable', () => {
+		const invalidData = {
+			version: 3,
+			sessionId: 'session1',
+			creationDate: Date.now(),
+			lastMessageDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			requests: 'not-an-array',
+			responderUsername: 'bot',
+			responderAvatarIconUri: undefined
+		};
+
+		assert.strictEqual(isSerializableSessionData(invalidData), false);
 	});
 });
 
@@ -267,6 +493,7 @@ suite('ChatResponseModel', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatService, new MockChatService());
 	});
 
 	test('timestamp and confirmationAdjustedTimestamp', async () => {
@@ -291,6 +518,7 @@ suite('ChatResponseModel', () => {
 			const toolInvocation = {
 				kind: 'toolInvocation',
 				invocationMessage: 'calling tool',
+				confirmationMessages: { title: 'Please confirm' },
 				state: toolState
 			} as Partial<IChatToolInvocation> as IChatToolInvocation;
 

@@ -57,6 +57,14 @@
 				margin-bottom: 0px;
 				padding-top: 0px;
 			}
+
+			[data-code] {
+				background-color: var(--vscode-textPreformat-background);
+				padding: 1px 3px;
+				border-radius: 4px;
+				border: 1px solid var(--vscode-textPreformat-border);
+				white-space: pre-wrap;
+			}
 		}
 
 		/* chain of thought lines */
@@ -152,5 +160,4 @@
 	display: inline;
 	line-height: inherit;
 	padding: 0 4px;
-	font-size: inherit;
 }

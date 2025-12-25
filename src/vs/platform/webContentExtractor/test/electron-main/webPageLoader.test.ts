@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AXNode } from '../../electron-main/cdpAccessibilityDomain.js';
 import { WebPageLoader } from '../../electron-main/webPageLoader.js';
@@ -20,12 +21,27 @@ class MockWebContents {
 	public readonly debugger: MockDebugger;
 	public loadURL = sinon.stub().resolves();
 	public getTitle = sinon.stub().returns('Test Page Title');
+	public executeJavaScript = sinon.stub().resolves(undefined);
+
+	public session = {
+		webRequest: {
+			onBeforeSendHeaders: sinon.stub()
+		}
+	};
 
 	constructor() {
 		this.debugger = new MockDebugger();
 	}
 
 	once(event: string, listener: (...args: unknown[]) => void): this {
+		if (!this._listeners.has(event)) {
+			this._listeners.set(event, []);
+		}
+		this._listeners.get(event)!.push(listener);
+		return this;
+	}
+
+	on(event: string, listener: (...args: unknown[]) => void): this {
 		if (!this._listeners.has(event)) {
 			this._listeners.set(event, []);
 		}
@@ -117,7 +133,7 @@ suite('WebPageLoader', () => {
 
 	//#region Basic Loading Tests
 
-	test('successful page load returns ok status with content', async () => {
+	test('successful page load returns ok status with content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
 		const axNodes = createMockAXNodes();
 
@@ -145,7 +161,7 @@ suite('WebPageLoader', () => {
 		assert.strictEqual(result.status, 'ok');
 		assert.strictEqual(result.title, 'Test Page Title');
 		assert.ok(result.result.includes('Test content from page'));
-	});
+	}));
 
 	test('page load failure returns error status', async () => {
 		const uri = URI.parse('https://example.com/page');
@@ -178,6 +194,38 @@ suite('WebPageLoader', () => {
 		}
 	});
 
+	test('ERR_ABORTED is ignored and content extraction continues', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const axNodes = createMockAXNodes();
+
+		const loader = createWebPageLoader(uri);
+
+		window.webContents.debugger.sendCommand.callsFake((command: string) => {
+			switch (command) {
+				case 'Network.enable':
+					return Promise.resolve();
+				case 'Accessibility.getFullAXTree':
+					return Promise.resolve({ nodes: axNodes });
+				default:
+					assert.fail(`Unexpected command: ${command}`);
+			}
+		});
+
+		const loadPromise = loader.load();
+
+		// Simulate ERR_ABORTED (-3) which should be ignored
+		const mockEvent: MockElectronEvent = {};
+		window.webContents.emit('did-fail-load', mockEvent, -3, 'ERR_ABORTED');
+
+		const result = await loadPromise;
+
+		// ERR_ABORTED should not cause an error status, content should be extracted
+		assert.strictEqual(result.status, 'ok');
+		if (result.status === 'ok') {
+			assert.ok(result.result.includes('Test content from page'));
+		}
+	}));
+
 	//#endregion
 
 	//#region Redirect Tests
@@ -207,7 +255,7 @@ suite('WebPageLoader', () => {
 		assert.ok((mockEvent.preventDefault!).called);
 	});
 
-	test('redirect to same authority is not treated as redirect', async () => {
+	test('redirect to same authority is not treated as redirect', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
 		const redirectUrl = 'https://example.com/other-page';
 		const axNodes = createMockAXNodes();
@@ -242,9 +290,9 @@ suite('WebPageLoader', () => {
 
 		const result = await loadPromise;
 		assert.strictEqual(result.status, 'ok');
-	});
+	}));
 
-	test('redirect is followed when followRedirects option is true', async () => {
+	test('redirect is followed when followRedirects option is true', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
 		const redirectUrl = 'https://other-domain.com/redirected';
 		const axNodes = createMockAXNodes();
@@ -279,7 +327,7 @@ suite('WebPageLoader', () => {
 
 		const result = await loadPromise;
 		assert.strictEqual(result.status, 'ok');
-	});
+	}));
 
 	//#endregion
 
@@ -405,7 +453,7 @@ suite('WebPageLoader', () => {
 
 	//#region Network Request Tracking Tests
 
-	test('tracks network requests and waits for completion', async () => {
+	test('tracks network requests and waits for completion', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
 		const axNodes = createMockAXNodes();
 
@@ -450,9 +498,9 @@ suite('WebPageLoader', () => {
 		const result = await loadPromise;
 
 		assert.strictEqual(result.status, 'ok');
-	});
+	}));
 
-	test('handles network request failures gracefully', async () => {
+	test('handles network request failures gracefully', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
 		const axNodes = createMockAXNodes();
 
@@ -488,13 +536,13 @@ suite('WebPageLoader', () => {
 		const result = await loadPromise;
 
 		assert.strictEqual(result.status, 'ok');
-	});
+	}));
 
 	//#endregion
 
 	//#region Accessibility Tree Extraction Tests
 
-	test('extracts content from accessibility tree', async () => {
+	test('extracts content from accessibility tree', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
 		const axNodes: AXNode[] = [
 			{
@@ -537,10 +585,19 @@ suite('WebPageLoader', () => {
 		if (result.status === 'ok') {
 			assert.ok(result.result.includes('# Page Title'));
 		}
-	});
+	}));
 
-	test('handles empty accessibility tree', async () => {
-		const uri = URI.parse('https://example.com/empty');
+	test('falls back to DOM extraction when accessibility tree yields insufficient content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		// Create AX tree with very short content (less than MIN_CONTENT_LENGTH)
+		const shortAXNodes: AXNode[] = [
+			{
+				nodeId: 'node1',
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: 'Short' }
+			}
+		];
 
 		const loader = createWebPageLoader(uri);
 
@@ -549,11 +606,15 @@ suite('WebPageLoader', () => {
 				case 'Network.enable':
 					return Promise.resolve();
 				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: [] });
+					return Promise.resolve({ nodes: shortAXNodes });
 				default:
 					assert.fail(`Unexpected command: ${command}`);
 			}
 		});
+
+		// Mock DOM extraction returning longer content
+		const domContent = 'This is much longer content extracted from the DOM that exceeds the minimum content length requirement and should be used instead of the short accessibility tree content.';
+		window.webContents.executeJavaScript.resolves(domContent);
 
 		const loadPromise = loader.load();
 
@@ -564,12 +625,14 @@ suite('WebPageLoader', () => {
 
 		assert.strictEqual(result.status, 'ok');
 		if (result.status === 'ok') {
-			assert.strictEqual(result.result, '');
+			assert.strictEqual(result.result, domContent);
 		}
-	});
+		// Verify executeJavaScript was called for DOM extraction
+		assert.ok(window.webContents.executeJavaScript.called);
+	}));
 
-	test('handles accessibility extraction failure', async () => {
-		const uri = URI.parse('https://example.com/page');
+	test('returns error when both accessibility tree and DOM extraction yield no content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/empty-page');
 
 		const loader = createWebPageLoader(uri);
 
@@ -578,11 +641,15 @@ suite('WebPageLoader', () => {
 				case 'Network.enable':
 					return Promise.resolve();
 				case 'Accessibility.getFullAXTree':
-					return Promise.reject(new Error('Debugger detached'));
+					// Return empty accessibility tree
+					return Promise.resolve({ nodes: [] });
 				default:
 					assert.fail(`Unexpected command: ${command}`);
 			}
 		});
+
+		// Mock DOM extraction returning undefined (no content)
+		window.webContents.executeJavaScript.resolves(undefined);
 
 		const loadPromise = loader.load();
 
@@ -593,15 +660,52 @@ suite('WebPageLoader', () => {
 
 		assert.strictEqual(result.status, 'error');
 		if (result.status === 'error') {
-			assert.ok(result.error.includes('Debugger detached'));
+			assert.ok(result.error.includes('Failed to extract meaningful content'));
 		}
+		// Verify both extraction methods were attempted
+		assert.ok(window.webContents.executeJavaScript.called);
+	}));
+
+	//#endregion
+
+	//#region Header Modification Tests
+
+	test('onBeforeSendHeaders adds browser headers for navigation', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		// Get the callback passed to onBeforeSendHeaders
+		assert.ok(window.webContents.session.webRequest.onBeforeSendHeaders.called);
+		const callback = window.webContents.session.webRequest.onBeforeSendHeaders.getCall(0).args[0];
+
+		// Mock callback function
+		let modifiedHeaders: Record<string, string> | undefined;
+		const mockCallback = (details: { requestHeaders: Record<string, string> }) => {
+			modifiedHeaders = details.requestHeaders;
+		};
+
+		// Simulate a request to the same domain
+		callback(
+			{
+				url: 'https://example.com/page',
+				requestHeaders: {
+					'TestHeader': 'TestValue'
+				}
+			},
+			mockCallback
+		);
+
+		// Verify headers were added
+		assert.ok(modifiedHeaders);
+		assert.strictEqual(modifiedHeaders['DNT'], '1');
+		assert.strictEqual(modifiedHeaders['Sec-GPC'], '1');
+		assert.strictEqual(modifiedHeaders['TestHeader'], 'TestValue');
 	});
 
 	//#endregion
 
 	//#region Disposal Tests
 
-	test('disposes resources after load completes', async () => {
+	test('disposes resources after load completes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
 
 		const loader = createWebPageLoader(uri);
@@ -626,7 +730,7 @@ suite('WebPageLoader', () => {
 
 		// The loader should call destroy on the window when disposed
 		assert.ok(window.destroy.called);
-	});
+	}));
 
 	//#endregion
 });

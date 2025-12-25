@@ -12,11 +12,13 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IChatAgentRequest, IChatAgentService } from '../chatAgents.js';
+import { IChatAgentRequest, IChatAgentService, UserSelectedTools } from '../chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../chatModel.js';
 import { IChatModeService } from '../chatModes.js';
 import { IChatProgress, IChatService } from '../chatService.js';
+import { ChatRequestVariableSet } from '../chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../languageModels.js';
 import {
@@ -31,8 +33,10 @@ import {
 	ToolDataSource,
 	ToolProgress,
 	ToolSet,
-	VSCodeToolReference
+	VSCodeToolReference,
+	IToolAndToolSetEnablementMap
 } from '../languageModelToolsService.js';
+import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
 import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
 
@@ -65,6 +69,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@ILogService private readonly logService: ILogService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this.onDidUpdateToolData = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents));
@@ -97,7 +102,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const runSubagentToolData: IToolData = {
 			id: RunSubagentToolId,
 			toolReferenceName: VSCodeToolReference.runSubagent,
-			legacyToolReferenceFullNames: ['runSubagent'],
 			icon: ThemeIcon.fromId(Codicon.organization.id),
 			displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),
 			userDescription: localize('tool.runSubagent.userDescription', 'Run a task within an isolated subagent context to enable efficient organization of tasks and context window management.'),
@@ -215,14 +219,15 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				modeTools[ManageTodoListToolToolId] = false;
 			}
 
+			const variableSet = await this.collectVariables(modeTools, token);
+
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {
-				sessionId: invocation.context.sessionId,
 				sessionResource: invocation.context.sessionResource,
 				requestId: invocation.callId ?? `subagent-${Date.now()}`,
 				agentId: defaultAgent.id,
 				message: args.prompt,
-				variables: { variables: [] },
+				variables: { variables: variableSet.asArray() },
 				location: ChatAgentLocation.Chat,
 				isSubagent: true,
 				userSelectedModelId: modeModelId,
@@ -259,5 +264,27 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		return {
 			invocationMessage: args.description,
 		};
+	}
+
+	private async collectVariables(modeTools: UserSelectedTools | undefined, token: CancellationToken): Promise<ChatRequestVariableSet> {
+		let enabledTools: IToolAndToolSetEnablementMap | undefined;
+
+		if (modeTools) {
+			// Convert tool IDs to full reference names
+
+			const enabledToolIds = Object.entries(modeTools).filter(([, enabled]) => enabled).map(([id]) => id);
+			const tools = enabledToolIds.map(id => this.languageModelToolsService.getTool(id)).filter(tool => !!tool);
+
+			const fullReferenceNames = tools.map(tool => this.languageModelToolsService.getFullReferenceName(tool));
+			if (fullReferenceNames.length > 0) {
+				enabledTools = this.languageModelToolsService.toToolAndToolSetEnablementMap(fullReferenceNames, undefined);
+			}
+		}
+
+		const variableSet = new ChatRequestVariableSet();
+		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, enabledTools);
+		await computer.collect(variableSet, token);
+
+		return variableSet;
 	}
 }

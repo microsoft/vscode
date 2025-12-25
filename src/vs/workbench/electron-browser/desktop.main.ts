@@ -154,12 +154,8 @@ export class DesktopMain extends Disposable {
 	}
 
 	private getExtraClasses(): string[] {
-		if (isMacintosh) {
-			if (isTahoeOrNewer(this.configuration.os.release)) {
-				return ['macos-rounded-tahoe'];
-			} else {
-				return ['macos-rounded-default'];
-			}
+		if (isMacintosh && isTahoeOrNewer(this.configuration.os.release)) {
+			return ['macos-tahoe'];
 		}
 
 		return [];

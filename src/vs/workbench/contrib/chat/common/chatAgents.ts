@@ -132,8 +132,6 @@ export type UserSelectedTools = Record<string, boolean>;
 
 
 export interface IChatAgentRequest {
-	/** @deprecated Use {@linkcode sessionResource} instead */
-	sessionId: string;
 	sessionResource: URI;
 	requestId: string;
 	agentId: string;
@@ -745,8 +743,12 @@ interface IOldSerializedChatAgentData extends Omit<ISerializableChatAgentData, '
 	extensionPublisher?: string;
 }
 
+function isSerializableChatAgentData(obj: ISerializableChatAgentData | IOldSerializedChatAgentData): obj is ISerializableChatAgentData {
+	return (obj as ISerializableChatAgentData).name !== undefined;
+}
+
 export function reviveSerializedAgent(raw: ISerializableChatAgentData | IOldSerializedChatAgentData): IChatAgentData {
-	const normalized: ISerializableChatAgentData = 'name' in raw ?
+	const normalized: ISerializableChatAgentData = isSerializableChatAgentData(raw) ?
 		raw :
 		{
 			...raw,

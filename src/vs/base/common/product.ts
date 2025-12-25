@@ -43,6 +43,7 @@ export interface IChatSessionRecommendation {
 	readonly displayName: string;
 	readonly name: string;
 	readonly description: string;
+	readonly postInstallCommand?: string;
 }
 
 export type ConfigurationSyncStore = {

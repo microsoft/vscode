@@ -10,7 +10,7 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
-import { IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatTransferredSessionData, IChatUserActionEvent } from '../../common/chatService.js';
+import { IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
@@ -19,11 +19,14 @@ export class MockChatService implements IChatService {
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
-	transferredSessionData: IChatTransferredSessionData | undefined;
+	transferredSessionResource: URI | undefined;
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }> = Event.None;
 
 	private sessions = new ResourceMap<IChatModel>();
 
+	setSaveModelsEnabled(enabled: boolean): void {
+
+	}
 	isEnabled(location: ChatAgentLocation): boolean {
 		throw new Error('Method not implemented.');
 	}
@@ -33,7 +36,7 @@ export class MockChatService implements IChatService {
 	getProviderInfos(): IChatProviderInfo[] {
 		throw new Error('Method not implemented.');
 	}
-	startSession(location: ChatAgentLocation, token: CancellationToken): IChatModelReference {
+	startSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference {
 		throw new Error('Method not implemented.');
 	}
 	addSession(session: IChatModel): void {
@@ -46,7 +49,7 @@ export class MockChatService implements IChatService {
 	async getOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
 		throw new Error('Method not implemented.');
 	}
-	getPersistedSessionTitle(sessionResource: URI): string | undefined {
+	getSessionTitle(sessionResource: URI): string | undefined {
 		throw new Error('Method not implemented.');
 	}
 	loadSessionFromContent(data: ISerializableChatData): IChatModelReference | undefined {
@@ -99,9 +102,9 @@ export class MockChatService implements IChatService {
 	notifyUserAction(event: IChatUserActionEvent): void {
 		throw new Error('Method not implemented.');
 	}
-	readonly onDidDisposeSession: Event<{ sessionResource: URI; reason: 'cleared' }> = undefined!;
+	readonly onDidDisposeSession: Event<{ sessionResource: URI[]; reason: 'cleared' }> = undefined!;
 
-	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
+	async transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -121,10 +124,6 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	isPersistedSessionEmpty(sessionResource: URI): boolean {
-		throw new Error('Method not implemented.');
-	}
-
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
@@ -133,7 +132,7 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	getLiveSessionItems(): IChatDetail[] {
+	async getLiveSessionItems(): Promise<IChatDetail[]> {
 		throw new Error('Method not implemented.');
 	}
 	getHistorySessionItems(): Promise<IChatDetail[]> {
@@ -141,6 +140,9 @@ export class MockChatService implements IChatService {
 	}
 
 	waitForModelDisposals(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
 		throw new Error('Method not implemented.');
 	}
 }
