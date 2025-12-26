@@ -177,7 +177,7 @@ async function copyMatchCommand(accessor: ServicesAccessor, match: RenderableMat
 	}
 }
 
-async function copyAllCommand(accessor: ServicesAccessor, match: RenderableMatch | undefined) {
+async function copyAllCommand(accessor: ServicesAccessor, match: RenderableMatch | undefined | null) {
 	const viewsService = accessor.get(IViewsService);
 	const clipboardService = accessor.get(IClipboardService);
 	const labelService = accessor.get(ILabelService);
@@ -186,6 +186,10 @@ async function copyAllCommand(accessor: ServicesAccessor, match: RenderableMatch
 	if (searchView) {
 		const root = searchView.searchResult;
 		const isAISearchElement = isAISearchResult(match);
+
+		if (!match) {
+			match = getSelectedRow(accessor);
+		}
 
 		const text = allFolderMatchesToString(root.folderMatches(isAISearchElement), labelService);
 		await clipboardService.writeText(text);
@@ -282,11 +286,17 @@ function isAISearchResult(element: RenderableMatch | undefined | null): boolean 
 
 	if (isSearchTreeMatch(element)) {
 		return element.parent().parent().isAIContributed();
-	} else if (isSearchTreeFileMatch(element)) {
+	}
+
+	if (isSearchTreeFileMatch(element)) {
 		return element.parent().isAIContributed();
-	} else if (isSearchTreeFolderMatch(element)) {
+	}
+
+	if (isSearchTreeFolderMatch(element)) {
 		return element.isAIContributed();
-	} else if (isTextSearchHeading(element)) {
+	}
+
+	if (isTextSearchHeading(element)) {
 		return element.isAIContributed;
 	}
 
