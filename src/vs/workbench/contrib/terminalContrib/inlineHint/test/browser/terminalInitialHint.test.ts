@@ -8,7 +8,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ShellIntegrationAddon } from '../../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { InitialHintAddon } from '../../browser/terminal.initialHint.contribution.js';
 import { getActiveDocument } from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { strictEqual } from 'assert';
@@ -16,6 +15,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { IChatAgent } from '../../../../chat/common/chatAgents.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../chat/common/constants.js';
+import { InitialHintAddon } from '../../browser/terminal.initialHint.contribution.js';
 
 suite('Terminal Initial Hint Addon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
