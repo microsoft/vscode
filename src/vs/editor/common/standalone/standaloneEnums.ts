@@ -335,18 +335,19 @@ export enum EditorOption {
 	inertialScroll = 158,
 	inlayHints = 159,
 	wrapOnEscapedLineFeeds = 160,
-	effectiveCursorStyle = 161,
-	editorClassName = 162,
-	pixelRatio = 163,
-	tabFocusMode = 164,
-	layoutInfo = 165,
-	wrappingInfo = 166,
-	defaultColorDecorators = 167,
-	colorDecoratorsActivatedOn = 168,
-	inlineCompletionsAccessibilityVerbose = 169,
-	effectiveEditContext = 170,
-	scrollOnMiddleClick = 171,
-	effectiveAllowVariableFonts = 172
+	lineNumbersFontSize = 161,
+	effectiveCursorStyle = 162,
+	editorClassName = 163,
+	pixelRatio = 164,
+	tabFocusMode = 165,
+	layoutInfo = 166,
+	wrappingInfo = 167,
+	defaultColorDecorators = 168,
+	colorDecoratorsActivatedOn = 169,
+	inlineCompletionsAccessibilityVerbose = 170,
+	effectiveEditContext = 171,
+	scrollOnMiddleClick = 172,
+	effectiveAllowVariableFonts = 173
 }
 
 /**
