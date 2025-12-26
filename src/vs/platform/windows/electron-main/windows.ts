@@ -134,7 +134,8 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
 	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean; accentColor?: boolean | string } = {
-		backgroundColor: themeMainService.getBackgroundColor(),
+		transparent: true,
+		backgroundColor: '#00000000',
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
 		title: productService.nameLong,
