@@ -457,7 +457,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	@debounce(500)
 	private eventuallyScanPossibleGitRepositories(): void {
 		for (const path of this.possibleGitRepositoryPaths) {
-			this.openRepository(path, false, true);
+			this.openRepository(path);
 		}
 
 		this.possibleGitRepositoryPaths.clear();
@@ -572,7 +572,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	@sequentialize
-	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
@@ -621,7 +621,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
 			if (parentRepositoryConfig !== 'always' && this.globalState.get<boolean>(`parentRepository:${repositoryRoot}`) !== true) {
 				const isRepositoryOutsideWorkspace = await this.isRepositoryOutsideWorkspace(repositoryRoot);
-				if (!openIfParent && isRepositoryOutsideWorkspace) {
+				if (isRepositoryOutsideWorkspace) {
 					this.logger.trace(`[Model][openRepository] Repository in parent folder: ${repositoryRoot}`);
 
 					if (!this._parentRepositoriesManager.hasRepository(repositoryRoot)) {
@@ -1092,6 +1092,14 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		if (workspaceFolders.length === 0) {
 			return true;
+		}
+
+		// The repository path may be a worktree (usually stored outside the workspace) so we have
+		// to check the repository path against all the worktree paths of the repositories that have
+		// already been opened.
+		const worktreePaths = new Set(this.repositories.map(r => r.worktrees.map(w => w.path)).flat());
+		if (Array.from(worktreePaths).some(p => pathEquals(p, repositoryPath))) {
+			return false;
 		}
 
 		// The repository path may be a canonical path or it may contain a symbolic link so we have
