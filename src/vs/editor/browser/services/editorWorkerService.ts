@@ -239,9 +239,9 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		return worker.$findSectionHeaders(uri.toString(), options);
 	}
 
-	public async computeDefaultDocumentColors(uri: URI): Promise<languages.IColorInformation[] | null> {
+	public async computeDefaultDocumentColors(uri: URI, colorFormat?: 'rgba' | 'argb'): Promise<languages.IColorInformation[] | null> {
 		const worker = await this._workerWithResources([uri]);
-		return worker.$computeDefaultDocumentColors(uri.toString());
+		return worker.$computeDefaultDocumentColors(uri.toString(), colorFormat);
 	}
 
 	private async _workerWithResources(resources: URI[], forceLargeModels: boolean = false): Promise<Proxied<EditorWorker>> {

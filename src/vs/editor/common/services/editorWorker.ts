@@ -43,7 +43,7 @@ export interface IEditorWorkerService {
 
 	findSectionHeaders(uri: URI, options: FindSectionHeaderOptions): Promise<SectionHeader[]>;
 
-	computeDefaultDocumentColors(uri: URI): Promise<IColorInformation[] | null>;
+	computeDefaultDocumentColors(uri: URI, colorFormat?: 'rgba' | 'argb'): Promise<IColorInformation[] | null>;
 
 }
 

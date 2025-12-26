@@ -28,7 +28,7 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 	canNavigateValueSet(resource: URI): boolean { return false; }
 	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
 	async findSectionHeaders(uri: URI): Promise<SectionHeader[]> { return []; }
-	async computeDefaultDocumentColors(uri: URI): Promise<IColorInformation[] | null> { return null; }
+	async computeDefaultDocumentColors(uri: URI, colorFormat?: 'rgba' | 'argb'): Promise<IColorInformation[] | null> { return null; }
 
 	computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit> {
 		throw new Error('Method not implemented.');
