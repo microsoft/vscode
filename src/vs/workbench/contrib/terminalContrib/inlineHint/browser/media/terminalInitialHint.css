@@ -10,6 +10,7 @@
 .monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint a,
 .monaco-workbench .terminal-editor .terminal-initial-hint a {
 	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint a,

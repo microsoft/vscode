@@ -19,7 +19,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -35,10 +34,6 @@ import { TerminalSuggestCommandId } from '../../suggest/common/terminal.suggest.
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 const $ = dom.$;
-
-const enum Constants {
-	InitialHintHideStorageKey = 'terminal.initialHint.hide'
-}
 
 export class InitialHintAddon extends Disposable implements ITerminalAddon {
 	private readonly _onDidRequestCreateHint = this._register(new Emitter<void>());
@@ -94,16 +89,8 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
-
-		// Reset hint state when config changes
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled)) {
-				this._storageService.remove(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION);
-			}
-		}));
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -112,7 +99,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			return;
 		}
 		// Don't show if disabled
-		if (this._storageService.getBoolean(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION, false)) {
+		if (!this._configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
 			return;
 		}
 		this._xterm = xterm;
@@ -214,7 +201,6 @@ class TerminalInitialHintWidget extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
@@ -233,20 +219,20 @@ class TerminalInitialHintWidget extends Disposable {
 	private _getHintInlineChat() {
 		const ariaLabelParts: string[] = [];
 
+		// TODO: Show don't show again link
 		const handleClick = () => {
-			this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 			this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 				id: 'terminalInlineChat.hintAction',
 				from: 'hint'
 			});
 			this._commandService.executeCommand(TerminalChatCommandId.Start, { from: 'hint' });
 		};
-		this._toDispose.add(this._commandService.onDidExecuteCommand(e => {
-			if (e.commandId === TerminalChatCommandId.Start) {
-				this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
-				this.dispose();
-			}
-		}));
+		// this._toDispose.add(this._commandService.onDidExecuteCommand(e => {
+		// 	if (e.commandId === TerminalChatCommandId.Start) {
+		// 		this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
+		// 		this.dispose();
+		// 	}
+		// }));
 
 		const hintHandler: IContentActionHandler = {
 			disposables: this._toDispose,
@@ -306,11 +292,11 @@ class TerminalInitialHintWidget extends Disposable {
 			}
 		}
 
-		// Intellisense hint
+		// Suggest hint
 		const suggestKeybinding = this._keybindingService.lookupKeybinding(TerminalSuggestCommandId.TriggerSuggest);
 		const suggestKeybindingLabel = suggestKeybinding?.getLabel();
 		if (suggestKeybinding && suggestKeybindingLabel) {
-			const suggestActionPart = localize('showIntellisenseHint', 'Show Intellisense {0}. ', suggestKeybindingLabel);
+			const suggestActionPart = localize('showSuggestHint', 'Show suggestions {0}. ', suggestKeybindingLabel);
 
 			const handleSuggestClick = () => {
 				this._commandService.executeCommand(TerminalSuggestCommandId.TriggerSuggest);
