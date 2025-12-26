@@ -663,22 +663,24 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
-		test('preserves selected text when selections do not span lines', function () {
+		test('preserves single-line selected text when reversing whole document', function () {
 			withTestCodeEditor(
 				[
 					'alice',
-					'bob',
+					'bob the builder',
 					'charlie',
+					'david',
 					'',
 				], {}, (editor) => {
 					const model = editor.getModel()!;
 					const reverseLinesAction = new ReverseLinesAction();
-					editor.setSelections([new Selection(1, 1, 1, 3), new Selection(2, 1, 2, 4), new Selection(3, 1, 3, 5)]);
-					const expectedSelectedText: string[] = ['al', 'bob', 'char'];
-					assert.deepStrictEqual(editor.getSelections().map(s => model.getValueInRange(s)), expectedSelectedText);
+					editor.setSelection(new Selection(2, 5, 2, 8));
+					const expectedSelectedText = 'the';
+					assert.strictEqual(model.getValueInRange(editor.getSelection()), expectedSelectedText);
 
 					executeAction(reverseLinesAction, editor);
-					assert.deepStrictEqual(editor.getSelections().map(s => model.getValueInRange(s)), expectedSelectedText);
+					assert.strictEqual(model.getValueInRange(editor.getSelection()), expectedSelectedText);
+					assertSelection(editor, new Selection(3, 5, 3, 8));
 				});
 		});
 
@@ -740,29 +742,29 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
-		test('updates selection positions after reversal', function () {
+		test('selects the lines that were reversed', function () {
 			withTestCodeEditor(
 				[
-					'line1',
-					'line2',
-					'line3',
-					'line4',
+					'alice',
+					'bob the builder',
+					'charlie the creator',
+					'david',
 				], {}, (editor) => {
+					const model = editor.getModel()!;
 					const reverseLinesAction = new ReverseLinesAction();
 
-					// Select lines 1-3
-					editor.setSelection(new Selection(1, 2, 3, 3));
+					// Select from line 2 to 3
+					editor.setSelection(new Selection(2, 9, 3, 8));
+					assert.strictEqual(model.getValueInRange(editor.getSelection()), 'builder\ncharlie');
+					const expectedCurrentLine = 'charlie the creator';
+					assert.deepEqual(model.getLineContent(editor.getPosition().lineNumber), expectedCurrentLine);
+
 					executeAction(reverseLinesAction, editor);
 
-					// After reversal, selection should be updated to maintain relative position
-					// Originally line 1 col 2 -> line 3 col 3, so after reversal should be line 3 col 2 -> line 1 col 3
-					const selection = editor.getSelection()!;
-					// The selection should cover the same logical text after reversal
-					// Range normalization ensures startLineNumber <= endLineNumber
-					assert.strictEqual(selection.startLineNumber, 1);
-					assert.strictEqual(selection.startColumn, 3);
-					assert.strictEqual(selection.endLineNumber, 3);
-					assert.strictEqual(selection.endColumn, 2);
+					assert.deepStrictEqual(model.getLinesContent(), ['alice', 'charlie the creator', 'bob the builder', 'david'], 'Lines 2 and 3 should be reversed');
+					assert.deepEqual(model.getLineContent(editor.getPosition().lineNumber), expectedCurrentLine, 'Text on current line should remain the same');
+					assertSelection(editor, new Selection(3, 16, 2, 1));
+					assert.strictEqual(model.getValueInRange(editor.getSelection()), 'charlie the creator\nbob the builder', 'Lines 2 and 3 should be selected entirely');
 				});
 		});
 
