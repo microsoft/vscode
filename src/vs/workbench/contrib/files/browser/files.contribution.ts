@@ -483,7 +483,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.confirmDelete': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDelete', "Controls whether the Explorer should ask for confirmation when deleting a file via the trash."),
+			'description': nls.localize('confirmDelete', "Controls whether the Explorer should ask for confirmation when deleting files and folders."),
 			'default': true
 		},
 		'explorer.enableUndo': {
