@@ -25,13 +25,14 @@ import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../pla
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAgent, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalInstance } from '../../../terminal/browser/terminalInstance.js';
 import { TerminalChatCommandId } from '../../chat/browser/terminalChat.js';
 import { TerminalInitialHintSettingId } from '../common/terminalInitialHintConfiguration.js';
 import './media/terminalInitialHint.css';
 import { TerminalSuggestCommandId } from '../../suggest/common/terminal.suggest.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 const $ = dom.$;
 
@@ -94,8 +95,6 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) {
 		super();
 
@@ -116,10 +115,6 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		if (this._storageService.getBoolean(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION, false)) {
 			return;
 		}
-		// Only show for the first terminal
-		// if (this._terminalGroupService.instances.length + this._terminalEditorService.instances.length !== 1) {
-		// 	return;
-		// }
 		this._xterm = xterm;
 		this._addon = this._register(this._instantiationService.createInstance(InitialHintAddon, this._ctx.instance.capabilities, this._chatAgentService.onDidChangeAgents));
 		this._xterm.raw.loadAddon(this._addon);
@@ -179,22 +174,18 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		this._register(this._decoration);
 		this._register(this._decoration.onRender((e) => {
 			if (!this._hintWidget && this._xterm?.isFocused) {
-				// && this._terminalGroupService.instances.length + this._terminalEditorService.instances.length === 1) {
-				const terminalAgents = this._chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.Terminal));
-				if (terminalAgents?.length) {
-					const widget = this._register(this._instantiationService.createInstance(TerminalInitialHintWidget, instance));
-					this._addon?.dispose();
-					this._hintWidget = widget.getDomNode(terminalAgents);
-					if (!this._hintWidget) {
-						return;
-					}
-					e.appendChild(this._hintWidget);
-					e.classList.add('terminal-initial-hint');
-					const font = this._xterm.getFont();
-					if (font) {
-						e.style.fontFamily = font.fontFamily;
-						e.style.fontSize = font.fontSize + 'px';
-					}
+				const widget = this._register(this._instantiationService.createInstance(TerminalInitialHintWidget, instance));
+				this._addon?.dispose();
+				this._hintWidget = widget.getDomNode();
+				if (!this._hintWidget) {
+					return;
+				}
+				e.appendChild(this._hintWidget);
+				e.classList.add('terminal-initial-hint');
+				const font = this._xterm.getFont();
+				if (font) {
+					e.style.fontFamily = font.fontFamily;
+					e.style.fontSize = font.fontSize + 'px';
 				}
 			}
 			if (this._hintWidget && this._xterm) {
@@ -217,13 +208,14 @@ class TerminalInitialHintWidget extends Disposable {
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 		this._toDispose.add(_instance.onDidFocus(() => {
@@ -231,11 +223,6 @@ class TerminalInitialHintWidget extends Disposable {
 				status(this._ariaLabel);
 			}
 		}));
-		// this._toDispose.add(_terminalService.onDidChangeInstances(() => {
-		// 	if (this._terminalService.instances.length !== 1) {
-		// 		this.dispose();
-		// 	}
-		// }));
 		this._toDispose.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled) && !this._configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
 				this.dispose();
@@ -243,8 +230,8 @@ class TerminalInitialHintWidget extends Disposable {
 		}));
 	}
 
-	private _getHintInlineChat(agents: IChatAgent[]) {
-		let ariaLabel = `Open chat.`;
+	private _getHintInlineChat() {
+		const ariaLabelParts: string[] = [];
 
 		const handleClick = () => {
 			this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
@@ -254,12 +241,12 @@ class TerminalInitialHintWidget extends Disposable {
 			});
 			this._commandService.executeCommand(TerminalChatCommandId.Start, { from: 'hint' });
 		};
-		// this._toDispose.add(this._commandService.onDidExecuteCommand(e => {
-		// 	if (e.commandId === TerminalChatCommandId.Start) {
-		// 		this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
-		// 		this.dispose();
-		// 	}
-		// }));
+		this._toDispose.add(this._commandService.onDidExecuteCommand(e => {
+			if (e.commandId === TerminalChatCommandId.Start) {
+				this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
+				this.dispose();
+			}
+		}));
 
 		const hintHandler: IContentActionHandler = {
 			disposables: this._toDispose,
@@ -275,83 +262,94 @@ class TerminalInitialHintWidget extends Disposable {
 		const hintElement = $('div.terminal-initial-hint');
 		hintElement.style.display = 'block';
 
-		const keybindingHint = this._keybindingService.lookupKeybinding(TerminalChatCommandId.Start);
-		const keybindingHintLabel = keybindingHint?.getLabel();
+		// Chat hint
+		if (!this._chatEntitlementService.sentiment.hidden) {
+			const keybindingHint = this._keybindingService.lookupKeybinding(TerminalChatCommandId.Start);
+			const keybindingHintLabel = keybindingHint?.getLabel();
 
-		if (keybindingHint && keybindingHintLabel) {
-			const actionPart = localize('emptyHintText', 'Open chat {0}. ', keybindingHintLabel);
+			if (keybindingHint && keybindingHintLabel) {
+				const terminalAgents = this._chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.Terminal));
+				if (terminalAgents?.length) {
+					const actionPart = localize('emptyHintText', 'Open chat {0}. ', keybindingHintLabel);
 
-			const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
+					const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
+						const hintPart = $('a', undefined, fragment);
+						this._toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleClick));
+						return hintPart;
+					});
+
+					hintElement.appendChild(before);
+
+					const label = hintHandler.disposables.add(new KeybindingLabel(hintElement, OS));
+					label.set(keybindingHint);
+					label.element.style.width = 'min-content';
+					label.element.style.display = 'inline';
+
+					label.element.style.cursor = 'pointer';
+					this._toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CLICK, handleClick));
+
+					hintElement.appendChild(after);
+
+					ariaLabelParts.push(actionPart);
+				}
+			} else {
+				const hintMsg = localize({
+					key: 'inlineChatHint',
+					comment: [
+						'Preserve double-square brackets and their order',
+					]
+				}, '[[Open chat]] or start typing to dismiss.');
+				const rendered = renderFormattedText(hintMsg, { actionHandler: hintHandler });
+				hintElement.appendChild(rendered);
+
+				ariaLabelParts.push(localize('openChatHint', 'Open chat or start typing to dismiss.'));
+			}
+		}
+
+		// Intellisense hint
+		const suggestKeybinding = this._keybindingService.lookupKeybinding(TerminalSuggestCommandId.TriggerSuggest);
+		const suggestKeybindingLabel = suggestKeybinding?.getLabel();
+		if (suggestKeybinding && suggestKeybindingLabel) {
+			const suggestActionPart = localize('showIntellisenseHint', 'Show Intellisense {0}. ', suggestKeybindingLabel);
+
+			const handleSuggestClick = () => {
+				this._commandService.executeCommand(TerminalSuggestCommandId.TriggerSuggest);
+			};
+
+			const [suggestBefore, suggestAfter] = suggestActionPart.split(suggestKeybindingLabel).map((fragment) => {
 				const hintPart = $('a', undefined, fragment);
-				this._toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleClick));
+				this._toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleSuggestClick));
 				return hintPart;
 			});
 
-			hintElement.appendChild(before);
+			hintElement.appendChild(suggestBefore);
 
-			const label = hintHandler.disposables.add(new KeybindingLabel(hintElement, OS));
-			label.set(keybindingHint);
-			label.element.style.width = 'min-content';
-			label.element.style.display = 'inline';
+			const suggestLabel = hintHandler.disposables.add(new KeybindingLabel(hintElement, OS));
+			suggestLabel.set(suggestKeybinding);
+			suggestLabel.element.style.width = 'min-content';
+			suggestLabel.element.style.display = 'inline';
+			suggestLabel.element.style.cursor = 'pointer';
+			this._toDispose.add(dom.addDisposableListener(suggestLabel.element, dom.EventType.CLICK, handleSuggestClick));
 
-			label.element.style.cursor = 'pointer';
-			this._toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CLICK, handleClick));
+			hintElement.appendChild(suggestAfter);
 
-			hintElement.appendChild(after);
-
-			// Show Intellisense hint
-			const suggestKeybinding = this._keybindingService.lookupKeybinding(TerminalSuggestCommandId.TriggerSuggest);
-			const suggestKeybindingLabel = suggestKeybinding?.getLabel();
-			if (suggestKeybinding && suggestKeybindingLabel) {
-				const suggestActionPart = localize('showIntellisenseHint', 'Show Intellisense {0}. ', suggestKeybindingLabel);
-
-				const handleSuggestClick = () => {
-					this._commandService.executeCommand(TerminalSuggestCommandId.TriggerSuggest);
-				};
-
-				const [suggestBefore, suggestAfter] = suggestActionPart.split(suggestKeybindingLabel).map((fragment) => {
-					const hintPart = $('a', undefined, fragment);
-					this._toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleSuggestClick));
-					return hintPart;
-				});
-
-				hintElement.appendChild(suggestBefore);
-
-				const suggestLabel = hintHandler.disposables.add(new KeybindingLabel(hintElement, OS));
-				suggestLabel.set(suggestKeybinding);
-				suggestLabel.element.style.width = 'min-content';
-				suggestLabel.element.style.display = 'inline';
-				suggestLabel.element.style.cursor = 'pointer';
-				this._toDispose.add(dom.addDisposableListener(suggestLabel.element, dom.EventType.CLICK, handleSuggestClick));
-
-				hintElement.appendChild(suggestAfter);
-			}
-
-			const typeToDismiss = localize('hintTextDismiss', 'Start typing to dismiss.');
-			const textHint2 = $('span.detail', undefined, typeToDismiss);
-			hintElement.appendChild(textHint2);
-
-			ariaLabel = actionPart.concat(typeToDismiss);
-		} else {
-			const hintMsg = localize({
-				key: 'inlineChatHint',
-				comment: [
-					'Preserve double-square brackets and their order',
-				]
-			}, '[[Open chat]] or start typing to dismiss.');
-			const rendered = renderFormattedText(hintMsg, { actionHandler: hintHandler });
-			hintElement.appendChild(rendered);
+			ariaLabelParts.push(suggestActionPart);
 		}
 
-		return { ariaLabel, hintHandler, hintElement };
+		const typeToDismiss = localize('hintTextDismiss', 'Start typing to dismiss.');
+		const textHint2 = $('span.detail', undefined, typeToDismiss);
+		hintElement.appendChild(textHint2);
+		ariaLabelParts.push(typeToDismiss);
+
+		return { ariaLabel: ariaLabelParts.join(' '), hintHandler, hintElement };
 	}
 
-	getDomNode(agents: IChatAgent[]): HTMLElement {
+	getDomNode(): HTMLElement {
 		if (!this._domNode) {
 			this._domNode = $('.terminal-initial-hint');
 			this._domNode!.style.paddingLeft = '4px';
 
-			const { hintElement, ariaLabel } = this._getHintInlineChat(agents);
+			const { hintElement, ariaLabel } = this._getHintInlineChat();
 			this._domNode.append(hintElement);
 			this._ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.TerminalInlineChat));
 
