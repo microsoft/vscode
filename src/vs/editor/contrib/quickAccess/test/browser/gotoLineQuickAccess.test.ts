@@ -95,4 +95,45 @@ suite('AbstractGotoLineQuickAccessProvider', () => {
 		runTest('2,4', 2, 4);
 		runTest('  2  :  3  ', 2, 3);
 	});
+
+	function runTabTest(input: string, expectedLine: number, expectedColumn?: number, zeroBased = false) {
+		const provider = new TestGotoLineQuickAccessProvider(zeroBased);
+		withTestCodeEditor([
+			'\tline 1',
+			'\t\tline 2',
+			'\tline 3'
+		], {}, (editor, _) => {
+			const { lineNumber, column } = provider.parsePositionTest(editor, input);
+			assert.strictEqual(lineNumber, expectedLine);
+			assert.strictEqual(column, expectedColumn ?? 1);
+		});
+	}
+
+	test('parsePosition works with tabs', () => {
+		// :line,column
+		runTabTest('1:1', 1, 1);
+		runTabTest('1:2', 1, 1);
+		runTabTest('1:3', 1, 1);
+		runTabTest('1:4', 1, 2);
+		runTabTest('1:5', 1, 2);
+		runTabTest('1:6', 1, 3);
+		runTabTest('1:11', 1, 8);
+		runTabTest('1:12', 1, 8);
+		runTabTest('1:-5', 1, 3);
+		runTabTest('1:-6', 1, 2);
+		runTabTest('1:-7', 1, 2);
+		runTabTest('1:-8', 1, 1);
+		runTabTest('1:-9', 1, 1);
+		runTabTest('1:-10', 1, 1);
+		runTabTest('1:-11', 1, 1);
+		runTabTest('2:1', 2, 1);
+		runTabTest('2:2', 2, 1);
+		runTabTest('2:3', 2, 1);
+		runTabTest('2:4', 2, 2);
+		runTabTest('2:5', 2, 2);
+		runTabTest('2:8', 2, 3);
+		runTabTest('2:9', 2, 3);
+		runTabTest('2:11', 2, 5);
+	});
 });
+
