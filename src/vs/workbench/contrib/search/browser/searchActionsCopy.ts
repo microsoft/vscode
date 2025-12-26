@@ -14,7 +14,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getSearchView } from './searchActionsBase.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { searchMatchComparer } from './searchCompare.js';
-import { RenderableMatch, ISearchTreeMatch, isSearchTreeMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource } from './searchTreeModel/searchTreeCommon.js';
+import { RenderableMatch, ISearchTreeMatch, isSearchTreeMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions
 registerAction2(class CopyMatchCommandAction extends Action2 {
@@ -94,8 +94,8 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<any> {
-		await copyAllCommand(accessor);
+	override async run(accessor: ServicesAccessor, match: RenderableMatch | undefined): Promise<any> {
+		await copyAllCommand(accessor, match);
 	}
 });
 
@@ -177,7 +177,7 @@ async function copyMatchCommand(accessor: ServicesAccessor, match: RenderableMat
 	}
 }
 
-async function copyAllCommand(accessor: ServicesAccessor) {
+async function copyAllCommand(accessor: ServicesAccessor, match: RenderableMatch | undefined) {
 	const viewsService = accessor.get(IViewsService);
 	const clipboardService = accessor.get(IClipboardService);
 	const labelService = accessor.get(ILabelService);
@@ -185,8 +185,9 @@ async function copyAllCommand(accessor: ServicesAccessor) {
 	const searchView = getSearchView(viewsService);
 	if (searchView) {
 		const root = searchView.searchResult;
+		const isAISearchElement = isAISearchResult(match);
 
-		const text = allFolderMatchesToString(root.folderMatches(), labelService);
+		const text = allFolderMatchesToString(root.folderMatches(isAISearchElement), labelService);
 		await clipboardService.writeText(text);
 	}
 }
@@ -272,6 +273,24 @@ function getSelectedRow(accessor: ServicesAccessor): RenderableMatch | undefined
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
 	return searchView?.getControl().getSelection()[0];
+}
+
+function isAISearchResult(element: RenderableMatch | undefined | null): boolean {
+	if (!element) {
+		return false;
+	}
+
+	if (isSearchTreeMatch(element)) {
+		return element.parent().parent().isAIContributed();
+	} else if (isSearchTreeFileMatch(element)) {
+		return element.parent().isAIContributed();
+	} else if (isSearchTreeFolderMatch(element)) {
+		return element.isAIContributed();
+	} else if (isTextSearchHeading(element)) {
+		return element.isAIContributed;
+	}
+
+	return false;
 }
 
 //#endregion
