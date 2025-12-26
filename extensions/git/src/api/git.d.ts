@@ -130,6 +130,7 @@ export interface RepositoryState {
 	readonly refs: Ref[];
 	readonly remotes: Remote[];
 	readonly submodules: Submodule[];
+	readonly worktrees: Worktree[];
 	readonly rebaseCommit: Commit | undefined;
 
 	readonly mergeChanges: Change[];

@@ -554,6 +554,7 @@ export function registerAPICommands(extension: GitExtensionImpl): Disposable {
 			refs: state.refs.map(ref),
 			remotes: state.remotes,
 			submodules: state.submodules,
+			worktrees: state.worktrees,
 			rebaseCommit: state.rebaseCommit,
 			mergeChanges: state.mergeChanges.map(change),
 			indexChanges: state.indexChanges.map(change),
