@@ -93,8 +93,8 @@
 	"wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
 	"folding": {
 		"markers": {
-			"start": "^\\s*#pragma\\s+region\\b",
-			"end": "^\\s*#pragma\\s+endregion\\b"
+			"start": "^\\s*#\\s*pragma\\s+region\\b",
+			"end": "^\\s*#\\s*pragma\\s+endregion\\b"
 		}
 	},
 	"indentationRules": {
