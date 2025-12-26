@@ -24,12 +24,12 @@ import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { DeferredPromise, SequencerByKey } from '../../../../base/common/async.js';
+import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, dispose } from '../../../../base/common/lifecycle.js';
 import { setTimeout0 } from '../../../../base/common/platform.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -37,7 +37,8 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { BareFontInfo, FontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../editor/common/config/fontInfoFromSettings.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
@@ -104,6 +105,8 @@ import { NotebookAccessibilityProvider } from './notebookAccessibilityProvider.j
 import { NotebookHorizontalTracker } from './viewParts/notebookHorizontalTracker.js';
 import { NotebookCellEditorPool } from './view/notebookCellEditorPool.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
+import { NotebookCellLayoutManager } from './notebookCellLayoutManager.js';
+import { FloatingEditorToolbar } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 
 const $ = DOM.$;
 
@@ -112,6 +115,7 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 	const skipContributions = [
 		'editor.contrib.review',
 		FloatingEditorClickMenu.ID,
+		FloatingEditorToolbar.ID,
 		'editor.contrib.dirtydiff',
 		'editor.contrib.testingOutputPeek',
 		'editor.contrib.testingDecorations',
@@ -214,6 +218,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _position?: DOM.IDomPosition;
 	private _shadowElement?: HTMLElement;
 	private _shadowElementViewInfo: { height: number; width: number; top: number; left: number } | null = null;
+	private _cellLayoutManager: NotebookCellLayoutManager | undefined;
 
 	private readonly _editorFocus: IContextKey<boolean>;
 	private readonly _outputFocus: IContextKey<boolean>;
@@ -472,7 +477,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _debugFlag: boolean = false;
 
-	private _debug(...args: any[]) {
+	private _debug(...args: unknown[]) {
 		if (!this._debugFlag) {
 			return;
 		}
@@ -603,7 +608,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _generateFontInfo(): void {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		const targetWindow = DOM.getWindow(this.getDomNode());
-		this._fontInfo = FontMeasurements.readFontInfo(targetWindow, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value));
+		this._fontInfo = FontMeasurements.readFontInfo(targetWindow, createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value));
 	}
 
 	private _createBody(parent: HTMLElement): void {
@@ -981,6 +986,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				accessibilityProvider
 			},
 		);
+		this._cellLayoutManager = new NotebookCellLayoutManager(this, this._list, this.logService);
 		this._dndController.setList(this._list);
 
 		// create Webview
@@ -2124,7 +2130,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return false;
 		}
 
-		let container: any = activeSelection.commonAncestorContainer;
+		let container: Node | null = activeSelection.commonAncestorContainer;
 
 		if (!this._body.contains(container)) {
 			return false;
@@ -2364,80 +2370,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	//#endregion
 
-	//#region Cell operations/layout API
-	private _pendingLayouts: WeakMap<ICellViewModel, IDisposable> | null = new WeakMap<ICellViewModel, IDisposable>();
-	private _layoutDisposables: Set<IDisposable> = new Set<IDisposable>();
 	async layoutNotebookCell(cell: ICellViewModel, height: number, context?: CellLayoutContext): Promise<void> {
-		this._debug('layout cell', cell.handle, height);
-		const viewIndex = this._list.getViewIndex(cell);
-		if (viewIndex === undefined) {
-			// the cell is hidden
-			return;
-		}
-
-		if (this._pendingLayouts?.has(cell)) {
-			this._pendingLayouts?.get(cell)!.dispose();
-		}
-
-		const deferred = new DeferredPromise<void>();
-		const doLayout = () => {
-			if (this._isDisposed) {
-				return;
-			}
-
-			if (!this.viewModel?.hasCell(cell)) {
-				// Cell removed in the meantime?
-				return;
-			}
-
-			if (this._list.getViewIndex(cell) === undefined) {
-				// Cell can be hidden
-				return;
-			}
-
-			if (this._list.elementHeight(cell) === height) {
-				return;
-			}
-
-			const pendingLayout = this._pendingLayouts?.get(cell);
-			this._pendingLayouts?.delete(cell);
-
-			if (!this.hasEditorFocus()) {
-				// Do not scroll inactive notebook
-				// https://github.com/microsoft/vscode/issues/145340
-				const cellIndex = this.viewModel?.getCellIndex(cell);
-				const visibleRanges = this.visibleRanges;
-				if (cellIndex !== undefined
-					&& visibleRanges && visibleRanges.length && visibleRanges[0].start === cellIndex
-					// cell is partially visible
-					&& this._list.scrollTop > this.getAbsoluteTopOfElement(cell)
-				) {
-					return this._list.updateElementHeight2(cell, height, Math.min(cellIndex + 1, this.getLength() - 1));
-				}
-			}
-
-			this._list.updateElementHeight2(cell, height);
-			deferred.complete(undefined);
-			if (pendingLayout) {
-				pendingLayout.dispose();
-				this._layoutDisposables.delete(pendingLayout);
-			}
-		};
-
-		if (this._list.inRenderingTransaction) {
-			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), doLayout);
-
-			const disposable = toDisposable(() => {
-				layoutDisposable.dispose();
-				deferred.complete(undefined);
-			});
-			this._pendingLayouts?.set(cell, disposable);
-			this._layoutDisposables.add(disposable);
-		} else {
-			doLayout();
-		}
-
-		return deferred.p;
+		return this._cellLayoutManager?.layoutNotebookCell(cell, height);
 	}
 
 	getActiveCell() {
@@ -3059,7 +2993,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	//#region --- webview IPC ----
-	postMessage(message: any) {
+	postMessage(message: unknown) {
 		if (this._webview?.isResolved()) {
 			this._webview.postKernelMessage(message);
 		}
@@ -3304,8 +3238,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._webview?.dispose();
 		this._webview = null;
 
-		this._layoutDisposables.forEach(d => d.dispose());
-
 		this.notebookEditorService.removeNotebookEditor(this);
 		dispose(this._contributions.values());
 		this._contributions.clear();
@@ -3313,6 +3245,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._localStore.clear();
 		dispose(this._localCellStateListeners);
 		this._list.dispose();
+		this._cellLayoutManager?.dispose();
 		this._listTopCellToolbar?.dispose();
 
 		this._overlayContainer.remove();
@@ -3337,7 +3270,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._notebookTopToolbar = null!;
 		this._list = null!;
 		this._listViewInfoAccessor = null!;
-		this._pendingLayouts = null;
 		this._listDelegate = null;
 	}
 

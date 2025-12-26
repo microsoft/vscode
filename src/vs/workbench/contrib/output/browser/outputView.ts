@@ -44,11 +44,21 @@ import { IEditorContribution, IEditorDecorationsCollection } from '../../../../e
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { FindDecorations } from '../../../../editor/contrib/find/browser/findDecorations.js';
-import { Memento, MementoObject } from '../../../common/memento.js';
+import { Memento } from '../../../common/memento.js';
 import { Markers } from '../../markers/common/markers.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+
+interface IOutputViewState {
+	filter?: string;
+	showTrace?: boolean;
+	showDebug?: boolean;
+	showInfo?: boolean;
+	showWarning?: boolean;
+	showError?: boolean;
+	categories?: string;
+}
 
 export class OutputViewPane extends FilterViewPane {
 
@@ -60,8 +70,8 @@ export class OutputViewPane extends FilterViewPane {
 	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
 	set scrollLock(scrollLock: boolean) { this.scrollLockContextKey.set(scrollLock); }
 
-	private readonly memento: Memento;
-	private readonly panelState: MementoObject;
+	private readonly memento: Memento<IOutputViewState>;
+	private readonly panelState: IOutputViewState;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -77,14 +87,14 @@ export class OutputViewPane extends FilterViewPane {
 		@IOutputService private readonly outputService: IOutputService,
 		@IStorageService storageService: IStorageService,
 	) {
-		const memento = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService);
+		const memento = new Memento<IOutputViewState>(Markers.MARKERS_VIEW_STORAGE_ID, storageService);
 		const viewState = memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		super({
 			...options,
 			filterOptions: {
-				placeholder: localize('outputView.filter.placeholder', "Filter"),
+				placeholder: localize('outputView.filter.placeholder', "Filter (e.g. text, !excludeText, text1,text2)"),
 				focusContextKey: OUTPUT_FILTER_FOCUS_CONTEXT.key,
-				text: viewState['filter'] || '',
+				text: viewState.filter || '',
 				history: []
 			}
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -92,13 +102,13 @@ export class OutputViewPane extends FilterViewPane {
 		this.panelState = viewState;
 
 		const filters = outputService.filters;
-		filters.text = this.panelState['filter'] || '';
-		filters.trace = this.panelState['showTrace'] ?? true;
-		filters.debug = this.panelState['showDebug'] ?? true;
-		filters.info = this.panelState['showInfo'] ?? true;
-		filters.warning = this.panelState['showWarning'] ?? true;
-		filters.error = this.panelState['showError'] ?? true;
-		filters.categories = this.panelState['categories'] ?? '';
+		filters.text = this.panelState.filter || '';
+		filters.trace = this.panelState.showTrace ?? true;
+		filters.debug = this.panelState.showDebug ?? true;
+		filters.info = this.panelState.showInfo ?? true;
+		filters.warning = this.panelState.showWarning ?? true;
+		filters.error = this.panelState.showError ?? true;
+		filters.categories = this.panelState.categories ?? '';
 
 		this.scrollLockContextKey = CONTEXT_OUTPUT_SCROLL_LOCK.bindTo(this.contextKeyService);
 
@@ -180,7 +190,7 @@ export class OutputViewPane extends FilterViewPane {
 		const input = this.createInput(channel);
 		if (!this.editor.input || !input.matches(this.editor.input)) {
 			this.editorPromise?.cancel();
-			this.editorPromise = createCancelablePromise(token => this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), token));
+			this.editorPromise = createCancelablePromise(token => this.editor.setInput(input, { preserveFocus: true }, Object.create(null), token));
 		}
 
 	}
@@ -202,13 +212,13 @@ export class OutputViewPane extends FilterViewPane {
 
 	override saveState(): void {
 		const filters = this.outputService.filters;
-		this.panelState['filter'] = filters.text;
-		this.panelState['showTrace'] = filters.trace;
-		this.panelState['showDebug'] = filters.debug;
-		this.panelState['showInfo'] = filters.info;
-		this.panelState['showWarning'] = filters.warning;
-		this.panelState['showError'] = filters.error;
-		this.panelState['categories'] = filters.categories;
+		this.panelState.filter = filters.text;
+		this.panelState.showTrace = filters.trace;
+		this.panelState.showDebug = filters.debug;
+		this.panelState.showInfo = filters.info;
+		this.panelState.showWarning = filters.warning;
+		this.panelState.showError = filters.error;
+		this.panelState.categories = filters.categories;
 
 		this.memento.saveMemento();
 		super.saveState();
@@ -264,12 +274,12 @@ export class OutputEditor extends AbstractTextResourceEditor {
 			ambiguousCharacters: false,
 		};
 
-		const outputConfig = this.configurationService.getValue<any>('[Log]');
+		const outputConfig = this.configurationService.getValue<{ 'editor.minimap.enabled'?: boolean; 'editor.wordWrap'?: 'off' | 'on' | 'wordWrapColumn' | 'bounded' }>('[Log]');
 		if (outputConfig) {
 			if (outputConfig['editor.minimap.enabled']) {
 				options.minimap = { enabled: true };
 			}
-			if ('editor.wordWrap' in outputConfig) {
+			if (outputConfig['editor.wordWrap']) {
 				options.wordWrap = outputConfig['editor.wordWrap'];
 			}
 		}
@@ -433,6 +443,38 @@ export class FilterController extends Disposable implements IEditorContribution 
 		}
 	}
 
+	private shouldShowLine(model: ITextModel, range: Range, positive: string[], negative: string[]): { show: boolean; matches: IModelDeltaDecoration[] } {
+		const matches: IModelDeltaDecoration[] = [];
+
+		// Check negative filters first - if any match, hide the line
+		if (negative.length > 0) {
+			for (const pattern of negative) {
+				const negativeMatches = model.findMatches(pattern, range, false, false, null, false);
+				if (negativeMatches.length > 0) {
+					return { show: false, matches: [] };
+				}
+			}
+		}
+
+		// If there are positive filters, at least one must match
+		if (positive.length > 0) {
+			let hasPositiveMatch = false;
+			for (const pattern of positive) {
+				const positiveMatches = model.findMatches(pattern, range, false, false, null, false);
+				if (positiveMatches.length > 0) {
+					hasPositiveMatch = true;
+					for (const match of positiveMatches) {
+						matches.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
+					}
+				}
+			}
+			return { show: hasPositiveMatch, matches };
+		}
+
+		// No positive filters means show everything (that passed negative filters)
+		return { show: true, matches };
+	}
+
 	private compute(model: ITextModel, fromLineNumber: number): { findMatches: IModelDeltaDecoration[]; hiddenAreas: Range[]; categories: Map<string, string> } {
 		const filters = this.outputService.filters;
 		const activeChannel = this.outputService.getActiveChannel();
@@ -462,12 +504,10 @@ export class FilterController extends Disposable implements IEditorContribution 
 					hiddenAreas.push(entry.range);
 					continue;
 				}
-				if (filters.text) {
-					const matches = model.findMatches(filters.text, entry.range, false, false, null, false);
-					if (matches.length) {
-						for (const match of matches) {
-							findMatches.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
-						}
+				if (filters.includePatterns.length > 0 || filters.excludePatterns.length > 0) {
+					const result = this.shouldShowLine(model, entry.range, filters.includePatterns, filters.excludePatterns);
+					if (result.show) {
+						findMatches.push(...result.matches);
 					} else {
 						hiddenAreas.push(entry.range);
 					}
@@ -476,18 +516,16 @@ export class FilterController extends Disposable implements IEditorContribution 
 			return { findMatches, hiddenAreas, categories };
 		}
 
-		if (!filters.text) {
+		if (filters.includePatterns.length === 0 && filters.excludePatterns.length === 0) {
 			return { findMatches, hiddenAreas, categories };
 		}
 
 		const lineCount = model.getLineCount();
 		for (let lineNumber = fromLineNumber; lineNumber <= lineCount; lineNumber++) {
 			const lineRange = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
-			const matches = model.findMatches(filters.text, lineRange, false, false, null, false);
-			if (matches.length) {
-				for (const match of matches) {
-					findMatches.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
-				}
+			const result = this.shouldShowLine(model, lineRange, filters.includePatterns, filters.excludePatterns);
+			if (result.show) {
+				findMatches.push(...result.matches);
 			} else {
 				hiddenAreas.push(lineRange);
 			}

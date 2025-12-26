@@ -9,6 +9,7 @@ import { StringText } from '../text/abstractText.js';
 import { BaseEdit, BaseReplacement } from './edit.js';
 
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseStringReplacement<any>, TEdit extends BaseStringEdit<T, TEdit> = BaseStringEdit<any, any>> extends BaseEdit<T, TEdit> {
 	get TReplacement(): T {
 		throw new Error('TReplacement is not defined for BaseStringEdit');
@@ -20,9 +21,30 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 		}
 		let result = edits[0];
 		for (let i = 1; i < edits.length; i++) {
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			result = result.compose(edits[i]) as any;
 		}
 		return result;
+	}
+
+	/**
+	 * r := trySwap(e1, e2);
+	 * e1.compose(e2) === r.e1.compose(r.e2)
+	*/
+	public static trySwap(e1: BaseStringEdit, e2: BaseStringEdit): { e1: StringEdit; e2: StringEdit } | undefined {
+		// TODO make this more efficient
+		const e1Inv = e1.inverseOnSlice((start, endEx) => ' '.repeat(endEx - start));
+
+		const e1_ = e2.tryRebase(e1Inv);
+		if (!e1_) {
+			return undefined;
+		}
+		const e2_ = e1.tryRebase(e1_);
+		if (!e2_) {
+			return undefined;
+		}
+
+		return { e1: e1_, e2: e2_ };
 	}
 
 	public apply(base: string): string {
@@ -37,16 +59,17 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 		return resultText.join('');
 	}
 
+
 	/**
 	 * Creates an edit that reverts this edit.
 	 */
-	public inverse(baseStr: string): StringEdit {
+	public inverseOnSlice(getOriginalSlice: (start: number, endEx: number) => string): StringEdit {
 		const edits: StringReplacement[] = [];
 		let offset = 0;
 		for (const e of this.replacements) {
-			edits.push(new StringReplacement(
+			edits.push(StringReplacement.replace(
 				OffsetRange.ofStartAndLength(e.replaceRange.start + offset, e.newText.length),
-				baseStr.substring(e.replaceRange.start, e.replaceRange.endExclusive),
+				getOriginalSlice(e.replaceRange.start, e.replaceRange.endExclusive)
 			));
 			offset += e.newText.length - e.replaceRange.length;
 		}
@@ -54,14 +77,21 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 	}
 
 	/**
-	 * Consider `t1 := text o base` and `t2 := text o this`.
-	 * We are interested in `tm := tryMerge(t1, t2, base: text)`.
-	 * For that, we compute `tm' := t1 o base o this.rebase(base)`
-	 * such that `tm' === tm`.
+	 * Creates an edit that reverts this edit.
 	 */
-	public tryRebase(base: StringEdit): StringEdit;
-	public tryRebase(base: StringEdit, noOverlap: true): StringEdit | undefined;
-	public tryRebase(base: StringEdit, noOverlap?: true): StringEdit | undefined {
+	public inverse(original: string): StringEdit {
+		return this.inverseOnSlice((start, endEx) => original.substring(start, endEx));
+	}
+
+	public rebaseSkipConflicting(base: StringEdit): StringEdit {
+		return this._tryRebase(base, false)!;
+	}
+
+	public tryRebase(base: StringEdit): StringEdit | undefined {
+		return this._tryRebase(base, true);
+	}
+
+	private _tryRebase(base: StringEdit, noOverlap: boolean): StringEdit | undefined {
 		const newEdits: StringReplacement[] = [];
 
 		let baseIdx = 0;
@@ -80,7 +110,7 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 				// no more edits from base
 				newEdits.push(new StringReplacement(
 					ourEdit.replaceRange.delta(offset),
-					ourEdit.newText,
+					ourEdit.newText
 				));
 				ourIdx++;
 			} else if (ourEdit.replaceRange.intersectsOrTouches(baseEdit.replaceRange)) {
@@ -92,7 +122,7 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 				// Our edit starts first
 				newEdits.push(new StringReplacement(
 					ourEdit.replaceRange.delta(offset),
-					ourEdit.newText,
+					ourEdit.newText
 				));
 				ourIdx++;
 			} else {
@@ -141,11 +171,11 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 		return e.toEdit();
 	}
 
-	removeCommonSuffixAndPrefix(source: string): TEdit {
+	public removeCommonSuffixAndPrefix(source: string): TEdit {
 		return this._createNew(this.replacements.map(e => e.removeCommonSuffixAndPrefix(source))).normalize();
 	}
 
-	applyOnText(docContents: StringText): StringText {
+	public applyOnText(docContents: StringText): StringText {
 		return new StringText(this.apply(docContents.value));
 	}
 
@@ -160,10 +190,11 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 	}
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export abstract class BaseStringReplacement<T extends BaseStringReplacement<T> = BaseStringReplacement<any>> extends BaseReplacement<T> {
 	constructor(
 		range: OffsetRange,
-		public readonly newText: string,
+		public readonly newText: string
 	) {
 		super(range);
 	}
@@ -171,7 +202,7 @@ export abstract class BaseStringReplacement<T extends BaseStringReplacement<T> =
 	getNewLength(): number { return this.newText.length; }
 
 	override toString(): string {
-		return `${this.replaceRange} -> "${this.newText}"`;
+		return `${this.replaceRange} -> ${JSON.stringify(this.newText)}`;
 	}
 
 	replace(str: string): string {
@@ -362,8 +393,8 @@ export class StringReplacement extends BaseStringReplacement<StringReplacement> 
 		return new StringReplacement(this.replaceRange.joinRightTouching(other.replaceRange), this.newText + other.newText);
 	}
 
-	override slice(range: OffsetRange, rangeInReplacement: OffsetRange): StringReplacement {
-		return new StringReplacement(range, rangeInReplacement.substring(this.newText));
+	override slice(range: OffsetRange, rangeInReplacement?: OffsetRange): StringReplacement {
+		return new StringReplacement(range, rangeInReplacement ? rangeInReplacement.substring(this.newText) : this.newText);
 	}
 }
 
@@ -493,8 +524,14 @@ export class AnnotatedStringEdit<T extends IEditData<T>> extends BaseStringEdit<
 		return new AnnotatedStringEdit<T>(replacements);
 	}
 
-	toStringEdit(): StringEdit {
-		return new StringEdit(this.replacements.map(e => new StringReplacement(e.replaceRange, e.newText)));
+	public toStringEdit(filter?: (replacement: AnnotatedStringReplacement<T>) => boolean): StringEdit {
+		const newReplacements: StringReplacement[] = [];
+		for (const r of this.replacements) {
+			if (!filter || filter(r)) {
+				newReplacements.push(new StringReplacement(r.replaceRange, r.newText));
+			}
+		}
+		return new StringEdit(newReplacements);
 	}
 }
 

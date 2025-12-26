@@ -7,7 +7,7 @@ import assert from 'assert';
 
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isURLDomainTrusted } from '../../common/trustedDomains.js';
+import { isURLDomainTrusted } from '../../../../../platform/url/common/trustedDomains.js';
 
 function linkAllowedByRules(link: string, rules: string[]) {
 	assert.ok(isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should be allowed by rules\n${JSON.stringify(rules)}`);
@@ -37,6 +37,11 @@ suite('Link protection domain matching', () => {
 		linkAllowedByRules('https://127.0.0.1:3000', []);
 		linkAllowedByRules('https://localhost', []);
 		linkAllowedByRules('https://localhost:3000', []);
+		linkAllowedByRules('https://dev.localhost', []);
+		linkAllowedByRules('https://dev.localhost:3000', []);
+		linkAllowedByRules('https://app.localhost', []);
+		linkAllowedByRules('https://api.localhost:8080', []);
+		linkAllowedByRules('https://myapp.dev.localhost:8080', []);
 	});
 
 	test('* star', () => {

@@ -13,6 +13,7 @@ import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionItemLabel, CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
@@ -21,6 +22,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
 	private _lspTerminalModelContentProvider: LspTerminalModelContentProvider;
+	readonly shellTypes: TerminalShellType[] = [GeneralShellType.Python];
 
 	constructor(
 		provider: CompletionItemProvider,
@@ -31,14 +33,14 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		this._provider = provider;
 		this._textVirtualModel = textVirtualModel;
 		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
-		this.triggerCharacters = provider.triggerCharacters ? [...provider.triggerCharacters, ' '] : [' '];
+		this.triggerCharacters = provider.triggerCharacters ? [...provider.triggerCharacters, ' ', '('] : [' ', '('];
 	}
 
 	activate(terminal: Terminal): void {
 		// console.log('activate');
 	}
 
-	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
+	async provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
 
 		// Apply edit for non-executed current commandline --> Pretend we are typing in the real-document.
 		this._lspTerminalModelContentProvider.trackPromptInputToVirtualFile(value);
@@ -51,61 +53,77 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		const lineNum = this._textVirtualModel.object.textEditorModel.getLineCount();
 		const positionVirtualDocument = new Position(lineNum, column);
 
-
-		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
 		const completions: ITerminalCompletion[] = [];
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
-
-			completions.push(...(result?.suggestions || []).map((e: any) => {
+			for (const item of (result?.suggestions || [])) {
 				// TODO: Support more terminalCompletionItemKind for [different LSP providers](https://github.com/microsoft/vscode/issues/249479)
-				const convertedKind = e.kind ? mapLspKindToTerminalKind(e.kind) : TerminalCompletionItemKind.Method;
+				const convertedKind = item.kind ? mapLspKindToTerminalKind(item.kind) : TerminalCompletionItemKind.Method;
 				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
-
-				return {
-					label: e.insertText,
-					provider: `lsp:${this._provider._debugDisplayName}`,
-					detail: e.detail,
+				const terminalCompletion: ITerminalCompletion = {
+					label: item.label,
+					provider: `lsp:${item.extensionId?.value}`,
+					detail: item.detail,
+					documentation: item.documentation,
 					kind: convertedKind,
-					replacementIndex: completionItemTemp.replacementIndex,
-					replacementLength: completionItemTemp.replacementLength,
+					replacementRange: completionItemTemp.replacementRange,
 				};
-			}));
+
+				// Store unresolved item and provider for lazy resolution if needed
+				if (this._provider.resolveCompletionItem && (!item.detail || !item.documentation)) {
+					terminalCompletion._unresolvedItem = item;
+					terminalCompletion._resolveProvider = this._provider;
+				}
+
+				completions.push(terminalCompletion);
+			}
 		}
 
 		return completions;
 	}
 }
 
-export function createCompletionItemPython(cursorPosition: number, prefix: string, kind: TerminalCompletionItemKind, label: string | CompletionItemLabel, detail: string | undefined): TerminalCompletionItem {
-	const endsWithDot = prefix.endsWith('.');
-	const endsWithSpace = prefix.endsWith(' ');
+export function createCompletionItemPython(
+	cursorPosition: number,
+	prefix: string,
+	kind: TerminalCompletionItemKind,
+	label: string | CompletionItemLabel,
+	detail: string | undefined
+): TerminalCompletionItem {
+	const lastWord = getLastWord(prefix);
 
-	if (endsWithSpace) {
-		// Case where user is triggering completion with space:
-		// For example, typing `import  ` to request completion for list of modules
-		// This is similar to completions we are used to seeing in upstream shell (such as typing `ls  ` inside bash).
-		const lastWord = endsWithSpace ? '' : prefix.split(' ').at(-1) ?? '';
-		return {
-			label: label,
-			detail: detail ?? detail ?? '',
-			replacementIndex: cursorPosition - lastWord.length,
-			replacementLength: lastWord.length,
-			kind: kind ?? kind ?? TerminalCompletionItemKind.Method
-		};
-	} else {
-		// Case where user is triggering completion with dot:
-		// For example, typing `pathlib.` to request completion for list of methods, attributes from the pathlib module.
-		const lastWord = endsWithDot ? '' : prefix.split('.').at(-1) ?? '';
-		return {
-			label,
-			detail: detail ?? detail ?? '',
-			replacementIndex: cursorPosition - lastWord.length,
-			replacementLength: lastWord.length,
-			kind: kind ?? kind ?? TerminalCompletionItemKind.Method
-		};
+	return {
+		label,
+		detail: detail ?? '',
+		replacementRange: [cursorPosition - lastWord.length, cursorPosition],
+		kind: kind ?? TerminalCompletionItemKind.Method
+	};
+}
+
+function getLastWord(prefix: string): string {
+	if (prefix.endsWith(' ')) {
+		return '';
 	}
+
+	if (prefix.endsWith('.')) {
+		return '';
+	}
+
+	const lastSpaceIndex = prefix.lastIndexOf(' ');
+	const lastDotIndex = prefix.lastIndexOf('.');
+	const lastParenIndex = prefix.lastIndexOf('(');
+
+	// Get the maximum index (most recent delimiter)
+	const lastDelimiterIndex = Math.max(lastSpaceIndex, lastDotIndex, lastParenIndex);
+
+	// If no delimiter found, return the entire prefix
+	if (lastDelimiterIndex === -1) {
+		return prefix;
+	}
+
+	// Return the substring after the last delimiter
+	return prefix.substring(lastDelimiterIndex + 1);
 }
 
 export interface TerminalCompletionItem {
@@ -115,14 +133,9 @@ export interface TerminalCompletionItem {
 	label: string | CompletionItemLabel;
 
 	/**
-	 * The index of the start of the range to replace.
+	 * Selection range (inclusive start, exclusive end) to replace when this completion is applied.
 	 */
-	replacementIndex: number;
-
-	/**
-	 * The length of the range to replace.
-	 */
-	replacementLength: number;
+	replacementRange: readonly [number, number] | undefined;
 
 	/**
 	 * The completion's detail which appears on the right of the list.

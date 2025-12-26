@@ -9,7 +9,7 @@
 	display: flex;
 	flex-direction: column;
 	margin: 0px auto;
-	max-width: 80%;
+	max-width: 90%;
 }
 
 .extension-editor .clickable {
@@ -19,9 +19,8 @@
 .extension-editor > .header {
 	display: flex;
 	padding-top: 20px;
-	padding-bottom: 14px;
+	padding-bottom: 12px;
 	padding-left: 20px;
-	padding-right: 20px;
 	overflow: hidden;
 	font-size: 14px;
 }
@@ -39,7 +38,7 @@
 	font-size: 128px !important;
 }
 
-.extension-editor > .header > .icon-container .extension-remote-badge {
+.extension-editor > .header > .icon-container .extension-icon-badge {
 	position: absolute;
 	right: 0px;
 	top: 88px;
@@ -53,13 +52,13 @@
 	justify-content: center;
 }
 
-.extension-editor > .header > .icon-container .extension-remote-badge .codicon {
+.extension-editor > .header > .icon-container .extension-icon-badge .codicon {
 	color: currentColor;
 	font-size: 28px;
 }
 
 .extension-editor > .header > .details {
-	padding-left: 20px;
+	padding-left: 12px;
 	overflow: hidden;
 	user-select: text;
 	-webkit-user-select: text;
@@ -154,6 +153,7 @@
 .extension-editor > .header > .details > .subtitle .extension-kind-indicator,
 .extension-editor > .header > .details > .subtitle .install,
 .extension-editor > .header > .details > .subtitle .rating,
+.extension-editor > .header > .details > .subtitle .license,
 .extension-editor > .header > .details > .subtitle .sponsor {
 	display: flex;
 	align-items: center;
@@ -280,6 +280,7 @@
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item:not(.empty) > .monaco-dropdown .extension-action.label {
 	border-left-width: 0;
 	border-radius: 0 2px 2px 0;
+	padding: 0 2px;
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {
@@ -430,16 +431,17 @@
 	display: flex;
 }
 
-.extension-editor > .body > .content > .details > .readme-container {
+.extension-editor > .body > .content > .details > .content-container {
 	margin: 0px auto;
 	max-width: 75%;
 	height: 100%;
 	flex: 1;
 }
 
-.extension-editor > .body > .content > .details.narrow > .readme-container {
+.extension-editor > .body > .content > .details.narrow > .content-container {
 	margin: inherit;
 	max-width: inherit;
+	min-width: 0;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container {
@@ -459,16 +461,16 @@
 .extension-editor > .body > .content > .details > .additional-details-container > .monaco-scrollable-element > .additional-details-content {
 	height: 100%;
 	overflow-y: scroll;
-	padding: 20px;
+	padding: 12px;
 	box-sizing: border-box;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-element:not(:first-child) {
-	padding-top: 15px;
+	padding-top: 16px;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-element {
-	padding-bottom: 15px;
+	padding-bottom: 16px;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-element:not(:last-child) {
@@ -477,7 +479,7 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-element > .additional-details-title {
 	font-size: 120%;
-	padding-bottom: 15px;
+	padding-bottom: 12px;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category {
@@ -490,18 +492,21 @@
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
-	display: block;
+	display: flex;
+	align-items: center;
 	cursor: pointer;
+	padding: 2px 4px;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource a {
+	padding-left: 4px;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	text-decoration: var(--text-link-decoration);
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover {
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover a {
 	text-decoration: underline;
 }
 
@@ -522,67 +527,67 @@
 	padding: 0px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme {
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme {
 	height: 100%;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack {
-	height: 224px;
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme > .extension-pack {
+	height: 200px;
 	padding-left: 20px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.one-row > .extension-pack {
-	height: 142px;
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme.one-row > .extension-pack {
+	height: 118px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.two-rows > .extension-pack {
-	height: 224px;
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme.two-rows > .extension-pack {
+	height: 200px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.three-rows > .extension-pack {
-	height: 306px;
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme.three-rows > .extension-pack {
+	height: 282px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.more-rows > .extension-pack {
-	height: 326px;
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme.more-rows > .extension-pack {
+	height: 302px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.one-row > .readme-content {
-	height: calc(100% - 142px);
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme.one-row > .readme-content {
+	height: calc(100% - 118px);
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.two-rows > .readme-content {
-	height: calc(100% - 224px);
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme.two-rows > .readme-content {
+	height: calc(100% - 200px);
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.three-rows > .readme-content {
-	height: calc(100% - 306px);
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme.three-rows > .readme-content {
+	height: calc(100% - 282px);
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.more-rows > .readme-content {
-	height: calc(100% - 326px);
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme.more-rows > .readme-content {
+	height: calc(100% - 302px);
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .header,
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .footer {
-	margin-bottom: 10px;
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme > .extension-pack > .header {
 	margin-right: 30px;
 	font-weight: bold;
 	font-size: 120%;
-	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
-	padding: 4px 6px;
+	padding: 6px;
 	line-height: 22px;
+	min-width: 150px;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content {
-	height: calc(100% - 60px);
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme > .extension-pack > .extension-pack-content {
+	height: calc(100% - 34px);
+	border-top: 1px solid rgba(128, 128, 128, 0.22);
+	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element {
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element {
 	height: 100%;
 }
 
-.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element > .subcontent {
+.extension-editor > .body > .content > .details > .content-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element > .subcontent {
 	height: 100%;
 	overflow-y: scroll;
 	box-sizing: border-box;
@@ -753,7 +758,7 @@
 
 .extension-editor .extensions-grid-view > .extension-container {
 	width: 350px;
-	margin: 0 10px 20px 0;
+	margin: 5px 10px;
 }
 
 .extension-editor .extensions-grid-view .extension-list-item {

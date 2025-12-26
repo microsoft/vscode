@@ -29,7 +29,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { EditorActivation, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { Dimension, multibyteAwareBtoa } from '../../../../base/browser/dom.js';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { multibyteAwareBtoa } from '../../../../base/common/strings.js';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from '../../../../platform/files/common/files.js';
 import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -122,7 +123,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 			// Set Editor Model
 			const control = assertReturnsDefined(this.diffEditorControl);
-			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
+			const resolvedDiffEditorModel = resolvedModel;
 
 			const vm = resolvedDiffEditorModel.textDiffEditorModel ? control.createViewModel(resolvedDiffEditorModel.textDiffEditorModel) : null;
 			this._previousViewModel = vm;
@@ -303,7 +304,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	private isFileBinaryError(error: Error): boolean;
 	private isFileBinaryError(error: Error | Error[]): boolean {
 		if (Array.isArray(error)) {
-			const errors = <Error[]>error;
+			const errors = error;
 
 			return errors.some(error => this.isFileBinaryError(error));
 		}
@@ -394,7 +395,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		}
 
 		const model = this.diffEditorControl.getModel();
-		if (!model || !model.modified || !model.original) {
+		if (!model?.modified || !model.original) {
 			return undefined; // view state always needs a model
 		}
 

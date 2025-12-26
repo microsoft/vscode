@@ -9,6 +9,7 @@ import { Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IPager } from '../../../base/common/paging.js';
 import { Platform } from '../../../base/common/platform.js';
+import { PolicyCategory } from '../../../base/common/policy.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize, localize2 } from '../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
@@ -189,8 +190,9 @@ export interface IGalleryExtensionAssets {
 	coreTranslations: [string, IGalleryExtensionAsset][];
 }
 
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
+export function isIExtensionIdentifier(obj: unknown): obj is IExtensionIdentifier {
+	const thing = obj as IExtensionIdentifier | undefined;
+	return !!thing
 		&& typeof thing === 'object'
 		&& typeof thing.id === 'string'
 		&& (!thing.uuid || typeof thing.uuid === 'string');
@@ -209,6 +211,7 @@ export interface IGalleryExtensionVersion {
 	version: string;
 	date: string;
 	isPreReleaseVersion: boolean;
+	targetPlatforms: TargetPlatform[];
 }
 
 export interface IGalleryExtension {
@@ -242,8 +245,8 @@ export interface IGalleryExtension {
 	detailsLink?: string;
 	ratingLink?: string;
 	supportLink?: string;
-	telemetryData?: any;
-	queryContext?: IStringDictionary<any>;
+	telemetryData?: IStringDictionary<unknown>;
+	queryContext?: IStringDictionary<unknown>;
 }
 
 export type InstallSource = 'gallery' | 'vsix' | 'resource';
@@ -433,7 +436,7 @@ export interface InstallExtensionResult {
 	readonly source?: URI | IGalleryExtension;
 	readonly local?: ILocalExtension;
 	readonly error?: Error;
-	readonly context?: IStringDictionary<any>;
+	readonly context?: IStringDictionary<unknown>;
 	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
@@ -462,6 +465,8 @@ export interface DidUpdateExtensionMetadata {
 export const enum ExtensionGalleryErrorCode {
 	Timeout = 'Timeout',
 	Cancelled = 'Cancelled',
+	ClientError = 'ClientError',
+	ServerError = 'ServerError',
 	Failed = 'Failed',
 	DownloadFailedWriting = 'DownloadFailedWriting',
 	Offline = 'Offline',
@@ -574,7 +579,7 @@ export type InstallOptions = {
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */
-	context?: IStringDictionary<any>;
+	context?: IStringDictionary<unknown>;
 };
 
 export type UninstallOptions = {
@@ -706,6 +711,7 @@ export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
 export const AllowedExtensionsConfigKey = 'extensions.allowed';
 export const VerifyExtensionSignatureConfigKey = 'extensions.verifySignature';
+export const ExtensionRequestsTimeoutConfigKey = 'extensions.requestTimeout';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 	.registerConfiguration({
@@ -731,8 +737,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 				scope: ConfigurationScope.APPLICATION,
 				policy: {
 					name: 'AllowedExtensions',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.96',
-					description: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"),
+					localization: {
+						description: {
+							key: 'extensions.allowed.policy',
+							value: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"),
+						}
+					}
 				},
 				additionalProperties: false,
 				patternProperties: {

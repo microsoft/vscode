@@ -17,7 +17,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
-import { isNative, language } from '../../../../base/common/platform.js';
+import { isNative } from '../../../../base/common/platform.js';
 import { isUndefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -87,10 +87,10 @@ import { ByteSize, IFileService } from '../../../../platform/files/common/files.
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-
-function toDateString(date: Date) {
-	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
-}
+import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { fromNow } from '../../../../base/common/date.js';
 
 class NavBar extends Disposable {
 
@@ -664,12 +664,24 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		// Setup common container structure for all tabs
+		const details = append(template.content, $('.details'));
+		const contentContainer = append(details, $('.content-container'));
+		const additionalDetailsContainer = append(details, $('.additional-details-container'));
+
+		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
+		layout();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
+
+		// Render additional details synchronously to avoid flicker
+		this.renderAdditionalDetails(additionalDetailsContainer, extension);
+
 		switch (id) {
-			case ExtensionEditorTab.Readme: return this.openDetails(extension, template, token);
-			case ExtensionEditorTab.Features: return this.openFeatures(template, token);
-			case ExtensionEditorTab.Changelog: return this.openChangelog(extension, template, token);
-			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
-			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
+			case ExtensionEditorTab.Readme: return this.openDetails(extension, contentContainer, token);
+			case ExtensionEditorTab.Features: return this.openFeatures(extension, contentContainer, token);
+			case ExtensionEditorTab.Changelog: return this.openChangelog(extension, contentContainer, token);
+			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, contentContainer, token);
+			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, contentContainer, token);
 		}
 		return Promise.resolve(null);
 	}
@@ -730,9 +742,12 @@ export class ExtensionEditor extends EditorPane {
 				// Only allow links with specific schemes
 				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)) {
 					this.openerService.open(link);
-				}
-				if (matchesScheme(link, Schemas.command) && extension.type === ExtensionType.System) {
-					this.openerService.open(link, { allowCommands: true });
+				} else if (matchesScheme(link, Schemas.command) && extension.type === ExtensionType.System) {
+					this.openerService.open(link, {
+						allowCommands: [
+							ShowCurrentReleaseNotesActionId
+						]
+					});
 				}
 			}));
 
@@ -750,7 +765,16 @@ export class ExtensionEditor extends EditorPane {
 			return '';
 		}
 
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, { shouldSanitize: extension.type !== ExtensionType.System, token });
+		const allowedLinkProtocols = [Schemas.http, Schemas.https, Schemas.mailto];
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, {
+			sanitizerConfig: {
+				allowedLinkProtocols: {
+					override: extension.type === ExtensionType.System
+						? [...allowedLinkProtocols, Schemas.command]
+						: allowedLinkProtocols
+				}
+			}
+		}, token);
 		if (token?.isCancellationRequested) {
 			return '';
 		}
@@ -758,7 +782,7 @@ export class ExtensionEditor extends EditorPane {
 		return this.renderBody(content);
 	}
 
-	private renderBody(body: string): string {
+	private renderBody(body: TrustedHTML): string {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
@@ -823,24 +847,15 @@ export class ExtensionEditor extends EditorPane {
 		</html>`;
 	}
 
-	private async openDetails(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const details = append(template.content, $('.details'));
-		const readmeContainer = append(details, $('.readme-container'));
-		const additionalDetailsContainer = append(details, $('.additional-details-container'));
-
-		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
-		layout();
-		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
-
+	private async openDetails(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		let activeElement: IActiveElement | null = null;
 		const manifest = await this.extensionManifest!.get().promise;
 		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExtensionPack(manifest)) {
-			activeElement = await this.openExtensionPackReadme(extension, manifest, readmeContainer, token);
+			activeElement = await this.openExtensionPackReadme(extension, manifest, contentContainer, token);
 		} else {
-			activeElement = await this.openMarkdown(extension, this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, localize('Readme title', "Readme"), token);
+			activeElement = await this.openMarkdown(extension, this.extensionReadme!.get(), localize('noReadme', "No README available."), contentContainer, WebviewIndex.Readme, localize('Readme title', "Readme"), token);
 		}
 
-		this.renderAdditionalDetails(additionalDetailsContainer, extension);
 		return activeElement;
 	}
 
@@ -858,21 +873,35 @@ export class ExtensionEditor extends EditorPane {
 		extensionPackReadme.style.maxWidth = '882px';
 
 		const extensionPack = append(extensionPackReadme, $('div', { class: 'extension-pack' }));
-		if (manifest.extensionPack!.length <= 3) {
-			extensionPackReadme.classList.add('one-row');
-		} else if (manifest.extensionPack!.length <= 6) {
-			extensionPackReadme.classList.add('two-rows');
-		} else if (manifest.extensionPack!.length <= 9) {
-			extensionPackReadme.classList.add('three-rows');
-		} else {
-			extensionPackReadme.classList.add('more-rows');
-		}
+
+		const packCount = manifest.extensionPack!.length;
+		const headerHeight = 37; // navbar height
+		const contentMinHeight = 200; // minimum height for readme content
+
+		const layout = () => {
+			extensionPackReadme.classList.remove('one-row', 'two-rows', 'three-rows', 'more-rows');
+			const availableHeight = container.clientHeight;
+			const availableForPack = Math.max(availableHeight - headerHeight - contentMinHeight, 0);
+			let rowClass = 'one-row';
+			if (availableForPack >= 302 && packCount > 6) {
+				rowClass = 'more-rows';
+			} else if (availableForPack >= 282 && packCount > 4) {
+				rowClass = 'three-rows';
+			} else if (availableForPack >= 200 && packCount > 2) {
+				rowClass = 'two-rows';
+			} else {
+				rowClass = 'one-row';
+			}
+			extensionPackReadme.classList.add(rowClass);
+		};
+
+		layout();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
 
 		const extensionPackHeader = append(extensionPack, $('div.header'));
 		extensionPackHeader.textContent = localize('extension pack', "Extension Pack ({0})", manifest.extensionPack!.length);
 		const extensionPackContent = append(extensionPack, $('div', { class: 'extension-pack-content' }));
 		extensionPackContent.setAttribute('tabindex', '0');
-		append(extensionPack, $('div.footer'));
 		const readmeContent = append(extensionPackReadme, $('div.readme-content'));
 
 		await Promise.all([
@@ -897,12 +926,14 @@ export class ExtensionEditor extends EditorPane {
 		scrollableContent.scanDomNode();
 	}
 
-	private openChangelog(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		return this.openMarkdown(extension, this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template.content, WebviewIndex.Changelog, localize('Changelog title', "Changelog"), token);
+	private async openChangelog(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+		const activeElement = await this.openMarkdown(extension, this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), contentContainer, WebviewIndex.Changelog, localize('Changelog title', "Changelog"), token);
+
+		return activeElement;
 	}
 
-	private async openFeatures(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const manifest = await this.loadContents(() => this.extensionManifest!.get(), template.content);
+	private async openFeatures(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+		const manifest = await this.loadContents(() => this.extensionManifest!.get(), contentContainer);
 		if (token.isCancellationRequested) {
 			return null;
 		}
@@ -911,27 +942,28 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		const extensionFeaturesTab = this.contentDisposables.add(this.instantiationService.createInstance(ExtensionFeaturesTab, manifest, (<IExtensionEditorOptions | undefined>this.options)?.feature));
-		const layout = () => extensionFeaturesTab.layout(template.content.clientHeight, template.content.clientWidth);
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		const featureLayout = () => extensionFeaturesTab.layout(contentContainer.clientHeight, contentContainer.clientWidth);
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout: featureLayout });
 		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-		append(template.content, extensionFeaturesTab.domNode);
-		layout();
+		append(contentContainer, extensionFeaturesTab.domNode);
+		featureLayout();
+
 		return extensionFeaturesTab.domNode;
 	}
 
-	private openExtensionDependencies(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private openExtensionDependencies(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
 
 		if (arrays.isFalsyOrEmpty(extension.dependencies)) {
-			append(template.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
-			return Promise.resolve(template.content);
+			append(contentContainer, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
+			return Promise.resolve(contentContainer);
 		}
 
 		const content = $('div', { class: 'subcontent' });
 		const scrollableContent = new DomScrollableElement(content, {});
-		append(template.content, scrollableContent.getDomNode());
+		append(contentContainer, scrollableContent.getDomNode());
 		this.contentDisposables.add(scrollableContent);
 
 		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree,
@@ -939,31 +971,34 @@ export class ExtensionEditor extends EditorPane {
 			{
 				listBackground: editorBackground
 			});
-		const layout = () => {
+		const depLayout = () => {
 			scrollableContent.scanDomNode();
 			const scrollDimensions = scrollableContent.getScrollDimensions();
 			dependenciesTree.layout(scrollDimensions.height);
 		};
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout: depLayout });
 		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
 		this.contentDisposables.add(dependenciesTree);
 		scrollableContent.scanDomNode();
+
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
 
-	private async openExtensionPack(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openExtensionPack(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
-		const manifest = await this.loadContents(() => this.extensionManifest!.get(), template.content);
+
+		const manifest = await this.loadContents(() => this.extensionManifest!.get(), contentContainer);
 		if (token.isCancellationRequested) {
 			return null;
 		}
 		if (!manifest) {
 			return null;
 		}
-		return this.renderExtensionPack(manifest, template.content, token);
+
+		return this.renderExtensionPack(manifest, contentContainer, token);
 	}
 
 	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
@@ -1070,36 +1105,38 @@ class AdditionalDetailsWidget extends Disposable {
 	}
 
 	private renderExtensionResources(container: HTMLElement, extension: IExtension): void {
-		const resources: [string, URI][] = [];
-		if (extension.url) {
-			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
+		const resources: [string, ThemeIcon, URI][] = [];
+		if (extension.repository) {
+			try {
+				resources.push([localize('repository', "Repository"), ThemeIcon.fromId(Codicon.repo.id), URI.parse(extension.repository)]);
+			} catch (error) {/* Ignore */ }
 		}
 		if (extension.supportUrl) {
 			try {
-				resources.push([localize('issues', "Issues"), URI.parse(extension.supportUrl)]);
-			} catch (error) {/* Ignore */ }
-		}
-		if (extension.repository) {
-			try {
-				resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
+				resources.push([localize('issues', "Issues"), ThemeIcon.fromId(Codicon.issues.id), URI.parse(extension.supportUrl)]);
 			} catch (error) {/* Ignore */ }
 		}
 		if (extension.licenseUrl) {
 			try {
-				resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
+				resources.push([localize('license', "License"), ThemeIcon.fromId(Codicon.linkExternal.id), URI.parse(extension.licenseUrl)]);
 			} catch (error) {/* Ignore */ }
 		}
 		if (extension.publisherUrl) {
-			resources.push([extension.publisherDisplayName, extension.publisherUrl]);
+			resources.push([extension.publisherDisplayName, ThemeIcon.fromId(Codicon.linkExternal.id), extension.publisherUrl]);
+		}
+		if (extension.url) {
+			resources.push([localize('Marketplace', "Marketplace"), ThemeIcon.fromId(Codicon.linkExternal.id), URI.parse(extension.url)]);
 		}
 		if (resources.length || extension.publisherSponsorLink) {
 			const extensionResourcesContainer = append(container, $('.resources-container.additional-details-element'));
 			append(extensionResourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
 			const resourcesElement = append(extensionResourcesContainer, $('.resources'));
-			for (const [label, uri] of resources) {
-				const resource = append(resourcesElement, $('a.resource', { tabindex: '0' }, label));
-				this.disposables.add(onClick(resource, () => this.openerService.open(uri)));
-				this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
+			for (const [label, icon, uri] of resources) {
+				const resourceElement = append(resourcesElement, $('.resource'));
+				append(resourceElement, $(ThemeIcon.asCSSSelector(icon)));
+				append(resourceElement, $('a', { tabindex: '0' }, label));
+				this.disposables.add(onClick(resourceElement, () => this.openerService.open(uri)));
+				this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resourceElement, uri.toString()));
 			}
 		}
 	}
@@ -1125,7 +1162,9 @@ class AdditionalDetailsWidget extends Disposable {
 			append(installInfo,
 				$('.more-info-entry', undefined,
 					$('div.more-info-entry-name', undefined, localize('last updated', "Last Updated")),
-					$('div', undefined, toDateString(new Date(extension.installedTimestamp)))
+					$('div', {
+						'title': new Date(extension.installedTimestamp).toString()
+					}, fromNow(extension.installedTimestamp, true, true, true))
 				)
 			);
 		}
@@ -1214,11 +1253,15 @@ class AdditionalDetailsWidget extends Disposable {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div.more-info-entry-name', undefined, localize('published', "Published")),
-					$('div', undefined, toDateString(new Date(gallery.releaseDate)))
+					$('div', {
+						'title': new Date(gallery.releaseDate).toString()
+					}, fromNow(gallery.releaseDate, true, true, true))
 				),
 				$('.more-info-entry', undefined,
 					$('div.more-info-entry-name', undefined, localize('last released', "Last Released")),
-					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
+					$('div', {
+						'title': new Date(gallery.lastUpdated).toString()
+					}, fromNow(gallery.lastUpdated, true, true, true))
 				)
 			);
 		}

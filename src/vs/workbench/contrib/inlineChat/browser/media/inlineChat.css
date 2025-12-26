@@ -72,13 +72,52 @@
 	outline: none;
 }
 
+.monaco-workbench .inline-chat .chat-widget {
+	.checkpoint-container,
+	.checkpoint-restore-container {
+		display: none;
+	}
+}
+
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
 	padding: 4px 0 0 0;
 }
 
-.monaco-workbench .inline-chat-2 .inline-chat .chat-widget .interactive-session .interactive-input-part {
-	padding: 8px 0 0 0;
+
+@keyframes pulse-opacity {
+	0%, 100% {
+		opacity: 1;
+	}
+	33% {
+		opacity: .6;
+	}
 }
+
+.monaco-workbench .zone-widget.inline-chat-widget.inline-chat-2 {
+
+	.inline-chat .chat-widget .interactive-session .interactive-input-part {
+		padding: 8px 0 0 0;
+	}
+
+	.interactive-session .chat-input-container {
+		border-color: var(--vscode-input-border, transparent);
+	}
+
+	.interactive-session .chat-input-container:focus-within {
+		border-color: var(--vscode-input-border, transparent);
+	}
+
+	.chat-attachments-container > .chat-input-toolbar {
+		margin-left: auto;
+		margin-right: 16px;
+	}
+
+	/* TODO@jrieken this isn't the nicest selector... */
+	.request-in-progress .monaco-editor [class^="ced-chat-session-detail"]::after {
+		animation: pulse-opacity 2.5s ease-in-out infinite;
+	}
+}
+
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	margin-bottom: 1px;
@@ -152,7 +191,7 @@
 .monaco-workbench .inline-chat > .status {
 	.label,
 	.actions {
-		padding-top: 8px;
+		padding: 4px 0;
 	}
 }
 
@@ -163,14 +202,13 @@
 .monaco-workbench .inline-chat .status .label {
 	overflow: hidden;
 	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
+	font-size: 12px;
 	display: flex;
 	white-space: nowrap;
 }
 
 .monaco-workbench .inline-chat .status .label.info {
 	margin-right: auto;
-	padding-left: 2px;
 }
 
 .monaco-workbench .inline-chat .status .label.status {
@@ -263,9 +301,9 @@
 	display: none;
 }
 
-.monaco-workbench .inline-chat .status:hover .actions.secondary,
-.monaco-workbench .inline-chat:focus .status .actions.secondary,
-.monaco-workbench .inline-chat .status:focus-within .actions.secondary {
+.monaco-workbench .inline-chat .status:hover .actions.secondary:not(.has-no-actions),
+.monaco-workbench .inline-chat:focus .status .actions.secondary:not(.has-no-actions),
+.monaco-workbench .inline-chat .status:focus-within .actions.secondary:not(.has-no-actions) {
 	display: inherit;
 }
 
@@ -294,6 +332,15 @@
 	}
 }
 
+.monaco-workbench .inline-chat .status .disclaimer {
+	a {
+		color: var(--vscode-textLink-foreground);
+	}
+
+	p {
+		margin: 0;
+	}
+}
 
 /* TODO@jrieken not needed? */
 .monaco-workbench .inline-chat .status .monaco-toolbar .action-label.checked {
@@ -360,18 +407,5 @@
 }
 
 .monaco-workbench .inline-chat .chat-attached-context {
-	padding: 3px 0px;
-}
-
-
-/* HINT */
-
-.monaco-workbench .monaco-editor .inline-chat-hint {
-	cursor: pointer;
-	color: var(--vscode-editorGhostText-foreground);
-}
-
-.monaco-workbench .monaco-editor .inline-chat-hint.embedded {
-	border: 1px solid var(--vscode-editorSuggestWidget-border);
-	border-radius: 3px;
+	padding: 2px 0px;
 }

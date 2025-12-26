@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-editor-overlay-widget {
-	padding: 0px;
+	padding: 2px;
 	color: var(--vscode-button-foreground);
 	background-color: var(--vscode-button-background);
-	border-radius: 5px;
+	border-radius: 2px;
 	border: 1px solid var(--vscode-contrastBorder);
 	display: flex;
 	align-items: center;
@@ -56,6 +56,7 @@
 .chat-editor-overlay-widget .action-item > .action-label {
 	padding: 5px;
 	font-size: 12px;
+	border-radius: 2px; /* same as overlay widget */
 }
 
 
@@ -79,9 +80,13 @@
 	> .action-label.codicon,
 	> .action-label,
 	> .action-label:hover {
-		color: var(--vscode-button-foreground);
-		opacity: 0.7;
+		color: var(--vscode-button-separator);
+		opacity: 1;
 	}
+}
+
+.chat-diff-change-content-widget .action-item > .action-label {
+	border-radius: 2px; /* same as overlay widget */
 }
 
 

@@ -7,6 +7,7 @@ import { ILocalizedString, localize, localize2 } from '../../../nls.js';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from '../../../platform/actions/common/actions.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { alert } from '../../../base/browser/ui/aria/aria.js';
 import { EditorActionsLocation, EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts, Position, ZenModeSettings, positionToString } from '../../services/layout/browser/layoutService.js';
 import { ServicesAccessor, IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { KeyMod, KeyCode, KeyChord } from '../../../base/common/keyCodes.js';
@@ -319,8 +320,15 @@ export class ToggleSidebarVisibilityAction extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const isCurrentlyVisible = layoutService.isVisible(Parts.SIDEBAR_PART);
 
-		layoutService.setPartHidden(layoutService.isVisible(Parts.SIDEBAR_PART), Parts.SIDEBAR_PART);
+		layoutService.setPartHidden(isCurrentlyVisible, Parts.SIDEBAR_PART);
+
+		// Announce visibility change to screen readers
+		const alertMessage = isCurrentlyVisible
+			? localize('sidebarHidden', "Primary Side Bar hidden")
+			: localize('sidebarVisible', "Primary Side Bar shown");
+		alert(alertMessage);
 	}
 }
 
@@ -998,7 +1006,7 @@ class MoveFocusedViewAction extends Action2 {
 		}
 
 		const viewDescriptor = viewDescriptorService.getViewDescriptorById(focusedViewId);
-		if (!viewDescriptor || !viewDescriptor.canMoveView) {
+		if (!viewDescriptor?.canMoveView) {
 			dialogService.error(localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
 			return;
 		}
@@ -1051,7 +1059,7 @@ class MoveFocusedViewAction extends Action2 {
 			.map(viewletId => {
 				return {
 					id: viewletId,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(viewletId)!)!.title
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(viewletId)!).title
 				};
 			}));
 
@@ -1072,7 +1080,7 @@ class MoveFocusedViewAction extends Action2 {
 			.map(panel => {
 				return {
 					id: panel,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!)!.title
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!).title
 				};
 			}));
 
@@ -1093,7 +1101,7 @@ class MoveFocusedViewAction extends Action2 {
 			.map(panel => {
 				return {
 					id: panel,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!)!.title
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!).title
 				};
 			}));
 

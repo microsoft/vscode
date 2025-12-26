@@ -16,11 +16,9 @@ export class Explorer extends Viewlet {
 	}
 
 	async openExplorerView(): Promise<any> {
-		if (process.platform === 'darwin') {
-			await this.code.sendKeybinding('cmd+shift+e');
-		} else {
-			await this.code.sendKeybinding('ctrl+shift+e');
-		}
+		await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+e' : 'ctrl+shift+e', async () => {
+			await this.code.waitForElement(Explorer.EXPLORER_VIEWLET);
+		});
 	}
 
 	async waitForOpenEditorsViewTitle(fn: (title: string) => boolean): Promise<void> {

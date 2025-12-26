@@ -64,6 +64,7 @@ export class ImplicitProjectConfiguration {
 	public readonly experimentalDecorators: boolean;
 	public readonly strictNullChecks: boolean;
 	public readonly strictFunctionTypes: boolean;
+	public readonly strict: boolean;
 
 	constructor(configuration: vscode.WorkspaceConfiguration) {
 		this.target = ImplicitProjectConfiguration.readTarget(configuration);
@@ -72,6 +73,7 @@ export class ImplicitProjectConfiguration {
 		this.experimentalDecorators = ImplicitProjectConfiguration.readExperimentalDecorators(configuration);
 		this.strictNullChecks = ImplicitProjectConfiguration.readImplicitStrictNullChecks(configuration);
 		this.strictFunctionTypes = ImplicitProjectConfiguration.readImplicitStrictFunctionTypes(configuration);
+		this.strict = ImplicitProjectConfiguration.readImplicitStrict(configuration);
 	}
 
 	public isEqualTo(other: ImplicitProjectConfiguration): boolean {
@@ -100,6 +102,10 @@ export class ImplicitProjectConfiguration {
 
 	private static readImplicitStrictFunctionTypes(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictFunctionTypes', true);
+	}
+
+	private static readImplicitStrict(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('js/ts.implicitProjectConfig.strict', true);
 	}
 }
 

@@ -467,10 +467,10 @@ export class Menubar extends Disposable {
 			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, {
 				type: 'question',
 				buttons: [
-					nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit"),
+					isMacintosh ? nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit") : nls.localize({ key: 'exit', comment: ['&& denotes a mnemonic'] }, "&&Exit"),
 					nls.localize('cancel', "Cancel")
 				],
-				message: nls.localize('quitMessage', "Are you sure you want to quit?")
+				message: isMacintosh ? nls.localize('quitMessageMac', "Are you sure you want to quit?") : nls.localize('quitMessage', "Are you sure you want to exit?")
 			});
 
 			return response === 0;
@@ -480,9 +480,8 @@ export class Menubar extends Disposable {
 	}
 
 	private shouldDrawMenu(menuId: string): boolean {
-		// We need to draw an empty menu to override the electron default
 		if (!isMacintosh && !this.showNativeMenu) {
-			return false;
+			return false; // We need to draw an empty menu to override the electron default
 		}
 
 		switch (menuId) {
@@ -529,17 +528,17 @@ export class Menubar extends Disposable {
 							menu.append(this.createMenuItem(item.label, item.id, false, item.checked));
 						}
 					} else {
-						menu.append(this.createMenuItem(item.label, item.id, item.enabled === false ? false : true, !!item.checked));
+						menu.append(this.createMenuItem(item.label, item.id, item.enabled !== false, !!item.checked));
 					}
 				} else {
-					menu.append(this.createMenuItem(item.label, item.id, item.enabled === false ? false : true, !!item.checked));
+					menu.append(this.createMenuItem(item.label, item.id, item.enabled !== false, !!item.checked));
 				}
 			}
 		});
 	}
 
 	private setMenuById(menu: Menu, menuId: string): void {
-		if (this.menubarMenus && this.menubarMenus[menuId]) {
+		if (this.menubarMenus?.[menuId]) {
 			this.setMenu(menu, this.menubarMenus[menuId].items);
 		}
 	}
@@ -587,7 +586,7 @@ export class Menubar extends Disposable {
 		return !!(event.triggeredByAccelerator || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
 	}
 
-	private createRoleMenuItem(label: string, commandId: string, role: any): MenuItem {
+	private createRoleMenuItem(label: string, commandId: string, role: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'pasteAndMatchStyle' | 'delete' | 'selectAll' | 'reload' | 'forceReload' | 'toggleDevTools' | 'resetZoom' | 'zoomIn' | 'zoomOut' | 'toggleSpellChecker' | 'togglefullscreen' | 'window' | 'minimize' | 'close' | 'help' | 'about' | 'services' | 'hide' | 'hideOthers' | 'unhide' | 'quit' | 'showSubstitutions' | 'toggleSmartQuotes' | 'toggleSmartDashes' | 'toggleTextReplacement' | 'startSpeaking' | 'stopSpeaking' | 'zoom' | 'front' | 'appMenu' | 'fileMenu' | 'editMenu' | 'viewMenu' | 'shareMenu' | 'recentDocuments' | 'toggleTabBar' | 'selectNextTab' | 'selectPreviousTab' | 'showAllTabs' | 'mergeAllWindows' | 'clearRecentDocuments' | 'moveTabToNewWindow' | 'windowMenu'): MenuItem {
 		const options: MenuItemConstructorOptions = {
 			label: this.mnemonicLabel(label),
 			role,
@@ -675,25 +674,18 @@ export class Menubar extends Disposable {
 		}
 	}
 
-	private createMenuItem(label: string, commandId: string | string[], enabled?: boolean, checked?: boolean): MenuItem;
-	private createMenuItem(label: string, click: () => void, enabled?: boolean, checked?: boolean): MenuItem;
-	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean): MenuItem {
-		const label = this.mnemonicLabel(arg1);
-		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem: MenuItem & IMenuItemWithKeybinding, win: BrowserWindow, event: KeyboardEvent) => {
+	private createMenuItem(labelOpt: string, commandId: string, enabledOpt?: boolean, checkedOpt?: boolean): MenuItem {
+		const label = this.mnemonicLabel(labelOpt);
+		const click = (menuItem: MenuItem & IMenuItemWithKeybinding, window: BaseWindow | undefined, event: KeyboardEvent) => {
 			const userSettingsLabel = menuItem ? menuItem.userSettingsLabel : null;
-			let commandId = arg2;
-			if (Array.isArray(arg2)) {
-				commandId = this.isOptionClick(event) ? arg2[1] : arg2[0]; // support alternative action if we got multiple action Ids and the option key was pressed while invoking
-			}
-
 			if (userSettingsLabel && event.triggeredByAccelerator) {
 				this.runActionInRenderer({ type: 'keybinding', userSettingsLabel });
 			} else {
 				this.runActionInRenderer({ type: 'commandId', commandId });
 			}
 		};
-		const enabled = typeof arg3 === 'boolean' ? arg3 : this.windowsMainService.getWindowCount() > 0;
-		const checked = typeof arg4 === 'boolean' ? arg4 : false;
+		const enabled = typeof enabledOpt === 'boolean' ? enabledOpt : this.windowsMainService.getWindowCount() > 0;
+		const checked = typeof checkedOpt === 'boolean' ? checkedOpt : false;
 
 		const options: MenuItemConstructorOptions = {
 			label,
@@ -704,13 +696,6 @@ export class Menubar extends Disposable {
 		if (checked) {
 			options.type = 'checkbox';
 			options.checked = checked;
-		}
-
-		let commandId: string | undefined;
-		if (typeof arg2 === 'string') {
-			commandId = arg2;
-		} else if (Array.isArray(arg2)) {
-			commandId = arg2[0];
 		}
 
 		if (isMacintosh) {

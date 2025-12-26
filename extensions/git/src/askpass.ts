@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { window, InputBoxOptions, Uri, Disposable, workspace, QuickPickOptions, l10n, LogOutputChannel } from 'vscode';
-import { IDisposable, EmptyDisposable, toDisposable } from './util';
+import { IDisposable, EmptyDisposable, toDisposable, extractFilePathFromArgs } from './util';
 import * as path from 'path';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
 import { CredentialsProvider, Credentials } from './api/git';
@@ -107,8 +107,14 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 		// passphrase
 		if (/passphrase/i.test(request)) {
 			// Commit signing - Enter passphrase:
+			// Commit signing - Enter passphrase for '/c/Users/<username>/.ssh/id_ed25519':
 			// Git operation  - Enter passphrase for key '/c/Users/<username>/.ssh/id_ed25519':
-			const file = argv[6]?.replace(/^["']+|["':]+$/g, '');
+			let file: string | undefined = undefined;
+			if (argv[5] && !/key/i.test(argv[5])) {
+				file = extractFilePathFromArgs(argv, 5);
+			} else if (argv[6]) {
+				file = extractFilePathFromArgs(argv, 6);
+			}
 
 			this.logger.trace(`[Askpass][handleSSHAskpass] request: ${request}, file: ${file}`);
 

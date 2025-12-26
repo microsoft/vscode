@@ -9,6 +9,7 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class NativeClipboardService implements IClipboardService {
 
@@ -17,10 +18,12 @@ export class NativeClipboardService implements IClipboardService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
 	async triggerPaste(targetWindowId: number): Promise<void> {
+		this.logService.trace('NativeClipboardService#triggerPaste called');
 		return this.nativeHostService.triggerPaste({ targetWindowId });
 	}
 
@@ -29,10 +32,12 @@ export class NativeClipboardService implements IClipboardService {
 	}
 
 	async writeText(text: string, type?: 'selection' | 'clipboard'): Promise<void> {
+		this.logService.trace('NativeClipboardService#writeText called with type:', type, ' with text.length:', text.length);
 		return this.nativeHostService.writeClipboardText(text, type);
 	}
 
 	async readText(type?: 'selection' | 'clipboard'): Promise<string> {
+		this.logService.trace('NativeClipboardService#readText called with type:', type);
 		return this.nativeHostService.readClipboardText(type);
 	}
 

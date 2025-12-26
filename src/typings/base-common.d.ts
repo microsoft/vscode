@@ -20,7 +20,7 @@ declare global {
 
 	// --- timeout / interval (available in all contexts, but different signatures in node.js vs web)
 
-	interface TimeoutHandle {readonly _: never; /* this is a trick that seems needed to prevent direct number assignment */}
+	interface TimeoutHandle { readonly _: never; /* this is a trick that seems needed to prevent direct number assignment */ }
 	type Timeout = TimeoutHandle;
 	function setTimeout(handler: string | Function, timeout?: number, ...arguments: any[]): Timeout;
 	function clearTimeout(timeout: Timeout | undefined): void;

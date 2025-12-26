@@ -4,14 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { fromNow } from '../../../../base/common/date.js';
-import { isLinuxSnap } from '../../../../base/common/platform.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IPrompt, IAsyncPromptResult } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { process } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 
 export class NativeDialogHandler extends AbstractDialogHandler {
@@ -19,7 +15,6 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super();
@@ -69,38 +64,11 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		throw new Error('Unsupported'); // we have no native API for password dialogs in Electron
 	}
 
-	async about(): Promise<void> {
-		let version = this.productService.version;
-		if (this.productService.target) {
-			version = `${version} (${this.productService.target} setup)`;
-		} else if (this.productService.darwinUniversalAssetId) {
-			version = `${version} (Universal)`;
-		}
-
-		const osProps = await this.nativeHostService.getOSProperties();
-
-		const detailString = (useAgo: boolean): string => {
-			return localize({ key: 'aboutDetail', comment: ['Electron, Chromium, Node.js and V8 are product names that need no translation'] },
-				"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nElectronBuildId: {4}\nChromium: {5}\nNode.js: {6}\nV8: {7}\nOS: {8}",
-				version,
-				this.productService.commit || 'Unknown',
-				this.productService.date ? `${this.productService.date}${useAgo ? ' (' + fromNow(new Date(this.productService.date), true) + ')' : ''}` : 'Unknown',
-				process.versions['electron'],
-				process.versions['microsoft-build'],
-				process.versions['chrome'],
-				process.versions['node'],
-				process.versions['v8'],
-				`${osProps.type} ${osProps.arch} ${osProps.release}${isLinuxSnap ? ' snap' : ''}`
-			);
-		};
-
-		const detail = detailString(true);
-		const detailToCopy = detailString(false);
-
+	async about(title: string, details: string, detailsToCopy: string): Promise<void> {
 		const { response } = await this.nativeHostService.showMessageBox({
 			type: 'info',
-			message: this.productService.nameLong,
-			detail: `\n${detail}`,
+			message: title,
+			detail: `\n${details}`,
 			buttons: [
 				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
 				localize('okButton', "OK")
@@ -109,7 +77,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		});
 
 		if (response === 0) {
-			this.clipboardService.writeText(detailToCopy);
+			this.clipboardService.writeText(detailsToCopy);
 		}
 	}
 }

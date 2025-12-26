@@ -5,14 +5,13 @@
 
 import { IContextMenuProvider } from '../../contextmenu.js';
 import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus, $ } from '../../dom.js';
-import dompurify from '../../dompurify/dompurify.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
-import { renderMarkdown, renderStringAsPlaintext } from '../../markdownRenderer.js';
+import { renderMarkdown, renderAsPlaintext } from '../../markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../touch.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { renderLabelWithIcons } from '../iconLabel/iconLabels.js';
-import { Action, IAction, IActionRunner } from '../../../common/actions.js';
+import { IAction, IActionRunner, toAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
 import { Color } from '../../../common/color.js';
 import { Event as BaseEvent, Emitter } from '../../../common/event.js';
@@ -25,6 +24,7 @@ import { localize } from '../../../../nls.js';
 import type { IManagedHover } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { IActionProvider } from '../dropdown/dropdown.js';
+import { safeSetInnerHtml, DomSanitizerConfig } from '../../domSanitize.js';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
@@ -77,6 +77,16 @@ export interface IButton extends IDisposable {
 export interface IButtonWithDescription extends IButton {
 	description: string;
 }
+
+// Only allow a very limited set of inline html tags
+const buttonSanitizerConfig = Object.freeze<DomSanitizerConfig>({
+	allowedTags: {
+		override: ['b', 'i', 'u', 'code', 'span'],
+	},
+	allowedAttributes: {
+		override: ['class'],
+	},
+});
 
 export class Button extends Disposable implements IButton {
 
@@ -166,18 +176,18 @@ export class Button extends Disposable implements IButton {
 
 		this._register(addDisposableListener(this._element, EventType.MOUSE_OVER, e => {
 			if (!this._element.classList.contains('disabled')) {
-				this.updateBackground(true);
+				this.updateStyles(true);
 			}
 		}));
 
 		this._register(addDisposableListener(this._element, EventType.MOUSE_OUT, e => {
-			this.updateBackground(false); // restore standard styles
+			this.updateStyles(false); // restore standard styles
 		}));
 
 		// Also set hover background when button is focused for feedback
 		this.focusTracker = this._register(trackFocus(this._element));
-		this._register(this.focusTracker.onDidFocus(() => { if (this.enabled) { this.updateBackground(true); } }));
-		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.updateBackground(false); } }));
+		this._register(this.focusTracker.onDidFocus(() => { if (this.enabled) { this.updateStyles(true); } }));
+		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.updateStyles(false); } }));
 	}
 
 	public override dispose(): void {
@@ -208,16 +218,19 @@ export class Button extends Disposable implements IButton {
 		return elements;
 	}
 
-	private updateBackground(hover: boolean): void {
+	private updateStyles(hover: boolean): void {
 		let background;
+		let foreground;
 		if (this.options.secondary) {
 			background = hover ? this.options.buttonSecondaryHoverBackground : this.options.buttonSecondaryBackground;
+			foreground = this.options.buttonSecondaryForeground;
 		} else {
 			background = hover ? this.options.buttonHoverBackground : this.options.buttonBackground;
+			foreground = this.options.buttonForeground;
 		}
-		if (background) {
-			this._element.style.backgroundColor = background;
-		}
+
+		this._element.style.backgroundColor = background || '';
+		this._element.style.color = foreground || '';
 	}
 
 	get element(): HTMLElement {
@@ -237,15 +250,14 @@ export class Button extends Disposable implements IButton {
 		const labelElement = this.options.supportShortLabel ? this._labelElement! : this._element;
 
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, { inline: true });
+			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
 			rendered.dispose();
 
 			// Don't include outer `<p>`
+			// eslint-disable-next-line no-restricted-syntax
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
-				// Only allow a very limited set of inline html tags
-				const sanitized = dompurify.sanitize(root, { ADD_TAGS: ['b', 'i', 'u', 'code', 'span'], ALLOWED_ATTR: ['class'], RETURN_TRUSTED_TYPE: true });
-				labelElement.innerHTML = sanitized as unknown as string;
+				safeSetInnerHtml(labelElement, root, buttonSanitizerConfig);
 			} else {
 				reset(labelElement);
 			}
@@ -261,7 +273,7 @@ export class Button extends Disposable implements IButton {
 		if (typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (this.options.title) {
-			title = renderStringAsPlaintext(value);
+			title = renderAsPlaintext(value);
 		}
 
 		this.setTitle(title);
@@ -318,6 +330,12 @@ export class Button extends Disposable implements IButton {
 		return !this._element.classList.contains('disabled');
 	}
 
+	set secondary(value: boolean) {
+		this._element.classList.toggle('secondary', value);
+		(this.options as { secondary?: boolean }).secondary = value;
+		this.updateStyles(false);
+	}
+
 	set checked(value: boolean) {
 		if (value) {
 			this._element.classList.add('checked');
@@ -363,7 +381,7 @@ export interface IButtonWithDropdownOptions extends IButtonOptions {
 export class ButtonWithDropdown extends Disposable implements IButton {
 
 	readonly primaryButton: Button;
-	private readonly action: Action;
+	private readonly action: IAction;
 	readonly dropdownButton: Button;
 	private readonly separatorContainer: HTMLDivElement;
 	private readonly separator: HTMLDivElement;
@@ -385,7 +403,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 		this.primaryButton = this._register(new Button(this.element, options));
 		this._register(this.primaryButton.onDidClick(e => this._onDidClick.fire(e)));
-		this.action = this._register(new Action('primaryAction', renderStringAsPlaintext(this.primaryButton.label), undefined, true, async () => this._onDidClick.fire(undefined)));
+		this.action = toAction({ id: 'primaryAction', label: renderAsPlaintext(this.primaryButton.label), run: async () => this._onDidClick.fire(undefined) });
 
 		this.separatorContainer = document.createElement('div');
 		this.separatorContainer.classList.add('monaco-button-dropdown-separator');
@@ -608,8 +626,8 @@ export class ButtonBar {
  * This is a Button that supports an icon to the left, and markdown to the right, with proper separation and wrapping the markdown label, which Button doesn't do.
  */
 export class ButtonWithIcon extends Button {
-	private _iconElement: HTMLElement;
-	private _mdlabelElement: HTMLElement;
+	private readonly _iconElement: HTMLElement;
+	private readonly _mdlabelElement: HTMLElement;
 
 	public get labelElement() { return this._mdlabelElement; }
 
@@ -626,6 +644,10 @@ export class ButtonWithIcon extends Button {
 		this._element.append(this._iconElement, this._mdlabelElement);
 	}
 
+	override get label(): IMarkdownString | string {
+		return super.label;
+	}
+
 	override set label(value: IMarkdownString | string) {
 		if (this._label === value) {
 			return;
@@ -637,14 +659,13 @@ export class ButtonWithIcon extends Button {
 
 		this._element.classList.add('monaco-text-button');
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, { inline: true });
+			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
 			rendered.dispose();
 
+			// eslint-disable-next-line no-restricted-syntax
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
-				// Only allow a very limited set of inline html tags
-				const sanitized = dompurify.sanitize(root, { ADD_TAGS: ['b', 'i', 'u', 'code', 'span'], ALLOWED_ATTR: ['class'], RETURN_TRUSTED_TYPE: true });
-				this._mdlabelElement.innerHTML = sanitized as unknown as string;
+				safeSetInnerHtml(this._mdlabelElement, root, buttonSanitizerConfig);
 			} else {
 				reset(this._mdlabelElement);
 			}
@@ -660,12 +681,16 @@ export class ButtonWithIcon extends Button {
 		if (typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (this.options.title) {
-			title = renderStringAsPlaintext(value);
+			title = renderAsPlaintext(value);
 		}
 
 		this.setTitle(title);
 		this._setAriaLabel();
 		this._label = value;
+	}
+
+	override get icon(): ThemeIcon {
+		return super.icon;
 	}
 
 	override set icon(icon: ThemeIcon) {

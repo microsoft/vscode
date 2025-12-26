@@ -170,7 +170,7 @@ export class TextureAtlas extends Disposable {
 			throw new BugIndicatingError('Cannot warm atlas without color map');
 		}
 		this._warmUpTask.value?.clear();
-		const taskQueue = this._warmUpTask.value = new IdleTaskQueue();
+		const taskQueue = this._warmUpTask.value = this._instantiationService.createInstance(IdleTaskQueue);
 		// Warm up using roughly the larger glyphs first to help optimize atlas allocation
 		// A-Z
 		for (let code = CharCode.A; code <= CharCode.Z; code++) {

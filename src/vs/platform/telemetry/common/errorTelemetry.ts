@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch } from '../../../base/common/arrays.js';
-import { errorHandler, ErrorNoTelemetry } from '../../../base/common/errors.js';
+import { errorHandler, ErrorNoTelemetry, PendingMigrationError } from '../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { safeStringify } from '../../../base/common/objects.js';
 import { FileOperationError } from '../../files/common/files.js';
@@ -89,7 +89,11 @@ export default abstract class BaseErrorTelemetry {
 
 		// If it's the no telemetry error it doesn't get logged
 		// TOOD @lramos15 hacking in FileOperation error because it's too messy to adopt ErrorNoTelemetry. A better solution should be found
-		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || (typeof err?.message === 'string' && err.message.includes('Unable to read file'))) {
+		//
+		// Explicitly filter out PendingMigrationError for https://github.com/microsoft/vscode/issues/250648#issuecomment-3394040431
+		// We don't inherit from ErrorNoTelemetry to preserve the name used in reporting for exthostdeprecatedapiusage event.
+		// TODO(deepak1556): remove when PendingMigrationError is no longer needed.
+		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || PendingMigrationError.is(err) || (typeof err?.message === 'string' && err.message.includes('Unable to read file'))) {
 			return;
 		}
 
@@ -115,7 +119,7 @@ export default abstract class BaseErrorTelemetry {
 			if (!this._buffer[idx].count) {
 				this._buffer[idx].count = 0;
 			}
-			this._buffer[idx].count! += 1;
+			this._buffer[idx].count += 1;
 		}
 
 		if (this._flushHandle === undefined) {

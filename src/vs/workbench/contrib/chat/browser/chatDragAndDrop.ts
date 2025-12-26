@@ -10,7 +10,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { UriList } from '../../../../base/common/dataTransfer.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -19,12 +19,13 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { extractSCMHistoryItemDropData } from '../../scm/browser/scmHistoryChatContext.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
-import { IChatWidgetService } from './chat.js';
-import { IChatAttachmentResolveService, ImageTransferData } from './chatAttachmentResolveService.js';
+import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
+import { IChatAttachmentResolveService, ImageTransferData } from './chatAttachmentResolveService.js';
 import { IChatInputStyles } from './chatInputPart.js';
-import { convertStringToUInt8Array } from './imageUtils.js';
+import { convertStringToUInt8Array } from './chatImageUtils.js';
 
 enum ChatDragAndDropType {
 	FILE_INTERNAL,
@@ -34,7 +35,8 @@ enum ChatDragAndDropType {
 	SYMBOL,
 	HTML,
 	MARKER,
-	NOTEBOOK_CELL_OUTPUT
+	NOTEBOOK_CELL_OUTPUT,
+	SCM_HISTORY_ITEM
 }
 
 const IMAGE_DATA_REGEX = /^data:image\/[a-z]+;base64,/;
@@ -48,18 +50,30 @@ export class ChatDragAndDrop extends Themable {
 	private disableOverlay: boolean = false;
 
 	constructor(
+		private readonly widgetRef: () => IChatWidget | undefined,
 		private readonly attachmentModel: ChatAttachmentModel,
 		private readonly styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ILogService private readonly logService: ILogService,
 		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService
 	) {
 		super(themeService);
 
 		this.updateStyles();
+
+		this._register(toDisposable(() => {
+			this.overlays.forEach(({ overlay, disposable }) => {
+				disposable.dispose();
+				overlay.remove();
+			});
+
+			this.overlays.clear();
+			this.currentActiveTarget = undefined;
+			this.overlayText?.remove();
+			this.overlayText = undefined;
+		}));
 	}
 
 	addOverlay(target: HTMLElement, overlayContainer: HTMLElement): void {
@@ -180,6 +194,8 @@ export class ChatDragAndDrop extends Themable {
 		// This is an estimation based on the datatransfer types/items
 		if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
 			return ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT;
+		} else if (containsDragType(e, CodeDataTransfers.SCM_HISTORY_ITEM)) {
+			return ChatDragAndDropType.SCM_HISTORY_ITEM;
 		} else if (containsImageDragType(e)) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
 		} else if (containsDragType(e, 'text/html')) {
@@ -215,6 +231,7 @@ export class ChatDragAndDrop extends Themable {
 			case ChatDragAndDropType.MARKER: return localize('problem', 'Problem');
 			case ChatDragAndDropType.HTML: return localize('url', 'URL');
 			case ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT: return localize('notebookOutput', 'Output');
+			case ChatDragAndDropType.SCM_HISTORY_ITEM: return localize('scmHistoryItem', 'Change');
 		}
 	}
 
@@ -227,6 +244,13 @@ export class ChatDragAndDrop extends Themable {
 			const notebookOutputData = extractNotebookCellOutputDropData(e);
 			if (notebookOutputData) {
 				return this.chatAttachmentResolveService.resolveNotebookOutputAttachContext(notebookOutputData);
+			}
+		}
+
+		if (containsDragType(e, CodeDataTransfers.SCM_HISTORY_ITEM)) {
+			const scmHistoryItemData = extractSCMHistoryItemDropData(e);
+			if (scmHistoryItemData) {
+				return this.chatAttachmentResolveService.resolveSourceControlHistoryItemAttachContext(scmHistoryItemData);
 			}
 		}
 
@@ -275,9 +299,10 @@ export class ChatDragAndDrop extends Themable {
 		}
 
 		// TODO: use dnd provider to insert text @justschen
-		const selection = this.chatWidgetService.lastFocusedWidget?.inputEditor.getSelection();
-		if (selection && this.chatWidgetService.lastFocusedWidget) {
-			this.chatWidgetService.lastFocusedWidget.inputEditor.executeEdits('chatInsertUrl', [{ range: selection, text: url }]);
+		const widget = this.widgetRef();
+		const selection = widget?.inputEditor.getSelection();
+		if (selection && widget) {
+			widget.inputEditor.executeEdits('chatInsertUrl', [{ range: selection, text: url }]);
 		}
 
 		this.logService.warn(`Image URLs must end in .jpg, .png, .gif, .webp, or .bmp. Failed to fetch image from this URL: ${url}`);

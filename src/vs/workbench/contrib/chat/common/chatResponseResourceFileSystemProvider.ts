@@ -46,18 +46,18 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 
 	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
-		stream.end(this.lookupURI(resource));
+		Promise.resolve(this.lookupURI(resource)).then(v => stream.end(v));
 		return stream;
 	}
 
-	stat(resource: URI): Promise<IStat> {
-		const r = this.lookupURI(resource);
-		return Promise.resolve({
+	async stat(resource: URI): Promise<IStat> {
+		const r = await this.lookupURI(resource);
+		return {
 			type: FileType.File,
 			ctime: 0,
 			mtime: 0,
 			size: r.length,
-		});
+		};
 	}
 
 	delete(): Promise<void> {
@@ -84,29 +84,43 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		throw createFileSystemProviderError('fs is readonly', FileSystemProviderErrorCode.NoPermissions);
 	}
 
-	private lookupURI(uri: URI): Uint8Array {
+	private findMatchingInvocation(uri: URI) {
 		const parsed = ChatResponseResource.parseUri(uri);
 		if (!parsed) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
-		const { sessionId, requestId, toolCallId } = parsed;
-		const result = this.chatService.getSession(sessionId)
-			?.getRequests()
-			.find(r => r.id === requestId)
-			?.response?.entireResponse.value
-			.find((r): r is IChatToolInvocation | IChatToolInvocationSerialized => (r.kind === 'toolInvocation' || r.kind === 'toolInvocationSerialized') && r.toolCallId === toolCallId);
-
-		if (!result) {
+		const { sessionResource, toolCallId, index } = parsed;
+		const session = this.chatService.getSession(sessionResource);
+		if (!session) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
-		if (!isToolResultInputOutputDetails(result.resultDetails)) {
+		const requests = session.getRequests();
+		for (let k = requests.length - 1; k >= 0; k--) {
+			const req = requests[k];
+			const tc = req.response?.entireResponse.value.find((r): r is IChatToolInvocation | IChatToolInvocationSerialized => (r.kind === 'toolInvocation' || r.kind === 'toolInvocationSerialized') && r.toolCallId === toolCallId);
+			if (tc) {
+				return { result: tc, index };
+			}
+		}
+
+		throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
+	}
+
+	private lookupURI(uri: URI): Uint8Array | Promise<Uint8Array> {
+		const { result, index } = this.findMatchingInvocation(uri);
+		const details = IChatToolInvocation.resultDetails(result);
+		if (!isToolResultInputOutputDetails(details)) {
 			throw createFileSystemProviderError(`Tool does not have I/O`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
-		const part = result.resultDetails.output.at(parsed.index);
+		const part = details.output.at(index);
 		if (!part) {
 			throw createFileSystemProviderError(`Tool does not have part`, FileSystemProviderErrorCode.FileNotFound);
+		}
+
+		if (part.type === 'ref') {
+			return this._fileService.readFile(part.uri).then(r => r.value.buffer);
 		}
 
 		return part.isText ? new TextEncoder().encode(part.value) : decodeBase64(part.value).buffer;

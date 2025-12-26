@@ -9,9 +9,7 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { onUnexpectedError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { KeyCodeChord } from '../../../../base/common/keybindings.js';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import * as platform from '../../../../base/common/platform.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType, isObject } from '../../../../base/common/types.js';
 import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
@@ -46,7 +44,7 @@ import { basename, extname } from '../../../../base/common/resources.js';
 import { hash } from '../../../../base/common/hash.js';
 import { WindowIdleValue, getWindow } from '../../../../base/browser/dom.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
-import { EditReasons } from '../../../common/textModelEditReason.js';
+import { EditSources } from '../../../common/textModelEditSource.js';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -132,7 +130,10 @@ export class SuggestController implements IEditorContribution {
 	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
 
 	private readonly _onWillInsertSuggestItem = new Emitter<{ item: CompletionItem }>();
-	readonly onWillInsertSuggestItem: Event<{ item: CompletionItem }> = this._onWillInsertSuggestItem.event;
+	get onWillInsertSuggestItem() { return this._onWillInsertSuggestItem.event; }
+
+	private _wantsForceRenderingAbove = false;
+
 
 	constructor(
 		editor: ICodeEditor,
@@ -211,20 +212,9 @@ export class SuggestController implements IEditorContribution {
 				ctxCanResolve.set(Boolean(item.provider.resolveCompletionItem) || Boolean(item.completion.documentation) || item.completion.detail !== item.completion.label);
 			}));
 
-			this._toDispose.add(widget.onDetailsKeyDown(e => {
-				// cmd + c on macOS, ctrl + c on Win / Linux
-				if (
-					e.toKeyCodeChord().equals(new KeyCodeChord(true, false, false, false, KeyCode.KeyC)) ||
-					(platform.isMacintosh && e.toKeyCodeChord().equals(new KeyCodeChord(false, false, false, true, KeyCode.KeyC)))
-				) {
-					e.stopPropagation();
-					return;
-				}
-
-				if (!e.toKeyCodeChord().isModifierKey()) {
-					this.editor.focus();
-				}
-			}));
+			if (this._wantsForceRenderingAbove) {
+				widget.forceRenderingAbove();
+			}
 
 			return widget;
 		}));
@@ -340,7 +330,7 @@ export class SuggestController implements IEditorContribution {
 		const { item } = event;
 
 		//
-		const tasks: Promise<any>[] = [];
+		const tasks: Promise<unknown>[] = [];
 		const cts = new CancellationTokenSource();
 
 		// pushing undo stops *before* additional text edits and
@@ -459,7 +449,7 @@ export class SuggestController implements IEditorContribution {
 			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
 			clipboardText: event.model.clipboardText,
 			overtypingCapturer: this._overtypingCapturer.value,
-			reason: EditReasons.suggest({ providerId: ProviderId.fromExtensionId(item.extensionId?.value) }),
+			reason: EditSources.suggest({ providerId: ProviderId.fromExtensionId(item.extensionId?.value) }),
 		});
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
@@ -655,7 +645,7 @@ export class SuggestController implements IEditorContribution {
 			// wait for trigger because only then the cancel-event is trustworthy
 			const listener: IDisposable[] = [];
 
-			Event.any<any>(this.model.onDidTrigger, this.model.onDidCancel)(() => {
+			Event.any<unknown>(this.model.onDidTrigger, this.model.onDidCancel)(() => {
 				// retrigger or cancel -> try to type default text
 				dispose(listener);
 				fallback();
@@ -755,15 +745,20 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	forceRenderingAbove() {
-		this.widget.value.forceRenderingAbove();
+		if (this.widget.isInitialized) {
+			this.widget.value.forceRenderingAbove();
+		} else {
+			// Defer this until the widget is created
+			this._wantsForceRenderingAbove = true;
+		}
 	}
 
 	stopForceRenderingAbove() {
-		if (!this.widget.isInitialized) {
-			// This method has no effect if the widget is not initialized yet.
-			return;
+		if (this.widget.isInitialized) {
+			this.widget.value.stopForceRenderingAbove();
+		} else {
+			this._wantsForceRenderingAbove = false;
 		}
-		this.widget.value.stopForceRenderingAbove();
 	}
 
 	registerSelector(selector: ISuggestItemPreselector): IDisposable {
@@ -817,7 +812,7 @@ export class TriggerSuggestAction extends EditorAction {
 		});
 	}
 
-	run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	run(_accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 		const controller = SuggestController.get(editor);
 
 		if (!controller) {
@@ -866,19 +861,19 @@ registerEditorCommand(new SuggestCommand({
 		title: nls.localize('accept.insert', "Insert"),
 		group: 'left',
 		order: 1,
-		when: SuggestContext.HasInsertAndReplaceRange.toNegated()
+		when: ContextKeyExpr.and(SuggestContext.HasFocusedSuggestion, SuggestContext.HasInsertAndReplaceRange.toNegated())
 	}, {
 		menuId: suggestWidgetStatusbarMenu,
 		title: nls.localize('accept.insert', "Insert"),
 		group: 'left',
 		order: 1,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
+		when: ContextKeyExpr.and(SuggestContext.HasFocusedSuggestion, SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
 	}, {
 		menuId: suggestWidgetStatusbarMenu,
 		title: nls.localize('accept.replace', "Replace"),
 		group: 'left',
 		order: 1,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
+		when: ContextKeyExpr.and(SuggestContext.HasFocusedSuggestion, SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
 	}]
 }));
 
@@ -898,13 +893,13 @@ registerEditorCommand(new SuggestCommand({
 		menuId: suggestWidgetStatusbarMenu,
 		group: 'left',
 		order: 2,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert')),
+		when: ContextKeyExpr.and(SuggestContext.HasFocusedSuggestion, SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert')),
 		title: nls.localize('accept.replace', "Replace")
 	}, {
 		menuId: suggestWidgetStatusbarMenu,
 		group: 'left',
 		order: 2,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace')),
+		when: ContextKeyExpr.and(SuggestContext.HasFocusedSuggestion, SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace')),
 		title: nls.localize('accept.insert', "Insert")
 	}]
 }));
@@ -935,6 +930,13 @@ registerEditorCommand(new SuggestCommand({
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
 		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
+	},
+	menuOpts: {
+		menuId: suggestWidgetStatusbarMenu,
+		group: 'left',
+		order: 0,
+		when: SuggestContext.HasFocusedSuggestion.toNegated(),
+		title: nls.localize('focus.suggestion', "Select")
 	}
 }));
 
@@ -1113,6 +1115,24 @@ registerEditorCommand(new SuggestCommand({
 	}
 }));
 
+
+registerEditorCommand(new class extends EditorCommand {
+	constructor() {
+		super({
+			id: 'suggestWidgetCopy',
+			precondition: SuggestContext.DetailsFocused,
+			kbOpts: {
+				weight: weight + 10,
+				kbExpr: SuggestContext.DetailsFocused,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyC,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.KeyC, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
+			}
+		});
+	}
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		getWindow(editor.getDomNode()).document.execCommand('copy');
+	}
+}());
 
 registerEditorAction(class extends EditorAction {
 

@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
-import { TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
+import { TerminalCompletionService, TerminalCompletionResourceOptions, type ITerminalCompletionProvider } from '../../browser/terminalCompletionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import assert, { fail } from 'assert';
 import { isWindows, type IProcessEnvironment } from '../../../../../../base/common/platform.js';
@@ -18,9 +18,11 @@ import { ShellEnvDetectionCapability } from '../../../../../../platform/terminal
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
 import { count } from '../../../../../../base/common/strings.js';
-import { WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
 import { gitBashToWindowsPath, windowsToGitBashPath } from '../../browser/terminalGitBashHelpers.js';
-import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { TerminalSuggestSettingId } from '../../common/terminalSuggestConfiguration.js';
+import { TestPathService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -31,8 +33,7 @@ interface IAssertionTerminalCompletion {
 }
 
 interface IAssertionCommandLineConfig {
-	replacementIndex: number;
-	replacementLength: number;
+	replacementRange: [number, number];
 }
 
 /**
@@ -45,14 +46,12 @@ function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: 
 			label: e.label,
 			detail: e.detail ?? '',
 			kind: e.kind ?? TerminalCompletionItemKind.Folder,
-			replacementIndex: e.replacementIndex,
-			replacementLength: e.replacementLength,
+			replacementRange: e.replacementRange,
 		})), expected.map(e => ({
 			label: e.label.replaceAll('/', sep),
 			detail: e.detail ? e.detail.replaceAll('/', sep) : '',
 			kind: e.kind ?? TerminalCompletionItemKind.Folder,
-			replacementIndex: expectedConfig.replacementIndex,
-			replacementLength: expectedConfig.replacementLength,
+			replacementRange: expectedConfig.replacementRange,
 		}))
 	);
 }
@@ -68,16 +67,14 @@ function assertPartialCompletionsExist(actual: ITerminalCompletion[] | undefined
 		label: e.label.replaceAll('/', pathSeparator),
 		detail: e.detail ? e.detail.replaceAll('/', pathSeparator) : '',
 		kind: e.kind ?? TerminalCompletionItemKind.Folder,
-		replacementIndex: expectedConfig.replacementIndex,
-		replacementLength: expectedConfig.replacementLength,
+		replacementRange: expectedConfig.replacementRange,
 	}));
 	for (const expectedItem of expectedMapped) {
 		assert.deepStrictEqual(actual.map(e => ({
 			label: e.label,
 			detail: e.detail ?? '',
 			kind: e.kind ?? TerminalCompletionItemKind.Folder,
-			replacementIndex: e.replacementIndex,
-			replacementLength: e.replacementLength,
+			replacementRange: e.replacementRange,
 		})).find(e => e.detail === expectedItem.detail), expectedItem);
 	}
 }
@@ -91,7 +88,7 @@ let homeDir = isWindows ? testEnv['USERPROFILE'] : testEnv['HOME'];
 if (!homeDir!.endsWith('/')) {
 	homeDir += '/';
 }
-const standardTidleItem = Object.freeze({ label: '~', detail: homeDir });
+const standardTildeItem = Object.freeze({ label: '~', detail: homeDir });
 
 suite('TerminalCompletionService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -104,9 +101,11 @@ suite('TerminalCompletionService', () => {
 	const provider = 'testProvider';
 
 	setup(() => {
-		instantiationService = store.add(new TestInstantiationService());
+		instantiationService = workbenchInstantiationService({
+			pathService: () => new TestPathService(URI.file(homeDir ?? '/')),
+		}, store);
 		configurationService = new TestConfigurationService();
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
 			async stat(resource) {
@@ -143,19 +142,13 @@ suite('TerminalCompletionService', () => {
 	});
 
 	suite('resolveResources should return undefined', () => {
-		test('if cwd is not provided', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = { pathSeparator };
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
-			assert(!result);
-		});
-
-		test('if neither filesRequested nor foldersRequested are true', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+		test('if neither showFiles nor showDirectories are true', async () => {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
 				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'cd ', 3, provider, capabilities);
 			assert(!result);
 		});
 	});
@@ -170,63 +163,63 @@ suite('TerminalCompletionService', () => {
 		});
 
 		test('| should return root-level completions', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
+				showDirectories: true,
 				pathSeparator
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 1, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, '', 1, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: '.', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: '../', detail: '/' },
-				standardTidleItem,
-			], { replacementIndex: 1, replacementLength: 0 });
+				standardTildeItem,
+			], { replacementRange: [1, 1] });
 		});
 
 		test('./| should return folder completions', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
+				showDirectories: true,
 				pathSeparator
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 3, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, './', 3, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './../', detail: '/' },
-			], { replacementIndex: 1, replacementLength: 2 });
+			], { replacementRange: [1, 3] });
 		});
 
 		test('cd ./| should return folder completions', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
+				showDirectories: true,
 				pathSeparator
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./', 5, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'cd ./', 5, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './../', detail: '/' },
-			], { replacementIndex: 3, replacementLength: 2 });
+			], { replacementRange: [3, 5] });
 		});
 		test('cd ./f| should return folder completions', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
+				showDirectories: true,
 				pathSeparator
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./f', 6, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'cd ./f', 6, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './../', detail: '/' },
-			], { replacementIndex: 3, replacementLength: 3 });
+			], { replacementRange: [3, 6] });
 		});
 	});
 
@@ -242,13 +235,13 @@ suite('TerminalCompletionService', () => {
 		});
 
 		test('./| should handle hidden files and folders', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
-				filesRequested: true,
+				showDirectories: true,
+				showFiles: true,
 				pathSeparator
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, './', 2, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
@@ -257,17 +250,17 @@ suite('TerminalCompletionService', () => {
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './file1.txt', detail: '/test/file1.txt', kind: TerminalCompletionItemKind.File },
 				{ label: './../', detail: '/' },
-			], { replacementIndex: 0, replacementLength: 2 });
+			], { replacementRange: [0, 2] });
 		});
 
 		test('./h| should handle hidden files and folders', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
-				filesRequested: true,
+				showDirectories: true,
+				showFiles: true,
 				pathSeparator
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './h', 3, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, './h', 3, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
@@ -276,12 +269,12 @@ suite('TerminalCompletionService', () => {
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './file1.txt', detail: '/test/file1.txt', kind: TerminalCompletionItemKind.File },
 				{ label: './../', detail: '/' },
-			], { replacementIndex: 0, replacementLength: 3 });
+			], { replacementRange: [0, 3] });
 		});
 	});
 
 	suite('~ -> $HOME', () => {
-		let resourceRequestConfig: TerminalResourceRequestConfig;
+		let resourceOptions: TerminalCompletionResourceOptions;
 		let shellEnvDetection: ShellEnvDetectionCapability;
 
 		setup(() => {
@@ -292,10 +285,10 @@ suite('TerminalCompletionService', () => {
 			}, true);
 			capabilities.add(TerminalCapability.ShellEnvDetection, shellEnvDetection);
 
-			resourceRequestConfig = {
+			resourceOptions = {
 				cwd: URI.parse('file:///test/folder1'),// Updated to reflect home directory
-				filesRequested: true,
-				foldersRequested: true,
+				showFiles: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			validResources = [
@@ -314,24 +307,24 @@ suite('TerminalCompletionService', () => {
 		});
 
 		test('~| should return completion for ~', async () => {
-			assertPartialCompletionsExist(await terminalCompletionService.resolveResources(resourceRequestConfig, '~', 1, provider, capabilities), [
+			assertPartialCompletionsExist(await terminalCompletionService.resolveResources(resourceOptions, '~', 1, provider, capabilities), [
 				{ label: '~', detail: '/home/' },
-			], { replacementIndex: 0, replacementLength: 1 });
+			], { replacementRange: [0, 1] });
 		});
 
 		test('~/| should return folder completions relative to $HOME', async () => {
-			assertCompletions(await terminalCompletionService.resolveResources(resourceRequestConfig, '~/', 2, provider, capabilities), [
+			assertCompletions(await terminalCompletionService.resolveResources(resourceOptions, '~/', 2, provider, capabilities), [
 				{ label: '~/', detail: '/home/' },
 				{ label: '~/vscode/', detail: '/home/vscode/' },
-			], { replacementIndex: 0, replacementLength: 2 });
+			], { replacementRange: [0, 2] });
 		});
 
 		test('~/vscode/| should return folder completions relative to $HOME/vscode', async () => {
-			assertCompletions(await terminalCompletionService.resolveResources(resourceRequestConfig, '~/vscode/', 9, provider, capabilities), [
+			assertCompletions(await terminalCompletionService.resolveResources(resourceOptions, '~/vscode/', 9, provider, capabilities), [
 				{ label: '~/vscode/', detail: '/home/vscode/' },
 				{ label: '~/vscode/foo/', detail: '/home/vscode/foo/' },
 				{ label: '~/vscode/bar.txt', detail: '/home/vscode/bar.txt', kind: TerminalCompletionItemKind.File },
-			], { replacementIndex: 0, replacementLength: 9 });
+			], { replacementRange: [0, 9] });
 		});
 	});
 
@@ -343,9 +336,9 @@ suite('TerminalCompletionService', () => {
 
 		if (isWindows) {
 			test('C:/Foo/| absolute paths on Windows', async () => {
-				const resourceRequestConfig: TerminalResourceRequestConfig = {
+				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.parse('file:///C:'),
-					foldersRequested: true,
+					showDirectories: true,
 					pathSeparator
 				};
 				validResources = [URI.parse('file:///C:/Foo')];
@@ -353,36 +346,36 @@ suite('TerminalCompletionService', () => {
 					{ resource: URI.parse('file:///C:/Foo/Bar'), isDirectory: true, isFile: false },
 					{ resource: URI.parse('file:///C:/Foo/Baz.txt'), isDirectory: false, isFile: true }
 				];
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'C:/Foo/', 7, provider, capabilities);
+				const result = await terminalCompletionService.resolveResources(resourceOptions, 'C:/Foo/', 7, provider, capabilities);
 
 				assertCompletions(result, [
 					{ label: 'C:/Foo/', detail: 'C:/Foo/' },
 					{ label: 'C:/Foo/Bar/', detail: 'C:/Foo/Bar/' },
-				], { replacementIndex: 0, replacementLength: 7 });
+				], { replacementRange: [0, 7] });
 			});
 			test('c:/foo/| case insensitivity on Windows', async () => {
-				const resourceRequestConfig: TerminalResourceRequestConfig = {
+				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.parse('file:///c:'),
-					foldersRequested: true,
+					showDirectories: true,
 					pathSeparator
 				};
 				validResources = [URI.parse('file:///c:/foo')];
 				childResources = [
 					{ resource: URI.parse('file:///c:/foo/Bar'), isDirectory: true, isFile: false }
 				];
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'c:/foo/', 7, provider, capabilities);
+				const result = await terminalCompletionService.resolveResources(resourceOptions, 'c:/foo/', 7, provider, capabilities);
 
 				assertCompletions(result, [
 					// Note that the detail is normalizes drive letters to capital case intentionally
 					{ label: 'c:/foo/', detail: 'C:/foo/' },
 					{ label: 'c:/foo/Bar/', detail: 'C:/foo/Bar/' },
-				], { replacementIndex: 0, replacementLength: 7 });
+				], { replacementRange: [0, 7] });
 			});
 		} else {
 			test('/foo/| absolute paths NOT on Windows', async () => {
-				const resourceRequestConfig: TerminalResourceRequestConfig = {
+				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.parse('file:///'),
-					foldersRequested: true,
+					showDirectories: true,
 					pathSeparator
 				};
 				validResources = [URI.parse('file:///foo')];
@@ -390,20 +383,20 @@ suite('TerminalCompletionService', () => {
 					{ resource: URI.parse('file:///foo/Bar'), isDirectory: true, isFile: false },
 					{ resource: URI.parse('file:///foo/Baz.txt'), isDirectory: false, isFile: true }
 				];
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/foo/', 5, provider, capabilities);
+				const result = await terminalCompletionService.resolveResources(resourceOptions, '/foo/', 5, provider, capabilities);
 
 				assertCompletions(result, [
 					{ label: '/foo/', detail: '/foo/' },
 					{ label: '/foo/Bar/', detail: '/foo/Bar/' },
-				], { replacementIndex: 0, replacementLength: 5 });
+				], { replacementRange: [0, 5] });
 			});
 		}
 
 		if (isWindows) {
 			test('.\\folder | Case insensitivity should resolve correctly on Windows', async () => {
-				const resourceRequestConfig: TerminalResourceRequestConfig = {
+				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.parse('file:///C:/test'),
-					foldersRequested: true,
+					showDirectories: true,
 					pathSeparator: '\\'
 				};
 
@@ -413,20 +406,20 @@ suite('TerminalCompletionService', () => {
 					{ resource: URI.parse('file:///C:/test/anotherFolder/'), isDirectory: true }
 				];
 
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '.\\folder', 8, provider, capabilities);
+				const result = await terminalCompletionService.resolveResources(resourceOptions, '.\\folder', 8, provider, capabilities);
 
 				assertCompletions(result, [
 					{ label: '.\\', detail: 'C:\\test\\' },
 					{ label: '.\\FolderA\\', detail: 'C:\\test\\FolderA\\' },
 					{ label: '.\\anotherFolder\\', detail: 'C:\\test\\anotherFolder\\' },
 					{ label: '.\\..\\', detail: 'C:\\' },
-				], { replacementIndex: 0, replacementLength: 8 });
+				], { replacementRange: [0, 8] });
 			});
 		} else {
 			test('./folder | Case sensitivity should resolve correctly on Mac/Unix', async () => {
-				const resourceRequestConfig: TerminalResourceRequestConfig = {
+				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.parse('file:///test'),
-					foldersRequested: true,
+					showDirectories: true,
 					pathSeparator: '/'
 				};
 				validResources = [URI.parse('file:///test')];
@@ -435,21 +428,21 @@ suite('TerminalCompletionService', () => {
 					{ resource: URI.parse('file:///test/foldera/'), isDirectory: true }
 				];
 
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder', 8, provider, capabilities);
+				const result = await terminalCompletionService.resolveResources(resourceOptions, './folder', 8, provider, capabilities);
 
 				assertCompletions(result, [
 					{ label: './', detail: '/test/' },
 					{ label: './FolderA/', detail: '/test/FolderA/' },
 					{ label: './foldera/', detail: '/test/foldera/' },
 					{ label: './../', detail: '/' }
-				], { replacementIndex: 0, replacementLength: 8 });
+				], { replacementRange: [0, 8] });
 			});
 
 		}
 		test('| Empty input should resolve to current directory', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
@@ -457,21 +450,44 @@ suite('TerminalCompletionService', () => {
 				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/folder2/'), isDirectory: true }
 			];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 0, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, '', 0, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: '.', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './folder2/', detail: '/test/folder2/' },
 				{ label: '../', detail: '/' },
-				standardTidleItem,
-			], { replacementIndex: 0, replacementLength: 0 });
+				standardTildeItem,
+			], { replacementRange: [0, 0] });
+		});
+
+		test('should ignore environment variable setting prefixes', async () => {
+			const resourceOptions: TerminalCompletionResourceOptions = {
+				cwd: URI.parse('file:///test'),
+				showDirectories: true,
+				pathSeparator
+			};
+			validResources = [URI.parse('file:///test')];
+			childResources = [
+				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/folder2/'), isDirectory: true }
+			];
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'FOO=./', 2, provider, capabilities);
+
+			// Must not include FOO= prefix in completions
+			assertCompletions(result, [
+				{ label: '.', detail: '/test/' },
+				{ label: './folder1/', detail: '/test/folder1/' },
+				{ label: './folder2/', detail: '/test/folder2/' },
+				{ label: '../', detail: '/' },
+				standardTildeItem,
+			], { replacementRange: [0, 2] });
 		});
 
 		test('./| should handle large directories with many results gracefully', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
@@ -479,7 +495,7 @@ suite('TerminalCompletionService', () => {
 				resource: URI.parse(`file:///test/folder${i}/`),
 				isDirectory: true
 			}));
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, './', 2, provider, capabilities);
 
 			assert(result);
 			// includes the 1000 folders + ./ and ./../
@@ -489,9 +505,9 @@ suite('TerminalCompletionService', () => {
 		});
 
 		test('./folder| should include current folder with trailing / is missing', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
@@ -499,40 +515,38 @@ suite('TerminalCompletionService', () => {
 				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/folder2/'), isDirectory: true }
 			];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder1', 10, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, './folder1', 10, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './folder2/', detail: '/test/folder2/' },
 				{ label: './../', detail: '/' }
-			], { replacementIndex: 1, replacementLength: 9 });
+			], { replacementRange: [1, 10] });
 		});
-
-		test('folder/| should normalize current and parent folders', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+		test('test/| should normalize current and parent folders', async () => {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			validResources = [
-				URI.parse('file:///'),
 				URI.parse('file:///test'),
 				URI.parse('file:///test/folder1'),
-				URI.parse('file:///test/folder2'),
+				URI.parse('file:///test/folder2')
 			];
 			childResources = [
 				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/folder2/'), isDirectory: true }
 			];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'test/', 5, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'test/', 5, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: './test/', detail: '/test/' },
 				{ label: './test/folder1/', detail: '/test/folder1/' },
 				{ label: './test/folder2/', detail: '/test/folder2/' },
 				{ label: './test/../', detail: '/' }
-			], { replacementIndex: 0, replacementLength: 5 });
+			], { replacementRange: [0, 5] });
 		});
 	});
 
@@ -553,32 +567,32 @@ suite('TerminalCompletionService', () => {
 
 		test('cd | should show paths from $CDPATH (relative)', async () => {
 			configurationService.setUserConfiguration('terminal.integrated.suggest.cdPath', 'relative');
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
-				filesRequested: true,
+				showDirectories: true,
+				showFiles: true,
 				pathSeparator
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'cd ', 3, provider, capabilities);
 
 			assertPartialCompletionsExist(result, [
 				{ label: 'folder1', detail: 'CDPATH /cdpath_value/folder1/' },
-			], { replacementIndex: 3, replacementLength: 0 });
+			], { replacementRange: [3, 3] });
 		});
 
 		test('cd | should show paths from $CDPATH (absolute)', async () => {
 			configurationService.setUserConfiguration('terminal.integrated.suggest.cdPath', 'absolute');
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
-				filesRequested: true,
+				showDirectories: true,
+				showFiles: true,
 				pathSeparator
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'cd ', 3, provider, capabilities);
 
 			assertPartialCompletionsExist(result, [
 				{ label: '/cdpath_value/folder1/', detail: 'CDPATH' },
-			], { replacementIndex: 3, replacementLength: 0 });
+			], { replacementRange: [3, 3] });
 		});
 
 		test('cd | should support pulling from multiple paths in $CDPATH', async () => {
@@ -604,13 +618,13 @@ suite('TerminalCompletionService', () => {
 				{ resource: URI.parse(`${uriPathPrefix}cdpath2_value/inner_dir/file1.txt`), isFile: true },
 			];
 
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse(`${uriPathPrefix}test`),
-				foldersRequested: true,
-				filesRequested: true,
+				showDirectories: true,
+				showFiles: true,
 				pathSeparator
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'cd ', 3, provider, capabilities);
 
 			const finalPrefix = isWindows ? 'C:\\' : '/';
 			assertPartialCompletionsExist(result, [
@@ -618,7 +632,7 @@ suite('TerminalCompletionService', () => {
 				{ label: 'folder2', detail: `CDPATH ${finalPrefix}cdpath1_value/folder2/` },
 				{ label: 'folder1', detail: `CDPATH ${finalPrefix}cdpath2_value/inner_dir/folder1/` },
 				{ label: 'folder2', detail: `CDPATH ${finalPrefix}cdpath2_value/inner_dir/folder2/` },
-			], { replacementIndex: 3, replacementLength: 0 });
+			], { replacementRange: [3, 3] });
 		});
 	});
 
@@ -639,10 +653,10 @@ suite('TerminalCompletionService', () => {
 			});
 
 			test('resolveResources with c:/ style absolute path for Git Bash', async () => {
-				const resourceRequestConfig: TerminalResourceRequestConfig = {
+				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.file('C:\\Users\\foo'),
-					foldersRequested: true,
-					filesRequested: true,
+					showDirectories: true,
+					showFiles: true,
 					pathSeparator: '/'
 				};
 				validResources = [
@@ -654,18 +668,18 @@ suite('TerminalCompletionService', () => {
 					{ resource: URI.file('C:\\Users\\foo\\bar'), isDirectory: true, isFile: false },
 					{ resource: URI.file('C:\\Users\\foo\\baz.txt'), isFile: true }
 				];
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'C:/Users/foo/', 13, provider, capabilities, WindowsShellType.GitBash);
+				const result = await terminalCompletionService.resolveResources(resourceOptions, 'C:/Users/foo/', 13, provider, capabilities, WindowsShellType.GitBash);
 				assertCompletions(result, [
 					{ label: 'C:/Users/foo/', detail: 'C:\\Users\\foo\\' },
 					{ label: 'C:/Users/foo/bar/', detail: 'C:\\Users\\foo\\bar\\' },
 					{ label: 'C:/Users/foo/baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
-				], { replacementIndex: 0, replacementLength: 13 }, '/');
+				], { replacementRange: [0, 13] }, '/');
 			});
 			test('resolveResources with cwd as Windows path (relative)', async () => {
-				const resourceRequestConfig: TerminalResourceRequestConfig = {
+				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.file('C:\\Users\\foo'),
-					foldersRequested: true,
-					filesRequested: true,
+					showDirectories: true,
+					showFiles: true,
 					pathSeparator: '/'
 				};
 				validResources = [
@@ -677,20 +691,20 @@ suite('TerminalCompletionService', () => {
 					{ resource: URI.file('C:\\Users\\foo\\bar'), isDirectory: true },
 					{ resource: URI.file('C:\\Users\\foo\\baz.txt'), isFile: true }
 				];
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider, capabilities, WindowsShellType.GitBash);
+				const result = await terminalCompletionService.resolveResources(resourceOptions, './', 2, provider, capabilities, WindowsShellType.GitBash);
 				assertCompletions(result, [
 					{ label: './', detail: 'C:\\Users\\foo\\' },
 					{ label: './bar/', detail: 'C:\\Users\\foo\\bar\\' },
 					{ label: './baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
 					{ label: './../', detail: 'C:\\Users\\' }
-				], { replacementIndex: 0, replacementLength: 2 }, '/');
+				], { replacementRange: [0, 2] }, '/');
 			});
 
 			test('resolveResources with cwd as Windows path (absolute)', async () => {
-				const resourceRequestConfig: TerminalResourceRequestConfig = {
+				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.file('C:\\Users\\foo'),
-					foldersRequested: true,
-					filesRequested: true,
+					showDirectories: true,
+					showFiles: true,
 					pathSeparator: '/'
 				};
 				validResources = [
@@ -702,23 +716,23 @@ suite('TerminalCompletionService', () => {
 					{ resource: URI.file('C:\\Users\\foo\\bar'), isDirectory: true },
 					{ resource: URI.file('C:\\Users\\foo\\baz.txt'), isFile: true }
 				];
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/c/Users/foo/', 13, provider, capabilities, WindowsShellType.GitBash);
+				const result = await terminalCompletionService.resolveResources(resourceOptions, '/c/Users/foo/', 13, provider, capabilities, WindowsShellType.GitBash);
 				assertCompletions(result, [
 					{ label: '/c/Users/foo/', detail: 'C:\\Users\\foo\\' },
 					{ label: '/c/Users/foo/bar/', detail: 'C:\\Users\\foo\\bar\\' },
 					{ label: '/c/Users/foo/baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
-				], { replacementIndex: 0, replacementLength: 13 }, '/');
+				], { replacementRange: [0, 13] }, '/');
 			});
 		});
 	}
 	if (!isWindows) {
 		suite('symlink support', () => {
 			test('should include symlink target information in completions', async () => {
-				const resourceRequestConfig: TerminalResourceRequestConfig = {
+				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.parse('file:///test'),
 					pathSeparator,
-					filesRequested: true,
-					foldersRequested: true
+					showFiles: true,
+					showDirectories: true
 				};
 
 				validResources = [URI.parse('file:///test')];
@@ -731,7 +745,7 @@ suite('TerminalCompletionService', () => {
 					{ resource: URI.parse('file:///test/regular-folder'), isDirectory: true },
 				];
 
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'ls ', 3, provider, capabilities);
+				const result = await terminalCompletionService.resolveResources(resourceOptions, 'ls ', 3, provider, capabilities);
 
 				// Find the symlink completion
 				const symlinkFileCompletion = result?.find(c => c.label === './symlink-file');
@@ -743,10 +757,10 @@ suite('TerminalCompletionService', () => {
 	}
 	suite('completion label escaping', () => {
 		test('| should escape special characters in file/folder names for POSIX shells', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
-				filesRequested: true,
+				showDirectories: true,
+				showFiles: true,
 				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
@@ -756,7 +770,7 @@ suite('TerminalCompletionService', () => {
 				{ resource: URI.parse('file:///test/!special$chars&/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/!special$chars2&'), isFile: true }
 			];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 0, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, '', 0, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: '.', detail: '/test/' },
@@ -765,9 +779,110 @@ suite('TerminalCompletionService', () => {
 				{ label: './\!special\$chars\&/', detail: '/test/\!special\$chars\&/' },
 				{ label: './\!special\$chars2\&', detail: '/test/\!special\$chars2\&', kind: TerminalCompletionItemKind.File },
 				{ label: '../', detail: '/' },
-				standardTidleItem,
-			], { replacementIndex: 0, replacementLength: 0 });
+				standardTildeItem,
+			], { replacementRange: [0, 0] });
 		});
 
+	});
+
+	suite('Provider Configuration', () => {
+		// Test class that extends TerminalCompletionService to access protected methods
+		class TestTerminalCompletionService extends TerminalCompletionService {
+			public getEnabledProviders(providers: ITerminalCompletionProvider[]): ITerminalCompletionProvider[] {
+				return super._getEnabledProviders(providers);
+			}
+		}
+
+		let testTerminalCompletionService: TestTerminalCompletionService;
+
+		setup(() => {
+			testTerminalCompletionService = store.add(instantiationService.createInstance(TestTerminalCompletionService));
+		});
+
+		// Mock provider for testing
+		function createMockProvider(id: string): ITerminalCompletionProvider {
+			return {
+				id,
+				provideCompletions: async () => [{
+					label: `completion-from-${id}`,
+					kind: TerminalCompletionItemKind.Method,
+					replacementRange: [0, 0],
+					provider: id
+				}]
+			};
+		}
+
+		test('should enable providers by default when no configuration exists', () => {
+			const defaultProvider = createMockProvider('terminal-suggest');
+			const newProvider = createMockProvider('new-extension-provider');
+			const providers = [defaultProvider, newProvider];
+
+			// Set empty configuration (no provider keys)
+			configurationService.setUserConfiguration(TerminalSuggestSettingId.Providers, {});
+
+			const result = testTerminalCompletionService.getEnabledProviders(providers);
+
+			// Both providers should be enabled since they're not explicitly disabled
+			assert.strictEqual(result.length, 2, 'Should enable both providers by default');
+			assert.ok(result.includes(defaultProvider), 'Should include default provider');
+			assert.ok(result.includes(newProvider), 'Should include new provider');
+		});
+
+		test('should disable providers when explicitly set to false', () => {
+			const provider1 = createMockProvider('provider1');
+			const provider2 = createMockProvider('provider2');
+			const providers = [provider1, provider2];
+
+			// Disable provider1, leave provider2 unconfigured
+			configurationService.setUserConfiguration(TerminalSuggestSettingId.Providers, {
+				'provider1': false
+			});
+
+			const result = testTerminalCompletionService.getEnabledProviders(providers);
+
+			// Only provider2 should be enabled
+			assert.strictEqual(result.length, 1, 'Should enable only one provider');
+			assert.ok(result.includes(provider2), 'Should include unconfigured provider');
+			assert.ok(!result.includes(provider1), 'Should not include disabled provider');
+		});
+
+		test('should enable providers when explicitly set to true', () => {
+			const provider1 = createMockProvider('provider1');
+			const provider2 = createMockProvider('provider2');
+			const providers = [provider1, provider2];
+
+			// Explicitly enable provider1, leave provider2 unconfigured
+			configurationService.setUserConfiguration(TerminalSuggestSettingId.Providers, {
+				'provider1': true
+			});
+
+			const result = testTerminalCompletionService.getEnabledProviders(providers);
+
+			// Both providers should be enabled
+			assert.strictEqual(result.length, 2, 'Should enable both providers');
+			assert.ok(result.includes(provider1), 'Should include explicitly enabled provider');
+			assert.ok(result.includes(provider2), 'Should include unconfigured provider');
+		});
+
+		test('should handle mixed configuration correctly', () => {
+			const provider1 = createMockProvider('provider1');
+			const provider2 = createMockProvider('provider2');
+			const provider3 = createMockProvider('provider3');
+			const providers = [provider1, provider2, provider3];
+
+			// Mixed configuration: enable provider1, disable provider2, leave provider3 unconfigured
+			configurationService.setUserConfiguration(TerminalSuggestSettingId.Providers, {
+				'provider1': true,
+				'provider2': false
+			});
+
+			const result = testTerminalCompletionService.getEnabledProviders(providers);
+
+			// provider1 and provider3 should be enabled, provider2 should be disabled
+			assert.strictEqual(result.length, 2, 'Should enable two providers');
+			assert.ok(result.includes(provider1), 'Should include explicitly enabled provider');
+			assert.ok(result.includes(provider3), 'Should include unconfigured provider');
+			assert.ok(!result.includes(provider2), 'Should not include disabled provider');
+		});
 	});
 });

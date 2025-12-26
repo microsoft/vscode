@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { isString } from '../../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPromptInputModel } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
@@ -46,7 +47,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 			return;
 		}
 		this._acceptedCompletions = this._acceptedCompletions || [];
-		this._acceptedCompletions.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!), sessionId, provider: completion.provider });
+		this._acceptedCompletions.push({ label: isString(completion.label) ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!), sessionId, provider: completion.provider });
 	}
 
 	/**
@@ -57,14 +58,14 @@ export class TerminalSuggestTelemetry extends Disposable {
 	 */
 	logCompletionLatency(sessionId: string, latency: number, firstShownFor: { window: boolean; shell: boolean }): void {
 		this._telemetryService.publicLog2<{
-			sessionId: string;
+			terminalSessionId: string;
 			latency: number;
 			firstWindow: boolean;
 			firstShell: boolean;
 		}, {
 			owner: 'meganrogge';
 			comment: 'Latency in ms from terminal completion request to completions shown.';
-			sessionId: {
+			terminalSessionId: {
 				classification: 'SystemMetaData';
 				purpose: 'FeatureInsight';
 				comment: 'The session ID of the terminal session.';
@@ -85,7 +86,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 				comment: 'Whether this is the first ever showing of completions in the shell.';
 			};
 		}>('terminal.suggest.completionLatency', {
-			sessionId,
+			terminalSessionId: sessionId,
 			latency,
 			firstWindow: firstShownFor.window,
 			firstShell: firstShownFor.shell
@@ -118,7 +119,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 				kind: string | undefined;
 				outcome: string;
 				exitCode: number | undefined;
-				sessionId: string;
+				terminalSessionId: string;
 				provider: string | undefined;
 			}, {
 				owner: 'meganrogge';
@@ -138,7 +139,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 					purpose: 'FeatureInsight';
 					comment: 'The exit code from the command';
 				};
-				sessionId: {
+				terminalSessionId: {
 					classification: 'SystemMetaData';
 					purpose: 'FeatureInsight';
 					comment: 'The session ID of the terminal session where the completion was accepted';
@@ -152,7 +153,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 				kind,
 				outcome,
 				exitCode,
-				sessionId: completion.sessionId,
+				terminalSessionId: completion.sessionId,
 				provider
 			});
 		}

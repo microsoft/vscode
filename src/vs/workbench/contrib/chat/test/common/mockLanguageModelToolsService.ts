@@ -4,21 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IProgressStep } from '../../../../../platform/progress/common/progress.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolSet } from '../../common/languageModelToolsService.js';
+import { IVariableReference } from '../../common/chatModes.js';
+import { ChatRequestToolReferenceEntry } from '../../common/chatVariableEntries.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
+	vscodeToolSet: ToolSet = new ToolSet('vscode', 'vscode', ThemeIcon.fromId(Codicon.code.id), ToolDataSource.Internal);
+	executeToolSet: ToolSet = new ToolSet('execute', 'execute', ThemeIcon.fromId(Codicon.terminal.id), ToolDataSource.Internal);
+	readToolSet: ToolSet = new ToolSet('read', 'read', ThemeIcon.fromId(Codicon.eye.id), ToolDataSource.Internal);
 
 	constructor() { }
 
-	cancelToolCallsForRequest(requestId: string): void {
-	}
-
-	onDidChangeTools: Event<void> = Event.None;
+	readonly onDidChangeTools: Event<void> = Event.None;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionId: string; toolData: IToolData }> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;
@@ -28,17 +33,44 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	}
 
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile', autoConfirm?: boolean): void {
+	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never' {
+		return 'never';
+	}
 
+	resetToolPostExecutionAutoConfirmation(): void {
+
+	}
+
+	flushToolUpdates(): void {
+
+	}
+
+	cancelToolCallsForRequest(requestId: string): void {
+
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	setToolAutoConfirmation(toolId: string, scope: any): void {
+
+	}
+
+	getToolAutoConfirmation(toolId: string): 'never' {
+		return 'never';
 	}
 
 	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
 		return Disposable.None;
 	}
 
-	getTools(): Iterable<Readonly<IToolData>> {
+	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable {
+		return Disposable.None;
+	}
+
+	getTools(): Iterable<IToolData> {
 		return [];
 	}
+
+	toolsObservable: IObservable<readonly IToolData[]> = constObservable([]);
 
 	getTool(id: string): IToolData | undefined {
 		return undefined;
@@ -72,11 +104,31 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean> {
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
 		throw new Error('Method not implemented.');
 	}
 
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
+	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getFullReferenceNames(): Iterable<string> {
+		throw new Error('Method not implemented.');
+	}
+
+	getToolByFullReferenceName(qualifiedName: string): IToolData | ToolSet | undefined {
+		throw new Error('Method not implemented.');
+	}
+
+	getFullReferenceName(tool: IToolData, set?: ToolSet): string {
+		throw new Error('Method not implemented.');
+	}
+
+	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getDeprecatedFullReferenceNames(): Map<string, Set<string>> {
 		throw new Error('Method not implemented.');
 	}
 }

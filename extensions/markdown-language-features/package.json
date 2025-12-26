@@ -181,13 +181,13 @@
         "command": "markdown.editor.insertLinkFromWorkspace",
         "title": "%markdown.editor.insertLinkFromWorkspace%",
         "category": "Markdown",
-        "enablement": "editorLangId == markdown && !activeEditorIsReadonly"
+        "enablement": "editorLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !activeEditorIsReadonly"
       },
       {
         "command": "markdown.editor.insertImageFromWorkspace",
         "title": "%markdown.editor.insertImageFromWorkspace%",
         "category": "Markdown",
-        "enablement": "editorLangId == markdown && !activeEditorIsReadonly"
+        "enablement": "editorLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !activeEditorIsReadonly"
       }
     ],
     "menus": {
@@ -204,7 +204,7 @@
       "editor/title": [
         {
           "command": "markdown.showPreviewToSide",
-          "when": "editorLangId == markdown && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "alt": "markdown.showPreview",
           "group": "navigation"
         },
@@ -232,24 +232,24 @@
       "explorer/context": [
         {
           "command": "markdown.showPreview",
-          "when": "resourceLangId == markdown && !hasCustomMarkdownPreview",
+          "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !hasCustomMarkdownPreview",
           "group": "navigation"
         },
         {
           "command": "markdown.findAllFileReferences",
-          "when": "resourceLangId == markdown",
+          "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatmode)$/",
           "group": "4_search"
         }
       ],
       "editor/title/context": [
         {
           "command": "markdown.showPreview",
-          "when": "resourceLangId == markdown && !hasCustomMarkdownPreview",
+          "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !hasCustomMarkdownPreview",
           "group": "1_open"
         },
         {
           "command": "markdown.findAllFileReferences",
-          "when": "resourceLangId == markdown"
+          "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatmode)$/"
         }
       ],
       "commandPalette": [
@@ -263,17 +263,17 @@
         },
         {
           "command": "markdown.showPreview",
-          "when": "editorLangId == markdown && !notebookEditorFocused",
+          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !notebookEditorFocused",
           "group": "navigation"
         },
         {
           "command": "markdown.showPreviewToSide",
-          "when": "editorLangId == markdown && !notebookEditorFocused",
+          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !notebookEditorFocused",
           "group": "navigation"
         },
         {
           "command": "markdown.showLockedPreviewToSide",
-          "when": "editorLangId == markdown && !notebookEditorFocused",
+          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !notebookEditorFocused",
           "group": "navigation"
         },
         {
@@ -283,7 +283,7 @@
         },
         {
           "command": "markdown.showPreviewSecuritySelector",
-          "when": "editorLangId == markdown && !notebookEditorFocused"
+          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !notebookEditorFocused"
         },
         {
           "command": "markdown.showPreviewSecuritySelector",
@@ -295,7 +295,7 @@
         },
         {
           "command": "markdown.preview.refresh",
-          "when": "editorLangId == markdown && !notebookEditorFocused"
+          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !notebookEditorFocused"
         },
         {
           "command": "markdown.preview.refresh",
@@ -303,7 +303,7 @@
         },
         {
           "command": "markdown.findAllFileReferences",
-          "when": "editorLangId == markdown"
+          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatmode)$/"
         }
       ]
     },
@@ -312,13 +312,13 @@
         "command": "markdown.showPreview",
         "key": "shift+ctrl+v",
         "mac": "shift+cmd+v",
-        "when": "editorLangId == markdown && !notebookEditorFocused"
+        "when": "editorLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !notebookEditorFocused"
       },
       {
         "command": "markdown.showPreviewToSide",
         "key": "ctrl+k v",
         "mac": "cmd+k v",
-        "when": "editorLangId == markdown && !notebookEditorFocused"
+        "when": "editorLangId =~ /^(markdown|prompt|instructions|chatmode)$/ && !notebookEditorFocused"
       }
     ],
     "configuration": {
@@ -759,15 +759,15 @@
     "compile": "gulp compile-extension:markdown-language-features-languageService && gulp compile-extension:markdown-language-features && npm run build-preview && npm run build-notebook",
     "watch": "npm run build-preview && gulp watch-extension:markdown-language-features watch-extension:markdown-language-features-languageService",
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
-    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-    "build-notebook": "node ./esbuild-notebook",
-    "build-preview": "node ./esbuild-preview",
+    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:markdown-language-features ./tsconfig.json",
+    "build-notebook": "node ./esbuild-notebook.mjs",
+    "build-preview": "node ./esbuild-preview.mjs",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch"
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "dompurify": "^3.2.4",
+    "dompurify": "^3.2.7",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.4",
@@ -776,13 +776,14 @@
     "punycode": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
-    "vscode-markdown-languageserver": "^0.5.0-alpha.11",
+    "vscode-markdown-languageserver": "^0.5.0-alpha.12",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
     "@types/dompurify": "^3.0.5",
-    "@types/lodash.throttle": "^4.1.3",
+    "@types/lodash.throttle": "^4.1.9",
     "@types/markdown-it": "12.2.3",
+    "@types/node": "22.x",
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",

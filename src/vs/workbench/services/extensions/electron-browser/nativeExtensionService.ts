@@ -57,7 +57,7 @@ import { IHostService } from '../../host/browser/host.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IRemoteExplorerService } from '../../remote/common/remoteExplorerService.js';
-import { AsyncIterableEmitter, AsyncIterableObject } from '../../../../base/common/async.js';
+import { AsyncIterableEmitter, AsyncIterableProducer } from '../../../../base/common/async.js';
 
 export class NativeExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -318,7 +318,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	}
 
 	protected _resolveExtensions(): AsyncIterable<ResolvedExtensions> {
-		return new AsyncIterableObject(emitter => this._doResolveExtensions(emitter));
+		return new AsyncIterableProducer(emitter => this._doResolveExtensions(emitter));
 	}
 
 	private async _doResolveExtensions(emitter: AsyncIterableEmitter<ResolvedExtensions>): Promise<void> {
@@ -547,11 +547,7 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 			}
 			case ExtensionHostKind.LocalWebWorker: {
 				if (this._webWorkerExtHostEnablement !== LocalWebWorkerExtHostEnablement.Disabled) {
-					const startup = (
-						isInitialStart
-							? (this._webWorkerExtHostEnablement === LocalWebWorkerExtHostEnablement.Lazy ? ExtensionHostStartup.Lazy : ExtensionHostStartup.EagerManualStart)
-							: ExtensionHostStartup.EagerAutoStart
-					);
+					const startup = this._webWorkerExtHostEnablement === LocalWebWorkerExtHostEnablement.Lazy ? ExtensionHostStartup.LazyAutoStart : ExtensionHostStartup.EagerManualStart;
 					return this._instantiationService.createInstance(WebWorkerExtensionHost, runningLocation, startup, this._createWebWorkerExtensionHostDataProvider(runningLocations, runningLocation));
 				}
 				return null;

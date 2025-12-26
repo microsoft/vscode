@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 
 export interface AXValue {
 	type: AXValueType;
-	value?: any;
+	value?: unknown;
 	relatedNodes?: AXNode[];
 	sources?: AXValueSource[];
 }
@@ -405,6 +405,11 @@ function processDescriptionListNode(uri: URI, node: AXNodeTree, buffer: string[]
 	buffer.push('\n');
 }
 
+function isTableCell(role: string): boolean {
+	// Match cell, gridcell, columnheader, rowheader roles
+	return role === 'cell' || role === 'gridcell' || role === 'columnheader' || role === 'rowheader';
+}
+
 function processTableNode(node: AXNodeTree, buffer: string[]): void {
 	buffer.push('\n');
 
@@ -413,7 +418,7 @@ function processTableNode(node: AXNodeTree, buffer: string[]): void {
 
 	if (rows.length > 0) {
 		// First row as header
-		const headerCells = rows[0].children.filter(cell => getNodeRole(cell.node).includes('cell'));
+		const headerCells = rows[0].children.filter(cell => isTableCell(getNodeRole(cell.node)));
 
 		// Generate header row
 		const headerContent = headerCells.map(cell => getNodeText(cell.node, false) || ' ');
@@ -424,7 +429,7 @@ function processTableNode(node: AXNodeTree, buffer: string[]): void {
 
 		// Generate data rows
 		for (let i = 1; i < rows.length; i++) {
-			const dataCells = rows[i].children.filter(cell => getNodeRole(cell.node).includes('cell'));
+			const dataCells = rows[i].children.filter(cell => isTableCell(getNodeRole(cell.node)));
 			const rowContent = dataCells.map(cell => getNodeText(cell.node, false) || ' ');
 			buffer.push('| ' + rowContent.join(' | ') + ' |\n');
 		}
