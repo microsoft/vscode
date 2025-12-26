@@ -790,6 +790,18 @@ const completionSpec: Fig.Spec = {
 			],
 		},
 		{
+			name: ['explain', 'why'],
+			description: 'Explain installed packages',
+			args: {
+				name: 'package-spec',
+				description: 'Package name or path to folder within node_modules',
+				isVariadic: true,
+				filterStrategy: 'fuzzy',
+				generators: dependenciesGenerator,
+			},
+			options: [jsonOption, ...workSpaceOptions],
+		},
+		{
 			name: 'explore',
 			description: 'Browse an installed package',
 			args: {
