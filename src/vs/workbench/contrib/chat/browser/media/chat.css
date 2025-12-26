@@ -1593,6 +1593,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 }
 
+.action-item.chat-attachment-button .action-label {
+	padding: 0 4px;
+}
+
 .interactive-session .interactive-list .chat-attached-context .chat-attached-context-attachment {
 	font-family: var(--vscode-chat-font-family, inherit);
 	font-size: var(--vscode-chat-font-size-body-xs);

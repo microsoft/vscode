@@ -1469,7 +1469,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: interactive
 		const interactive: typeof vscode.interactive = {
-			transferActiveChat(toWorkspace: vscode.Uri) {
+			transferActiveChat(toWorkspace: vscode.Uri): Thenable<void> {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChatAgents2.transferActiveChat(toWorkspace);
 			}
