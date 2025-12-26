@@ -1097,8 +1097,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		// The repository path may be a worktree (usually stored outside the workspace) so we have
 		// to check the repository path against all the worktree paths of the repositories that have
 		// already been opened.
-		const worktreePaths = new Set(this.repositories.map(r => r.worktrees.map(w => w.path)).flat());
-		if (Array.from(worktreePaths).some(p => pathEquals(p, repositoryPath))) {
+		const worktreePaths = this.repositories.map(r => r.worktrees.map(w => w.path)).flat();
+		if (worktreePaths.some(p => pathEquals(p, repositoryPath))) {
 			return false;
 		}
 
