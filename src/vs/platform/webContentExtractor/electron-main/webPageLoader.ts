@@ -27,6 +27,7 @@ export class WebPageLoader extends Disposable {
 	private static readonly TIMEOUT = 30000; // 30 seconds
 	private static readonly POST_LOAD_TIMEOUT = 5000; // 5 seconds - increased for dynamic content
 	private static readonly FRAME_TIMEOUT = 500; // 0.5 seconds
+	private static readonly EXTRACT_CONTENT_TIMEOUT = 2000; // 2 seconds
 	private static readonly IDLE_DEBOUNCE_TIME = 500; // 0.5 seconds - wait after last network request
 	private static readonly MIN_CONTENT_LENGTH = 100; // Minimum content length to consider extraction successful
 
@@ -329,12 +330,15 @@ export class WebPageLoader extends Disposable {
 		try {
 			const title = this._window.webContents.getTitle();
 
-			let result = await this.extractAccessibilityTreeContent() ?? '';
-			if (result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
-				this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
-				const domContent = await this.extractMainDomElementContent() ?? '';
-				result = domContent.length > result.length ? domContent : result;
-			}
+			let result = '';
+			await raceTimeout((async () => {
+				result = await this.extractAccessibilityTreeContent() ?? '';
+				if (result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
+					this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
+					const domContent = await this.extractMainDomElementContent() ?? '';
+					result = domContent.length > result.length ? domContent : result;
+				}
+			})(), WebPageLoader.EXTRACT_CONTENT_TIMEOUT);
 
 			if (result.length === 0) {
 				this._onResult({ status: 'error', error: 'Failed to extract meaningful content from the web page' });
