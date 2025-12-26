@@ -219,7 +219,6 @@ class TerminalInitialHintWidget extends Disposable {
 	private _getHintInlineChat() {
 		const ariaLabelParts: string[] = [];
 
-		// TODO: Show don't show again link
 		const handleClick = () => {
 			this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 				id: 'terminalInlineChat.hintAction',
@@ -227,12 +226,9 @@ class TerminalInitialHintWidget extends Disposable {
 			});
 			this._commandService.executeCommand(TerminalChatCommandId.Start, { from: 'hint' });
 		};
-		// this._toDispose.add(this._commandService.onDidExecuteCommand(e => {
-		// 	if (e.commandId === TerminalChatCommandId.Start) {
-		// 		this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
-		// 		this.dispose();
-		// 	}
-		// }));
+		const handleDontShowClick = () => {
+			this._configurationService.updateValue(TerminalInitialHintSettingId.Enabled, false);
+		};
 
 		const hintHandler: IContentActionHandler = {
 			disposables: this._toDispose,
@@ -240,6 +236,16 @@ class TerminalInitialHintWidget extends Disposable {
 				switch (index) {
 					case '0':
 						handleClick();
+						break;
+				}
+			}
+		};
+		const dontShowHintHandler: IContentActionHandler = {
+			disposables: this._toDispose,
+			callback: (index, _event) => {
+				switch (index) {
+					case '0':
+						handleDontShowClick();
 						break;
 				}
 			}
@@ -322,10 +328,16 @@ class TerminalInitialHintWidget extends Disposable {
 			ariaLabelParts.push(suggestActionPart);
 		}
 
-		const typeToDismiss = localize('hintTextDismiss', 'Start typing to dismiss.');
-		const textHint2 = $('span.detail', undefined, typeToDismiss);
-		hintElement.appendChild(textHint2);
-		ariaLabelParts.push(typeToDismiss);
+		const typeToDismiss = localize({
+			key: 'hintTextDismiss',
+			comment: [
+				'Preserve double-square brackets and their order',
+			]
+		}, 'Start typing to dismiss or [[don\'t show]] this again.');
+		const typeToDismissRendered = renderFormattedText(typeToDismiss, { actionHandler: dontShowHintHandler });
+		typeToDismissRendered.classList.add('detail');
+		hintElement.appendChild(typeToDismissRendered);
+		ariaLabelParts.push(localize('hintTextDismissAriaLabel', 'Start typing to dismiss or don\'t show this again.'));
 
 		return { ariaLabel: ariaLabelParts.join(' '), hintHandler, hintElement };
 	}
