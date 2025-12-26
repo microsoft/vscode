@@ -133,6 +133,24 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 				this.updateCompositeBar(true);
 			}
 		}));
+
+		// Listen to view container changes to update composite bar visibility
+		this._register(viewDescriptorService.onDidChangeViewContainers(() => {
+			this.updateCompositeBar();
+		}));
+
+		this._register(viewDescriptorService.onDidChangeContainerLocation(() => {
+			this.updateCompositeBar();
+		}));
+
+		// Listen to pane composite open/close to update composite bar visibility
+		this._register(this.onDidPaneCompositeOpen(() => {
+			this.updateCompositeBar();
+		}));
+
+		this._register(this.onDidPaneCompositeClose(() => {
+			this.updateCompositeBar();
+		}));
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {
@@ -236,7 +254,12 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		return this.configuration.position !== ActivityBarPosition.HIDDEN;
+		if (this.configuration.position === ActivityBarPosition.HIDDEN) {
+			return false;
+		}
+		// Hide composite bar when only one view container is present
+		const visibleCompositeIds = this.getVisiblePaneCompositeIds();
+		return visibleCompositeIds.length > 1;
 	}
 
 	protected getCompositeBarPosition(): CompositeBarPosition {
