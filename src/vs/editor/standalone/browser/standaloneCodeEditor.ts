@@ -12,7 +12,7 @@ import { IDiffEditorOptions, IEditorOptions } from '../../common/config/editorOp
 import { InternalEditorAction } from '../../common/editorAction.js';
 import { IModelChangedEvent } from '../../common/editorCommon.js';
 import { ITextModel } from '../../common/model.js';
-import { StandaloneKeybindingService, updateConfigurationService } from './standaloneServices.js';
+import { StandaloneKeybindingService, StandaloneServices, updateConfigurationService } from './standaloneServices.js';
 import { IStandaloneThemeService } from '../common/standaloneTheme.js';
 import { IMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandHandler, ICommandService } from '../../../platform/commands/common/commands.js';
@@ -296,7 +296,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		createAriaDomNode(options.ariaContainerElement);
 
-		setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, { instantHover: enableInstantHover }, {}));
+		setHoverDelegateFactory((placement, enableInstantHover) => StandaloneServices.initialize({}).createInstance(WorkbenchHoverDelegate, placement, { instantHover: enableInstantHover }, {}));
 		setBaseLayerHoverDelegate(hoverService);
 
 		markdownRendererService.setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
