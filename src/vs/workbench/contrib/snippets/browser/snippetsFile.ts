@@ -16,6 +16,7 @@ import { relativePath } from '../../../../base/common/resources.js';
 import { isObject } from '../../../../base/common/types.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { WindowIdleValue, getActiveWindow } from '../../../../base/browser/dom.js';
+import { parse as parseGlob, ParsedExpression, IExpression } from '../../../../base/common/glob.js';
 
 class SnippetBodyInsights {
 
@@ -100,6 +101,8 @@ class SnippetBodyInsights {
 export class Snippet {
 
 	private readonly _bodyInsights: WindowIdleValue<SnippetBodyInsights>;
+	private _parsedInclude?: ParsedExpression;
+	private _parsedExclude?: ParsedExpression;
 
 	readonly prefixLow: string;
 
@@ -113,6 +116,8 @@ export class Snippet {
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
 		readonly snippetIdentifier: string,
+		readonly include?: string[],
+		readonly exclude?: string[],
 		readonly extensionId?: ExtensionIdentifier,
 	) {
 		this.prefixLow = prefix.toLowerCase();
@@ -138,6 +143,36 @@ export class Snippet {
 	get usesSelection(): boolean {
 		return this._bodyInsights.value.usesSelectionVariable;
 	}
+
+	isFileIncluded(resourceUri: URI): boolean {
+		const filePath = resourceUri.fsPath;
+
+		if (this.exclude) {
+			if (!this._parsedExclude) {
+				const expression: IExpression = {};
+				for (const pattern of this.exclude.filter(p => Boolean(p))) {
+					expression[pattern] = true;
+				}
+				this._parsedExclude = parseGlob(expression, { ignoreCase: true });
+			}
+			if (this._parsedExclude(filePath)) {
+				return false;
+			}
+		}
+
+		if (this.include) {
+			if (!this._parsedInclude) {
+				const expression: IExpression = {};
+				for (const pattern of this.include.filter(p => Boolean(p))) {
+					expression[pattern] = true;
+				}
+				this._parsedInclude = parseGlob(expression, { ignoreCase: true });
+			}
+			return !!this._parsedInclude(filePath);
+		}
+
+		return true;
+	}
 }
 
 
@@ -147,6 +182,8 @@ interface JsonSerializedSnippet {
 	scope?: string;
 	prefix: string | string[] | undefined;
 	description: string;
+	include?: string | string[];
+	exclude?: string | string[];
 }
 
 function isJsonSerializedSnippet(thing: unknown): thing is JsonSerializedSnippet {
@@ -183,9 +220,9 @@ export class SnippetFile {
 		this.isUserSnippets = !this._extension;
 	}
 
-	select(selector: string, bucket: Snippet[]): void {
+	select(selector: string, bucket: Snippet[], resourceUri?: URI): void {
 		if (this.isGlobalSnippets || !this.isUserSnippets) {
-			this._scopeSelect(selector, bucket);
+			this._scopeSelect(selector, bucket, resourceUri);
 		} else {
 			this._filepathSelect(selector, bucket);
 		}
@@ -198,9 +235,13 @@ export class SnippetFile {
 		}
 	}
 
-	private _scopeSelect(selector: string, bucket: Snippet[]): void {
+	private _scopeSelect(selector: string, bucket: Snippet[], resourceUri?: URI): void {
 		// for `my.code-snippets` files we need to look at each snippet
 		for (const snippet of this.data) {
+			if (resourceUri && !snippet.isFileIncluded(resourceUri)) {
+				continue;
+			}
+
 			const len = snippet.scopes.length;
 			if (len === 0) {
 				// always accept
@@ -219,7 +260,7 @@ export class SnippetFile {
 
 		const idx = selector.lastIndexOf('.');
 		if (idx >= 0) {
-			this._scopeSelect(selector.substring(0, idx), bucket);
+			this._scopeSelect(selector.substring(0, idx), bucket, resourceUri);
 		}
 	}
 
@@ -286,6 +327,24 @@ export class SnippetFile {
 			scopes = [];
 		}
 
+		let include: string[] | undefined;
+		if (snippet.include) {
+			if (Array.isArray(snippet.include)) {
+				include = snippet.include;
+			} else if (typeof snippet.include === 'string') {
+				include = [snippet.include];
+			}
+		}
+
+		let exclude: string[] | undefined;
+		if (snippet.exclude) {
+			if (Array.isArray(snippet.exclude)) {
+				exclude = snippet.exclude;
+			} else if (typeof snippet.exclude === 'string') {
+				exclude = [snippet.exclude];
+			}
+		}
+
 		let source: string;
 		if (this._extension) {
 			// extension snippet -> show the name of the extension
@@ -314,6 +373,8 @@ export class SnippetFile {
 				source,
 				this.source,
 				this._extension ? `${relativePath(this._extension.extensionLocation, this.location)}/${name}` : `${basename(this.location.path)}/${name}`,
+				include,
+				exclude,
 				this._extension?.identifier,
 			));
 		}

@@ -265,7 +265,7 @@ export class SnippetsService implements ISnippetsService {
 		return this._files.values();
 	}
 
-	async getSnippets(languageId: string | undefined, opts?: ISnippetGetOptions): Promise<Snippet[]> {
+	async getSnippets(languageId: string | undefined, opts?: ISnippetGetOptions, resourceUri?: URI): Promise<Snippet[]> {
 		await this._joinSnippets();
 
 		const result: Snippet[] = [];
@@ -275,7 +275,7 @@ export class SnippetsService implements ISnippetsService {
 			if (this._languageService.isRegisteredLanguageId(languageId)) {
 				for (const file of this._files.values()) {
 					promises.push(file.load()
-						.then(file => file.select(languageId, result))
+						.then(file => file.select(languageId, result, resourceUri))
 						.catch(err => this._logService.error(err, file.location.toString()))
 					);
 				}
@@ -292,14 +292,14 @@ export class SnippetsService implements ISnippetsService {
 		return this._filterAndSortSnippets(result, opts);
 	}
 
-	getSnippetsSync(languageId: string, opts?: ISnippetGetOptions): Snippet[] {
+	getSnippetsSync(languageId: string, opts?: ISnippetGetOptions, resourceUri?: URI): Snippet[] {
 		const result: Snippet[] = [];
 		if (this._languageService.isRegisteredLanguageId(languageId)) {
 			for (const file of this._files.values()) {
 				// kick off loading (which is a noop in case it's already loaded)
 				// and optimistically collect snippets
 				file.load().catch(_err => { /*ignore*/ });
-				file.select(languageId, result);
+				file.select(languageId, result, resourceUri);
 			}
 		}
 		return this._filterAndSortSnippets(result, opts);
