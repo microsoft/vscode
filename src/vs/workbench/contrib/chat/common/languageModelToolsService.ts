@@ -208,6 +208,8 @@ export interface IToolResult {
 	toolMetadata?: unknown;
 	/** Whether to ask the user to confirm these tool results. Overrides {@link IToolConfirmationMessages.confirmResults}. */
 	confirmResults?: boolean;
+	/** Whether there was an error calling the tool. The tool may still have partially succeeded. */
+	hasError?: boolean;
 }
 
 export function toolContentToA11yString(part: IToolResult['content']) {

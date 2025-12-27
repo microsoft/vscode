@@ -257,6 +257,7 @@ declare module 'vscode' {
 	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 		toolResultMessage?: string | MarkdownString;
 		toolResultDetails?: Array<Uri | Location>;
+		toolResultError?: string;
 		toolMetadata?: unknown;
 		/** Whether there was an error calling the tool. The tool may still have partially succeeded. */
 		hasError?: boolean;

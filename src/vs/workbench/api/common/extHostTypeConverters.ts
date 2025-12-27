@@ -3594,7 +3594,7 @@ export namespace LanguageModelToolSource {
 
 export namespace LanguageModelToolResult {
 	export function to(result: IToolResult): vscode.LanguageModelToolResult {
-		return new types.LanguageModelToolResult(result.content.map(item => {
+		const toolResult = new types.LanguageModelToolResult(result.content.map(item => {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value, item.audience);
 			} else if (item.kind === 'data') {
@@ -3603,6 +3603,21 @@ export namespace LanguageModelToolResult {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
 		}));
+
+		if (result.toolResultMessage) {
+			(toolResult as vscode.ExtendedLanguageModelToolResult).toolResultMessage = typeof result.toolResultMessage === 'string' ? result.toolResultMessage : MarkdownString.to(result.toolResultMessage);
+		}
+		if (result.toolMetadata) {
+			(toolResult as vscode.ExtendedLanguageModelToolResult).toolMetadata = result.toolMetadata;
+		}
+		if (result.toolResultError) {
+			(toolResult as vscode.ExtendedLanguageModelToolResult).toolResultError = result.toolResultError;
+		}
+		if (result.hasError !== undefined) {
+			(toolResult as vscode.ExtendedLanguageModelToolResult).hasError = result.hasError;
+		}
+
+		return toolResult;
 	}
 
 	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
@@ -3648,6 +3663,9 @@ export namespace LanguageModelToolResult {
 			}),
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
+			toolResultError: result.toolResultError,
+			toolMetadata: result.toolMetadata,
+			hasError: result.hasError,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
@@ -3666,8 +3684,17 @@ export namespace LanguageModelToolResult2 {
 			}
 		}));
 
+		if (result.toolResultMessage) {
+			(toolResult as vscode.ExtendedLanguageModelToolResult).toolResultMessage = typeof result.toolResultMessage === 'string' ? result.toolResultMessage : MarkdownString.to(result.toolResultMessage);
+		}
 		if (result.toolMetadata) {
 			(toolResult as vscode.ExtendedLanguageModelToolResult).toolMetadata = result.toolMetadata;
+		}
+		if (result.toolResultError) {
+			(toolResult as vscode.ExtendedLanguageModelToolResult).toolResultError = result.toolResultError;
+		}
+		if (result.hasError !== undefined) {
+			(toolResult as vscode.ExtendedLanguageModelToolResult).hasError = result.hasError;
 		}
 
 		return toolResult;
@@ -3734,7 +3761,9 @@ export namespace LanguageModelToolResult2 {
 			}),
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: detailsDto,
+			toolResultError: result.toolResultError,
 			toolMetadata: result.toolMetadata,
+			hasError: result.hasError,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
