@@ -115,6 +115,7 @@ import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { ExtHostChatContext } from './extHostChatContext.js';
+import { getExtHostAIAgent, IExtHostAIAgent } from './extHostAIAgent.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -1627,11 +1628,29 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// namespace: aiAgent (Code Ship Internal API)
+		const extHostAIAgent = getExtHostAIAgent();
+		const aiAgent: IExtHostAIAgent = {
+			interceptCommand(commandId: string, handler: (args: any[]) => Promise<boolean>) {
+				checkProposedApiEnabled(extension, 'codeShipAIAgent');
+				return extHostAIAgent.interceptCommand(commandId, handler);
+			},
+			requestOverlayAccess() {
+				checkProposedApiEnabled(extension, 'codeShipAIAgent');
+				return extHostAIAgent.requestOverlayAccess();
+			},
+			get onNativeEvent() {
+				checkProposedApiEnabled(extension, 'codeShipAIAgent');
+				return extHostAIAgent.onNativeEvent;
+			}
+		};
+
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		return <typeof vscode>{
+		return <typeof vscode & { aiAgent: IExtHostAIAgent }>{
 			version: initData.version,
 			// namespaces
 			ai,
+			aiAgent,
 			authentication,
 			commands,
 			comments,
