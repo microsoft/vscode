@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { AuthenticationSessionAccount, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IAuthenticationQueryService } from '../../../../services/authentication/common/authenticationQuery.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -36,13 +34,13 @@ export class ManageAccountPreferencesForExtensionAction extends Action2 {
 
 type AccountPreferenceQuickPickItem = NewAccountQuickPickItem | ExistingAccountQuickPickItem;
 
-interface NewAccountQuickPickItem extends IQuickPickItem {
+interface NewAccountQuickPickItem extends IQuickTreeItem {
 	account?: undefined;
 	scopes: readonly string[];
 	providerId: string;
 }
 
-interface ExistingAccountQuickPickItem extends IQuickPickItem {
+interface ExistingAccountQuickPickItem extends IQuickTreeItem {
 	account: AuthenticationSessionAccount;
 	scopes?: undefined;
 	providerId: string;
@@ -55,7 +53,6 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IAuthenticationQueryService private readonly _authenticationQueryService: IAuthenticationQueryService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ILogService private readonly _logService: ILogService
 	) { }
 
 	async run(extensionId?: string, providerId?: string) {
@@ -111,7 +108,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		// Only fetch accounts for the chosen provider
 		const accounts = await this._authenticationService.getAccounts(providerId);
 		const currentAccountNamePreference = this._authenticationQueryService.provider(providerId).extension(extensionId).getPreferredAccount();
-		const items: Array<QuickPickInput<AccountPreferenceQuickPickItem>> = this._getItems(accounts, providerId, currentAccountNamePreference);
+		const items: Array<AccountPreferenceQuickPickItem> = this._getItems(accounts, providerId, currentAccountNamePreference);
 
 		// If the provider supports multiple accounts, add an option to use a new account
 		const provider = this._authenticationService.getProvider(providerId);
@@ -121,29 +118,26 @@ class ManageAccountPreferenceForExtensionActionImpl {
 			const lastUsedScopes = accounts
 				.flatMap(account => this._authenticationQueryService.provider(providerId).account(account.label).extension(extensionId).getUsage())
 				.sort((a, b) => b.lastUsed - a.lastUsed)[0]?.scopes; // Sort by timestamp and take the most recent
-			if (lastUsedScopes) {
-				items.push({ type: 'separator' });
-				items.push({
-					providerId,
-					scopes: lastUsedScopes,
-					label: localize('use new account', "Use a new account..."),
-				});
-			}
+			items.push({
+				providerId,
+				scopes: lastUsedScopes,
+				label: localize('use new account', "Use a new account..."),
+			});
 		}
 
 		const disposables = new DisposableStore();
 		const picker = this._createQuickPick(disposables, extensionId, extension.displayName ?? extension.name, provider.label);
 		if (items.length === 0) {
 			// We would only get here if we went through the Command Palette
-			disposables.add(this._handleNoAccounts(picker));
+			// disposables.add(this._handleNoAccounts(picker));
 			return;
 		}
-		picker.items = items;
+		picker.setItemTree(items);
 		picker.show();
 	}
 
 	private _createQuickPick(disposableStore: DisposableStore, extensionId: string, extensionLabel: string, providerLabel: string) {
-		const picker = disposableStore.add(this._quickInputService.createQuickPick<AccountPreferenceQuickPickItem>({ useSeparators: true }));
+		const picker = disposableStore.add(this._quickInputService.createQuickTree<AccountPreferenceQuickPickItem>());
 		disposableStore.add(picker.onDidHide(() => {
 			disposableStore.dispose();
 		}));
@@ -152,13 +146,13 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		picker.sortByLabel = false;
 		disposableStore.add(picker.onDidAccept(async () => {
 			picker.hide();
-			await this._accept(extensionId, picker.selectedItems);
+			// await this._accept(extensionId, picker.selectedItems);
 		}));
 		return picker;
 	}
 
-	private _getItems(accounts: ReadonlyArray<AuthenticationSessionAccount>, providerId: string, currentAccountNamePreference: string | undefined): Array<QuickPickInput<AccountPreferenceQuickPickItem>> {
-		return accounts.map<QuickPickInput<AccountPreferenceQuickPickItem>>(a => currentAccountNamePreference === a.label
+	private _getItems(accounts: ReadonlyArray<AuthenticationSessionAccount>, providerId: string, currentAccountNamePreference: string | undefined): Array<AccountPreferenceQuickPickItem> {
+		return accounts.map<AccountPreferenceQuickPickItem>(a => currentAccountNamePreference === a.label
 			? {
 				label: a.label,
 				account: a,
@@ -172,37 +166,5 @@ class ManageAccountPreferenceForExtensionActionImpl {
 				providerId,
 			}
 		);
-	}
-
-	private _handleNoAccounts(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>): IDisposable {
-		picker.validationMessage = localize('noAccounts', "No accounts are currently used by this extension.");
-		picker.buttons = [this._quickInputService.backButton];
-		picker.show();
-		return Event.filter(picker.onDidTriggerButton, (e) => e === this._quickInputService.backButton)(() => this.run());
-	}
-
-	private async _accept(extensionId: string, selectedItems: ReadonlyArray<AccountPreferenceQuickPickItem>) {
-		for (const item of selectedItems) {
-			let account: AuthenticationSessionAccount;
-			if (!item.account) {
-				try {
-					const session = await this._authenticationService.createSession(item.providerId, [...item.scopes]);
-					account = session.account;
-				} catch (e) {
-					this._logService.error(e);
-					continue;
-				}
-			} else {
-				account = item.account;
-			}
-			const providerId = item.providerId;
-			const extensionQuery = this._authenticationQueryService.provider(providerId).extension(extensionId);
-			const currentAccountName = extensionQuery.getPreferredAccount();
-			if (currentAccountName === account.label) {
-				// This account is already the preferred account
-				continue;
-			}
-			extensionQuery.setPreferredAccount(account);
-		}
 	}
 }
