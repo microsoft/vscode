@@ -225,7 +225,7 @@ export class QueryBuilder {
 			exists: options.exists,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
-			shouldGlobMatchFilePattern: options.shouldGlobSearch
+			filePatternType: options.shouldGlobSearch ? 'glob' : 'fuzzy'
 		};
 	}
 
