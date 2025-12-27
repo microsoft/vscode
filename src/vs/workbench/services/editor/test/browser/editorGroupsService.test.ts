@@ -1163,6 +1163,34 @@ suite('EditorGroupsService', () => {
 		});
 	});
 
+	test('copyEditor - Loss of Tab: Singleton editors should be moved instead of copied (across groups)', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+		assert.strictEqual(group.isEmpty, true);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const singletonInput = createTestFileEditorInput(URI.file('foo/bar/singleton'), TEST_EDITOR_INPUT_ID);
+		singletonInput.capabilities = EditorInputCapabilities.Singleton;
+
+		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: singletonInput, options: { pinned: true } }]);
+		assert.strictEqual(group.count, 2);
+		assert.strictEqual(group.getEditorByIndex(0), input);
+		assert.strictEqual(group.getEditorByIndex(1), singletonInput);
+
+		// Copying a singleton editor should act like a move - original should be closed
+		group.copyEditor(singletonInput, rightGroup, { index: 0 });
+
+		// Singleton editor should be removed from original group (moved, not copied)
+		assert.strictEqual(group.count, 1, 'Singleton editor should be removed from source group');
+		assert.strictEqual(group.getEditorByIndex(0), input);
+
+		// Singleton editor should appear in target group
+		assert.strictEqual(rightGroup.count, 1);
+		assert.strictEqual(rightGroup.getEditorByIndex(0), singletonInput);
+	});
+
 	test('replaceEditors', async () => {
 		const [part] = await createPart();
 		const group = part.activeGroup;
@@ -1726,6 +1754,28 @@ suite('EditorGroupsService', () => {
 		group.copyEditor(inputInactive, rightGroup, { index: 0 });
 
 		assert.strictEqual(firedCount, 0);
+		moveListener.dispose();
+	});
+
+	test('copyEditor with context - singleton editors should fire onWillMoveEditor (across groups)', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+		assert.strictEqual(group.isEmpty, true);
+		let firedCount = 0;
+		const moveListener = group.onWillMoveEditor(() => firedCount++);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const singletonInput = createTestFileEditorInput(URI.file('foo/bar/singleton'), TEST_EDITOR_INPUT_ID);
+		singletonInput.capabilities = EditorInputCapabilities.Singleton;
+
+		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: singletonInput, options: { pinned: true } }]);
+		assert.strictEqual(firedCount, 0);
+
+		// Copying a singleton editor should fire onWillMoveEditor because it's actually a move
+		group.copyEditor(singletonInput, rightGroup, { index: 0 });
+
+		assert.strictEqual(firedCount, 1, 'onWillMoveEditor should fire for singleton editors even when copying');
 		moveListener.dispose();
 	});
 
