@@ -44,6 +44,7 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 			textModel2.uri,
 			{
 				ignoreTrimWhitespace: false,
+				ignoreEOL: true,
 				maxComputationTimeMs: 0,
 				computeMoves: false,
 			},

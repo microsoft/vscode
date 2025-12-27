@@ -1329,11 +1329,19 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	readonly ignoreTrimWhitespace: boolean;
+
+	/**
+	 * Returns whether the diff editor is ignoring end-of-line characters or not.
+	 * @internal
+	 */
+	readonly ignoreEOL: boolean;
+
 	/**
 	 * Returns whether the diff editor is rendering side by side or inline.
 	 * @internal
 	 */
 	readonly renderSideBySide: boolean;
+
 	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * @internal
