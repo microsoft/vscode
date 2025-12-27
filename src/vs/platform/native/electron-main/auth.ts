@@ -63,7 +63,10 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 	}
 
 	private registerListeners(): void {
-		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event: ElectronEvent, _webContents: WebContents, req: ElectronAuthenticationResponseDetails, authInfo: ElectronAuthInfo, callback) => ({ event, authInfo: { ...authInfo, attempt: req.firstAuthAttempt ? 1 : 2 }, callback } satisfies LoginEvent));
+		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event: ElectronEvent, _webContents: WebContents, req: ElectronAuthenticationResponseDetails, authInfo: ElectronAuthInfo, callback) => {
+			const attempt = req.firstAuthAttempt === false ? 2 : 1;
+			return ({ event, authInfo: { ...authInfo, attempt }, callback } satisfies LoginEvent);
+		});
 		this._register(onLogin(this.onLogin, this));
 	}
 
