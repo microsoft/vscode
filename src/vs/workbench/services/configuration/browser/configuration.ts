@@ -1080,4 +1080,8 @@ export class FolderConfiguration extends Disposable {
 			this.cachedFolderConfiguration.updateConfiguration(settingsContent, standAloneConfigurationContents);
 		}
 	}
+
+	public addRelated(disposable: IDisposable): void {
+		this._register(disposable);
+	}
 }
