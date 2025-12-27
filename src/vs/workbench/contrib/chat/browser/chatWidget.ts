@@ -499,6 +499,29 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderChatEditingSessionState();
 		}));
 
+		this._register(autorun(r => {
+			const viewModel = viewModelObs.read(r);
+			const model = viewModel?.model;
+
+			// Should we calculate the diff for all chat sessions?
+			if (!model?.sessionResource || !this.chatSessionsService.getContentProviderSchemes().includes(model.sessionResource.scheme)) {
+				return;
+			}
+
+			if (!model.editingSession) {
+				return;
+			}
+
+			const diffs = model.editingSession.getDiffsForFilesInSession();
+
+			r.store.add(autorun(innerReader => {
+				const diffEntries = diffs.read(innerReader);
+				if (diffEntries.length > 0 && this.input) {
+					this.input.renderFileChangesFromDiffs(diffs, model.sessionResource);
+				}
+			}));
+		}));
+
 		this._register(codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {
 			const resource = input.resource;
 			if (resource.scheme !== Schemas.vscodeChatCodeBlock) {

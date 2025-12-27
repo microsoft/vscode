@@ -92,6 +92,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResource: URI[]; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
+	// private readonly _onDidUpdateFileChanges = this._register(new Emitter<{ part: FileChangesPar }>());
+	// public readonly onDidFileChangesUpdate = this._onDidUpdateFileChanges.event;
+
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
