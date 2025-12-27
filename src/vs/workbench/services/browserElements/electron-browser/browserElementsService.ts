@@ -68,6 +68,10 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 			disposable.dispose();
 		}
 	}
+
+	async getConsoleLogs(): Promise<string | undefined> {
+		return this.simpleBrowser.getConsoleLogs();
+	}
 }
 
 registerSingleton(IBrowserElementsService, WorkbenchBrowserElementsService, InstantiationType.Delayed);
