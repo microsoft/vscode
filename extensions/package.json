@@ -4,6 +4,7 @@
   "license": "MIT",
   "description": "Dependencies shared by all extensions",
   "dependencies": {
+    "@parcel/watcher-win32-x64": "^2.5.1",
     "typescript": "^5.9.3"
   },
   "scripts": {
