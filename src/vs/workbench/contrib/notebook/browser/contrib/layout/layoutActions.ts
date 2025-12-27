@@ -30,44 +30,25 @@ export class ToggleCellToolbarPositionAction extends Action2 {
 	async run(accessor: ServicesAccessor, context: any): Promise<void> {
 		const editor = context && context.ui ? (context as INotebookActionContext).notebookEditor : undefined;
 		if (editor && editor.hasModel()) {
-			// from toolbar
-			const viewType = editor.textModel.viewType;
 			const configurationService = accessor.get(IConfigurationService);
-			const toolbarPosition = configurationService.getValue<string | { [key: string]: string }>(NotebookSetting.cellToolbarLocation);
-			const newConfig = this.togglePosition(viewType, toolbarPosition);
-			await configurationService.updateValue(NotebookSetting.cellToolbarLocation, newConfig);
+			const toolbarPosition = configurationService.getValue<string>(NotebookSetting.cellToolbarLocation) ?? 'right';
+			const newPosition = this.togglePosition(toolbarPosition);
+			await configurationService.updateValue(NotebookSetting.cellToolbarLocation, newPosition);
 		}
 	}
 
-	togglePosition(viewType: string, toolbarPosition: string | { [key: string]: string }): { [key: string]: string } {
-		if (typeof toolbarPosition === 'string') {
-			// legacy
-			if (['left', 'right', 'hidden'].indexOf(toolbarPosition) >= 0) {
-				// valid position
-				const newViewValue = toolbarPosition === 'right' ? 'left' : 'right';
-				const config: { [key: string]: string } = {
-					default: toolbarPosition
-				};
-				config[viewType] = newViewValue;
-				return config;
-			} else {
-				// invalid position
-				const config: { [key: string]: string } = {
-					default: 'right',
-				};
-				config[viewType] = 'left';
-				return config;
-			}
+	togglePosition(toolbarPosition: string): string {
+		// Toggle between 'left' and 'right', ignoring 'hidden' for the toggle action
+		if (toolbarPosition === 'left') {
+			return 'right';
+		} else if (toolbarPosition === 'right') {
+			return 'left';
+		} else if (toolbarPosition === 'hidden') {
+			return 'right';
 		} else {
-			const oldValue = toolbarPosition[viewType] ?? toolbarPosition['default'] ?? 'right';
-			const newViewValue = oldValue === 'right' ? 'left' : 'right';
-			const newConfig = {
-				...toolbarPosition
-			};
-			newConfig[viewType] = newViewValue;
-			return newConfig;
+			// Invalid or missing value, default to 'left' as the toggle result from 'right'
+			return 'left';
 		}
-
 	}
 }
 registerAction2(ToggleCellToolbarPositionAction);
