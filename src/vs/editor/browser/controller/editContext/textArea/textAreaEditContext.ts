@@ -35,10 +35,12 @@ import { IME } from '../../../../../base/common/ime.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AbstractEditContext } from '../editContext.js';
-import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from './textAreaEditContextInput.js';
+import { ICompositionData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from './textAreaEditContextInput.js';
 import { ariaLabelForScreenReaderContent, newlinecount, SimplePagedScreenReaderStrategy } from '../screenReaderUtils.js';
 import { _debugComposition, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 import { getMapForWordSeparators, WordCharacterClass } from '../../../../common/core/wordCharacterClassifier.js';
+import { TextAreaEditContextRegistry } from './textAreaEditContextRegistry.js';
+import { IPasteData } from '../clipboardUtils.js';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -124,7 +126,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 	private _contentWidth: number;
 	private _contentHeight: number;
 	private _fontInfo: FontInfo;
-	private _emptySelectionClipboard: boolean;
 
 	/**
 	 * Defined only when the text area is visible (composition case).
@@ -144,6 +145,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 	private readonly _textAreaInput: TextAreaInput;
 
 	constructor(
+		ownerID: string,
 		context: ViewContext,
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
@@ -166,7 +168,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -284,15 +285,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		}));
 
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
-			let pasteOnNewLine = false;
-			let multicursorText: string[] | null = null;
-			let mode: string | null = null;
-			if (e.metadata) {
-				pasteOnNewLine = (this._emptySelectionClipboard && !!e.metadata.isFromEmptySelection);
-				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
-				mode = e.metadata.mode;
-			}
-			this._viewController.paste(e.text, pasteOnNewLine, multicursorText, mode);
+			this._viewController.paste(e.text, e.pasteOnNewLine, e.multicursorText, e.mode);
 		}));
 
 		this._register(this._textAreaInput.onCut(() => {
@@ -440,6 +433,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._register(IME.onDidChange(() => {
 			this._ensureReadOnlyAttribute();
 		}));
+
+		this._register(TextAreaEditContextRegistry.register(ownerID, this));
 	}
 
 	public get domNode() {
@@ -567,7 +562,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;

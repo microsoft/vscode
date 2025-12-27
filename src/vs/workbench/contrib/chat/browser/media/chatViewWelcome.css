@@ -156,8 +156,10 @@ div.chat-welcome-view {
 	flex-wrap: wrap;
 	justify-content: flex-start;
 	gap: 8px;
-	padding: 32px 16px 8px 16px;
 	/* Extra top padding for title */
+	padding: 32px 16px 8px 16px;
+	/* Avoids bleeding into other content since we use absolute positioning */
+	background: var(--vscode-chat-list-background);
 
 	.chat-welcome-view-suggested-prompts-title {
 		position: absolute;
@@ -181,7 +183,6 @@ div.chat-welcome-view {
 		background-color: var(--vscode-editorWidget-background);
 		cursor: pointer;
 		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-		max-width: 100%;
 		width: fit-content;
 		margin: 0;
 		box-sizing: border-box;

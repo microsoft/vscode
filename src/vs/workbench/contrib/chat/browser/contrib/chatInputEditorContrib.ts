@@ -25,6 +25,7 @@ import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
 import { NativeEditContextRegistry } from '../../../../../editor/browser/controller/editContext/native/nativeEditContextRegistry.js';
+import { TextAreaEditContextRegistry } from '../../../../../editor/browser/controller/editContext/textArea/textAreaEditContextRegistry.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 
@@ -322,14 +323,23 @@ class InputEditorDecorations extends Disposable {
 
 	private updateAriaPlaceholder(value: string | undefined): void {
 		const nativeEditContext = NativeEditContextRegistry.get(this.widget.inputEditor.getId());
-		const domNode = nativeEditContext?.domNode.domNode;
-		if (!domNode) {
-			return;
-		}
-		if (value && value.trim().length) {
-			domNode.setAttribute('aria-placeholder', value);
+		if (nativeEditContext) {
+			const domNode = nativeEditContext.domNode.domNode;
+			if (value && value.trim().length) {
+				domNode.setAttribute('aria-placeholder', value);
+			} else {
+				domNode.removeAttribute('aria-placeholder');
+			}
 		} else {
-			domNode.removeAttribute('aria-placeholder');
+			const textAreaEditContext = TextAreaEditContextRegistry.get(this.widget.inputEditor.getId());
+			if (textAreaEditContext) {
+				const textArea = textAreaEditContext.textArea.domNode;
+				if (value && value.trim().length) {
+					textArea.setAttribute('aria-placeholder', value);
+				} else {
+					textArea.removeAttribute('aria-placeholder');
+				}
+			}
 		}
 	}
 }
@@ -395,7 +405,7 @@ class ChatTokenDeleter extends Disposable {
 				previousSelectedAgent = this.widget.lastSelectedAgent;
 			}
 
-			// Don't try to handle multicursor edits right now
+			// Don't try to handle multi-cursor edits right now
 			const change = e.changes[0];
 
 			// If this was a simple delete, try to find out whether it was inside a token
@@ -408,6 +418,15 @@ class ChatTokenDeleter extends Disposable {
 					const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
 					// Part of this token was deleted, or the space after it was deleted, and the deletion range doesn't go off the front of the token, for simpler math
 					if (deletedRangeOfToken && Range.compareRangesUsingStarts(token.editorRange, change.range) < 0) {
+						// Range.intersectRanges returns an empty range when the deletion happens *exactly* at a boundary.
+						// In that case, only treat this as a token-delete when the deleted character was a space.
+						if (previousInputValue && Range.isEmpty(deletedRangeOfToken)) {
+							const deletedText = previousInputValue.substring(change.rangeOffset, change.rangeOffset + change.rangeLength);
+							if (deletedText !== ' ') {
+								return;
+							}
+						}
+
 						// Assume single line tokens
 						const length = deletedRangeOfToken.endColumn - deletedRangeOfToken.startColumn;
 						const rangeToDelete = new Range(token.editorRange.startLineNumber, token.editorRange.startColumn, token.editorRange.endLineNumber, token.editorRange.endColumn - length);

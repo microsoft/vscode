@@ -358,9 +358,11 @@ class QuickDiffWidget extends PeekViewWidget {
 		super._fillHead(container, true);
 
 		// Render an empty picker which will be populated later
+		const action = new QuickDiffPickerBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event));
+		this._disposables.add(action);
+
 		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
-		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem,
-			new QuickDiffPickerBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)));
+		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem, action);
 		this.dropdown.render(this.dropdownContainer);
 	}
 
@@ -463,8 +465,9 @@ class QuickDiffWidget extends PeekViewWidget {
 	}
 
 	override dispose() {
-		super.dispose();
+		this.dropdown?.dispose();
 		this.menu?.dispose();
+		super.dispose();
 	}
 }
 

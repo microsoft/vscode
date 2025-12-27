@@ -442,6 +442,15 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return true;
 	}
 
+	public async getDiffInfo() {
+		if (!this._diffOperation) {
+			this._updateDiffInfoSeq();
+		}
+
+		await this._diffOperation;
+		return this._diffInfo.get();
+	}
+
 
 	private async _updateDiffInfoSeq(notifyAction: 'accepted' | 'rejected' | undefined = undefined) {
 		const myDiffOperationId = ++this._diffOperationIds;
