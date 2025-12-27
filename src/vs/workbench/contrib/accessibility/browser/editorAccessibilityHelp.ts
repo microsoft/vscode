@@ -90,6 +90,7 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 
 		content.push(AccessibilityHelpNLS.listSignalSounds);
 		content.push(AccessibilityHelpNLS.listAlerts);
+		content.push(AccessibilityHelpNLS.announceCursorPosition);
 
 
 		const chatCommandInfo = getChatCommandInfo(this._keybindingService, this._contextKeyService);
