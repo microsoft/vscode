@@ -14,6 +14,7 @@ import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modes
 import { EndOfLinePreference, ITextModel } from '../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText, IMarkdownVulnerability } from './annotations.js';
+import { isChatContentVariableReference } from './chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from './chatViewModel.js';
 
 
@@ -240,7 +241,7 @@ export class CodeBlockModelCollection extends Disposable {
 					return;
 				}
 
-				const uriOrLocation = 'variableName' in ref.reference ?
+				const uriOrLocation = isChatContentVariableReference(ref.reference) ?
 					ref.reference.value :
 					ref.reference;
 				if (!uriOrLocation) {

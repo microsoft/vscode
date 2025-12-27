@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { normalizeURL } from '../../url/common/trustedDomains.js';
-import { testUrlMatchesGlob } from '../../url/common/urlGlob.js';
+import { normalizeURL } from '../../../../platform/url/common/trustedDomains.js';
+import { testUrlMatchesGlob } from '../../../../platform/url/common/urlGlob.js';
 
 /**
  * Approval settings for a URL pattern

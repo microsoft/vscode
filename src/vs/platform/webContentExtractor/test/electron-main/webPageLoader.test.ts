@@ -11,6 +11,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { NullLogService } from '../../../log/common/log.js';
 import { AXNode } from '../../electron-main/cdpAccessibilityDomain.js';
 import { WebPageLoader } from '../../electron-main/webPageLoader.js';
+import { IWebContentExtractorOptions } from '../../common/webContentExtractor.js';
 
 interface MockElectronEvent {
 	preventDefault?: sinon.SinonStub;
@@ -104,12 +105,12 @@ suite('WebPageLoader', () => {
 		sinon.restore();
 	});
 
-	function createWebPageLoader(uri: URI, options?: { followRedirects?: boolean }): WebPageLoader {
+	function createWebPageLoader(uri: URI, options?: IWebContentExtractorOptions, isTrustedDomain?: (uri: URI) => boolean): WebPageLoader {
 		const loader = new WebPageLoader((options) => {
 			window = new MockBrowserWindow(options);
 			// eslint-disable-next-line local/code-no-any-casts
 			return window as any;
-		}, new NullLogService(), uri, options);
+		}, new NullLogService(), uri, options, isTrustedDomain ?? (() => false));
 		disposables.add(loader);
 		return loader;
 	}
@@ -322,6 +323,189 @@ suite('WebPageLoader', () => {
 		assert.ok(!(mockEvent.preventDefault!).called);
 
 		// Continue with normal load after redirect
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+		assert.strictEqual(result.status, 'ok');
+	}));
+
+	test('redirect from www to non-www same domain is allowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://www.example.com/page');
+		const redirectUrl = 'https://example.com/other-page';
+		const axNodes = createMockAXNodes();
+
+		const loader = createWebPageLoader(uri, { followRedirects: false });
+
+		window.webContents.debugger.sendCommand.callsFake((command: string) => {
+			switch (command) {
+				case 'Network.enable':
+					return Promise.resolve();
+				case 'Accessibility.getFullAXTree':
+					return Promise.resolve({ nodes: axNodes });
+				default:
+					assert.fail(`Unexpected command: ${command}`);
+			}
+		});
+
+		const loadPromise = loader.load();
+
+		// Simulate redirect from www to non-www
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-redirect', mockEvent, redirectUrl);
+
+		// Should not prevent default for www prefix redirect
+		assert.ok(!(mockEvent.preventDefault!).called);
+
+		// Continue with normal load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+		assert.strictEqual(result.status, 'ok');
+	}));
+
+	test('redirect from non-www to www same domain is allowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const redirectUrl = 'https://www.example.com/other-page';
+		const axNodes = createMockAXNodes();
+
+		const loader = createWebPageLoader(uri, { followRedirects: false });
+
+		window.webContents.debugger.sendCommand.callsFake((command: string) => {
+			switch (command) {
+				case 'Network.enable':
+					return Promise.resolve();
+				case 'Accessibility.getFullAXTree':
+					return Promise.resolve({ nodes: axNodes });
+				default:
+					assert.fail(`Unexpected command: ${command}`);
+			}
+		});
+
+		const loadPromise = loader.load();
+
+		// Simulate redirect from non-www to www
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-redirect', mockEvent, redirectUrl);
+
+		// Should not prevent default for www prefix redirect
+		assert.ok(!(mockEvent.preventDefault!).called);
+
+		// Continue with normal load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+		assert.strictEqual(result.status, 'ok');
+	}));
+
+	test('redirect to trusted domain is allowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const redirectUrl = 'https://trusted-domain.com/redirected';
+		const axNodes = createMockAXNodes();
+
+		const loader = createWebPageLoader(uri,
+			{ followRedirects: false },
+			(uri) => uri.authority === 'trusted-domain.com' || uri.authority === 'another-trusted.com'
+		);
+
+		window.webContents.debugger.sendCommand.callsFake((command: string) => {
+			switch (command) {
+				case 'Network.enable':
+					return Promise.resolve();
+				case 'Accessibility.getFullAXTree':
+					return Promise.resolve({ nodes: axNodes });
+				default:
+					assert.fail(`Unexpected command: ${command}`);
+			}
+		});
+
+		const loadPromise = loader.load();
+
+		// Simulate redirect to trusted domain
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-redirect', mockEvent, redirectUrl);
+
+		// Should not prevent default for trusted domain redirect
+		assert.ok(!(mockEvent.preventDefault!).called);
+
+		// Continue with normal load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+		assert.strictEqual(result.status, 'ok');
+	}));
+
+	test('redirect to non-trusted domain is blocked', async () => {
+		const uri = URI.parse('https://example.com/page');
+		const redirectUrl = 'https://untrusted-domain.com/redirected';
+
+		const loader = createWebPageLoader(uri,
+			{ followRedirects: false },
+			(uri) => uri.authority === 'trusted-domain.com'
+		);
+
+		window.webContents.debugger.sendCommand.resolves({});
+
+		const loadPromise = loader.load();
+
+		// Simulate redirect to non-trusted domain
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-redirect', mockEvent, redirectUrl);
+
+		const result = await loadPromise;
+
+		// Should prevent redirect to non-trusted domain
+		assert.ok((mockEvent.preventDefault!).called);
+		assert.strictEqual(result.status, 'redirect');
+		if (result.status === 'redirect') {
+			assert.strictEqual(result.toURI.authority, 'untrusted-domain.com');
+		}
+	});
+
+	test('redirect to wildcard subdomain trusted domain is allowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const redirectUrl = 'https://sub.trusted-domain.com/redirected';
+		const axNodes = createMockAXNodes();
+
+		const loader = createWebPageLoader(uri,
+			{ followRedirects: false },
+			(uri) => uri.authority.endsWith('.trusted-domain.com') || uri.authority === 'trusted-domain.com'
+		);
+
+		window.webContents.debugger.sendCommand.callsFake((command: string) => {
+			switch (command) {
+				case 'Network.enable':
+					return Promise.resolve();
+				case 'Accessibility.getFullAXTree':
+					return Promise.resolve({ nodes: axNodes });
+				default:
+					assert.fail(`Unexpected command: ${command}`);
+			}
+		});
+
+		const loadPromise = loader.load();
+
+		// Simulate redirect to subdomain of trusted wildcard domain
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-redirect', mockEvent, redirectUrl);
+
+		// Should not prevent default for wildcard subdomain match
+		assert.ok(!(mockEvent.preventDefault!).called);
+
+		// Continue with normal load
 		window.webContents.emit('did-start-loading');
 		window.webContents.emit('did-finish-load');
 

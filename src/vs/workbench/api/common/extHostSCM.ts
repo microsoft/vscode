@@ -1125,6 +1125,9 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void> {
 		this.logService.trace('ExtHostSCM#$setSelectedSourceControl', selectedSourceControlHandle);
+		if (this._selectedSourceControlHandle === selectedSourceControlHandle) {
+			return Promise.resolve(undefined);
+		}
 
 		if (selectedSourceControlHandle !== undefined) {
 			this._sourceControls.get(selectedSourceControlHandle)?.setSelectionState(true);

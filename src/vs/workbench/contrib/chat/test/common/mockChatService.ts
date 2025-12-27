@@ -49,7 +49,7 @@ export class MockChatService implements IChatService {
 	async getOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
 		throw new Error('Method not implemented.');
 	}
-	getPersistedSessionTitle(sessionResource: URI): string | undefined {
+	getSessionTitle(sessionResource: URI): string | undefined {
 		throw new Error('Method not implemented.');
 	}
 	loadSessionFromContent(data: ISerializableChatData): IChatModelReference | undefined {
@@ -121,10 +121,6 @@ export class MockChatService implements IChatService {
 	}
 
 	logChatIndex(): void {
-		throw new Error('Method not implemented.');
-	}
-
-	isPersistedSessionEmpty(sessionResource: URI): boolean {
 		throw new Error('Method not implemented.');
 	}
 

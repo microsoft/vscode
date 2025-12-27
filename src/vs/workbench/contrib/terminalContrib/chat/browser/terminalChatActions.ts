@@ -379,16 +379,10 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			const chatSessionId = terminalChatService.getChatSessionIdForInstance(instance);
 			let chatSessionTitle: string | undefined;
 			if (chatSessionId) {
-				const sessionUri = LocalChatSessionUri.forSession(chatSessionId);
-				// Try to get title from active session first, then fall back to persisted title
-				chatSessionTitle = chatService.getSession(sessionUri)?.title || chatService.getPersistedSessionTitle(sessionUri);
+				chatSessionTitle = chatService.getSessionTitle(LocalChatSessionUri.forSession(chatSessionId));
 			}
 
-			let description: string | undefined;
-			if (chatSessionTitle) {
-				description = `${chatSessionTitle}`;
-			}
-
+			const description = chatSessionTitle;
 			let detail: string | undefined;
 			let tooltip: string | IMarkdownString | undefined;
 			if (lastCommand) {

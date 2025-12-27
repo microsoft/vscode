@@ -51,6 +51,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private readonly _xtermAddonLoader = new XtermAddonImporter();
 	private _serializeAddon?: SerializeAddonType;
 	private _webglAddon?: WebglAddonType;
+	private _webglAddonCustomGlyphs?: boolean;
 	private _ligaturesAddon?: LigaturesAddonType;
 
 	private _element?: HTMLElement;
@@ -491,18 +492,19 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			drawBoldTextInBrightColors: o.drawBoldTextInBrightColors,
 			minimumContrastRatio: o.minimumContrastRatio,
 			tabStopWidth: o.tabStopWidth,
-			customGlyphs: o.customGlyphs,
 		};
 	}
 
 	@throttle(0)
 	private async _refreshGpuAcceleration() {
-		if (this._shouldLoadWebgl() && !this._webglAddon) {
+		if (this._shouldLoadWebgl() && (!this._webglAddon || this._webglAddonCustomGlyphs !== this._terminalConfigurationService.config.customGlyphs)) {
 			const WebglAddon = await this._xtermAddonLoader.importAddon('webgl');
 			if (this._store.isDisposed) {
 				return;
 			}
-			this._webglAddon = this._register(new WebglAddon());
+			this._webglAddon = this._register(new WebglAddon({
+				customGlyphs: this._terminalConfigurationService.config.customGlyphs
+			}));
 			this._stickyScrollOverlay?.loadAddon(this._webglAddon);
 		} else if (!this._shouldLoadWebgl() && this._webglAddon) {
 			this._webglAddon.dispose();

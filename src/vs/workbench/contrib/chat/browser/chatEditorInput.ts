@@ -96,8 +96,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 		// Check if we already have a custom title for this session
 		const hasExistingCustomTitle = this._sessionResource && (
-			this.chatService.getSession(this._sessionResource)?.title ||
-			this.chatService.getPersistedSessionTitle(this._sessionResource)?.trim()
+			this.chatService.getSessionTitle(this._sessionResource)?.trim()
 		);
 
 		this.hasCustomTitle = Boolean(hasExistingCustomTitle);
@@ -184,7 +183,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 
 			// If not in active registry, try persisted session data
-			const persistedTitle = this.chatService.getPersistedSessionTitle(this._sessionResource);
+			const persistedTitle = this.chatService.getSessionTitle(this._sessionResource);
 			if (persistedTitle && persistedTitle.trim()) { // Only use non-empty persisted titles
 				return persistedTitle;
 			}

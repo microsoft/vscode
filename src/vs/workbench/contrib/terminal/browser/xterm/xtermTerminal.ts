@@ -120,6 +120,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
+	private _webglAddonCustomGlyphs?: boolean = false;
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
 	private readonly _ligaturesAddon: MutableDisposable<LigaturesAddonType> = this._register(new MutableDisposable());
@@ -228,7 +229,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
-			fastScrollModifier: 'alt',
 			fastScrollSensitivity: config.fastScrollSensitivity,
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			scrollOnEraseInDisplay: true,
@@ -531,7 +531,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.macOptionClickForcesSelection = config.macOptionClickForcesSelection;
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
-		this.raw.options.customGlyphs = config.customGlyphs;
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
 
@@ -790,12 +789,16 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private async _enableWebglRenderer(): Promise<void> {
-		if (!this.raw.element || this._webglAddon) {
+		// Currently webgl options can only be specified on addon creation
+		if (!this.raw.element || this._webglAddon && this._webglAddonCustomGlyphs === this._terminalConfigurationService.config.customGlyphs) {
 			return;
 		}
+		this._webglAddonCustomGlyphs = this._terminalConfigurationService.config.customGlyphs;
 
 		const Addon = await this._xtermAddonLoader.importAddon('webgl');
-		this._webglAddon = new Addon();
+		this._webglAddon = new Addon({
+			customGlyphs: this._terminalConfigurationService.config.customGlyphs
+		});
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
@@ -885,6 +888,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			// ignore
 		}
 		this._webglAddon = undefined;
+		this._webglAddonCustomGlyphs = undefined;
 		this._refreshImageAddon();
 		// WebGL renderer cell dimensions differ from the DOM renderer, make sure the terminal
 		// gets resized after the webgl addon is disposed

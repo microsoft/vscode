@@ -7,7 +7,6 @@ import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { equalsIgnoreCase } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
@@ -44,7 +43,8 @@ export class WebPageLoader extends Disposable {
 		browserWindowFactory: (options: BrowserWindowConstructorOptions) => BrowserWindow,
 		private readonly _logger: ILogService,
 		private readonly _uri: URI,
-		private readonly _options?: IWebContentExtractorOptions,
+		private readonly _options: IWebContentExtractorOptions | undefined,
+		private readonly _isTrustedDomain: (uri: URI) => boolean,
 	) {
 		super();
 
@@ -201,11 +201,28 @@ export class WebPageLoader extends Disposable {
 		this.trace(`Received 'will-navigate' or 'will-redirect' event, url: ${url}`);
 		if (!this._options?.followRedirects) {
 			const toURI = URI.parse(url);
-			if (!equalsIgnoreCase(toURI.authority, this._uri.authority)) {
-				event.preventDefault();
-				this._onResult({ status: 'redirect', toURI });
+
+			// Allow redirect if authority is the same when ignoring www prefix
+			if (this.normalizeAuthority(toURI.authority) === this.normalizeAuthority(this._uri.authority)) {
+				return;
 			}
+
+			// Allow redirect if target is a trusted domain
+			if (this._isTrustedDomain(toURI)) {
+				return;
+			}
+
+			// Otherwise, prevent redirect and report it
+			event.preventDefault();
+			this._onResult({ status: 'redirect', toURI });
 		}
+	}
+
+	/**
+	 * Normalizes an authority by removing the 'www.' prefix if present.
+	 */
+	private normalizeAuthority(authority: string): string {
+		return authority.toLowerCase().replace(/^www\./, '');
 	}
 
 	/**

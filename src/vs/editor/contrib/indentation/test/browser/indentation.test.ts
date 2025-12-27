@@ -18,7 +18,7 @@ import { NullState } from '../../../../common/languages/nullTokenize.js';
 import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand } from '../../browser/indentation.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { testCommand } from '../../../../test/browser/testCommand.js';
-import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, latexIndentationRules, luaIndentationRules, phpIndentationRules, rubyIndentationRules } from '../../../../test/common/modes/supports/indentationRules.js';
+import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, latexIndentationRules, luaIndentationRules, phpIndentationRules, rubyIndentationRules, vbIndentationRules } from '../../../../test/common/modes/supports/indentationRules.js';
 import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRules } from '../../../../test/common/modes/supports/onEnterRules.js';
 import { TypeOperations } from '../../../../common/cursor/cursorTypeOperations.js';
 import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from '../../../../test/common/modes/supports/bracketRules.js';
@@ -94,6 +94,7 @@ export function registerLanguageConfiguration(languageConfigurationService: ILan
 		case Language.VB:
 			return languageConfigurationService.register(language, {
 				brackets: vbBracketRules,
+				indentationRules: vbIndentationRules,
 			});
 		case Language.Latex:
 			return languageConfigurationService.register(language, {
@@ -1737,14 +1738,14 @@ suite('Auto Indent On Type - Visual Basic', () => {
 		assert.ok(true);
 	});
 
-	test.skip('issue #118932: no indentation in visual basic files', () => {
+	test('issue #118932: no indentation in visual basic files', () => {
 
 		// https://github.com/microsoft/vscode/issues/118932
 
 		const model = createTextModel([
-			'if True then',
+			'If True Then',
 			'    Some code',
-			'    end i',
+			'    End I',
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
@@ -1752,9 +1753,9 @@ suite('Auto Indent On Type - Visual Basic', () => {
 			editor.setSelection(new Selection(3, 10, 3, 10));
 			viewModel.type('f', 'keyboard');
 			assert.strictEqual(model.getValue(), [
-				'if True then',
+				'If True Then',
 				'    Some code',
-				'end if',
+				'End If',
 			].join('\n'));
 		});
 	});
