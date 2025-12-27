@@ -2053,6 +2053,30 @@ export class MoveEditorRightInGroupAction extends ExecuteCommandAction {
 	}
 }
 
+export class MoveEditorToStartAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToStart',
+			title: localize2('moveEditorToStart', 'Move Editor to Start'),
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'first' } satisfies SelectedEditorsMoveCopyArguments);
+	}
+}
+
+export class MoveEditorToEndAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToEnd',
+			title: localize2('moveEditorToEnd', 'Move Editor to End'),
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'last' } satisfies SelectedEditorsMoveCopyArguments);
+	}
+}
+
 export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction {
 
 	constructor() {
