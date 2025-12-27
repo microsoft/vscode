@@ -24,6 +24,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	protected _contentWidth: number;
 	protected _selectionIsEmpty: boolean;
 	protected _renderLineHighlightOnlyWhenFocus: boolean;
+	protected _cursorSurroundingLinesHighlightOnSelection: boolean;
 	protected _focused: boolean;
 	/**
 	 * Unique sorted list of view line numbers which have cursors sitting on them.
@@ -40,6 +41,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
 		this._renderLineHighlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
+		this._cursorSurroundingLinesHighlightOnSelection = options.get(EditorOption.cursorSurroundingLinesHighlightOnSelection);
 		this._wordWrap = layoutInfo.isViewportWrapping;
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
@@ -89,6 +91,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
 		this._renderLineHighlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
+		this._cursorSurroundingLinesHighlightOnSelection = options.get(EditorOption.cursorSurroundingLinesHighlightOnSelection);
 		this._wordWrap = layoutInfo.isViewportWrapping;
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
@@ -191,7 +194,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	protected _shouldRenderInContent(): boolean {
 		return (
 			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
-			&& this._selectionIsEmpty
+			&& (this._selectionIsEmpty || this._cursorSurroundingLinesHighlightOnSelection)
 			&& (!this._renderLineHighlightOnlyWhenFocus || this._focused)
 		);
 	}
