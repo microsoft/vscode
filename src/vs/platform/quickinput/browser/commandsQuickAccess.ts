@@ -27,6 +27,7 @@ import { IQuickAccessProviderRunOptions } from '../common/quickAccess.js';
 import { IKeyMods, IQuickPickSeparator } from '../common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { CommandsRegistry } from '../../commands/common/commands.js';
 import { Categories } from '../../action/common/actionCommonCategories.js';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
@@ -274,7 +275,18 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		if (commandPick.type === 'separator') {
 			return commandPick;
 		}
-
+        if (!commandPick.tooltip) {
+	    const command = CommandsRegistry.getCommand(commandPick.commandId);
+			if (command?.metadata?.description) {
+				commandPick = {
+					...commandPick,
+					tooltip:
+						typeof command.metadata.description === 'string'
+							? command.metadata.description
+							: command.metadata.description.value
+				};
+			}
+        }
 		const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
 		const ariaLabel = keybinding ?
 			localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :

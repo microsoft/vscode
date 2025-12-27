@@ -34,7 +34,6 @@ import { observableValue, observableValueOpts, transaction } from '../../../base
 import { OS } from '../../../base/common/platform.js';
 import { escape, ltrim } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
-import { CommandsRegistry } from '../../commands/common/commands.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -544,30 +543,6 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		} else {
 			data.entry.classList.remove('has-actions');
 		}
-		// --- Command Palette: show command description as native tooltip ---
-		const commandId =
-			(element.item as any)?.command ??
-			(element.item as any)?.commandId ??
-			(element.item as any)?.id;
-
-		if (typeof commandId === 'string') {
-			const command = CommandsRegistry.getCommand(commandId);
-
-			let tooltip: string | undefined;
-
-			if (command?.metadata?.description) {
-				if (typeof command.metadata.description === 'string') {
-					tooltip = command.metadata.description;
-				} else {
-					tooltip = command.metadata.description.value;
-				}
-			}
-
-			if (tooltip) {
-				data.entry.title = tooltip;
-			}
-		}
-
 	}
 
 	override disposeElement(element: ITreeNode<QuickPickItemElement, void>, _index: number, data: IQuickInputItemTemplateData): void {
