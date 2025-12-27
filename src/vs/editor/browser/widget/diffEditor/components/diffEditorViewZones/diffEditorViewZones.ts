@@ -176,7 +176,7 @@ export class DiffEditorViewZones extends Disposable {
 							if (i > originalModel.getLineCount()) {
 								return { orig: origViewZones, mod: modViewZones };
 							}
-							deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, null);
+							deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, null, null);
 						}
 					}
 				}
