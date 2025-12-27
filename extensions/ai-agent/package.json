@@ -1,0 +1,48 @@
+{
+  "name": "code-ship-ai-agent",
+  "displayName": "Code Ship AI Agent",
+  "description": "AI Agent core extension for Code Ship IDE",
+  "version": "0.1.0",
+  "publisher": "code-ship",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "enabledApiProposals": [
+    "codeShipAIAgent"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "codeShip.helloWorld",
+        "title": "Code Ship: Hello World"
+      },
+      {
+        "command": "codeShip.testIntercept",
+        "title": "Code Ship: Test Command Interception"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "node esbuild.config.js",
+    "watch": "node esbuild.config.js --watch",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.96.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "esbuild": "^0.19.0",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.0"
+  }
+}
