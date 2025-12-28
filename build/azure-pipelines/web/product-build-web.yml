@@ -159,14 +159,14 @@ jobs:
             node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
         displayName: Upload sourcemaps (Web Main)
 
-      - script: |
-          set -e
-          AZURE_STORAGE_ACCOUNT="vscodeweb" \
-          AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-          AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-          AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.internal.js.map
-        displayName: Upload sourcemaps (Web Internal)
+      # - script: |
+      #     set -e
+      #     AZURE_STORAGE_ACCOUNT="vscodeweb" \
+      #     AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+      #     AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+      #     AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
+      #       node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.internal.js.map
+      #   displayName: Upload sourcemaps (Web Internal)
 
       - script: |
           set -e
