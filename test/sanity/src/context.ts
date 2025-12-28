@@ -5,12 +5,10 @@
 
 import { spawnSync, SpawnSyncReturns } from 'child_process';
 import { createHash } from 'crypto';
-import { gunzipSync, unzipSync } from 'fflate';
 import fs from 'fs';
 import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
-import tar from 'tar-stream';
 
 /**
  * Response from https://update.code.visualstudio.com/api/versions/commit:<commit>/<target>/<quality>
@@ -35,9 +33,16 @@ export class TestContext {
 	private readonly tempDirs = new Set<string>();
 
 	public constructor(
-		public readonly quality: 'stable' | 'insider',
+		public readonly quality: 'stable' | 'insider' | 'exploration',
 		public readonly commit: string,
 	) { }
+
+	/**
+	 * Returns the current platform in the format <platform>-<arch>.
+	 */
+	public get platform(): string {
+		return `${os.platform()}-${os.arch()}`;
+	}
 
 	/**
 	 * Logs a message with a timestamp.
@@ -224,66 +229,14 @@ export class TestContext {
 	 * @param archivePath The path to the archive file.
 	 * @returns The path to the temporary directory where the archive was unpacked.
 	 */
-	public async unpackArchive(archivePath: string): Promise<string> {
+	public unpackArchive(archivePath: string): string {
 		const dir = this.createTempDir();
+
 		this.log(`Unpacking ${archivePath} to ${dir}`);
-
-		if (path.extname(archivePath).toLowerCase() === '.zip') {
-			this.unpackZip(archivePath, dir);
-		} else {
-			await this.unpackTarGz(archivePath, dir);
-		}
-
+		this.runNoErrors('tar', '-xzf', archivePath, '-C', dir);
 		this.log(`Unpacked ${archivePath} to ${dir}`);
+
 		return dir;
-	}
-
-	/**
-	 * Unpacks a .zip archive to the specified target directory.
-	 * @param archivePath The path to the .zip archive.
-	 * @param dir The target directory to unpack the archive into.
-	 */
-	public unpackZip(archivePath: string, dir: string) {
-		const buffer = fs.readFileSync(archivePath);
-		const files = unzipSync(buffer);
-		for (const [filename, content] of Object.entries(files)) {
-			if (!filename.endsWith('/')) {
-				const filePath = path.join(dir, filename);
-				this.ensureDirExists(filePath);
-				fs.writeFileSync(filePath, content);
-			}
-		}
-	}
-
-	/**
-	 * Unpacks a .tar.gz archive to the specified target directory.
-	 * @param archivePath The path to the .tar.gz archive.
-	 * @param dir The target directory to unpack the archive into.
-	 */
-	public async unpackTarGz(archivePath: string, dir: string): Promise<void> {
-		const buffer = fs.readFileSync(archivePath);
-		const extract = tar.extract();
-
-		return new Promise((resolve, reject) => {
-			extract.on('entry', ({ name, type, mode }, stream, next) => {
-				if (name.includes('..') || type !== 'file') {
-					stream.resume();
-					next();
-				} else {
-					const filePath = path.join(dir, name);
-					this.ensureDirExists(filePath);
-					stream.pipe(fs.createWriteStream(filePath, { mode })
-						.on('finish', next)
-						.on('error', reject));
-				}
-			});
-
-			extract.on('finish', resolve);
-			extract.on('error', reject);
-
-			const tarBuffer = gunzipSync(buffer);
-			extract.end(tarBuffer);
-		});
 	}
 
 	/**
@@ -332,9 +285,18 @@ export class TestContext {
 			this.error(`Environment variable ${varName} is not defined`);
 		}
 
-		const entryPoint = this.quality === 'insider' ?
-			path.join(parentDir, 'Microsoft VS Code Insiders', 'Code - Insiders.exe') :
-			path.join(parentDir, 'Microsoft VS Code', 'Code.exe');
+		let entryPoint: string;
+		switch (this.quality) {
+			case 'stable':
+				entryPoint = path.join(parentDir, 'Microsoft VS Code', 'Code.exe');
+				break;
+			case 'insider':
+				entryPoint = path.join(parentDir, 'Microsoft VS Code Insiders', 'Code - Insiders.exe');
+				break;
+			case 'exploration':
+				entryPoint = path.join(parentDir, 'Microsoft VS Code Exploration', 'Code - Exploration.exe');
+				break;
+		}
 
 		if (!fs.existsSync(entryPoint)) {
 			this.error(`Desktop entry point does not exist: ${entryPoint}`);
@@ -350,13 +312,26 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installMacApp(bundleDir: string): string {
-		const appPath = path.join(bundleDir, 'Visual Studio Code.app');
+		let appName: string;
+		switch (this.quality) {
+			case 'stable':
+				appName = 'Visual Studio Code.app';
+				break;
+			case 'insider':
+				appName = 'Visual Studio Code - Insiders.app';
+				break;
+			case 'exploration':
+				appName = 'Visual Studio Code - Exploration.app';
+				break;
+		}
+
+		const appPath = path.join(bundleDir, appName);
 
 		this.log(`Copying ${appPath} to /Applications`);
 		this.runNoErrors('sudo', 'cp', '-R', appPath, '/Applications/');
 		this.log(`Copied ${appPath} successfully`);
 
-		const entryPoint = '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code';
+		const entryPoint = `/Applications/${appName}/Contents/Resources/app/bin/code`;
 		if (!fs.existsSync(entryPoint)) {
 			this.error(`Desktop entry point does not exist: ${entryPoint}`);
 		}
@@ -416,14 +391,36 @@ export class TestContext {
 	 * @returns The path to the entry point executable.
 	 */
 	public getEntryPoint(type: 'cli' | 'desktop', dir: string): string {
-		const suffix = this.quality === 'insider' ? (type === 'cli' ? '-insiders' : ' - Insiders') : '';
-		const extension = os.platform() === 'win32' ? '.exe' : '';
+		let suffix: string;
+		switch (this.quality) {
+			case 'stable':
+				suffix = type === 'cli' ? '' : '';
+				break;
+			case 'insider':
+				suffix = type === 'cli' ? '-insiders' : ' - Insiders';
+				break;
+			case 'exploration':
+				suffix = type === 'cli' ? '-exploration' : ' - Exploration';
+				break;
+		}
 
+		const extension = os.platform() === 'win32' ? '.exe' : '';
 		const filePath = path.join(dir, `code${suffix}${extension}`);
 		if (!fs.existsSync(filePath)) {
 			this.error(`CLI entry point does not exist: ${filePath}`);
 		}
 
 		return filePath;
+	}
+
+	/**
+	 * Returns the tunnel URL for the VS Code server including vscode-version parameter.
+	 * @param baseUrl The base URL for the VS Code server.
+	 * @returns The tunnel URL with vscode-version parameter.
+	 */
+	public getTunnelUrl(baseUrl: string): string {
+		const url = new URL(baseUrl);
+		url.searchParams.set('vscode-version', this.commit);
+		return url.toString();
 	}
 }

@@ -30,7 +30,7 @@ Use -g or -f command-line options to filter tests to match the host platform.
 To run CLI tests for all platforms on given commit of Insiders build, from the root directory run:
 
 ```bash
-npm run sanity-test -- --commit 19228f26df517fecbfda96c20956f7c521e072be --quality insider -g cli*
+npm run sanity-test -- --commit 19228f26df517fecbfda96c20956f7c521e072be --quality insider -g "cli*"
 ```
 
 ## References

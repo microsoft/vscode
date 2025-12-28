@@ -16,7 +16,7 @@ if (options.help) {
 	console.info('Usage: npm run sanity-test -- [options]');
 	console.info('Options:');
 	console.info('  --commit, -c <commit>           The commit to test (required)');
-	console.info(`  --quality, -q <quality>         The quality to test (required, "insider" or "stable")`);
+	console.info(`  --quality, -q <quality>         The quality to test (required, "stable", "insider" or "exploration")`);
 	console.info('  --no-cleanup                    Do not cleanup downloaded files after each test');
 	console.info('  --grep, -g <pattern>            Only run tests matching the given <pattern>');
 	console.info('  --fgrep, -f <string>            Only run tests containing the given <string>');

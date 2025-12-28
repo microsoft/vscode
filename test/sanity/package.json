@@ -8,10 +8,8 @@
     "start": "node ./out/index.js"
   },
   "dependencies": {
-    "fflate": "^0.8.2",
     "node-fetch": "^3.3.2",
-    "playwright": "^1.57.0",
-    "tar-stream": "^3.1.7"
+    "playwright": "^1.57.0"
   },
   "devDependencies": {
     "@types/node": "22.x",
