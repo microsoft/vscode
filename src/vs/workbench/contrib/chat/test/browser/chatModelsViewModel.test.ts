@@ -46,6 +46,24 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		}
 	}
 
+	private modelDisplayNames = new Map<string, string>();
+
+	updateModelDisplayName(modelIdentifier: string, displayName: string | undefined): void {
+		const metadata = this.models.get(modelIdentifier);
+		if (metadata) {
+			if (displayName === undefined) {
+				this.modelDisplayNames.delete(modelIdentifier);
+			} else {
+				this.modelDisplayNames.set(modelIdentifier, displayName);
+				this.models.set(modelIdentifier, { ...metadata, name: displayName });
+			}
+		}
+	}
+
+	getModelDisplayName(modelIdentifier: string): string | undefined {
+		return this.modelDisplayNames.get(modelIdentifier);
+	}
+
 	getVendors(): IUserFriendlyLanguageModel[] {
 		return this.vendors;
 	}
@@ -863,6 +881,37 @@ suite('ChatModelsViewModel', () => {
 
 		// Verify metadata is updated
 		assert.strictEqual(hiddenModel.modelEntry.metadata.isUserSelectable, true);
+	});
+
+	test('should rename model and update display name', async () => {
+		const model = viewModel.viewModelEntries.find(r => !isVendorEntry(r) && !isGroupEntry(r) && r.modelEntry.identifier === 'copilot-gpt-4') as IModelItemEntry;
+		assert.ok(model);
+		const originalName = model.modelEntry.metadata.name;
+		assert.strictEqual(originalName, 'GPT-4');
+
+		// Rename the model
+		viewModel.renameModel(model, 'Custom GPT-4 Name');
+
+		// Verify the name is updated
+		assert.strictEqual(model.modelEntry.metadata.name, 'Custom GPT-4 Name');
+
+		// Verify we can get the custom display name
+		assert.strictEqual(viewModel.getModelDisplayName(model), 'Custom GPT-4 Name');
+	});
+
+	test('should clear custom name when setting to undefined', async () => {
+		const model = viewModel.viewModelEntries.find(r => !isVendorEntry(r) && !isGroupEntry(r) && r.modelEntry.identifier === 'copilot-gpt-4') as IModelItemEntry;
+		assert.ok(model);
+
+		// Set a custom name first
+		viewModel.renameModel(model, 'Custom Name');
+		assert.strictEqual(viewModel.getModelDisplayName(model), 'Custom Name');
+
+		// Clear the custom name by setting it to undefined
+		viewModel.renameModel(model, undefined);
+
+		// Verify the custom name is cleared
+		assert.strictEqual(viewModel.getModelDisplayName(model), undefined);
 	});
 
 });

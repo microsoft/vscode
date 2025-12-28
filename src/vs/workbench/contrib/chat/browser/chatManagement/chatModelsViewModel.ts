@@ -445,6 +445,20 @@ export class ChatModelsViewModel extends Disposable {
 		}
 	}
 
+	renameModel(model: IModelItemEntry, newName: string | undefined): void {
+		this.languageModelsService.updateModelDisplayName(model.modelEntry.identifier, newName);
+		const metadata = this.languageModelsService.lookupLanguageModel(model.modelEntry.identifier);
+		const index = this.viewModelEntries.indexOf(model);
+		if (metadata && index !== -1) {
+			model.modelEntry.metadata = metadata;
+			this.splice(index, 1, [model]);
+		}
+	}
+
+	getModelDisplayName(model: IModelItemEntry): string | undefined {
+		return this.languageModelsService.getModelDisplayName(model.modelEntry.identifier);
+	}
+
 	private static getId(modelEntry: IModelEntry): string {
 		return `${modelEntry.identifier}.${modelEntry.metadata.version}-visible:${modelEntry.metadata.isUserSelectable}`;
 	}
