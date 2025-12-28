@@ -6,7 +6,7 @@
 import * as cssJs from '../../../base/browser/cssValue.js';
 import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { AriaRole } from '../../../base/browser/ui/aria/aria.js';
 import type { IHoverWidget, IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
@@ -36,6 +36,7 @@ import { escape, ltrim } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { IContextMenuService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../list/browser/listService.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
@@ -43,7 +44,7 @@ import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickFocus, QuickPickItem } from '../common/quickInput.js';
 import { IQuickInputStyles } from './quickInput.js';
-import { quickInputButtonToAction } from './quickInputUtils.js';
+import { quickInputButtonsToActionArrays } from './quickInputUtils.js';
 
 const $ = dom.$;
 
@@ -77,7 +78,7 @@ interface IQuickInputItemTemplateData {
 	keybinding: KeybindingLabel;
 	detail: IconLabel;
 	separator: HTMLDivElement;
-	actionBar: ActionBar;
+	toolBar: ToolBar;
 	element: IQuickPickElement;
 	toDisposeElement: DisposableStore;
 	toDisposeTemplate: DisposableStore;
@@ -326,7 +327,8 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate | undefined,
-		private readonly toggleStyles: IToggleStyles
+		private readonly toggleStyles: IToggleStyles,
+		private readonly contextMenuService: IContextMenuService
 	) { }
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
@@ -373,12 +375,14 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
 
 		// Actions
-		data.actionBar = new ActionBar(data.entry, {
+		data.toolBar = new ToolBar(data.entry, this.contextMenuService, {
 			...(this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined),
-			actionViewItemProvider: createToggleActionViewItemProvider(this.toggleStyles)
+			actionViewItemProvider: createToggleActionViewItemProvider(this.toggleStyles),
+			icon: true,
+			label: false
 		});
-		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
-		data.toDisposeTemplate.add(data.actionBar);
+		data.toolBar.getElement().classList.add('quick-input-list-entry-action-bar');
+		data.toDisposeTemplate.add(data.toolBar);
 
 		return data;
 	}
@@ -390,7 +394,7 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 
 	disposeElement(_element: ITreeNode<IQuickPickElement, void>, _index: number, data: IQuickInputItemTemplateData): void {
 		data.toDisposeElement.clear();
-		data.actionBar.clear();
+		data.toolBar.setActions([]);
 	}
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
@@ -406,9 +410,10 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 	constructor(
 		hoverDelegate: IHoverDelegate | undefined,
 		toggleStyles: IToggleStyles,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@IThemeService private readonly themeService: IThemeService,
 	) {
-		super(hoverDelegate, toggleStyles);
+		super(hoverDelegate, toggleStyles, contextMenuService);
 	}
 
 	get templateId() {
@@ -534,13 +539,15 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		// Actions
 		const buttons = mainItem.buttons;
 		if (buttons && buttons.length) {
-			data.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
-				button,
-				`id-${index}`,
-				() => element.fireButtonTriggered({ button, item: element.item })
-			)), { icon: true, label: false });
+			const { primary, secondary } = quickInputButtonsToActionArrays(
+				buttons,
+				'quick-input-item',
+				(button) => element.fireButtonTriggered({ button, item: element.item })
+			);
+			data.toolBar.setActions(primary, secondary);
 			data.entry.classList.add('has-actions');
 		} else {
+			data.toolBar.setActions([]);
 			data.entry.classList.remove('has-actions');
 		}
 	}
@@ -574,6 +581,14 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 	// This is a frequency map because sticky scroll re-uses the same renderer to render a second
 	// instance of the same separator.
 	private readonly _visibleSeparatorsFrequency = new Map<QuickPickSeparatorElement, number>();
+
+	constructor(
+		hoverDelegate: IHoverDelegate | undefined,
+		toggleStyles: IToggleStyles,
+		@IContextMenuService contextMenuService: IContextMenuService
+	) {
+		super(hoverDelegate, toggleStyles, contextMenuService);
+	}
 
 	get templateId() {
 		return QuickPickSeparatorElementRenderer.ID;
@@ -631,13 +646,15 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		// Actions
 		const buttons = mainItem.buttons;
 		if (buttons && buttons.length) {
-			data.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
-				button,
-				`id-${index}`,
-				() => element.fireSeparatorButtonTriggered({ button, separator: element.separator })
-			)), { icon: true, label: false });
+			const { primary, secondary } = quickInputButtonsToActionArrays(
+				buttons,
+				'quick-input-separator',
+				(button) => element.fireSeparatorButtonTriggered({ button, separator: element.separator })
+			);
+			data.toolBar.setActions(primary, secondary);
 			data.entry.classList.add('has-actions');
 		} else {
+			data.toolBar.setActions([]);
 			data.entry.classList.remove('has-actions');
 		}
 
@@ -730,7 +747,7 @@ export class QuickInputList extends Disposable {
 	) {
 		super();
 		this._container = dom.append(this.parent, $('.quick-input-list'));
-		this._separatorRenderer = new QuickPickSeparatorElementRenderer(hoverDelegate, this.styles.toggle);
+		this._separatorRenderer = instantiationService.createInstance(QuickPickSeparatorElementRenderer, hoverDelegate, this.styles.toggle);
 		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, this.styles.toggle);
 		this._tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickPickElement, void>,
