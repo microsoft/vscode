@@ -19,7 +19,7 @@ Use -g or -f command-line options to filter tests to match the host platform.
 | Option | Alias | Description |
 |--------|-------|-------------|
 | `--commit <commit>` | `-c` | The commit SHA to test (required) |
-| `--quality <quality>` | `-q` | The quality to test: `insider` or `stable` (required) |
+| `--quality <quality>` | `-q` | The quality to test (required, "stable", "insider" or "exploration") |
 | `--no-cleanup` | | Do not cleanup downloaded files after each test |
 | `--grep <pattern>` | `-g` | Only run tests matching the given regex pattern |
 | `--fgrep <string>` | `-f` | Only run tests containing the given string |
