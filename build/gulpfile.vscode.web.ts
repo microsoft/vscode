@@ -82,7 +82,6 @@ const vscodeWebEntryPoints = [
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb,
-	buildfile.entrypoint('vs/workbench/workbench.web.main.internal') // TODO@esm remove line when we stop supporting web-amd-esm-bridge
 ].flat();
 
 /**
@@ -143,20 +142,20 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 
 		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
 
-		const loader = gulp.src('build/loader.min', { base: 'build', dot: true }).pipe(rename('out/vs/loader.js')); // TODO@esm remove line when we stop supporting web-amd-esm-bridge
-
-		const sources = es.merge(src, extensions, loader)
+		const sources = es.merge(src, extensions)
 			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }))
-			// TODO@esm remove me once we stop supporting our web-esm-bridge
 			.pipe(es.through(function (file) {
-				if (file.relative === 'out/vs/workbench/workbench.web.main.internal.css') {
+				// Our embedders expect a copy of `workbench.web.main.js` named `workbench.web.main.internal.js`
+				// so we provide it here and remove the original file from the stream because it is not needed.
+				if (file.relative === 'out/vs/workbench/workbench.web.main.js') {
 					this.emit('data', new VinylFile({
 						contents: file.contents,
-						path: file.path.replace('workbench.web.main.internal.css', 'workbench.web.main.css'),
+						path: file.path.replace('workbench.web.main.js', 'workbench.web.main.internal.js'),
 						base: file.base
 					}));
+				} else {
+					this.emit('data', file);
 				}
-				this.emit('data', file);
 			}));
 
 		const name = product.nameShort;
