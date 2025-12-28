@@ -1864,7 +1864,7 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/{loader.d.ts,monaco.d.ts,nls.ts}',
+					'target': 'src/vs/{monaco.d.ts,nls.ts}',
 					'restrictions': []
 				},
 				{
