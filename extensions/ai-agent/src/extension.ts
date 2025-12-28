@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { AgentController } from './application/agentController';
+import { CommandRegistry } from './application/commandRegistry';
+import { WebviewProvider } from './presentation/webview/webviewProvider';
+import { DependencyManager } from './domain/dependency/dependencyManager';
 
 // Type definition for Internal API (matches extHostAIAgent.ts)
 interface IExtHostAIAgent {
@@ -22,11 +26,16 @@ declare module 'vscode' {
     export const aiAgent: IExtHostAIAgent | undefined;
 }
 
+// Extension state
+let agentController: AgentController | undefined;
+let commandRegistry: CommandRegistry | undefined;
+let webviewProvider: WebviewProvider | undefined;
+
 /**
  * Code Ship AI Agent Extension
  * This extension provides the core AI capabilities for Code Ship IDE
  */
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
     console.log('[Code Ship] AI Agent extension activating...');
 
     // Check for Internal API availability
@@ -34,107 +43,102 @@ export function activate(context: vscode.ExtensionContext) {
 
     if (!aiAgent) {
         console.warn('[Code Ship] Internal API not available. Running in limited mode.');
-        vscode.window.showWarningMessage(
-            'Code Ship AI Agent: Running in limited mode. Some features require the Code Ship custom build.'
-        );
-        // Still register basic commands for standard VS Code
-        registerBasicCommands(context);
-        return;
+    } else {
+        console.log('[Code Ship] Internal API detected. Full functionality enabled.');
     }
 
-    console.log('[Code Ship] Internal API detected. Full functionality enabled.');
+    // Get state file path from workspace
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    const statePath = workspaceFolder
+        ? vscode.Uri.joinPath(workspaceFolder.uri, '.codeship', 'state.json').fsPath
+        : undefined;
 
-    // Register commands
-    registerCommands(context, aiAgent);
+    // Initialize AgentController
+    agentController = new AgentController({
+        statePath
+    });
 
-    // Setup command interception demo
-    setupCommandInterception(context, aiAgent);
+    // Initialize controller
+    try {
+        await agentController.initialize();
+    } catch (error) {
+        console.error('[Code Ship] Failed to initialize AgentController:', error);
+    }
+
+    // Initialize CommandRegistry with Internal API if available
+    commandRegistry = new CommandRegistry(agentController, aiAgent);
+    commandRegistry.registerAllCommands();
+
+    // Initialize WebviewProvider
+    webviewProvider = new WebviewProvider({
+        extensionUri: context.extensionUri,
+        controller: agentController
+    });
+
+    // Register webview view provider (for sidebar)
+    const webviewViewRegistration = vscode.window.registerWebviewViewProvider(
+        WebviewProvider.viewType,
+        webviewProvider,
+        {
+            webviewOptions: {
+                retainContextWhenHidden: true
+            }
+        }
+    );
+
+    // Register command to show chat panel
+    const showChatViewCmd = vscode.commands.registerCommand('codeShip.showChatView', () => {
+        webviewProvider?.showPanel();
+    });
+
+    // Add to subscriptions
+    context.subscriptions.push(
+        webviewViewRegistration,
+        showChatViewCmd,
+        { dispose: () => agentController?.dispose() },
+        { dispose: () => commandRegistry?.dispose() },
+        { dispose: () => webviewProvider?.dispose() }
+    );
+
+    // Check dependencies on activation
+    await checkDependencies();
 
     console.log('[Code Ship] AI Agent extension activated successfully.');
 }
 
 /**
- * Register basic commands (works in standard VS Code)
+ * Check CLI dependencies and show warning if missing
  */
-function registerBasicCommands(context: vscode.ExtensionContext) {
-    const helloWorldCmd = vscode.commands.registerCommand('codeShip.helloWorld', () => {
-        vscode.window.showInformationMessage('Hello from Code Ship AI Agent! (Limited Mode)');
-    });
+async function checkDependencies(): Promise<void> {
+    const manager = new DependencyManager();
+    const missing = await manager.getMissingDependencies();
 
-    context.subscriptions.push(helloWorldCmd);
-}
+    if (missing.length > 0) {
+        const missingNames = missing.map(m => m.cli).join(', ');
+        const message = `Code Ship: Missing CLI dependencies: ${missingNames}`;
 
-/**
- * Register full commands with Internal API access
- */
-function registerCommands(context: vscode.ExtensionContext, aiAgent: IExtHostAIAgent) {
-    // Hello World command
-    const helloWorldCmd = vscode.commands.registerCommand('codeShip.helloWorld', async () => {
-        vscode.window.showInformationMessage(
-            'Hello from Code Ship AI Agent! Internal API is available.'
+        const action = await vscode.window.showWarningMessage(
+            message,
+            'View Details',
+            'Dismiss'
         );
 
-        // Demo: Request overlay access
-        try {
-            const overlay = await aiAgent.requestOverlayAccess();
-            vscode.window.showInformationMessage(`Overlay created with ID: ${overlay.id}`);
-
-            // Clean up after 5 seconds
-            setTimeout(() => {
-                overlay.dispose();
-                console.log('[Code Ship] Demo overlay disposed');
-            }, 5000);
-        } catch (err) {
-            console.error('[Code Ship] Failed to create overlay:', err);
+        if (action === 'View Details') {
+            const report = await manager.generateReport();
+            const outputChannel = vscode.window.createOutputChannel('Code Ship Dependencies');
+            outputChannel.appendLine(report);
+            outputChannel.show();
         }
-    });
-
-    // Test Intercept command
-    const testInterceptCmd = vscode.commands.registerCommand('codeShip.testIntercept', () => {
-        vscode.window.showInformationMessage(
-            'Command interception is active. Try saving a file to see the AI review prompt.'
-        );
-    });
-
-    context.subscriptions.push(helloWorldCmd, testInterceptCmd);
-}
-
-/**
- * Setup command interception for AI review features
- */
-function setupCommandInterception(context: vscode.ExtensionContext, aiAgent: IExtHostAIAgent) {
-    // Intercept file save command
-    const saveInterceptor = aiAgent.interceptCommand(
-        'workbench.action.files.save',
-        async (args: any[]) => {
-            // Show AI review prompt before save
-            const result = await vscode.window.showInformationMessage(
-                '[Code Ship AI] Review before save?',
-                { modal: false },
-                'Save',
-                'Review First'
-            );
-
-            if (result === 'Review First') {
-                vscode.window.showInformationMessage(
-                    '[Code Ship AI] AI review would happen here. Proceeding with save...'
-                );
-            }
-
-            // Always allow save to proceed for now
-            return true;
-        }
-    );
-
-    // Subscribe to native events
-    const nativeEventSubscription = aiAgent.onNativeEvent((event) => {
-        // Log native events for debugging
-        console.log('[Code Ship] Native event:', event.type);
-    });
-
-    context.subscriptions.push(saveInterceptor, nativeEventSubscription);
+    }
 }
 
 export function deactivate() {
+    console.log('[Code Ship] AI Agent extension deactivating...');
+
+    // Cleanup is handled by subscriptions
+    agentController = undefined;
+    commandRegistry = undefined;
+    webviewProvider = undefined;
+
     console.log('[Code Ship] AI Agent extension deactivated.');
 }
