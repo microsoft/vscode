@@ -214,7 +214,11 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		// test open mode
+		// Create a disposable store to track resources created before super()
+		const disposableStore = new DisposableStore();
+
+		// Create the style element and track it for disposal
+		const styleElement = domStylesheetsJs.createStyleSheet(container, undefined, disposableStore);
 
 		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState);
 		const options: IWorkbenchObjectTreeOptions<SettingsTreeGroupElement, void> = {
@@ -225,7 +229,7 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 					return e.id;
 				}
 			},
-			styleController: id => new DefaultStyleController(domStylesheetsJs.createStyleSheet(container), id),
+			styleController: id => new DefaultStyleController(styleElement, id),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			collapseByDefault: true,
 			horizontalScrolling: false,
@@ -244,6 +248,9 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			listService,
 			configurationService,
 		);
+
+		// Register the disposable store to be disposed when the tree is disposed
+		this.disposables.add(disposableStore);
 
 		this.style(getListStyles({
 			listBackground: editorBackground,
