@@ -10,7 +10,7 @@
     "postinstall": "node ./postinstall.mjs"
   },
   "devDependencies": {
-    "@vscode/watcher": "bpasero/watcher#8f8c94db26081e35672433c5b158b6d6349a9240",
+    "@vscode/watcher": "bpasero/watcher#89593fe05f69b1957e57e3a9155370999a7493ba",
     "esbuild": "0.25.0",
     "vscode-grammar-updater": "^1.1.0"
   },
