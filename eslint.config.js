@@ -1441,7 +1441,7 @@ export default tseslint.config(
 					// - electron-main
 					'when': 'hasNode',
 					'allow': [
-						'@parcel/watcher',
+						'@vscode/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
 						'@vscode/ripgrep',
