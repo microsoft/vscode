@@ -12,7 +12,6 @@
     "playwright": "^1.57.0"
   },
   "devDependencies": {
-    "@types/node": "22.x",
-    "@types/tar-stream": "^3.1.4"
+    "@types/node": "22.x"
   }
 }
