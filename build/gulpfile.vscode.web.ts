@@ -19,7 +19,6 @@ import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import * as extensions from './lib/extensions.ts';
-import VinylFile from 'vinyl';
 import jsonEditor from 'gulp-json-editor';
 import buildfile from './buildfile.ts';
 
@@ -143,20 +142,7 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
 
 		const sources = es.merge(src, extensions)
-			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }))
-			.pipe(es.through(function (file) {
-				// Our embedders expect a copy of `workbench.web.main.js` named `workbench.web.main.internal.js`
-				// so we provide it here and remove the original file from the stream because it is not needed.
-				if (file.relative === 'out/vs/workbench/workbench.web.main.js') {
-					this.emit('data', new VinylFile({
-						contents: file.contents,
-						path: file.path.replace('workbench.web.main.js', 'workbench.web.main.internal.js'),
-						base: file.base
-					}));
-				} else {
-					this.emit('data', file);
-				}
-			}));
+			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
 
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })

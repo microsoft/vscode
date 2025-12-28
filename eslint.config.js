@@ -1759,10 +1759,6 @@ export default tseslint.config(
 						'vs/code/~',
 						{
 							'when': 'hasBrowser',
-							'pattern': 'vs/workbench/workbench.web.main.js'
-						},
-						{
-							'when': 'hasBrowser',
 							'pattern': 'vs/workbench/workbench.web.main.internal.js'
 						},
 						{
@@ -1828,7 +1824,7 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/workbench/workbench.web.main.ts',
+					'target': 'src/vs/workbench/workbench.web.main.internal.ts',
 					'layer': 'browser',
 					'restrictions': [
 						'vs/base/~',
@@ -1842,13 +1838,6 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/workbench/workbench.common.main.js'
-					]
-				},
-				{
-					'target': 'src/vs/workbench/workbench.web.main.internal.ts',
-					'layer': 'browser',
-					'restrictions': [
-						'vs/workbench/workbench.web.main.js'
 					]
 				},
 				{

@@ -62,7 +62,6 @@
 		"**/yarn.lock": true,
 		"**/package-lock.json": true,
 		"**/Cargo.lock": true,
-		"src/vs/workbench/workbench.web.main.internal.ts": true,
 		"out/**": true,
 		"out-build/**": true,
 		"out-vscode/**": true,
@@ -108,7 +107,6 @@
 		"@xterm/headless",
 		"node-pty",
 		"vscode-notebook-renderer",
-		"src/vs/workbench/workbench.web.main.ts",
 		"src/vs/workbench/workbench.web.main.internal.ts"
 	],
 
