@@ -153,7 +153,7 @@ export class Toggle extends Widget {
 
 		this.domNode = document.createElement('div');
 		this._register(getBaseLayerHoverDelegate().setupDelayedHover(this.domNode, () => ({
-			content: this._title,
+			content: { value: this._title, supportThemeIcons: true },
 			style: HoverStyle.Pointer,
 		}), this._opts.hoverLifecycleOptions));
 		this.domNode.classList.add(...classes);
