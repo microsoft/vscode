@@ -169,8 +169,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	// Parcel internally uses 50ms as delay, so we use 75ms,
 	// to schedule sufficiently after Parcel.
 	//
-	// Note: since Parcel 2.0.7, the very first event is
-	// emitted without delay if no events occured over a
+		// Note: since Parcel 2.0.7, the very first event is
+		// emitted without delay if no events occurred over a
 	// duration of 500ms. But we always want to aggregate
 	// events to apply our coleasing logic.
 	//
