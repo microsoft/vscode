@@ -624,8 +624,9 @@ export class Response extends AbstractResponse implements IDisposable {
 
 			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
 			// the MD be chopped up by text edit groups (and likely other non-renderable parts)
+			// Also skip thinking and progressMessage parts which can be interleaved between markdown fragments
 			const lastResponsePart = this._responseParts
-				.filter(p => p.kind !== 'textEditGroup')
+				.filter(p => p.kind !== 'textEditGroup' && p.kind !== 'thinking' && p.kind !== 'progressMessage')
 				.at(-1);
 
 			if (!lastResponsePart || lastResponsePart.kind !== 'markdownContent' || !canMergeMarkdownStrings(lastResponsePart.content, progress.content)) {
